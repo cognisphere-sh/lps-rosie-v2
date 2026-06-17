@@ -1,0 +1,11 @@
+{
+  "name": "rosie",
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-5.5",
+    "thinkingLevel": "high"
+  },
+  "threadIdStrategy": {
+    "type": "single"
+  }
+}

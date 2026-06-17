@@ -1,0 +1,13 @@
+{
+  "name": "cognisphere-harness-lps-harness",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@cognisphere-sh/cognisphere-harness": "0.2.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
+}
