@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@cognisphere-sh/cognisphere-harness':
-        specifier: 0.2.1
-        version: 0.2.1(ws@8.21.0)(zod@4.4.3)
+        specifier: 0.3.2
+        version: 0.3.2(ws@8.21.0)(zod@4.4.3)
 
 packages:
 
@@ -128,8 +128,8 @@ packages:
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
     engines: {node: '>=6.9.0'}
 
-  '@cognisphere-sh/cognisphere-harness@0.2.1':
-    resolution: {integrity: sha512-KAGvElqLB7CW65ot4SVVDvndpVQSmeiMmVNRNE6a8fk+f3e+91ErNovq/4mPTKeqvf/PAlCos/vSZXqWIkrKCA==, tarball: https://npm.pkg.github.com/download/@cognisphere-sh/cognisphere-harness/0.2.1/5b9e2396f67fcb5c66bd7293e3505863c22ad048}
+  '@cognisphere-sh/cognisphere-harness@0.3.2':
+    resolution: {integrity: sha512-pbyl64uFKEomJAsx9rmo9FbUyLXr0i2UZxqTky2HO+t9y7U/SvZ/kYjav1/UEtG5TveCuKyvuVJlGdZvWzEt/A==, tarball: https://npm.pkg.github.com/download/@cognisphere-sh/cognisphere-harness/0.3.2/85c27b9a10ee35a263a3394ea2cdce738473331f}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -1057,7 +1057,7 @@ snapshots:
       '@aws-sdk/types': 3.973.13
       '@smithy/core': 3.25.0
       '@smithy/fetch-http-handler': 5.5.0
-      '@smithy/node-http-handler': 4.7.3
+      '@smithy/node-http-handler': 4.8.0
       '@smithy/types': 4.15.0
       tslib: 2.8.1
 
@@ -1237,7 +1237,7 @@ snapshots:
 
   '@babel/runtime@7.29.7': {}
 
-  '@cognisphere-sh/cognisphere-harness@0.2.1(ws@8.21.0)(zod@4.4.3)':
+  '@cognisphere-sh/cognisphere-harness@0.3.2(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@earendil-works/pi-ai': 0.78.1(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-coding-agent': 0.78.1(ws@8.21.0)(zod@4.4.3)
