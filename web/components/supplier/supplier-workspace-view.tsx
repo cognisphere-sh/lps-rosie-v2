@@ -1004,7 +1004,7 @@ function renderRow<T extends { id: string }>(
         <td
           key={col.key}
           className={cn(
-            "relative p-2 text-sm",
+            "relative overflow-hidden p-2 text-sm",
             col.align === "right" && "text-right",
             i === 0 && strip && cn("border-l-4", strip),
           )}
@@ -1100,12 +1100,14 @@ function NotesCell({
     );
   }
 
-  const display = (
+  // ponytail: native title for the hover tooltip — full text, no JS, always fires
+  return (
     <button
       onClick={() => {
         setDraft(value);
         setEditing(true);
       }}
+      title={value === "" ? undefined : value}
       className="block min-h-[28px] w-full max-w-[200px] cursor-text truncate rounded px-2 py-1 text-left text-xs leading-snug hover:bg-muted"
     >
       {value === "" ? (
@@ -1114,18 +1116,6 @@ function NotesCell({
         value
       )}
     </button>
-  );
-
-  if (value === "") return display;
-
-  // Truncated display — full text surfaces in a tooltip on hover.
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{display}</TooltipTrigger>
-      <TooltipContent className="max-w-xs whitespace-pre-wrap">
-        {value}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -1276,7 +1266,7 @@ function ItemStatusSelect({
       onChange={(e) => onChange(e.target.value as WsItemStatus)}
       aria-label={`Item status: ${ITEM_STATUS_META[status].label}`}
       className={cn(
-        "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "max-w-full min-w-0 cursor-pointer truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring",
         ITEM_STATUS_COLOR[status].badge,
       )}
     >
@@ -1312,7 +1302,7 @@ function ProjectStatusSelect({
       onChange={(e) => onChange(e.target.value as WsProjectStatus)}
       aria-label={`Project status: ${PROJECT_STATUS_META[status].label}`}
       className={cn(
-        "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "max-w-full min-w-0 cursor-pointer truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring",
         PROJECT_STATUS_SELECT_CLASS[status],
       )}
     >
@@ -2232,7 +2222,7 @@ function InventoryPanel({
     {
       key: "size",
       label: "Size",
-      width: "w-[64px]",
+      width: "w-[120px]",
       getValue: (i) => i.size,
       render: (i) => (
         <EditableCell
@@ -2600,6 +2590,8 @@ function OrderDetail({
 
 // ─── Chat — one persistent session, styled like the production app ─────────
 
+const LAST_SEEN_MESSAGE_KEY = "rosie:lastSeenMessageId";
+
 /** Chat state lives at the view root so the toggle badge sees new messages. */
 function useMockChat() {
   // Live: messages come from Rosie's session feed; send posts to the admin
@@ -2616,7 +2608,15 @@ function useMockChat() {
       })),
     [live],
   );
-  const [seenCount, setSeenCount] = useState(0);
+  // Last-read marker persists across reloads so the badge survives a refresh.
+  const [lastSeenId, setLastSeenId] = useState<string | null>(null);
+  useEffect(() => {
+    setLastSeenId(localStorage.getItem(LAST_SEEN_MESSAGE_KEY));
+  }, []);
+
+  // Unread = messages after the stored id (whole list if the id is gone/unset).
+  const seenIdx = messages.findIndex((m) => m.id === lastSeenId);
+  const seenCount = seenIdx === -1 ? 0 : seenIdx + 1;
 
   const send = useCallback(
     (body: string) => {
@@ -2626,8 +2626,10 @@ function useMockChat() {
   );
 
   const markSeen = useCallback(() => {
-    setSeenCount(messages.length);
-  }, [messages.length]);
+    const lastId = messages[messages.length - 1]?.id ?? null;
+    setLastSeenId(lastId);
+    if (lastId) localStorage.setItem(LAST_SEEN_MESSAGE_KEY, lastId);
+  }, [messages]);
 
   return { messages, send, seenCount, markSeen };
 }
