@@ -60,7 +60,7 @@ export function EditableCell({
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-1 absolute left-0 right-0 top-1/2 -translate-y-1/2 h-9 min-w-[160px] bg-background p-1 z-20 rounded outline outline-2 outline-primary outline-offset-[-2px]">
+      <div className="flex flex-nowrap items-center gap-1 absolute left-0 top-1/2 -translate-y-1/2 min-h-9 w-max min-w-full max-w-[min(20rem,calc(100vw-2rem))] bg-background p-1 z-20 rounded outline outline-2 outline-primary outline-offset-[-2px]">
         <Input
           autoFocus
           className="h-full w-full min-w-0 flex-1 border-none focus-visible:ring-0 px-2 rounded-none bg-transparent text-sm"
@@ -72,7 +72,7 @@ export function EditableCell({
           }}
           disabled={isLoading}
         />
-        <div className="flex gap-0.5 pr-1">
+        <div className="flex flex-nowrap gap-0.5 pr-1">
              <Button
                 variant="ghost"
                 size="icon"

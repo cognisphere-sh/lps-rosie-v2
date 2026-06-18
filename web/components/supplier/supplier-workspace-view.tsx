@@ -22,17 +22,16 @@ import {
   ImageIcon,
   Leaf,
   LogOut,
-  Mail,
   MessageCircle,
   Moon,
-  MessageSquareText,
   Package,
   Paperclip,
+  Plus,
   Search,
   Send,
   Settings,
-  Share2,
   Sun,
+  Trash2,
   User,
   Users,
   X,
@@ -68,6 +67,7 @@ import {
   type WsProjectStatus,
 } from "./supplier-workspace-data";
 import { formatCurrency, formatDate, formatRelative } from "./ui";
+import { ChatMarkdown } from "./chat-markdown";
 import type { Dispatch, SetStateAction } from "react";
 import { useChat, useLatestEvent } from "@/lib/data";
 import { rawUrl, uploadFile } from "@/lib/harness";
@@ -77,6 +77,10 @@ import {
   persistWsCustomer,
   persistWsInventoryItem,
   persistWsOrder,
+  addWsInventoryRow,
+  deleteWsInventoryItems,
+  addWsOrderItem,
+  deleteWsOrderItems,
 } from "@/lib/ws-adapter";
 import { useTheme } from "@/components/theme-provider";
 import { useRouter } from "next/navigation";
@@ -242,6 +246,42 @@ export function SupplierWorkspaceView() {
     [],
   );
 
+  // ── Add / delete rows ── write the backing file, then reload so the
+  // positional ids (inventory `section:idx`) resync to disk.
+  const reload = ws.reload;
+  const runAndReload = useCallback(
+    async (fn: () => Promise<void>) => {
+      try {
+        await fn();
+        await reload();
+      } catch (e) {
+        toast.error(`Failed: ${(e as Error)?.message ?? e}`);
+      }
+    },
+    [reload],
+  );
+
+  const addInventoryRow = useCallback(
+    () =>
+      runAndReload(() => addWsInventoryRow(inventory[0]?.section ?? "general")),
+    [runAndReload, inventory],
+  );
+  const deleteInventoryItems = useCallback(
+    (items: WsInventoryItem[]) =>
+      runAndReload(() => deleteWsInventoryItems(items)),
+    [runAndReload],
+  );
+  const addOrderItem = useCallback(
+    (customerId: string, orderId: string) =>
+      runAndReload(() => addWsOrderItem(customerId, orderId)),
+    [runAndReload],
+  );
+  const deleteOrderItems = useCallback(
+    (rows: { order: WsOrder; itemId: string }[]) =>
+      runAndReload(() => deleteWsOrderItems(rows)),
+    [runAndReload],
+  );
+
   // ── Lookup of the currently-open detail records ──
 
   const detailCustomer =
@@ -327,6 +367,8 @@ export function SupplierWorkspaceView() {
                   customersById={customersById}
                   onUpdateItem={updateOrderItem}
                   onUpdateOrder={updateOrder}
+                  onAddItem={addOrderItem}
+                  onDeleteItems={deleteOrderItems}
                   onOpenCustomer={(id) => setView({ kind: "customer", id })}
                   onOpenOrder={(id) => setView({ kind: "order", id })}
                 />
@@ -335,6 +377,8 @@ export function SupplierWorkspaceView() {
                 <InventoryPanel
                   inventory={inventory}
                   onUpdate={updateInventory}
+                  onAddRow={addInventoryRow}
+                  onDelete={deleteInventoryItems}
                 />
               )}
               {view.kind === "customer" &&
@@ -350,6 +394,8 @@ export function SupplierWorkspaceView() {
                     }
                     onUpdateItem={updateOrderItem}
                     onUpdateOrder={updateOrder}
+                    onAddItem={addOrderItem}
+                    onDeleteItems={deleteOrderItems}
                     onOpenCustomer={(id) => setView({ kind: "customer", id })}
                     onOpenOrder={(id) => setView({ kind: "order", id })}
                   />
@@ -628,12 +674,20 @@ function WorkspaceTable<T extends { id: string }>({
   bandKey,
   extraSearch,
   groupBy,
+  onAddRow,
+  addLabel,
+  onDelete,
 }: {
   columns: WsColumn<T>[];
   rows: T[];
   searchPlaceholder: string;
   emptyText: string;
   rowClassName?: (row: T) => string;
+  /** Top-of-table button that appends a blank, inline-editable row. */
+  onAddRow?: () => void;
+  addLabel?: string;
+  /** Enables the leading actions column (checkbox + delete) and bulk delete. */
+  onDelete?: (rows: T[]) => void;
   /** Colored left-edge strip per row (e.g. status). Applied to the first cell. */
   rowStrip?: (row: T) => string;
   /** Panel-specific quick filters rendered in the control strip. */
@@ -660,6 +714,9 @@ function WorkspaceTable<T extends { id: string }>({
       collapsed: boolean,
       onToggle: () => void,
     ) => React.ReactNode;
+    /** Thin "add row" button at the end of each group (gets the group's first row). */
+    onAddRow?: (row: T) => void;
+    addLabel?: string;
   };
 }) {
   const [globalSearch, setGlobalSearch] = useState("");
@@ -668,6 +725,7 @@ function WorkspaceTable<T extends { id: string }>({
     direction: "asc" | "desc";
   } | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const visibleRows = useMemo(() => {
     let out = rows;
@@ -779,6 +837,66 @@ function WorkspaceTable<T extends { id: string }>({
     return bands;
   }, [visibleRows, bandKey]);
 
+  const selectable = onDelete != null;
+  const fullColSpan = columns.length + (selectable ? 1 : 0);
+  const toggleRow = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selectedRows = visibleRows.filter((r) => selected.has(r.id));
+  const deleteRows = (rows: T[]) => {
+    if (rows.length === 0) return;
+    onDelete?.(rows);
+    setSelected(new Set());
+  };
+
+  // Select-all checkbox over an arbitrary row set (the whole table, or one
+  // group). Renders the tri-state (checked / indeterminate / unchecked).
+  const selectAllCheckbox = (rows: T[], label: string) => {
+    const all = rows.length > 0 && rows.every((r) => selected.has(r.id));
+    const some = rows.some((r) => selected.has(r.id));
+    return (
+      <input
+        type="checkbox"
+        aria-label={label}
+        className="h-4 w-4 cursor-pointer accent-primary"
+        checked={all}
+        ref={(el) => {
+          if (el) el.indeterminate = some && !all;
+        }}
+        onChange={() =>
+          setSelected((prev) => {
+            const next = new Set(prev);
+            for (const r of rows) {
+              if (all) next.delete(r.id);
+              else next.add(r.id);
+            }
+            return next;
+          })
+        }
+      />
+    );
+  };
+
+  // Thin full-width "add row" row, used at the top of flat tables and of each
+  // group in grouped tables.
+  const addRowTr = (onClick: () => void, label?: string) => (
+    <tr className="border-b border-border bg-card/40">
+      <td colSpan={fullColSpan} className="p-0">
+        <button
+          onClick={onClick}
+          className="flex w-full items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {label ?? "Add row"}
+        </button>
+      </td>
+    </tr>
+  );
+
   const cycleSort = (key: string) => {
     setSort((prev) => {
       if (!prev || prev.key !== key) return { key, direction: "asc" };
@@ -812,6 +930,17 @@ function WorkspaceTable<T extends { id: string }>({
             </button>
           )}
         </div>
+        {selectable && selectedRows.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+            onClick={() => deleteRows(selectedRows)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete ({selectedRows.length})
+          </Button>
+        )}
         {extraControls}
         {groupBy && groups != null && groups.length > 0 && (
           <Button
@@ -856,6 +985,7 @@ function WorkspaceTable<T extends { id: string }>({
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full table-fixed caption-bottom text-left text-sm">
           <colgroup>
+            {selectable && <col className="w-[54px]" />}
             {columns.map((col) => (
               <col key={col.key} className={col.width} />
             ))}
@@ -865,6 +995,11 @@ function WorkspaceTable<T extends { id: string }>({
           {!groupBy && (
           <thead className="sticky top-0 z-10 bg-muted shadow-sm">
             <tr>
+              {selectable && (
+                <th className="border-b pl-2 pr-0 pt-2 align-top">
+                  {selectAllCheckbox(visibleRows, "Select all rows")}
+                </th>
+              )}
               {columns.map((col) => {
                 const isSorted = sort?.key === col.key;
                 return (
@@ -912,10 +1047,11 @@ function WorkspaceTable<T extends { id: string }>({
           </thead>
           )}
           <tbody className="divide-y">
+            {onAddRow && addRowTr(onAddRow, addLabel)}
             {visibleRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={fullColSpan}
                   className="p-6 text-center text-sm text-muted-foreground"
                 >
                   {emptyText}
@@ -928,7 +1064,7 @@ function WorkspaceTable<T extends { id: string }>({
                 return (
                   <Fragment key={key}>
                     <tr className="border-t border-border">
-                      <td colSpan={columns.length} className="p-0">
+                      <td colSpan={fullColSpan} className="p-0">
                         {groupBy!.renderHeader(groupRows[0], isCollapsed, () =>
                           toggleGroup(key),
                         )}
@@ -937,6 +1073,14 @@ function WorkspaceTable<T extends { id: string }>({
                     {!isCollapsed && (
                       <>
                         <tr className="bg-muted/60">
+                          {selectable && (
+                            <td className="border-y border-border pl-2 pr-0 py-1.5">
+                              {selectAllCheckbox(
+                                groupRows,
+                                "Select all items in this order",
+                              )}
+                            </td>
+                          )}
                           {columns.map((col) => (
                             <td
                               key={col.key}
@@ -951,6 +1095,11 @@ function WorkspaceTable<T extends { id: string }>({
                             </td>
                           ))}
                         </tr>
+                        {groupBy!.onAddRow &&
+                          addRowTr(
+                            () => groupBy!.onAddRow!(groupRows[0]),
+                            groupBy!.addLabel,
+                          )}
                         {groupRows.map((row) =>
                           renderRow(
                             row,
@@ -958,6 +1107,13 @@ function WorkspaceTable<T extends { id: string }>({
                             columns,
                             rowClassName,
                             rowStrip,
+                            selectable
+                              ? {
+                                  selected: selected.has(row.id),
+                                  onToggle: () => toggleRow(row.id),
+                                  onDelete: () => deleteRows([row]),
+                                }
+                              : undefined,
                           ),
                         )}
                       </>
@@ -973,6 +1129,13 @@ function WorkspaceTable<T extends { id: string }>({
                   columns,
                   rowClassName,
                   rowStrip,
+                  selectable
+                    ? {
+                        selected: selected.has(row.id),
+                        onToggle: () => toggleRow(row.id),
+                        onDelete: () => deleteRows([row]),
+                      }
+                    : undefined,
                 ),
               )
             )}
@@ -989,6 +1152,7 @@ function renderRow<T extends { id: string }>(
   columns: WsColumn<T>[],
   rowClassName?: (row: T) => string,
   rowStrip?: (row: T) => string,
+  actions?: { selected: boolean; onToggle: () => void; onDelete: () => void },
 ) {
   const strip = rowStrip?.(row);
   return (
@@ -997,16 +1161,41 @@ function renderRow<T extends { id: string }>(
       className={cn(
         "align-middle transition-colors hover:bg-muted/40",
         banded && "bg-muted/50 dark:bg-card",
+        actions?.selected && "bg-primary/10 hover:bg-primary/10",
         rowClassName?.(row),
       )}
     >
+      {actions && (
+        <td className={cn("pl-2 pr-0 py-2", strip && cn("border-l-4", strip))}>
+          <div className="flex items-center gap-0.5">
+            <input
+              type="checkbox"
+              aria-label="Select row"
+              className="h-4 w-4 cursor-pointer accent-primary"
+              checked={actions.selected}
+              onChange={actions.onToggle}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+              onClick={actions.onDelete}
+              aria-label="Delete row"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </td>
+      )}
       {columns.map((col, i) => (
         <td
           key={col.key}
           className={cn(
-            "relative overflow-hidden p-2 text-sm",
+            // ponytail: visible so inline editors (notes textarea, overlay) aren't clipped
+            // by row height; inner cells bring their own `truncate` for horizontal clip.
+            "relative overflow-visible p-2 text-sm",
             col.align === "right" && "text-right",
-            i === 0 && strip && cn("border-l-4", strip),
+            i === 0 && strip && !actions && cn("border-l-4", strip),
           )}
         >
           {col.render(row)}
@@ -1061,7 +1250,7 @@ function NotesCell({
 
   if (editing) {
     return (
-      <div className="flex w-full min-w-[170px] max-w-[200px] flex-col gap-1">
+      <div className="flex w-full flex-col gap-1">
         <Textarea
           autoFocus
           value={draft}
@@ -1108,7 +1297,7 @@ function NotesCell({
         setEditing(true);
       }}
       title={value === "" ? undefined : value}
-      className="block min-h-[28px] w-full max-w-[200px] cursor-text truncate rounded px-2 py-1 text-left text-xs leading-snug hover:bg-muted"
+      className="block min-h-[28px] w-full cursor-text whitespace-pre-wrap break-words rounded px-2 py-1 text-left text-xs leading-snug hover:bg-muted"
     >
       {value === "" ? (
         <span className="text-xs italic text-muted-foreground">empty</span>
@@ -1702,102 +1891,6 @@ function orderItemColumns({
   return itemCols.map((c) => ({ ...c, width: gridWidth[c.key] ?? c.width }));
 }
 
-/** Plain-text quote lines built from the order's items (quote notes included). */
-function buildQuoteLines(order: WsOrder): string {
-  const lines = order.items
-    .filter((i) => i.status !== "unavailable")
-    .map((i) => {
-      const unit = i.unitPrice != null ? formatCurrency(i.unitPrice) : "TBD";
-      const lineTotal =
-        i.unitPrice != null ? formatCurrency(i.unitPrice * i.qty) : "TBD";
-      const note = i.quoteNotes ? ` — ${i.quoteNotes}` : "";
-      return `• ${i.qty}× ${i.size} ${i.name} @ ${unit} = ${lineTotal}${note}`;
-    });
-  const total = order.items.reduce(
-    (sum, i) => sum + (i.unitPrice ?? 0) * i.qty,
-    0,
-  );
-  return [...lines, "", `Total: ${formatCurrency(total)}`].join("\n");
-}
-
-/**
- * Per-order actions — same compact outline-icon-button strip as the
- * production state panel. All mock: templates are built from the order's
- * state.json and copied to the clipboard.
- */
-function OrderActions({
-  order,
-  customerName,
-}: {
-  order: WsOrder;
-  customerName: string;
-}) {
-  const copy = async (text: string, what: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${what} copied to clipboard`);
-    } catch {
-      toast.error("Couldn't access the clipboard");
-    }
-  };
-
-  const actions = [
-    {
-      title: "Share Form",
-      icon: Share2,
-      onClick: () =>
-        copy(
-          `https://rosie-supplier.example/orders/${order.id}/form`,
-          "Order form link",
-        ),
-    },
-    {
-      title: "Generate Email Quote",
-      icon: Mail,
-      onClick: () =>
-        copy(
-          `Hi ${customerName},\n\nHere's your quote for ${order.projectName}:\n\n${buildQuoteLines(order)}\n\nReply here to confirm and we'll schedule it.\n\n— ${SUPPLIER.name}`,
-          "Email quote",
-        ),
-    },
-    {
-      title: "Generate PDF Quote",
-      icon: FileText,
-      onClick: () =>
-        toast.success(
-          `PDF quote generated — saved to ${orderStatePath(order).replace("state.json", "quote.pdf")}`,
-        ),
-    },
-    {
-      title: "Generate Text Quote",
-      icon: MessageSquareText,
-      onClick: () =>
-        copy(
-          `Quote — ${order.projectName}\n${buildQuoteLines(order)}`,
-          "Text quote",
-        ),
-    },
-  ];
-
-  return (
-    <div className="flex items-center gap-1">
-      {actions.map((a) => (
-        <Button
-          key={a.title}
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          title={a.title}
-          aria-label={a.title}
-          onClick={a.onClick}
-        >
-          <a.icon className="h-4 w-4" />
-        </Button>
-      ))}
-    </div>
-  );
-}
-
 /** Card rendered on the group boundary — all project-level info in one place. */
 function ProjectGroupCard({
   order,
@@ -1880,27 +1973,23 @@ function ProjectGroupCard({
         </p>
       </div>
 
-      {/* Second row: 3×2 status-count block on the left, actions on the
-          right. Zero counts render dimmed. */}
-      <div className="flex w-full flex-wrap items-center justify-between gap-2">
-        <div className="grid grid-cols-3 gap-1">
-          {statusCounts.map(({ status, count }) => (
-            <span
-              key={status}
-              title={`${count} ${ITEM_STATUS_META[status].label}`}
-              className={cn(
-                "inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none",
-                count > 0
-                  ? ITEM_STATUS_COLOR[status].badge
-                  : "border-border bg-muted/40 text-muted-foreground opacity-60",
-              )}
-            >
-              <span className="tabular-nums">{count}</span>
-              <span className="truncate">{ITEM_STATUS_META[status].label}</span>
-            </span>
-          ))}
-        </div>
-        <OrderActions order={order} customerName={customerName} />
+      {/* Second row: 3×2 status-count block. Zero counts render dimmed. */}
+      <div className="grid w-full grid-cols-3 gap-1">
+        {statusCounts.map(({ status, count }) => (
+          <span
+            key={status}
+            title={`${count} ${ITEM_STATUS_META[status].label}`}
+            className={cn(
+              "inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none",
+              count > 0
+                ? ITEM_STATUS_COLOR[status].badge
+                : "border-border bg-muted/40 text-muted-foreground opacity-60",
+            )}
+          >
+            <span className="tabular-nums">{count}</span>
+            <span className="truncate">{ITEM_STATUS_META[status].label}</span>
+          </span>
+        ))}
       </div>
       {order.notes && (
         <Tooltip>
@@ -1924,6 +2013,8 @@ function OrdersPanel({
   customersById,
   onUpdateItem,
   onUpdateOrder,
+  onAddItem,
+  onDeleteItems,
   onOpenCustomer,
   onOpenOrder,
 }: {
@@ -1935,6 +2026,8 @@ function OrdersPanel({
     patch: Partial<WsOrderItem>,
   ) => void;
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
+  onAddItem: (customerId: string, orderId: string) => void;
+  onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
   onOpenCustomer: (id: string) => void;
   onOpenOrder: (id: string) => void;
 }) {
@@ -1970,6 +2063,8 @@ function OrdersPanel({
         customerNameOf={customerNameOf}
         onUpdateItem={onUpdateItem}
         onUpdateOrder={onUpdateOrder}
+        onAddItem={onAddItem}
+        onDeleteItems={onDeleteItems}
         onOpenCustomer={onOpenCustomer}
         onOpenOrder={onOpenOrder}
       />
@@ -1986,6 +2081,8 @@ function OrdersTable({
   customerNameOf,
   onUpdateItem,
   onUpdateOrder,
+  onAddItem,
+  onDeleteItems,
   onOpenCustomer,
   onOpenOrder,
 }: {
@@ -1997,6 +2094,8 @@ function OrdersTable({
     patch: Partial<WsOrderItem>,
   ) => void;
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
+  onAddItem: (customerId: string, orderId: string) => void;
+  onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
   onOpenCustomer: (id: string) => void;
   onOpenOrder: (id: string) => void;
 }) {
@@ -2062,6 +2161,9 @@ function OrdersTable({
         searchPlaceholder="Search plant, customer, project, notes…"
         emptyText="No order items match your filters."
         rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
+        onDelete={(rows) =>
+          onDeleteItems(rows.map((r) => ({ order: r.order, itemId: r.item.id })))
+        }
         extraSearch={(r) =>
           `${r.order.projectName} ${r.customerName} ${PROJECT_STATUS_META[r.order.status].label}`
         }
@@ -2078,6 +2180,8 @@ function OrdersTable({
               onUpdateOrder={onUpdateOrder}
             />
           ),
+          onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
+          addLabel: "Add item",
         }}
         extraControls={
           <div className="flex flex-wrap items-center gap-1.5">
@@ -2161,9 +2265,13 @@ function OrdersTable({
 function InventoryPanel({
   inventory,
   onUpdate,
+  onAddRow,
+  onDelete,
 }: {
   inventory: WsInventoryItem[];
   onUpdate: (id: string, patch: Partial<WsInventoryItem>) => void;
+  onAddRow: () => void;
+  onDelete: (items: WsInventoryItem[]) => void;
 }) {
   const sections = useMemo(
     () => [...new Set(inventory.map((i) => i.section))],
@@ -2283,6 +2391,9 @@ function InventoryPanel({
         rows={inventory}
         searchPlaceholder="Search name, common name, notes…"
         emptyText="No rows match your filters."
+        onAddRow={onAddRow}
+        addLabel="Add row"
+        onDelete={onDelete}
       />
     </>
   );
@@ -2297,6 +2408,8 @@ function CustomerDetail({
   onUpdate,
   onUpdateItem,
   onUpdateOrder,
+  onAddItem,
+  onDeleteItems,
   onOpenCustomer,
   onOpenOrder,
 }: {
@@ -2310,6 +2423,8 @@ function CustomerDetail({
     patch: Partial<WsOrderItem>,
   ) => void;
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
+  onAddItem: (customerId: string, orderId: string) => void;
+  onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
   onOpenCustomer: (id: string) => void;
   onOpenOrder: (id: string) => void;
 }) {
@@ -2433,6 +2548,8 @@ function CustomerDetail({
           customerNameOf={customerNameOf}
           onUpdateItem={onUpdateItem}
           onUpdateOrder={onUpdateOrder}
+          onAddItem={onAddItem}
+          onDeleteItems={onDeleteItems}
           onOpenCustomer={onOpenCustomer}
           onOpenOrder={onOpenOrder}
         />
@@ -2525,10 +2642,6 @@ function OrderDetail({
           <ProjectStatusSelect
             status={order.status}
             onChange={(s) => onUpdateOrder({ status: s })}
-          />
-          <OrderActions
-            order={order}
-            customerName={customer?.name ?? order.customerId}
           />
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -3013,9 +3126,7 @@ function ChatBubble({ m }: { m: WsChatMessage }) {
             )}
           </div>
           <div className="user-bubble-gradient overflow-hidden rounded-2xl rounded-tr-sm bg-primary px-4 py-2 text-primary-foreground shadow-sm">
-            {text && (
-              <p className="whitespace-pre-wrap text-sm leading-snug">{text}</p>
-            )}
+            {text && <ChatMarkdown text={text} />}
             <MessageAttachments items={bodyAttachments} />
             {extras}
           </div>
@@ -3049,9 +3160,7 @@ function ChatBubble({ m }: { m: WsChatMessage }) {
           )}
         </div>
         <div className="ai-bubble-gradient w-fit rounded-2xl rounded-tl-sm border border-border/40 bg-card px-4 py-2 text-foreground shadow-sm dark:border-accent/20">
-          {text && (
-            <p className="whitespace-pre-wrap text-sm leading-snug">{text}</p>
-          )}
+          {text && <ChatMarkdown text={text} />}
           <MessageAttachments items={bodyAttachments} />
           {extras}
         </div>

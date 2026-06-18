@@ -238,6 +238,101 @@ export async function persistWsInventoryItem(w: WsInventoryItem): Promise<void> 
   await writeJson(path, arr);
 }
 
+// ── add / delete rows (write the file, caller reloads to resync ids) ───────
+// Inventory ids are positional (`section:idx`), so deletes splice the array
+// and adds append — ids are recomputed on the next load.
+export async function addWsInventoryRow(section: string): Promise<void> {
+  const path = `${INV_DIR}/${section}.json`;
+  let arr: InventoryEntry[] = [];
+  try {
+    arr = await readJson<InventoryEntry[]>(path);
+  } catch {
+    // new section file
+  }
+  arr.push({
+    plant_name: "",
+    size: "",
+    unit_price: null,
+    common_names: [],
+    comment: "",
+    attachments: [],
+  });
+  await writeJson(path, arr);
+}
+
+export async function deleteWsInventoryItems(
+  items: WsInventoryItem[],
+): Promise<void> {
+  // Group by section; splice descending so earlier indices stay valid.
+  const bySection = new Map<string, number[]>();
+  for (const w of items) {
+    const [section, idxStr] = w.id.split(":");
+    const idx = Number(idxStr);
+    if (!Number.isInteger(idx)) continue;
+    const list = bySection.get(section) ?? [];
+    list.push(idx);
+    bySection.set(section, list);
+  }
+  await Promise.all(
+    [...bySection].map(async ([section, idxs]) => {
+      const path = `${INV_DIR}/${section}.json`;
+      const arr = await readJson<InventoryEntry[]>(path);
+      for (const idx of idxs.sort((a, b) => b - a)) {
+        if (idx >= 0 && idx < arr.length) arr.splice(idx, 1);
+      }
+      await writeJson(path, arr);
+    }),
+  );
+}
+
+export async function addWsOrderItem(
+  customerId: string,
+  orderId: string,
+): Promise<void> {
+  const path = `${CUST_DIR}/${customerId}/jobs/${orderId}/job.json`;
+  const job = await readJson<Job>(path);
+  job.items.unshift({
+    id: crypto.randomUUID().slice(0, 8),
+    plant_name: "",
+    customer_comments: "",
+    size: "",
+    quantity: 1,
+    price: null,
+    status: "pending",
+    customer_facing_notes: "",
+    internal_notes: "",
+  });
+  job.updated_at = new Date().toISOString();
+  await writeJson(path, job);
+}
+
+export async function deleteWsOrderItems(
+  items: { order: WsOrder; itemId: string }[],
+): Promise<void> {
+  const byOrder = new Map<
+    string,
+    { customerId: string; orderId: string; ids: Set<string> }
+  >();
+  for (const { order, itemId } of items) {
+    const key = `${order.customerId}/${order.id}`;
+    let e = byOrder.get(key);
+    if (!e) {
+      e = { customerId: order.customerId, orderId: order.id, ids: new Set() };
+      byOrder.set(key, e);
+    }
+    e.ids.add(itemId);
+  }
+  await Promise.all(
+    [...byOrder.values()].map(async ({ customerId, orderId, ids }) => {
+      const path = `${CUST_DIR}/${customerId}/jobs/${orderId}/job.json`;
+      const job = await readJson<Job>(path);
+      job.items = job.items.filter((it) => !ids.has(it.id));
+      job.updated_at = new Date().toISOString();
+      await writeJson(path, job);
+    }),
+  );
+}
+
 export async function persistWsCustomer(w: WsCustomer): Promise<void> {
   const path = `${CUST_DIR}/${w.id}/customer.json`;
   const c = await readJson<Customer>(path);
