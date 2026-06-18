@@ -1,0 +1,5 @@
+{
+  "name": "lps-rosie-v2",
+  "private": true,
+  "description": "LPS Rosie monorepo: the cognisphere harness (agent) + the web app (seller / customer / sourcer surfaces). Workspace members are listed in pnpm-workspace.yaml."
+}
