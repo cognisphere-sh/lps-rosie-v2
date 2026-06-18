@@ -2,7 +2,7 @@
 
 // Bridges the polished mock's view-model (Ws* shapes) to Rosie's real workspace
 // files. Load = map real file JSON -> Ws*; persist = read-modify-write the file
-// by id so untouched fields (metadata, tax, quantity_available, attachments…)
+// by id so untouched fields (metadata, tax, attachments…)
 // are preserved. The mock component stays verbatim; only its data source swaps.
 
 import { useCallback, useEffect, useState } from "react";
@@ -94,7 +94,7 @@ function jobToWs(slug: string, dir: string, job: Job): WsOrder {
     projectName: job.job_name,
     status: PROJ_TO_WS[job.status] ?? "confirmation_pending",
     createdOn: job.created_at,
-    lastUpdatedOn: job.created_at,
+    lastUpdatedOn: job.updated_at || job.created_at,
     notes: job.customer_comments || undefined,
     items: job.items.map((it) => ({
       id: it.id,
@@ -184,7 +184,6 @@ function wsItemToJobItem(w: WsOrder["items"][number]): JobItem {
     size: w.size,
     quantity: w.qty,
     price: w.unitPrice,
-    quantity_available: null,
     status: ITEM_FROM_WS[w.status] ?? "pending",
     customer_facing_notes: w.quoteNotes ?? "",
     internal_notes: w.internalNotes ?? "",
@@ -216,6 +215,7 @@ export async function persistWsOrder(o: WsOrder): Promise<void> {
   for (const w of o.items) {
     if (!job.items.find((it) => it.id === w.id)) job.items.push(wsItemToJobItem(w));
   }
+  job.updated_at = new Date().toISOString();
   await writeJson(path, job);
 }
 

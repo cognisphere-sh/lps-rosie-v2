@@ -17,8 +17,7 @@
       "size": "1 G",
       "quantity": 6,
       "price": 7,
-      "quantity_available": null,
-      "status": "pending",
+      "status": "available",
       "customer_facing_notes": "",
       "internal_notes": "1 G- Ruellia:"
     },
@@ -29,7 +28,6 @@
       "size": "1 G",
       "quantity": 28,
       "price": 7,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "1 G- Lantana:"
@@ -41,7 +39,6 @@
       "size": "1 G",
       "quantity": 30,
       "price": 7,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "1 G- Purple Heart:"
@@ -53,7 +50,6 @@
       "size": "1 G",
       "quantity": 53,
       "price": 7,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "1 G- Dichondra PonyFoot:"
@@ -65,7 +61,6 @@
       "size": "3 G",
       "quantity": 5,
       "price": 23,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Fatsia Japanese Aralia:"
@@ -77,7 +72,6 @@
       "size": "3 G",
       "quantity": 6,
       "price": 21,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Bamboo Muhly Grass:"
@@ -89,7 +83,6 @@
       "size": "3 G",
       "quantity": 13,
       "price": null,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "[Alternate] 5 G- Callicarpa American Beauty Berry:"
@@ -101,7 +94,6 @@
       "size": "3 G",
       "quantity": 53,
       "price": 27,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Agapanthus Peter Pan (Dwarf) 3#:"
@@ -113,7 +105,6 @@
       "size": "3 G",
       "quantity": 1,
       "price": 23,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Bush Germander:"
@@ -125,7 +116,6 @@
       "size": "3 G",
       "quantity": 11,
       "price": 23,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Horsetail Reed:"
@@ -137,7 +127,6 @@
       "size": "3 G",
       "quantity": 17,
       "price": 21,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Salvia Leucantha:"
@@ -149,7 +138,6 @@
       "size": "3 G",
       "quantity": 7,
       "price": 21,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Yucca Hesperaloe Red:"
@@ -161,7 +149,6 @@
       "size": "3 G",
       "quantity": 26,
       "price": 30,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "3 G- Palm Dwarf Sabal Minor or Silver Palmetto:"
@@ -173,7 +160,6 @@
       "size": "3 G",
       "quantity": 5,
       "price": null,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "[Alternate] 5 G staked- Bignonia Crossvine:"
@@ -185,7 +171,6 @@
       "size": "5 G",
       "quantity": 1,
       "price": 46,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "5 G- Dasylirion Green Sotol:"
@@ -197,7 +182,6 @@
       "size": "7 G",
       "quantity": 23,
       "price": null,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "[Alternate] 7 G- Texas Sage Greencloud:"
@@ -209,7 +193,6 @@
       "size": "15 G",
       "quantity": 1,
       "price": 375,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "15 G- Japanese Maple:"
@@ -221,7 +204,6 @@
       "size": "30 G",
       "quantity": 6,
       "price": 295,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "30 G- Ilex Yaupon Holly:"
@@ -233,7 +215,6 @@
       "size": "45 G",
       "quantity": 2,
       "price": null,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "[Alternate] 30 G- Texas Mountain Laurel:"

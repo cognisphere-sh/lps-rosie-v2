@@ -45,6 +45,7 @@ The job lives **inside** its customer folder, so it carries no customer id of it
 {
   "job_name": "Lot 42 Replant",
   "created_at": "2026-06-17T09:30:00-05:00",
+  "updated_at": "2026-06-17T09:30:00-05:00",
   "status": "pending",
   "customer_comments": "EDD 2026-07-01. Needs delivery before the 4th.",
   "delivery_address": "4200 Bull Creek Rd, Austin, TX 78731",
@@ -58,7 +59,6 @@ The job lives **inside** its customer folder, so it carries no customer id of it
       "size": "15 G",
       "quantity": 12,
       "price": 95,
-      "quantity_available": null,
       "status": "pending",
       "customer_facing_notes": "",
       "internal_notes": "15 G- Quercus virginiana: Available 2026-06-10"
@@ -70,7 +70,8 @@ The job lives **inside** its customer folder, so it carries no customer id of it
 **Order/job level**
 
 - `job_name` — short human-readable label (e.g. "Lot 42 Replant", "Spring restock"); derive one from the request if the customer didn't name it. The job folder name is its id (`<YYYY-MM-DD>-<slug>`); the job carries no id field.
-- `created_at` — ISO 8601 in APS's timezone (§Conventions).
+- `created_at` — ISO 8601 in APS's timezone (§Conventions). Set **once** when the job is first filed; **never change it** on later edits.
+- `updated_at` — ISO 8601 in APS's timezone. Equals `created_at` at creation; **set it to "now" every time you write any change to this file** (status, items, prices, notes, anything). This is what the seller-side app shows as "last updated", so it must reflect the actual last edit.
 - `status` — one of: `pending` → `quote_sent` → `order_confirmed` → `closed_won` / `closed_lost` / `cancelled`. Starts `pending`; advance it as the order moves.
 - `customer_comments` — order-level customer input: the **EDD** plus any other short relevant note. Blank if none.
 - `delivery_address` — where it ships; blank if not given.
@@ -85,7 +86,6 @@ The job lives **inside** its customer folder, so it carries no customer id of it
 - `size` — demanded size, normalized (§Conventions). Blank if not given.
 - `quantity` — quantity demanded.
 - `price` — unit price from the price list; `null` if no match / unpriced.
-- `quantity_available` — quantity APS can actually supply (from Chris / ground team); `null` until known.
 - `status` — `pending` (after mapping) · `available` · `unavailable` · `diff` (different size/qty/plant — describe in notes) · `can_order` (note lead time). Chris sets the non-`pending` values on review.
 - `customer_facing_notes` — note meant **for the customer** (goes in a reply/quote). Customer-appropriate only.
 - `internal_notes` — **free internal field**, not shown to the customer. **Terse — minimum words, no full sentences, no source-file mention.** Format:
@@ -96,4 +96,4 @@ The job lives **inside** its customer folder, so it carries no customer id of it
 
 ## On Chris's review (same sub-agent, `-c`)
 
-Chris sets each item's `status` (`available` / `unavailable` / `can_order` / `diff`), `quantity_available`, and notes. Apply his decisions: update `job.json` (item statuses, `internal_notes` for internal detail, `customer_facing_notes` for anything to relay back; advance job `status`, e.g. → `quote_sent` / `order_confirmed`) **and reconcile inventory** — append each matching entry's `comment` with the status + today's date (`unavailable` → "Unavailable as of <date>"; `can_order` + lead time → record it). Do **not** change prices unless Chris changed them. Return a one-line confirmation.
+Chris sets each item's `status` (`available` / `unavailable` / `can_order` / `diff`) and notes. Apply his decisions: update `job.json` (item statuses, `internal_notes` for internal detail, `customer_facing_notes` for anything to relay back; advance job `status`, e.g. → `quote_sent` / `order_confirmed`) **and reconcile inventory** — append each matching entry's `comment` with the status + today's date (`unavailable` → "Unavailable as of <date>"; `can_order` + lead time → record it). Do **not** change prices unless Chris changed them. **Set `updated_at` to "now"** since you're editing the file. Return a one-line confirmation.

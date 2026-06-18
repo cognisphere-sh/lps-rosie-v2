@@ -20,7 +20,6 @@ export interface JobItem {
   size: string;
   quantity: number;
   price: number | null;
-  quantity_available: number | null;
   status: string; // pending | available | unavailable | diff | can_order
   customer_facing_notes: string;
   internal_notes: string;
@@ -29,6 +28,7 @@ export interface JobItem {
 export interface Job {
   job_name: string;
   created_at: string;
+  updated_at?: string;
   status: string;
   customer_comments: string;
   delivery_address: string;
