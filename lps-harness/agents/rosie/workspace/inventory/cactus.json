@@ -1,0 +1,1202 @@
+[
+  {
+    "plant_name": "Aeonium",
+    "size": "5 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave",
+    "size": "1 G",
+    "unit_price": 15.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana",
+    "size": "15 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana",
+    "size": "30 G",
+    "unit_price": 250.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana",
+    "size": "5 G",
+    "unit_price": 32.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana",
+    "size": "24\" box",
+    "unit_price": 395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana",
+    "size": "36\" box",
+    "unit_price": 995.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana Medio Picta Alba",
+    "size": "15 G",
+    "unit_price": 150.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Americana Marginata",
+    "size": "24\" box",
+    "unit_price": 395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Blue Flame",
+    "size": "15 G",
+    "unit_price": 175.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Blue Glow",
+    "size": "2 G",
+    "unit_price": 29.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Blue Glow",
+    "size": "15 G",
+    "unit_price": 165.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Blue Glow",
+    "size": "5 G",
+    "unit_price": 39.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Blue Glow",
+    "size": "7 G",
+    "unit_price": 105.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Bracteosa Squid",
+    "size": "3 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Desmettiana",
+    "size": "5 G",
+    "unit_price": 35.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Desmettiana Variegated",
+    "size": "5 G",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave ferox 'Green Goblet'",
+    "size": "1 G",
+    "unit_price": 15.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave ferox 'Green Goblet'",
+    "size": "15 G",
+    "unit_price": 250.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave ferox 'Green Goblet'",
+    "size": "3 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave filifera",
+    "size": "2 G",
+    "unit_price": 23.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Gemifloria",
+    "size": "3 G",
+    "unit_price": 35.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Gemniflora Twin Flowered",
+    "size": "1 G",
+    "unit_price": 65.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Gentry Jaws",
+    "size": "5 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Harvard",
+    "size": "1 G",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Havardiana",
+    "size": "3 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Medio Picta Alba",
+    "size": "5 G",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Montana",
+    "size": "3 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Montana",
+    "size": "5 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Neomexicana",
+    "size": "15 G",
+    "unit_price": 250.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Ovatifolia",
+    "size": "15 G",
+    "unit_price": 165.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Ovatifolia",
+    "size": "3 G",
+    "unit_price": 29.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Ovatifolia",
+    "size": "30 G",
+    "unit_price": 395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Ovatifolia",
+    "size": "45 G",
+    "unit_price": 695.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Ovatifolia",
+    "size": "5 G",
+    "unit_price": 39.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "1 G",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "15 G",
+    "unit_price": 195.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "2 G",
+    "unit_price": 29.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "3 G",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "30 G",
+    "unit_price": 395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "5 G",
+    "unit_price": 51.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Parryi",
+    "size": "7 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Sharkskin",
+    "size": "15 G",
+    "unit_price": 105.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Sharkskin",
+    "size": "3 G",
+    "unit_price": 35.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Sharkskin",
+    "size": "5 G",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Sharkskin#1",
+    "size": "",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Stricta",
+    "size": "1 G",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Victoriae Reginae",
+    "size": "1 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Victoriae Reginae",
+    "size": "15 G",
+    "unit_price": 195.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Victoriae Reginae",
+    "size": "2 G",
+    "unit_price": 29.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Victoriae Reginae",
+    "size": "3 G",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Victoriae Reginae",
+    "size": "7 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Weberi",
+    "size": "15 G",
+    "unit_price": 226.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Weberi",
+    "size": "30 G",
+    "unit_price": 255.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Weberi",
+    "size": "5 G",
+    "unit_price": 22.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Agave Ovatifolia",
+    "size": "45 G",
+    "unit_price": 695.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Aloe",
+    "size": "1 G",
+    "unit_price": 8.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Aloe",
+    "size": "2 G",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Aloe",
+    "size": "3 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Aloe",
+    "size": "5 G",
+    "unit_price": 27.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "1 G",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "3 G",
+    "unit_price": 19.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "5 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "2\" pot",
+    "unit_price": 3.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "4\" pot",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "4.5\" pot",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cactus/Succulents",
+    "size": "6\" pot",
+    "unit_price": 12.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Candelilla",
+    "size": "3 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Mexican Fence Post",
+    "size": "3 G or 10 inch pot..",
+    "unit_price": 95.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Mexican Fence Post Large",
+    "size": "12\" / 14\" / 17\"..",
+    "unit_price": 395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Mexican Fence Post",
+    "size": "24\" box",
+    "unit_price": 795.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Green Sotol",
+    "size": "5 G",
+    "unit_price": 46.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Green Sotol",
+    "size": "1 G",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Green Sotol",
+    "size": "15 G",
+    "unit_price": 150.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Longissima",
+    "size": "24\" box",
+    "unit_price": 595.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Sotol",
+    "size": "30 G",
+    "unit_price": 595.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Wheeleri Blue Sotol",
+    "size": "15 G",
+    "unit_price": 165.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dasylirion Green Sotol",
+    "size": "3 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dyckia",
+    "size": "1 G",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Euphorbia",
+    "size": "1 G",
+    "unit_price": 8.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Euphorbia",
+    "size": "3 G",
+    "unit_price": 28.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Euphorbia",
+    "size": "5 G - Sticks On Fire",
+    "unit_price": 46.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Kalanchoe",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Kalanchoe Paddle Plant",
+    "size": "6\" pot",
+    "unit_price": 16.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Manafreda",
+    "size": "1 G",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Manfreda Texas Tuberose",
+    "size": "5 G",
+    "unit_price": 28.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Misc. Succulent",
+    "size": "1 G",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Ocotillo",
+    "size": "7 G",
+    "unit_price": 95.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Ocotillo",
+    "size": "24\" box",
+    "unit_price": 595.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Ocotillo Fouque",
+    "size": "5 G",
+    "unit_price": 32.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Ocotillo Fouquieria Splendens",
+    "size": "16\" box",
+    "unit_price": 495.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia- Golden Barrel",
+    "size": "15 G",
+    "unit_price": 195.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia- Golden Barrel",
+    "size": "2 G",
+    "unit_price": 34.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia- Golden Barrel",
+    "size": "7 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia- Golden Barrel",
+    "size": "3 G",
+    "unit_price": 45.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia - Spineless Prickly Pear",
+    "size": "10 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia- Golden Barrel",
+    "size": "5 G",
+    "unit_price": 95.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia- Golden Barrel",
+    "size": "1 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia Santa Rita",
+    "size": "3 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia Santa Rita",
+    "size": "5 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia Spineless Prickly Pear",
+    "size": "1 G",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia Spinless Prickly Pear",
+    "size": "3 G",
+    "unit_price": 23.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Opuntia Wavy Leaf Cactus",
+    "size": "5 G",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pedilanthus",
+    "size": "5 G",
+    "unit_price": 50.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pedilanthus Macrocarpus",
+    "size": "7 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Saguaro Cactus",
+    "size": "10 G",
+    "unit_price": 195.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Sedum",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Sedum",
+    "size": "4\" pot",
+    "unit_price": 1.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca- Brakelights",
+    "size": "2 G",
+    "unit_price": 29.95,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca- Brakelights",
+    "size": "1 G",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca- Brakelights",
+    "size": "7 G",
+    "unit_price": 0.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca-Mountain Yucca",
+    "size": "5 G",
+    "unit_price": 0.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca-Night Blooming",
+    "size": "5 G",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca-Spanish Dagger",
+    "size": "B&B 4.5 ft",
+    "unit_price": 395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca-Spanish Dagger",
+    "size": "B&B 5 ft",
+    "unit_price": 495.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Aloifolia",
+    "size": "15 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca decipiens",
+    "size": "B&B 2-3'",
+    "unit_price": 495.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca decipiens",
+    "size": "B&B 3-4 Foot",
+    "unit_price": 795.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca decipiens",
+    "size": "B&B 5 Foot",
+    "unit_price": 995.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca decipiens",
+    "size": "B&B 7-8'",
+    "unit_price": 1600.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Filamentosa Color Guard/ Bright Edge",
+    "size": "3 G",
+    "unit_price": 26.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Gloriosa",
+    "size": "15 G",
+    "unit_price": 101.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Giant",
+    "size": "15 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Giant",
+    "size": "5 G",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Red",
+    "size": "1 G",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Red",
+    "size": "3 G",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Red",
+    "size": "5 G",
+    "unit_price": 23.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Red",
+    "size": "7 G",
+    "unit_price": 65.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Hesperaloe Yellow",
+    "size": "5 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Pallida Pale Leaf Yucca",
+    "size": "5 G",
+    "unit_price": 27.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Pendula Softleaf",
+    "size": "1 G",
+    "unit_price": 9.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Pendula Softleaf",
+    "size": "15 G",
+    "unit_price": 175.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Pendula Softleaf",
+    "size": "3 G",
+    "unit_price": 23.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Pendula Softleaf",
+    "size": "5 G",
+    "unit_price": 27.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rigida",
+    "size": "24\" box",
+    "unit_price": 295.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "15 G",
+    "unit_price": 250.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "5 G",
+    "unit_price": 60.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "B&B 3 Foot",
+    "unit_price": 595.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "B&B 4 Foot",
+    "unit_price": 795.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "B&B 5'",
+    "unit_price": 995.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "B&B 6 Foot",
+    "unit_price": 1295.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rostrata",
+    "size": "B&B Specimen Multi Trunk",
+    "unit_price": 2749.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rupicola Twisted Leaf",
+    "size": "1 G",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rupicola Twisted Leaf",
+    "size": "3 G",
+    "unit_price": 23.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Rupicola Twisted Leaf",
+    "size": "5 G",
+    "unit_price": 22.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Spanish Dagger",
+    "size": "15 G",
+    "unit_price": 105.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Spanish Dagger",
+    "size": "5 G",
+    "unit_price": 25.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Spanish Dagger",
+    "size": "30\" box",
+    "unit_price": 1395.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Spanish Dagger",
+    "size": "B&B 6 Foot",
+    "unit_price": 1500.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Yucca Thompson",
+    "size": "15 G",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  }
+]

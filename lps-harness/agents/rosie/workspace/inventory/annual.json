@@ -1,0 +1,346 @@
+[
+  {
+    "plant_name": "Alyssum",
+    "size": "4\" pot",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Angelonia",
+    "size": "4\"",
+    "unit_price": 1.25,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Aquilegia Columbine",
+    "size": "4\" pot",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Begonia",
+    "size": "4\" pot",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Caladium Sun",
+    "size": "4\" pot",
+    "unit_price": 3.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Calylophus Texas Primrose",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Coleus",
+    "size": "4\" pot",
+    "unit_price": 1.25,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Crossandra",
+    "size": "3 G",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cuphea Bat Face",
+    "size": "1 G",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cuphea David Verity",
+    "size": "1 G",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cuphea Mexican Heather",
+    "size": "1 G",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cuphea Mexican Heather",
+    "size": "4\" pot",
+    "unit_price": 2.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cyclamen",
+    "size": "4.5\" pot",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Cyclamen",
+    "size": "6\" pot",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dianthus",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dianthus",
+    "size": "4\" pot",
+    "unit_price": 2.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Dusty Miller",
+    "size": "4\"",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Evolvulus Blue Daze",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Evolvulus Blue Daze",
+    "size": "4\" pot",
+    "unit_price": 2.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Geranium",
+    "size": "6\" pot",
+    "unit_price": 8.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Impatiens",
+    "size": "10\" hanging basket",
+    "unit_price": 12.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Impatiens",
+    "size": "4\" pot",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Kale",
+    "size": "4\" pot",
+    "unit_price": 3.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Lobelia",
+    "size": "4\" pot",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Marigold",
+    "size": "4\" pot",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Melampodium BlackFoot Daisy",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Melampodium BlackFoot Daisy",
+    "size": "4\" pot",
+    "unit_price": 3.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Mexican Milkweed",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pansy/Viola",
+    "size": "4\" pot",
+    "unit_price": 2.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pentas",
+    "size": "1 G",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pentas",
+    "size": "4\" pot",
+    "unit_price": 1.35,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pepper Chile Pequin",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pepper Ornamental",
+    "size": "3 G",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Petunia",
+    "size": "1 G",
+    "unit_price": 5.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Petunia",
+    "size": "4\" pot",
+    "unit_price": 2.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Petunia Hanging Basket",
+    "size": "10\"",
+    "unit_price": 12.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Scaevola Blue Fan Flower",
+    "size": "4\" pot",
+    "unit_price": 3.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Senecio Dusty Miller",
+    "size": "4\" pot",
+    "unit_price": 1.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Snapdragon (Antirrhimum)",
+    "size": "4\" pot",
+    "unit_price": 1.35,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Strobilanthes Persian Sheild",
+    "size": "1 G",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Torenia",
+    "size": "10\" hanging basket",
+    "unit_price": 16.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Vinca Cora 4 inch",
+    "size": "",
+    "unit_price": 1.6,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Zinnia",
+    "size": "4\" pot",
+    "unit_price": 1.35,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  }
+]

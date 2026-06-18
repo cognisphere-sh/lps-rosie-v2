@@ -6,8 +6,6 @@ thread you've handled and a short pointer to anything in `knowledge/` or
 
 ## Threads
 
-(none yet)
-
 ## Knowledge
 
 (none yet)
@@ -15,3 +13,15 @@ thread you've handled and a short pointer to anything in `knowledge/` or
 ## Memory
 
 (none yet)
+
+## Customers
+- `workspace/customers/index.md` — customer/job filing index; includes Dior Goodwin and unknown placeholder.
+
+## Files
+
+
+## Inventory
+- `workspace/inventory/index.md` — APS 2026 inventory import index (18 category files, 1,598 entries).
+
+## Sub-agents
+- `workspace/sub-agents-index.md` — active sub-agent tracker.

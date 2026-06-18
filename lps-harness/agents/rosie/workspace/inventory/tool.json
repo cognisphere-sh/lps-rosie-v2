@@ -1,0 +1,450 @@
+[
+  {
+    "plant_name": "Backpack Sprayer",
+    "size": "",
+    "unit_price": 125.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Bags Plastic CONTRACTOR",
+    "size": "",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "BAHCO Folding Saw LB396-JT",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "BAHCO Hand Pruner P121-23-F",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "BAHCO Large Shear P51H",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "BAHCO Lopper P160-60 24 Inch Handle",
+    "size": "",
+    "unit_price": 0.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "BAHCO Pruning Saw LB5124-JS",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "BAHCO Scissors LB FS-8",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Bungee Cord",
+    "size": "",
+    "unit_price": 3.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Loppers Large",
+    "size": "32\"",
+    "unit_price": 35.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Pole Pruner",
+    "size": "",
+    "unit_price": 96.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Pruner 3/4\"",
+    "size": "",
+    "unit_price": 33.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Pruner Leather Scabbard",
+    "size": "",
+    "unit_price": 17.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Snips",
+    "size": "",
+    "unit_price": 15.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Hand Trowel",
+    "size": "",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Folding Pruning Saw",
+    "size": "",
+    "unit_price": 16.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers All Steel Roundpoint D-Grip",
+    "size": "",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers All Steel Roundpoint Shovel",
+    "size": "",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers All Steel Spade",
+    "size": "13\" Blade",
+    "unit_price": 60.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers All Steel Spade Long Handle",
+    "size": "",
+    "unit_price": 75.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers Round Point Shovel Wood Handle",
+    "size": "",
+    "unit_price": 33.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers Scoop Shovel - Blue",
+    "size": "",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers Spring Rake",
+    "size": "",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers Square Point Shovel Fiberglass Handle",
+    "size": "",
+    "unit_price": 40.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gemplers Steel Rake Hoe Wood Handle",
+    "size": "",
+    "unit_price": 75.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gilmour Brass Head Sprayer",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Gilmour Male Coupler Each",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Hay Hook",
+    "size": "",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Hose 100 Feet",
+    "size": "",
+    "unit_price": 112.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Hose 50 Feet",
+    "size": "",
+    "unit_price": 75.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Loppers - TruTemper",
+    "size": "21\"",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Machete",
+    "size": "22\"",
+    "unit_price": 10.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Nursery Pot",
+    "size": "",
+    "unit_price": 45.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Pick Mattock with Handle",
+    "size": "",
+    "unit_price": 34.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Push Broom",
+    "size": "",
+    "unit_price": 21.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Rake -",
+    "size": "14\" Level Head with Aluminum Handle",
+    "unit_price": 24.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Rake - 16 Tine Fiberglass Bow Rake",
+    "size": "",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Rake - Metal Springback 24 Tine",
+    "size": "",
+    "unit_price": 35.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Rake - Large Plastic",
+    "size": "30\"",
+    "unit_price": 14.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shears-Corona Forged Hedge Shear",
+    "size": "",
+    "unit_price": 37.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Corona Long Handle Shears",
+    "size": "",
+    "unit_price": 66.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shears-Corona Short Handle Aluminum Handle",
+    "size": "",
+    "unit_price": 63.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shears-TruTemper",
+    "size": "12\" Blade",
+    "unit_price": 23.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shovel - Corona Square D Handle",
+    "size": "",
+    "unit_price": 41.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shovel - Corona D Handle Drain Spade / Sharp Shooter",
+    "size": "",
+    "unit_price": null,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shovel - Round Long Handle",
+    "size": "",
+    "unit_price": 19.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shovel - Square Long Handle",
+    "size": "",
+    "unit_price": 18.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Shut Off Valve Brass",
+    "size": "",
+    "unit_price": 7.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Sod Roller",
+    "size": "",
+    "unit_price": 210.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "North Dial In Sprayer",
+    "size": "",
+    "unit_price": 17.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Sprayer - Premium 2 gallon",
+    "size": "",
+    "unit_price": 30.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Tree Dolly",
+    "size": "",
+    "unit_price": 513.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Water Breaker Aluminum",
+    "size": "",
+    "unit_price": 77.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Water Wand Each",
+    "size": "",
+    "unit_price": 16.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Wheel Barrow - Steel Handle",
+    "size": "",
+    "unit_price": 133.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  },
+  {
+    "plant_name": "Zinc Mender Hose 3/4\"",
+    "size": "",
+    "unit_price": 0.0,
+    "common_names": [],
+    "comment": "",
+    "attachments": []
+  }
+]

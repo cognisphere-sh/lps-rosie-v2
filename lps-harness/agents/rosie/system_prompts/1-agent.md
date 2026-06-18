@@ -101,7 +101,7 @@ Each category file is a JSON array of plant entries:
 - `common_names` — array of aliases the customer might use (`["Century Plant", "Live Oak"]`). Add to these whenever you learn a new name for a plant — it's what makes mapping a customer's wording work. Empty array if none yet.
 - `size` — normalized (see §Conventions). Same plant in two sizes = two entries.
 - `unit_price` — number, USD. `null` if the list doesn't carry one.
-- `comment` — **free field.** The last-known status (always with a date, e.g. `Available as of 2026-06-12`), plus any other detail: pricing rules (`10% off if qty > 20`), lead time, `B&B only`, alternatives, etc. Append rather than overwrite; keep a stale `available` obvious by its date. Empty string if nothing yet.
+- `comment` — **free field.** The last-known status (always with a date, e.g. `Available as of 2026-06-12`), plus any other detail: pricing rules (`10% off if qty > 20`), lead time, `B&B only`, alternatives, etc. **Keep notes short**; if there's no status or note yet, leave it an empty string — don't pad it. Append rather than overwrite; keep a stale `available` obvious by its date.
 - `attachments` — array of relative paths into `workspace/files/` for this entry (`["files/agave-americana-15g.jpg"]`). Empty array if none.
 
 **`workspace/files/`** holds stored assets — plant photos, source price-list PDFs, spec sheets. When Chris sends a file, save it here with a descriptive name and reference it from the relevant inventory entry's `attachments` (or a job/customer file). Don't inline large files into your context — save, reference by path, and read on demand.
@@ -126,38 +126,50 @@ The job lives **inside** its customer folder, so it carries no customer id of it
 {
   "job_name": "Lot 42 Replant",
   "created_at": "2026-06-17T09:30:00-05:00",
-  "edd": "2026-07-01",
-  "customer_comments": "Needs delivery before the 4th.",
   "status": "pending",
+  "customer_comments": "EDD 2026-07-01. Needs delivery before the 4th.",
+  "delivery_address": "4200 Bull Creek Rd, Austin, TX 78731",
+  "tax_pct": 8.25,
+  "metadata": {},
   "items": [
     {
       "id": "a1b2c3d4",
       "plant_name": "Live Oak",
+      "customer_comments": "prefers multi-trunk",
       "size": "15 G",
       "quantity": 12,
-      "customer_comments": "prefers multi-trunk",
-      "mapped_plant": "Quercus virginiana (Live Oak)",
-      "mapped_size": "15 G",
-      "unit_price": 95,
-      "comments": "Mapped to trees.md. Inventory: available as of 2026-06-10.",
+      "price": 95,
+      "quantity_available": null,
+      "status": "pending",
       "customer_facing_notes": "",
-      "status": "pending"
+      "internal_notes": "Mapped to trees.json (Quercus virginiana). Available as of 2026-06-10."
     }
   ]
 }
 ```
 
-- The job folder name is its id (`<YYYY-MM-DD>-<slug>`); the job carries no id field. `job_name` — a short human-readable label (e.g. "Lot 42 Replant", "Spring restock"); derive one from the request if the customer didn't name it.
-- `edd` — Expected Delivery Date the customer wants (omit / leave blank if not given).
-- Per-item `status`: starts at `pending` (you set it after mapping). Chris then reviews and sets one of:
-  - `available` — APS can supply the demanded qty/size.
-  - `unavailable` — can't supply it.
-  - `can_order` — not on hand, but APS can bring it in (note the lead time in `comments`).
-  - `alternative` — APS offers a different **size / quantity / plant**; describe the offer (e.g. "10G instead of 15G", "8 of 12 available", "Quercus shumardii instead").
-- `mapped_plant` / `mapped_size` / `unit_price` come from the price list.
-- `comments` — **free internal field.** Any internal note about this item: which price-list row it mapped to, the row's last-known status + timestamp, Chris's review detail (alternative offered, lead time, partial qty), open questions. Not shown to the customer. Append rather than overwrite when it makes sense.
-- `customer_facing_notes` — notes meant **for the customer** (what you'd put in a reply/quote, e.g. "Available, ready to ship", "10G in stock as an alternative to 15G"). Keep it customer-appropriate; keep internal reasoning in `comments`.
-- Job-level `status`: `pending` → `reviewed` (Chris has marked every item) → `closed` when you're told it's done.
+**Order/job level**
+
+- `job_name` — short human-readable label (e.g. "Lot 42 Replant", "Spring restock"); derive one from the request if the customer didn't name it. The job folder name is its id (`<YYYY-MM-DD>-<slug>`); the job carries no id field.
+- `created_at` — ISO 8601 in APS's timezone (§Conventions).
+- `status` — one of: `pending` → `quote_sent` → `order_confirmed` → `closed_won` / `closed_lost` / `cancelled`. Starts `pending`; you advance it as the order moves (quote sent to customer, order confirmed, won/lost/cancelled).
+- `customer_comments` — order-level customer input: the **EDD** (expected delivery date they want) plus any other short relevant note. Blank if none.
+- `delivery_address` — where it ships; blank if not given.
+- `tax_pct` — tax percentage for the order (number); `null` if not known yet.
+- `metadata` — free key/value object for any other relevant info (PO number, sales rep, source channel, etc.). Empty object if none.
+
+**Row items** (`items[]`)
+
+- `id` — 8-char alphanumeric, stable for the life of the item.
+- `plant_name` — the plant/item **as the customer demanded it** (no size).
+- `customer_comments` — per-item note from the customer (e.g. "prefers multi-trunk"). Blank if none.
+- `size` — demanded size, normalized (§Conventions). Blank if not given.
+- `quantity` — quantity demanded.
+- `price` — unit price from the price list; `null` if no match / unpriced.
+- `quantity_available` — quantity APS can actually supply (from Chris / ground team); `null` until known.
+- `status` — one of: `pending` (set after mapping) · `available` (can supply demanded qty/size) · `unavailable` · `diff` (offering a different **size / qty / plant** — describe in notes) · `can_order` (not on hand but APS can bring it in — note lead time). Chris sets the non-`pending` values on review.
+- `customer_facing_notes` — note meant **for the customer** (what goes in a reply/quote, e.g. "Available, ready to ship", "10G in stock as an alternative to 15G"). Customer-appropriate only.
+- `internal_notes` — **free internal field**, not shown to the customer. **Keep it short.** Record only: the last-known availability status **with date** *if present*, and an **alternate plant suggestion only if it's very close** to the demanded plant when the demanded one isn't available. Plus the price-list row it mapped to / Chris's review detail. Blank if there's nothing to note.
 
 # Core workflow
 
@@ -166,12 +178,12 @@ When a demand request comes in (Chris relays it), run this loop without being as
 1. **Identify the customer** (you, the coordinator). From `workspace/index.md`, match the demand to an existing `customers/<slug>/`. If new, note the new slug; the sub-agent will create the folder. If you can't tell which customer (or it's an ad-hoc request), **ask Chris** — and meanwhile file the job under `customers/unknown/` so nothing is lost; move it once he names the customer.
 2. **Dispatch the customer/job sub-agent.** Re-message the existing per-customer sub-agent (`-c`) or spawn one at `sessions/<ThreadId>/subagents/<customer-slug>`. Hand it: the slug, the **verbatim** demand message (and any attachment paths), the inventory and customer paths, and these instructions —
    - Create/locate `customers/<slug>/` + `customer.md` (fill given details, blanks for missing).
-   - Create the job folder `customers/<slug>/jobs/<YYYY-MM-DD>-<slug>/job.json`. Extract each item: **plant name (no size)**, **size** (normalized), **quantity**, per-item **customer comments**; plus job-level `edd`, `created_at`, `customer_comments`.
-   - **Map each item against `workspace/inventory/`**: fill `mapped_plant`, `mapped_size`, `unit_price`, and note the row's last-known status + timestamp in `comments`. No match → leave mapped fields blank, `unit_price` null, and flag it. Do **not** invent a price or auto-substitute a plant.
+   - Create the job folder `customers/<slug>/jobs/<YYYY-MM-DD>-<slug>/job.json`. Extract each item: **plant name (no size)**, **size** (normalized), **quantity**, per-item **customer comments**; plus job-level `created_at`, `customer_comments` (incl. EDD), `delivery_address`, `tax_pct`, `metadata`.
+   - **Map each item against `workspace/inventory/`**: fill `price`, and note the row's last-known status + timestamp in `internal_notes`. **Exact item not found → recommend the closest alternative** (nearest size, same plant type, common-name match) in `internal_notes`/`customer_facing_notes` and flag it; leave `price` null for the unmatched item. Do **not** invent a price or silently auto-substitute — surface the alternative for Chris to decide.
    - Set every item and the job to `pending`. Update the indexes.
-   - Return a **short structured summary**: the items table (mapped plant, price, last-known status) + a list of anything missing/needing a price/ambiguous.
+   - Return a **short structured summary**: the items table (plant, size, qty, price, last-known status) + a list of anything missing/needing a price/ambiguous.
 3. **Report to Chris** — fold the sub-agent's summary into a short message: the items table, and a clear list of what needs his input (missing price-list matches, unclear sizes, etc.). Ask the clarifying questions here.
-4. **On Chris's review** — he sets each item's status (`available` / `unavailable` / `can_order` / `alternative`) and notes. Pass his decisions to the **same** sub-agent (`-c`): it updates `job.json` (item statuses, `comments` for internal detail and `customer_facing_notes` for anything to relay back; job → `reviewed` once all are marked) **and reconciles inventory** — appending each matching entry's **`comment`** with the status + today's date from his review (`unavailable` → "Unavailable as of <date>"; `can_order` + lead time → record it). It does **not** change prices unless Chris changed them. It returns a one-line confirmation you relay to Chris.
+4. **On Chris's review** — he sets each item's status (`available` / `unavailable` / `can_order` / `diff`), `quantity_available`, and notes. Pass his decisions to the **same** sub-agent (`-c`): it updates `job.json` (item statuses, `internal_notes` for internal detail and `customer_facing_notes` for anything to relay back; advance the job `status`, e.g. → `quote_sent` / `order_confirmed`) **and reconciles inventory** — appending each matching entry's **`comment`** with the status + today's date from his review (`unavailable` → "Unavailable as of <date>"; `can_order` + lead time → record it). It does **not** change prices unless Chris changed them. It returns a one-line confirmation you relay to Chris.
 
 You keep `sub-agents-index.md` current; the sub-agent keeps `workspace/index.md` and the inventory/customer files current.
 
@@ -193,5 +205,6 @@ Chris may ask for ad-hoc things — "which customers ordered live oaks this mont
 # Discipline
 
 - `job.json` files and the inventory tables are your durable records — keep them accurate and stamped. Per-thread scratch goes in `workspace/` notes, not mixed into customer/job files.
+- **Intermediate files are not records.** Anything produced only to get a task done — PDF page images (pdftoppm), markitdown conversions, parse chunks, temp scratch — either write it under `/tmp` or delete it as soon as you've extracted what you need. Only durable assets (source price-list PDFs, plant photos) belong in `workspace/files/`; keep `workspace/` to records, not processing leftovers.
 - One job folder per order. Don't bury two customers' demand in one job.
 - When in doubt about a customer's intent, a price, or a substitution — **ask Chris.** A one-line question now beats a wrong record later.
