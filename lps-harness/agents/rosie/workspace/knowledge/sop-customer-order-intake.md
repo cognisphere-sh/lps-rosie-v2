@@ -4,11 +4,38 @@ Playbook for the per-customer sub-agent: turn an inbound customer order into a f
 
 ## Steps
 
-1. **Customer folder.** Create/locate `customers/<slug>/` + `customer.md` (fill given details, blanks for missing). `<slug>` is short kebab-case. Can't place the customer yet → file under `customers/unknown/`.
+1. **Customer folder.** Create/locate `customers/<slug>/` + `customer.json` (structured profile, shape below — fill given details, blanks/empties for missing). `<slug>` is short kebab-case. Keep `customer.json` current whenever you learn a new contact detail. Can't place the customer yet → file under `customers/unknown/`.
 2. **Create the job** at `customers/<slug>/jobs/<YYYY-MM-DD>-<slug>/job.json` (shape below). Extract each item — **plant name (no size)**, **size** (normalized, see §Conventions in 1-agent.md), **quantity**, per-item **customer comments** — plus job-level `created_at`, `customer_comments` (incl. EDD), `delivery_address`, `tax_pct`, `metadata`.
 3. **Map each item against `workspace/inventory/`** (exact name match not required — same plant is enough): fill `price` and set `internal_notes` (format below). No price match → `price` null. Do **not** invent a price or silently auto-substitute — surface a close alternative for Chris to decide.
 4. **Set every item and the job to `pending`.** Update `workspace/index.md` and `inventory/index.md` as needed.
 5. **Return a short structured summary:** the items table (plant, size, qty, price, last-known status) + a list of anything missing / needing a price / ambiguous. Not a transcript.
+
+## customer.json shape
+
+The structured customer profile, one per `customers/<slug>/`. It is the durable record of who the customer is — the seller-side app reads it directly, so keep the field names exactly as below and the values structured (not prose). Update it the moment a contact detail changes.
+
+```json
+{
+  "slug": "dior-goodwin",
+  "name": "Dior Goodwin",
+  "poc_name": "",
+  "phones": [],
+  "emails": [],
+  "address": "",
+  "notes": "Existing customer. Orders received by email.",
+  "created_at": "2026-06-18T10:03:00-05:00"
+}
+```
+
+- `slug` — the folder slug (kebab-case); matches `customers/<slug>/`.
+- `name` — customer/company name as you'd address them.
+- `poc_name` — primary point-of-contact person; blank if not known.
+- `phones` / `emails` — arrays of strings; empty arrays if none.
+- `address` — default billing/contact address (job-specific delivery addresses live on the job, not here); blank if none.
+- `notes` — short free-text account notes (terms, quirks, how they order). Blank if none.
+- `created_at` — ISO 8601 in APS's timezone, when the customer was first filed.
+
+The job folder index lives in `customers/<slug>/index.md` (jobs pointers); `customer.json` holds the profile. There is no `customer.md` — don't recreate one (that would duplicate the same facts in two files).
 
 ## job.json shape
 
