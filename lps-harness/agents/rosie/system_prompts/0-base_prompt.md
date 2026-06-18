@@ -107,6 +107,8 @@ pptx, docx, xlsx, audio (mp3, wav, etc.), PDF (pure text based, not image based)
 
 - Use `pdftoppm -help` and `scripts/agent/markitdown --help` to see all available options for pdf to image and markitdown conversions.
 
+- **Default order:** prefer `scripts/agent/markitdown` for pdf, pptx, docx and other non-text files. If a PDF is **scanned** (image-based, markitdown yields little/no text), convert it with `pdftoppm` and read the images with the `read` tool. **Avoid tesseract or other 3rd-party OCR** — `read` on the images handles it; use them only if `read` genuinely can't.
+
 # Cwd
 
 Your cwd is the agent dir. All relative paths resolve from here:

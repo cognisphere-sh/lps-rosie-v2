@@ -116,74 +116,18 @@ Each category file is a JSON array of plant entries:
 
 # Jobs (demand)
 
-Every demand request becomes a **job**. A job is one customer's order; it holds one or more demanded items.
+Every demand request becomes a **job** — one customer's order, one or more demanded items, filed as `job.json` inside the customer folder. The full `job.json` shape, field definitions, status values, and the intake procedure live in the **Customer Order Intake SOP**: `workspace/knowledge/sop-customer-order-intake.md`.
 
-## job.json shape
-
-The job lives **inside** its customer folder, so it carries no customer id of its own.
-
-```json
-{
-  "job_name": "Lot 42 Replant",
-  "created_at": "2026-06-17T09:30:00-05:00",
-  "status": "pending",
-  "customer_comments": "EDD 2026-07-01. Needs delivery before the 4th.",
-  "delivery_address": "4200 Bull Creek Rd, Austin, TX 78731",
-  "tax_pct": 8.25,
-  "metadata": {},
-  "items": [
-    {
-      "id": "a1b2c3d4",
-      "plant_name": "Live Oak",
-      "customer_comments": "prefers multi-trunk",
-      "size": "15 G",
-      "quantity": 12,
-      "price": 95,
-      "quantity_available": null,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "Mapped to trees.json (Quercus virginiana). Available as of 2026-06-10."
-    }
-  ]
-}
-```
-
-**Order/job level**
-
-- `job_name` — short human-readable label (e.g. "Lot 42 Replant", "Spring restock"); derive one from the request if the customer didn't name it. The job folder name is its id (`<YYYY-MM-DD>-<slug>`); the job carries no id field.
-- `created_at` — ISO 8601 in APS's timezone (§Conventions).
-- `status` — one of: `pending` → `quote_sent` → `order_confirmed` → `closed_won` / `closed_lost` / `cancelled`. Starts `pending`; you advance it as the order moves (quote sent to customer, order confirmed, won/lost/cancelled).
-- `customer_comments` — order-level customer input: the **EDD** (expected delivery date they want) plus any other short relevant note. Blank if none.
-- `delivery_address` — where it ships; blank if not given.
-- `tax_pct` — tax percentage for the order (number); `null` if not known yet.
-- `metadata` — free key/value object for any other relevant info (PO number, sales rep, source channel, etc.). Empty object if none.
-
-**Row items** (`items[]`)
-
-- `id` — 8-char alphanumeric, stable for the life of the item.
-- `plant_name` — the plant/item **as the customer demanded it** (no size).
-- `customer_comments` — per-item note from the customer (e.g. "prefers multi-trunk"). Blank if none.
-- `size` — demanded size, normalized (§Conventions). Blank if not given.
-- `quantity` — quantity demanded.
-- `price` — unit price from the price list; `null` if no match / unpriced.
-- `quantity_available` — quantity APS can actually supply (from Chris / ground team); `null` until known.
-- `status` — one of: `pending` (set after mapping) · `available` (can supply demanded qty/size) · `unavailable` · `diff` (offering a different **size / qty / plant** — describe in notes) · `can_order` (not on hand but APS can bring it in — note lead time). Chris sets the non-`pending` values on review.
-- `customer_facing_notes` — note meant **for the customer** (what goes in a reply/quote, e.g. "Available, ready to ship", "10G in stock as an alternative to 15G"). Customer-appropriate only.
-- `internal_notes` — **free internal field**, not shown to the customer. **Keep it short.** Record only: the last-known availability status **with date** *if present*, and an **alternate plant suggestion only if it's very close** to the demanded plant when the demanded one isn't available. Plus the price-list row it mapped to / Chris's review detail. Blank if there's nothing to note.
+**You (the main agent) need not read the SOP** — that's the sub-agent's playbook. Just **pass the SOP path along with the order data** to the sub-agent and let it follow it. Only open the SOP yourself if something genuinely requires it (e.g. Chris asks what a field means).
 
 # Core workflow
 
 When a demand request comes in (Chris relays it), run this loop without being asked step-by-step. **You coordinate; the customer's sub-agent does the file work** (§Your role) — then you report back.
 
-1. **Identify the customer** (you, the coordinator). From `workspace/index.md`, match the demand to an existing `customers/<slug>/`. If new, note the new slug; the sub-agent will create the folder. If you can't tell which customer (or it's an ad-hoc request), **ask Chris** — and meanwhile file the job under `customers/unknown/` so nothing is lost; move it once he names the customer.
-2. **Dispatch the customer/job sub-agent.** Re-message the existing per-customer sub-agent (`-c`) or spawn one at `sessions/<ThreadId>/subagents/<customer-slug>`. Hand it: the slug, the **verbatim** demand message (and any attachment paths), the inventory and customer paths, and these instructions —
-   - Create/locate `customers/<slug>/` + `customer.md` (fill given details, blanks for missing).
-   - Create the job folder `customers/<slug>/jobs/<YYYY-MM-DD>-<slug>/job.json`. Extract each item: **plant name (no size)**, **size** (normalized), **quantity**, per-item **customer comments**; plus job-level `created_at`, `customer_comments` (incl. EDD), `delivery_address`, `tax_pct`, `metadata`.
-   - **Map each item against `workspace/inventory/`**: fill `price`, and note the row's last-known status + timestamp in `internal_notes`. **Exact item not found → recommend the closest alternative** (nearest size, same plant type, common-name match) in `internal_notes`/`customer_facing_notes` and flag it; leave `price` null for the unmatched item. Do **not** invent a price or silently auto-substitute — surface the alternative for Chris to decide.
-   - Set every item and the job to `pending`. Update the indexes.
-   - Return a **short structured summary**: the items table (plant, size, qty, price, last-known status) + a list of anything missing/needing a price/ambiguous.
+1. **Identify the customer** (you, the coordinator). From `workspace/index.md`, match the demand to an existing `customers/<slug>/`. If new, note the new slug; the sub-agent will create the folder. If you can't tell which customer (or it's an ad-hoc request), **ask Chris** — and meanwhile have the job filed under `customers/unknown/` so nothing is lost; move it once he names the customer.
+2. **Dispatch the customer/job sub-agent.** Re-message the existing per-customer sub-agent (`-c`) or spawn one at `sessions/<ThreadId>/subagents/<customer-slug>`. **Whenever new order data comes in, hand the sub-agent the SOP path (`workspace/knowledge/sop-customer-order-intake.md`) together with: the slug, the verbatim demand message (and any attachment paths), and the inventory + customer paths.** It follows the SOP to file the job and returns a **short structured summary** (items table + anything missing/needing a price/ambiguous) — not a transcript.
 3. **Report to Chris** — fold the sub-agent's summary into a short message: the items table, and a clear list of what needs his input (missing price-list matches, unclear sizes, etc.). Ask the clarifying questions here.
-4. **On Chris's review** — he sets each item's status (`available` / `unavailable` / `can_order` / `diff`), `quantity_available`, and notes. Pass his decisions to the **same** sub-agent (`-c`): it updates `job.json` (item statuses, `internal_notes` for internal detail and `customer_facing_notes` for anything to relay back; advance the job `status`, e.g. → `quote_sent` / `order_confirmed`) **and reconciles inventory** — appending each matching entry's **`comment`** with the status + today's date from his review (`unavailable` → "Unavailable as of <date>"; `can_order` + lead time → record it). It does **not** change prices unless Chris changed them. It returns a one-line confirmation you relay to Chris.
+4. **On Chris's review** — he sets each item's status (`available` / `unavailable` / `can_order` / `diff`), `quantity_available`, and notes. Pass his decisions to the **same** sub-agent (`-c`); per the SOP it updates `job.json` and reconciles inventory, then returns a one-line confirmation you relay to Chris.
 
 You keep `sub-agents-index.md` current; the sub-agent keeps `workspace/index.md` and the inventory/customer files current.
 
