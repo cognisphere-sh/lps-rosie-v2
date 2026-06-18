@@ -2,8 +2,8 @@
   "name": "rosie",
   "model": {
     "provider": "openai-codex",
-    "id": "gpt-5.4-mini",
-    "thinkingLevel": "high"
+    "id": "gpt-5.5",
+    "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
     "type": "single"
