@@ -43,6 +43,25 @@ sudo -u "$RUN_USER" touch "$RUN_HOME/.npmrc"
 sudo -u "$RUN_USER" grep -qF 'npm.pkg.github.com/:_authToken' "$RUN_HOME/.npmrc" \
   || echo '//npm.pkg.github.com/:_authToken=${COGNISPHERE_NPM_TOKEN}' | sudo -u "$RUN_USER" tee -a "$RUN_HOME/.npmrc" >/dev/null
 sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash -c "cd '$APP_DIR' && pnpm install --frozen-lockfile"
+
+# ---- app credentials ------------------------------------------------------
+# Same username/password goes into the harness user store and the web service
+# login. Generate a password if config left it blank.
+APP_USER="${APP_USER:-Dyson}"
+APP_PASS="${APP_PASS:-$(head -c18 /dev/urandom | base64 | tr -d '/+=')}"
+install -d -o "$RUN_USER" "$APP_DIR/lps-harness/.secrets"
+printf '{\n  "users": [\n    { "username": %s, "password": %s }\n  ]\n}\n' \
+  "\"$APP_USER\"" "\"$APP_PASS\"" > "$APP_DIR/lps-harness/.secrets/users.json"
+cat > "$APP_DIR/web/.env.local" <<EOF
+# Service login used by the public availability form route. Written by
+# setup-server.sh; matches lps-harness/.secrets/users.json.
+HARNESS_USER=$APP_USER
+HARNESS_PASS=$APP_PASS
+EOF
+chown "$RUN_USER" "$APP_DIR/lps-harness/.secrets/users.json" "$APP_DIR/web/.env.local"
+chmod 600 "$APP_DIR/lps-harness/.secrets/users.json" "$APP_DIR/web/.env.local"
+echo ">> app login: $APP_USER / $APP_PASS"
+
 sudo -u "$RUN_USER" bash -c "cd '$APP_DIR' && pnpm --filter web build"
 
 # ---- systemd units --------------------------------------------------------
