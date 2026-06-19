@@ -7,6 +7,9 @@ import type { NextConfig } from "next";
 const harness = process.env.HARNESS_URL ?? "http://127.0.0.1:7331";
 
 const config: NextConfig = {
+  // Dev-only: allow HMR/asset requests from the deployed domain (set by
+  // `server.sh dev`, which sources DOMAIN from the `config` file).
+  allowedDevOrigins: process.env.DOMAIN ? [process.env.DOMAIN] : [],
   async rewrites() {
     return [
       // Proxy everything under /api EXCEPT /api/avail/* — that one is a real

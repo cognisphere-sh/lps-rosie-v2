@@ -17,7 +17,7 @@ const ThemeContext = createContext<{
   theme: Theme;
   resolvedTheme: Theme;
   setTheme: (t: Theme) => void;
-}>({ theme: "light", resolvedTheme: "light", setTheme: () => {} });
+}>({ theme: "dark", resolvedTheme: "dark", setTheme: () => {} });
 
 export function useTheme() {
   return useContext(ThemeContext);
@@ -25,7 +25,7 @@ export function useTheme() {
 
 export function ThemeProvider({
   children,
-  defaultTheme = "light",
+  defaultTheme = "dark",
 }: {
   children: ReactNode;
   defaultTheme?: Theme;

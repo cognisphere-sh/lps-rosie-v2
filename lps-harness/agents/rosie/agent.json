@@ -1,8 +1,8 @@
 {
   "name": "rosie",
   "model": {
-    "provider": "openai-codex",
-    "id": "gpt-5.5",
+    "provider": "vercel-ai-gateway",
+    "id": "alibaba/qwen3.7-plus",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
@@ -12,8 +12,8 @@
   "maxAttempts": 3,
   "runtime": "subprocess",
   "subagentModel": {
-    "provider": "openai-codex",
-    "id": "gpt-5.5",
+    "provider": "vercel-ai-gateway",
+    "id": "alibaba/qwen3.7-plus",
     "thinkingLevel": "medium"
   }
 }

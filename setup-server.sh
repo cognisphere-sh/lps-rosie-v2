@@ -52,11 +52,18 @@ APP_PASS="${APP_PASS:-$(head -c18 /dev/urandom | base64 | tr -d '/+=')}"
 install -d -o "$RUN_USER" "$APP_DIR/lps-harness/.secrets"
 printf '{\n  "users": [\n    { "username": %s, "password": %s }\n  ]\n}\n' \
   "\"$APP_USER\"" "\"$APP_PASS\"" > "$APP_DIR/lps-harness/.secrets/users.json"
+# Written from `config` so the domain, ports and harness URL aren't hardcoded.
+# HARNESS_USER/PASS are the service login for the public availability form
+# route; they match lps-harness/.secrets/users.json. The systemd unit also
+# sets PORT/HARNESS_URL; keeping them here lets `server.sh dev` and local runs
+# work the same way.
 cat > "$APP_DIR/web/.env.local" <<EOF
-# Service login used by the public availability form route. Written by
-# setup-server.sh; matches lps-harness/.secrets/users.json.
+# Written by setup-server.sh. Do not hand-edit.
 HARNESS_USER=$APP_USER
 HARNESS_PASS=$APP_PASS
+DOMAIN=$DOMAIN
+PORT=$WEB_PORT
+HARNESS_URL=http://127.0.0.1:$HARNESS_PORT
 EOF
 chown "$RUN_USER" "$APP_DIR/lps-harness/.secrets/users.json" "$APP_DIR/web/.env.local"
 chmod 600 "$APP_DIR/lps-harness/.secrets/users.json" "$APP_DIR/web/.env.local"
