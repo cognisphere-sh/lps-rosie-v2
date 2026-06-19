@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "Austin Plant Supply",
-  description: "Austin Plant Supply — inventory, orders, and customers (Rosie).",
+  description: "Austin Plant Supply — inventory, requests, and customers (Rosie).",
 };
 
 export default function RootLayout({

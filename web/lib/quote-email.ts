@@ -5,8 +5,6 @@
 // own card behind each pasted block.
 
 import {
-  isUnavailable,
-  lineTotal,
   type WsItemStatus,
   type WsOrderItem,
 } from "@/components/supplier/supplier-workspace-data";
@@ -24,20 +22,32 @@ const STATUS_GLYPH: Record<WsItemStatus, Glyph> = {
   ordered: { symbol: "✓", label: "Ordered", color: "#2563eb" },
   confirmation_pending: { symbol: "…", label: "Pending", color: "#6b7280" },
   unavailable: { symbol: "✗", label: "Unavailable", color: "#dc2626" },
+  price_missing: { symbol: "!", label: "Price Missing", color: "#dc2626" },
 };
 
 const formatPrice = (n: number) => `$${n.toFixed(2)}`;
+
+// On the customer-facing quote, anything not firmly priced reads as Unavailable:
+// a missing price or a still-pending line shouldn't go out as a real quote line.
+// Email-only — the in-app table/subtotals keep their own per-status treatment.
+const EMAIL_UNAVAILABLE = new Set<WsItemStatus>([
+  "unavailable",
+  "price_missing",
+  "confirmation_pending",
+]);
+const isUnavailableOnQuote = (i: WsOrderItem) => EMAIL_UNAVAILABLE.has(i.status);
 
 const CELL = "background-color:#ffffff;color:#333333;";
 const HEAD = "background-color:#f4f4f4;color:#333333;";
 const WRAP = "word-wrap:break-word;overflow-wrap:break-word;white-space:normal;";
 
 function rowHtml(item: WsOrderItem): { html: string; total: number } {
-  const g = STATUS_GLYPH[item.status];
-  const unavailable = isUnavailable(item);
+  const unavailable = isUnavailableOnQuote(item);
+  // price_missing / pending render as Unavailable on the quote.
+  const g = unavailable ? STATUS_GLYPH.unavailable : STATUS_GLYPH[item.status];
   const price = unavailable ? 0 : item.unitPrice ?? 0;
   const qty = unavailable ? 0 : item.qty;
-  const total = lineTotal(item);
+  const total = unavailable ? 0 : (item.unitPrice ?? 0) * item.qty;
   const dash = "—";
   const badge = `<span style="font-size:11px;font-weight:600;color:${g.color};">${g.symbol} ${g.label}</span>`;
   const cell = `${CELL}border:1px solid #ccc;padding:6px 10px;`;

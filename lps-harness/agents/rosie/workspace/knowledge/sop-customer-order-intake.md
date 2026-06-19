@@ -7,7 +7,7 @@ Playbook for the per-customer sub-agent: turn an inbound customer order into a f
 1. **Customer folder.** Create/locate `customers/<slug>/` + `customer.json` (structured profile, shape below — fill given details, blanks/empties for missing). `<slug>` is short kebab-case. Keep `customer.json` current whenever you learn a new contact detail. Can't place the customer yet → file under `customers/unknown/`.
 2. **Create the job** at `customers/<slug>/jobs/<YYYY-MM-DD>-<slug>/job.json` (shape below). Extract each item — **plant name (no size)**, **size** (normalized, see §Conventions in 1-agent.md), **quantity**, per-item **customer comments** — plus job-level `created_at`, `customer_comments` (incl. EDD), `delivery_address`, `tax_pct`, `metadata`.
 3. **Map each item against `workspace/inventory/`** (exact name match not required — same plant is enough): fill `price` and set `internal_notes` (format below). No price match → `price` null. Do **not** invent a price or silently auto-substitute — surface a close alternative for Chris to decide.
-4. **Set every item and the job to `pending`.** Update `workspace/index.md` and `inventory/index.md` as needed.
+4. **Set the job to `pending`. Set each item's status:** `pending` if it mapped to a price; `price_missing` if `price` is null (the list carries no price for it — flag for Chris). Update `workspace/index.md` and `inventory/index.md` as needed.
 5. **Return a short structured summary:** the items table (plant, size, qty, price, last-known status) + a list of anything missing / needing a price / ambiguous. Not a transcript.
 
 ## customer.json shape
@@ -80,19 +80,21 @@ The job lives **inside** its customer folder, so it carries no customer id of it
 
 **Row items** (`items[]`)
 
+**Ordering:** Items requiring attention (non-blank `internal_notes`) always come first in the array, followed by cleanly-mapped items. Apply this ordering whenever the job is created or edited.
+
 - `id` — 8-char alphanumeric, stable for the life of the item. Preserve existing ids on edits; mint new ones only for genuinely new items.
 - `plant_name` — the plant/item **as the customer demanded it** (no size).
 - `customer_comments` — per-item note from the customer. **Terse — minimum words, no full sentences.** Blank if none.
 - `size` — demanded size, normalized (§Conventions). Blank if not given.
 - `quantity` — quantity demanded.
 - `price` — unit price from the price list; `null` if no match / unpriced.
-- `status` — `pending` (after mapping) · `available` · `unavailable` · `diff` (different size/qty/plant — describe in notes) · `can_order` (note lead time). Chris sets the non-`pending` values on review.
+- `status` — `pending` (after mapping) · `available` · `unavailable` · `diff` (different size/qty/plant — describe in notes) · `can_order` (note lead time) · `price_missing` (no price in the list — `price` is null; flag for Chris). Set `price_missing` yourself at intake whenever `price` is null; Chris sets the other non-`pending` values on review.
 - `customer_facing_notes` — note meant **for the customer** (goes in a reply/quote). Customer-appropriate only.
-- `internal_notes` — **free internal field**, not shown to the customer. **Terse — minimum words, no full sentences, no source-file mention.** Format:
-  - Mapped: `<Size>- <Mapped Plant Name>: <Last Status>` (status with date only if present, e.g. `15 G- Quercus virginiana: Available 2026-06-10`).
-  - Close alternate offered (when demanded isn't available): add `[Alternate] <Size>- <Plant Name>: <Last Status>`. Only if it's genuinely close.
-  - Not in inventory: `Not Found`.
-  - Blank if there's nothing to note.
+- `internal_notes` — **free internal field**, not shown to the customer. **Only populate when the item needs Chris's attention.** Leave blank if the plant was straightforwardly found and mapped in the price list (even if a common-name alias was used). **Terse — minimum words, no full sentences, no source-file mention.** Populate only for:
+  - Size/qty mismatch (closest available in a different size): `[Size Diff] <Available Size>- <Mapped Plant Name>: <Last Status>`.
+  - Close alternate offered (demanded plant unavailable, suggesting similar): `[Alternate] <Size>- <Plant Name>: <Last Status>`. Only if genuinely close.
+  - Not in inventory at all: `Not Found`.
+  - Any other flag needing Chris's attention (ambiguous qty, cultivar confirmation needed, etc.): short plain note.
 
 ## On Chris's review (same sub-agent, `-c`)
 

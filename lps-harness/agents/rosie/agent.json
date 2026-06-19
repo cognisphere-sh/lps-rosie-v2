@@ -2,7 +2,7 @@
   "name": "rosie",
   "model": {
     "provider": "vercel-ai-gateway",
-    "id": "alibaba/qwen3.7-plus",
+    "id": "anthropic/claude-sonnet-4.6",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
@@ -13,7 +13,7 @@
   "runtime": "subprocess",
   "subagentModel": {
     "provider": "vercel-ai-gateway",
-    "id": "alibaba/qwen3.7-plus",
+    "id": "anthropic/claude-sonnet-4.6",
     "thinkingLevel": "medium"
   }
 }

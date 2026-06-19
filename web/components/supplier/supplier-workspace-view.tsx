@@ -336,9 +336,9 @@ export function SupplierWorkspaceView() {
         {(
           [
             { tab: "customers", label: "Customers" },
-            { tab: "orders", label: "All Orders" },
+            { tab: "orders", label: "All Requests" },
             { tab: "inventory", label: "Inventory" },
-            { tab: "requests", label: "Requests" },
+            { tab: "requests", label: "Stock Checks" },
           ] as const
         ).map((t) => (
           <button
@@ -546,7 +546,7 @@ function WorkspaceSidebar({
         <SidebarNavButton
           icon={Users}
           label="Customers"
-          sub="Profiles & order history"
+          sub="Profiles & request history"
           active={activeTab === "customers"}
           onClick={() => onSelect("customers")}
           badge={customersCount}
@@ -554,7 +554,7 @@ function WorkspaceSidebar({
         />
         <SidebarNavButton
           icon={ClipboardList}
-          label="All Orders"
+          label="All Requests"
           sub="Every line item, live"
           active={activeTab === "orders"}
           onClick={() => onSelect("orders")}
@@ -572,7 +572,7 @@ function WorkspaceSidebar({
         />
         <SidebarNavButton
           icon={Share2}
-          label="Availability Requests"
+          label="Stock Checks"
           sub="Shared check links"
           active={activeTab === "requests"}
           onClick={() => onSelect("requests")}
@@ -1127,7 +1127,7 @@ export function WorkspaceTable<T extends { id: string }>({
                             <td className="border-y border-border pl-2 pr-0 py-1.5">
                               {selectAllCheckbox(
                                 groupRows,
-                                "Select all items in this order",
+                                "Select all items in this request",
                               )}
                             </td>
                           )}
@@ -1629,7 +1629,7 @@ function CustomersPanel({
     },
     {
       key: "orders",
-      label: "Orders",
+      label: "Requests",
       width: "w-[80px]",
       align: "right",
       getValue: (c) => orderCount.get(c.id) ?? 0,
@@ -1656,7 +1656,7 @@ function CustomersPanel({
     <>
       <PanelHeader
         title="Customers"
-        sub={`${customers.length} profiles · click a name for the full file + order history`}
+        sub={`${customers.length} profiles · click a name for the full file + request history`}
       />
       <WorkspaceTable
         columns={columns}
@@ -1976,8 +1976,8 @@ function ProjectGroupCard({
         variant="ghost"
         size="icon"
         className="mr-1 h-7 w-7 shrink-0 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
-        aria-label="Delete order"
-        title="Delete this order"
+        aria-label="Delete request"
+        title="Delete this request"
         onClick={() => {
           if (confirmDeleteOrder(order)) onDeleteOrder(order);
         }}
@@ -2058,10 +2058,10 @@ function OrdersPanel({
   return (
     <>
       <PanelHeader
-        title="All Orders"
+        title="All Requests"
         sub={
           <>
-            {itemCount} line items across {orders.length} orders ·{" "}
+            {itemCount} line items across {orders.length} requests ·{" "}
             {pendingCount > 0 ? (
               <span className="text-amber-600 dark:text-amber-400">
                 {pendingCount} pending your input
@@ -2088,8 +2088,8 @@ function OrdersPanel({
 }
 
 /**
- * The grouped orders table (quick filters + project cards + item rows).
- * Shared between the All Orders tab and the customer detail's orders section.
+ * The grouped requests table (quick filters + project cards + item rows).
+ * Shared between the All Requests tab and the customer detail's requests section.
  */
 function OrdersTable({
   orders,
@@ -2200,7 +2200,7 @@ function OrdersTable({
         const url = `${window.location.origin}/availability/${token}`;
         await navigator.clipboard.writeText(url).catch(() => {});
         clear();
-        toast.success("Availability request link copied", { description: url });
+        toast.success("Stock check link copied", { description: url });
       } catch (e) {
         toast.error(`Failed: ${(e as Error)?.message ?? e}`);
       }
@@ -2232,7 +2232,7 @@ function OrdersTable({
         columns={columns}
         rows={quickFiltered}
         searchPlaceholder="Search plant, customer, project, notes…"
-        emptyText="No order items match your filters."
+        emptyText="No request items match your filters."
         rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
         onDelete={(rows) =>
           onDeleteItems(rows.map((r) => ({ order: r.order, itemId: r.item.id })))
@@ -2246,7 +2246,7 @@ function OrdersTable({
               onClick={() => generateAvailRequest(rows, clear)}
             >
               <Link2 className="h-3.5 w-3.5" />
-              Availability request ({rows.length})
+              Stock check ({rows.length})
             </Button>
             <Button
               size="sm"
@@ -2526,7 +2526,7 @@ function RequestsPanel() {
   }, [load]);
 
   const remove = async (req: AvailRequest) => {
-    if (!confirm("Delete this availability request link? It can no longer be opened.")) return;
+    if (!confirm("Delete this stock check link? It can no longer be opened.")) return;
     try {
       await deletePath(availRequestPath(req.token));
       setRequests((prev) => prev?.filter((r) => r.token !== req.token) ?? null);
@@ -2547,11 +2547,11 @@ function RequestsPanel() {
   return (
     <>
       <PanelHeader
-        title="Availability Requests"
+        title="Stock Checks"
         sub={
           requests
             ? `${requests.length} shared link${requests.length === 1 ? "" : "s"} · ${requests.filter((r) => r.status === "submitted").length} submitted`
-            : "Shared availability-check links"
+            : "Shared stock-check links"
         }
       />
       <ScrollArea className="min-h-0 flex-1">
@@ -2559,7 +2559,7 @@ function RequestsPanel() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {requests && requests.length === 0 && (
             <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-              No availability requests yet. Select order lines and use “Availability request”.
+              No stock checks yet. Select request lines and use “Stock check”.
             </p>
           )}
           {requests?.map((req) => {
@@ -2682,14 +2682,14 @@ function CustomerDetail({
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Customer since {formatRelative(customer.createdOn)} ·{" "}
-            {orders.length} order{orders.length === 1 ? "" : "s"}
+            {orders.length} request{orders.length === 1 ? "" : "s"}
           </p>
         </div>
         <div className="mt-3 flex gap-1">
           {(
             [
               { id: "details", label: "Details" },
-              { id: "orders", label: `Orders (${orders.length})` },
+              { id: "orders", label: `Requests (${orders.length})` },
             ] as const
           ).map((t) => (
             <button
@@ -2764,7 +2764,7 @@ function CustomerDetail({
           No orders on file yet.
         </p>
       ) : (
-        /* orders/ — same grouped table as the All Orders tab, scoped to
+        /* orders/ — same grouped table as the All Requests tab, scoped to
            this customer's folder. */
         <OrdersTable
           orders={orders}
@@ -2854,7 +2854,7 @@ function OrderDetail({
             onClick={onBack}
           >
             <ChevronLeft className="h-4 w-4" />
-            All orders
+            All requests
           </Button>
           <div className="flex items-center gap-2">
             <FileChip path={orderStatePath(order)} />
@@ -2870,7 +2870,7 @@ function OrderDetail({
               }}
             >
               <Trash2 className="h-4 w-4" />
-              Delete order
+              Delete request
             </Button>
           </div>
         </div>
@@ -2893,7 +2893,7 @@ function OrderDetail({
         </p>
         <div className="mt-2 max-w-2xl">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Order notes
+            Request notes
           </p>
           <div className="relative -mx-2">
             <EditableCell
@@ -2907,7 +2907,7 @@ function OrderDetail({
       <WorkspaceTable
         columns={columns}
         rows={rows}
-        searchPlaceholder="Search items on this order…"
+        searchPlaceholder="Search items on this request…"
         emptyText="No items match your filters."
         rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
       />
@@ -2915,7 +2915,7 @@ function OrderDetail({
       {allAttachments.length > 0 && (
         <div className="border-t border-border bg-card/30 px-4 py-3 sm:px-6">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Attachments on this order
+            Attachments on this request
           </p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {allAttachments.map((a) => (

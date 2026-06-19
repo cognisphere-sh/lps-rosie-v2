@@ -58,6 +58,7 @@ export const ITEM_FROM_WS: Record<WsItemStatus, string> = {
   unavailable: "unavailable",
   can_order: "can_order",
   diff_size_qty: "diff",
+  price_missing: "price_missing",
   ordered: "ordered",
 };
 export const ITEM_TO_WS: Record<string, WsItemStatus> = {
@@ -66,6 +67,7 @@ export const ITEM_TO_WS: Record<string, WsItemStatus> = {
   unavailable: "unavailable",
   can_order: "can_order",
   diff: "diff_size_qty",
+  price_missing: "price_missing",
   ordered: "ordered",
 };
 

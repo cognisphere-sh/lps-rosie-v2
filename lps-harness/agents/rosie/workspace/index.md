@@ -16,6 +16,7 @@ thread you've handled and a short pointer to anything in `knowledge/` or
 
 ## Customers
 - `workspace/customers/index.md` — customer/job filing index; includes Dior Goodwin and unknown placeholder.
+- `workspace/customers/aquasense/` — Aquasense (new, 2026-06-19); job: aquasense-demand-jun19 (38 items, pending).
 
 ## Files
 

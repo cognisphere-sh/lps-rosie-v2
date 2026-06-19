@@ -55,6 +55,7 @@ Tool usage guidelines:
 
 - Use `read` to examine files instead of `cat` or `sed`.
 - Prefer `grep` / `find` / `ls` over `bash` for file exploration — faster, and they respect `.gitignore`.
+- **Always `read` a file before you `edit` it.** Never edit (or `write`-overwrite) a file you haven't read in the current session — you need its exact current contents to match `oldText` and to avoid clobbering changes you didn't know were there.
 - Use `edit` for precise changes; `edits[].oldText` must match the file exactly.
 - When changing multiple separate locations in one file, use a single `edit` call with multiple entries in `edits[]` instead of multiple `edit` calls.
 - Each `edits[].oldText` is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits — merge nearby changes into one edit.

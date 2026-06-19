@@ -31,6 +31,7 @@ export type WsItemStatus =
   | "unavailable"
   | "can_order"
   | "diff_size_qty"
+  | "price_missing"
   | "ordered"
 
 export type WsProjectStatus =
@@ -91,12 +92,13 @@ export const ITEM_STATUS_META: Record<
   unavailable: { label: "Unavailable", tone: "danger" },
   can_order: { label: "Can Order", tone: "info" },
   diff_size_qty: { label: "Diff (Size/Qty/Plant)", tone: "neutral" },
+  price_missing: { label: "Price Missing", tone: "danger" },
   ordered: { label: "Ordered", tone: "info" },
 }
 
 // Item-status palette: Pending grey, Available green, Diff orange, Can Order
-// yellow, Ordered blue, Unavailable red. `badge` colors the status pill / card
-// count chips; `strip` colors the row's left edge.
+// yellow, Ordered blue, Unavailable & Price Missing red. `badge` colors the
+// status pill / card count chips; `strip` colors the row's left edge.
 export const ITEM_STATUS_COLOR: Record<
   WsItemStatus,
   { badge: string; strip: string }
@@ -126,6 +128,11 @@ export const ITEM_STATUS_COLOR: Record<
     strip: "border-l-blue-500",
   },
   unavailable: {
+    badge:
+      "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
+    strip: "border-l-red-500",
+  },
+  price_missing: {
     badge:
       "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
     strip: "border-l-red-500",
