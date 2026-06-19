@@ -1,0 +1,12 @@
+# Deploy params. Copy to `config` and edit:  cp config.example config
+# Sourced by setup-server.sh and server.sh (plain shell, no spaces around =).
+
+DOMAIN=rosie.example.com            # web app (seller/customer/sourcer surfaces)
+CONSOLE_DOMAIN=console.example.com  # harness built-in UI (needs its own DNS A record)
+EMAIL=you@example.com               # Let's Encrypt registration / renewal notices
+
+WEB_PORT=3000        # Next.js (next start) — nginx proxies $DOMAIN here
+HARNESS_PORT=7331    # cognisphere backend + built-in UI — nginx proxies $CONSOLE_DOMAIN here
+
+NODE_MAJOR=22        # Node LTS to install
+RUN_USER=            # OS user the services run as (blank = invoking sudo user)
