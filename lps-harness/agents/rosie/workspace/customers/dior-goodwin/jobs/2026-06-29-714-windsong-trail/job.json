@@ -1,7 +1,7 @@
 {
   "job_name": "714 Windsong Trail",
   "created_at": "2026-06-18T08:46:57-05:00",
-  "updated_at": "2026-06-18T14:23:46.659Z",
+  "updated_at": "2026-06-18T21:43:03-05:00",
   "status": "pending",
   "customer_comments": "Target delivery 2026-06-29. Another order for end of month at a different property; variations may follow as date approaches.",
   "delivery_address": "714 Windsong Trail",
@@ -22,7 +22,9 @@
       "price": 7,
       "status": "available",
       "customer_facing_notes": "",
-      "internal_notes": "1 G- Ruellia: Listed"
+      "internal_notes": "1 G- Ruellia: Available 6 x 1 G 2026-06-18",
+      "available_quantity": 6,
+      "available_size": "1 G"
     },
     {
       "id": "1d37f4ea",
@@ -31,9 +33,11 @@
       "size": "1 G",
       "quantity": 28,
       "price": 7,
-      "status": "pending",
+      "status": "available",
       "customer_facing_notes": "",
-      "internal_notes": "1 G- Lantana: Listed"
+      "internal_notes": "1 G- Lantana: Available 28 x 1 G 2026-06-18",
+      "available_quantity": 28,
+      "available_size": "1 G"
     },
     {
       "id": "9812b30f",
@@ -42,9 +46,11 @@
       "size": "1 G",
       "quantity": 30,
       "price": 7,
-      "status": "pending",
+      "status": "available",
       "customer_facing_notes": "",
-      "internal_notes": "1 G- Purple Heart: Listed"
+      "internal_notes": "1 G- Purple Heart: Available 30 x 1 G 2026-06-18",
+      "available_quantity": 30,
+      "available_size": "1 G"
     },
     {
       "id": "d6f7a84f",
@@ -53,9 +59,11 @@
       "size": "1 G",
       "quantity": 53,
       "price": 7,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "1 G- Dichondra PonyFoot: Listed"
+      "status": "unavailable",
+      "customer_facing_notes": "Unavailable",
+      "internal_notes": "1 G- Dichondra PonyFoot: Unavailable 53 x 1 G 2026-06-18",
+      "available_quantity": 0,
+      "available_size": "1 G"
     },
     {
       "id": "ccd792d4",
@@ -64,9 +72,11 @@
       "size": "3 G",
       "quantity": 5,
       "price": 23,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "3 G- Fatsia Japanese Aralia: Listed"
+      "status": "can_order",
+      "customer_facing_notes": "2 weeks lead time",
+      "internal_notes": "3 G- Fatsia Japanese Aralia: Can order 5 x 3 G; 2 weeks lead time 2026-06-18",
+      "available_quantity": 5,
+      "available_size": "3 G"
     },
     {
       "id": "381e0975",
@@ -75,9 +85,11 @@
       "size": "3 G",
       "quantity": 6,
       "price": 21,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "3 G- Grass-Muhlenbergia: Listed"
+      "status": "can_order",
+      "customer_facing_notes": "Can order",
+      "internal_notes": "3 G- Grass-Muhlenbergia: Can order 6 x 3 G 2026-06-18",
+      "available_quantity": 6,
+      "available_size": "3 G"
     },
     {
       "id": "91cd42b1",
@@ -86,9 +98,11 @@
       "size": "3 G",
       "quantity": 13,
       "price": null,
-      "status": "pending",
+      "status": "available",
       "customer_facing_notes": "",
-      "internal_notes": "[Alternate] 5 G- Callicarpa American Beauty Berry: Listed"
+      "internal_notes": "[Alternate] 5 G- Callicarpa American Beauty Berry: Available 13 x 3 G 2026-06-18",
+      "available_quantity": 13,
+      "available_size": "3 G"
     },
     {
       "id": "3dabb982",
@@ -97,9 +111,11 @@
       "size": "3 G",
       "quantity": 53,
       "price": 27,
-      "status": "pending",
+      "status": "available",
       "customer_facing_notes": "",
-      "internal_notes": "3 G- Agapanthus Peter Pan (Dwarf) 3#: Listed"
+      "internal_notes": "3 G- Agapanthus Peter Pan (Dwarf) 3#: Available 53 x 3 G 2026-06-18",
+      "available_quantity": 53,
+      "available_size": "3 G"
     },
     {
       "id": "ea9f3ff8",
@@ -108,9 +124,11 @@
       "size": "3 G",
       "quantity": 1,
       "price": 23,
-      "status": "pending",
+      "status": "available",
       "customer_facing_notes": "",
-      "internal_notes": "3 G- Bush Germander: Listed"
+      "internal_notes": "3 G- Bush Germander: Available 1 x 3 G 2026-06-18",
+      "available_quantity": 1,
+      "available_size": "3 G"
     },
     {
       "id": "e58362d0",
@@ -119,9 +137,11 @@
       "size": "3 G",
       "quantity": 11,
       "price": 23,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "3 G- Horsetail Reed: Listed"
+      "status": "diff",
+      "customer_facing_notes": "Diff Size 4 G",
+      "internal_notes": "3 G- Horsetail Reed: Diff size: 11 x 4 G available 2026-06-18",
+      "available_quantity": 11,
+      "available_size": "4 G"
     },
     {
       "id": "1b7635e3",
@@ -130,9 +150,11 @@
       "size": "3 G",
       "quantity": 17,
       "price": 21,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "3 G- Salvia Leucantha: Listed"
+      "status": "diff",
+      "customer_facing_notes": "Diff Qty 10",
+      "internal_notes": "3 G- Salvia Leucantha: Diff qty: 10 x 3 G available of 17 requested 2026-06-18",
+      "available_quantity": 10,
+      "available_size": "3 G"
     },
     {
       "id": "fe68227f",
@@ -141,9 +163,11 @@
       "size": "3 G",
       "quantity": 7,
       "price": 21,
-      "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "3 G- Yucca Hesperaloe Red: Listed"
+      "status": "can_order",
+      "customer_facing_notes": "Ordered",
+      "internal_notes": "3 G- Yucca Hesperaloe Red: Ordered 7 x 3 G 2026-06-18",
+      "available_quantity": 7,
+      "available_size": "3 G"
     },
     {
       "id": "b434acd9",
@@ -153,8 +177,10 @@
       "quantity": 26,
       "price": 30,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "3 G- Palm Dwarf Sabal Minor or Silver Palmetto: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "3 G- Palm Dwarf Sabal Minor or Silver Palmetto: Confirmation pending 26 x 3 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "3 G"
     },
     {
       "id": "ffc61d33",
@@ -164,8 +190,10 @@
       "quantity": 5,
       "price": null,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "[Alternate] 5 G staked- Bignonia Crossvine: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "[Alternate] 5 G staked- Bignonia Crossvine: Confirmation pending 5 x 3 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "3 G"
     },
     {
       "id": "35e7ed0d",
@@ -175,8 +203,10 @@
       "quantity": 1,
       "price": 46,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "5 G- Dasylirion Green Sotol: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "5 G- Dasylirion Green Sotol: Confirmation pending 1 x 5 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "5 G"
     },
     {
       "id": "3df5ec3e",
@@ -186,8 +216,10 @@
       "quantity": 23,
       "price": null,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "[Alternate] 7 G- Texas Sage Greencloud: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "[Alternate] 7 G- Texas Sage Greencloud: Confirmation pending 23 x 7 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "7 G"
     },
     {
       "id": "aba7c7c5",
@@ -197,8 +229,10 @@
       "quantity": 1,
       "price": 375,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "15 G- Japanese Maple: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "15 G- Japanese Maple: Confirmation pending 1 x 15 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "15 G"
     },
     {
       "id": "366de790",
@@ -208,8 +242,10 @@
       "quantity": 6,
       "price": 295,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "30 G- Ilex Yaupon Holly: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "30 G- Ilex Yaupon Holly: Confirmation pending 6 x 30 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "30 G"
     },
     {
       "id": "4b85527a",
@@ -219,8 +255,10 @@
       "quantity": 2,
       "price": null,
       "status": "pending",
-      "customer_facing_notes": "",
-      "internal_notes": "[Alternate] 30 G- Texas Mountain Laurel: Listed"
+      "customer_facing_notes": "Confirmation pending",
+      "internal_notes": "[Alternate] 30 G- Texas Mountain Laurel: Confirmation pending 2 x 45 G 2026-06-18",
+      "available_quantity": null,
+      "available_size": "45 G"
     }
   ]
 }

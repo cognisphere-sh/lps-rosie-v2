@@ -21,7 +21,9 @@ import {
   FileText,
   ImageIcon,
   Leaf,
+  Link2,
   LogOut,
+  Mail,
   MessageCircle,
   Moon,
   Package,
@@ -30,6 +32,7 @@ import {
   Search,
   Send,
   Settings,
+  Share2,
   Sun,
   Trash2,
   User,
@@ -53,8 +56,11 @@ import { SortButton } from "@/components/ui/data-table/sort-button";
 import { EditableCell } from "@/components/ui/data-table/editable-cell";
 import { SUPPLIER } from "./supplier";
 import {
+  ITEM_STATUS_COLOR,
   ITEM_STATUS_META,
   PROJECT_STATUS_META,
+  isUnavailable,
+  lineTotal,
   customerProfilePath,
   orderStatePath,
   sectionFilePath,
@@ -70,7 +76,21 @@ import { formatCurrency, formatDate, formatRelative } from "./ui";
 import { ChatMarkdown } from "./chat-markdown";
 import type { Dispatch, SetStateAction } from "react";
 import { useChat, useLatestEvent } from "@/lib/data";
-import { rawUrl, uploadFile } from "@/lib/harness";
+import {
+  rawUrl,
+  uploadFile,
+  writeJson,
+  tree,
+  readJson,
+  deletePath,
+} from "@/lib/harness";
+import {
+  availRequestPath,
+  availRequestsDir,
+  type AvailRequest,
+} from "@/lib/availability";
+import { copyQuoteToClipboard } from "@/lib/quote-email";
+import { StatusEditor } from "./status-editor";
 import type { EventStatus } from "@/lib/harness";
 import {
   useWorkspace,
@@ -81,6 +101,7 @@ import {
   deleteWsInventoryItems,
   addWsOrderItem,
   deleteWsOrderItems,
+  deleteWsOrder,
 } from "@/lib/ws-adapter";
 import { useTheme } from "@/components/theme-provider";
 import { useRouter } from "next/navigation";
@@ -114,12 +135,13 @@ function persistingSetter<T>(
 
 // ─── View routing ───────────────────────────────────────────────────────────
 
-type Tab = "customers" | "orders" | "inventory";
+type Tab = "customers" | "orders" | "inventory" | "requests";
 
 type View =
   | { kind: "customers" }
   | { kind: "orders" }
   | { kind: "inventory" }
+  | { kind: "requests" }
   | { kind: "customer"; id: string }
   | { kind: "order"; id: string };
 
@@ -127,6 +149,7 @@ const TAB_OF_VIEW: Record<View["kind"], Tab> = {
   customers: "customers",
   orders: "orders",
   inventory: "inventory",
+  requests: "requests",
   customer: "customers",
   order: "orders",
 };
@@ -281,6 +304,10 @@ export function SupplierWorkspaceView() {
       runAndReload(() => deleteWsOrderItems(rows)),
     [runAndReload],
   );
+  const deleteOrder = useCallback(
+    (order: WsOrder) => runAndReload(() => deleteWsOrder(order)),
+    [runAndReload],
+  );
 
   // ── Lookup of the currently-open detail records ──
 
@@ -311,6 +338,7 @@ export function SupplierWorkspaceView() {
             { tab: "customers", label: "Customers" },
             { tab: "orders", label: "All Orders" },
             { tab: "inventory", label: "Inventory" },
+            { tab: "requests", label: "Requests" },
           ] as const
         ).map((t) => (
           <button
@@ -369,6 +397,7 @@ export function SupplierWorkspaceView() {
                   onUpdateOrder={updateOrder}
                   onAddItem={addOrderItem}
                   onDeleteItems={deleteOrderItems}
+                  onDeleteOrder={deleteOrder}
                   onOpenCustomer={(id) => setView({ kind: "customer", id })}
                   onOpenOrder={(id) => setView({ kind: "order", id })}
                 />
@@ -381,6 +410,7 @@ export function SupplierWorkspaceView() {
                   onDelete={deleteInventoryItems}
                 />
               )}
+              {view.kind === "requests" && <RequestsPanel />}
               {view.kind === "customer" &&
                 (detailCustomer ? (
                   <CustomerDetail
@@ -396,6 +426,7 @@ export function SupplierWorkspaceView() {
                     onUpdateOrder={updateOrder}
                     onAddItem={addOrderItem}
                     onDeleteItems={deleteOrderItems}
+                    onDeleteOrder={deleteOrder}
                     onOpenCustomer={(id) => setView({ kind: "customer", id })}
                     onOpenOrder={(id) => setView({ kind: "order", id })}
                   />
@@ -416,6 +447,7 @@ export function SupplierWorkspaceView() {
                     onUpdateItem={(itemId, patch) =>
                       updateOrderItem(detailOrder.id, itemId, patch)
                     }
+                    onDeleteOrder={deleteOrder}
                     onOpenCustomer={(id) => setView({ kind: "customer", id })}
                   />
                 ) : (
@@ -531,6 +563,13 @@ function WorkspaceSidebar({
           onClick={() => onSelect("inventory")}
           badge={sectionsCount}
           badgeTone="primary"
+        />
+        <SidebarNavButton
+          icon={Share2}
+          label="Availability Requests"
+          sub="Shared check links"
+          active={activeTab === "requests"}
+          onClick={() => onSelect("requests")}
         />
       </nav>
 
@@ -663,7 +702,7 @@ interface WsColumn<T> {
   noSort?: boolean;
 }
 
-function WorkspaceTable<T extends { id: string }>({
+export function WorkspaceTable<T extends { id: string }>({
   columns,
   rows,
   searchPlaceholder,
@@ -677,6 +716,7 @@ function WorkspaceTable<T extends { id: string }>({
   onAddRow,
   addLabel,
   onDelete,
+  selectionActions,
 }: {
   columns: WsColumn<T>[];
   rows: T[];
@@ -688,6 +728,8 @@ function WorkspaceTable<T extends { id: string }>({
   addLabel?: string;
   /** Enables the leading actions column (checkbox + delete) and bulk delete. */
   onDelete?: (rows: T[]) => void;
+  /** Extra header buttons shown while rows are selected (gets the selection + a clear callback). */
+  selectionActions?: (rows: T[], clear: () => void) => React.ReactNode;
   /** Colored left-edge strip per row (e.g. status). Applied to the first cell. */
   rowStrip?: (row: T) => string;
   /** Panel-specific quick filters rendered in the control strip. */
@@ -941,6 +983,8 @@ function WorkspaceTable<T extends { id: string }>({
             Delete ({selectedRows.length})
           </Button>
         )}
+        {selectedRows.length > 0 &&
+          selectionActions?.(selectedRows, () => setSelected(new Set()))}
         {extraControls}
         {groupBy && groups != null && groups.length > 0 && (
           <Button
@@ -1402,71 +1446,8 @@ function AttachmentsCell({
   );
 }
 
-// Same palette as the production availability statuses (lib/statuses VISUAL,
-// surfaced via lib/availability-status.tsx).
-// Item-status palette: Pending grey, Available green, Diff orange,
-// Can Order yellow, Ordered blue, Unavailable red. `badge` colors the status
-// pill / card count chips; `strip` colors the row's left edge.
-const ITEM_STATUS_COLOR: Record<
-  WsItemStatus,
-  { badge: string; strip: string }
-> = {
-  confirmation_pending: {
-    badge: "bg-secondary text-secondary-foreground border-transparent",
-    strip: "border-l-zinc-400 dark:border-l-zinc-500",
-  },
-  available: {
-    badge:
-      "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
-    strip: "border-l-green-500",
-  },
-  diff_size_qty: {
-    badge:
-      "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800",
-    strip: "border-l-orange-500",
-  },
-  can_order: {
-    badge:
-      "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800",
-    strip: "border-l-yellow-500",
-  },
-  ordered: {
-    badge:
-      "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
-    strip: "border-l-blue-500",
-  },
-  unavailable: {
-    badge:
-      "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
-    strip: "border-l-red-500",
-  },
-};
-
-function ItemStatusSelect({
-  status,
-  onChange,
-}: {
-  status: WsItemStatus;
-  onChange: (s: WsItemStatus) => void;
-}) {
-  return (
-    <select
-      value={status}
-      onChange={(e) => onChange(e.target.value as WsItemStatus)}
-      aria-label={`Item status: ${ITEM_STATUS_META[status].label}`}
-      className={cn(
-        "max-w-full min-w-0 cursor-pointer truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        ITEM_STATUS_COLOR[status].badge,
-      )}
-    >
-      {(Object.keys(ITEM_STATUS_META) as WsItemStatus[]).map((s) => (
-        <option key={s} value={s}>
-          {ITEM_STATUS_META[s].label}
-        </option>
-      ))}
-    </select>
-  );
-}
+// ITEM_STATUS_COLOR lives in supplier-workspace-data (shared with the
+// availability form). The status cell uses the shared StatusEditor below.
 
 // Project statuses mapped onto the closest production availability colors.
 const PROJECT_STATUS_SELECT_CLASS: Record<WsProjectStatus, string> = {
@@ -1683,16 +1664,17 @@ function CustomersPanel({
 
 // ─── Orders panel (flattened item rows) ─────────────────────────────────────
 
-interface OrderItemRow {
+export interface OrderItemRow {
   id: string;
   item: WsOrderItem;
   order: WsOrder;
   customerName: string;
 }
 
-function orderItemColumns({
+export function orderItemColumns({
   onUpdateItem,
   scoped,
+  statusOptions,
 }: {
   onUpdateItem: (
     orderId: string,
@@ -1701,6 +1683,8 @@ function orderItemColumns({
   ) => void;
   /** True inside an order detail — adds the created column (no group cards there). */
   scoped?: boolean;
+  /** Restrict the status menu (the avail form hides "ordered"/"pending"). */
+  statusOptions?: WsItemStatus[];
 }): WsColumn<OrderItemRow>[] {
   const itemCols: WsColumn<OrderItemRow>[] = [
     {
@@ -1768,14 +1752,17 @@ function orderItemColumns({
       width: "w-[110px]",
       align: "right",
       getValue: (r) => r.item.unitPrice,
-      render: (r) => (
-        <PriceCell
-          value={r.item.unitPrice}
-          onUpdate={(v) =>
-            onUpdateItem(r.order.id, r.item.id, { unitPrice: v })
-          }
-        />
-      ),
+      render: (r) =>
+        isUnavailable(r.item) ? (
+          <span className="text-[11px] text-muted-foreground/60">NA</span>
+        ) : (
+          <PriceCell
+            value={r.item.unitPrice}
+            onUpdate={(v) =>
+              onUpdateItem(r.order.id, r.item.id, { unitPrice: v })
+            }
+          />
+        ),
     },
     {
       key: "total",
@@ -1785,12 +1772,12 @@ function orderItemColumns({
       getValue: (r) =>
         r.item.unitPrice == null ? null : r.item.unitPrice * r.item.qty,
       render: (r) =>
-        r.item.unitPrice == null ? (
+        isUnavailable(r.item) ? (
+          <span className="text-[11px] text-muted-foreground/60">NA</span>
+        ) : r.item.unitPrice == null ? (
           <span className="text-[11px] text-muted-foreground/60">—</span>
         ) : (
-          <span className="tabular-nums">
-            {formatCurrency(r.item.unitPrice * r.item.qty)}
-          </span>
+          <span className="tabular-nums">{formatCurrency(lineTotal(r.item))}</span>
         ),
       noFilter: true,
     },
@@ -1800,9 +1787,10 @@ function orderItemColumns({
       width: "w-[170px]",
       getValue: (r) => ITEM_STATUS_META[r.item.status].label,
       render: (r) => (
-        <ItemStatusSelect
-          status={r.item.status}
-          onChange={(s) => onUpdateItem(r.order.id, r.item.id, { status: s })}
+        <StatusEditor
+          item={r.item}
+          options={statusOptions}
+          onCommit={(patch) => onUpdateItem(r.order.id, r.item.id, patch)}
         />
       ),
     },
@@ -1891,6 +1879,13 @@ function orderItemColumns({
   return itemCols.map((c) => ({ ...c, width: gridWidth[c.key] ?? c.width }));
 }
 
+// Shared confirm for the irreversible whole-order delete (used by the group
+// card and the order detail header).
+const confirmDeleteOrder = (order: WsOrder) =>
+  confirm(
+    `Delete the order “${order.projectName}” and all ${order.items.length} of its line items? This cannot be undone.`,
+  );
+
 /** Card rendered on the group boundary — all project-level info in one place. */
 function ProjectGroupCard({
   order,
@@ -1900,6 +1895,7 @@ function ProjectGroupCard({
   onOpenOrder,
   onOpenCustomer,
   onUpdateOrder,
+  onDeleteOrder,
 }: {
   order: WsOrder;
   customerName: string;
@@ -1908,11 +1904,9 @@ function ProjectGroupCard({
   onOpenOrder: (id: string) => void;
   onOpenCustomer: (id: string) => void;
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
+  onDeleteOrder: (order: WsOrder) => void;
 }) {
-  const total = order.items.reduce(
-    (sum, i) => sum + (i.unitPrice ?? 0) * i.qty,
-    0,
-  );
+  const total = order.items.reduce((sum, i) => sum + lineTotal(i), 0);
   // All six statuses, always — rendered as a fixed 3×2 tag block.
   const statusCounts = (Object.keys(ITEM_STATUS_META) as WsItemStatus[]).map(
     (s) => ({
@@ -1962,7 +1956,7 @@ function ProjectGroupCard({
       <span className="-ml-2 text-[11px] text-muted-foreground">
         {order.items.length} item{order.items.length === 1 ? "" : "s"}
       </span>
-      <div className="ml-auto mr-1 text-right text-[11px] leading-snug text-muted-foreground">
+      <div className="ml-auto text-right text-[11px] leading-snug text-muted-foreground">
         <p>
           created {formatDate(order.createdOn)} (
           {formatRelative(order.createdOn)})
@@ -1972,6 +1966,18 @@ function ProjectGroupCard({
           {formatRelative(order.lastUpdatedOn)})
         </p>
       </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="mr-1 h-7 w-7 shrink-0 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+        aria-label="Delete order"
+        title="Delete this order"
+        onClick={() => {
+          if (confirmDeleteOrder(order)) onDeleteOrder(order);
+        }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
 
       {/* Second row: 3×2 status-count block. Zero counts render dimmed. */}
       <div className="grid w-full grid-cols-3 gap-1">
@@ -2015,6 +2021,7 @@ function OrdersPanel({
   onUpdateOrder,
   onAddItem,
   onDeleteItems,
+  onDeleteOrder,
   onOpenCustomer,
   onOpenOrder,
 }: {
@@ -2028,6 +2035,7 @@ function OrdersPanel({
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
   onAddItem: (customerId: string, orderId: string) => void;
   onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
+  onDeleteOrder: (order: WsOrder) => void;
   onOpenCustomer: (id: string) => void;
   onOpenOrder: (id: string) => void;
 }) {
@@ -2065,6 +2073,7 @@ function OrdersPanel({
         onUpdateOrder={onUpdateOrder}
         onAddItem={onAddItem}
         onDeleteItems={onDeleteItems}
+        onDeleteOrder={onDeleteOrder}
         onOpenCustomer={onOpenCustomer}
         onOpenOrder={onOpenOrder}
       />
@@ -2083,6 +2092,7 @@ function OrdersTable({
   onUpdateOrder,
   onAddItem,
   onDeleteItems,
+  onDeleteOrder,
   onOpenCustomer,
   onOpenOrder,
 }: {
@@ -2096,6 +2106,7 @@ function OrdersTable({
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
   onAddItem: (customerId: string, orderId: string) => void;
   onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
+  onDeleteOrder: (order: WsOrder) => void;
   onOpenCustomer: (id: string) => void;
   onOpenOrder: (id: string) => void;
 }) {
@@ -2153,6 +2164,62 @@ function OrdersTable({
     [onUpdateItem],
   );
 
+  // Build a shareable availability request from the selected rows (which may
+  // span multiple jobs), write it to the workspace, and copy the public link.
+  const generateAvailRequest = useCallback(
+    async (rows: OrderItemRow[], clear: () => void) => {
+      const token = crypto.randomUUID();
+      const request: AvailRequest = {
+        token,
+        createdAt: new Date().toISOString(),
+        supplier: SUPPLIER.name,
+        status: "open",
+        items: rows.map((r) => ({
+          customerId: r.order.customerId,
+          orderId: r.order.id,
+          itemId: r.item.id,
+          projectName: r.order.projectName,
+          customerName: r.customerName,
+          plantName: r.item.name,
+          size: r.item.size,
+          qty: r.item.qty,
+          unitPrice: r.item.unitPrice,
+          status: r.item.status,
+          quoteNotes: r.item.quoteNotes ?? "",
+          internalNotes: r.item.internalNotes ?? "",
+        })),
+      };
+      try {
+        await writeJson(availRequestPath(token), request);
+        const url = `${window.location.origin}/availability/${token}`;
+        await navigator.clipboard.writeText(url).catch(() => {});
+        clear();
+        toast.success("Availability request link copied", { description: url });
+      } catch (e) {
+        toast.error(`Failed: ${(e as Error)?.message ?? e}`);
+      }
+    },
+    [],
+  );
+
+  // Copy the customer-facing quote (selected rows) as HTML for pasting in Gmail.
+  const generateQuote = useCallback(
+    async (rows: OrderItemRow[], clear: () => void) => {
+      const names = [...new Set(rows.map((r) => r.customerName))];
+      try {
+        await copyQuoteToClipboard(
+          rows.map((r) => r.item),
+          names.length === 1 ? names[0] : "",
+        );
+        clear();
+        toast.success("Quote copied — paste into Gmail");
+      } catch (e) {
+        toast.error(`Copy failed: ${(e as Error)?.message ?? e}`);
+      }
+    },
+    [],
+  );
+
   return (
     <>
       <WorkspaceTable
@@ -2164,6 +2231,28 @@ function OrdersTable({
         onDelete={(rows) =>
           onDeleteItems(rows.map((r) => ({ order: r.order, itemId: r.item.id })))
         }
+        selectionActions={(rows, clear) => (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => generateAvailRequest(rows, clear)}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Availability request ({rows.length})
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => generateQuote(rows, clear)}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Email quote ({rows.length})
+            </Button>
+          </>
+        )}
         extraSearch={(r) =>
           `${r.order.projectName} ${r.customerName} ${PROJECT_STATUS_META[r.order.status].label}`
         }
@@ -2178,6 +2267,7 @@ function OrdersTable({
               onOpenOrder={onOpenOrder}
               onOpenCustomer={onOpenCustomer}
               onUpdateOrder={onUpdateOrder}
+              onDeleteOrder={onDeleteOrder}
             />
           ),
           onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
@@ -2399,6 +2489,131 @@ function InventoryPanel({
   );
 }
 
+// ─── Availability requests panel ────────────────────────────────────────────
+
+// Lists the shared availability-check links the supplier has sent out (one
+// JSON file each under workspace/availability-requests/). The grower fills the
+// linked form; here the supplier sees open vs submitted status and can delete
+// stale links.
+function RequestsPanel() {
+  const [requests, setRequests] = useState<AvailRequest[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const entries = await tree(availRequestsDir);
+      const files = entries.filter((e) => !e.isDir && e.name.endsWith(".json"));
+      const reqs = await Promise.all(
+        files.map((f) => readJson<AvailRequest>(f.path).catch(() => null)),
+      );
+      setRequests(
+        reqs
+          .filter((r): r is AvailRequest => !!r)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      );
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to load requests");
+    }
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const remove = async (req: AvailRequest) => {
+    if (!confirm("Delete this availability request link? It can no longer be opened.")) return;
+    try {
+      await deletePath(availRequestPath(req.token));
+      setRequests((prev) => prev?.filter((r) => r.token !== req.token) ?? null);
+      toast.success("Request deleted");
+    } catch (e) {
+      toast.error(`Delete failed: ${(e as Error)?.message ?? e}`);
+    }
+  };
+
+  const copyLink = (token: string) => {
+    const url = `${window.location.origin}/availability/${token}`;
+    navigator.clipboard.writeText(url).then(
+      () => toast.success("Link copied", { description: url }),
+      () => toast.error("Copy failed"),
+    );
+  };
+
+  return (
+    <>
+      <PanelHeader
+        title="Availability Requests"
+        sub={
+          requests
+            ? `${requests.length} shared link${requests.length === 1 ? "" : "s"} · ${requests.filter((r) => r.status === "submitted").length} submitted`
+            : "Shared availability-check links"
+        }
+      />
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-2 p-3 sm:p-4">
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {requests && requests.length === 0 && (
+            <p className="px-1 py-8 text-center text-sm text-muted-foreground">
+              No availability requests yet. Select order lines and use “Availability request”.
+            </p>
+          )}
+          {requests?.map((req) => {
+            const projects = [...new Set(req.items.map((i) => i.projectName))];
+            const submitted = req.status === "submitted";
+            return (
+              <div
+                key={req.token}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm"
+              >
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+                    submitted
+                      ? "border-green-200 bg-green-100 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400"
+                      : "border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+                  )}
+                >
+                  {submitted ? "Submitted" : "Open"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium leading-tight">
+                    {req.items.length} line{req.items.length === 1 ? "" : "s"} ·{" "}
+                    {projects.join(", ")}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    Sent {formatRelative(req.createdAt)}
+                    {submitted &&
+                      ` · by ${req.growerName || "grower"}${req.submittedAt ? ` ${formatRelative(req.submittedAt)}` : ""}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => copyLink(req.token)}
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Copy link
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+                    onClick={() => remove(req)}
+                    aria-label="Delete request"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </>
+  );
+}
+
 // ─── Customer detail ────────────────────────────────────────────────────────
 
 function CustomerDetail({
@@ -2410,6 +2625,7 @@ function CustomerDetail({
   onUpdateOrder,
   onAddItem,
   onDeleteItems,
+  onDeleteOrder,
   onOpenCustomer,
   onOpenOrder,
 }: {
@@ -2425,6 +2641,7 @@ function CustomerDetail({
   onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
   onAddItem: (customerId: string, orderId: string) => void;
   onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
+  onDeleteOrder: (order: WsOrder) => void;
   onOpenCustomer: (id: string) => void;
   onOpenOrder: (id: string) => void;
 }) {
@@ -2550,6 +2767,7 @@ function CustomerDetail({
           onUpdateOrder={onUpdateOrder}
           onAddItem={onAddItem}
           onDeleteItems={onDeleteItems}
+          onDeleteOrder={onDeleteOrder}
           onOpenCustomer={onOpenCustomer}
           onOpenOrder={onOpenOrder}
         />
@@ -2587,6 +2805,7 @@ function OrderDetail({
   onBack,
   onUpdateOrder,
   onUpdateItem,
+  onDeleteOrder,
   onOpenCustomer,
 }: {
   order: WsOrder;
@@ -2594,6 +2813,7 @@ function OrderDetail({
   onBack: () => void;
   onUpdateOrder: (patch: Partial<WsOrder>) => void;
   onUpdateItem: (itemId: string, patch: Partial<WsOrderItem>) => void;
+  onDeleteOrder: (order: WsOrder) => void;
   onOpenCustomer: (id: string) => void;
 }) {
   const rows: OrderItemRow[] = order.items.map((item) => ({
@@ -2612,10 +2832,7 @@ function OrderDetail({
     [onUpdateItem],
   );
 
-  const total = order.items.reduce(
-    (sum, i) => sum + (i.unitPrice ?? 0) * i.qty,
-    0,
-  );
+  const total = order.items.reduce((sum, i) => sum + lineTotal(i), 0);
   const allAttachments = order.items.flatMap((i) =>
     i.attachments.map((a) => ({ ...a, itemName: i.name })),
   );
@@ -2633,7 +2850,23 @@ function OrderDetail({
             <ChevronLeft className="h-4 w-4" />
             All orders
           </Button>
-          <FileChip path={orderStatePath(order)} />
+          <div className="flex items-center gap-2">
+            <FileChip path={orderStatePath(order)} />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+              onClick={() => {
+                if (confirmDeleteOrder(order)) {
+                  onDeleteOrder(order);
+                  onBack();
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete order
+            </Button>
+          </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h2 className="text-lg font-semibold leading-tight sm:text-xl">

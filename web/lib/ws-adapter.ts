@@ -6,33 +6,18 @@
 // are preserved. The mock component stays verbatim; only its data source swaps.
 
 import { useCallback, useEffect, useState } from "react";
-import { readJson, tree, writeJson } from "./harness";
+import { deletePath, readJson, tree, writeJson } from "./harness";
+import { ITEM_FROM_WS, ITEM_TO_WS } from "./availability";
 import type { Customer, InventoryEntry, Job, JobItem } from "./types";
 import type {
   WsCustomer,
   WsInventoryItem,
-  WsItemStatus,
   WsOrder,
   WsProjectStatus,
 } from "@/components/supplier/supplier-workspace-data";
 
 // ── status maps (real job.json values ⇄ mock Ws values) ───────────────────
-const ITEM_TO_WS: Record<string, WsItemStatus> = {
-  pending: "confirmation_pending",
-  available: "available",
-  unavailable: "unavailable",
-  can_order: "can_order",
-  diff: "diff_size_qty",
-  ordered: "ordered",
-};
-const ITEM_FROM_WS: Record<WsItemStatus, string> = {
-  confirmation_pending: "pending",
-  available: "available",
-  unavailable: "unavailable",
-  can_order: "can_order",
-  diff_size_qty: "diff",
-  ordered: "ordered",
-};
+// ITEM_TO_WS / ITEM_FROM_WS live in ./availability (shared with the server route).
 const PROJ_TO_WS: Record<string, WsProjectStatus> = {
   pending: "confirmation_pending",
   quote_sent: "quote_delivered",
@@ -331,6 +316,11 @@ export async function deleteWsOrderItems(
       await writeJson(path, job);
     }),
   );
+}
+
+// Delete a whole order: removes its job dir (job.json + any attachments).
+export async function deleteWsOrder(order: WsOrder): Promise<void> {
+  await deletePath(`${CUST_DIR}/${order.customerId}/jobs/${order.id}`);
 }
 
 export async function persistWsCustomer(w: WsCustomer): Promise<void> {

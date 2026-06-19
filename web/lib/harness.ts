@@ -29,6 +29,15 @@ export async function writeJson(path: string, data: unknown): Promise<void> {
   if (!r.ok) throw new Error(`write ${path}: ${r.status}`);
 }
 
+// Remove a workspace file or directory (recursive). Used to discard a sent-out
+// availability request.
+export async function deletePath(path: string): Promise<void> {
+  const r = await fetch(`${base}/path?path=${encodeURIComponent(path)}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) throw new Error(`delete ${path}: ${r.status}`);
+}
+
 export interface TreeEntry {
   name: string;
   path: string;
