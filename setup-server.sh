@@ -73,6 +73,14 @@ sudo -u "$RUN_USER" bash -c "cd '$APP_DIR' && pnpm --filter web build"
 
 # ---- systemd units --------------------------------------------------------
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
+# pnpm lives where corepack@latest installed it (the npm global bin, e.g.
+# /usr/local/bin) — NOT necessarily next to node. The OS may also ship an older
+# /usr/bin/pnpm (apt node-corepack) that throws
+# ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING on Node 22, so resolve the active pnpm
+# explicitly and put its dir first on the unit PATH instead of assuming
+# $NODE_BIN_DIR/pnpm.
+PNPM_BIN="$(command -v pnpm)"
+PNPM_BIN_DIR="$(dirname "$PNPM_BIN")"
 
 cat > /etc/systemd/system/rosie-harness.service <<EOF
 [Unit]
@@ -83,8 +91,12 @@ After=network.target
 Type=simple
 User=$RUN_USER
 WorkingDirectory=$APP_DIR/lps-harness
-Environment=PATH=$NODE_BIN_DIR:/usr/bin:/bin
-ExecStart=$NODE_BIN_DIR/pnpm exec cognisphere serve --port $HARNESS_PORT
+Environment=PATH=$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin
+# Empty so pnpm can expand the \${COGNISPHERE_NPM_TOKEN} ref in the run user's
+# ~/.npmrc without warning. The service does no installs, so no real token is
+# needed at runtime.
+Environment=COGNISPHERE_NPM_TOKEN=
+ExecStart=$PNPM_BIN exec cognisphere serve --port $HARNESS_PORT
 Restart=on-failure
 RestartSec=3
 
@@ -102,11 +114,14 @@ Wants=rosie-harness.service
 Type=simple
 User=$RUN_USER
 WorkingDirectory=$APP_DIR/web
-Environment=PATH=$NODE_BIN_DIR:/usr/bin:/bin
+Environment=PATH=$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin
 Environment=NODE_ENV=production
 Environment=PORT=$WEB_PORT
 Environment=HARNESS_URL=http://127.0.0.1:$HARNESS_PORT
-ExecStart=$NODE_BIN_DIR/pnpm --filter web start -- -p $WEB_PORT
+Environment=COGNISPHERE_NPM_TOKEN=
+# `next start` honors \$PORT; passing "-- -p" trips Next 16's arg parser (it
+# reads -p as a project dir), so rely on the PORT env above.
+ExecStart=$PNPM_BIN --filter web start
 Restart=on-failure
 RestartSec=3
 
