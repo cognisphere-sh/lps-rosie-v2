@@ -466,11 +466,17 @@ export function SupplierWorkspaceView() {
               chatOpen ? "w-[30%] border-l border-border" : "w-0",
             )}
           >
-            <ChatColumn
-              open={chatOpen}
-              messages={chat.messages}
-              onSend={chat.send}
-            />
+            {/* Fixed inner width so the content is laid out once at its open
+                size. The container above clips it while collapsed; without this
+                the bubbles re-wrap at ~0 width and the whole markdown tree
+                re-lays-out on every animation frame, making the open feel slow. */}
+            <div className="h-full w-[30vw] shrink-0">
+              <ChatColumn
+                open={chatOpen}
+                messages={chat.messages}
+                onSend={chat.send}
+              />
+            </div>
           </div>
         )}
         {isMobile && chatOpen && (
