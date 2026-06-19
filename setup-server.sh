@@ -24,11 +24,25 @@ if ! command -v node >/dev/null || [[ "$(node -v)" != v${NODE_MAJOR}* ]]; then
   curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash -
   apt-get install -y nodejs
 fi
+# The corepack bundled with Node can be too old to launch a recent pnpm
+# (throws ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING). Update it first.
+npm install -g corepack@latest
 corepack enable
 corepack prepare pnpm@latest --activate
 
 # ---- build (as the app user so node_modules aren't root-owned) -------------
-sudo -u "$RUN_USER" bash -c "cd '$APP_DIR' && pnpm install --frozen-lockfile"
+# Private @cognisphere-sh/* packages live on GitHub Packages, which needs a
+# GitHub token with the `read:packages` scope. Use COGNISPHERE_NPM_TOKEN from
+# config if set, else fall back to the run user's gh CLI token.
+COGNISPHERE_NPM_TOKEN="${COGNISPHERE_NPM_TOKEN:-$(sudo -u "$RUN_USER" gh auth token 2>/dev/null || true)}"
+[[ -n "$COGNISPHERE_NPM_TOKEN" ]] || { echo "no GitHub token for @cognisphere-sh packages. Run: gh auth refresh -s read:packages   (or set COGNISPHERE_NPM_TOKEN in config)"; exit 1; }
+# pnpm refuses to expand env-var credentials from the committed project .npmrc,
+# so the auth line must live in the run user's ~/.npmrc (a trusted source).
+RUN_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
+sudo -u "$RUN_USER" touch "$RUN_HOME/.npmrc"
+sudo -u "$RUN_USER" grep -qF 'npm.pkg.github.com/:_authToken' "$RUN_HOME/.npmrc" \
+  || echo '//npm.pkg.github.com/:_authToken=${COGNISPHERE_NPM_TOKEN}' | sudo -u "$RUN_USER" tee -a "$RUN_HOME/.npmrc" >/dev/null
+sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash -c "cd '$APP_DIR' && pnpm install --frozen-lockfile"
 sudo -u "$RUN_USER" bash -c "cd '$APP_DIR' && pnpm --filter web build"
 
 # ---- systemd units --------------------------------------------------------

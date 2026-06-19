@@ -10,3 +10,9 @@ HARNESS_PORT=7331    # cognisphere backend + built-in UI — nginx proxies $CONS
 
 NODE_MAJOR=22        # Node LTS to install
 RUN_USER=            # OS user the services run as (blank = invoking sudo user)
+
+# Token for the private @cognisphere-sh/* packages on GitHub Packages.
+# Leave blank to use the run user's `gh` CLI token (it must have the
+# `read:packages` scope: gh auth refresh -s read:packages). Or paste a
+# GitHub PAT with read:packages here for a non-interactive box.
+COGNISPHERE_NPM_TOKEN=
