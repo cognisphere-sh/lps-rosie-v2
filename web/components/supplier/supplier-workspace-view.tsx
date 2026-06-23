@@ -859,6 +859,9 @@ export function WorkspaceTable<T extends { id: string }>({
   bandKey,
   extraSearch,
   groupBy,
+  rowFilter,
+  rowFilterLabel,
+  onClearRowFilter,
   onAddRow,
   addLabel,
   onDelete,
@@ -890,6 +893,16 @@ export function WorkspaceTable<T extends { id: string }>({
   /** Extra text matched by the global search (e.g. group-card content). */
   extraSearch?: (row: T) => string;
   /**
+   * Externally-controlled row predicate (e.g. "only this status"). When set,
+   * non-matching rows are hidden and every group is force-expanded so the
+   * surviving rows are visible regardless of the manual collapse state.
+   */
+  rowFilter?: (row: T) => boolean;
+  /** Label shown as a removable chip in the control strip while rowFilter is on. */
+  rowFilterLabel?: React.ReactNode;
+  /** Clears the external rowFilter (drives the chip's ✕). */
+  onClearRowFilter?: () => void;
+  /**
    * Renders rows in groups, each opened by a spanning header row. Group order
    * follows the rows as sorted/filtered (a group sorts by its top row);
    * `renderHeader` receives the group's first row plus the collapse state —
@@ -917,6 +930,8 @@ export function WorkspaceTable<T extends { id: string }>({
 
   const visibleRows = useMemo(() => {
     let out = rows;
+
+    if (rowFilter) out = out.filter(rowFilter);
 
     if (globalSearch.trim()) {
       const q = globalSearch.trim().toLowerCase();
@@ -962,7 +977,7 @@ export function WorkspaceTable<T extends { id: string }>({
     }
 
     return out;
-  }, [rows, columns, globalSearch, filters, sort, extraSearch]);
+  }, [rows, columns, globalSearch, filters, sort, extraSearch, rowFilter]);
 
   // Partition the displayed rows into contiguous groups, preserving the
   // sorted order of first appearance.
@@ -1132,6 +1147,20 @@ export function WorkspaceTable<T extends { id: string }>({
         {selectedRows.length > 0 &&
           selectionActions?.(selectedRows, () => setSelected(new Set()))}
         {extraControls}
+        {rowFilter && rowFilterLabel != null && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-foreground">
+            {rowFilterLabel}
+            {onClearRowFilter && (
+              <button
+                onClick={onClearRowFilter}
+                aria-label="Clear status filter"
+                className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </span>
+        )}
         {groupBy && groups != null && groups.length > 0 && (
           <Button
             size="sm"
@@ -1250,7 +1279,9 @@ export function WorkspaceTable<T extends { id: string }>({
             ) : groups ? (
               groups.map((groupRows, gi) => {
                 const key = groupBy!.keyOf(groupRows[0]);
-                const isCollapsed = collapsedGroups.has(key);
+                // A row filter (e.g. a status chip) reveals its matches: force
+                // every surviving group open, ignoring the manual collapse set.
+                const isCollapsed = !rowFilter && collapsedGroups.has(key);
                 return (
                   <Fragment key={key}>
                     <tr className="border-t border-border">
@@ -2228,6 +2259,14 @@ function CustomerDetail({
     [onUpdateItem],
   );
 
+  // Clicking a status chip on a job card filters the item rows to that status
+  // (across every job); clicking the active chip again clears the filter.
+  const [statusFilter, setStatusFilter] = useState<WsItemStatus | null>(null);
+  const toggleStatusFilter = useCallback(
+    (s: WsItemStatus) => setStatusFilter((cur) => (cur === s ? null : s)),
+    [],
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Header — back nav, name, and the editable customer details. */}
@@ -2311,6 +2350,22 @@ function CustomerDetail({
         extraSearch={(r) =>
           `${r.order.projectName} ${PROJECT_STATUS_META[r.order.status].label}`
         }
+        rowFilter={
+          statusFilter ? (r) => r.item.status === statusFilter : undefined
+        }
+        rowFilterLabel={
+          statusFilter ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                ITEM_STATUS_COLOR[statusFilter].badge,
+              )}
+            >
+              {ITEM_STATUS_META[statusFilter].label}
+            </span>
+          ) : undefined
+        }
+        onClearRowFilter={() => setStatusFilter(null)}
         groupBy={{
           keyOf: (r) => r.order.id,
           renderHeader: (r, collapsed, onToggle) => (
@@ -2321,6 +2376,8 @@ function CustomerDetail({
               onOpen={() => onOpenOrder(r.order.id)}
               onUpdateOrder={(patch) => onUpdateOrder(r.order.id, patch)}
               onDeleteOrder={() => onDeleteOrder(r.order)}
+              activeStatus={statusFilter}
+              onStatusClick={toggleStatusFilter}
             />
           ),
           onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
@@ -2341,6 +2398,8 @@ function JobCard({
   onOpen,
   onUpdateOrder,
   onDeleteOrder,
+  activeStatus,
+  onStatusClick,
 }: {
   order: WsOrder;
   collapsed: boolean;
@@ -2348,6 +2407,10 @@ function JobCard({
   onOpen: () => void;
   onUpdateOrder: (patch: Partial<WsOrder>) => void;
   onDeleteOrder: () => void;
+  /** The status the item rows are currently filtered to, if any. */
+  activeStatus?: WsItemStatus | null;
+  /** Toggle the status filter when a chip is clicked. */
+  onStatusClick?: (s: WsItemStatus) => void;
 }) {
   const total = order.items.reduce((sum, i) => sum + lineTotal(i), 0);
   const statusCounts = (Object.keys(ITEM_STATUS_META) as WsItemStatus[]).map(
@@ -2419,23 +2482,40 @@ function JobCard({
         <Trash2 className="h-4 w-4" />
       </Button>
 
-      {/* Status-count block. */}
+      {/* Status-count block — each chip filters the rows to that status. */}
       <div className="grid w-full grid-cols-3 gap-1">
-        {statusCounts.map(({ status, count }) => (
-          <span
-            key={status}
-            title={`${count} ${ITEM_STATUS_META[status].label}`}
-            className={cn(
-              "inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none",
-              count > 0
-                ? ITEM_STATUS_COLOR[status].badge
-                : "border-border bg-muted/40 text-muted-foreground opacity-60",
-            )}
-          >
-            <span className="tabular-nums">{count}</span>
-            <span className="truncate">{ITEM_STATUS_META[status].label}</span>
-          </span>
-        ))}
+        {statusCounts.map(({ status, count }) => {
+          const isActive = activeStatus === status;
+          const clickable = onStatusClick != null && count > 0;
+          return (
+            <button
+              key={status}
+              type="button"
+              disabled={!clickable}
+              aria-pressed={isActive}
+              title={
+                clickable
+                  ? `${isActive ? "Clear filter" : "Filter"}: ${count} ${ITEM_STATUS_META[status].label}`
+                  : `${count} ${ITEM_STATUS_META[status].label}`
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusClick?.(status);
+              }}
+              className={cn(
+                "inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none transition-colors",
+                count > 0
+                  ? ITEM_STATUS_COLOR[status].badge
+                  : "border-border bg-muted/40 text-muted-foreground opacity-60",
+                clickable && "cursor-pointer hover:brightness-95",
+                isActive && "ring-2 ring-ring ring-offset-1 ring-offset-card",
+              )}
+            >
+              <span className="tabular-nums">{count}</span>
+              <span className="truncate">{ITEM_STATUS_META[status].label}</span>
+            </button>
+          );
+        })}
       </div>
       {order.notes && (
         <p className="w-full truncate border-t border-border/60 pt-1.5 text-[11px] text-muted-foreground">
@@ -2884,6 +2964,19 @@ function ChatColumn({
                   e.preventDefault();
                   void send();
                 }
+              }}
+              onPaste={(e) => {
+                // Pull image files out of the clipboard (e.g. a screenshot)
+                // and attach them like a picked file. Let other content
+                // (text, etc.) paste normally.
+                const files = Array.from(e.clipboardData.files).filter((f) =>
+                  f.type.startsWith("image/"),
+                );
+                if (files.length === 0) return;
+                e.preventDefault();
+                const dt = new DataTransfer();
+                files.forEach((f) => dt.items.add(f));
+                addFiles(dt.files);
               }}
             />
           </div>

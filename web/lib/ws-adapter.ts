@@ -5,8 +5,14 @@
 // by id so untouched fields (metadata, tax, attachments…)
 // are preserved. The mock component stays verbatim; only its data source swaps.
 
-import { useCallback, useEffect, useState } from "react";
-import { deletePath, readJson, tree, writeJson } from "./harness";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  countActiveEvents,
+  deletePath,
+  readJson,
+  tree,
+  writeJson,
+} from "./harness";
 import { ITEM_FROM_WS, ITEM_TO_WS } from "./availability";
 import type { Customer, InventoryEntry, Job, JobItem } from "./types";
 import type {
@@ -374,6 +380,10 @@ export interface WsData {
   inventory: WsInventoryItem[];
 }
 
+// How often to poll Rosie's active-event count to detect when a run finishes.
+// Matches the chat-header "working…" badge so the data refreshes feel in sync.
+const AGENT_POLL_MS = 2000;
+
 export function useWorkspace() {
   const [data, setData] = useState<WsData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -393,6 +403,32 @@ export function useWorkspace() {
 
   useEffect(() => {
     reload();
+  }, [reload]);
+
+  // Auto-reload when Rosie finishes a run. The agent edits workspace files
+  // independently (creating customers/jobs, updating inventory), so we poll the
+  // active-event count and reload on the falling edge (busy -> idle) — the
+  // moment fresh data is most likely to exist. This replaces the old "user must
+  // refresh the page" behaviour without polling the full workspace on a timer.
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      let busy = false;
+      try {
+        busy = (await countActiveEvents()) > 0;
+      } catch {
+        return; // transient; keep prior state and try again next tick
+      }
+      if (cancelled) return;
+      if (wasBusy.current && !busy) reload();
+      wasBusy.current = busy;
+    };
+    const t = setInterval(tick, AGENT_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
   }, [reload]);
 
   return { data, error, reload };
