@@ -11,12 +11,12 @@ import type { NextRequest } from "next/server";
 // just keeps the UI shell from rendering for anyone who hasn't signed in.
 //
 // Public exceptions (no session required):
-//   /login          — the sign-in page itself
-//   /api/auth/*     — the login endpoint the form posts to
-//   /availability/* — the shared grower availability form (page)
-//   /api/avail/*    — its backend (talks to the harness with a service login,
-//                     not the visitor's session)
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/availability", "/api/avail"];
+//   /login           — the sign-in page itself
+//   /api/auth/*      — the login endpoint the form posts to
+//   /stock-check/*   — the shared grower stock-check form (page)
+//   /api/stock-check/* — its backend (talks to the harness with a service
+//                     login, not the visitor's session)
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/stock-check", "/api/stock-check"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

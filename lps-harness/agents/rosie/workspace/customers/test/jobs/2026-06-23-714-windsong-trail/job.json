@@ -1,0 +1,221 @@
+{
+  "job_name": "714 Windsong Trail",
+  "created_at": "2026-06-23T12:00:00-05:00",
+  "updated_at": "2026-06-23T10:12:03.431Z",
+  "status": "pending",
+  "customer_comments": "EDD 2026-06-29. Variations possible as date approaches.",
+  "delivery_address": "714 Windsong Trail",
+  "tax_pct": 8.25,
+  "metadata": {},
+  "items": [
+    {
+      "id": "a1c2b3d4",
+      "plant_name": "Callicarpa americana",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 13,
+      "price": null,
+      "status": "price_missing",
+      "customer_facing_notes": "",
+      "internal_notes": "[Size Diff] 5 G- Callicarpa American Beauty Berry"
+    },
+    {
+      "id": "e5f6g7h8",
+      "plant_name": "Bignonia capreolata 'Tangerine Beauty'",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 5,
+      "price": null,
+      "status": "price_missing",
+      "customer_facing_notes": "",
+      "internal_notes": "[Size Diff] 1 G staked or 5 G staked- Bignonia Crossvine"
+    },
+    {
+      "id": "i9j0k1l2",
+      "plant_name": "Leucophyllum x 'Microburst'",
+      "customer_comments": "",
+      "size": "7 G",
+      "quantity": 23,
+      "price": null,
+      "status": "price_missing",
+      "customer_facing_notes": "",
+      "internal_notes": "[Alternate] 7 G- Texas Sage Greencloud @ $95"
+    },
+    {
+      "id": "m3n4o5p6",
+      "plant_name": "Dermatophyllum secundiflorum",
+      "customer_comments": "",
+      "size": "45 G",
+      "quantity": 2,
+      "price": null,
+      "status": "price_missing",
+      "customer_facing_notes": "",
+      "internal_notes": "[Size Diff] 30 G- Texas Mountain Laurel"
+    },
+    {
+      "id": "q7r8s9t0",
+      "plant_name": "Dichondra carolinensis",
+      "customer_comments": "",
+      "size": "1 G",
+      "quantity": 53,
+      "price": 7,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": "Confirm species: carolinensis (Carolina Ponyfoot) or argentea (Silver Ponyfoot)"
+    },
+    {
+      "id": "u1v2w3x4",
+      "plant_name": "Ruellia brittoniana 'Katie Pink'",
+      "customer_comments": "",
+      "size": "1 G",
+      "quantity": 6,
+      "price": 7,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "y5z6a7b8",
+      "plant_name": "Lantana camara 'Gold Rush'",
+      "customer_comments": "",
+      "size": "1 G",
+      "quantity": 28,
+      "price": 7,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "c9d0e1f2",
+      "plant_name": "Tradescantia pallida 'Purple Heart'",
+      "customer_comments": "",
+      "size": "1 G",
+      "quantity": 30,
+      "price": 7,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "g3h4i5j6",
+      "plant_name": "Fatsia japonica",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 5,
+      "price": 23,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "k7l8m9n0",
+      "plant_name": "Muhlenbergia dumosa",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 6,
+      "price": 21,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "o1p2q3r4",
+      "plant_name": "Agapanthus africanus 'Peter Pan'",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 53,
+      "price": 27,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "s5t6u7v8",
+      "plant_name": "Teucrium fruticans",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 1,
+      "price": 23,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "w9x0y1z2",
+      "plant_name": "Equisetum arvense",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 11,
+      "price": 23,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "a3b4c5d6",
+      "plant_name": "Salvia leucantha 'All Purple'",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 17,
+      "price": 21,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "e7f8g9h0",
+      "plant_name": "Hesperaloe parviflora",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 7,
+      "price": 21,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "i1j2k3l4",
+      "plant_name": "Sabal minor",
+      "customer_comments": "",
+      "size": "3 G",
+      "quantity": 26,
+      "price": 30,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "m5n6o7p8",
+      "plant_name": "Dasylirion texanum",
+      "customer_comments": "",
+      "size": "5 G",
+      "quantity": 1,
+      "price": 46,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "q9r0s1t2",
+      "plant_name": "Acer palmatum",
+      "customer_comments": "",
+      "size": "15 G",
+      "quantity": 1,
+      "price": 375,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    },
+    {
+      "id": "u3v4w5x6",
+      "plant_name": "Ilex vomitoria 'Hightower'",
+      "customer_comments": "",
+      "size": "30 G",
+      "quantity": 6,
+      "price": 295,
+      "status": "pending",
+      "customer_facing_notes": "",
+      "internal_notes": ""
+    }
+  ]
+}

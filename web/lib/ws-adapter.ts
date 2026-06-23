@@ -13,7 +13,15 @@ import {
   tree,
   writeJson,
 } from "./harness";
-import { ITEM_FROM_WS, ITEM_TO_WS } from "./availability";
+import {
+  ITEM_FROM_WS,
+  ITEM_TO_WS,
+  SUPPLIER_NAME,
+  stockCheckDir,
+  stockCheckPath,
+  type StockCheckItem,
+  type StockCheckRequest,
+} from "./stock-check";
 import type { Customer, InventoryEntry, Job, JobItem } from "./types";
 import type {
   WsCustomer,
@@ -23,7 +31,7 @@ import type {
 } from "@/components/supplier/supplier-workspace-data";
 
 // ── status maps (real job.json values ⇄ mock Ws values) ───────────────────
-// ITEM_TO_WS / ITEM_FROM_WS live in ./availability (shared with the server route).
+// ITEM_TO_WS / ITEM_FROM_WS live in ./stock-check (shared with the server route).
 const PROJ_TO_WS: Record<string, WsProjectStatus> = {
   pending: "confirmation_pending",
   quote_sent: "quote_delivered",
@@ -322,6 +330,66 @@ export async function deleteWsOrderItems(
       await writeJson(path, job);
     }),
   );
+}
+
+// Create a stock-check request for selected lines of one order: writes a
+// token file under the order's stock-check/ folder and returns the relative
+// share link. The supplier is logged in, so this uses the proxied fs API
+// (the public GET/POST route the grower hits is separate).
+export async function createStockCheck(
+  order: WsOrder,
+  customerName: string,
+  itemIds: string[],
+): Promise<string> {
+  const token = crypto.randomUUID().replace(/-/g, "");
+  const ids = new Set(itemIds);
+  const items: StockCheckItem[] = order.items
+    .filter((i) => ids.has(i.id))
+    .map((i) => ({
+      customerId: order.customerId,
+      orderId: order.id,
+      itemId: i.id,
+      projectName: order.projectName,
+      customerName,
+      plantName: i.name,
+      size: i.size,
+      qty: i.qty,
+      unitPrice: i.unitPrice ?? null,
+      status: i.status,
+      quoteNotes: i.quoteNotes ?? "",
+      internalNotes: i.internalNotes ?? "",
+    }));
+  const req: StockCheckRequest = {
+    token,
+    createdAt: new Date().toISOString(),
+    supplier: SUPPLIER_NAME,
+    customerId: order.customerId,
+    orderId: order.id,
+    status: "open",
+    items,
+  };
+  await writeJson(stockCheckPath(order.customerId, order.id, token), req);
+  return `/stock-check/${order.customerId}/${order.id}/${token}`;
+}
+
+// List the stock-check requests filed under one order (newest first). Empty if
+// the order has no stock-check/ folder yet.
+export async function listStockChecks(
+  customerId: string,
+  orderId: string,
+): Promise<StockCheckRequest[]> {
+  const dir = stockCheckDir(customerId, orderId);
+  const files = (await tree(dir)).filter(
+    (e) => !e.isDir && e.name.endsWith(".json"),
+  );
+  const reqs = await Promise.all(
+    files.map((f) =>
+      readJson<StockCheckRequest>(`${dir}/${f.name}`).catch(() => null),
+    ),
+  );
+  return reqs
+    .filter((r): r is StockCheckRequest => r != null)
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 }
 
 // Delete a whole order: removes its job dir (job.json + any attachments).

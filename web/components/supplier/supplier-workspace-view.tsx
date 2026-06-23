@@ -21,6 +21,7 @@ import {
   FileText,
   ImageIcon,
   Leaf,
+  Loader2,
   LogOut,
   MessageCircle,
   Moon,
@@ -87,7 +88,10 @@ import {
   deleteWsOrderItems,
   deleteWsOrder,
   addWsCustomer,
+  createStockCheck,
+  listStockChecks,
 } from "@/lib/ws-adapter";
+import type { StockCheckRequest } from "@/lib/stock-check";
 import { useTheme } from "@/components/theme-provider";
 import { useRouter } from "next/navigation";
 
@@ -1013,6 +1017,14 @@ export function WorkspaceTable<T extends { id: string }>({
     didInitCollapse.current = true;
     setCollapsedGroups(new Set(groups.map((g) => groupBy.keyOf(g[0]))));
   }, [groupBy, groups]);
+  // Applying a row filter (e.g. a status chip) reveals matches: expand all
+  // groups once when the filter turns on. Manual collapse still works after.
+  const wasRowFiltered = useRef(false);
+  useEffect(() => {
+    const on = !!rowFilter;
+    if (on && !wasRowFiltered.current) setCollapsedGroups(new Set());
+    wasRowFiltered.current = on;
+  }, [rowFilter]);
   const toggleGroup = (key: string) =>
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -1048,7 +1060,9 @@ export function WorkspaceTable<T extends { id: string }>({
     return bands;
   }, [visibleRows, bandKey]);
 
-  const selectable = onDelete != null;
+  // Checkboxes show when rows can be deleted OR when there's a selection action
+  // (e.g. "create stock check request") — the order page has the latter only.
+  const selectable = onDelete != null || selectionActions != null;
   const fullColSpan = columns.length + (selectable ? 1 : 0);
   const toggleRow = (id: string) =>
     setSelected((prev) => {
@@ -1141,7 +1155,7 @@ export function WorkspaceTable<T extends { id: string }>({
             </button>
           )}
         </div>
-        {selectable && selectedRows.length > 0 && (
+        {onDelete != null && selectedRows.length > 0 && (
           <Button
             size="sm"
             variant="outline"
@@ -1287,9 +1301,7 @@ export function WorkspaceTable<T extends { id: string }>({
             ) : groups ? (
               groups.map((groupRows, gi) => {
                 const key = groupBy!.keyOf(groupRows[0]);
-                // A row filter (e.g. a status chip) reveals its matches: force
-                // every surviving group open, ignoring the manual collapse set.
-                const isCollapsed = !rowFilter && collapsedGroups.has(key);
+                const isCollapsed = collapsedGroups.has(key);
                 return (
                   <Fragment key={key}>
                     <tr className="border-t border-border">
@@ -1340,7 +1352,7 @@ export function WorkspaceTable<T extends { id: string }>({
                               ? {
                                   selected: selected.has(row.id),
                                   onToggle: () => toggleRow(row.id),
-                                  onDelete: () => deleteRows([row]),
+                                  onDelete: onDelete ? () => deleteRows([row]) : undefined,
                                 }
                               : undefined,
                           ),
@@ -1362,7 +1374,7 @@ export function WorkspaceTable<T extends { id: string }>({
                     ? {
                         selected: selected.has(row.id),
                         onToggle: () => toggleRow(row.id),
-                        onDelete: () => deleteRows([row]),
+                        onDelete: onDelete ? () => deleteRows([row]) : undefined,
                       }
                     : undefined,
                 ),
@@ -1381,7 +1393,7 @@ function renderRow<T extends { id: string }>(
   columns: WsColumn<T>[],
   rowClassName?: (row: T) => string,
   rowStrip?: (row: T) => string,
-  actions?: { selected: boolean; onToggle: () => void; onDelete: () => void },
+  actions?: { selected: boolean; onToggle: () => void; onDelete?: () => void },
 ) {
   const strip = rowStrip?.(row);
   return (
@@ -1404,15 +1416,17 @@ function renderRow<T extends { id: string }>(
               checked={actions.selected}
               onChange={actions.onToggle}
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
-              onClick={actions.onDelete}
-              aria-label="Delete row"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            {actions.onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+                onClick={actions.onDelete}
+                aria-label="Delete row"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </td>
       )}
@@ -2019,14 +2033,6 @@ export function orderItemColumns({
     },
   ];
 
-  const attachmentsCol: WsColumn<OrderItemRow> = {
-    key: "attachments",
-    label: "Attach.",
-    width: "w-[80px]",
-    getValue: (r) => r.item.attachments.length,
-    render: (r) => <AttachmentsCell attachments={r.item.attachments} />,
-    noFilter: true,
-  };
   const createdCol: WsColumn<OrderItemRow> = {
     key: "createdOn",
     label: "Created",
@@ -2039,21 +2045,12 @@ export function orderItemColumns({
     ),
     noFilter: true,
   };
-  const updatedCol: WsColumn<OrderItemRow> = {
-    key: "lastUpdatedOn",
-    label: "Updated",
-    width: "w-[110px]",
-    getValue: (r) => new Date(r.item.lastUpdatedOn).getTime(),
-    render: (r) => (
-      <span className="text-xs text-muted-foreground">
-        {formatRelative(r.item.lastUpdatedOn)}
-      </span>
-    ),
-    noFilter: true,
-  };
 
   if (scoped) {
-    return [...itemCols, attachmentsCol, createdCol, updatedCol];
+    // Attachments (always empty in job.json) and Updated (no per-item
+    // timestamp) aren't backed by the order file, so they're dropped. Created
+    // is the order's created_at — real, so it stays.
+    return [...itemCols, createdCol];
   }
 
   // Grouped orders table: all project info lives on the group card, so rows
@@ -2072,6 +2069,71 @@ export function orderItemColumns({
   };
   return itemCols.map((c) => ({ ...c, width: gridWidth[c.key] ?? c.width }));
 }
+
+// Selection action shared by the order page and the customer's job cards:
+// turns the checked item rows into a stock-check request (one per order, since
+// a request is order-scoped) and copies the share link(s) to the clipboard.
+function CreateStockCheckButton({
+  rows,
+  onDone,
+}: {
+  rows: OrderItemRow[];
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      const byOrder = new Map<
+        string,
+        { order: WsOrder; customerName: string; ids: string[] }
+      >();
+      for (const r of rows) {
+        const g = byOrder.get(r.order.id) ?? {
+          order: r.order,
+          customerName: r.customerName,
+          ids: [],
+        };
+        g.ids.push(r.item.id);
+        byOrder.set(r.order.id, g);
+      }
+      const links: string[] = [];
+      for (const g of byOrder.values()) {
+        const url = await createStockCheck(g.order, g.customerName, g.ids);
+        links.push(`${window.location.origin}${url}`);
+      }
+      await navigator.clipboard?.writeText(links.join("\n")).catch(() => {});
+      toast.success(
+        links.length === 1
+          ? "Stock check request created — link copied"
+          : `${links.length} stock check requests created — links copied`,
+        { description: links.join("\n") },
+      );
+      onDone();
+    } catch (e) {
+      toast.error(`Couldn't create stock check: ${(e as Error)?.message ?? e}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Button
+      size="sm"
+      className="h-8 gap-1.5 text-xs"
+      onClick={create}
+      disabled={busy}
+    >
+      <Package className="h-3.5 w-3.5" />
+      Create stock check request ({rows.length})
+    </Button>
+  );
+}
+
+const stockCheckSelectionAction = (rows: OrderItemRow[], clear: () => void) => (
+  <CreateStockCheckButton rows={rows} onDone={clear} />
+);
 
 // Shared confirm for the irreversible whole-order delete (used by the group
 // card and the order detail header).
@@ -2278,9 +2340,11 @@ function CustomerDetail({
     [],
   );
 
+  const [tab, setTab] = useState<"orders" | "details">("orders");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Header — back nav, name, and the editable customer details. */}
+      {/* Header — back nav, name, and the tab switcher. */}
       <div className="border-b border-border bg-card/40 px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button
@@ -2305,98 +2369,127 @@ function CustomerDetail({
             {orders.length} job{orders.length === 1 ? "" : "s"}
           </p>
         </div>
-        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <ProfileField
-            label="PoC name"
-            value={customer.pocName}
-            onUpdate={(v) => onUpdate({ pocName: String(v) })}
-          />
-          <ProfileField
-            label="Phone numbers"
-            value={customer.phones.join("; ")}
-            onUpdate={(v) =>
-              onUpdate({
-                phones: String(v)
-                  .split(/[;,]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
-          />
-          <ProfileField
-            label="Emails"
-            value={customer.emails.join("; ")}
-            onUpdate={(v) =>
-              onUpdate({
-                emails: String(v)
-                  .split(/[;,]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
-          />
-          <ProfileField
-            label="Address"
-            value={customer.address}
-            onUpdate={(v) => onUpdate({ address: String(v) })}
-          />
-          <div className="sm:col-span-2 lg:col-span-4">
-            <ProfileField
-              label="Notes"
-              value={customer.notes}
-              onUpdate={(v) => onUpdate({ notes: String(v) })}
-            />
-          </div>
-        </dl>
-      </div>
-
-      {/* Jobs — collapsible job cards; expand to reveal selectable item rows. */}
-      <WorkspaceTable
-        columns={columns}
-        rows={rows}
-        searchPlaceholder="Search items across this customer's jobs…"
-        emptyText="No jobs on file yet."
-        rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
-        onDelete={(rows) =>
-          onDeleteItems(rows.map((r) => ({ order: r.order, itemId: r.item.id })))
-        }
-        extraSearch={(r) =>
-          `${r.order.projectName} ${PROJECT_STATUS_META[r.order.status].label}`
-        }
-        rowFilter={
-          statusFilter ? (r) => r.item.status === statusFilter : undefined
-        }
-        rowFilterLabel={
-          statusFilter ? (
-            <span
+        <div className="mt-3 flex gap-1 border-b border-border" role="tablist">
+          {(["orders", "details"] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none",
-                ITEM_STATUS_COLOR[statusFilter].badge,
+                "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium capitalize transition-colors",
+                tab === t
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {ITEM_STATUS_META[statusFilter].label}
-            </span>
-          ) : undefined
-        }
-        onClearRowFilter={() => setStatusFilter(null)}
-        groupBy={{
-          keyOf: (r) => r.order.id,
-          renderHeader: (r, collapsed, onToggle) => (
-            <JobCard
-              order={r.order}
-              collapsed={collapsed}
-              onToggle={onToggle}
-              onOpen={() => onOpenOrder(r.order.id)}
-              onUpdateOrder={(patch) => onUpdateOrder(r.order.id, patch)}
-              onDeleteOrder={() => onDeleteOrder(r.order)}
-              activeStatus={statusFilter}
-              onStatusClick={toggleStatusFilter}
-            />
-          ),
-          onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
-          addLabel: "Add item",
-        }}
-      />
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "orders" ? (
+        /* Jobs — collapsible job cards; expand to reveal selectable item rows. */
+        <WorkspaceTable
+          columns={columns}
+          rows={rows}
+          searchPlaceholder="Search items across this customer's jobs…"
+          emptyText="No jobs on file yet."
+          rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
+          onDelete={(rows) =>
+            onDeleteItems(
+              rows.map((r) => ({ order: r.order, itemId: r.item.id })),
+            )
+          }
+          selectionActions={stockCheckSelectionAction}
+          extraSearch={(r) =>
+            `${r.order.projectName} ${PROJECT_STATUS_META[r.order.status].label}`
+          }
+          rowFilter={
+            statusFilter ? (r) => r.item.status === statusFilter : undefined
+          }
+          rowFilterLabel={
+            statusFilter ? (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                  ITEM_STATUS_COLOR[statusFilter].badge,
+                )}
+              >
+                {ITEM_STATUS_META[statusFilter].label}
+              </span>
+            ) : undefined
+          }
+          onClearRowFilter={() => setStatusFilter(null)}
+          groupBy={{
+            keyOf: (r) => r.order.id,
+            renderHeader: (r, collapsed, onToggle) => (
+              <JobCard
+                order={r.order}
+                collapsed={collapsed}
+                onToggle={onToggle}
+                onOpen={() => onOpenOrder(r.order.id)}
+                onUpdateOrder={(patch) => onUpdateOrder(r.order.id, patch)}
+                onDeleteOrder={() => onDeleteOrder(r.order)}
+                activeStatus={statusFilter}
+                onStatusClick={toggleStatusFilter}
+              />
+            ),
+            onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
+            addLabel: "Add item",
+          }}
+        />
+      ) : (
+        /* Details — customer info, with the notes section below it. */
+        <ScrollArea className="flex-1">
+          <div className="px-4 py-4 sm:px-6">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <ProfileField
+                label="PoC name"
+                value={customer.pocName}
+                onUpdate={(v) => onUpdate({ pocName: String(v) })}
+              />
+              <ProfileField
+                label="Phone numbers"
+                value={customer.phones.join("; ")}
+                onUpdate={(v) =>
+                  onUpdate({
+                    phones: String(v)
+                      .split(/[;,]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+              <ProfileField
+                label="Emails"
+                value={customer.emails.join("; ")}
+                onUpdate={(v) =>
+                  onUpdate({
+                    emails: String(v)
+                      .split(/[;,]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+              <ProfileField
+                label="Address"
+                value={customer.address}
+                onUpdate={(v) => onUpdate({ address: String(v) })}
+              />
+            </dl>
+            <div className="mt-6 border-t border-border pt-4">
+              <ProfileField
+                label="Notes"
+                value={customer.notes}
+                onUpdate={(v) => onUpdate({ notes: String(v) })}
+              />
+            </div>
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }
@@ -2664,6 +2757,8 @@ function OrderDetail({
     i.attachments.map((a) => ({ ...a, itemName: i.name })),
   );
 
+  const [tab, setTab] = useState<"items" | "stockchecks">("items");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-border bg-card/40 px-4 py-4 sm:px-6">
@@ -2725,14 +2820,42 @@ function OrderDetail({
             />
           </div>
         </div>
+        <div className="mt-3 flex gap-1 border-b border-border" role="tablist">
+          {(
+            [
+              { tab: "items", label: "Items" },
+              { tab: "stockchecks", label: "Stock checks" },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.tab}
+              role="tab"
+              aria-selected={tab === t.tab}
+              onClick={() => setTab(t.tab)}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === t.tab
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {tab === "stockchecks" ? (
+        <OrderStockChecks customerId={order.customerId} orderId={order.id} />
+      ) : (
+        <>
       <WorkspaceTable
         columns={columns}
         rows={rows}
         searchPlaceholder="Search items on this request…"
         emptyText="No items match your filters."
         rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
+        selectionActions={stockCheckSelectionAction}
       />
 
       {allAttachments.length > 0 && (
@@ -2759,7 +2882,127 @@ function OrderDetail({
           </ul>
         </div>
       )}
+        </>
+      )}
     </div>
+  );
+}
+
+// List of the stock-check requests filed under one order, with status. Each row
+// opens the shared form (new tab) where it can be edited and submitted, and
+// offers a copy-link button. Loads on mount / order change; manual refresh.
+function OrderStockChecks({
+  customerId,
+  orderId,
+}: {
+  customerId: string;
+  orderId: string;
+}) {
+  const [reqs, setReqs] = useState<StockCheckRequest[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    listStockChecks(customerId, orderId)
+      .then(setReqs)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [customerId, orderId]);
+
+  useEffect(() => {
+    setReqs(null);
+    load();
+  }, [load]);
+
+  const linkFor = (token: string) =>
+    `${window.location.origin}/stock-check/${customerId}/${orderId}/${token}`;
+
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="px-4 py-4 sm:px-6">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-foreground">
+            Stock check requests{reqs ? ` (${reqs.length})` : ""}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs text-muted-foreground"
+            onClick={load}
+          >
+            Refresh
+          </Button>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {!reqs && !error && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </p>
+        )}
+        {reqs && reqs.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No stock check requests yet. Select items on the Items tab and use
+            “Create stock check request”.
+          </p>
+        )}
+
+        <ul className="space-y-2">
+          {reqs?.map((r) => {
+            const submitted = r.status === "submitted";
+            return (
+              <li
+                key={r.token}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm"
+              >
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-none",
+                    submitted
+                      ? ITEM_STATUS_COLOR.available.badge
+                      : ITEM_STATUS_COLOR.confirmation_pending.badge,
+                  )}
+                >
+                  {submitted ? "Submitted" : "Open"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">
+                    {r.items.length} line{r.items.length === 1 ? "" : "s"}
+                    {submitted && r.growerName ? ` · by ${r.growerName}` : ""}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    created {formatRelative(r.createdAt)}
+                    {submitted && r.submittedAt
+                      ? ` · submitted ${formatRelative(r.submittedAt)}`
+                      : ""}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => {
+                    navigator.clipboard
+                      ?.writeText(linkFor(r.token))
+                      .then(() => toast.success("Link copied"))
+                      .catch(() => {});
+                  }}
+                >
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Copy link
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => window.open(linkFor(r.token), "_blank")}
+                >
+                  {submitted ? "View" : "Edit & submit"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </ScrollArea>
   );
 }
 

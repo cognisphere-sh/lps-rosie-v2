@@ -21,12 +21,15 @@ import {
   type WsItemStatus,
   type WsOrderItem,
 } from "./supplier-workspace-data";
-import { withDiffNotes } from "@/lib/availability";
+import { withDiffNotes } from "@/lib/stock-check";
 
 const ALL_STATUSES = Object.keys(ITEM_STATUS_META) as WsItemStatus[];
 const DETAIL_STATUSES = new Set<WsItemStatus>(["can_order", "diff_size_qty"]);
 
-type EditableItem = Pick<WsOrderItem, "status" | "qty" | "size" | "name" | "quoteNotes">;
+type EditableItem = Pick<
+  WsOrderItem,
+  "status" | "qty" | "size" | "name" | "quoteNotes" | "unitPrice"
+>;
 
 export function StatusEditor({
   item,
@@ -37,8 +40,24 @@ export function StatusEditor({
   onCommit: (patch: Partial<WsOrderItem>) => void;
   options?: WsItemStatus[];
 }) {
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ left: number; top: number; maxH: number } | null>(null);
   const [dialog, setDialog] = useState<WsItemStatus | null>(null);
+
+  // Position the menu relative to the trigger, flipping above it when there
+  // isn't room below (so it never runs off the bottom of the screen) and
+  // clamping horizontally. maxH + overflow keeps a tall menu on-screen.
+  const openMenu = (e: React.MouseEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const WIDTH = 192; // w-48
+    const estH = options.length * 34 + 8;
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    const below = spaceBelow >= Math.min(estH, 220) || spaceBelow >= spaceAbove;
+    const maxH = Math.max(120, below ? spaceBelow : spaceAbove);
+    const top = below ? r.bottom + 4 : Math.max(8, r.top - 4 - Math.min(estH, maxH));
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - WIDTH - 8));
+    setMenu({ left, top, maxH });
+  };
 
   const pick = (status: WsItemStatus) => {
     setMenu(null);
@@ -50,10 +69,7 @@ export function StatusEditor({
     <>
       <button
         type="button"
-        onClick={(e) => {
-          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          setMenu({ x: r.left, y: r.bottom + 4 });
-        }}
+        onClick={openMenu}
         className={cn(
           "inline-flex max-w-full items-center gap-1 truncate rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-none",
           ITEM_STATUS_COLOR[item.status].badge,
@@ -72,8 +88,8 @@ export function StatusEditor({
             onClick={() => setMenu(null)}
           />
           <div
-            className="fixed z-50 w-48 rounded-md border border-border bg-popover p-1 shadow-md"
-            style={{ left: menu.x, top: menu.y }}
+            className="fixed z-50 w-48 overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
+            style={{ left: menu.left, top: menu.top, maxHeight: menu.maxH }}
           >
             {options.map((s) => (
               <button
@@ -155,14 +171,20 @@ function DiffDialog({
   const [size, setSize] = useState(item.size);
   const [qty, setQty] = useState(String(item.qty));
   const [plant, setPlant] = useState(item.name);
+  const [price, setPrice] = useState(item.unitPrice == null ? "" : String(item.unitPrice));
 
   const confirm = () => {
     const qtyNum = Number(qty);
     const qtyChanged = qty.trim() !== "" && Number.isFinite(qtyNum) && qtyNum !== item.qty;
     const sizeChanged = size.trim() !== "" && size.trim() !== item.size;
     const plantChanged = plant.trim() !== "" && plant.trim() !== item.name;
+    // Price of the alternate. Blank clears it; a valid number sets it; garbage
+    // keeps the existing price.
+    const priceNum = Number(price);
+    const priceVal = price.trim() === "" ? null : Number.isFinite(priceNum) ? priceNum : item.unitPrice;
 
     const patch: Partial<WsOrderItem> = {
+      unitPrice: priceVal,
       quoteNotes: withDiffNotes(item.quoteNotes ?? "", {
         qty: qtyChanged ? { from: String(item.qty), to: String(qtyNum) } : undefined,
         size: sizeChanged ? { from: item.size, to: size.trim() } : undefined,
@@ -193,6 +215,15 @@ function DiffDialog({
           inputMode="numeric"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
+          className="text-sm"
+        />
+      </Field>
+      <Field label="Unit price">
+        <Input
+          inputMode="decimal"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          placeholder="e.g. 95"
           className="text-sm"
         />
       </Field>

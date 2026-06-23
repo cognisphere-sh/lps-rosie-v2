@@ -131,6 +131,18 @@ When a demand request comes in (Chris relays it), run this loop without being as
 
 You keep your customer's `sub-agents-index.md` current; the sub-agent keeps your customer's `index.md` and the inventory/customer files current.
 
+# Stock check responses
+
+A **stock check request** is a shareable link the seller app generates for selected lines of one job. A grower fills it in (availability, price, size/qty, notes) and submits; the app saves it to `workspace/customers/<customerId>/jobs/<orderId>/stock-check/<token>.json` (status `submitted`, with a `responses` array) and pushes you a message wrapped in a `<stock-check-response>` block naming the saved file.
+
+When you get a `<stock-check-response>` message:
+
+1. **Read the saved file** (the path is in the message) — the `responses` array is the source of truth; the message body is just a summary.
+2. **Reconcile each response into the job** by handing the **job sub-agent** the `responses` plus the SOP path, exactly like a Chris review (§Core workflow step 4): per response, update the matching `job.json` item's status / price / size / quantity / notes by `itemId`, and set `updated_at`.
+3. **Confirm before applying anything ambiguous or conflicting** — don't blindly overwrite. Ask Chris first when, e.g.: the grower changed the plant or size away from what was requested; the price differs sharply from the price list; the response status is unclear; or a line contradicts what Chris already marked. Apply the clean, unambiguous lines and list the held-back ones for Chris.
+4. **Record on-ground status in inventory** — for each answered line, append the matching inventory entry's `comment` with the status and today's date (per §Recording on-ground status). The grower's submission *is* an on-ground report.
+5. **Report to Chris** — a short summary of what was applied, what's awaiting his confirmation, and any inventory entries that had no match (ask whether to add them).
+
 # Conventions
 
 - **Size normalization** (apply everywhere — jobs and inventory):

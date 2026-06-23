@@ -1,15 +1,16 @@
-// Shared shapes for the "availability request" flow: the supplier selects order
-// lines (possibly across several jobs), generates a request file, and shares a
-// link. The internal team opens the link, reviews availability + pricing in the
-// same table as the orders view, and submits — the route handler writes the
-// edited fields back into each job.json item.
+// Shared shapes for the "stock check request" flow: the supplier selects order
+// lines on one order, generates a request file under that order's stock-check/
+// folder, and shares a link. A grower opens the link, reviews availability +
+// pricing in the same table as the orders view, and submits — the route handler
+// saves the responses and notifies the agent, which reconciles them into the
+// order (confirming any conflicts) and into the inventory notes.
 //
 // Pure types/consts only, so both the client view and the server route can
-// import it.
+// import it (no client-only imports here).
 
 import type { WsItemStatus } from "@/components/supplier/supplier-workspace-data";
 
-export interface AvailRequestItem {
+export interface StockCheckItem {
   customerId: string;
   /** Job dir under workspace/customers/<customerId>/jobs/. */
   orderId: string;
@@ -26,8 +27,8 @@ export interface AvailRequestItem {
   internalNotes: string;
 }
 
-// What the team edited per line; mirrors the editable order-table fields.
-export interface AvailResponse {
+// What the grower edited per line; mirrors the editable order-table fields.
+export interface StockCheckResponse {
   itemId: string;
   plantName: string;
   size: string;
@@ -38,20 +39,23 @@ export interface AvailResponse {
   internalNotes: string;
 }
 
-export interface AvailRequest {
+export interface StockCheckRequest {
   token: string;
   createdAt: string;
   supplier: string;
+  // A request is scoped to one order (created from that order's page/card).
+  customerId: string;
+  orderId: string;
   status: "open" | "submitted";
-  items: AvailRequestItem[];
-  responses?: AvailResponse[];
+  items: StockCheckItem[];
+  responses?: StockCheckResponse[];
   growerName?: string;
   submittedAt?: string;
 }
 
 // Item status maps: job.json string ⇄ WsItemStatus (UI). Pure data, shared by
-// the client ws-adapter and the server-side availability route so the mapping
-// lives in exactly one place. Keep in lockstep with ITEM_STATUS_META.
+// the client ws-adapter and the server-side route so the mapping lives in
+// exactly one place. Keep in lockstep with ITEM_STATUS_META.
 export const ITEM_FROM_WS: Record<WsItemStatus, string> = {
   confirmation_pending: "pending",
   available: "available",
@@ -71,15 +75,23 @@ export const ITEM_TO_WS: Record<string, WsItemStatus> = {
   ordered: "ordered",
 };
 
-export const availRequestsDir = "workspace/availability-requests";
+// Who the request is sent on behalf of (shown on the grower form).
+export const SUPPLIER_NAME = "Austin Plant Supply";
 
-export const availRequestPath = (token: string) =>
-  `${availRequestsDir}/${token}.json`;
+// Stock-check requests live in a sub-folder of the order they belong to.
+export const stockCheckDir = (customerId: string, orderId: string) =>
+  `workspace/customers/${customerId}/jobs/${orderId}/stock-check`;
 
-// Statuses offered in the availability popup (the four that matter for a check).
+export const stockCheckPath = (
+  customerId: string,
+  orderId: string,
+  token: string,
+) => `${stockCheckDir(customerId, orderId)}/${token}.json`;
+
+// Statuses offered in the stock-check popup (the four that matter for a check).
 // Picking diff_size_qty / can_order opens the detail popup; available /
 // unavailable apply immediately.
-export const AVAIL_STATUS_OPTIONS: WsItemStatus[] = [
+export const STOCK_CHECK_STATUS_OPTIONS: WsItemStatus[] = [
   "available",
   "can_order",
   "diff_size_qty",

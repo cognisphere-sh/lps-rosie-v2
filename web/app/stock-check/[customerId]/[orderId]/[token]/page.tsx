@@ -1,11 +1,10 @@
 "use client";
 
-// Internal availability-check form opened via the shared link. It reuses the
-// exact orders table (same columns + the status popup) so the team reviews and
-// edits price / status / notes per line, then submits all lines at once. No job
-// grouping — one request may span several jobs, so it reads as one flat table.
+// Stock-check form opened via the shared link. It reuses the exact orders table
+// (same columns + the status popup) so the grower reviews and edits price /
+// status / notes per line, then submits all lines at once.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Leaf, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,54 +20,69 @@ import {
   type WsOrderItem,
 } from "@/components/supplier/supplier-workspace-data";
 import {
-  AVAIL_STATUS_OPTIONS,
-  type AvailRequest,
-  type AvailResponse,
-} from "@/lib/availability";
+  STOCK_CHECK_STATUS_OPTIONS,
+  type StockCheckRequest,
+  type StockCheckResponse,
+} from "@/lib/stock-check";
 
-export default function AvailabilityFormPage() {
-  const { token } = useParams<{ token: string }>();
-  const [req, setReq] = useState<AvailRequest | null>(null);
+export default function StockCheckFormPage() {
+  const { customerId, orderId, token } = useParams<{
+    customerId: string;
+    orderId: string;
+    token: string;
+  }>();
+  const apiUrl = `/api/stock-check/${customerId}/${orderId}/${token}`;
+  const [req, setReq] = useState<StockCheckRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Editable line state, keyed by item id, seeded from the request snapshot.
   const [items, setItems] = useState<Record<string, WsOrderItem>>({});
   const [grower, setGrower] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  // True once the grower edits something — gates autosave so loading the saved
+  // partial doesn't immediately re-save it.
+  const interacted = useRef(false);
 
   useEffect(() => {
-    fetch(`/api/avail/${token}`, { cache: "no-store" })
+    fetch(apiUrl, { cache: "no-store" })
       .then(async (r) => {
         if (!r.ok)
           throw new Error(r.status === 404 ? "This request link is invalid or expired." : `Error ${r.status}`);
-        return (await r.json()) as AvailRequest;
+        return (await r.json()) as StockCheckRequest;
       })
       .then((data) => {
         setReq(data);
         setGrower(data.growerName ?? "");
         if (data.status === "submitted") setDone(true);
+        // Saved partial responses (from an earlier visit) override the snapshot
+        // so the grower resumes where they left off.
+        const saved = new Map((data.responses ?? []).map((r) => [r.itemId, r]));
         setItems(
           Object.fromEntries(
-            data.items.map((i) => [
-              i.itemId,
-              {
-                id: i.itemId,
-                qty: i.qty,
-                size: i.size,
-                name: i.plantName,
-                unitPrice: i.unitPrice ?? null,
-                status: i.status ?? "confirmation_pending",
-                quoteNotes: i.quoteNotes || undefined,
-                internalNotes: i.internalNotes || undefined,
-                attachments: [],
-                lastUpdatedOn: "",
-              } as WsOrderItem,
-            ]),
+            data.items.map((i) => {
+              const s = saved.get(i.itemId);
+              return [
+                i.itemId,
+                {
+                  id: i.itemId,
+                  qty: s?.qty ?? i.qty,
+                  size: s?.size ?? i.size,
+                  name: s?.plantName ?? i.plantName,
+                  unitPrice: (s ? s.unitPrice : i.unitPrice) ?? null,
+                  status: s?.status ?? i.status ?? "confirmation_pending",
+                  quoteNotes: (s?.quoteNotes ?? i.quoteNotes) || undefined,
+                  internalNotes: (s?.internalNotes ?? i.internalNotes) || undefined,
+                  attachments: [],
+                  lastUpdatedOn: "",
+                } as WsOrderItem,
+              ];
+            }),
           ),
         );
       })
       .catch((e) => setError(e.message));
-  }, [token]);
+  }, [apiUrl]);
 
   // Synthesize order context per line so the shared columns can address edits.
   const orderById = useMemo(() => {
@@ -101,31 +115,18 @@ export default function AvailabilityFormPage() {
   const columns = useMemo(
     () =>
       orderItemColumns({
-        statusOptions: AVAIL_STATUS_OPTIONS,
-        onUpdateItem: (_orderId, itemId, patch) =>
-          setItems((prev) => ({ ...prev, [itemId]: { ...prev[itemId], ...patch } })),
+        statusOptions: STOCK_CHECK_STATUS_OPTIONS,
+        onUpdateItem: (_orderId, itemId, patch) => {
+          interacted.current = true;
+          setItems((prev) => ({ ...prev, [itemId]: { ...prev[itemId], ...patch } }));
+        },
       }),
     [],
   );
 
-  // A row is fillable only if its job line is still pending at load. Rows already
-  // answered (by the agent or an earlier visit) are locked — read-only. Keyed off
-  // the loaded request so editing a pending row doesn't relock it mid-session.
-  const locked = useMemo(
-    () =>
-      new Set(
-        (req?.items ?? [])
-          .filter((i) => (i.status ?? "confirmation_pending") !== "confirmation_pending")
-          .map((i) => i.itemId),
-      ),
-    [req],
-  );
-
-  const submit = async () => {
-    if (!req) return;
-    setSubmitting(true);
-    setError(null);
-    const responses: AvailResponse[] = req.items.map((i) => {
+  const buildResponses = useCallback((): StockCheckResponse[] => {
+    if (!req) return [];
+    return req.items.map((i) => {
       const it = items[i.itemId];
       return {
         itemId: i.itemId,
@@ -138,11 +139,37 @@ export default function AvailabilityFormPage() {
         internalNotes: it.internalNotes ?? "",
       };
     });
+  }, [req, items]);
+
+  // Autosave the in-progress responses (debounced) so the grower can leave and
+  // resume. Stays "open"; only Submit notifies the agent.
+  useEffect(() => {
+    if (!req || done || !interacted.current) return;
+    setSaveState("saving");
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(apiUrl, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ growerName: grower.trim(), responses: buildResponses() }),
+        });
+        setSaveState(r.ok ? "saved" : "idle");
+      } catch {
+        setSaveState("idle");
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [items, grower, req, done, apiUrl, buildResponses]);
+
+  const submit = async () => {
+    if (!req) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      const r = await fetch(`/api/avail/${token}`, {
+      const r = await fetch(apiUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ growerName: grower.trim(), responses }),
+        body: JSON.stringify({ growerName: grower.trim(), responses: buildResponses() }),
       });
       if (!r.ok) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
@@ -170,7 +197,7 @@ export default function AvailabilityFormPage() {
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Check className="h-6 w-6" />
           </span>
-          <p className="text-base font-medium">Availability submitted.</p>
+          <p className="text-base font-medium">Stock check submitted.</p>
           <p className="text-sm text-muted-foreground">{req.supplier} has the updated lines.</p>
         </div>
       </Centered>
@@ -183,17 +210,23 @@ export default function AvailabilityFormPage() {
           <Leaf className="h-4 w-4 text-accent-foreground" />
         </span>
         <div className="mr-auto">
-          <h1 className="text-base font-semibold leading-tight">Availability check</h1>
+          <h1 className="text-base font-semibold leading-tight">Stock check</h1>
           <p className="text-xs text-muted-foreground">
             {req.supplier} · {req.items.length} line{req.items.length === 1 ? "" : "s"}
           </p>
         </div>
         <Input
           value={grower}
-          onChange={(e) => setGrower(e.target.value)}
+          onChange={(e) => {
+            interacted.current = true;
+            setGrower(e.target.value);
+          }}
           placeholder="Your name"
           className="h-9 w-44 text-sm"
         />
+        <span className="w-14 text-xs text-muted-foreground" aria-live="polite">
+          {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
+        </span>
         <Button onClick={submit} disabled={submitting} className="gap-2">
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
           Submit
@@ -209,7 +242,6 @@ export default function AvailabilityFormPage() {
           searchPlaceholder="Search plant, size, notes…"
           emptyText="No lines on this request."
           rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
-          rowClassName={(r) => (locked.has(r.id) ? "pointer-events-none opacity-60" : "")}
         />
       </div>
     </div>
