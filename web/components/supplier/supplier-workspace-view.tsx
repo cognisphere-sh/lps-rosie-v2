@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Edit2,
   FileText,
   ImageIcon,
   Leaf,
@@ -169,10 +170,14 @@ export function SupplierWorkspaceView() {
     [customers],
   );
 
-  // Requests (jobs) per customer — drives the sidebar row counts.
-  const orderCountByCustomer = useMemo(() => {
+  // Pending orders per customer — drives the sidebar row counts (the badge
+  // surfaces how many of a customer's orders still await action).
+  const pendingCountByCustomer = useMemo(() => {
     const m = new Map<string, number>();
-    for (const o of orders) m.set(o.customerId, (m.get(o.customerId) ?? 0) + 1);
+    for (const o of orders) {
+      if (o.status !== "confirmation_pending") continue;
+      m.set(o.customerId, (m.get(o.customerId) ?? 0) + 1);
+    }
     return m;
   }, [orders]);
 
@@ -366,7 +371,7 @@ export function SupplierWorkspaceView() {
             <aside className="hidden min-h-0 border-r border-border bg-sidebar md:flex md:flex-col">
               <WorkspaceSidebar
                 customers={customers}
-                orderCountByCustomer={orderCountByCustomer}
+                pendingCountByCustomer={pendingCountByCustomer}
                 activeCustomerId={
                   view.kind === "customer" ? view.id : undefined
                 }
@@ -540,7 +545,7 @@ function MissingRecord({ onBack }: { onBack: () => void }) {
 
 function WorkspaceSidebar({
   customers,
-  orderCountByCustomer,
+  pendingCountByCustomer,
   activeCustomerId,
   inventoryActive,
   onSelectCustomer,
@@ -548,7 +553,7 @@ function WorkspaceSidebar({
   onAddCustomer,
 }: {
   customers: WsCustomer[];
-  orderCountByCustomer: Map<string, number>;
+  pendingCountByCustomer: Map<string, number>;
   activeCustomerId?: string;
   inventoryActive: boolean;
   onSelectCustomer: (id: string) => void;
@@ -645,7 +650,7 @@ function WorkspaceSidebar({
               <CustomerRow
                 key={c.id}
                 customer={c}
-                jobCount={orderCountByCustomer.get(c.id) ?? 0}
+                pendingCount={pendingCountByCustomer.get(c.id) ?? 0}
                 active={activeCustomerId === c.id}
                 onClick={() => onSelectCustomer(c.id)}
               />
@@ -670,12 +675,12 @@ function WorkspaceSidebar({
 
 function CustomerRow({
   customer,
-  jobCount,
+  pendingCount,
   active,
   onClick,
 }: {
   customer: WsCustomer;
-  jobCount: number;
+  pendingCount: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -709,9 +714,12 @@ function CustomerRow({
           </p>
         )}
       </div>
-      {jobCount > 0 && (
-        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">
-          {jobCount}
+      {pendingCount > 0 && (
+        <span
+          title={`${pendingCount} pending order${pendingCount === 1 ? "" : "s"}`}
+          className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground"
+        >
+          {pendingCount}
         </span>
       )}
     </button>
@@ -2241,17 +2249,20 @@ function CustomerDetail({
   onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
 }) {
   // Flatten the customer's jobs into item rows; the grouped table re-groups
-  // them under each job's collapsible card (one card per job).
+  // them under each job's collapsible card (one card per job). Most recently
+  // updated jobs sort to the top so the latest activity leads.
   const rows: OrderItemRow[] = useMemo(
     () =>
-      orders.flatMap((order) =>
-        order.items.map((item) => ({
-          id: `${order.id}:${item.id}`,
-          item,
-          order,
-          customerName: customer.name,
-        })),
-      ),
+      [...orders]
+        .sort((a, b) => b.lastUpdatedOn.localeCompare(a.lastUpdatedOn))
+        .flatMap((order) =>
+          order.items.map((item) => ({
+            id: `${order.id}:${item.id}`,
+            item,
+            order,
+            customerName: customer.name,
+          })),
+        ),
     [orders, customer.name],
   );
   const columns = useMemo(
@@ -2284,9 +2295,11 @@ function CustomerDetail({
           <FileChip path={customerProfilePath(customer)} />
         </div>
         <div className="mt-1">
-          <h2 className="text-lg font-semibold leading-tight sm:text-xl">
-            {customer.name}
-          </h2>
+          <EditableHeading
+            value={customer.name}
+            onSave={(name) => onUpdate({ name })}
+            ariaLabel="Edit customer name"
+          />
           <p className="mt-0.5 text-xs text-muted-foreground">
             Customer since {formatRelative(customer.createdOn)} ·{" "}
             {orders.length} job{orders.length === 1 ? "" : "s"}
@@ -2527,6 +2540,69 @@ function JobCard({
   );
 }
 
+// Inline-editable detail heading (customer name / order title). Shows the
+// value as an <h2> with a hover pencil; clicking swaps in an input. Enter or
+// blur saves a trimmed, non-empty value; Esc reverts.
+function EditableHeading({
+  value,
+  onSave,
+  ariaLabel,
+}: {
+  value: string;
+  onSave: (next: string) => void;
+  ariaLabel: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  const save = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onSave(trimmed);
+    setEditing(false);
+  };
+  const cancel = () => {
+    setDraft(value);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <Input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") cancel();
+        }}
+        onBlur={save}
+        aria-label={ariaLabel}
+        className="h-9 max-w-sm text-lg font-semibold leading-tight sm:text-xl"
+      />
+    );
+  }
+
+  return (
+    <h2 className="group/heading flex items-center gap-1.5 text-lg font-semibold leading-tight sm:text-xl">
+      <span>{value}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/heading:opacity-100"
+        aria-label={ariaLabel}
+        title={ariaLabel}
+        onClick={() => setEditing(true)}
+      >
+        <Edit2 className="h-3.5 w-3.5" />
+      </Button>
+    </h2>
+  );
+}
+
 function ProfileField({
   label,
   value,
@@ -2620,9 +2696,11 @@ function OrderDetail({
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-semibold leading-tight sm:text-xl">
-            {order.projectName}
-          </h2>
+          <EditableHeading
+            value={order.projectName}
+            onSave={(projectName) => onUpdateOrder({ projectName })}
+            ariaLabel="Edit order title"
+          />
           <ProjectStatusSelect
             status={order.status}
             onChange={(s) => onUpdateOrder({ status: s })}
