@@ -17,13 +17,10 @@ import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
-  ClipboardList,
   FileText,
   ImageIcon,
   Leaf,
-  Link2,
   LogOut,
-  Mail,
   MessageCircle,
   Moon,
   Package,
@@ -32,10 +29,10 @@ import {
   Search,
   Send,
   Settings,
-  Share2,
   Sun,
   Trash2,
   User,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -54,7 +51,6 @@ import {
 } from "@/components/ui/tooltip";
 import { SortButton } from "@/components/ui/data-table/sort-button";
 import { EditableCell } from "@/components/ui/data-table/editable-cell";
-import { SUPPLIER } from "./supplier";
 import {
   ITEM_STATUS_COLOR,
   ITEM_STATUS_META,
@@ -76,20 +72,7 @@ import { formatCurrency, formatDate, formatRelative } from "./ui";
 import { ChatMarkdown } from "./chat-markdown";
 import type { Dispatch, SetStateAction } from "react";
 import { useChat, useLatestEvent } from "@/lib/data";
-import {
-  rawUrl,
-  uploadFile,
-  writeJson,
-  tree,
-  readJson,
-  deletePath,
-} from "@/lib/harness";
-import {
-  availRequestPath,
-  availRequestsDir,
-  type AvailRequest,
-} from "@/lib/availability";
-import { copyQuoteToClipboard } from "@/lib/quote-email";
+import { rawUrl, uploadFile, tree } from "@/lib/harness";
 import { StatusEditor } from "./status-editor";
 import type { EventStatus } from "@/lib/harness";
 import {
@@ -102,6 +85,7 @@ import {
   addWsOrderItem,
   deleteWsOrderItems,
   deleteWsOrder,
+  addWsCustomer,
 } from "@/lib/ws-adapter";
 import { useTheme } from "@/components/theme-provider";
 import { useRouter } from "next/navigation";
@@ -135,29 +119,19 @@ function persistingSetter<T>(
 
 // ─── View routing ───────────────────────────────────────────────────────────
 
-type Tab = "customers" | "orders" | "inventory" | "requests";
-
+// The sidebar is customer-centric now: a customer list at the top and an
+// Inventory entry in the footer. The cross-customer "All Requests" and
+// "Stock Checks" tabs were removed — work happens inside a customer.
 type View =
   | { kind: "customers" }
-  | { kind: "orders" }
   | { kind: "inventory" }
-  | { kind: "requests" }
   | { kind: "customer"; id: string }
   | { kind: "order"; id: string };
-
-const TAB_OF_VIEW: Record<View["kind"], Tab> = {
-  customers: "customers",
-  orders: "orders",
-  inventory: "inventory",
-  requests: "requests",
-  customer: "customers",
-  order: "orders",
-};
 
 // ─── Root ───────────────────────────────────────────────────────────────────
 
 export function SupplierWorkspaceView() {
-  const [view, setView] = useState<View>({ kind: "orders" });
+  const [view, setView] = useState<View>({ kind: "customers" });
 
   // Live data from Rosie's workspace files (loaded once; edits write through).
   const ws = useWorkspace();
@@ -190,21 +164,17 @@ export function SupplierWorkspaceView() {
     [],
   );
 
-  const activeTab = TAB_OF_VIEW[view.kind];
-
   const customersById = useMemo(
     () => new Map(customers.map((c) => [c.id, c])),
     [customers],
   );
 
-  const pendingInputCount = useMemo(
-    () =>
-      orders.reduce(
-        (n, o) => n + o.items.filter((i) => i.pendingInput).length,
-        0,
-      ),
-    [orders],
-  );
+  // Requests (jobs) per customer — drives the sidebar row counts.
+  const orderCountByCustomer = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of orders) m.set(o.customerId, (m.get(o.customerId) ?? 0) + 1);
+    return m;
+  }, [orders]);
 
   // ── Mutators ── every edit "writes the backing workspace file": stamps the
   // row fresh and, on order items, clears the pending-input flag (an inline
@@ -309,6 +279,16 @@ export function SupplierWorkspaceView() {
     [runAndReload],
   );
 
+  // Create a customer, then open the fresh (empty) profile.
+  const addCustomer = useCallback(
+    (name: string) =>
+      runAndReload(async () => {
+        const slug = await addWsCustomer(name);
+        setView({ kind: "customer", id: slug });
+      }),
+    [runAndReload],
+  );
+
   // ── Lookup of the currently-open detail records ──
 
   const detailCustomer =
@@ -316,11 +296,26 @@ export function SupplierWorkspaceView() {
   const detailOrder =
     view.kind === "order" ? orders.find((o) => o.id === view.id) : undefined;
 
-  // ── Chat (mirrors the production chat-container layout) ──
+  // The customer whose context is in view — drives which chat thread is open.
+  const activeCustomerId =
+    view.kind === "customer"
+      ? view.id
+      : view.kind === "order"
+        ? detailOrder?.customerId
+        : undefined;
+
+  const activeCustomerName = activeCustomerId
+    ? customersById.get(activeCustomerId)?.name
+    : undefined;
+  const chatSubtitle = activeCustomerName
+    ? `Chat about ${activeCustomerName}`
+    : "General chat · pick a customer for their thread";
+
+  // ── Chat (one thread per customer; "default" when none is in view) ──
 
   const isMobile = useIsMobile();
   const [chatOpen, setChatOpen] = useState(false);
-  const chat = useMockChat();
+  const chat = useMockChat(activeCustomerId ?? "default");
   const unread = chatOpen
     ? 0
     : Math.max(0, chat.messages.length - chat.seenCount);
@@ -336,29 +331,28 @@ export function SupplierWorkspaceView() {
         {(
           [
             { tab: "customers", label: "Customers" },
-            { tab: "orders", label: "All Requests" },
             { tab: "inventory", label: "Inventory" },
-            { tab: "requests", label: "Stock Checks" },
           ] as const
-        ).map((t) => (
-          <button
-            key={t.tab}
-            onClick={() => setView({ kind: t.tab })}
-            className={cn(
-              "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-              activeTab === t.tab
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {t.label}
-            {t.tab === "orders" && pendingInputCount > 0 && (
-              <span className="ml-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white tabular-nums">
-                {pendingInputCount}
-              </span>
-            )}
-          </button>
-        ))}
+        ).map((t) => {
+          const active =
+            t.tab === "inventory"
+              ? view.kind === "inventory"
+              : view.kind === "customers" || view.kind === "customer";
+          return (
+            <button
+              key={t.tab}
+              onClick={() => setView({ kind: t.tab })}
+              className={cn(
+                "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="relative flex h-[calc(100dvh-57px)] w-full overflow-hidden">
@@ -368,40 +362,38 @@ export function SupplierWorkspaceView() {
           )}
         >
           <div className="grid h-full min-h-0 w-full grid-cols-1 md:grid-cols-[250px_minmax(0,1fr)]">
-            {/* Sidebar */}
+            {/* Sidebar — customer list on top, Inventory + settings below. */}
             <aside className="hidden min-h-0 border-r border-border bg-sidebar md:flex md:flex-col">
               <WorkspaceSidebar
-                activeTab={activeTab}
-                onSelect={(tab) => setView({ kind: tab })}
-                customersCount={customers.length}
-                pendingInputCount={pendingInputCount}
-                sectionsCount={new Set(inventory.map((i) => i.section)).size}
+                customers={customers}
+                orderCountByCustomer={orderCountByCustomer}
+                activeCustomerId={
+                  view.kind === "customer" ? view.id : undefined
+                }
+                inventoryActive={view.kind === "inventory"}
+                onSelectCustomer={(id) => setView({ kind: "customer", id })}
+                onSelectInventory={() => setView({ kind: "inventory" })}
+                onAddCustomer={addCustomer}
               />
             </aside>
 
             {/* Main pane */}
             <section className="flex min-h-0 flex-col overflow-hidden">
-              {view.kind === "customers" && (
-                <CustomersPanel
-                  customers={customers}
-                  orders={orders}
-                  onUpdate={updateCustomer}
-                  onOpenCustomer={(id) => setView({ kind: "customer", id })}
-                />
-              )}
-              {view.kind === "orders" && (
-                <OrdersPanel
-                  orders={orders}
-                  customersById={customersById}
-                  onUpdateItem={updateOrderItem}
-                  onUpdateOrder={updateOrder}
-                  onAddItem={addOrderItem}
-                  onDeleteItems={deleteOrderItems}
-                  onDeleteOrder={deleteOrder}
-                  onOpenCustomer={(id) => setView({ kind: "customer", id })}
-                  onOpenOrder={(id) => setView({ kind: "order", id })}
-                />
-              )}
+              {view.kind === "customers" &&
+                (isMobile ? (
+                  <CustomersPanel
+                    customers={customers}
+                    orders={orders}
+                    onUpdate={updateCustomer}
+                    onAddCustomer={addCustomer}
+                    onOpenCustomer={(id) => setView({ kind: "customer", id })}
+                  />
+                ) : (
+                  <EmptyPane
+                    title="Select a customer"
+                    body="Pick a customer from the sidebar, or add a new one, to see their details and jobs."
+                  />
+                ))}
               {view.kind === "inventory" && (
                 <InventoryPanel
                   inventory={inventory}
@@ -410,7 +402,6 @@ export function SupplierWorkspaceView() {
                   onDelete={deleteInventoryItems}
                 />
               )}
-              {view.kind === "requests" && <RequestsPanel />}
               {view.kind === "customer" &&
                 (detailCustomer ? (
                   <CustomerDetail
@@ -422,13 +413,12 @@ export function SupplierWorkspaceView() {
                     onUpdate={(patch) =>
                       updateCustomer(detailCustomer.id, patch)
                     }
-                    onUpdateItem={updateOrderItem}
+                    onOpenOrder={(id) => setView({ kind: "order", id })}
+                    onDeleteOrder={deleteOrder}
                     onUpdateOrder={updateOrder}
+                    onUpdateItem={updateOrderItem}
                     onAddItem={addOrderItem}
                     onDeleteItems={deleteOrderItems}
-                    onDeleteOrder={deleteOrder}
-                    onOpenCustomer={(id) => setView({ kind: "customer", id })}
-                    onOpenOrder={(id) => setView({ kind: "order", id })}
                   />
                 ) : (
                   <MissingRecord
@@ -440,7 +430,9 @@ export function SupplierWorkspaceView() {
                   <OrderDetail
                     order={detailOrder}
                     customer={customersById.get(detailOrder.customerId)}
-                    onBack={() => setView({ kind: "orders" })}
+                    onBack={() =>
+                      setView({ kind: "customer", id: detailOrder.customerId })
+                    }
                     onUpdateOrder={(patch) =>
                       updateOrder(detailOrder.id, patch)
                     }
@@ -451,65 +443,84 @@ export function SupplierWorkspaceView() {
                     onOpenCustomer={(id) => setView({ kind: "customer", id })}
                   />
                 ) : (
-                  <MissingRecord onBack={() => setView({ kind: "orders" })} />
+                  <MissingRecord
+                    onBack={() => setView({ kind: "customers" })}
+                  />
                 ))}
             </section>
           </div>
         </div>
 
-        {/* One persistent chat session — desktop: slide-in right column,
-            mobile: floating overlay. Same shell as the production app. */}
-        {!isMobile && (
-          <div
-            className={cn(
-              "h-full min-w-0 shrink-0 overflow-hidden transition-[width] duration-300",
-              chatOpen ? "w-[30%] border-l border-border" : "w-0",
+        {/* Chat is per-customer — only shown inside a customer (or one of its
+            jobs), never on the main customers/inventory page. Desktop: slide-in
+            right column; mobile: floating overlay. */}
+        {activeCustomerId && (
+          <>
+            {!isMobile && (
+              <div
+                className={cn(
+                  "h-full min-w-0 shrink-0 overflow-hidden transition-[width] duration-300",
+                  chatOpen ? "w-[30%] border-l border-border" : "w-0",
+                )}
+              >
+                {/* Fixed inner width so the content is laid out once at its open
+                    size. The container above clips it while collapsed; without
+                    this the bubbles re-wrap at ~0 width and the whole markdown
+                    tree re-lays-out on every animation frame, making it slow. */}
+                <div className="h-full w-[30vw] shrink-0">
+                  <ChatColumn
+                    open={chatOpen}
+                    messages={chat.messages}
+                    onSend={chat.send}
+                    subtitle={chatSubtitle}
+                  />
+                </div>
+              </div>
             )}
-          >
-            {/* Fixed inner width so the content is laid out once at its open
-                size. The container above clips it while collapsed; without this
-                the bubbles re-wrap at ~0 width and the whole markdown tree
-                re-lays-out on every animation frame, making the open feel slow. */}
-            <div className="h-full w-[30vw] shrink-0">
-              <ChatColumn
-                open={chatOpen}
-                messages={chat.messages}
-                onSend={chat.send}
-              />
-            </div>
-          </div>
-        )}
-        {isMobile && chatOpen && (
-          <div className="fixed bottom-24 left-4 right-4 z-50 h-[70dvh] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
-            <ChatColumn
-              open={chatOpen}
-              messages={chat.messages}
-              onSend={chat.send}
-            />
-          </div>
-        )}
+            {isMobile && chatOpen && (
+              <div className="fixed bottom-24 left-4 right-4 z-50 h-[70dvh] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+                <ChatColumn
+                  open={chatOpen}
+                  messages={chat.messages}
+                  onSend={chat.send}
+                  subtitle={chatSubtitle}
+                />
+              </div>
+            )}
 
-        <Button
-          size="icon"
-          className={cn(
-            "fixed bottom-6 z-50 h-14 w-14 rounded-full shadow-lg",
-            !isMobile && chatOpen ? "right-[30%]" : "right-6",
-          )}
-          onClick={toggleChat}
-          aria-label={chatOpen ? "Close chat" : "Open chat with Rosie"}
-        >
-          {chatOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <MessageCircle className="h-6 w-6" />
-          )}
-          {unread > 0 && (
-            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white tabular-nums">
-              {unread}
-            </span>
-          )}
-        </Button>
+            <Button
+              size="icon"
+              className={cn(
+                "fixed bottom-6 z-50 h-14 w-14 rounded-full shadow-lg",
+                !isMobile && chatOpen ? "right-[30%]" : "right-6",
+              )}
+              onClick={toggleChat}
+              aria-label={chatOpen ? "Close chat" : "Open chat with Rosie"}
+            >
+              {chatOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <MessageCircle className="h-6 w-6" />
+              )}
+              {unread > 0 && (
+                <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-white tabular-nums">
+                  {unread}
+                </span>
+              )}
+            </Button>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function EmptyPane({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
+      <Users className="h-8 w-8 text-muted-foreground/50" />
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="max-w-xs text-xs text-muted-foreground">{body}</p>
     </div>
   );
 }
@@ -528,61 +539,240 @@ function MissingRecord({ onBack }: { onBack: () => void }) {
 // ─── Sidebar ────────────────────────────────────────────────────────────────
 
 function WorkspaceSidebar({
-  activeTab,
-  onSelect,
-  customersCount,
-  pendingInputCount,
-  sectionsCount,
+  customers,
+  orderCountByCustomer,
+  activeCustomerId,
+  inventoryActive,
+  onSelectCustomer,
+  onSelectInventory,
+  onAddCustomer,
 }: {
-  activeTab: Tab;
-  onSelect: (t: Tab) => void;
-  customersCount: number;
-  pendingInputCount: number;
-  sectionsCount: number;
+  customers: WsCustomer[];
+  orderCountByCustomer: Map<string, number>;
+  activeCustomerId?: string;
+  inventoryActive: boolean;
+  onSelectCustomer: (id: string) => void;
+  onSelectInventory: () => void;
+  onAddCustomer: (name: string) => void;
 }) {
+  // The narrow (250px) sidebar can't fit the name field inline next to the
+  // header, so the "+" toggles a full-width input row rendered below it.
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  const submitNewCustomer = () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    onAddCustomer(trimmed);
+    setNewName("");
+    setAdding(false);
+  };
+
+  const cancelNewCustomer = () => {
+    setNewName("");
+    setAdding(false);
+  };
+
   return (
     <>
-      <nav className="space-y-1 p-3">
-        <SidebarNavButton
-          icon={Users}
-          label="Customers"
-          sub="Profiles & request history"
-          active={activeTab === "customers"}
-          onClick={() => onSelect("customers")}
-          badge={customersCount}
-          badgeTone="primary"
-        />
-        <SidebarNavButton
-          icon={ClipboardList}
-          label="All Requests"
-          sub="Every line item, live"
-          active={activeTab === "orders"}
-          onClick={() => onSelect("orders")}
-          badge={pendingInputCount}
-          badgeTone="warn"
-        />
-        <SidebarNavButton
+      {/* Header + add-customer control. */}
+      <div className="flex items-center justify-between gap-2 border-b border-sidebar-border px-3 py-2.5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-sidebar-foreground">
+          <Users className="h-4 w-4" />
+          Customers
+          <span className="rounded-full bg-secondary px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+            {customers.length}
+          </span>
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+          aria-label="Add a customer"
+          title="Add a customer"
+          onClick={() => setAdding((v) => !v)}
+        >
+          <UserPlus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Add-customer input — full-width row below the header so it never
+          overflows the narrow sidebar. */}
+      {adding && (
+        <div className="flex items-center gap-1 border-b border-sidebar-border px-3 py-2">
+          <Input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitNewCustomer();
+              if (e.key === "Escape") cancelNewCustomer();
+            }}
+            placeholder="Customer name"
+            aria-label="New customer name"
+            className="h-7 min-w-0 flex-1 px-2 text-xs"
+          />
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Create customer"
+            onClick={submitNewCustomer}
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Cancel"
+            onClick={cancelNewCustomer}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Customer list — one row per customer. */}
+      <ScrollArea className="min-h-0 flex-1">
+        <nav className="space-y-0.5 p-2">
+          {customers.length === 0 ? (
+            <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+              No customers yet. Use + to add one.
+            </p>
+          ) : (
+            customers.map((c) => (
+              <CustomerRow
+                key={c.id}
+                customer={c}
+                jobCount={orderCountByCustomer.get(c.id) ?? 0}
+                active={activeCustomerId === c.id}
+                onClick={() => onSelectCustomer(c.id)}
+              />
+            ))
+          )}
+        </nav>
+      </ScrollArea>
+
+      {/* Footer — Inventory above the theme/settings/sign-out controls. */}
+      <div className="mt-auto border-t border-sidebar-border p-2">
+        <SidebarFooterButton
           icon={Package}
           label="Inventory / Price List"
-          sub="Availability & pricing files"
-          active={activeTab === "inventory"}
-          onClick={() => onSelect("inventory")}
-          badge={sectionsCount}
-          badgeTone="primary"
+          active={inventoryActive}
+          onClick={onSelectInventory}
         />
-        <SidebarNavButton
-          icon={Share2}
-          label="Stock Checks"
-          sub="Shared check links"
-          active={activeTab === "requests"}
-          onClick={() => onSelect("requests")}
-        />
-      </nav>
-
-      <div className="mt-auto border-t border-sidebar-border p-2">
         <SidebarFooter />
       </div>
     </>
+  );
+}
+
+function CustomerRow({
+  customer,
+  jobCount,
+  active,
+  onClick,
+}: {
+  customer: WsCustomer;
+  jobCount: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "hover:bg-sidebar-accent/60",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold uppercase",
+          active
+            ? "bg-background/60 text-foreground"
+            : "bg-secondary/60 text-muted-foreground",
+        )}
+      >
+        {customer.name.trim().charAt(0) || "?"}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium leading-tight">
+          {customer.name}
+        </p>
+        {customer.pocName && (
+          <p className="truncate text-[11px] text-muted-foreground">
+            {customer.pocName}
+          </p>
+        )}
+      </div>
+      {jobCount > 0 && (
+        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground">
+          {jobCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// "+" toggles an inline name field; Enter / the check button creates the customer.
+function AddCustomerButton({ onAdd }: { onAdd: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    setName("");
+    setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+        aria-label="Add a customer"
+        title="Add a customer"
+        onClick={() => setOpen(true)}
+      >
+        <UserPlus className="h-4 w-4" />
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+          if (e.key === "Escape") {
+            setName("");
+            setOpen(false);
+          }
+        }}
+        placeholder="Customer name"
+        aria-label="New customer name"
+        className="h-7 w-36 px-2 text-xs"
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+        aria-label="Create customer"
+        onClick={submit}
+      >
+        <Check className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
 
@@ -621,75 +811,25 @@ function SidebarFooterButton({
   icon: Icon,
   label,
   onClick,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60"
-    >
-      <Icon className="h-4 w-4 shrink-0" />
-      {label}
-    </button>
-  );
-}
-
-function SidebarNavButton({
-  icon: Icon,
-  label,
-  sub,
   active,
-  onClick,
-  badge,
-  badgeTone,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  sub: string;
-  active: boolean;
   onClick: () => void;
-  badge?: number;
-  badgeTone?: "warn" | "primary";
+  active?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors",
+        "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground transition-colors",
         active
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
           : "hover:bg-sidebar-accent/60",
       )}
     >
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-          active
-            ? "bg-background/60 text-foreground"
-            : "bg-secondary/60 text-muted-foreground group-hover:text-foreground",
-        )}
-      >
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-tight">{label}</p>
-        <p className="truncate text-[11px] text-muted-foreground">{sub}</p>
-      </div>
-      {badge != null && badge > 0 && (
-        <span
-          className={cn(
-            "inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
-            badgeTone === "primary"
-              ? "bg-primary text-primary-foreground"
-              : "bg-amber-500 text-white",
-          )}
-        >
-          {badge}
-        </span>
-      )}
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
     </button>
   );
 }
@@ -1529,11 +1669,13 @@ function CustomersPanel({
   customers,
   orders,
   onUpdate,
+  onAddCustomer,
   onOpenCustomer,
 }: {
   customers: WsCustomer[];
   orders: WsOrder[];
   onUpdate: (id: string, patch: Partial<WsCustomer>) => void;
+  onAddCustomer: (name: string) => void;
   onOpenCustomer: (id: string) => void;
 }) {
   const orderCount = useMemo(() => {
@@ -1654,10 +1796,17 @@ function CustomersPanel({
 
   return (
     <>
-      <PanelHeader
-        title="Customers"
-        sub={`${customers.length} profiles · click a name for the full file + request history`}
-      />
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-4 sm:px-6">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold leading-tight sm:text-xl">
+            Customers
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {customers.length} profiles · tap a name for details &amp; jobs
+          </p>
+        </div>
+        <AddCustomerButton onAdd={onAddCustomer} />
+      </div>
       <WorkspaceTable
         columns={columns}
         rows={customers}
@@ -1892,470 +2041,6 @@ const confirmDeleteOrder = (order: WsOrder) =>
     `Delete the order “${order.projectName}” and all ${order.items.length} of its line items? This cannot be undone.`,
   );
 
-/** Card rendered on the group boundary — all project-level info in one place. */
-function ProjectGroupCard({
-  order,
-  customerName,
-  collapsed,
-  onToggle,
-  onOpenOrder,
-  onOpenCustomer,
-  onUpdateOrder,
-  onDeleteOrder,
-}: {
-  order: WsOrder;
-  customerName: string;
-  collapsed: boolean;
-  onToggle: () => void;
-  onOpenOrder: (id: string) => void;
-  onOpenCustomer: (id: string) => void;
-  onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
-  onDeleteOrder: (order: WsOrder) => void;
-}) {
-  const total = order.items.reduce((sum, i) => sum + lineTotal(i), 0);
-  // All six statuses, always — rendered as a fixed 3×2 tag block.
-  const statusCounts = (Object.keys(ITEM_STATUS_META) as WsItemStatus[]).map(
-    (s) => ({
-      status: s,
-      count: order.items.filter((i) => i.status === s).length,
-    }),
-  );
-
-  return (
-    <div className="mx-2 my-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm sm:mx-3">
-      <button
-        onClick={onToggle}
-        aria-label={
-          collapsed ? "Expand project items" : "Collapse project items"
-        }
-        aria-expanded={!collapsed}
-        className="-ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        {collapsed ? (
-          <ChevronRight className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
-        )}
-      </button>
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-        <LinkButton onClick={() => onOpenOrder(order.id)}>
-          {order.projectName}
-        </LinkButton>
-        <span className="text-[11px] text-muted-foreground">
-          (
-          <button
-            onClick={() => onOpenCustomer(order.customerId)}
-            className="underline-offset-2 hover:underline"
-          >
-            {customerName}
-          </button>
-          )
-        </span>
-      </div>
-      <ProjectStatusSelect
-        status={order.status}
-        onChange={(s) => onUpdateOrder(order.id, { status: s })}
-      />
-      <span className="text-lg font-bold tabular-nums text-foreground">
-        {formatCurrency(total)}
-      </span>
-      <span className="-ml-2 text-[11px] text-muted-foreground">
-        {order.items.length} item{order.items.length === 1 ? "" : "s"}
-      </span>
-      <div className="ml-auto text-right text-[11px] leading-snug text-muted-foreground">
-        <p>
-          created {formatDate(order.createdOn)} (
-          {formatRelative(order.createdOn)})
-        </p>
-        <p>
-          updated {formatDate(order.lastUpdatedOn)} (
-          {formatRelative(order.lastUpdatedOn)})
-        </p>
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="mr-1 h-7 w-7 shrink-0 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
-        aria-label="Delete request"
-        title="Delete this request"
-        onClick={() => {
-          if (confirmDeleteOrder(order)) onDeleteOrder(order);
-        }}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-
-      {/* Second row: 3×2 status-count block. Zero counts render dimmed. */}
-      <div className="grid w-full grid-cols-3 gap-1">
-        {statusCounts.map(({ status, count }) => (
-          <span
-            key={status}
-            title={`${count} ${ITEM_STATUS_META[status].label}`}
-            className={cn(
-              "inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none",
-              count > 0
-                ? ITEM_STATUS_COLOR[status].badge
-                : "border-border bg-muted/40 text-muted-foreground opacity-60",
-            )}
-          >
-            <span className="tabular-nums">{count}</span>
-            <span className="truncate">{ITEM_STATUS_META[status].label}</span>
-          </span>
-        ))}
-      </div>
-      {order.notes && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <p className="w-full truncate border-t border-border/60 pt-1.5 text-[11px] text-muted-foreground">
-              <span className="font-medium text-foreground/70">Notes:</span>{" "}
-              {order.notes}
-            </p>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs whitespace-pre-wrap">
-            {order.notes}
-          </TooltipContent>
-        </Tooltip>
-      )}
-    </div>
-  );
-}
-
-function OrdersPanel({
-  orders,
-  customersById,
-  onUpdateItem,
-  onUpdateOrder,
-  onAddItem,
-  onDeleteItems,
-  onDeleteOrder,
-  onOpenCustomer,
-  onOpenOrder,
-}: {
-  orders: WsOrder[];
-  customersById: Map<string, WsCustomer>;
-  onUpdateItem: (
-    orderId: string,
-    itemId: string,
-    patch: Partial<WsOrderItem>,
-  ) => void;
-  onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
-  onAddItem: (customerId: string, orderId: string) => void;
-  onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
-  onDeleteOrder: (order: WsOrder) => void;
-  onOpenCustomer: (id: string) => void;
-  onOpenOrder: (id: string) => void;
-}) {
-  const itemCount = orders.reduce((n, o) => n + o.items.length, 0);
-  const pendingCount = orders.reduce(
-    (n, o) => n + o.items.filter((i) => i.pendingInput).length,
-    0,
-  );
-  const customerNameOf = useCallback(
-    (id: string) => customersById.get(id)?.name ?? id,
-    [customersById],
-  );
-
-  return (
-    <>
-      <PanelHeader
-        title="All Requests"
-        sub={
-          <>
-            {itemCount} line items across {orders.length} requests ·{" "}
-            {pendingCount > 0 ? (
-              <span className="text-amber-600 dark:text-amber-400">
-                {pendingCount} pending your input
-              </span>
-            ) : (
-              "nothing pending your input"
-            )}
-          </>
-        }
-      />
-      <OrdersTable
-        orders={orders}
-        customerNameOf={customerNameOf}
-        onUpdateItem={onUpdateItem}
-        onUpdateOrder={onUpdateOrder}
-        onAddItem={onAddItem}
-        onDeleteItems={onDeleteItems}
-        onDeleteOrder={onDeleteOrder}
-        onOpenCustomer={onOpenCustomer}
-        onOpenOrder={onOpenOrder}
-      />
-    </>
-  );
-}
-
-/**
- * The grouped requests table (quick filters + project cards + item rows).
- * Shared between the All Requests tab and the customer detail's requests section.
- */
-function OrdersTable({
-  orders,
-  customerNameOf,
-  onUpdateItem,
-  onUpdateOrder,
-  onAddItem,
-  onDeleteItems,
-  onDeleteOrder,
-  onOpenCustomer,
-  onOpenOrder,
-}: {
-  orders: WsOrder[];
-  customerNameOf: (id: string) => string;
-  onUpdateItem: (
-    orderId: string,
-    itemId: string,
-    patch: Partial<WsOrderItem>,
-  ) => void;
-  onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
-  onAddItem: (customerId: string, orderId: string) => void;
-  onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
-  onDeleteOrder: (order: WsOrder) => void;
-  onOpenCustomer: (id: string) => void;
-  onOpenOrder: (id: string) => void;
-}) {
-  const [itemStatusFilter, setItemStatusFilter] = useState<
-    WsItemStatus | "all"
-  >("all");
-  const [projectStatusFilter, setProjectStatusFilter] = useState<
-    WsProjectStatus | "all"
-  >("all");
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo, setCreatedTo] = useState("");
-
-  const rows: OrderItemRow[] = useMemo(
-    () =>
-      orders.flatMap((order) =>
-        order.items.map((item) => ({
-          id: `${order.id}:${item.id}`,
-          item,
-          order,
-          customerName: customerNameOf(order.customerId),
-        })),
-      ),
-    [orders, customerNameOf],
-  );
-
-  const quickFiltered = useMemo(() => {
-    // Date inputs are local-midnight; widen "to" to end of that day.
-    const from = createdFrom ? new Date(createdFrom).getTime() : null;
-    const to = createdTo
-      ? new Date(createdTo).getTime() + 24 * 60 * 60_000 - 1
-      : null;
-    return rows.filter((r) => {
-      if (itemStatusFilter !== "all" && r.item.status !== itemStatusFilter)
-        return false;
-      if (
-        projectStatusFilter !== "all" &&
-        r.order.status !== projectStatusFilter
-      )
-        return false;
-      const created = new Date(r.order.createdOn).getTime();
-      if (from != null && created < from) return false;
-      if (to != null && created > to) return false;
-      return true;
-    });
-  }, [rows, itemStatusFilter, projectStatusFilter, createdFrom, createdTo]);
-
-  const hasQuickFilters =
-    itemStatusFilter !== "all" ||
-    projectStatusFilter !== "all" ||
-    createdFrom !== "" ||
-    createdTo !== "";
-
-  const columns = useMemo(
-    () => orderItemColumns({ onUpdateItem }),
-    [onUpdateItem],
-  );
-
-  // Build a shareable availability request from the selected rows (which may
-  // span multiple jobs), write it to the workspace, and copy the public link.
-  const generateAvailRequest = useCallback(
-    async (rows: OrderItemRow[], clear: () => void) => {
-      const token = crypto.randomUUID();
-      const request: AvailRequest = {
-        token,
-        createdAt: new Date().toISOString(),
-        supplier: SUPPLIER.name,
-        status: "open",
-        items: rows.map((r) => ({
-          customerId: r.order.customerId,
-          orderId: r.order.id,
-          itemId: r.item.id,
-          projectName: r.order.projectName,
-          customerName: r.customerName,
-          plantName: r.item.name,
-          size: r.item.size,
-          qty: r.item.qty,
-          unitPrice: r.item.unitPrice,
-          status: r.item.status,
-          quoteNotes: r.item.quoteNotes ?? "",
-          internalNotes: r.item.internalNotes ?? "",
-        })),
-      };
-      try {
-        await writeJson(availRequestPath(token), request);
-        const url = `${window.location.origin}/availability/${token}`;
-        await navigator.clipboard.writeText(url).catch(() => {});
-        clear();
-        toast.success("Stock check link copied", { description: url });
-      } catch (e) {
-        toast.error(`Failed: ${(e as Error)?.message ?? e}`);
-      }
-    },
-    [],
-  );
-
-  // Copy the customer-facing quote (selected rows) as HTML for pasting in Gmail.
-  const generateQuote = useCallback(
-    async (rows: OrderItemRow[], clear: () => void) => {
-      const names = [...new Set(rows.map((r) => r.customerName))];
-      try {
-        await copyQuoteToClipboard(
-          rows.map((r) => r.item),
-          names.length === 1 ? names[0] : "",
-        );
-        clear();
-        toast.success("Quote copied — paste into Gmail");
-      } catch (e) {
-        toast.error(`Copy failed: ${(e as Error)?.message ?? e}`);
-      }
-    },
-    [],
-  );
-
-  return (
-    <>
-      <WorkspaceTable
-        columns={columns}
-        rows={quickFiltered}
-        searchPlaceholder="Search plant, customer, project, notes…"
-        emptyText="No request items match your filters."
-        rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
-        onDelete={(rows) =>
-          onDeleteItems(rows.map((r) => ({ order: r.order, itemId: r.item.id })))
-        }
-        selectionActions={(rows, clear) => (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 text-xs"
-              onClick={() => generateAvailRequest(rows, clear)}
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              Stock check ({rows.length})
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 text-xs"
-              onClick={() => generateQuote(rows, clear)}
-            >
-              <Mail className="h-3.5 w-3.5" />
-              Email quote ({rows.length})
-            </Button>
-          </>
-        )}
-        extraSearch={(r) =>
-          `${r.order.projectName} ${r.customerName} ${PROJECT_STATUS_META[r.order.status].label}`
-        }
-        groupBy={{
-          keyOf: (r) => r.order.id,
-          renderHeader: (r, collapsed, onToggle) => (
-            <ProjectGroupCard
-              order={r.order}
-              customerName={r.customerName}
-              collapsed={collapsed}
-              onToggle={onToggle}
-              onOpenOrder={onOpenOrder}
-              onOpenCustomer={onOpenCustomer}
-              onUpdateOrder={onUpdateOrder}
-              onDeleteOrder={onDeleteOrder}
-            />
-          ),
-          onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
-          addLabel: "Add item",
-        }}
-        extraControls={
-          <div className="flex flex-wrap items-center gap-1.5">
-            <select
-              value={projectStatusFilter}
-              onChange={(e) =>
-                setProjectStatusFilter(
-                  e.target.value as WsProjectStatus | "all",
-                )
-              }
-              aria-label="Quick filter: project status"
-              className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="all">Project status: All</option>
-              {(Object.keys(PROJECT_STATUS_META) as WsProjectStatus[]).map(
-                (s) => (
-                  <option key={s} value={s}>
-                    {PROJECT_STATUS_META[s].label}
-                  </option>
-                ),
-              )}
-            </select>
-            <select
-              value={itemStatusFilter}
-              onChange={(e) =>
-                setItemStatusFilter(e.target.value as WsItemStatus | "all")
-              }
-              aria-label="Quick filter: item status"
-              className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="all">Item status: All</option>
-              {(Object.keys(ITEM_STATUS_META) as WsItemStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {ITEM_STATUS_META[s].label}
-                </option>
-              ))}
-            </select>
-            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              Created
-              <Input
-                type="date"
-                value={createdFrom}
-                onChange={(e) => setCreatedFrom(e.target.value)}
-                aria-label="Created from"
-                className="h-8 w-[135px] px-2 text-xs"
-              />
-              –
-              <Input
-                type="date"
-                value={createdTo}
-                onChange={(e) => setCreatedTo(e.target.value)}
-                aria-label="Created to"
-                className="h-8 w-[135px] px-2 text-xs"
-              />
-            </label>
-            {hasQuickFilters && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setItemStatusFilter("all");
-                  setProjectStatusFilter("all");
-                  setCreatedFrom("");
-                  setCreatedTo("");
-                }}
-              >
-                <X className="h-3 w-3" />
-                Clear
-              </Button>
-            )}
-          </div>
-        }
-      />
-    </>
-  );
-}
-
 // ─── Inventory / Price List panel ───────────────────────────────────────────
 
 function InventoryPanel({
@@ -2495,131 +2180,6 @@ function InventoryPanel({
   );
 }
 
-// ─── Availability requests panel ────────────────────────────────────────────
-
-// Lists the shared availability-check links the supplier has sent out (one
-// JSON file each under workspace/availability-requests/). The grower fills the
-// linked form; here the supplier sees open vs submitted status and can delete
-// stale links.
-function RequestsPanel() {
-  const [requests, setRequests] = useState<AvailRequest[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const entries = await tree(availRequestsDir);
-      const files = entries.filter((e) => !e.isDir && e.name.endsWith(".json"));
-      const reqs = await Promise.all(
-        files.map((f) => readJson<AvailRequest>(f.path).catch(() => null)),
-      );
-      setRequests(
-        reqs
-          .filter((r): r is AvailRequest => !!r)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-      );
-    } catch (e) {
-      setError((e as Error)?.message ?? "Failed to load requests");
-    }
-  }, []);
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const remove = async (req: AvailRequest) => {
-    if (!confirm("Delete this stock check link? It can no longer be opened.")) return;
-    try {
-      await deletePath(availRequestPath(req.token));
-      setRequests((prev) => prev?.filter((r) => r.token !== req.token) ?? null);
-      toast.success("Request deleted");
-    } catch (e) {
-      toast.error(`Delete failed: ${(e as Error)?.message ?? e}`);
-    }
-  };
-
-  const copyLink = (token: string) => {
-    const url = `${window.location.origin}/availability/${token}`;
-    navigator.clipboard.writeText(url).then(
-      () => toast.success("Link copied", { description: url }),
-      () => toast.error("Copy failed"),
-    );
-  };
-
-  return (
-    <>
-      <PanelHeader
-        title="Stock Checks"
-        sub={
-          requests
-            ? `${requests.length} shared link${requests.length === 1 ? "" : "s"} · ${requests.filter((r) => r.status === "submitted").length} submitted`
-            : "Shared stock-check links"
-        }
-      />
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-2 p-3 sm:p-4">
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {requests && requests.length === 0 && (
-            <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-              No stock checks yet. Select request lines and use “Stock check”.
-            </p>
-          )}
-          {requests?.map((req) => {
-            const projects = [...new Set(req.items.map((i) => i.projectName))];
-            const submitted = req.status === "submitted";
-            return (
-              <div
-                key={req.token}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm"
-              >
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
-                    submitted
-                      ? "border-green-200 bg-green-100 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400"
-                      : "border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-                  )}
-                >
-                  {submitted ? "Submitted" : "Open"}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium leading-tight">
-                    {req.items.length} line{req.items.length === 1 ? "" : "s"} ·{" "}
-                    {projects.join(", ")}
-                  </p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    Sent {formatRelative(req.createdAt)}
-                    {submitted &&
-                      ` · by ${req.growerName || "grower"}${req.submittedAt ? ` ${formatRelative(req.submittedAt)}` : ""}`}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => copyLink(req.token)}
-                  >
-                    <Link2 className="h-3.5 w-3.5" />
-                    Copy link
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
-                    onClick={() => remove(req)}
-                    aria-label="Delete request"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </ScrollArea>
-    </>
-  );
-}
-
 // ─── Customer detail ────────────────────────────────────────────────────────
 
 function CustomerDetail({
@@ -2627,54 +2187,62 @@ function CustomerDetail({
   orders,
   onBack,
   onUpdate,
-  onUpdateItem,
   onUpdateOrder,
+  onDeleteOrder,
+  onOpenOrder,
+  onUpdateItem,
   onAddItem,
   onDeleteItems,
-  onDeleteOrder,
-  onOpenCustomer,
-  onOpenOrder,
 }: {
   customer: WsCustomer;
   orders: WsOrder[];
   onBack: () => void;
   onUpdate: (patch: Partial<WsCustomer>) => void;
+  onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
+  onDeleteOrder: (order: WsOrder) => void;
+  onOpenOrder: (id: string) => void;
   onUpdateItem: (
     orderId: string,
     itemId: string,
     patch: Partial<WsOrderItem>,
   ) => void;
-  onUpdateOrder: (orderId: string, patch: Partial<WsOrder>) => void;
   onAddItem: (customerId: string, orderId: string) => void;
   onDeleteItems: (rows: { order: WsOrder; itemId: string }[]) => void;
-  onDeleteOrder: (order: WsOrder) => void;
-  onOpenCustomer: (id: string) => void;
-  onOpenOrder: (id: string) => void;
 }) {
-  const customerNameOf = useCallback(() => customer.name, [customer.name]);
-  const [tab, setTab] = useState<"details" | "orders">("details");
+  // Flatten the customer's jobs into item rows; the grouped table re-groups
+  // them under each job's collapsible card (one card per job).
+  const rows: OrderItemRow[] = useMemo(
+    () =>
+      orders.flatMap((order) =>
+        order.items.map((item) => ({
+          id: `${order.id}:${item.id}`,
+          item,
+          order,
+          customerName: customer.name,
+        })),
+      ),
+    [orders, customer.name],
+  );
+  const columns = useMemo(
+    () => orderItemColumns({ onUpdateItem }),
+    [onUpdateItem],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Header — name, back nav, and the Details / Orders tab strip. */}
-      <div className="border-b border-border bg-card/40 px-4 pt-3 sm:px-6">
+      {/* Header — back nav, name, and the editable customer details. */}
+      <div className="border-b border-border bg-card/40 px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button
             size="sm"
             variant="ghost"
-            className="gap-1.5 text-muted-foreground"
+            className="gap-1.5 text-muted-foreground md:hidden"
             onClick={onBack}
           >
             <ChevronLeft className="h-4 w-4" />
             All customers
           </Button>
-          <FileChip
-            path={
-              tab === "details"
-                ? customerProfilePath(customer)
-                : `workspace/customers/${customer.id}/orders/`
-            }
-          />
+          <FileChip path={customerProfilePath(customer)} />
         </div>
         <div className="mt-1">
           <h2 className="text-lg font-semibold leading-tight sm:text-xl">
@@ -2682,101 +2250,198 @@ function CustomerDetail({
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Customer since {formatRelative(customer.createdOn)} ·{" "}
-            {orders.length} request{orders.length === 1 ? "" : "s"}
+            {orders.length} job{orders.length === 1 ? "" : "s"}
           </p>
         </div>
-        <div className="mt-3 flex gap-1">
-          {(
-            [
-              { id: "details", label: "Details" },
-              { id: "orders", label: `Requests (${orders.length})` },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "rounded-t-md border-b-2 px-3 py-2 text-xs font-medium transition-colors",
-                tab === t.id
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <ProfileField
+            label="PoC name"
+            value={customer.pocName}
+            onUpdate={(v) => onUpdate({ pocName: String(v) })}
+          />
+          <ProfileField
+            label="Phone numbers"
+            value={customer.phones.join("; ")}
+            onUpdate={(v) =>
+              onUpdate({
+                phones: String(v)
+                  .split(/[;,]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+          <ProfileField
+            label="Emails"
+            value={customer.emails.join("; ")}
+            onUpdate={(v) =>
+              onUpdate({
+                emails: String(v)
+                  .split(/[;,]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+          <ProfileField
+            label="Address"
+            value={customer.address}
+            onUpdate={(v) => onUpdate({ address: String(v) })}
+          />
+          <div className="sm:col-span-2 lg:col-span-4">
+            <ProfileField
+              label="Notes"
+              value={customer.notes}
+              onUpdate={(v) => onUpdate({ notes: String(v) })}
+            />
+          </div>
+        </dl>
       </div>
 
-      {tab === "details" ? (
-        /* profile.md */
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="max-w-3xl p-4 sm:p-6">
-            <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                <ProfileField
-                  label="PoC name"
-                  value={customer.pocName}
-                  onUpdate={(v) => onUpdate({ pocName: String(v) })}
-                />
-                <ProfileField
-                  label="Phone numbers"
-                  value={customer.phones.join("; ")}
-                  onUpdate={(v) =>
-                    onUpdate({
-                      phones: String(v)
-                        .split(/[;,]/)
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                />
-                <ProfileField
-                  label="Emails"
-                  value={customer.emails.join("; ")}
-                  onUpdate={(v) =>
-                    onUpdate({
-                      emails: String(v)
-                        .split(/[;,]/)
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                />
-                <ProfileField
-                  label="Address"
-                  value={customer.address}
-                  onUpdate={(v) => onUpdate({ address: String(v) })}
-                />
-                <div className="sm:col-span-2">
-                  <ProfileField
-                    label="Notes"
-                    value={customer.notes}
-                    onUpdate={(v) => onUpdate({ notes: String(v) })}
-                  />
-                </div>
-              </dl>
-            </div>
-          </div>
-        </ScrollArea>
-      ) : orders.length === 0 ? (
-        <p className="p-5 text-sm text-muted-foreground">
-          No orders on file yet.
-        </p>
-      ) : (
-        /* orders/ — same grouped table as the All Requests tab, scoped to
-           this customer's folder. */
-        <OrdersTable
-          orders={orders}
-          customerNameOf={customerNameOf}
-          onUpdateItem={onUpdateItem}
-          onUpdateOrder={onUpdateOrder}
-          onAddItem={onAddItem}
-          onDeleteItems={onDeleteItems}
-          onDeleteOrder={onDeleteOrder}
-          onOpenCustomer={onOpenCustomer}
-          onOpenOrder={onOpenOrder}
+      {/* Jobs — collapsible job cards; expand to reveal selectable item rows. */}
+      <WorkspaceTable
+        columns={columns}
+        rows={rows}
+        searchPlaceholder="Search items across this customer's jobs…"
+        emptyText="No jobs on file yet."
+        rowStrip={(r) => ITEM_STATUS_COLOR[r.item.status].strip}
+        onDelete={(rows) =>
+          onDeleteItems(rows.map((r) => ({ order: r.order, itemId: r.item.id })))
+        }
+        extraSearch={(r) =>
+          `${r.order.projectName} ${PROJECT_STATUS_META[r.order.status].label}`
+        }
+        groupBy={{
+          keyOf: (r) => r.order.id,
+          renderHeader: (r, collapsed, onToggle) => (
+            <JobCard
+              order={r.order}
+              collapsed={collapsed}
+              onToggle={onToggle}
+              onOpen={() => onOpenOrder(r.order.id)}
+              onUpdateOrder={(patch) => onUpdateOrder(r.order.id, patch)}
+              onDeleteOrder={() => onDeleteOrder(r.order)}
+            />
+          ),
+          onAddRow: (r) => onAddItem(r.order.customerId, r.order.id),
+          addLabel: "Add item",
+        }}
+      />
+    </div>
+  );
+}
+
+// A job rendered as a collapsible card (the group header in the customer
+// detail). Clicking the card expands/collapses its item rows; the project
+// name opens the full job detail.
+function JobCard({
+  order,
+  collapsed,
+  onToggle,
+  onOpen,
+  onUpdateOrder,
+  onDeleteOrder,
+}: {
+  order: WsOrder;
+  collapsed: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  onUpdateOrder: (patch: Partial<WsOrder>) => void;
+  onDeleteOrder: () => void;
+}) {
+  const total = order.items.reduce((sum, i) => sum + lineTotal(i), 0);
+  const statusCounts = (Object.keys(ITEM_STATUS_META) as WsItemStatus[]).map(
+    (s) => ({
+      status: s,
+      count: order.items.filter((i) => i.status === s).length,
+    }),
+  );
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      aria-expanded={!collapsed}
+      className="m-2 flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left shadow-sm transition-colors hover:border-primary/40 sm:m-3"
+    >
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground">
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
+      </div>
+      {/* Interactive controls stop propagation so they don't toggle the card. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5">
+        <span onClick={(e) => e.stopPropagation()}>
+          <LinkButton onClick={onOpen}>{order.projectName}</LinkButton>
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          {order.items.length} item{order.items.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div onClick={(e) => e.stopPropagation()}>
+        <ProjectStatusSelect
+          status={order.status}
+          onChange={(s) => onUpdateOrder({ status: s })}
         />
+      </div>
+      <span className="text-lg font-bold tabular-nums text-foreground">
+        {formatCurrency(total)}
+      </span>
+      <div className="ml-auto text-right text-[11px] leading-snug text-muted-foreground">
+        <p>
+          created {formatDate(order.createdOn)} ({formatRelative(order.createdOn)})
+        </p>
+        <p>
+          updated {formatDate(order.lastUpdatedOn)} (
+          {formatRelative(order.lastUpdatedOn)})
+        </p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 shrink-0 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40"
+        aria-label="Delete job"
+        title="Delete this job"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (confirmDeleteOrder(order)) onDeleteOrder();
+        }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+
+      {/* Status-count block. */}
+      <div className="grid w-full grid-cols-3 gap-1">
+        {statusCounts.map(({ status, count }) => (
+          <span
+            key={status}
+            title={`${count} ${ITEM_STATUS_META[status].label}`}
+            className={cn(
+              "inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium leading-none",
+              count > 0
+                ? ITEM_STATUS_COLOR[status].badge
+                : "border-border bg-muted/40 text-muted-foreground opacity-60",
+            )}
+          >
+            <span className="tabular-nums">{count}</span>
+            <span className="truncate">{ITEM_STATUS_META[status].label}</span>
+          </span>
+        ))}
+      </div>
+      {order.notes && (
+        <p className="w-full truncate border-t border-border/60 pt-1.5 text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground/70">Notes:</span>{" "}
+          {order.notes}
+        </p>
       )}
     </div>
   );
@@ -2854,7 +2519,7 @@ function OrderDetail({
             onClick={onBack}
           >
             <ChevronLeft className="h-4 w-4" />
-            All requests
+            {customer?.name ?? "Back"}
           </Button>
           <div className="flex items-center gap-2">
             <FileChip path={orderStatePath(order)} />
@@ -2940,15 +2605,19 @@ function OrderDetail({
   );
 }
 
-// ─── Chat — one persistent session, styled like the production app ─────────
+// ─── Chat — one thread per customer, styled like the production app ─────────
 
 const LAST_SEEN_MESSAGE_KEY = "rosie:lastSeenMessageId";
 
-/** Chat state lives at the view root so the toggle badge sees new messages. */
-function useMockChat() {
+/**
+ * Chat state lives at the view root so the toggle badge sees new messages.
+ * `threadId` is the customer id (one conversation per customer); "default"
+ * when no customer is in view.
+ */
+function useMockChat(threadId: string) {
   // Live: messages come from Rosie's session feed; send posts to the admin
   // channel and the next poll surfaces her reply (no canned responses).
-  const { messages: live, send: sendLive } = useChat();
+  const { messages: live, send: sendLive } = useChat(threadId);
   const messages = useMemo<WsChatMessage[]>(
     () =>
       (live ?? []).map((m) => ({
@@ -2961,10 +2630,12 @@ function useMockChat() {
     [live],
   );
   // Last-read marker persists across reloads so the badge survives a refresh.
+  // Keyed per thread so switching customers tracks each conversation's unread.
+  const seenKey = `${LAST_SEEN_MESSAGE_KEY}:${threadId}`;
   const [lastSeenId, setLastSeenId] = useState<string | null>(null);
   useEffect(() => {
-    setLastSeenId(localStorage.getItem(LAST_SEEN_MESSAGE_KEY));
-  }, []);
+    setLastSeenId(localStorage.getItem(seenKey));
+  }, [seenKey]);
 
   // Unread = messages after the stored id (whole list if the id is gone/unset).
   const seenIdx = messages.findIndex((m) => m.id === lastSeenId);
@@ -2980,8 +2651,8 @@ function useMockChat() {
   const markSeen = useCallback(() => {
     const lastId = messages[messages.length - 1]?.id ?? null;
     setLastSeenId(lastId);
-    if (lastId) localStorage.setItem(LAST_SEEN_MESSAGE_KEY, lastId);
-  }, [messages]);
+    if (lastId) localStorage.setItem(seenKey, lastId);
+  }, [messages, seenKey]);
 
   return { messages, send, seenCount, markSeen };
 }
@@ -3031,10 +2702,12 @@ function ChatColumn({
   open,
   messages,
   onSend,
+  subtitle,
 }: {
   open: boolean;
   messages: WsChatMessage[];
   onSend: (body: string) => void;
+  subtitle?: string;
 }) {
   const [draft, setDraft] = useState("");
   // ponytail: attachments are composer-only preview — sendToRosie takes text
@@ -3119,7 +2792,7 @@ function ChatColumn({
           <div>
             <h2 className="font-semibold text-foreground">Rosie</h2>
             <p className="text-xs text-muted-foreground">
-              One continuous session · keeps the workspace in sync
+              {subtitle ?? "Workspace session · keeps the workspace in sync"}
             </p>
           </div>
         </div>

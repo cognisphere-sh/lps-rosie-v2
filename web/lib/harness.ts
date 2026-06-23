@@ -60,11 +60,22 @@ export async function tree(path: string): Promise<TreeEntry[]> {
 // Send a message to Rosie on the operator channel — this is both the chat
 // "send" and the way to wake her after a direct data edit. Every call triggers
 // an agent turn, so don't fire it on every inline edit (those just write files).
-export async function sendToRosie(text: string): Promise<void> {
+// `customerId` is sent as BOTH the threadId (one thread per customer; the
+// harness honors it as a threadIdOverride ahead of the agent's thread strategy)
+// AND the channelId, so the notification/event is tagged with the customer.
+export async function sendToRosie(
+  text: string,
+  customerId?: string,
+): Promise<void> {
+  const body: { text: string; threadId?: string; channelId?: string } = { text };
+  if (customerId) {
+    body.threadId = customerId;
+    body.channelId = customerId;
+  }
   const r = await fetch(`/admin/${AGENT}/send`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`send: ${r.status}`);
 }

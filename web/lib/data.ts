@@ -37,7 +37,7 @@ function usePolled<T>(load: () => Promise<T>, intervalMs = POLL_MS) {
     refresh();
     const t = setInterval(refresh, intervalMs);
     return () => clearInterval(t);
-  }, [refresh, intervalMs]);
+  }, [refresh, intervalMs, load]);
 
   return { data, error, refresh };
 }
@@ -195,12 +195,13 @@ function cleanText(raw: string): string {
     .trim();
 }
 
-async function loadChat(): Promise<ChatMessage[]> {
+async function loadChat(threadId: string): Promise<ChatMessage[]> {
   const threads = await listThreads();
   if (threads.length === 0) return [];
-  // Rosie is single-thread; threads come back newest-first. Open its canonical
-  // active session (fall back to the newest on-disk session file).
-  const t = threads[0];
+  // One thread per customer (keyed by customer id). Open that thread's active
+  // session; an empty array just means this customer has no messages yet.
+  const t = threads.find((th) => th.threadId === threadId);
+  if (!t) return [];
   const sid = t.activeSessionId ?? t.sessions[0]?.sessionId;
   if (!sid) return [];
 
@@ -222,14 +223,16 @@ async function loadChat(): Promise<ChatMessage[]> {
   return out;
 }
 
-export function useChat() {
-  const { data, error, refresh } = usePolled(loadChat);
+// `threadId` selects the customer's conversation (one thread per customer).
+export function useChat(threadId: string) {
+  const load = useCallback(() => loadChat(threadId), [threadId]);
+  const { data, error, refresh } = usePolled(load);
   const send = useCallback(
     async (text: string) => {
-      await sendToRosie(text);
+      await sendToRosie(text, threadId);
       await refresh();
     },
-    [refresh],
+    [refresh, threadId],
   );
   return { messages: data, error, send, refresh };
 }

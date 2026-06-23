@@ -323,6 +323,35 @@ export async function deleteWsOrder(order: WsOrder): Promise<void> {
   await deletePath(`${CUST_DIR}/${order.customerId}/jobs/${order.id}`);
 }
 
+// Create a new customer: derive a unique folder slug from the name and seed a
+// customer.json. Returns the slug so the caller can open the new profile (and
+// use it as the customer's chat thread id). The fs PUT creates the dir.
+export async function addWsCustomer(name: string): Promise<string> {
+  const trimmed = name.trim();
+  const base =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "customer";
+  const existing = new Set(
+    (await tree(CUST_DIR)).filter((e) => e.isDir).map((e) => e.name),
+  );
+  let slug = base;
+  for (let n = 2; existing.has(slug); n++) slug = `${base}-${n}`;
+  const customer: Customer = {
+    slug,
+    name: trimmed || slug,
+    poc_name: "",
+    phones: [],
+    emails: [],
+    address: "",
+    notes: "",
+    created_at: new Date().toISOString(),
+  };
+  await writeJson(`${CUST_DIR}/${slug}/customer.json`, customer);
+  return slug;
+}
+
 export async function persistWsCustomer(w: WsCustomer): Promise<void> {
   const path = `${CUST_DIR}/${w.id}/customer.json`;
   const c = await readJson<Customer>(path);
