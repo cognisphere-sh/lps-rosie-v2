@@ -5,6 +5,7 @@ thread you've handled and a short pointer to anything in `knowledge/` or
 `memory/` you want easy access to.
 
 ## Threads
+- `test` — Dior Goodwin; job 714-windsong-trail (714 Windsong Trail, EDD 2026-06-29) filed 2026-06-23; 4 items need Chris review.
 
 ## Knowledge
 
