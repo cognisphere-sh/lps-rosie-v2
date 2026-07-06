@@ -1,0 +1,268 @@
+#!/usr/bin/env node
+// query — runs a SQL statement against the bound Supabase project's
+// Postgres database via `psql`. Refuses anything that isn't SELECT / INSERT /
+// UPDATE / WITH / EXPLAIN / transactional / SET / SHOW.
+//
+// Connection: psql reads PGHOST / PGPORT / PGUSER / PGDATABASE / PGPASSWORD
+// from env. The harness exports the agent's declared secrets verbatim
+// (SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD, ...), so this bin translates
+// those into the PG* names libpq actually looks for. PGPASSWORD never appears
+// in argv, only in env. If the operator already has PG* env set (e.g. for
+// pointing at a different DB during testing), the explicit values win.
+//
+// Pattern D from references/bin-ipc.md: bin talks to the external service
+// directly, the plugin process is just a holder for shared config + secrets.
+
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const HELP = `Usage: query [-c <sql> | -f <file> | <stdin>] [--csv|--tsv|--unaligned]
+
+  -c, --command <sql>   Run a single SQL string.
+  -f, --file <path>     Read SQL from a file.
+  --csv                 Emit psql --csv output.
+  --tsv                 Emit tab-separated values (no header decorations).
+  --unaligned, -A       Emit psql -A output.
+  -h, --help            Show this help.
+
+If neither -c nor -f is given, SQL is read from stdin.
+
+Allowed statements: SELECT, INSERT, UPDATE, WITH (with non-destructive body),
+EXPLAIN, BEGIN/COMMIT/ROLLBACK/SAVEPOINT/RELEASE, SET, SHOW, VALUES, START,
+and CREATE [OR REPLACE] FUNCTION|PROCEDURE.
+
+Blocked: DELETE, DROP, TRUNCATE, ALTER, GRANT, REVOKE, VACUUM, CLUSTER,
+REINDEX, REFRESH, COMMENT, REASSIGN, COPY, DO, LOCK, LOAD, PREPARE,
+DEALLOCATE, EXECUTE, CALL, LISTEN, NOTIFY, UNLISTEN, CHECKPOINT, DISCARD,
+IMPORT, and any CREATE form other than FUNCTION/PROCEDURE (TABLE, INDEX,
+VIEW, TRIGGER, etc.). Forbidden words are detected after stripping comments
+and string literals, so hiding them in a comment or a CTE body still trips
+the guard. Function bodies (dollar-quoted or single-quoted) are stripped
+before the scan — runtime behavior of any function you create is your
+responsibility.
+`;
+
+const ALLOWED_FIRST = new Set([
+	"select",
+	"insert",
+	"update",
+	"with",
+	"explain",
+	"begin",
+	"start",
+	"commit",
+	"rollback",
+	"savepoint",
+	"release",
+	"set",
+	"show",
+	"values",
+	// `create` is allowed as the leading keyword but only for FUNCTION /
+	// PROCEDURE — see the special-case check in validate() below. Other CREATE
+	// forms (TABLE, INDEX, VIEW, TRIGGER, ...) are still rejected.
+	"create",
+]);
+
+const FORBIDDEN_ANY = new Set([
+	"delete",
+	"drop",
+	"truncate",
+	"alter",
+	"grant",
+	"revoke",
+	"vacuum",
+	"cluster",
+	"reindex",
+	"refresh",
+	"comment",
+	"reassign",
+	"copy",
+	"do",
+	"import",
+	"lock",
+	"load",
+	"prepare",
+	"deallocate",
+	"execute",
+	"call",
+	"listen",
+	"notify",
+	"unlisten",
+	"checkpoint",
+	"discard",
+]);
+
+function parseArgs() {
+	const argv = process.argv.slice(2);
+	let sql;
+	let mode = "default";
+	for (let i = 0; i < argv.length; i++) {
+		const a = argv[i];
+		if (a === "-c" || a === "--command") {
+			if (sql !== undefined) die("multiple SQL sources provided", 2);
+			sql = argv[++i];
+			if (sql === undefined) die(`${a} requires a SQL string argument`, 2);
+		} else if (a === "-f" || a === "--file") {
+			if (sql !== undefined) die("multiple SQL sources provided", 2);
+			const path = argv[++i];
+			if (!path) die(`${a} requires a file path argument`, 2);
+			sql = readFileSync(path, "utf8");
+		} else if (a === "--csv") {
+			mode = "csv";
+		} else if (a === "--tsv") {
+			mode = "tsv";
+		} else if (a === "--unaligned" || a === "-A") {
+			mode = "unaligned";
+		} else if (a === "-h" || a === "--help") {
+			process.stdout.write(HELP);
+			process.exit(0);
+		} else {
+			die(`unknown option: ${a}\n\n${HELP}`, 2);
+		}
+	}
+	if (sql === undefined) {
+		if (process.stdin.isTTY) die(`no SQL provided (use -c, -f, or stdin)\n\n${HELP}`, 2);
+		sql = readFileSync(0, "utf8");
+	}
+	return { sql, mode };
+}
+
+function die(msg, code) {
+	process.stderr.write(`query: ${msg}\n`);
+	process.exit(code);
+}
+
+/**
+ * Strip comments and string literals so the keyword scan doesn't trip on
+ * SQL embedded in user data (e.g. `INSERT INTO logs VALUES ('we dropped X')`)
+ * or in `/* ... *\/` blocks.
+ */
+function stripCommentsAndStrings(sql) {
+	let s = sql;
+	// Block comments — non-greedy, multiline.
+	s = s.replace(/\/\*[\s\S]*?\*\//g, " ");
+	// Line comments to end-of-line.
+	s = s.replace(/--[^\n]*/g, " ");
+	// Dollar-quoted strings: $tag$...$tag$ (tag may be empty).
+	s = s.replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g, " '<dq>' ");
+	// Single-quoted strings, '' is the doubled-quote escape.
+	s = s.replace(/'(?:[^']|'')*'/g, " '<s>' ");
+	// Double-quoted identifiers, "" doubled-quote escape.
+	s = s.replace(/"(?:[^"]|"")*"/g, ' "<id>" ');
+	return s;
+}
+
+function validate(sql) {
+	const stripped = stripCommentsAndStrings(sql);
+	const stmts = stripped
+		.split(";")
+		.map((s) => s.trim())
+		.filter(Boolean);
+	if (stmts.length === 0) {
+		throw new Error("empty query: no statements found after stripping comments");
+	}
+	for (const stmt of stmts) {
+		// Tokenize on whitespace/punctuation so things like `delete,` or
+		// `(delete` still surface as a `delete` token.
+		const tokens = stmt.split(/[\s(),;]+/).filter(Boolean);
+		const first = tokens[0]?.toLowerCase() ?? "";
+		if (!ALLOWED_FIRST.has(first)) {
+			throw new Error(
+				`disallowed leading keyword '${tokens[0] ?? ""}'. Statement: ${truncate(stmt)}`,
+			);
+		}
+		// CREATE is only allowed as `CREATE [OR REPLACE] FUNCTION|PROCEDURE`.
+		// Walk past the optional OR REPLACE pair to find the object-kind token.
+		if (first === "create") {
+			let i = 1;
+			while (
+				i < tokens.length &&
+				(tokens[i].toLowerCase() === "or" || tokens[i].toLowerCase() === "replace")
+			) {
+				i++;
+			}
+			const kind = tokens[i]?.toLowerCase() ?? "";
+			if (kind !== "function" && kind !== "procedure") {
+				throw new Error(
+					`only CREATE [OR REPLACE] FUNCTION|PROCEDURE is allowed; got 'CREATE ${tokens[i] ?? "(missing)"}'. Statement: ${truncate(stmt)}`,
+				);
+			}
+		}
+		for (const tok of tokens) {
+			if (FORBIDDEN_ANY.has(tok.toLowerCase())) {
+				throw new Error(
+					`forbidden keyword '${tok}' present (DELETE/DROP/TRUNCATE/ALTER/etc. are blocked, ` +
+						`including inside CTE bodies). Statement: ${truncate(stmt)}`,
+				);
+			}
+		}
+	}
+}
+
+function truncate(s) {
+	return s.length > 120 ? `${s.slice(0, 120)}…` : s;
+}
+
+function buildPgEnv() {
+	const projectId = process.env.SUPABASE_PROJECT_ID;
+	const password = process.env.SUPABASE_DB_PASSWORD;
+	if (!projectId) die("SUPABASE_PROJECT_ID not set in env", 2);
+	if (!password) die("SUPABASE_DB_PASSWORD not set in env", 2);
+	return {
+		...process.env,
+		PGHOST: process.env.PGHOST ?? `db.${projectId}.supabase.co`,
+		PGPORT: process.env.PGPORT ?? "5432",
+		PGUSER: process.env.PGUSER ?? "postgres",
+		PGDATABASE: process.env.PGDATABASE ?? "postgres",
+		PGPASSWORD: process.env.PGPASSWORD ?? password,
+	};
+}
+
+function psqlFlagsFor(mode) {
+	switch (mode) {
+		case "csv":
+			// Quiet suppresses command tags such as a leading `SET` line when a
+			// machine-readable query starts with `SET statement_timeout; SELECT ...`.
+			return ["--quiet", "--csv"];
+		case "tsv":
+			return ["--quiet", "-A", "-F", "\t"];
+		case "unaligned":
+			return ["--quiet", "-A"];
+		default:
+			return [];
+	}
+}
+
+function main() {
+	const { sql, mode } = parseArgs();
+	try {
+		validate(sql);
+	} catch (e) {
+		die(`SQL validation failed: ${e.message}`, 3);
+	}
+	const flags = [
+		"--no-psqlrc",
+		"--pset=pager=off",
+		"-v",
+		"ON_ERROR_STOP=1",
+		...psqlFlagsFor(mode),
+		"-c",
+		sql,
+	];
+	const r = spawnSync("psql", flags, {
+		stdio: ["ignore", "inherit", "inherit"],
+		env: buildPgEnv(),
+	});
+	if (r.error) {
+		if (r.error.code === "ENOENT") {
+			die(
+				`psql not found on PATH. Install the postgres client: brew install postgresql@15`,
+				127,
+			);
+		}
+		die(String(r.error), 1);
+	}
+	process.exit(r.status ?? 0);
+}
+
+main();

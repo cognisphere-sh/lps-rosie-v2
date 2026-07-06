@@ -30,46 +30,46 @@ npm install -g corepack@latest
 corepack enable
 corepack prepare pnpm@latest --activate
 
-# ---- build (as the app user so node_modules aren't root-owned) -------------
-# Private @cognisphere-sh/* packages live on GitHub Packages, which needs a
-# GitHub token with the `read:packages` scope. Use COGNISPHERE_NPM_TOKEN from
-# config if set, else fall back to the run user's gh CLI token.
-COGNISPHERE_NPM_TOKEN="${COGNISPHERE_NPM_TOKEN:-$(sudo -u "$RUN_USER" gh auth token 2>/dev/null || true)}"
-[[ -n "$COGNISPHERE_NPM_TOKEN" ]] || { echo "no GitHub token for @cognisphere-sh packages. Run: gh auth refresh -s read:packages   (or set COGNISPHERE_NPM_TOKEN in config)"; exit 1; }
+# ---- GitHub Packages token --------------------------------------------------
+# @cognisphere-sh/* live on GitHub Packages, whose npm registry requires a token
+# with the read:packages scope EVEN for public packages (anonymous = 401, a
+# scope-short token = 403). Prefer COGNISPHERE_NPM_TOKEN from config (a PAT); else
+# use the run user's gh CLI token. A gh OAuth token (gho_*) exists but often lacks
+# read:packages, so a bare `gh auth token` check would pass yet still 403 at fetch
+# time — verify/repair the scope here instead of failing mid-build.
+if [[ -z "${COGNISPHERE_NPM_TOKEN:-}" ]]; then
+  command -v gh >/dev/null || { echo "no COGNISPHERE_NPM_TOKEN in config and gh CLI not installed. Set COGNISPHERE_NPM_TOKEN (a PAT with read:packages) in config, or install gh and run: sudo -u $RUN_USER gh auth login -s read:packages"; exit 1; }
+  # gh runs as the app user; ensure it's logged in and the token carries read:packages.
+  # (gh prints "Token scopes:" to stderr, hence 2>&1.)
+  if ! sudo -u "$RUN_USER" gh auth status >/dev/null 2>&1; then
+    echo ">> gh is not authenticated for $RUN_USER — launching login (needs read:packages)"
+    sudo -u "$RUN_USER" gh auth login -s read:packages || { echo "gh auth login failed"; exit 1; }
+  elif ! sudo -u "$RUN_USER" gh auth status 2>&1 | grep -q 'read:packages'; then
+    echo ">> gh token for $RUN_USER lacks the read:packages scope — refreshing"
+    sudo -u "$RUN_USER" gh auth refresh -s read:packages || { echo "gh auth refresh failed"; exit 1; }
+  fi
+  COGNISPHERE_NPM_TOKEN="$(sudo -u "$RUN_USER" gh auth token 2>/dev/null || true)"
+fi
+[[ -n "$COGNISPHERE_NPM_TOKEN" ]] || { echo "no GitHub token for @cognisphere-sh packages. Set COGNISPHERE_NPM_TOKEN in config (a PAT with read:packages), or run: sudo -u $RUN_USER gh auth refresh -s read:packages"; exit 1; }
 # pnpm refuses to expand env-var credentials from the committed project .npmrc,
 # so the auth line must live in the run user's ~/.npmrc (a trusted source).
 RUN_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
 sudo -u "$RUN_USER" touch "$RUN_HOME/.npmrc"
 sudo -u "$RUN_USER" grep -qF 'npm.pkg.github.com/:_authToken' "$RUN_HOME/.npmrc" \
   || echo '//npm.pkg.github.com/:_authToken=${COGNISPHERE_NPM_TOKEN}' | sudo -u "$RUN_USER" tee -a "$RUN_HOME/.npmrc" >/dev/null
-sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash -c "cd '$APP_DIR' && pnpm install --frozen-lockfile"
 
-# ---- app credentials ------------------------------------------------------
-# Same username/password goes into the harness user store and the web service
-# login. Generate a password if config left it blank.
-APP_USER="${APP_USER:-Dyson}"
-APP_PASS="${APP_PASS:-$(head -c18 /dev/urandom | base64 | tr -d '/+=')}"
+# ---- credentials ------------------------------------------------------------
+# `server.sh secrets` is the single source: it writes users.json (harness login)
+# and web/.env.local (service login + DOMAIN/PORT/HARNESS_URL). Blank APP_PASS
+# is generated once and reused. Runs as RUN_USER so the files are owned
+# correctly. It echoes the resolved "app login: <user> / <pass>".
 install -d -o "$RUN_USER" "$APP_DIR/lps-harness/.secrets"
-printf '{\n  "users": [\n    { "username": %s, "password": %s }\n  ]\n}\n' \
-  "\"$APP_USER\"" "\"$APP_PASS\"" > "$APP_DIR/lps-harness/.secrets/users.json"
-# Written from `config` so the domain, ports and harness URL aren't hardcoded.
-# HARNESS_USER/PASS are the service login for the public availability form
-# route; they match lps-harness/.secrets/users.json. The systemd unit also
-# sets PORT/HARNESS_URL; keeping them here lets `server.sh dev` and local runs
-# work the same way.
-cat > "$APP_DIR/web/.env.local" <<EOF
-# Written by setup-server.sh. Do not hand-edit.
-HARNESS_USER=$APP_USER
-HARNESS_PASS=$APP_PASS
-DOMAIN=$DOMAIN
-PORT=$WEB_PORT
-HARNESS_URL=http://127.0.0.1:$HARNESS_PORT
-EOF
-chown "$RUN_USER" "$APP_DIR/lps-harness/.secrets/users.json" "$APP_DIR/web/.env.local"
-chmod 600 "$APP_DIR/lps-harness/.secrets/users.json" "$APP_DIR/web/.env.local"
-echo ">> app login: $APP_USER / $APP_PASS"
+sudo -u "$RUN_USER" bash "$APP_DIR/server.sh" secrets
 
-sudo -u "$RUN_USER" bash -c "cd '$APP_DIR' && pnpm --filter web build"
+# ---- build (as the app user so node_modules aren't root-owned) -------------
+# Delegated to build.sh — the same command used for every later deploy
+# (git pull && sudo ./server.sh restart).
+sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash "$APP_DIR/build.sh"
 
 # ---- systemd units --------------------------------------------------------
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
@@ -81,6 +81,11 @@ NODE_BIN_DIR="$(dirname "$(command -v node)")"
 # $NODE_BIN_DIR/pnpm.
 PNPM_BIN="$(command -v pnpm)"
 PNPM_BIN_DIR="$(dirname "$PNPM_BIN")"
+# The harness spawns the `pi` coding agent by name (PATH lookup). pi is a
+# per-user install ($RUN_HOME/.local/bin/pi), so that dir MUST be on the unit
+# PATH or every spawn fails with `spawn pi ENOENT`. node/pnpm may both live in
+# /usr/bin, so don't rely on their dirs to carry it.
+UNIT_PATH="$RUN_HOME/.local/bin:$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin"
 
 cat > /etc/systemd/system/rosie-harness.service <<EOF
 [Unit]
@@ -91,7 +96,7 @@ After=network.target
 Type=simple
 User=$RUN_USER
 WorkingDirectory=$APP_DIR/lps-harness
-Environment=PATH=$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin
+Environment=PATH=$UNIT_PATH
 # Empty so pnpm can expand the \${COGNISPHERE_NPM_TOKEN} ref in the run user's
 # ~/.npmrc without warning. The service does no installs, so no real token is
 # needed at runtime.
@@ -114,7 +119,7 @@ Wants=rosie-harness.service
 Type=simple
 User=$RUN_USER
 WorkingDirectory=$APP_DIR/web
-Environment=PATH=$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin
+Environment=PATH=$UNIT_PATH
 Environment=NODE_ENV=production
 Environment=PORT=$WEB_PORT
 Environment=HARNESS_URL=http://127.0.0.1:$HARNESS_PORT
