@@ -17,6 +17,22 @@ echo ">> web=$DOMAIN:$WEB_PORT console=$CONSOLE_DOMAIN:$HARNESS_PORT dir=$APP_DI
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y curl ca-certificates nginx zip sqlite3
+# Agent runtime deps (the bootstrap runs as the app user and can't apt-install):
+#  - python3-venv provides ensurepip; without it each agent's `python -m venv`
+#    leaves a broken venv with no pip, so markitdown/ddgs never install.
+#  - ffmpeg + poppler-utils back markitdown's media/PDF conversions.
+#  - postgresql-client provides psql (scripts/agent/supabase/query).
+#  - jq backs scripts/scheduler/scheduler-cli's atomic state writes.
+apt-get install -y python3-venv python3-pip ffmpeg poppler-utils postgresql-client jq
+# Chrome shared libraries for agent-browser's headless Chrome. Best-effort: a
+# package renamed on a given Ubuntu release shouldn't abort the whole provision
+# (the box may already have them). If launch still fails, the app user can run
+# `~/.npm-global/bin/agent-browser install --with-deps`.
+apt-get install -y \
+  libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+  libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
+  libpango-1.0-0 libcairo2 libasound2t64 libatspi2.0-0t64 \
+  || echo ">> WARN: some Chrome libraries did not install; run agent-browser install --with-deps if the browser fails to launch"
 command -v certbot >/dev/null || apt-get install -y certbot python3-certbot-nginx
 command -v aws >/dev/null || apt-get install -y awscli   # S3 backups
 
@@ -72,6 +88,19 @@ sudo -u "$RUN_USER" bash "$APP_DIR/server.sh" secrets
 # (git pull && sudo ./server.sh restart).
 sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash "$APP_DIR/build.sh"
 
+# ---- agent runtimes: build each agent's Python venv + CLIs ------------------
+# Each agent has a bootstrap/bootstrap.sh (idempotent) that creates <agent>/.venv
+# with markitdown/ddgs and installs the pi / agent-browser CLIs the harness
+# spawns by name. Run as the app user so the venv and ~/.local installs aren't
+# root-owned. Best-effort: a warning here shouldn't abort the whole provision.
+for bs in "$APP_DIR"/lps-harness/agents/*/bootstrap/bootstrap.sh; do
+  [[ -f "$bs" ]] || continue
+  agent_name="$(basename "$(dirname "$(dirname "$bs")")")"
+  echo ">> bootstrapping agent runtime: $agent_name"
+  sudo -u "$RUN_USER" bash "$bs" \
+    || echo ">> WARN: bootstrap for '$agent_name' reported issues — review its output above"
+done
+
 # ---- systemd units --------------------------------------------------------
 NODE_BIN_DIR="$(dirname "$(command -v node)")"
 # pnpm lives where corepack@latest installed it (the npm global bin, e.g.
@@ -86,7 +115,10 @@ PNPM_BIN_DIR="$(dirname "$PNPM_BIN")"
 # per-user install ($RUN_HOME/.local/bin/pi), so that dir MUST be on the unit
 # PATH or every spawn fails with `spawn pi ENOENT`. node/pnpm may both live in
 # /usr/bin, so don't rely on their dirs to carry it.
-UNIT_PATH="$RUN_HOME/.local/bin:$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin"
+# $RUN_HOME/.npm-global/bin carries the npm-global CLIs the agent bootstrap
+# installs as the app user (pi, agent-browser) when the default npm prefix is
+# root-owned. Must be on the unit PATH or bare `agent-browser`/`pi` spawns 127.
+UNIT_PATH="$RUN_HOME/.local/bin:$RUN_HOME/.npm-global/bin:$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin"
 
 cat > /etc/systemd/system/rosie-harness.service <<EOF
 [Unit]
