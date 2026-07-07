@@ -9,6 +9,7 @@ S3_BUCKET=rosie-backups          # bucket to create (also the IAM role's read/wr
 EC2_NAME=rosie-server            # EC2 Name tag; also used for the security group + IAM role names
 EC2_TYPE=t3.medium               # instance type
 EC2_DISK_GB=20                   # root EBS volume size in GB (gp3)
+UBUNTU_VERSION=26.04             # Ubuntu release (latest AMI via SSM), e.g. 24.04, 26.04
 EIP_NAME=rosie-ip                # Elastic IP Name tag
 KEY_NAME=rosie-key               # key pair name; private key saved to ~/.ssh/<name>.pem
 IAM_ROLE=                        # blank = <EC2_NAME>-role

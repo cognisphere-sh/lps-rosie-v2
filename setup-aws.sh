@@ -17,6 +17,7 @@ command -v aws >/dev/null || { echo "aws CLI not installed (brew install awscli)
 export AWS_DEFAULT_REGION="$AWS_REGION"
 EC2_TYPE="${EC2_TYPE:-t3.medium}"
 EC2_DISK_GB="${EC2_DISK_GB:-30}"
+UBUNTU_VERSION="${UBUNTU_VERSION:-26.04}"
 ROLE="${IAM_ROLE:-$EC2_NAME-role}"
 HOST_ALIAS="${SSH_HOST_ALIAS:-$EC2_NAME}"
 aq() { aws --output text "$@"; }
@@ -32,6 +33,8 @@ if ! aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
       --create-bucket-configuration LocationConstraint="$AWS_REGION" >/dev/null
   fi
   echo ">> created s3://$S3_BUCKET"
+else
+  echo ">> s3://$S3_BUCKET exists — skipping"
 fi
 
 # ---- 4. key pair (.pem, needed before launch) ------------------------------
@@ -44,6 +47,8 @@ if ! aws ec2 describe-key-pairs --key-names "$KEY_NAME" >/dev/null 2>&1; then
 elif [[ ! -f "$PEM" ]]; then
   echo "key pair $KEY_NAME exists in AWS but $PEM is missing locally (AWS never re-shows private keys)."
   echo "delete it (aws ec2 delete-key-pair --key-name $KEY_NAME) and rerun."; exit 1
+else
+  echo ">> key pair $KEY_NAME exists — skipping"
 fi
 
 # ---- 6. IAM role: S3 read/write on the bucket ------------------------------
@@ -51,13 +56,16 @@ if ! aws iam get-role --role-name "$ROLE" >/dev/null 2>&1; then
   aws iam create-role --role-name "$ROLE" --assume-role-policy-document '{
     "Version":"2012-10-17",
     "Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
+  # ponytail: scoped to $S3_BUCKET, not s3:* — widen the Resource list if the app needs more buckets.
+  aws iam put-role-policy --role-name "$ROLE" --policy-name s3-readwrite --policy-document "{
+    \"Version\":\"2012-10-17\",
+    \"Statement\":[
+      {\"Effect\":\"Allow\",\"Action\":[\"s3:ListBucket\"],\"Resource\":\"arn:aws:s3:::$S3_BUCKET\"},
+      {\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],\"Resource\":\"arn:aws:s3:::$S3_BUCKET/*\"}]}"
+  echo ">> created role $ROLE"
+else
+  echo ">> role $ROLE exists — skipping (policy untouched)"
 fi
-# ponytail: scoped to $S3_BUCKET, not s3:* — widen the Resource list if the app needs more buckets.
-aws iam put-role-policy --role-name "$ROLE" --policy-name s3-readwrite --policy-document "{
-  \"Version\":\"2012-10-17\",
-  \"Statement\":[
-    {\"Effect\":\"Allow\",\"Action\":[\"s3:ListBucket\"],\"Resource\":\"arn:aws:s3:::$S3_BUCKET\"},
-    {\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],\"Resource\":\"arn:aws:s3:::$S3_BUCKET/*\"}]}"
 if ! aws iam get-instance-profile --instance-profile-name "$ROLE" >/dev/null 2>&1; then
   aws iam create-instance-profile --instance-profile-name "$ROLE" >/dev/null
   aws iam add-role-to-instance-profile --instance-profile-name "$ROLE" --role-name "$ROLE"
@@ -83,13 +91,13 @@ for rule in "80:0.0.0.0/0" "443:0.0.0.0/0" "22:$SSH_CIDR"; do
 done
 echo ">> sg $SG_ID: 80,443 open; 22 from $SSH_CIDR"
 
-# ---- 2. EC2 instance (latest Ubuntu 24.04 LTS) ------------------------------
+# ---- 2. EC2 instance (latest Ubuntu $UBUNTU_VERSION) ------------------------
 INSTANCE_ID="$(aq ec2 describe-instances \
   --filters Name=tag:Name,Values="$EC2_NAME" Name=instance-state-name,Values=pending,running \
   --query 'Reservations[0].Instances[0].InstanceId')"
 if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == None ]]; then
   AMI="$(aq ssm get-parameter \
-    --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id \
+    --name "/aws/service/canonical/ubuntu/server/$UBUNTU_VERSION/stable/current/amd64/hvm/ebs-gp3/ami-id" \
     --query Parameter.Value)"
   INSTANCE_ID="$(aq ec2 run-instances --image-id "$AMI" --instance-type "$EC2_TYPE" \
     --key-name "$KEY_NAME" --security-group-ids "$SG_ID" \
@@ -97,7 +105,9 @@ if [[ -z "$INSTANCE_ID" || "$INSTANCE_ID" == None ]]; then
     --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=$EC2_DISK_GB,VolumeType=gp3}" \
     --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$EC2_NAME}]" \
     --query 'Instances[0].InstanceId')"
-  echo ">> launched $INSTANCE_ID"
+  echo ">> launched $INSTANCE_ID (ubuntu $UBUNTU_VERSION)"
+else
+  echo ">> instance $EC2_NAME exists ($INSTANCE_ID) — skipping"
 fi
 aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 
@@ -109,7 +119,10 @@ if [[ -z "$ALLOC" || "$ALLOC" == None ]]; then
     --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=Name,Value=$EIP_NAME}]" \
     --query AllocationId)"
 fi
-aws ec2 associate-address --instance-id "$INSTANCE_ID" --allocation-id "$ALLOC" >/dev/null
+# associate only if not already attached to this instance
+if [[ "$(aq ec2 describe-addresses --allocation-ids "$ALLOC" --query 'Addresses[0].InstanceId')" != "$INSTANCE_ID" ]]; then
+  aws ec2 associate-address --instance-id "$INSTANCE_ID" --allocation-id "$ALLOC" >/dev/null
+fi
 IP="$(aq ec2 describe-addresses --allocation-ids "$ALLOC" --query 'Addresses[0].PublicIp')"
 echo ">> $EC2_NAME: $INSTANCE_ID @ $IP (elastic ip $EIP_NAME)"
 
