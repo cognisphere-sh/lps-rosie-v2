@@ -2,7 +2,7 @@
   "name": "daisy",
   "model": {
     "provider": "vercel-ai-gateway",
-    "id": "anthropic/claude-sonnet-4.6",
+    "id": "anthropic/claude-sonnet-5",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
@@ -13,7 +13,7 @@
   "runtime": "subprocess",
   "subagentModel": {
     "provider": "vercel-ai-gateway",
-    "id": "anthropic/claude-sonnet-4.6",
+    "id": "anthropic/claude-sonnet-5",
     "thinkingLevel": "medium"
   },
   "secretsSchema": {

@@ -7,8 +7,24 @@
 // from env. The harness exports the agent's declared secrets verbatim
 // (SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD, ...), so this bin translates
 // those into the PG* names libpq actually looks for. PGPASSWORD never appears
-// in argv, only in env. If the operator already has PG* env set (e.g. for
-// pointing at a different DB during testing), the explicit values win.
+// in argv, only in env.
+//
+// Endpoint selection: Supabase's DIRECT host (db.<ref>.supabase.co) is
+// IPv6-only. Hosts without IPv6 egress (e.g. an EC2 box in a default,
+// IPv4-only VPC) can't reach it and fail with "Network is unreachable". So by
+// default we connect through the IPv4 SESSION-mode pooler
+// (aws-1-<region>.pooler.supabase.com:5432, user `postgres.<ref>`) FIRST and
+// fall back to the direct host — the pooler works anywhere IPv4 egress does,
+// the direct host covers IPv6-capable networks where the pooler is disabled.
+// Session mode (port 5432, not 6543) keeps full feature parity: BEGIN/COMMIT,
+// SET, SHOW all behave. psql exit code 2 means "couldn't connect", which is
+// what triggers the fallback; a real SQL error (exit 3) does not.
+//
+// Overrides (all optional): SUPABASE_REGION (default us-east-1) picks the
+// pooler region; SUPABASE_POOLER_HOST / SUPABASE_POOLER_PORT pin the pooler
+// endpoint. If the operator sets any of PGHOST / PGUSER / PGPORT explicitly
+// (e.g. pointing at a different DB during testing), that single target wins
+// verbatim and no fallback is attempted.
 //
 // Pattern D from references/bin-ipc.md: bin talks to the external service
 // directly, the plugin process is just a holder for shared config + secrets.
@@ -203,18 +219,64 @@ function truncate(s) {
 	return s.length > 120 ? `${s.slice(0, 120)}…` : s;
 }
 
-function buildPgEnv() {
+// An ordered list of connection targets to try. The first that establishes a
+// connection wins; a target is only skipped on a connection failure (psql
+// exit 2), never on a SQL error. Each target is a `{ label, PG* }` bundle.
+function buildTargets() {
 	const projectId = process.env.SUPABASE_PROJECT_ID;
 	const password = process.env.SUPABASE_DB_PASSWORD;
 	if (!projectId) die("SUPABASE_PROJECT_ID not set in env", 2);
 	if (!password) die("SUPABASE_DB_PASSWORD not set in env", 2);
+	const database = process.env.PGDATABASE ?? "postgres";
+
+	// Explicit override: if the operator pinned any connection param, honor it
+	// verbatim as the sole target (no fallback) — the testing escape hatch.
+	if (process.env.PGHOST || process.env.PGUSER || process.env.PGPORT) {
+		return [
+			{
+				label: "explicit",
+				PGHOST: process.env.PGHOST ?? `db.${projectId}.supabase.co`,
+				PGPORT: process.env.PGPORT ?? "5432",
+				PGUSER: process.env.PGUSER ?? "postgres",
+				PGDATABASE: database,
+				PGPASSWORD: process.env.PGPASSWORD ?? password,
+			},
+		];
+	}
+
+	const region = process.env.SUPABASE_REGION ?? "us-east-1";
+	// Pooler (IPv4, session mode) first — reachable wherever IPv4 egress is.
+	const pooler = {
+		label: "pooler",
+		PGHOST: process.env.SUPABASE_POOLER_HOST ?? `aws-1-${region}.pooler.supabase.com`,
+		PGPORT: process.env.SUPABASE_POOLER_PORT ?? "5432",
+		PGUSER: `postgres.${projectId}`,
+		PGDATABASE: database,
+		PGPASSWORD: process.env.PGPASSWORD ?? password,
+	};
+	// Direct host (IPv6-only) fallback — for IPv6-capable networks.
+	const direct = {
+		label: "direct",
+		PGHOST: `db.${projectId}.supabase.co`,
+		PGPORT: "5432",
+		PGUSER: "postgres",
+		PGDATABASE: database,
+		PGPASSWORD: process.env.PGPASSWORD ?? password,
+	};
+	return [pooler, direct];
+}
+
+// Build the psql env for a single target. Supabase mandates TLS, so default
+// PGSSLMODE to `require` unless the operator overrode it.
+function envForTarget(t) {
 	return {
 		...process.env,
-		PGHOST: process.env.PGHOST ?? `db.${projectId}.supabase.co`,
-		PGPORT: process.env.PGPORT ?? "5432",
-		PGUSER: process.env.PGUSER ?? "postgres",
-		PGDATABASE: process.env.PGDATABASE ?? "postgres",
-		PGPASSWORD: process.env.PGPASSWORD ?? password,
+		PGHOST: t.PGHOST,
+		PGPORT: t.PGPORT,
+		PGUSER: t.PGUSER,
+		PGDATABASE: t.PGDATABASE,
+		PGPASSWORD: t.PGPASSWORD,
+		PGSSLMODE: process.env.PGSSLMODE ?? "require",
 	};
 }
 
@@ -249,20 +311,44 @@ function main() {
 		"-c",
 		sql,
 	];
-	const r = spawnSync("psql", flags, {
-		stdio: ["ignore", "inherit", "inherit"],
-		env: buildPgEnv(),
-	});
-	if (r.error) {
-		if (r.error.code === "ENOENT") {
-			die(
-				`psql not found on PATH. Install the postgres client: brew install postgresql@15`,
-				127,
-			);
+
+	const PSQL_CONN_ERR = 2; // psql exit code for "could not connect to server"
+	const targets = buildTargets();
+	const connErrors = [];
+	for (let i = 0; i < targets.length; i++) {
+		const t = targets[i];
+		const isLast = i === targets.length - 1;
+		// stdout streams straight through; stderr is captured so we can suppress
+		// a failed target's connection error and only surface the authoritative
+		// attempt (or a combined diagnostic if every target fails to connect).
+		const r = spawnSync("psql", flags, {
+			stdio: ["ignore", "inherit", "pipe"],
+			env: envForTarget(t),
+			encoding: "utf8",
+		});
+		if (r.error) {
+			if (r.error.code === "ENOENT") {
+				die(
+					`psql not found on PATH. Install the postgres client: brew install postgresql@15`,
+					127,
+				);
+			}
+			die(String(r.error), 1);
 		}
-		die(String(r.error), 1);
+		if (r.status === PSQL_CONN_ERR) {
+			connErrors.push(`[${t.label} ${t.PGHOST}:${t.PGPORT}] ${(r.stderr ?? "").trim()}`);
+			if (!isLast) continue; // couldn't connect — try the next endpoint
+			// Every target failed to connect: emit the combined diagnostic.
+			process.stderr.write(
+				`query: could not connect to the database via any endpoint:\n${connErrors.join("\n")}\n`,
+			);
+			process.exit(PSQL_CONN_ERR);
+		}
+		// Connected (status 0, or a real SQL/runtime error): this attempt is
+		// authoritative. Flush its captured stderr and propagate the status.
+		if (r.stderr) process.stderr.write(r.stderr);
+		process.exit(r.status ?? 1);
 	}
-	process.exit(r.status ?? 0);
 }
 
 main();
