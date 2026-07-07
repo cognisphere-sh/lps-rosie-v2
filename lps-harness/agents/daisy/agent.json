@@ -8,7 +8,7 @@
   "threadIdStrategy": {
     "type": "plugin_channel"
   },
-  "maxConcurrentSlots": 5,
+  "maxConcurrentSlots": 1,
   "maxAttempts": 3,
   "runtime": "subprocess",
   "subagentModel": {
@@ -19,11 +19,26 @@
   "secretsSchema": {
     "type": "object",
     "properties": {
-      "SUPABASE_PROJECT_ID": { "type": "string", "description": "Supabase project ref (e.g. xyeyiqchadfszewztnrf)." },
-      "SUPABASE_SECRET_KEY": { "type": "string", "description": "Supabase secret key (sb_secret_*). Used by upload / sign-url over HTTP." },
-      "SUPABASE_DB_PASSWORD": { "type": "string", "description": "Postgres password for the `query` (psql) script." },
-      "SUPABASE_URL": { "type": "string", "description": "Project URL (https://<ref>.supabase.co)." }
+      "SUPABASE_PROJECT_ID": {
+        "type": "string",
+        "description": "Supabase project ref (e.g. xyeyiqchadfszewztnrf)."
+      },
+      "SUPABASE_SECRET_KEY": {
+        "type": "string",
+        "description": "Supabase secret key (sb_secret_*). Used by upload / sign-url over HTTP."
+      },
+      "SUPABASE_DB_PASSWORD": {
+        "type": "string",
+        "description": "Postgres password for the `query` (psql) script."
+      },
+      "SUPABASE_URL": {
+        "type": "string",
+        "description": "Project URL (https://<ref>.supabase.co)."
+      }
     },
-    "required": ["SUPABASE_PROJECT_ID", "SUPABASE_SECRET_KEY"]
+    "required": [
+      "SUPABASE_PROJECT_ID",
+      "SUPABASE_SECRET_KEY"
+    ]
   }
 }

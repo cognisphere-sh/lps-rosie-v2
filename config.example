@@ -16,6 +16,15 @@ RUN_USER=            # OS user the services run as (blank = invoking sudo user)
 APP_USER=Dyson       # username to sign into the app with
 APP_PASS=            # password (blank = a random one is generated and printed)
 
+# ---- backups: whole-app zip → S3 on a cron (written by setup-server.sh) ----
+# Blank bucket = backups off. SQLite DBs are snapshotted consistently
+# (sqlite3 .backup) before zipping; node_modules/.next/.venv are excluded
+# (reproducible). AWS auth = the CLI chain (EC2 IAM role; no keys needed).
+BACKUP_S3_BUCKET=        # bucket or bucket/prefix, e.g. my-backups/rosie
+BACKUP_EVERY_HOURS=24    # 1-23 = every N hours; 24+ = daily at 03:00 UTC
+BACKUP_KEEP=14           # newest N zips kept in S3; older ones deleted
+AWS_PROFILE=             # local testing only: named aws-cli profile (EC2 uses the IAM role)
+
 # Token for the private @cognisphere-sh/* packages on GitHub Packages.
 # Leave blank to use the run user's `gh` CLI token (it must have the
 # `read:packages` scope: gh auth refresh -s read:packages). Or paste a

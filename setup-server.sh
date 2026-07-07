@@ -16,8 +16,9 @@ echo ">> web=$DOMAIN:$WEB_PORT console=$CONSOLE_DOMAIN:$HARNESS_PORT dir=$APP_DI
 # ---- system packages ------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl ca-certificates nginx
+apt-get install -y curl ca-certificates nginx zip sqlite3
 command -v certbot >/dev/null || apt-get install -y certbot python3-certbot-nginx
+command -v aws >/dev/null || apt-get install -y awscli   # S3 backups
 
 # Node (NodeSource) + pnpm via corepack
 if ! command -v node >/dev/null || [[ "$(node -v)" != v${NODE_MAJOR}* ]]; then
@@ -172,5 +173,25 @@ nginx -t && systemctl reload nginx
 # ---- HTTPS (both names; needs DNS pointing here already) ------------------
 certbot --nginx -d "$DOMAIN" -d "$CONSOLE_DOMAIN" \
   --non-interactive --agree-tos -m "$EMAIL" --redirect
+
+# ---- S3 backups (cron) -----------------------------------------------------
+# backup.sh zips the whole app dir (consistent SQLite snapshots, minus
+# node_modules/.next/.venv) to BACKUP_S3_BUCKET and prunes to BACKUP_KEEP.
+# AWS auth = the instance IAM role; no keys in config needed.
+if [[ -n "${BACKUP_S3_BUCKET:-}" ]]; then
+  H="${BACKUP_EVERY_HOURS:-24}"
+  # cron can't express "every N hours" for N>=24 — degrade to daily at 03:00 UTC.
+  if [[ "$H" =~ ^[0-9]+$ ]] && (( H >= 1 && H <= 23 )); then SCHED="0 */$H * * *"; else SCHED="0 3 * * *"; fi
+  install -d -o "$RUN_USER" "$APP_DIR/logs"
+  cat > /etc/cron.d/rosie-backup <<EOF
+# Rosie S3 backup — written by setup-server.sh; edit config, not this file.
+$SCHED $RUN_USER $APP_DIR/backup.sh >> $APP_DIR/logs/backup.log 2>&1
+EOF
+  chmod 644 /etc/cron.d/rosie-backup
+  echo ">> backups: $SCHED -> s3://${BACKUP_S3_BUCKET%/} (keep ${BACKUP_KEEP:-14})"
+else
+  rm -f /etc/cron.d/rosie-backup
+  echo ">> backups: off (BACKUP_S3_BUCKET is blank)"
+fi
 
 echo ">> done. app: https://$DOMAIN  console: https://$CONSOLE_DOMAIN  |  manage: ./server.sh status"

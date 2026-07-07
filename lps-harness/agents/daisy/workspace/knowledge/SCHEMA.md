@@ -59,7 +59,7 @@ One row per plant + size **version** for a supplier. `id` **uuid** PK.
 | `name` | text | plant name (botanical/primary), **without** size |
 | `common_names` | text nullable | **comma-separated** list of aliases, e.g. `"Columbine, Granny's Bonnet"` |
 | `size` | text nullable | normalized size, e.g. `15G`, `24" box`, `6'` |
-| `unit_price` | numeric nullable | USD dollars; null if not carried |
+| `unit_price` | numeric **NOT NULL** | USD dollars; use `0` for "Call for price" items (never null — the column has a DB NOT NULL constraint despite the nullable label) |
 | `variety`,`height`,`width`,`caliper` | text nullable | spec fields |
 | `image_url` | text nullable | public/signed URL of a photo in the `lps` bucket |
 | `notes` | text nullable | inventory / availability status + seller notes, always date-stamped (e.g. `Available as of 2026-07-01`). **Carried forward** onto the new version at re-ingest. |

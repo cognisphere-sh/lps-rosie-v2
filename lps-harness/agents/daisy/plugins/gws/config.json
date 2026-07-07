@@ -1,6 +1,6 @@
 {
   "pollIntervalSec": 300,
-  "gmailQuery": "in:inbox newer_than:2d is:unread",
+  "gmailQuery": "in:inbox newer_than:1d",
   "firstOfThreadOnly": false,
   "allowedSenders": "*"
 }
