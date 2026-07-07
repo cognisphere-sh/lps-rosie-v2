@@ -167,9 +167,9 @@ elif ! gh auth status 2>&1 | grep -q read:packages; then
   gh auth refresh -s read:packages
 fi
 
-# Claude Code interactive auth — first run walks through login; /exit when done
-echo ">> Claude Code first-run: complete the login, then type /exit"
-claude || true
+# Claude Code auth only — setup-token runs the OAuth flow and stores the
+# credential without starting a session. Skipped if already authenticated.
+[[ -f ~/.claude/.credentials.json ]] || claude setup-token
 
 # clone the repo
 REPO_DIR="$HOME/$(basename "$REPO_SLUG")"
