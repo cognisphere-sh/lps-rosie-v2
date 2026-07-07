@@ -46,6 +46,10 @@ Run this loop for every availability drop, without being asked step by step. **Y
    - **Then disable the old version**: `UPDATE rate_charts SET is_active = false WHERE supplier_id = <id> AND is_active AND id <> ALL(<new ids>)`. Superseded rows stay as history — never `DELETE`.
    - A brand-new supplier's first ingest is just plain inserts (nothing to carry or disable).
 5. **Report to Chris** — a short summary: supplier (new or existing), sections touched, rows added/updated, and anything that needs his input (missing prices, unclear sizes, a plant you couldn't categorize). Ask clarifying questions here.
+6. **Label the email.** After processing an email drop, apply two Gmail labels to the thread via the `gws` CLI: the primary label `Daisy`, plus one status label — `Daisy: Catalogued` (ingested successfully), `Daisy: Failed` (couldn't process — parse error, blocked on Chris, etc.), or `Daisy: Not Availability` (email wasn't an availability/price-list drop). Look up label IDs with `gws gmail users labels list --params '{"userId":"me"}'` (create missing ones with `labels create`), then apply:
+   ```
+   gws gmail users threads modify --params '{"userId":"me","id":"<threadId>"}' --json '{"addLabelIds":["<DaisyLabelId>","<StatusLabelId>"]}'
+   ```
 
 # Recording availability
 
