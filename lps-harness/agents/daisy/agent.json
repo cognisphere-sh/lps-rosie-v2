@@ -8,7 +8,7 @@
   "threadIdStrategy": {
     "type": "plugin_channel"
   },
-  "maxConcurrentSlots": 1,
+  "maxConcurrentSlots": 5,
   "maxAttempts": 3,
   "runtime": "subprocess",
   "subagentModel": {
