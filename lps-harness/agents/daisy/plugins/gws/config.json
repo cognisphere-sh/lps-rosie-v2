@@ -1,6 +1,7 @@
 {
   "pollIntervalSec": 300,
-  "gmailQuery": "in:inbox newer_than:1d",
+  "gmailQuery": "in:inbox newer_than:1d -label:daisy",
   "firstOfThreadOnly": false,
-  "allowedSenders": "*"
+  "allowedSenders": "*",
+  "requireAgentInTo": false
 }
