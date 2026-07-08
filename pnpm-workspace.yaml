@@ -12,3 +12,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@cognisphere-sh/cognisphere-harness@0.3.3'
   - '@cognisphere-sh/cognisphere-harness@0.3.4'
+  - '@cognisphere-sh/cognisphere-harness@0.3.5'

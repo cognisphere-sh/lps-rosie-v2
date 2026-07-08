@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@cognisphere-sh/cognisphere-harness": "0.3.4"
+    "@cognisphere-sh/cognisphere-harness": "0.3.5"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
