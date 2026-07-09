@@ -1,8 +1,8 @@
 {
   "name": "rosie",
   "model": {
-    "provider": "vercel-ai-gateway",
-    "id": "anthropic/claude-sonnet-5",
+    "provider": "openai-codex",
+    "id": "gpt-5.5",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
@@ -12,8 +12,8 @@
   "maxAttempts": 3,
   "runtime": "subprocess",
   "subagentModel": {
-    "provider": "vercel-ai-gateway",
-    "id": "anthropic/claude-sonnet-5",
+    "provider": "openai-codex",
+    "id": "gpt-5.5",
     "thinkingLevel": "medium"
   }
 }
