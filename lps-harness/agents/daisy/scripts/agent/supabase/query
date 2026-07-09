@@ -302,14 +302,16 @@ function main() {
 	} catch (e) {
 		die(`SQL validation failed: ${e.message}`, 3);
 	}
+	// SQL is fed to psql over stdin, never as a "-c" argv element: a batched
+	// INSERT covering a full price-list ingest can run to tens of thousands
+	// of characters, and passing that as a single argv string blows past the
+	// OS ARG_MAX (spawnSync fails with E2BIG) well before psql even starts.
 	const flags = [
 		"--no-psqlrc",
 		"--pset=pager=off",
 		"-v",
 		"ON_ERROR_STOP=1",
 		...psqlFlagsFor(mode),
-		"-c",
-		sql,
 	];
 
 	const PSQL_CONN_ERR = 2; // psql exit code for "could not connect to server"
@@ -322,19 +324,23 @@ function main() {
 		// a failed target's connection error and only surface the authoritative
 		// attempt (or a combined diagnostic if every target fails to connect).
 		const r = spawnSync("psql", flags, {
-			stdio: ["ignore", "inherit", "pipe"],
+			stdio: ["pipe", "inherit", "pipe"],
+			input: sql,
 			env: envForTarget(t),
 			encoding: "utf8",
 		});
-		if (r.error) {
-			if (r.error.code === "ENOENT") {
-				die(
-					`psql not found on PATH. Install the postgres client: brew install postgresql@15`,
-					127,
-				);
-			}
-			die(String(r.error), 1);
+		if (r.error?.code === "ENOENT") {
+			die(
+				`psql not found on PATH. Install the postgres client: brew install postgresql@15`,
+				127,
+			);
 		}
+		// Check r.status before treating r.error as fatal: when psql refuses the
+		// connection fast (e.g. "connection refused"), it can exit before ever
+		// reading stdin, so writing a large `sql` payload into its stdin pipe
+		// races the exit and surfaces as EPIPE on our end — but r.status is
+		// still the authoritative psql exit code (2), and this is just a
+		// connection failure like any other, not a real error.
 		if (r.status === PSQL_CONN_ERR) {
 			connErrors.push(`[${t.label} ${t.PGHOST}:${t.PGPORT}] ${(r.stderr ?? "").trim()}`);
 			if (!isLast) continue; // couldn't connect — try the next endpoint
@@ -343,6 +349,9 @@ function main() {
 				`query: could not connect to the database via any endpoint:\n${connErrors.join("\n")}\n`,
 			);
 			process.exit(PSQL_CONN_ERR);
+		}
+		if (r.error) {
+			die(String(r.error), 1);
 		}
 		// Connected (status 0, or a real SQL/runtime error): this attempt is
 		// authoritative. Flush its captured stderr and propagate the status.

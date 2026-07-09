@@ -2,7 +2,7 @@
   "name": "daisy",
   "model": {
     "provider": "openai-codex",
-    "id": "gpt-5.5",
+    "id": "gpt-5.4",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
@@ -13,7 +13,7 @@
   "runtime": "subprocess",
   "subagentModel": {
     "provider": "openai-codex",
-    "id": "gpt-5.5",
+    "id": "gpt-5.4",
     "thinkingLevel": "medium"
   },
   "secretsSchema": {

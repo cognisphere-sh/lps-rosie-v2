@@ -72,6 +72,7 @@ fi
 [ -n "${SUPABASE_SECRET_KEY:-}" ] || die "SUPABASE_SECRET_KEY not set in env" 2
 
 command -v curl >/dev/null 2>&1 || die "curl not found on PATH" 127
+command -v python3 >/dev/null 2>&1 || die "python3 not found on PATH" 127
 
 # Auto-detect content type if not given. `file` is on macOS by default.
 if [ -z "$CTYPE" ]; then
@@ -82,7 +83,20 @@ if [ -z "$CTYPE" ]; then
 	fi
 fi
 
-URL="${SUPABASE_URL%/}/storage/v1/object/${BUCKET}/${DEST}"
+# Percent-encode DEST (preserving '/' separators) before it goes into a URL.
+# Object keys routinely contain spaces or other reserved characters (real
+# supplier filenames like "Acosta Farms New JULY Availability WK 28-
+# FOLIAGE AVAILABILITY.xlsx"), and curl rejects an unencoded space in a URL
+# with "URL rejected: Malformed input to a URL function". Same approach as
+# sign-url, but passed via argv (not string-interpolated into -c) so a
+# literal quote in the filename can't break the python source.
+DEST_ENCODED=$(python3 -c "
+import sys
+from urllib.parse import quote
+print('/'.join(quote(seg, safe='') for seg in sys.argv[1].split('/')))
+" "$DEST")
+
+URL="${SUPABASE_URL%/}/storage/v1/object/${BUCKET}/${DEST_ENCODED}"
 
 # Capture body + status separately. Use POST + x-upsert: true for upsert
 # semantics (matches the JS client default); the storage API treats this as
@@ -104,7 +118,7 @@ case "$STATUS" in
 		cat "$TMP"
 		echo
 		if [ "$PUBLIC_URL" = true ]; then
-			echo "${SUPABASE_URL%/}/storage/v1/object/public/${BUCKET}/${DEST}"
+			echo "${SUPABASE_URL%/}/storage/v1/object/public/${BUCKET}/${DEST_ENCODED}"
 		fi
 		exit 0 ;;
 	*)

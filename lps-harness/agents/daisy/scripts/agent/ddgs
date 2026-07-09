@@ -40,4 +40,10 @@ if [ -z "$bin" ]; then
   exit 127
 fi
 
+# `ddgs ... -o json` (and -o csv) writes results to a file named after the
+# query in the *current working directory* — the underlying CLI has no
+# --output-dir/env-var knob. Run from /tmp so those files land there instead
+# of littering the agent's own directory.
+cd /tmp
+
 exec "$bin" "$@"

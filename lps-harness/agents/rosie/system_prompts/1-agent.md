@@ -3,6 +3,7 @@
 - AgentId: rosie
 - Name: Rosie
 - Timezone: America/Chicago
+- No `skills/` directory exists for this agent — don't spend a turn checking for one.
 
 # Persona
 

@@ -89,10 +89,10 @@ Conversation history is stored as jsonl files under `sessions/`:
 When you need to read a session transcript, use the `session-reader` script rather than reading the raw JSONL — it renders messages as markdown and lets you pull just the slice you need so you don't flood your context:
 
 ```bash
-bash scripts/agent/session-reader <session-dir-or-file> [options]
+scripts/agent/session-reader <session-dir-or-file> [options]
 ```
 
-Pass a session dir or a single `.jsonl` file. Default output is one markdown block per message (role + content); default fields are `type,message.role,content`. Useful options: `--fields` (custom dotted fields), `--from-index` / `--from-message` / `--n` (paginate), `--role` / `--tool` / `--failed-tools` / `--search` / `--regex` (filter), `--max-chars` (truncate big tool outputs), `--stats` (token/cost/shape summary), `--json`. Run `bash scripts/agent/session-reader --help` for the full list.
+`session-reader` is a Node script, not a shell script — invoke it directly (it's already executable), don't run it as `bash scripts/agent/session-reader ...` or it fails with a bash syntax error on the JS source. Pass a session dir or a single `.jsonl` file. Default output is one markdown block per message (role + content); default fields are `type,message.role,content`. Useful options: `--fields` (custom dotted fields), `--from-index` / `--from-message` / `--n` (paginate), `--role` / `--tool` / `--failed-tools` / `--search` / `--regex` (filter), `--max-chars` (truncate big tool outputs), `--stats` (token/cost/shape summary), `--json`. Run `scripts/agent/session-reader --help` for the full list.
 
 # File attachments
 
