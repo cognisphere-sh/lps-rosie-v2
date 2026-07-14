@@ -68,7 +68,7 @@ One logical row per **plant × size offering**. Normalize every line:
 - **Size** (`inventory.size`): gallons `XX G` (space before the G) — `#15`/`15gal`/`15G` → `15 G` (`#` means gallons). Inches `XX"` — `24 inch` → `24"`. Feet `XX'` — `6ft` → `6'`. Compounds keep units: `3' cal`, `24" box`. Plant name excludes size — size is its own column.
 - **Name**: botanical/scientific preferred in `name` (e.g. `Quercus virginiana`). Cultivar goes in `variety` — **part of the row's identity**, don't fold it into `name` or drop it.
 - **Aliases**: every common/marketing name becomes a `plant_other_names` `(name, other_name)` pair (display-cased) — **never** into `inventory.name` alongside the botanical name.
-- **Price**: `unit_price` is required; use the lower bound if the source gives a range. Stock counts go in `quantity`.
+- **Price**: `unit_price` is required; use the lower bound if the source gives a range. **Do not ignore zero-priced rows** — if the source lists an item at `0` (or with no price printed), still ingest the row with `unit_price = 0` and flag it for Chris (see output contract), don't drop it. Stock counts go in `quantity`.
 - `category` is plain text from the source (e.g. `Shade Trees`); null if the source has no grouping. `height`/`width`/`caliper` as printed.
 - To check "does the system already know this plant?", call the `search_inventory` RPC — typo-tolerant, follows the alias graph.
 
