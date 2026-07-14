@@ -9,9 +9,10 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-[[ -f "$DIR/aws-config" ]] || { echo "no aws-config — run: cp aws-config.example aws-config && edit it"; exit 1; }
+CONFIG="${1:-$DIR/aws-config}"
+[[ -f "$CONFIG" ]] || { echo "no $CONFIG — run: cp aws-config.example aws-config && edit it"; exit 1; }
 # shellcheck source=aws-config.example
-source "$DIR/aws-config"
+source "$CONFIG"
 command -v aws >/dev/null || { echo "aws CLI not installed (brew install awscli)"; exit 1; }
 [[ -n "${AWS_PROFILE:-}" ]] && export AWS_PROFILE
 export AWS_DEFAULT_REGION="$AWS_REGION"
