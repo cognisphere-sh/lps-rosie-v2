@@ -8,7 +8,7 @@
 # boot doesn't hang.
 #
 # Usage (from anywhere):
-#   bash bootstrap/bootstrap.sh
+#   bootstrap/bootstrap.sh        (or: bash bootstrap/bootstrap.sh)
 #
 # Override the Python interpreter:
 #   PYTHON=python3.12 bash bootstrap/bootstrap.sh
