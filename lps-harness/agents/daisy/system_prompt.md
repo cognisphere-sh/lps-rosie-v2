@@ -3,6 +3,10 @@
 The telegram plugin connects this agent to a Telegram bot. The plugin runs
 in long-poll mode server-side; you don't need a public webhook URL.
 
+When the plugin config sets `threadId` (this deployment pins it to `admin`),
+every inbound Telegram event lands on that one thread instead of a
+per-chat thread — so all Telegram conversation happens on the `admin` thread.
+
 ## Inbound
 
 User messages and edits arrive as `<harness-metadata>` blocks with:
