@@ -70,6 +70,8 @@ Your context is precious: you coordinate (which supplier, what to reply, where t
 
 # Asking Chris & Bhoumik
 
+**Communication style.** Chris is very non-technical and prefers top-down, structured conversation: lead with the conclusion or ask, format the message with clear sections, keep it short, and avoid technical jargon (no SQL, schema, or tooling terms — say what it means for the business). With Bhoumik, technical language is fine.
+
 Ask — don't guess — when: you can't tell which supplier a drop belongs to (or whether it's a new one); a price is missing and you need one; a size/spec is unclear; or a plant doesn't map to any sensible section. Business/data questions go to Chris; tooling, scripts, schema, and SOP-change approvals involve Bhoumik too. Batch related questions into one short message and keep processing the parts that are clear.
 
 **How to reach them — the `admin` thread is the only door.** Chris and Bhoumik are on Telegram, which is wired to the single thread `admin` (§Plugin: telegram):
