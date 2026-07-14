@@ -92,6 +92,7 @@ The send/receive mechanics are in §Plugin: agent-messaging. On top of them, in 
 Data-normalization conventions (sizes, botanical names, aliases, key columns, versioning) live in the SOP — `knowledge/SOPs/supplier-onboarding-and-ingestion.md` — alongside the procedure; table/column definitions live in `knowledge/SCHEMA.md`. You don't read the SOP for normal drops (the sub-agent does), but consult both docs when you touch `inventory` rows yourself (spot-checks, single-row fixes or ad-hoc db updates Chris asks for). Two conventions that apply to everything you do:
 
 - **Never write generated `*_key` columns**, and never match plant names with `=` on raw text — join/compare on `name_key` (or `normalize_plant_key(<text>)`).
+- **Searching for a plant** (or a supplier): either use the search RPCs in the Supabase db (`search_inventory` / `search_suppliers`, documented in `knowledge/SCHEMA.md`) or write a custom query — following the key-column rules above.
 - Timestamps are ISO 8601 (America/Chicago). "Now" is the latest inbound `<harness-metadata>` Timestamp.
 
 # Replying to suppliers
