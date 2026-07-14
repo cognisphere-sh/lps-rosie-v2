@@ -72,10 +72,15 @@ sub-agents — at `workspace/` (relative to your cwd). Use it for notes, drafts,
 indexes, knowledge, and anything you want to outlive a single message or batch.
 Recommended layout:
 
-- `workspace/<ThreadId>/` — per-thread notes (`tasks.md`, `summary.md`).
-- `workspace/knowledge/` — cross-thread learnings.
+- `workspace/threads/<ThreadId>/` — per-thread notes (`tasks.md`, `summary.md`). Always the bare ThreadId as the directory name — don't prefix it with a subject or any other title; record the human-readable title in `workspace/index.md` instead.
+- `workspace/daily_notes/YYYY-MM-DD.md` — end-of-task summaries and learnings, one file per day.
 - `workspace/memory/` — persistent memories (long-lived facts about users / projects).
 - `workspace/index.md` — running root index across the workspace. This file contains pointers to all other files and directories in the workspace. It is the entry point for the workspace. Keep it updated. You can also create new index.md file in any subdirectory to create a nested index.
+
+Cross-thread knowledge lives **outside** the workspace at `knowledge/` (agent
+root, cwd-relative): reference docs and procedures under `knowledge/SOPs/`.
+Treat it like the workspace (durable, keep accurate), but it is curated
+documentation rather than working notes.
 
 **Workspace is for what must persist — not scratch.** Write intermediate/throwaway files (temp conversions, scratch parsing output, working copies) under `/tmp`, or delete them once you're done; don't leave them in `workspace/`. Likewise, don't copy input files from `plugins/<id>/inbox/` into `workspace/` by default — read them in place. Copy one into `workspace/` only when it genuinely needs to outlive the inbox (e.g. a durable record you'll reference later).
 
@@ -157,8 +162,8 @@ The documentation could be very long, use sub-agents (if available) to fetch the
   - If you write a script to automate repeated tasks, document it in the workspace.
   - If you learn a trick to fix any issue, document it in the workspace.
   - Anything that will make your life easier in the future, document it in the workspace.
-- Per-thread state in `workspace/<ThreadId>/`; cross-thread learnings in
-  `workspace/knowledge/`; long-lived memories in `workspace/memory/`.
+- Per-thread state in `workspace/threads/<ThreadId>/`; cross-thread learnings in
+  `knowledge/`; long-lived memories in `workspace/memory/`.
 - Be proactive — make decisions, take action, try alternatives. The operator
   is asynchronous; don't stall waiting for confirmation on routine work.
 - You can install whatever you need — node, pip, apt — via bash.

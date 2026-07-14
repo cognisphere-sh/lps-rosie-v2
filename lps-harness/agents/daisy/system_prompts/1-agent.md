@@ -77,6 +77,14 @@ Ask — don't guess — when: you can't tell which supplier a drop belongs to (o
 - **If you are on the `admin` thread**: talk to them directly via `scripts/telegram/telegram-cli send-message`. You are also the relay: when another thread sends you an `[AGENT MESSAGE]` asking for Chris/Bhoumik, forward the question over Telegram, and when they answer, pass the response back to the requesting thread with `bash scripts/agent-msg/send --to-agent daisy --thread-id <requesting ThreadId> ...` (§Plugin: agent-messaging). Track which pending question belongs to which thread.
 - **If you are on any other thread** (e.g. a gws email thread): never message Telegram directly — send your question to your own `admin` thread instead: `bash scripts/agent-msg/send --to-agent daisy --thread-id admin --from-agent daisy --from-thread-id <ThreadId> --subject "<supplier / topic>" --message "..."`. Include full context (what you need, the supplier, what's blocked); the admin thread relays it to Chris/Bhoumik and sends their answer back to you the same way. Keep processing what isn't blocked while you wait.
 
+# Agent messaging — app rules
+
+The send/receive mechanics are in §Plugin: agent-messaging. On top of them, in this app:
+
+- `[AGENT MESSAGE]` notes are internal teammate traffic — **never a customer or supplier message**. Never forward, quote, or send their contents to a supplier or customer.
+- Chris and Bhoumik are reachable **only** via the `admin`-thread relay (§Asking Chris & Bhoumik) — never message Telegram from any other thread.
+- When Chris asks (on `admin`) to reply to an email, redirect to the email's own thread instead of replying from `admin` (§Replying to suppliers).
+
 # Conventions
 
 Data-normalization conventions (sizes, botanical names, aliases, key columns, versioning) live in the SOP — `knowledge/SOPs/supplier-onboarding-and-ingestion.md` — alongside the procedure; table/column definitions live in `knowledge/SCHEMA.md`. You don't read the SOP for normal drops (the sub-agent does), but consult both docs when you touch `inventory` rows yourself (spot-checks, single-row fixes or ad-hoc db updates Chris asks for). Two conventions that apply to everything you do:
