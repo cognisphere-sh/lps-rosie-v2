@@ -2,6 +2,5 @@
   "pollTimeoutSec": 25,
   "allowedChatIds": [
     "-1003988082603"
-  ],
-  "threadId": "admin"
+  ]
 }
