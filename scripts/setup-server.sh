@@ -10,8 +10,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/config"
 RUN_USER="${RUN_USER:-${SUDO_USER:-$USER}}"
 NAME="${APP_NAME:-$(basename "$ROOT")}"
-# lps/ is optional until it has a package.json — the harness runs alone before that.
-HAS_APP=false; [[ -f "$ROOT/lps/package.json" ]] && HAS_APP=true
+# app/ is optional until it has a package.json — the harness runs alone before that.
+HAS_APP=false; [[ -f "$ROOT/app/package.json" ]] && HAS_APP=true
 
 [[ $EUID -eq 0 ]] || { echo "run as root (sudo)"; exit 1; }
 echo ">> name=$NAME app=$DOMAIN:$APP_PORT (present: $HAS_APP) console=$CONSOLE_DOMAIN:$HARNESS_PORT dir=$ROOT user=$RUN_USER"
@@ -80,7 +80,7 @@ sudo -u "$RUN_USER" grep -qF 'npm.pkg.github.com/:_authToken' "$RUN_HOME/.npmrc"
 
 # ---- credentials ------------------------------------------------------------
 # `scripts/server.sh secrets` is the single source: it writes users.json
-# (harness login) and, when lps/ exists, lps/.env.local (harness login +
+# (harness login) and, when app/ exists, app/.env.local (harness login +
 # DOMAIN/PORT/HARNESS_URL). Blank APP_PASS is generated once and reused. Runs
 # as RUN_USER so the files are owned correctly.
 install -d -o "$RUN_USER" "$ROOT/harness/.secrets"
@@ -156,7 +156,7 @@ Wants=$NAME-harness.service
 [Service]
 Type=simple
 User=$RUN_USER
-WorkingDirectory=$ROOT/lps
+WorkingDirectory=$ROOT/app
 Environment=PATH=$UNIT_PATH
 Environment=NODE_ENV=production
 Environment=PORT=$APP_PORT

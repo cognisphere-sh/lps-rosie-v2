@@ -1,6 +1,6 @@
 packages:
   - harness
-  - lps
+  - app
 # Native/postinstall builds. The harness needs better-sqlite3 (session DB) and
 # esbuild (tsx loader) compiled to run; the rest are transitive and harmless.
 allowBuilds:

@@ -2,7 +2,7 @@
 # Sourced by the scripts under scripts/ (plain shell, no spaces around =).
 
 APP_NAME=                           # short name for systemd units / nginx / backups (blank = this directory's name)
-DOMAIN=app.example.com              # user-facing app — only used when lps/ exists
+DOMAIN=app.example.com              # user-facing app — only used when app/ exists
 CONSOLE_DOMAIN=console.example.com  # harness operator console (needs its own DNS A record)
 EMAIL=you@example.com               # Let's Encrypt registration / renewal notices
 
@@ -13,8 +13,8 @@ NODE_MAJOR=22        # Node LTS to install
 RUN_USER=            # OS user the services run as (blank = invoking sudo user)
 
 # Operator login. scripts/server.sh secrets writes these into
-# harness/.secrets/users.json (the harness user) and, when lps/ exists,
-# lps/.env.local (HARNESS_USER/HARNESS_PASS for the app's harness client).
+# harness/.secrets/users.json (the harness user) and, when app/ exists,
+# app/.env.local (HARNESS_USER/HARNESS_PASS for the app's harness client).
 APP_USER=operator    # username to sign in with
 APP_PASS=            # password (blank = a random one is generated once and reused)
 

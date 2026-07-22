@@ -2,9 +2,9 @@
 
 A cognisphere **app home** (pnpm workspace) with two co-located services:
 
-- **`lps/`** — Next.js app hosting the persona surfaces (`/seller` live;
+- **`app/`** — Next.js app hosting the persona surfaces (`/seller` live;
   `/customer`, `/sourcer` planned). No DB of its own; it reads/writes Rosie's
-  workspace files through the harness HTTP API. See [`lps/README.md`](lps/README.md).
+  workspace files through the harness HTTP API. See [`app/README.md`](app/README.md).
 - **`harness/`** — the [cognisphere](https://github.com/cognisphere-sh)
   agent harness data dir: a stateful, file-backed, localhost-bound service
   that runs Rosie and serves the operator console UI.
@@ -12,10 +12,10 @@ A cognisphere **app home** (pnpm workspace) with two co-located services:
   `build.sh`) plus AWS provisioning/backup under `scripts/aws/`.
 
 ```
-browser ──https──> nginx ──┬─ $DOMAIN          → lps  (Next.js, :3000)
+browser ──https──> nginx ──┬─ $DOMAIN          → app  (Next.js, :3000)
                            └─ $CONSOLE_DOMAIN  → harness console (cognisphere, :7331)
 
-lps ── /api,/admin ──> 127.0.0.1:7331 (harness)   # proxied in next.config.ts
+app ── /api,/admin ──> 127.0.0.1:7331 (harness)   # proxied in next.config.ts
 ```
 
 The app proxies `/api` and `/admin` to the harness, so the browser only
@@ -30,7 +30,7 @@ pnpm install
 ./scripts/server.sh dev
 # or individually:
 cd harness && pnpm exec cognisphere dev
-pnpm --dir lps run dev
+pnpm --dir app run dev
 ```
 
 ## Deploy (Ubuntu/Debian prod server)

@@ -13,15 +13,15 @@ NAME="${APP_NAME:-$(basename "$ROOT")}"
 HARNESS_PORT="${HARNESS_PORT:-7331}"
 APP_PORT="${APP_PORT:-3000}"
 APP_USER="${APP_USER:-operator}"
-# lps/ is optional until it has a package.json — the harness runs alone before that.
-HAS_APP=false; [[ -f "$ROOT/lps/package.json" ]] && HAS_APP=true
+# app/ is optional until it has a package.json — the harness runs alone before that.
+HAS_APP=false; [[ -f "$ROOT/app/package.json" ]] && HAS_APP=true
 
 UNITS=("$NAME-harness.service")
 $HAS_APP && UNITS+=("$NAME-app.service")
 
 # Materialize the deploy `config` into the files the stack reads:
 #   harness/.secrets/users.json — operator console sign-in
-#   lps/.env.local              — harness login + DOMAIN/PORT/HARNESS_URL (when lps/ exists)
+#   app/.env.local              — harness login + DOMAIN/PORT/HARNESS_URL (when app/ exists)
 # `config` is the single source of truth; both files are gitignored + regenerated.
 # Blank APP_PASS = generated once, then REUSED from the existing users.json so a
 # blank config doesn't churn the password across restarts. A tiny node writer
@@ -41,7 +41,7 @@ const pass = E.APP_PASS || old?.users?.[0]?.password || crypto.randomBytes(12).t
 const write600 = (p, s) => { fs.writeFileSync(p, s); fs.chmodSync(p, 0o600); };
 write600(usersPath, JSON.stringify({ users: [{ username: user, password: pass }] }, null, 2) + "\n");
 if (E.HAS_APP === "true") {
-  write600(path.join(E.ROOT, "lps/.env.local"),
+  write600(path.join(E.ROOT, "app/.env.local"),
     "# Generated from ../config by scripts/server.sh — do not hand-edit.\n" +
     `HARNESS_USER=${user}\nHARNESS_PASS=${pass}\nDOMAIN=${E.DOMAIN}\nPORT=${E.APP_PORT}\n` +
     `HARNESS_URL=http://127.0.0.1:${E.HARNESS_PORT}\n`);
@@ -49,7 +49,7 @@ if (E.HAS_APP === "true") {
 console.error(`>> operator login: ${user} / ${pass}`);
 NODE
   if $HAS_APP; then
-    echo ">> wrote harness/.secrets/users.json + lps/.env.local from config"
+    echo ">> wrote harness/.secrets/users.json + app/.env.local from config"
   else
     echo ">> wrote harness/.secrets/users.json from config"
   fi
@@ -83,16 +83,16 @@ case "${1:-}" in
     ;;
   harness) cd "$ROOT/harness" && exec pnpm exec cognisphere serve --port "$HARNESS_PORT" ;;
   dev)
-    # Run the harness (port HARNESS_PORT) and, when lps/ exists, the app dev
+    # Run the harness (port HARNESS_PORT) and, when app/ exists, the app dev
     # server together so the app's /api proxy has a backend. gen_secrets just
-    # wrote lps/.env.local (DOMAIN/PORT/HARNESS_URL), so the app reads its env
+    # wrote app/.env.local (DOMAIN/PORT/HARNESS_URL), so the app reads its env
     # from there. Harness runs in the background; Ctrl-C tears both down.
     gen_secrets
     if $HAS_APP; then
       ( cd "$ROOT/harness" && pnpm exec cognisphere serve --port "$HARNESS_PORT" ) &
       HARNESS_PID=$!
       trap 'kill "$HARNESS_PID" 2>/dev/null' EXIT INT TERM
-      pnpm --dir "$ROOT/lps" run dev
+      pnpm --dir "$ROOT/app" run dev
     else
       cd "$ROOT/harness" && exec pnpm exec cognisphere dev --port "$HARNESS_PORT"
     fi

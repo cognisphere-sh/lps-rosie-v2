@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build.sh — install deps + build the user-facing app (when lps/ exists).
+# build.sh — install deps + build the user-facing app (when app/ exists).
 # Run as the app user, no sudo:   ./scripts/build.sh
 #
 # The three commands:
@@ -20,7 +20,7 @@ export COGNISPHERE_NPM_TOKEN="${COGNISPHERE_NPM_TOKEN:-$(gh auth token 2>/dev/nu
 
 cd "$ROOT"
 pnpm install --frozen-lockfile
-if [[ -f "$ROOT/lps/package.json" ]]; then
-  pnpm --dir "$ROOT/lps" run build
+if [[ -f "$ROOT/app/package.json" ]]; then
+  pnpm --dir "$ROOT/app" run build
 fi
 echo ">> build ok — apply with: sudo ./scripts/server.sh restart"
