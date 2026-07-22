@@ -2,9 +2,9 @@ node_modules
 config
 **/DS_Store
 **/.secrets/**
-aws-config
+scripts/aws/config
 logs/
 
 # agent workspaces
-**/lps-harness/agents/*/workspace/**
+**/harness/agents/*/workspace/**
 
