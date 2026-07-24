@@ -1,5 +1,6 @@
 {
   "name": "rosie",
+  "description": "Customer success coordinator for Austin Plant Supply — one instance per customer thread, managing that customer's jobs, demand, and pricing.",
   "model": {
     "provider": "openai-codex",
     "id": "gpt-5.5",
