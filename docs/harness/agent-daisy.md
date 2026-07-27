@@ -60,9 +60,10 @@ notes/memory.
 
 ## Knowledge (`knowledge/`)
 
-- `SCHEMA.md` — the supply-side Supabase/Postgres schema (suppliers, inventory,
-  inventory sources, plant-name mapping; references supply-restructure
-  migrations 028–035).
+- `SCHEMA.md` — **a symlink to [`docs/supabase-schema.md`](../supabase-schema.md)**,
+  the single source of truth for the Supabase schema shared by every agent and
+  the web app. Daisy reads and corrects it through the symlink; it must never be
+  replaced with a copy.
 - `suppliers.md` — pointer stub: per-supplier notes now live under
   `workspace/suppliers/[<id>]:<Name>/notes.md` (see `workspace/suppliers/index.md`).
 - `gmail-labels.md` — Gmail label ID taxonomy (e.g. `Daisy` = `Label_12`) with a

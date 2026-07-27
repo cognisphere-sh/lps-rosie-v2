@@ -17,6 +17,11 @@ output — SOP changes require Chris's or Bhoumik's approval.
   supplier) whatever is known — name, email, sender, address fragments.
 - Source material: attachment paths, a website URL, an image path, and/or the email body text.
 - Path to `knowledge/SCHEMA.md` — **read it before writing any query.**
+- Any contact with the supplier during onboarding or ingestion (requesting a
+  list, chasing a reply, confirming a price) gets an appended, timestamped entry
+  in `suppliers.communication_notes` — channel, what, why, thread id. Durable
+  facts about the supplier go in `suppliers.notes`; the two are not
+  interchangeable (see SCHEMA.md).
 - Path to this SOP.
 - The parent ThreadId (for your notes/temp naming) and the current timestamp.
 

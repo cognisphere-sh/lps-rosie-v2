@@ -18,6 +18,13 @@ RUN_USER=            # OS user the services run as (blank = invoking sudo user)
 APP_USER=operator    # username to sign in with
 APP_PASS=            # password (blank = a random one is generated once and reused)
 
+# ---- Supabase: the app reads suppliers + inventory straight from Postgres ----
+# Written into app/.env.local by scripts/server.sh. The secret key bypasses RLS
+# and is only ever used server-side (app/lib/supabase.ts is `server-only`), so
+# it must never be given a NEXT_PUBLIC_ prefix.
+SUPABASE_URL=            # https://<project-ref>.supabase.co
+SUPABASE_SECRET_KEY=     # sb_secret_... (Project settings → API keys)
+
 # ---- backups: whole-dir zip → S3 on a cron (written by setup-server.sh) ----
 # Blank bucket = backups off. SQLite DBs are snapshotted consistently
 # (sqlite3 .backup) before zipping; node_modules/.next/.venv are excluded

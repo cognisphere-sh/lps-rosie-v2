@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Design tokens for the "Local Plant Supply UI" design system (lps-ui@0.1.0).
+   The published bundle only maps --color-* onto these names; the values live
+   here, so this block is the theme's source of truth. */
+
 :root {
   /* Green Nature Theme - Light Mode */
   --background: #F9FCF7;
@@ -27,7 +31,10 @@
   --accent-foreground: #1E3B28;
 
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
+  /* Upstream lps-ui ships this equal to --destructive, which makes destructive
+     text invisible on a destructive surface. Fixed here, as the design system's
+     README instructs. */
+  --destructive-foreground: #FFFFFF;
 
   --border: #DDEBDD;
   --input: #DDEBDD;
@@ -49,6 +56,19 @@
   --sidebar-accent-foreground: #2F7A44;
   --sidebar-border: #DDEBDD;
   --sidebar-ring: #5FAF65;
+
+  /* Workspace-specific tokens defined by the Supplier Workspace design — table
+     chrome, hairlines and the "stale list" warning colours. */
+  --lps-headrow: #F4F9F2;
+  --lps-hair: #E4EFE2;
+  --lps-edge: #CBE3CD;
+  --lps-dim: #9DB3A0;
+  --lps-tint: #FBFDFA;
+  --lps-bubble: #F1F7EF;
+  --lps-shadow: 0 12px 28px rgba(30, 59, 40, .14);
+  --lps-warn-bg: #FBF3DF;
+  --lps-warn-fg: #8A5A00;
+  --lps-warn-dot: #D99A2B;
 }
 
 .dark {
@@ -88,15 +108,40 @@
 
   --sidebar: #0F0F0F;
   --sidebar-foreground: #E8E8E8;
-  --sidebar-primary: #7C4DFF;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E1E1E;
-  --sidebar-accent-foreground: #E8E8E8;
   --sidebar-border: #2A2A2A;
-  --sidebar-ring: #7C4DFF;
+
+  /* The Supplier Workspace design overrides the base dark theme's purple accent
+     back to green, so dark mode stays the same product as light mode. */
+  --primary: #4DD67D;
+  --primary-foreground: #0A0A0A;
+  --ring: #4DD67D;
+  --secondary: #17301F;
+  --secondary-foreground: #8FE3A8;
+  --accent: #A8E06D;
+  --accent-foreground: #0A0A0A;
+  --chart-1: #4DD67D;
+  --chart-2: #8FE3A8;
+  --sidebar-primary: #4DD67D;
+  --sidebar-primary-foreground: #0A0A0A;
+  --sidebar-accent: #17301F;
+  --sidebar-accent-foreground: #8FE3A8;
+  --sidebar-ring: #4DD67D;
+
+  --lps-headrow: #151515;
+  --lps-hair: #242424;
+  --lps-edge: #2F3B31;
+  --lps-dim: #7C8A7E;
+  --lps-tint: #141414;
+  --lps-bubble: #1B1B1B;
+  --lps-shadow: 0 12px 28px rgba(0, 0, 0, .55);
+  --lps-warn-bg: #2A2214;
+  --lps-warn-fg: #E0B461;
+  --lps-warn-dot: #D99A2B;
 }
 
 @theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -135,6 +180,17 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+@theme inline {
+  --color-lps-headrow: var(--lps-headrow);
+  --color-lps-hair: var(--lps-hair);
+  --color-lps-edge: var(--lps-edge);
+  --color-lps-dim: var(--lps-dim);
+  --color-lps-tint: var(--lps-tint);
+  --color-lps-bubble: var(--lps-bubble);
+  --color-lps-warn-bg: var(--lps-warn-bg);
+  --color-lps-warn-fg: var(--lps-warn-fg);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -143,4 +199,18 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* The pencil affordance only appears on the row you are pointing at. */
+.lps-row:hover .lps-pencil {
+  opacity: 1;
+}
+
+@keyframes lpsPop {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lps-pop {
+  animation: lpsPop .15s ease;
 }

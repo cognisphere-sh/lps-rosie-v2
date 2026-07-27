@@ -1,6 +1,24 @@
 # Migrations applied by Daisy
 
+> **Historical record — superseded. Not a description of the current schema.**
+> `public.rate_charts` has since been renamed to `public.inventory`, and
+> `rate_charts` now survives only as a backwards-compatibility *view* over it.
+> For the schema as it actually is, read `knowledge/SCHEMA.md` (the shared
+> `docs/supabase-schema.md`). This file is kept only to record what was run.
+
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
+
+## `0002_supplier_communication_notes.sql`
+Applied 2026-07-27. Adds `suppliers.communication_notes` (nullable text) and
+column comments separating it from `suppliers.notes`:
+
+- **`notes`** — durable profile facts with no dedicated column (quirks,
+  preferences, price-list format, ordering constraints).
+- **`communication_notes`** — append-only contact log, one timestamped entry per
+  contact.
+
+Additive only: no rewrite, no backfill, no data touched (~910 rows, all
+`communication_notes` null on apply).
 
 ## `20260701104209_daisy_availability_versioning`
 Source: `0001_availability_versioning.sql`. One migration, applied 2026-07-01.

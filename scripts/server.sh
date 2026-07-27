@@ -34,6 +34,7 @@ gen_secrets() {
   ROOT="$ROOT" APP_USER="$APP_USER" APP_PASS="${APP_PASS:-}" \
   DOMAIN="${DOMAIN:-}" APP_PORT="$APP_PORT" HARNESS_PORT="$HARNESS_PORT" \
   HAS_APP="$HAS_APP" \
+  SUPABASE_URL="${SUPABASE_URL:-}" SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-}" \
   node <<'NODE'
 const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
 const E = process.env;
@@ -47,7 +48,10 @@ if (E.HAS_APP === "true") {
   write600(path.join(E.ROOT, "app/.env.local"),
     "# Generated from ../config by scripts/server.sh — do not hand-edit.\n" +
     `HARNESS_USER=${user}\nHARNESS_PASS=${pass}\nDOMAIN=${E.DOMAIN}\nPORT=${E.APP_PORT}\n` +
-    `HARNESS_URL=http://127.0.0.1:${E.HARNESS_PORT}\n`);
+    `HARNESS_URL=http://127.0.0.1:${E.HARNESS_PORT}\n` +
+    // The app reads suppliers/inventory straight from Supabase; the secret key
+    // stays server-side (no NEXT_PUBLIC_ prefix) because it bypasses RLS.
+    `SUPABASE_URL=${E.SUPABASE_URL}\nSUPABASE_SECRET_KEY=${E.SUPABASE_SECRET_KEY}\n`);
 }
 console.error(`>> operator login: ${user} / ${pass}`);
 NODE

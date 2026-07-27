@@ -1,35 +1,32 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/theme-provider";
+import type { Metadata } from 'next'
+import { Inter, Playfair_Display } from 'next/font/google'
+
+import './globals.css'
+
+// The design system's two typefaces: Inter for everything, Playfair Display for
+// display headings (`font-serif`). Wired to the --font-* vars globals.css maps.
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: "Austin Plant Supply",
-  description: "Austin Plant Supply — inventory, requests, and customers (Rosie).",
-};
+  title: 'Local Plant Supply',
+  description: 'Suppliers and plant availability for Local Plant Supply.',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('theme')!=='light')document.documentElement.classList.add('dark')}catch(e){document.documentElement.classList.add('dark')}`,
-          }}
-        />
-      </head>
-      <body>
-        <ThemeProvider defaultTheme="dark">
-          <div className="min-h-dvh bg-background text-foreground">
-            {children}
-            <SonnerToaster />
-          </div>
-        </ThemeProvider>
+    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+      <body className="min-h-dvh bg-background text-foreground font-sans antialiased">
+        {children}
       </body>
     </html>
-  );
+  )
 }

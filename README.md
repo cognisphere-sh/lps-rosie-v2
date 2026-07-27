@@ -2,12 +2,15 @@
 
 A cognisphere **app home** (pnpm workspace) with two co-located services:
 
-- **`app/`** — Next.js app hosting the persona surfaces (`/seller` live;
-  `/customer`, `/sourcer` planned). No DB of its own; it reads/writes Rosie's
-  workspace files through the harness HTTP API. See [`app/README.md`](app/README.md).
+- **`app/`** — Next.js app for browsing the supplier and plant catalogue
+  (`/suppliers`, `/suppliers/:id`, `/plants`). Reads **Supabase** directly,
+  server-side; it uses the harness only for the operator login and does not
+  talk to agents. See [`docs/app/README.md`](docs/app/README.md).
 - **`harness/`** — the [cognisphere](https://github.com/cognisphere-sh)
   agent harness data dir: a stateful, file-backed, localhost-bound service
-  that runs Rosie and serves the operator console UI.
+  that runs the agents (`daisy`, `dory`) and serves the operator console UI.
+- **`docs/supabase-schema.md`** — the single source of truth for the database
+  schema, shared by the app and every agent.
 - **`scripts/`** — lifecycle scripts (`setup-server.sh`, `server.sh`,
   `build.sh`) plus AWS provisioning/backup under `scripts/aws/`.
 

@@ -13,29 +13,49 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 - `harness.json` — version **0.5.1**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
-  wholesale plant nursery. Three agents run the supply/customer/dev split.
+  wholesale plant nursery. Two agents run the supply and dev split.
+
+> The `rosie` customer-success agent has been **removed** and will be rebuilt
+> from scratch; the deployment keeps the name (systemd units `rosie-harness` /
+> `rosie-app`, package `cognisphere-harness-rosie`) because that is deploy
+> identity, not the agent.
 
 ## Agents
 
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
-| [`rosie`](agent-rosie.md) | Customer success coordinator for Austin Plant Supply — one instance per customer | `openai-codex` / `gpt-5.5` | `single` | admin chat |
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram admin thread + Gmail |
 | [`dory`](agent-dory.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) |
 
 Comparison:
 
-| | rosie | daisy | dory |
-|---|---|---|---|
-| `devAgent` | — | — | **true** |
-| `maxConcurrentSlots` | 5 | 5 | — |
-| `secretsSchema` | — | Supabase (4 keys) | — |
-| Plugins | admin, scheduler | admin, agent-messaging, gws, scheduler, telegram | admin, scheduler, telegram |
-| Knowledge dir | — (shared workspace) | SCHEMA, suppliers, gmail-labels, SOP | — |
-| Migrations | — | 0001 (applied) | — |
-| Skills | — | — | cognisphere-upgrade, create-plugin |
+| | daisy | dory |
+|---|---|---|
+| `devAgent` | — | **true** |
+| `maxConcurrentSlots` | 5 | — |
+| `secretsSchema` | Supabase (4 keys) | — |
+| Plugins | admin, agent-messaging, gws, scheduler, telegram | admin, scheduler, telegram |
+| Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels, SOP | — |
+| Migrations | 0001 (applied, superseded) | — |
+| Skills | — | cognisphere-upgrade, create-plugin |
 
-The web app (`app/`) targets **`rosie` only**.
+The web app (`app/`) no longer targets any agent — it reads Supabase directly
+and only uses the harness for the operator login. See
+[`../app/README.md`](../app/README.md).
+
+### Database schema is shared, not per-agent
+
+[`docs/supabase-schema.md`](../supabase-schema.md) is the single source of truth
+for the Supabase schema, for agents and the app alike.
+`harness/agents/daisy/knowledge/SCHEMA.md` is a **symlink** to it, so daisy's
+existing cwd-relative `knowledge/SCHEMA.md` references keep working and edits
+through the symlink land in the shared file.
+
+Give any new agent that needs database access the same symlink — never a copy:
+
+```sh
+ln -s ../../../../docs/supabase-schema.md harness/agents/<agent>/knowledge/SCHEMA.md
+```
 
 ### Shared across all agents
 
