@@ -151,6 +151,9 @@ Environment=PATH=$UNIT_PATH
 # ~/.npmrc without warning. The service does no installs, so no real token is
 # needed at runtime.
 Environment=COGNISPHERE_NPM_TOKEN=
+# Harness ≥0.6.1 defaults to port 3142; we keep $HARNESS_PORT, so seeded
+# scripts (agent-msg/send) need the real base URL.
+Environment=HARNESS_BASE_URL=http://127.0.0.1:$HARNESS_PORT
 ExecStart=$PNPM_BIN exec cognisphere serve --port $HARNESS_PORT
 Restart=on-failure
 RestartSec=3

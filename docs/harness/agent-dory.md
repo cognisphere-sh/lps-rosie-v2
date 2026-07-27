@@ -7,8 +7,9 @@ exclusively on Telegram.
 
 - **name**: `dory`
 - **description**: "Developer agent: owns and modifies this deployment's
-  platform code (agent prompts/scripts, plugins, app, deploy). Reachable on
-  Telegram."
+  platform code — agent prompts/scripts, forked plugins, the user-facing
+  frontend app, deploy scripts — and keeps docs/harness + docs/app current.
+  Send code, app and docs change requests here. Reachable on Telegram."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
 - **threadIdStrategy**: `single`
 - **`devAgent`: true**

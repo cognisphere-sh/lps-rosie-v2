@@ -11,7 +11,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.5.1**, timezone **America/Chicago**.
+- `harness.json` — version **0.7.0**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
   wholesale plant nursery. Two agents run the supply and dev split.
 
@@ -24,7 +24,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
-| [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram admin thread + Gmail |
+| [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail |
 | [`dory`](agent-dory.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) |
 
 Comparison:

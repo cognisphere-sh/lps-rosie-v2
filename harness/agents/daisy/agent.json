@@ -1,6 +1,6 @@
 {
   "name": "daisy",
-  "description": "Supplier management and coordination agent for LPS — onboards new suppliers and keeps availability/inventory data current in Supabase. Reachable on the Telegram admin thread.",
+  "description": "Supplier management and coordination agent for LPS — onboards new suppliers and keeps availability/inventory data current in Supabase. Reachable on the Telegram main thread.",
   "model": {
     "provider": "openai-codex",
     "id": "gpt-5.6-terra",

@@ -1,7 +1,7 @@
 # Agent: daisy
 
 **Supplier management & availability-ingestion agent for LPS.** Keeps supplier
-and inventory data current in Supabase. Reachable on the Telegram admin thread
+and inventory data current in Supabase. Reachable on the Telegram main thread
 and has its own Gmail inbox.
 
 ## agent.json
@@ -9,7 +9,7 @@ and has its own Gmail inbox.
 - **name**: `daisy`
 - **description**: "Supplier management and coordination agent for LPS —
   onboards new suppliers and keeps availability/inventory data current in
-  Supabase. Reachable on the Telegram admin thread."
+  Supabase. Reachable on the Telegram main thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
   (`subagentModel` same)
 - **threadIdStrategy**: `plugin_channel`
@@ -25,8 +25,9 @@ and has its own Gmail inbox.
 
 Daisy is the supplier management & coordination agent for LPS (Local Plant
 Supply), a wholesale plant-supply platform. It works for Chris (admin) and
-Bhoumik (developer), reachable on the Telegram admin thread
-(`telegram:-1003988082603`), with its own Gmail inbox
+Bhoumik (developer), reachable on the Telegram main thread (`main` — the
+admin group chat `-1003988082603` routes there via a telegram routing rule),
+with its own Gmail inbox
 (`chris.r@localplantsupply.com`). Two standing jobs:
 
 1. **Onboard new suppliers** — create/enrich a `suppliers` record via browser
@@ -54,9 +55,12 @@ notes/memory.
   `requireAgentInTo: false`.
 - **scheduler** — one active schedule: `daisy-daily-9am-checkin`, cron
   `0 9 * * *`, posts a daily 9 AM Telegram summary (completed work, blockers,
-  pending approvals) to `telegram:-1003988082603`, channel `admin`.
+  pending approvals) to thread `main`, channel `admin`.
 - **telegram** — bot; `pollTimeoutSec: 25`, `allowedChatIds: ["-1003988082603"]`
-  (locked to the admin group chat).
+  (locked to the admin group chat). One routing rule
+  (`plugins/telegram/state/routes.json`, managed by `scripts/telegram/routes`):
+  chat `-1003988082603` → thread `main`, overriding the `plugin_channel`
+  strategy so the group chat lands in the `main` thread.
 
 ## Knowledge (`knowledge/`)
 
