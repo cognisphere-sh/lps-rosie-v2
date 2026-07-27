@@ -280,9 +280,11 @@ export function Shell({
               </div>
             )}
 
-            {/* Mobile bottom tab bar */}
+            {/* Mobile bottom tab bar. items-stretch, not items-center: a label
+                that wraps to two lines ("Plant search") must not push its icon
+                out of line with the rest. */}
             {isMobile && (
-              <nav className="flex flex-none items-center gap-0.5 overflow-x-auto border-t border-border bg-card px-1.5 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
+              <nav className="flex flex-none items-stretch gap-0.5 overflow-x-auto border-t border-border bg-card px-1.5 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
                 {NAV.map(({ id, label, href, Icon, enabled }) => {
                   const active = page === id
                   const inner = (
@@ -290,11 +292,11 @@ export function Shell({
                       <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
                         <Icon />
                       </span>
-                      <span className="text-[10.5px] font-semibold">{label}</span>
+                      <span className="text-center text-[10.5px] font-semibold leading-tight">{label}</span>
                     </>
                   )
                   const klass = cn(
-                    'flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
+                    'flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-1 py-1.5',
                     active ? 'text-primary' : 'text-muted-foreground',
                     enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
                   )

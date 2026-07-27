@@ -83,7 +83,7 @@ offering routes that go nowhere.
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit. Cards on mobile. |
 | `/suppliers/:id` | client | Profile: editable field grid, then Notes / Communications / Inventory / Files tabs. |
-| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head. Grouped cards on mobile, with a collapsible **Filters** card (supplier + the same per-column filters the column heads carry). |
+| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head. Grouped cards on mobile — each supplier card expands/collapses its plant list — with a collapsible **Filters** card (supplier, supplier category, state, city, size, price). |
 
 | API route | Purpose |
 |---|---|

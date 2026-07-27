@@ -4,14 +4,14 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
-import { EyeOffIcon } from '@/components/workspace/icons'
+import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import {
   PlantHeaderRow, PlantRowLine, SUB_ACTIONS_W, plantsWidth,
 } from '@/components/workspace/plant-table'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, FilterControl, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
-import { MASTER_COLS, type ColumnDef } from '@/lib/columns'
+import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
@@ -21,6 +21,17 @@ import { cn } from '@/lib/utils'
 // Supplier-panel fields — everything on the master row that isn't already shown
 // as the heading, the count, the category badge or the state.
 const PANEL_FIXED = ['name', 'plant_count', 'category', 'state']
+
+// Mobile filter sheet. Phones get the filters people actually narrow by — the
+// supplier's category and location, plus plant size and price — not every
+// filterable column the desktop header carries.
+const MOBILE_FILTERS = [
+  { key: 'category', label: 'Supplier category', master: true },
+  { key: 'state', label: 'State', master: true },
+  { key: 'city', label: 'City', master: true },
+  { key: 'size', label: 'Size', master: false },
+  { key: 'price', label: 'Price', master: false },
+] as const
 
 export default function PlantSearchPage() {
   const router = useRouter()
@@ -39,6 +50,8 @@ export default function PlantSearchPage() {
   const [deleted, setDeleted] = useState<string[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // Mobile only: supplier cards whose plant list is collapsed.
+  const [collapsed, setCollapsed] = useState<number[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -229,52 +242,75 @@ export default function PlantSearchPage() {
                     onChange={setSupplierPick}
                   />
                 </div>
-                {plantCfg.visible
-                  .filter((col) => col.filter !== 'none')
-                  .map((col) => (
-                    <div key={col.key} className="flex flex-col gap-1">
+                {MOBILE_FILTERS.map(({ key, label, master }) => {
+                  const cfg = master ? masterCfg : plantCfg
+                  const col = (master ? MASTER_COLS : PLANT_COLS).find((c) => c.key === key)!
+                  return (
+                    <div key={label} className="flex flex-col gap-1">
                       <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-                        {col.label}
+                        {label}
                       </span>
                       <FilterControl
                         col={col}
-                        value={plantCfg.filters[col.key]}
-                        options={optionsFor(allPlants, col.key)}
-                        onFilter={(v) => plantCfg.setColFilter(col.key, v)}
+                        value={cfg.filters[key]}
+                        options={
+                          master
+                            ? optionsFor(groups.map((g) => g.supplier), key)
+                            : optionsFor(allPlants, key)
+                        }
+                        onFilter={(v) => cfg.setColFilter(key, v)}
                       />
                     </div>
-                  ))}
+                  )
+                })}
               </div>
             )}
           </div>
 
-          {visibleGroups.map((g) => (
+          {visibleGroups.map((g) => {
+            const open = !collapsed.includes(g.supplier.id)
+            return (
             <div key={g.supplier.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-              <button
-                type="button"
-                onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
-                className="flex w-full flex-col gap-1.5 border-b border-lps-hair bg-lps-tint p-3 text-left"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="flex-1 truncate text-[14px] font-bold text-primary">
-                    {String(g.supplier.values.name ?? '')}
-                  </span>
-                  <span className="text-[11px] font-semibold text-muted-foreground">
-                    {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {g.supplier.values.category && (
-                    <Badge variant={badgeFor(String(g.supplier.values.category)) as 'default' | 'secondary' | 'outline'}>
-                      {String(g.supplier.values.category)}
-                    </Badge>
-                  )}
-                  <span className="text-[11.5px] text-muted-foreground">
-                    {[g.supplier.values.city, g.supplier.values.state].filter(Boolean).join(', ')}
-                  </span>
-                </div>
-              </button>
-              <div className="flex flex-col">
+              <div className="flex items-start gap-2 border-b border-lps-hair bg-lps-tint p-3">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
+                  className="flex min-w-0 flex-1 flex-col gap-1.5 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate text-[14px] font-bold text-primary">
+                      {String(g.supplier.values.name ?? '')}
+                    </span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {g.supplier.values.category && (
+                      <Badge variant={badgeFor(String(g.supplier.values.category)) as 'default' | 'secondary' | 'outline'}>
+                        {String(g.supplier.values.category)}
+                      </Badge>
+                    )}
+                    <span className="text-[11.5px] text-muted-foreground">
+                      {[g.supplier.values.city, g.supplier.values.state].filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed((prev) =>
+                      open ? [...prev, g.supplier.id] : prev.filter((id) => id !== g.supplier.id),
+                    )
+                  }
+                  aria-expanded={open}
+                  aria-label={open ? 'Collapse plants' : 'Expand plants'}
+                  className="inline-flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground"
+                >
+                  <ChevronDown size={16} className={open ? '' : '-rotate-90'} />
+                </button>
+              </div>
+              <div className={cn('flex flex-col', !open && 'hidden')}>
                 {g.plants.map((p) => (
                   <div key={p.id} className="flex items-start gap-3 border-b border-lps-hair p-3 last:border-b-0">
                     <div className="min-w-0 flex-1">
@@ -296,7 +332,8 @@ export default function PlantSearchPage() {
                 ))}
               </div>
             </div>
-          ))}
+            )
+          })}
           {!loading && visibleGroups.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches this search.</div>
           )}

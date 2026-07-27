@@ -44,6 +44,13 @@ here).
 
 ### Changed
 
+- **Mobile supplier cards on plant search collapse.** A chevron on each card
+  toggles its plant list; the card header still opens the supplier profile.
+- **Mobile bottom tab bar alignment.** Tabs stretch to equal height, so a
+  two-line label ("Plant search") no longer knocks its icon out of line.
+- **Plant search mobile filters** are now a fixed, useful set — supplier,
+  supplier category, state, city, size, price — instead of mirroring every
+  filterable plant column (plant name, other names, quantity are gone).
 - Harness dependency upgraded to **0.7.0**.
 - Root `README.md` no longer claims the app "does not talk to agents" — it now
   does.
