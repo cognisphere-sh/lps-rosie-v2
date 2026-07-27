@@ -177,6 +177,104 @@ export function MultiFilter({
   )
 }
 
+// ------------------------------------------------------------ filter control
+
+/** The filter widget for one column — used by the column head and, on mobile
+ *  (where there are no column heads), by the plant search filter sheet. */
+export function FilterControl({
+  col,
+  value,
+  options,
+  small,
+  onFilter,
+}: {
+  col: ColumnDef
+  value: ColFilter | undefined
+  options: string[]
+  small?: boolean
+  onFilter: (value: ColFilter) => void
+}) {
+  const [multiOpen, setMultiOpen] = useState(false)
+  useOutsideClose(multiOpen, () => setMultiOpen(false))
+
+  const kind = col.filter ?? 'text'
+  const selected = Array.isArray(value) ? value : []
+  const range = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+
+  if (kind === 'none') return <div className={small ? 'h-6' : 'h-[26px]'} />
+
+  if (kind === 'text') {
+    return (
+      <input
+        value={typeof value === 'string' ? value : ''}
+        onChange={(e) => onFilter(e.target.value)}
+        placeholder="Filter…"
+        className={cn(
+          'w-full rounded-[7px] border border-input bg-background px-2 font-normal text-foreground outline-none',
+          small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+        )}
+      />
+    )
+  }
+
+  if (kind === 'range') {
+    return (
+      <div className="flex gap-1">
+        {(['min', 'max'] as const).map((bound) => (
+          <input
+            key={bound}
+            value={range[bound] ?? ''}
+            onChange={(e) => onFilter({ ...range, [bound]: e.target.value })}
+            placeholder={bound === 'min' ? 'Min' : 'Max'}
+            className={cn(
+              'w-full min-w-0 rounded-[7px] border border-input bg-background px-1.5 font-normal text-foreground outline-none',
+              small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+            )}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div data-menu className="relative">
+      <button
+        type="button"
+        onClick={() => setMultiOpen((v) => !v)}
+        className={cn(
+          'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium',
+          small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+          selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
+        )}
+      >
+        <span className="truncate">{selected.length ? `${selected.length} selected` : 'All'}</span>
+        <ChevronDown size={10} className="flex-none opacity-50" />
+      </button>
+      {multiOpen && (
+        <div className="lps-pop absolute left-0 top-[calc(100%+5px)] z-[94] max-h-[250px] w-[196px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+          {options.length === 0 && (
+            <div className="px-2 py-1.5 text-[11.5px] text-muted-foreground">No values</div>
+          )}
+          {options.map((o) => {
+            const on = selected.includes(o)
+            return (
+              <button
+                key={o}
+                type="button"
+                onClick={() => onFilter(on ? selected.filter((x) => x !== o) : [...selected, o])}
+                className={checkRow(on)}
+              >
+                <span className={checkBox(on)}>{on && <CheckIcon size={10} />}</span>
+                <span className="truncate">{o}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // -------------------------------------------------------------- column head
 
 export function ColumnHead({
@@ -202,15 +300,9 @@ export function ColumnHead({
   onResize: (width: number) => void
   onMove: (fromKey: string) => void
 }) {
-  const [multiOpen, setMultiOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
-  useOutsideClose(multiOpen, () => setMultiOpen(false))
 
-  const kind = col.filter ?? 'text'
-  const value = filters[col.key]
   const active = sort?.column === col.key
-  const selected = Array.isArray(value) ? value : []
-  const range = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -268,74 +360,13 @@ export function ColumnHead({
         </button>
       </div>
 
-      {kind === 'text' && (
-        <input
-          value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onFilter(e.target.value)}
-          placeholder="Filter…"
-          className={cn(
-            'w-full rounded-[7px] border border-input bg-background px-2 font-normal text-foreground outline-none',
-            small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
-          )}
-        />
-      )}
-
-      {kind === 'range' && (
-        <div className="flex gap-1">
-          {(['min', 'max'] as const).map((bound) => (
-            <input
-              key={bound}
-              value={range[bound] ?? ''}
-              onChange={(e) => onFilter({ ...range, [bound]: e.target.value })}
-              placeholder={bound === 'min' ? 'Min' : 'Max'}
-              className={cn(
-                'w-full min-w-0 rounded-[7px] border border-input bg-background px-1.5 font-normal text-foreground outline-none',
-                small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
-              )}
-            />
-          ))}
-        </div>
-      )}
-
-      {kind === 'multiselect' && (
-        <div data-menu className="relative">
-          <button
-            type="button"
-            onClick={() => setMultiOpen((v) => !v)}
-            className={cn(
-              'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium',
-              small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
-              selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
-            )}
-          >
-            <span className="truncate">{selected.length ? `${selected.length} selected` : 'All'}</span>
-            <ChevronDown size={10} className="flex-none opacity-50" />
-          </button>
-          {multiOpen && (
-            <div className="lps-pop absolute left-0 top-[calc(100%+5px)] z-[94] max-h-[250px] w-[196px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-              {options.length === 0 && (
-                <div className="px-2 py-1.5 text-[11.5px] text-muted-foreground">No values</div>
-              )}
-              {options.map((o) => {
-                const on = selected.includes(o)
-                return (
-                  <button
-                    key={o}
-                    type="button"
-                    onClick={() => onFilter(on ? selected.filter((x) => x !== o) : [...selected, o])}
-                    className={checkRow(on)}
-                  >
-                    <span className={checkBox(on)}>{on && <CheckIcon size={10} />}</span>
-                    <span className="truncate">{o}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {kind === 'none' && <div className={small ? 'h-6' : 'h-[26px]'} />}
+      <FilterControl
+        col={col}
+        value={filters[col.key]}
+        options={options}
+        small={small}
+        onFilter={onFilter}
+      />
 
       <div
         onMouseDown={startResize}

@@ -79,7 +79,7 @@ without offering routes that go nowhere. Agent chat is deliberately not wired.
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit. Cards on mobile. |
 | `/suppliers/:id` | client | Profile: editable field grid, then Notes / Communications / Inventory / Files tabs. |
-| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head. Grouped cards on mobile. |
+| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head. Grouped cards on mobile, with a collapsible **Filters** card (supplier + the same per-column filters the column heads carry). |
 
 | API route | Purpose |
 |---|---|
@@ -274,6 +274,7 @@ components/
   workspace/
     shell.tsx        nav rail, header, mobile tab bar, theme, session user, toasts
     table-parts.tsx  column picker, column head (sort/filter/resize/drag),
+                     FilterControl (the head's filter widget, reused on mobile),
                      cell (plain/link/badge/list/file/url), MultiFilter
     plant-table.tsx  the plant sub-table, shared by search + profile
     toolbar.tsx      search box, filter chips, count summary

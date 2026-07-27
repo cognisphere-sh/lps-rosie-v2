@@ -9,7 +9,7 @@ import {
   PlantHeaderRow, PlantRowLine, SUB_ACTIONS_W, plantsWidth,
 } from '@/components/workspace/plant-table'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { ColumnPicker, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
+import { ColumnPicker, FilterControl, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
@@ -38,6 +38,7 @@ export default function PlantSearchPage() {
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
   const [deleted, setDeleted] = useState<string[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -156,11 +157,12 @@ export default function PlantSearchPage() {
     document.addEventListener('mouseup', up)
   }
 
-  const hasFilters =
-    !!query ||
-    supplierPick.length > 0 ||
-    Object.keys(plantCfg.filters).length > 0 ||
-    Object.keys(masterCfg.filters).length > 0
+  const activeFilterCount =
+    (supplierPick.length > 0 ? 1 : 0) +
+    Object.keys(plantCfg.filters).length +
+    Object.keys(masterCfg.filters).length
+
+  const hasFilters = !!query || activeFilterCount > 0
 
   const toolbar = (
     <Toolbar
@@ -178,11 +180,6 @@ export default function PlantSearchPage() {
         loading
           ? 'Searching…'
           : `${visibleGroups.length} suppliers · ${shownPlants} of ${allPlants.length} plants`
-      }
-      hint={
-        !query.trim() && !loading
-          ? 'Showing the most recently updated availability. Search a botanical or common name — “live oak” finds Quercus virginiana.'
-          : undefined
       }
     />
   )
@@ -202,8 +199,57 @@ export default function PlantSearchPage() {
     <Shell page="inventory" title="Plant search" subtitle="Grouped by supplier" toolbar={toolbar}>
       {isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5">
+          {/* Mobile has no column heads, so the filters they carry live here. */}
+          <div className="shrink-0 rounded-xl border border-border bg-card">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="flex w-full items-center gap-2 p-3 text-left text-[13px] font-semibold"
+            >
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
+              <span className="ml-auto text-[12px] font-normal text-muted-foreground">
+                {shownPlants} of {allPlants.length} plants
+              </span>
+            </button>
+            {filtersOpen && (
+              <div className="flex flex-col gap-3 border-t border-lps-hair p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                    Supplier
+                  </span>
+                  <MultiFilter
+                    allLabel="All suppliers"
+                    options={supplierNames}
+                    selected={supplierPick}
+                    onChange={setSupplierPick}
+                  />
+                </div>
+                {plantCfg.visible
+                  .filter((col) => col.filter !== 'none')
+                  .map((col) => (
+                    <div key={col.key} className="flex flex-col gap-1">
+                      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                        {col.label}
+                      </span>
+                      <FilterControl
+                        col={col}
+                        value={plantCfg.filters[col.key]}
+                        options={optionsFor(allPlants, col.key)}
+                        onFilter={(v) => plantCfg.setColFilter(col.key, v)}
+                      />
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
           {visibleGroups.map((g) => (
-            <div key={g.supplier.id} className="overflow-hidden rounded-xl border border-border bg-card">
+            <div key={g.supplier.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
               <button
                 type="button"
                 onClick={() => router.push(`/suppliers/${g.supplier.id}`)}

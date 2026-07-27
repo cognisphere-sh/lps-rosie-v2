@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 import { Input } from '@/components/ui/input'
-import { ChevronDown, SparkIcon } from '@/components/workspace/icons'
+import { ChevronDown } from '@/components/workspace/icons'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import { cn } from '@/lib/utils'
 
@@ -65,7 +65,6 @@ export function Toolbar({
   hasFilters,
   onClear,
   summary,
-  hint,
 }: {
   placeholder: string
   query: string
@@ -74,43 +73,33 @@ export function Toolbar({
   hasFilters: boolean
   onClear: () => void
   summary: string
-  hint?: string
 }) {
   return (
-    <>
-      <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2.5">
-        <div className="w-full min-w-0 md:w-[290px]">
-          <Input
-            value={query}
-            onChange={(e) => onQuery(e.target.value)}
-            placeholder={placeholder}
-            aria-label={placeholder}
-            className="h-9"
-          />
-        </div>
-        {chips.map((chip) => (
-          <ChipMenu key={chip.label} chip={chip} />
-        ))}
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="cursor-pointer border-none bg-transparent text-[12px] text-muted-foreground underline"
-          >
-            Clear all
-          </button>
-        )}
-        <span className="ml-auto hidden whitespace-nowrap text-[12px] text-muted-foreground md:inline">
-          {summary}
-        </span>
+    <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2.5">
+      <div className="w-full min-w-0 md:w-[290px]">
+        <Input
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className="h-9"
+        />
       </div>
-
-      {hint && (
-        <div className="mx-4 mt-3 flex flex-none items-center gap-2 rounded-xl bg-secondary px-3 py-[9px] text-[12.5px] text-secondary-foreground">
-          <SparkIcon size={14} className="flex-none" />
-          <span>{hint}</span>
-        </div>
+      {chips.map((chip) => (
+        <ChipMenu key={chip.label} chip={chip} />
+      ))}
+      {hasFilters && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="cursor-pointer border-none bg-transparent text-[12px] text-muted-foreground underline"
+        >
+          Clear all
+        </button>
       )}
-    </>
+      <span className="ml-auto hidden whitespace-nowrap text-[12px] text-muted-foreground md:inline">
+        {summary}
+      </span>
+    </div>
   )
 }
