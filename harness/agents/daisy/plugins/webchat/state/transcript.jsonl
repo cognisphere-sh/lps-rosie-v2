@@ -1,0 +1,10 @@
+{"at":1785161799091,"role":"user","text":"Hi","files":[],"id":1}
+{"at":1785161806080,"role":"agent","text":"Hi Chris! How can I help today?","files":[],"id":2}
+{"at":1785161821732,"role":"user","text":"","files":[{"name":"1785161820319-voice-note.webm","label":"voice-note.webm","mime":"audio/webm","size":42800,"dir":"inbox"}],"id":3}
+{"at":1785161858741,"role":"agent","text":"Sorry—I couldn’t make out the voice note clearly. Could you type the request?","files":[],"id":4}
+{"at":1785162007837,"role":"user","text":"","files":[{"name":"1785162006361-17851619993644947223340494982836.jpg","label":"17851619993644947223340494982836.jpg","mime":"image/jpeg","size":1054723,"dir":"inbox"}],"id":5}
+{"at":1785162022368,"role":"agent","text":"I can see the photo—what would you like me to help with?","files":[],"id":6}
+{"at":1785162054807,"role":"user","text":"What's is in the photo?","files":[],"id":7}
+{"at":1785162062879,"role":"agent","text":"It appears to be a closed silver Apple MacBook (the lid), sitting on the floor among cables. The Apple logo in the center looks covered or damaged with a dark piece of tape/material.","files":[],"id":8}
+{"at":1785162252136,"role":"user","text":"","files":[{"name":"1785162249508-voice-note.webm","label":"voice-note.webm","mime":"audio/webm","size":112352,"dir":"inbox"}],"id":9}
+{"at":1785162270119,"role":"agent","text":"Yes—I can hear it. You said: “Oh, that’s awesome. You can read that. Can you hear this voice?”","files":[],"id":10}

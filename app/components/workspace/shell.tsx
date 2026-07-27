@@ -1,15 +1,18 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react'
 
+import { AgentChat } from '@/components/workspace/chat'
 import {
   ChevronLeft, ChevronRight, CheckIcon, InventoryIcon, LogoutIcon, MoonIcon,
-  RequestsIcon, SettingsIcon, SparkIcon, SuppliersIcon, SunIcon,
+  RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
+import { AGENTS } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
 export type PageId = 'suppliers' | 'inventory' | 'requests' | 'settings'
@@ -109,6 +112,7 @@ export function Shell({
   const user = useSessionUser()
   const [navOpen, setNavOpen] = useState(true)
   const [userMenu, setUserMenu] = useState(false)
+  const [mobileChat, setMobileChat] = useState(false)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -300,6 +304,21 @@ export function Shell({
                     <button key={id} type="button" disabled aria-label={label} className={klass}>{inner}</button>
                   )
                 })}
+                {AGENTS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setMobileChat((v) => !v)}
+                    aria-label={a.name}
+                    className={cn(
+                      'flex min-w-[72px] flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
+                      mobileChat ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  >
+                    <Image src={a.avatar} alt="" width={18} height={18} className="size-[18px] rounded-full object-cover" />
+                    <span className="text-[10.5px] font-semibold">{a.name}</span>
+                  </button>
+                ))}
                 <button
                   type="button"
                   onClick={toggle}
@@ -313,22 +332,13 @@ export function Shell({
             )}
           </div>
 
-          {/* Collapsed agent chat rail — designed, deliberately not wired. */}
-          {!isMobile && (
-            <div className="flex w-[52px] flex-none flex-col items-center gap-3 border-l border-border bg-card py-3.5">
-              <button
-                type="button"
-                disabled
-                title="Rosie — agent chat is not wired up in this build"
-                className="flex cursor-not-allowed flex-col items-center gap-2 border-none bg-transparent p-0 text-muted-foreground opacity-45"
-              >
-                <span className="inline-flex size-8 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                  <SparkIcon size={15} />
-                </span>
-                <span className="text-[10px] font-semibold">Rosie</span>
-              </button>
-            </div>
-          )}
+          {/* Agent chat: docked panel or collapsed rail on desktop, a
+              full-screen sheet on mobile (opened from the tab bar above). */}
+          <AgentChat
+            isMobile={isMobile}
+            mobileOpen={mobileChat}
+            onMobileClose={() => setMobileChat(false)}
+          />
         </div>
       </div>
     </ToastCtx.Provider>

@@ -12,7 +12,7 @@ const config: NextConfig = {
   // Dev-only: allow HMR/asset requests from the deployed domain (set by
   // `server.sh dev`, which sources DOMAIN from the `config` file). DEV_ORIGIN
   // adds one more — e.g. the LAN IP when testing on a phone.
-  allowedDevOrigins: [process.env.DOMAIN, process.env.DEV_ORIGIN].filter((o) => !!o),
+  allowedDevOrigins: [process.env.DOMAIN, process.env.DEV_ORIGIN].filter((o): o is string => !!o),
   async rewrites() {
     return [{ source: '/api/auth/:path*', destination: `${harness}/api/auth/:path*` }]
   },

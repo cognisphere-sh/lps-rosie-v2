@@ -50,7 +50,9 @@ fidelity", start here rather than reverting one of these by accident:
 | Deviation | Why |
 |---|---|
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
-| No agent chat; `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
+| `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
+| Chat has one agent (Daisy), not the mock's Rosie + Daisy pair | Rosie was removed from this deployment. The selector is driven by `lib/agents.ts` and hides itself below two agents. |
+| Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
 | No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
 | Signed-in user read from `/api/auth/me` | The mock hardcoded a name and initials into the markup. |
 | **Communications** tab added; **Notes** edits in place | The schema has two distinct columns; the mock's threaded notes map onto neither. See below. |
@@ -63,13 +65,15 @@ fidelity", start here rather than reverting one of these by accident:
 `components/workspace/shell.tsx` renders the frame for every page:
 
 - **Desktop** (≥900px): a collapsible left nav rail (196px ↔ 56px), a header
-  with the page title + subtitle, and a collapsed agent-chat rail on the right.
-- **Mobile** (<900px, the design's own breakpoint): the rail is replaced by a
-  bottom tab bar, and both list pages swap their tables for card lists.
+  with the page title + subtitle, and the agent chat on the right — a resizable
+  docked panel, or a 46px rail when hidden.
+- **Mobile** (<900px, the design's own breakpoint): the left rail is replaced by
+  a bottom tab bar (which carries a Daisy tab opening the chat full-screen), and
+  both list pages swap their tables for card lists.
 
-`Job Requests`, `Settings` and the chat rail are **rendered disabled** — they exist
-in the design but are out of scope for this build, so the frame keeps its shape
-without offering routes that go nowhere. Agent chat is deliberately not wired.
+`Job Requests` and `Settings` are **rendered disabled** — they exist in the
+design but are out of scope for this build, so the frame keeps its shape without
+offering routes that go nowhere.
 
 ## Routes
 
@@ -88,6 +92,7 @@ without offering routes that go nowhere. Agent chat is deliberately not wired.
 | `GET /api/plants?q=` | Plant search grouped by supplier. `?supplierId=&page=` for one supplier's paged list. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
+| `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
 | `PATCH /api/rows` | Inline cell edit. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). |
 
@@ -190,6 +195,91 @@ makes dropping a column on its immediate right-hand neighbour a silent no-op —
 the most common "nudge this one over" gesture. `lib/table-config.check.mjs`
 (`node lib/table-config.check.mjs`) locks in both directions of adjacent swap.
 
+## Agent chat
+
+`components/workspace/chat.tsx` is the panel from the design, wired to a real
+agent through the harness's [`webchat`](../harness/plugin-webchat.md) plugin.
+Daisy's messages route to her `main` thread — **the same thread Telegram uses**
+— so the panel and Telegram are one conversation.
+
+`lib/agents.ts` is the single list of chattable agents (id, display name, role,
+avatar, starter suggestions). It drives the selector, the collapsed rail, the
+mobile tab and the `/api/chat/<id>/…` allowlist. Adding a second agent is one
+entry plus `mkdir harness/agents/<id>/plugins/webchat`; the selector row hides
+itself while there is only one.
+
+**Transport.** `app/api/chat/[...path]/route.ts` forwards to
+`<harness>/webhook/<agent>/webchat/api/<action>`, passing the cookie and
+streaming the body (uploads need `duplex: 'half'`). The browser can't call the
+harness directly — different origin, no CORS, and the plugin authenticates with
+`pi_sid`, which is scoped to this app's domain. `proxy.ts` gates the route
+before it runs, and the plugin re-checks the session on its side; the agent and
+action are both checked against allowlists, since the path comes from the
+browser. A harness that is down answers 502 rather than hanging the poll.
+
+The panel **polls** `api/messages?since=<cursor>` every 2s while it is open —
+no SSE, no websocket. A sent message is added optimistically and then adopts
+the id the server returns, so the next poll doesn't duplicate it.
+
+**Scrolling** pins to the newest message: a `useLayoutEffect` sets
+`scrollTop = scrollHeight` before paint, so a reload opens at the bottom rather
+than flashing the top of the transcript. A scroll listener drops the pin once
+the user is more than 40px up, so reading history isn't interrupted by an
+arriving message, and image `onLoad` re-pins because a late image makes the
+transcript taller after layout.
+
+**Attachments.** Files are uploaded one at a time *before* send (`api/upload`,
+raw body + `x-file-name`), and `api/send` then carries the stored names. That
+keeps multipart parsing out of the plugin entirely. The composer accepts the
+file picker and pasted images (`onPaste` reads `clipboardData.files`). Header
+values must be ASCII, so the display name travels in the send payload rather
+than the header. Images render inline, audio gets the voice player below,
+everything else is a download link.
+
+### Voice notes
+
+Recording swaps the whole composer row for a WhatsApp-style bar: discard, a
+pulsing dot, a timer, a **live level meter**, and stop-and-attach. Levels come
+from an `AnalyserNode` on the live stream (RMS every 90ms, newest bar on the
+right). Stopping attaches the note as a chip — it does *not* auto-send, so text
+can still be added.
+
+Playback (`VoicePlayer`) is play/pause, a seekable waveform, and elapsed time.
+Three things there are load-bearing:
+
+- **The waveform is real**, decoded via `decodeAudioData` into 40 RMS buckets.
+  Decode failure falls back to flat bars rather than breaking playback.
+- **Duration comes from the decoded buffer, not `<audio>.duration`.**
+  `MediaRecorder` writes a webm with no duration in the container, so the
+  element reports `Infinity` until the clip has fully played once.
+- The plugin sends `Accept-Ranges`, without which seeking doesn't work.
+
+**Container choice is not cosmetic.** Safari — so every iPhone — cannot record
+webm; it produces mp4/AAC. `pickRecordingType()` asks
+`MediaRecorder.isTypeSupported` and the file extension follows the recorder's
+actual `mimeType` (`extForAudio`). Hardcoding `.webm`/`audio/webm` mislabels
+every iOS recording.
+
+> **Voice notes need a secure context.** `navigator.mediaDevices` is `undefined`
+> off `localhost` unless the origin is HTTPS, so on a phone hitting this app
+> over plain `http://` the mic cannot work at all — no permission prompt, no
+> error. The composer detects this and says so (checking `isSecureContext` to
+> distinguish it from an unsupported browser), and reports denied permission and
+> missing-device separately. Do not restore a bare `catch {}` here: it makes the
+> button look broken rather than blocked.
+
+**Busy state.** The plugin reports `pending`; the panel shows a bouncing-dot
+"Daisy is working…" bubble, an amber status dot in the header, and a dot on the
+collapsed rail avatar. See the plugin doc for what does and doesn't clear it.
+
+**Markdown.** Agent replies render through a ~30-line subset renderer (bold,
+inline code, links, bullet lists) rather than a markdown dependency. Tables are
+not supported — the plugin's seed prompt tells Daisy to use bullet lists.
+
+Panel open/closed and width persist to `localStorage` under `lps.chat.v1`,
+written from an effect behind a `hydrated` ref — the same pattern, and the same
+reason, as the table layout.
+
 ## Notes vs Communications
 
 The profile has two text tabs, backed by two different columns that must not be
@@ -264,15 +354,19 @@ who is actually logged in.
 
 ```
 app/
-  api/           suppliers, suppliers/[id], plants, file, rows
+  api/           suppliers, suppliers/[id], plants, file, rows, chat/[...path]
   suppliers/     list + [id] profile
   plants/        grouped plant search
   login/
   globals.css    design tokens — the theme's source of truth
+public/
+  daisy.png      Daisy's avatar — panel header, rail, agent selector, mobile tab
 components/
   ui/            lps-ui primitives (button, input, label, card, alert, badge)
   workspace/
     shell.tsx        nav rail, header, mobile tab bar, theme, session user, toasts
+    chat.tsx         agent chat: docked panel / rail / mobile sheet, polling,
+                     composer (attach, paste, voice), markdown subset
     table-parts.tsx  column picker, column head (sort/filter/resize/drag),
                      FilterControl (the head's filter widget, reused on mobile),
                      cell (plain/link/badge/list/file/url), MultiFilter
@@ -280,6 +374,7 @@ components/
     toolbar.tsx      search box, filter chips, count summary
     icons.tsx        the design's icon set
 lib/
+  agents.ts        the chattable agents (id, name, role, avatar, suggestions)
   columns.ts       column definitions mapped to schema columns + websiteHref()
   rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink)
   queries.ts       every database read, the whitelisted writes, file signing

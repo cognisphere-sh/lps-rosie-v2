@@ -24,7 +24,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
-| [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail |
+| [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
 | [`dory`](agent-dory.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) |
 
 Comparison:
@@ -34,13 +34,14 @@ Comparison:
 | `devAgent` | — | **true** |
 | `maxConcurrentSlots` | 5 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
-| Plugins | admin, agent-messaging, gws, scheduler, telegram | admin, scheduler, telegram |
+| Plugins | admin, agent-messaging, gws, scheduler, telegram, **webchat** | admin, scheduler, telegram |
 | Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels, SOP | — |
 | Migrations | 0001 (applied, superseded) | — |
 | Skills | — | cognisphere-upgrade, create-plugin |
 
-The web app (`app/`) no longer targets any agent — it reads Supabase directly
-and only uses the harness for the operator login. See
+The web app (`app/`) reads Supabase directly for its tables; it uses the
+harness for the operator login and for the **chat panel**, which talks to
+daisy through the [`webchat`](plugin-webchat.md) plugin. See
 [`../app/README.md`](../app/README.md).
 
 ### Database schema is shared, not per-agent
@@ -77,10 +78,15 @@ These are byte-identical in every agent dir:
 
 ## Plugins
 
-No catalog plugins are forked into `harness/plugins/` in this deployment
-(`.gitkeep` only). Every plugin an agent uses is a bundled core/catalog plugin
-enabled by an empty `agents/<id>/plugins/<plugin>/` dir; per-agent config and
-prompt notes are documented in each agent's file.
+One user-space plugin lives in `harness/plugins/`:
+
+| Plugin | Purpose | Enabled on |
+|---|---|---|
+| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy |
+
+No catalog plugins are forked. Every other plugin an agent uses is a bundled
+core/catalog plugin enabled by an empty `agents/<id>/plugins/<plugin>/` dir;
+per-agent config and prompt notes are documented in each agent's file.
 
 > Note: a plugin dir materializes on disk only once the plugin writes state, so
 > the authoritative list of enabled plugins per agent is its

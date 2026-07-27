@@ -2,14 +2,16 @@
 
 **Supplier management & availability-ingestion agent for LPS.** Keeps supplier
 and inventory data current in Supabase. Reachable on the Telegram main thread
-and has its own Gmail inbox.
+and in the web app's chat panel — **both route to the same `main` thread**, so
+they are one conversation, not two — and has its own Gmail inbox.
 
 ## agent.json
 
 - **name**: `daisy`
 - **description**: "Supplier management and coordination agent for LPS —
   onboards new suppliers and keeps availability/inventory data current in
-  Supabase. Reachable on the Telegram main thread."
+  Supabase. Reachable on the Telegram main thread and in the web app's chat
+  panel, which route to the same thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
   (`subagentModel` same)
 - **threadIdStrategy**: `plugin_channel`
@@ -61,6 +63,10 @@ notes/memory.
   (`plugins/telegram/state/routes.json`, managed by `scripts/telegram/routes`):
   chat `-1003988082603` → thread `main`, overriding the `plugin_channel`
   strategy so the group chat lands in the `main` thread.
+- **webchat** (user-space, [`plugin-webchat.md`](plugin-webchat.md)) — the web
+  app's chat panel. Config `{"threadId": "main"}`, so web messages land on the
+  **same thread as Telegram** and share one context. Outbound via
+  `scripts/webchat/webchat-cli send`.
 
 ## Knowledge (`knowledge/`)
 
@@ -87,7 +93,8 @@ notes/memory.
   agent-messaging).
 - `scripts/gws/` — `format-email` CLI + `format-email-lib.mjs`/`.d.mts` (decode
   Gmail message JSON to plain-text body + attachments).
-- `scripts/scheduler/scheduler-cli`, `scripts/telegram/telegram-cli`.
+- `scripts/scheduler/scheduler-cli`, `scripts/telegram/telegram-cli`,
+  `scripts/webchat/webchat-cli`.
 
 Extensions: the two shared ones.
 
