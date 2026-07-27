@@ -206,15 +206,18 @@ Returns the inventory columns plus `other_names`, `source` (=
   (typo-tolerant), **or** its `name_key` is connected to the query through
   `plant_other_names`, **or** the whole query collapses to the row's `name_key`
   ("LIVEOAK" finds "Live Oak").
-- Ordered by pgroonga relevance, then `updated_at` desc, then the whitelisted
-  sort column. Alias-only matches score 0 and sort after direct matches.
+- Ordered by pgroonga relevance desc, **then the whitelisted sort column**, then
+  `updated_at` desc, then `name` asc. Relevance always wins — `sort_column` only
+  breaks ties within a score, it does not reorder the result set. With an empty
+  `search` the score term is a constant, so it degenerates to `updated_at` desc,
+  `name` asc. Alias-only matches score 0 and sort after direct matches.
 
 ```
 search_suppliers(search text = '', category_filter text = null, fuzzy_ratio real = 0.34,
                  sort_column text = null, sort_direction text = null)
 ```
-Same pgroonga matching over name / contact / address / notes. Returns active
-suppliers.
+Same pgroonga matching over name / contact / address / notes, and the same
+ordering rule. Returns active suppliers.
 
 **`sort_column` is whitelisted inside each function; anything else is ignored.**
 

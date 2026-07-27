@@ -42,7 +42,23 @@ the real schema. Two things the design owns that are easy to lose:
 
 Fonts: Inter (`font-sans`), Playfair Display (`font-serif`) via `next/font`.
 
-## Layout
+### Deliberate deviations
+
+Everything below differs from the mock **on purpose**. If you are "restoring
+fidelity", start here rather than reverting one of these by accident:
+
+| Deviation | Why |
+|---|---|
+| `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
+| No agent chat; `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
+| No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
+| Signed-in user read from `/api/auth/me` | The mock hardcoded a name and initials into the markup. |
+| **Communications** tab added; **Notes** edits in place | The schema has two distinct columns; the mock's threaded notes map onto neither. See below. |
+| Profile inventory is paginated | The mock had a fixed list; real suppliers carry thousands of rows. |
+| Column reorder is direction-aware | The mock's algorithm makes an adjacent rightward drag a no-op. See *Column layout*. |
+| Source/website cells are links; source lists scroll | The mock rendered them as plain text. |
+
+## Shell and responsive behaviour
 
 `components/workspace/shell.tsx` renders the frame for every page:
 
@@ -62,8 +78,8 @@ without offering routes that go nowhere. Agent chat is deliberately not wired.
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit. Cards on mobile. |
-| `/suppliers/:id` | client | Profile: field grid, then Notes / Inventory / Files tabs. |
-| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group with its matching plants beside it. Grouped cards on mobile. |
+| `/suppliers/:id` | client | Profile: editable field grid, then Notes / Communications / Inventory / Files tabs. |
+| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head. Grouped cards on mobile. |
 
 | API route | Purpose |
 |---|---|
@@ -71,6 +87,7 @@ without offering routes that go nowhere. Agent chat is deliberately not wired.
 | `GET /api/suppliers/:id` | One supplier + its active sources. |
 | `GET /api/plants?q=` | Plant search grouped by supplier. `?supplierId=&page=` for one supplier's paged list. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
+| `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `PATCH /api/rows` | Inline cell edit. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). |
 
@@ -237,29 +254,41 @@ build error rather than a leaked credential. RLS is **disabled** on `suppliers`
 and `inventory`, so there is no anon-key path safe for a browser — hence no
 `NEXT_PUBLIC_` Supabase variable anywhere.
 
-## Layout of `app/`
+**Who is signed in.** The nav rail reads the current user from
+`/api/auth/me` (`useSessionUser` in `shell.tsx`) and derives the avatar
+initials from it. The design mock had a name hardcoded into the markup; don't
+put one back — the harness owns the session and is the only thing that knows
+who is actually logged in.
+
+## File map
 
 ```
 app/
-  api/           suppliers, suppliers/[id], plants, rows
+  api/           suppliers, suppliers/[id], plants, file, rows
   suppliers/     list + [id] profile
   plants/        grouped plant search
   login/
+  globals.css    design tokens — the theme's source of truth
 components/
-  ui/            lps-ui primitives (button, input, badge, card, alert, label)
+  ui/            lps-ui primitives (button, input, label, card, alert, badge)
   workspace/
-    shell.tsx        nav rail, header, mobile tab bar, theme, toasts
-    table-parts.tsx  column picker, column head (sort/filter/resize/drag), cell
+    shell.tsx        nav rail, header, mobile tab bar, theme, session user, toasts
+    table-parts.tsx  column picker, column head (sort/filter/resize/drag),
+                     cell (plain/link/badge/list/file/url), MultiFilter
     plant-table.tsx  the plant sub-table, shared by search + profile
     toolbar.tsx      search box, filter chips, count summary
     icons.tsx        the design's icon set
 lib/
-  columns.ts     column definitions mapped to schema columns
-  rows.ts        row shapes
-  queries.ts     every database read + the whitelisted writes
-  table-config.ts column layout state + persistence
-  supabase.ts    server-only client
-proxy.ts         session gate
+  columns.ts       column definitions mapped to schema columns + websiteHref()
+  rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink)
+  queries.ts       every database read, the whitelisted writes, file signing
+  table-config.ts  column layout state + localStorage persistence + reorder()
+  table-config.check.mjs  self-check for reorder()
+  use-debounced.ts search-box debounce
+  format.ts        money / number / date formatting
+  supabase.ts      server-only client
+  utils.ts         cn()
+proxy.ts           session gate
 ```
 
 ## Environment
@@ -272,3 +301,9 @@ proxy.ts         session gate
 ## Scripts
 
 `pnpm dev`, `pnpm build`, `pnpm start`, `pnpm typecheck`.
+
+There is one standalone check, run directly rather than through a test runner:
+
+```sh
+node lib/table-config.check.mjs   # column reordering
+```
