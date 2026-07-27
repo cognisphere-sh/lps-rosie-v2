@@ -3,9 +3,10 @@
 A cognisphere **app home** (pnpm workspace) with two co-located services:
 
 - **`app/`** — Next.js app for browsing the supplier and plant catalogue
-  (`/suppliers`, `/suppliers/:id`, `/plants`). Reads **Supabase** directly,
-  server-side; it uses the harness only for the operator login and does not
-  talk to agents. See [`docs/app/README.md`](docs/app/README.md).
+  (`/suppliers`, `/suppliers/:id`, `/plants`), plus a **chat panel** for talking
+  to `daisy`. Reads **Supabase** directly, server-side; it uses the harness for
+  the operator login and to reach the agent (via the `webchat` plugin).
+  See [`docs/app/README.md`](docs/app/README.md).
 - **`harness/`** — the [cognisphere](https://github.com/cognisphere-sh)
   agent harness data dir: a stateful, file-backed, localhost-bound service
   that runs the agents (`daisy`, `dory`) and serves the operator console UI.

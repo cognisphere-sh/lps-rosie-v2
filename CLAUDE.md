@@ -90,6 +90,10 @@ code change, in the same piece of work.**
 - [`docs/base-harness/`](docs/base-harness/) — reference docs for the
   installed harness library (usage, CLI, changelog, skills). **Read-only
   here** — owned upstream, refreshed by the upgrade skill. Do not edit.
+- [`CHANGELOG.md`](CHANGELOG.md) — one entry per notable change, dated (this
+  home deploys from `main`, so there are no version tags). Add to the current
+  date's section in the same diff. Reference docs say how it works *now*; the
+  changelog says what moved and why — don't duplicate one in the other.
 
 If a change is large enough to need a new section, add one. If a section
 becomes wrong, fix it in the same diff — stale docs are worse than missing
