@@ -8,6 +8,17 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0003_search_prefix_match.sql`
+Applied 2026-07-28 as `040_search_prefix_match`. `CREATE OR REPLACE` of
+`search_inventory` and `search_suppliers` only — no tables or indexes touched.
+Fixes word-prefix searches returning nothing ("Mexican Sycamor" → 0 rows while
+"Mexican Sycamore" → 17): the pgroonga `TokenDelimit` index matches whole
+tokens, its fuzzy path misses edits at the end of a token, and the 038 trgm
+fallback excludes substring-of-document queries — so typed prefixes fell
+between all branches. Both functions now also OR in the normalized query with
+a Groonga `*` prefix wildcard on the last token (only when that token is
+≥ 3 chars, to keep short tokens like "g" from matching everything).
+
 ## `0002_supplier_communication_notes.sql`
 Applied 2026-07-27. Adds `suppliers.communication_notes` (nullable text) and
 column comments separating it from `suppliers.notes`:

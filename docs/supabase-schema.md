@@ -203,9 +203,13 @@ Returns the inventory columns plus `other_names`, `source` (=
 - Active rows only; optional supplier / category filters.
 - A row matches if its **document** (name, category, variety, size, height,
   width, caliper, notes — normalized) matches the pgroonga query
-  (typo-tolerant), **or** its `name_key` is connected to the query through
-  `plant_other_names`, **or** the whole query collapses to the row's `name_key`
-  ("LIVEOAK" finds "Live Oak").
+  (typo-tolerant, and the query's trailing word is also **prefix-matched** when
+  it is ≥ 3 chars — typing "Mexican Sycamor" finds "Mexican Sycamore"), **or**
+  its `name_key` is connected to the query through `plant_other_names`, **or**
+  the whole query collapses to the row's `name_key` ("LIVEOAK" finds "Live
+  Oak"). Prefix search resolves through the pgroonga index lexicon, so it
+  only works when the planner uses the index (migration
+  `040_search_prefix_match`).
 - Ordered by pgroonga relevance desc, **then the whitelisted sort column**, then
   `updated_at` desc, then `name` asc. Relevance always wins — `sort_column` only
   breaks ties within a score, it does not reorder the result set. With an empty
@@ -216,8 +220,9 @@ Returns the inventory columns plus `other_names`, `source` (=
 search_suppliers(search text = '', category_filter text = null, fuzzy_ratio real = 0.34,
                  sort_column text = null, sort_direction text = null)
 ```
-Same pgroonga matching over name / contact / address / notes, and the same
-ordering rule. Returns active suppliers.
+Same pgroonga matching (including the trailing-word prefix match) over name /
+contact / address / notes, and the same ordering rule. Returns active
+suppliers.
 
 **`sort_column` is whitelisted inside each function; anything else is ignored.**
 

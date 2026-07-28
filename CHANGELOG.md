@@ -15,6 +15,20 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-07-28
+
+### Fixed
+
+- **Word-prefix search returned nothing** — `search_inventory('Mexican
+  Sycamor')` found 0 rows while the full word found 17. The pgroonga
+  `TokenDelimit` index only matches whole tokens, its fuzzy path doesn't cover
+  edits at the end of a token, and the trgm fallback excludes queries that are
+  substrings of the document — typed prefixes fell between every branch. Both
+  search RPCs now OR in a Groonga `*` prefix match on the query's last token
+  (when ≥ 3 chars). Migration `040_search_prefix_match`
+  (`harness/agents/daisy/migrations/0003_search_prefix_match.sql`); no app
+  code changed.
+
 ## 2026-07-27
 
 ### Added
