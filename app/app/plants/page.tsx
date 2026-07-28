@@ -47,7 +47,6 @@ export default function PlantSearchPage() {
   const [panelW, setPanelW] = useState(292)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
-  const [deleted, setDeleted] = useState<string[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
   // Mobile only: supplier cards whose plant list is collapsed.
@@ -95,23 +94,6 @@ export default function PlantSearchPage() {
     [toast],
   )
 
-  const deletePlant = useCallback(
-    async (row: PlantRow) => {
-      const res = await fetch('/api/rows', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ table: 'inventory', id: row.id }),
-      })
-      if (!res.ok) {
-        toast('Could not delete plant')
-        return
-      }
-      setDeleted((prev) => [...prev, row.id])
-      toast('Plant deactivated')
-    },
-    [toast],
-  )
-
   // Plant-level column filters apply across every supplier; a supplier whose
   // plants all filter out drops off the page entirely.
   const visibleGroups = useMemo(() => {
@@ -135,13 +117,13 @@ export default function PlantSearchPage() {
       .map((g) => ({
         ...g,
         plants: applyFilters(
-          g.plants.filter((p) => !hiddenPlants.includes(p.id) && !deleted.includes(p.id)),
+          g.plants.filter((p) => !hiddenPlants.includes(p.id)),
           plantCfg.filters,
           plantCfg.sort,
         ),
       }))
       .filter((g) => g.plants.length > 0)
-  }, [groups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, deleted, supplierPick])
+  }, [groups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, supplierPick])
 
   const supplierNames = useMemo(
     () => [...new Set(groups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
@@ -443,7 +425,6 @@ export default function PlantSearchPage() {
                           row={p}
                           cfg={plantCfg}
                           onHide={() => setHiddenPlants((prev) => [...prev, p.id])}
-                          onDelete={() => void deletePlant(p)}
                           onEdit={(col, next) => savePlant(p, col, next)}
                         />
                       ))}

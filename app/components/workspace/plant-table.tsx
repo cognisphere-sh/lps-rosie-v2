@@ -9,26 +9,34 @@ import type { useTableConfig } from '@/lib/table-config'
 
 export type PlantConfig = ReturnType<typeof useTableConfig>
 
-/** actions gutter: 16px padding + two 24px buttons, per the design. */
-export const SUB_ACTIONS_W = 16 + 24 * 2
+/** actions gutter: 16px padding + one 24px hide button, plus delete where enabled. */
+export const SUB_ACTIONS_W = 16 + 24
 
-export function plantsWidth(cfg: PlantConfig) {
-  return SUB_ACTIONS_W + cfg.visible.reduce((n, c) => n + cfg.widthOf(c), 0)
+function actionsWidth(showDelete: boolean) {
+  return SUB_ACTIONS_W + (showDelete ? 24 : 0)
+}
+
+export function plantsWidth(cfg: PlantConfig, showDelete = false) {
+  return actionsWidth(showDelete) + cfg.visible.reduce((n, c) => n + cfg.widthOf(c), 0)
 }
 
 /** The sticky header strip: column picker gutter + one head per visible column. */
 export function PlantHeaderRow({
   cfg,
   options,
+  showDelete = false,
 }: {
   cfg: PlantConfig
   options: (key: string) => string[]
+  showDelete?: boolean
 }) {
+  const width = actionsWidth(showDelete)
+
   return (
     <>
       <div
         className="relative flex flex-none items-start border-r border-lps-hair bg-lps-headrow p-1"
-        style={{ width: SUB_ACTIONS_W, minWidth: SUB_ACTIONS_W }}
+        style={{ width, minWidth: width }}
       >
         <ColumnPicker
           title="Plant columns"
@@ -72,14 +80,16 @@ export function PlantRowLine({
   row: PlantRow
   cfg: PlantConfig
   onHide: () => void
-  onDelete: () => void
+  onDelete?: () => void
   onEdit: (col: ColumnDef, next: string) => Promise<void>
 }) {
+  const width = actionsWidth(!!onDelete)
+
   return (
     <div className="lps-row flex items-stretch bg-card transition-colors hover:bg-muted">
       <div
         className="sticky left-0 z-[6] flex flex-none items-center border-r border-b border-lps-hair bg-card p-[3px_5px]"
-        style={{ width: SUB_ACTIONS_W, minWidth: SUB_ACTIONS_W }}
+        style={{ width, minWidth: width }}
       >
         <button
           type="button"
@@ -90,15 +100,17 @@ export function PlantRowLine({
         >
           <EyeOffIcon size={13} />
         </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          title="Delete row"
-          aria-label="Delete row"
-          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
-        >
-          <TrashIcon size={13} />
-        </button>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            title="Delete row"
+            aria-label="Delete row"
+            className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
+          >
+            <TrashIcon size={13} />
+          </button>
+        )}
       </div>
       {cfg.visible.map((col) => (
         <div

@@ -17,6 +17,11 @@ here).
 
 ## 2026-07-28
 
+### Changed
+
+- Removed the delete/deactivate buttons from the Suppliers and Plant Search
+  tables; their action gutters now contain only the view-local hide control.
+
 ### Fixed
 
 - **Word-prefix search returned nothing** — `search_inventory('Mexican

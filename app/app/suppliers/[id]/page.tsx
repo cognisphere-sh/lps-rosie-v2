@@ -605,9 +605,9 @@ export default function SupplierProfilePage() {
               </div>
             ) : (
               <div className="relative min-h-0 flex-1 overflow-auto">
-                <div style={{ width: plantsWidth(plantCfg), minWidth: '100%' }}>
+                <div style={{ width: plantsWidth(plantCfg, true), minWidth: '100%' }}>
                   <div className="sticky top-0 z-30 flex items-stretch border-b border-border">
-                    <PlantHeaderRow cfg={plantCfg} options={(key) => optionsFor(plants, key)} />
+                    <PlantHeaderRow cfg={plantCfg} options={(key) => optionsFor(plants, key)} showDelete />
                   </div>
                   {visiblePlants.map((p) => (
                     <PlantRowLine

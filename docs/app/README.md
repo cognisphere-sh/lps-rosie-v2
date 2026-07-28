@@ -81,9 +81,9 @@ offering routes that go nowhere.
 |---|---|---|
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
-| `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit. Cards on mobile. |
+| `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile. |
 | `/suppliers/:id` | client | Profile: editable field grid, then Notes / Communications / Inventory / Files tabs. |
-| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head. Grouped cards on mobile — each supplier card expands/collapses its plant list — with a collapsible **Filters** card (supplier, supplier category, state, city, size, price). |
+| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list — with a collapsible **Filters** card (supplier, supplier category, state, city, size, price). |
 
 | API route | Purpose |
 |---|---|
@@ -151,9 +151,10 @@ string it is handed is an oracle for every object in the `lps` bucket.
 
 ## Writing
 
-Inline edits **write to Supabase**, and row delete is a **soft delete**
-(`is_active = false`, the schema's convention). Row *hide* is view-only, with a
-Restore bar.
+Inline edits **write to Supabase**. The Suppliers and Plant Search tables expose
+only view-local row hiding, with a Restore bar; they do not show delete buttons.
+The supplier profile's Inventory tab still supports row delete as a **soft delete**
+(`is_active = false`, the schema's convention).
 
 Editing happens in two places: table cells, and the **supplier profile's detail
 card**, whose fields edit in place (`poc_*`, `phone`, `email`, `city`, `state`).

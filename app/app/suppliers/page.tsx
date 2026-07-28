@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { EyeOffIcon, TrashIcon } from '@/components/workspace/icons'
+import { EyeOffIcon } from '@/components/workspace/icons'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { Cell, ColumnHead, ColumnPicker, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
@@ -14,7 +14,7 @@ import type { SupplierRow } from '@/lib/rows'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 
-const ACTIONS_W = 16 + 26 * 2
+const ACTIONS_W = 16 + 26
 
 export default function SuppliersPage() {
   const router = useRouter()
@@ -29,7 +29,6 @@ export default function SuppliersPage() {
   const [cat, setCat] = useState('all')
   const [region, setRegion] = useState('all')
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
-  const [removed, setRemoved] = useState<number[]>([])
 
   // Debounced search → search_suppliers RPC. Stale responses are dropped so a
   // slow early query can't overwrite the results of a later one.
@@ -89,29 +88,12 @@ export default function SuppliersPage() {
     [toast],
   )
 
-  const deleteRow = useCallback(
-    async (row: SupplierRow) => {
-      const res = await fetch('/api/rows', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ table: 'suppliers', id: row.id }),
-      })
-      if (!res.ok) {
-        toast('Could not delete supplier')
-        return
-      }
-      setRemoved((prev) => [...prev, row.id])
-      toast('Supplier deactivated')
-    },
-    [toast],
-  )
-
   const visibleRows = useMemo(() => {
-    let out = rows.filter((r) => !hiddenRows.includes(r.id) && !removed.includes(r.id))
+    let out = rows.filter((r) => !hiddenRows.includes(r.id))
     if (cat !== 'all') out = out.filter((r) => r.values.category === cat)
     if (region !== 'all') out = out.filter((r) => r.values.state === region)
     return applyFilters(out, cfg.filters, cfg.sort)
-  }, [rows, hiddenRows, removed, cat, region, cfg.filters, cfg.sort])
+  }, [rows, hiddenRows, cat, region, cfg.filters, cfg.sort])
 
   const hasFilters =
     Object.keys(cfg.filters).length > 0 || !!query || cat !== 'all' || region !== 'all'
@@ -239,15 +221,6 @@ export default function SuppliersPage() {
                           className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
                           <EyeOffIcon size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void deleteRow(row)}
-                          title="Deactivate supplier"
-                          aria-label="Delete row"
-                          className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
-                        >
-                          <TrashIcon size={14} />
                         </button>
                       </div>
                     </td>
