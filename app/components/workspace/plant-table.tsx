@@ -34,18 +34,6 @@ export function PlantHeaderRow({
 
   return (
     <>
-      <div
-        className="relative flex flex-none items-start border-r border-lps-hair bg-lps-headrow p-1"
-        style={{ width, minWidth: width }}
-      >
-        <ColumnPicker
-          title="Plant columns"
-          cols={PLANT_COLS}
-          hidden={cfg.config.hidden}
-          onToggle={cfg.toggleColumn}
-          size="sm"
-        />
-      </div>
       {cfg.visible.map((col) => (
         <div
           key={col.key}
@@ -66,6 +54,18 @@ export function PlantHeaderRow({
           />
         </div>
       ))}
+      <div
+        className="sticky right-0 z-[22] flex flex-none items-start border-l border-lps-hair bg-lps-headrow p-1"
+        style={{ width, minWidth: width }}
+      >
+        <ColumnPicker
+          title="Plant columns"
+          cols={PLANT_COLS}
+          hidden={cfg.config.hidden}
+          onToggle={cfg.toggleColumn}
+          size="sm"
+        />
+      </div>
     </>
   )
 }
@@ -87,31 +87,6 @@ export function PlantRowLine({
 
   return (
     <div className="lps-row flex items-stretch bg-card transition-colors hover:bg-muted">
-      <div
-        className="sticky left-0 z-[6] flex flex-none items-center border-r border-b border-lps-hair bg-card p-[3px_5px]"
-        style={{ width, minWidth: width }}
-      >
-        <button
-          type="button"
-          onClick={onHide}
-          title="Hide row"
-          aria-label="Hide row"
-          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <EyeOffIcon size={13} />
-        </button>
-        {onDelete && (
-          <button
-            type="button"
-            onClick={onDelete}
-            title="Delete row"
-            aria-label="Delete row"
-            className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
-          >
-            <TrashIcon size={13} />
-          </button>
-        )}
-      </div>
       {cfg.visible.map((col) => (
         <div
           key={col.key}
@@ -136,6 +111,31 @@ export function PlantRowLine({
           />
         </div>
       ))}
+      <div
+        className="sticky right-0 z-[6] flex flex-none items-center border-l border-b border-lps-hair bg-card p-[3px_5px]"
+        style={{ width, minWidth: width }}
+      >
+        <button
+          type="button"
+          onClick={onHide}
+          title="Hide row"
+          aria-label="Hide row"
+          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <EyeOffIcon size={13} />
+        </button>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            title="Delete row"
+            aria-label="Delete row"
+            className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
+          >
+            <TrashIcon size={13} />
+          </button>
+        )}
+      </div>
     </div>
   )
 }

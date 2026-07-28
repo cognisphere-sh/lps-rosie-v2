@@ -152,7 +152,8 @@ string it is handed is an oracle for every object in the `lps` bucket.
 ## Writing
 
 Inline edits **write to Supabase**. The Suppliers and Plant Search tables expose
-only view-local row hiding, with a Restore bar; they do not show delete buttons.
+only view-local row hiding in a rightmost action column, with a Restore bar; they
+do not show delete buttons.
 The supplier profile's Inventory tab still supports row delete as a **soft delete**
 (`is_active = false`, the schema's convention).
 

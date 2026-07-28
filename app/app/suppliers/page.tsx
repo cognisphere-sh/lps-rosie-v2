@@ -173,17 +173,6 @@ export default function SuppliersPage() {
             >
               <thead>
                 <tr>
-                  <th
-                    className="sticky left-0 top-0 z-[22] border-b border-r border-border bg-lps-headrow p-1.5 align-top"
-                    style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
-                  >
-                    <ColumnPicker
-                      title="Columns"
-                      cols={SUPPLIER_COLS}
-                      hidden={cfg.config.hidden}
-                      onToggle={cfg.toggleColumn}
-                    />
-                  </th>
                   {cfg.visible.map((col) => (
                     <th
                       key={col.key}
@@ -203,27 +192,22 @@ export default function SuppliersPage() {
                       />
                     </th>
                   ))}
+                  <th
+                    className="sticky right-0 top-0 z-[22] border-b border-l border-border bg-lps-headrow p-1.5 align-top"
+                    style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
+                  >
+                    <ColumnPicker
+                      title="Columns"
+                      cols={SUPPLIER_COLS}
+                      hidden={cfg.config.hidden}
+                      onToggle={cfg.toggleColumn}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.map((row) => (
                   <tr key={row.id} className="lps-row bg-card transition-colors hover:bg-muted">
-                    <td
-                      className="sticky left-0 z-10 border-b border-r border-lps-hair bg-card p-[4px_6px]"
-                      style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
-                    >
-                      <div className="flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => setHiddenRows((prev) => [...prev, row.id])}
-                          title="Hide row until refresh"
-                          aria-label="Hide row"
-                          className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                          <EyeOffIcon size={14} />
-                        </button>
-                      </div>
-                    </td>
                     {cfg.visible.map((col) => (
                       <td
                         key={col.key}
@@ -244,6 +228,22 @@ export default function SuppliersPage() {
                         />
                       </td>
                     ))}
+                    <td
+                      className="sticky right-0 z-10 border-b border-l border-lps-hair bg-card p-[4px_6px]"
+                      style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
+                    >
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => setHiddenRows((prev) => [...prev, row.id])}
+                          title="Hide row until refresh"
+                          aria-label="Hide row"
+                          className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <EyeOffIcon size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

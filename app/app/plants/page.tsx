@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import {
-  PlantHeaderRow, PlantRowLine, SUB_ACTIONS_W, plantsWidth,
+  PlantHeaderRow, PlantRowLine, plantsWidth,
 } from '@/components/workspace/plant-table'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, FilterControl, MultiFilter, badgeFor } from '@/components/workspace/table-parts'

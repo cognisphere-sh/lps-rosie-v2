@@ -20,7 +20,8 @@ here).
 ### Changed
 
 - Removed the delete/deactivate buttons from the Suppliers and Plant Search
-  tables; their action gutters now contain only the view-local hide control.
+  tables; their rightmost action columns now contain only the view-local hide
+  control.
 
 ### Fixed
 
