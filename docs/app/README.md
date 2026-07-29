@@ -275,8 +275,10 @@ every iOS recording.
 collapsed rail avatar. See the plugin doc for what does and doesn't clear it.
 
 **Markdown.** Agent replies render through a ~30-line subset renderer (bold,
-inline code, links, bullet lists) rather than a markdown dependency. Tables are
-not supported — the plugin's seed prompt tells Daisy to use bullet lists.
+inline code, links, bullet lists) rather than a markdown dependency. It also
+normalizes literal `\\n` sequences from CLI replies into line breaks, including
+in existing transcript entries. Tables are not supported — the plugin's seed
+prompt tells Daisy to use bullet lists.
 
 Panel open/closed and width persist to `localStorage` under `lps.chat.v1`,
 written from an effect behind a `hydrated` ref — the same pattern, and the same

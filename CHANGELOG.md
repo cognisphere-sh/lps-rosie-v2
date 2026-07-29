@@ -15,6 +15,13 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-07-29
+
+### Fixed
+
+- Agent chat now renders literal `\\n` sequences from CLI replies as line
+  breaks, fixing paragraphs and bullet lists in both new and existing messages.
+
 ## 2026-07-28
 
 ### Changed

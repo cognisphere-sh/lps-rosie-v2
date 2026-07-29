@@ -55,7 +55,9 @@ function inline(text: string, key: string) {
 
 function Markdown({ text }: { text: string }) {
   const blocks: React.ReactNode[] = []
-  const lines = text.split('\n')
+  // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
+  // Normalize them here so existing transcript entries render correctly too.
+  const lines = text.replace(/\\r\\n|\\n|\\r/g, '\n').split('\n')
   let bullets: string[] = []
   const flush = (key: string) => {
     if (!bullets.length) return
