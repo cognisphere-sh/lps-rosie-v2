@@ -124,7 +124,10 @@ seedlings loader (`components/workspace/search-loader.tsx`; keyframes in
 the debounce window as well as the fetch — and each page anchors the overlay so
 it never covers its search box: the list pages use the Shell content slot
 (below the toolbar), the supplier profile a wrapper around the Inventory tab's
-plant list.
+plant list. The caption under the seedlings rotates every 1.6s through a quirky
+set per search flavour (`PLANT_SEARCH_LABELS` for the two plant searches,
+`SUPPLIER_SEARCH_LABELS` for the suppliers list), both defined in
+`search-loader.tsx`.
 
 `search_inventory` **cannot be called with an empty search** (it walks all ~74k
 active rows and exceeds the statement timeout — see the schema doc). With no

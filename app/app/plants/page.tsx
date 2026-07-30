@@ -8,7 +8,7 @@ import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import {
   PlantHeaderRow, PlantRowLine, plantsWidth,
 } from '@/components/workspace/plant-table'
-import { SearchOverlay } from '@/components/workspace/search-loader'
+import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, FilterControl, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
@@ -469,7 +469,7 @@ export default function PlantSearchPage() {
           )}
         </div>
       )}
-      <SearchOverlay show={searching} label="Growing your matches…" />
+      <SearchOverlay show={searching} labels={PLANT_SEARCH_LABELS} />
     </Shell>
   )
 }

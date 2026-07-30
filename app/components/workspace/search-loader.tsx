@@ -1,12 +1,45 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 const SPROUT_X = [14, 42, 70]
+
+/** Quirky captions the loader rotates through, one set per search flavour. */
+export const PLANT_SEARCH_LABELS = [
+  'Growing your matches…',
+  'Watering the seedlings…',
+  'Checking the greenhouse…',
+  'Reading the leaf tags…',
+  'Talking to the ferns…',
+  'Pruning the results…',
+  'Waiting on the bees…',
+]
+
+export const SUPPLIER_SEARCH_LABELS = [
+  'Digging through suppliers…',
+  'Ringing the nurseries…',
+  'Walking the growers’ rows…',
+  'Flipping through price lists…',
+  'Knocking on greenhouse doors…',
+  'Counting the delivery trucks…',
+]
 
 /**
  * Search loader: three seedlings sprout from the soil, sway, and sink back in
- * a staggered loop. Keyframes live in globals.css (`.lps-sprout`).
+ * a staggered loop. Keyframes live in globals.css (`.lps-sprout`). The caption
+ * rotates through `labels` while the loader stays up.
  */
-export function SearchLoader({ label }: { label: string }) {
+export function SearchLoader({ labels }: { labels: string[] }) {
+  const [tick, setTick] = useState(0)
+
+  useEffect(() => {
+    if (labels.length < 2) return
+    const timer = setInterval(() => setTick((t) => t + 1), 1600)
+    return () => clearInterval(timer)
+  }, [labels.length])
+
+  const label = labels[tick % labels.length]
+
   return (
     <div role="status" className="flex flex-col items-center gap-2">
       <svg width="84" height="64" viewBox="0 0 84 64" fill="none" aria-hidden="true">
@@ -32,7 +65,10 @@ export function SearchLoader({ label }: { label: string }) {
           strokeLinecap="round"
         />
       </svg>
-      <span className="text-[12.5px] font-semibold text-muted-foreground">{label}</span>
+      {/* Keyed on the label so each rotation replays the pop-in animation. */}
+      <span key={label} className="lps-pop text-[12.5px] font-semibold text-muted-foreground">
+        {label}
+      </span>
     </div>
   )
 }
@@ -41,11 +77,11 @@ export function SearchLoader({ label }: { label: string }) {
  * Dims the results area and centres the loader while a search request is in
  * flight. The nearest positioned ancestor decides what it covers.
  */
-export function SearchOverlay({ show, label }: { show: boolean; label: string }) {
+export function SearchOverlay({ show, labels }: { show: boolean; labels: string[] }) {
   if (!show) return null
   return (
     <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-background/60 backdrop-blur-[1.5px]">
-      <SearchLoader label={label} />
+      <SearchLoader labels={labels} />
     </div>
   )
 }

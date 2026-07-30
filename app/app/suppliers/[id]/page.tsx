@@ -11,7 +11,7 @@ import {
   CheckIcon, ChevronLeft, ChevronRight, CloseIcon, FileIcon, PencilIcon, UploadIcon,
 } from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
-import { SearchOverlay } from '@/components/workspace/search-loader'
+import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { badgeFor } from '@/components/workspace/table-parts'
 import { MASTER_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
@@ -632,7 +632,7 @@ export default function SupplierProfilePage() {
                   )}
                 </div>
               )}
-              <SearchOverlay show={searchingPlants} label="Searching this supplier's list…" />
+              <SearchOverlay show={searchingPlants} labels={PLANT_SEARCH_LABELS} />
             </div>
           </div>
         )}

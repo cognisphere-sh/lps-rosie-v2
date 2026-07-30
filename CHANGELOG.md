@@ -35,7 +35,9 @@ here).
   theme-coloured, staggered, honours `prefers-reduced-motion`). The loader
   starts on the first keystroke — it also covers the 300ms debounce window that
   already gated the search RPCs — and empty states no longer flash while a
-  search is pending. Its caption rotates through a set of quirky lines per
+  search is pending. The caption under the seedlings rotates every 1.6s
+  through a quirky set per search flavour (plant searches vs the suppliers
+  list) instead of one fixed line per page. Its caption rotates through a set of quirky lines per
   search flavour ("Watering the seedlings…", "Ringing the nurseries…", …).
 
 - **Know your Agents page (`/agents`)**: one card per agent showing its

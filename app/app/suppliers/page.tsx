@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { EyeOffIcon } from '@/components/workspace/icons'
-import { SearchOverlay } from '@/components/workspace/search-loader'
+import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { Cell, ColumnHead, ColumnPicker, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
@@ -277,7 +277,7 @@ export default function SuppliersPage() {
           )}
         </div>
       )}
-      <SearchOverlay show={searching} label="Digging through suppliers…" />
+      <SearchOverlay show={searching} labels={SUPPLIER_SEARCH_LABELS} />
     </Shell>
   )
 }
