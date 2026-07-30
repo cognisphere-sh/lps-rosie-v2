@@ -13,7 +13,6 @@ they are one conversation, not two — and has its own Gmail inbox.
   Supabase. Reachable on the Telegram main thread and in the web app's chat
   panel, which route to the same thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
-  (`subagentModel` same)
 - **threadIdStrategy**: `plugin_channel`
 - **maxConcurrentSlots**: 5 · **maxAttempts**: 3 · **runtime**: `subprocess`
 - **devAgent**: no
@@ -78,7 +77,7 @@ notes/memory.
   `workspace/suppliers/[<id>]:<Name>/notes.md` (see `workspace/suppliers/index.md`).
 - `gmail-labels.md` — Gmail label ID taxonomy (e.g. `Daisy` = `Label_12`) with a
   live-lookup command if stale.
-- `SOPs/supplier-onboarding-and-ingestion.md` — end-to-end SOP a sub-agent
+- `SOPs/supplier-onboarding-and-ingestion.md` — end-to-end SOP a task thread
   follows to onboard a supplier and ingest one availability drop (parse + DB
   writes), with an output contract.
 

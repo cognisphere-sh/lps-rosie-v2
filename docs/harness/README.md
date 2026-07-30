@@ -2,7 +2,7 @@
 
 Documentation for **this deployment's** harness data dir (`harness/`): its
 agents and user-space plugins. Owned by whoever changes the code — the
-developer agent (`dory`) or a human — and updated **after every change** under
+developer agent (`nova`) or a human — and updated **after every change** under
 `harness/` (see `CLAUDE.md` §7). How the harness platform itself works is
 documented in [`../base-harness/`](../base-harness/README.md).
 
@@ -11,7 +11,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.7.1**, timezone **America/Chicago**.
+- `harness.json` — version **0.8.0**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
   wholesale plant nursery. Two agents run the supply and dev split.
 
@@ -25,16 +25,16 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
-| [`dory`](agent-dory.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) |
+| [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) |
 
 Comparison:
 
-| | daisy | dory |
+| | daisy | nova |
 |---|---|---|
 | `devAgent` | — | **true** |
 | `maxConcurrentSlots` | 5 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
-| Plugins | admin, agent-messaging, gws, scheduler, telegram, **webchat** | admin, scheduler, telegram |
+| Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram (+ core: agent-messaging) |
 | Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels, SOP | — |
 | Migrations | 0001 (applied, superseded) | — |
 | Skills | — | cognisphere-upgrade, create-plugin |
@@ -69,12 +69,14 @@ These are byte-identical in every agent dir:
   queued event to its place in the session JSONL.
 - **`scripts/agent/` toolset**: `agent-browser` (browser CLI), `ddgs` (web
   metasearch), `markitdown` (file/URL → markdown), `session-reader` (paginated
-  session-transcript reader), `subagent` (`pi -p` wrapper pinning the configured
-  subagent model), `sub-agent-prompt.md` (brief injected into every sub-agent).
+  session-transcript reader). (The `subagent` wrapper and `sub-agent-prompt.md`
+  were removed in harness 0.8.0 — delegation now runs through task threads via
+  the core agent-messaging plugin.)
 - **Bootstrap** (`bootstrap/bootstrap.sh` + `requirements.txt`): provisions the
   Python `.venv` (`ddgs`, `markitdown`) and npm globals on every start.
-- **Base system prompts**: `0-base_prompt.md`, `0.1-main-agent.md`,
-  `0.3-agent-directory.md`, then the per-agent `1-*.md` persona.
+- **Base system prompts**: `0-base_prompt.md` (identity, tools, workspace,
+  threads, task threads), `0.1-agent-directory.md` (roster), then the
+  per-agent `1-*.md` persona.
 
 ## Plugins
 

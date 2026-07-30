@@ -1,7 +1,7 @@
 # App documentation
 
 The user-facing web app (`app/`). Owned by whoever changes the code — the
-developer agent (`dory`) or a human — and updated **after every change** under
+developer agent (`nova`) or a human — and updated **after every change** under
 `app/` (see `CLAUDE.md` §7).
 
 ## What it is

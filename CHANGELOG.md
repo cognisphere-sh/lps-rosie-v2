@@ -15,6 +15,29 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-07-30
+
+### Changed
+
+- **Upgraded `cognisphere-harness` 0.7.1 → 0.8.0** (two-phase: dependency bump +
+  data-dir migration per the upstream CHANGELOG window):
+  - Sub-agent CLI removed upstream — deleted the seeded
+    `scripts/agent/subagent` + `sub-agent-prompt.md` from both agents, and
+    removed `subagentModel` from daisy's `agent.json`. Delegation now runs
+    through **task threads** (self-messages via the core agent-messaging
+    plugin); daisy's `1-agent.md` ingestion workflow was reworded accordingly.
+  - `0.1-main-agent.md` merged upstream into `0-base_prompt.md` — replaced both
+    agents' base prompt with the new seed (forks were pristine; daisy's former
+    local edits are already covered by her `1-agent.md`) and deleted
+    `0.1-main-agent.md`. Roster renamed `0.3-agent-directory.md` →
+    `0.1-agent-directory.md`.
+  - agent-messaging became a core plugin — removed daisy's now-redundant enable
+    dir (config was `{}`, inbox/state empty).
+  - Developer agent id frozen upstream to `nova` — renamed `agents/dory/` →
+    `agents/nova/`, updated `agent.json`, daisy's roster entry, and the docs
+    (`docs/harness/agent-dory.md` → `agent-nova.md`); replaced the pristine
+    `1-dev-agent.md` fork with the new nova seed.
+
 ## 2026-07-29
 
 ### Changed

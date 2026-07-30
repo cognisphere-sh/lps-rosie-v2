@@ -1,11 +1,11 @@
-# Agent: dory
+# Agent: nova
 
 **The developer agent.** Owns and modifies this deployment's code. Reachable
 exclusively on Telegram.
 
 ## agent.json
 
-- **name**: `dory`
+- **name**: `nova`
 - **description**: "Developer agent: owns and modifies this deployment's
   platform code — agent prompts/scripts, forked plugins, the user-facing
   frontend app, deploy scripts — and keeps docs/harness + docs/app current.
@@ -17,7 +17,7 @@ exclusively on Telegram.
 
 ## Purpose
 
-Dory is the developer/engineering agent for the whole deployment. Its job is
+Nova is the developer/engineering agent for the whole deployment. Its job is
 not conversation but **owning and modifying the app-home code**: `app/`
 (frontend), `harness/` (agent prompts, scripts, workspace, user-space plugins),
 `scripts/` (deploy + lifecycle), and `docs/`. It follows repo
@@ -29,19 +29,22 @@ It can ship `app/` changes itself (`sudo ./scripts/server.sh restart app`) but
 defers harness restarts to the operator (it lives inside the harness). It
 maintains `docs/harness/` and `docs/app/`, and reads (never edits)
 `docs/base-harness/`. Reachable **exclusively on Telegram**; `/reset` wipes its
-context. Other agents are instructed to pass code-change requests to Dory
+context. Other agents are instructed to pass code-change requests to Nova
 rather than modify the platform themselves.
 
 ## Plugins
 
 Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write):
 
-- **admin** — admin chat channel; the human admin reads Dory's visible text.
+- **admin** — admin chat channel; the human admin reads Nova's visible text.
 - **telegram** — Telegram bot (long-poll, server-side); inbound as
   `<harness-metadata>` blocks, media downloaded to `plugins/telegram/inbox/`,
   outbound via `scripts/telegram/telegram-cli`.
 - **scheduler** — cron timers; `schedule_fire` events; `state/schedules.json`
   empty. Managed via `scripts/scheduler/scheduler-cli`.
+- **agent-messaging** — core plugin since harness 0.8.0 (auto-installed on
+  every agent); other agents route code-change requests to nova through it,
+  and task threads are spawned with it.
 
 ## Scripts & extensions
 
