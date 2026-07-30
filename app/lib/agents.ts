@@ -14,6 +14,8 @@ export type Agent = {
   avatar: string
   profile: string
   upcoming?: boolean
+  /** Empty-transcript line shown in the panel before the first message. */
+  intro: string
   suggestions: string[]
 }
 
@@ -24,6 +26,7 @@ export const AGENTS: Agent[] = [
     role: 'Supplier management',
     avatar: '/daisy.png',
     profile: '/daisy_profile.png',
+    intro: 'Ask Daisy about suppliers, availability lists or catalogue data.',
     suggestions: [
       'Which supplier lists are stale?',
       'Add a new supplier',
@@ -37,6 +40,7 @@ export const AGENTS: Agent[] = [
     avatar: '/rosie.png',
     profile: '/rosie_profile.png',
     upcoming: true,
+    intro: 'Rosie will look after customer relationships. Coming soon.',
     suggestions: [],
   },
   {
@@ -45,8 +49,12 @@ export const AGENTS: Agent[] = [
     role: 'Developer & app builder',
     avatar: '/nova.png',
     profile: '/nova_profile.png',
-    upcoming: true,
-    suggestions: [],
+    intro: 'Ask Nova for changes to this app — bug fixes, tweaks and new features.',
+    suggestions: [
+      'What have you shipped recently?',
+      'Report a bug in the app',
+      'Request a small UI change',
+    ],
   },
 ]
 

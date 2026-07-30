@@ -1,7 +1,7 @@
 # Agent: nova
 
 **The developer agent.** Owns and modifies this deployment's code. Reachable
-exclusively on Telegram.
+on Telegram and in the web app's chat panel.
 
 ## agent.json
 
@@ -9,7 +9,8 @@ exclusively on Telegram.
 - **description**: "Developer agent: owns and modifies this deployment's
   platform code — agent prompts/scripts, forked plugins, the user-facing
   frontend app, deploy scripts — and keeps docs/harness + docs/app current.
-  Send code, app and docs change requests here. Reachable on Telegram."
+  Send code, app and docs change requests here. Reachable on Telegram and in
+  the web app's chat panel, which route to the same thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
 - **threadIdStrategy**: `single`
 - **`devAgent`: true**
@@ -28,9 +29,11 @@ not conversation but **owning and modifying the app-home code**: `app/`
 It can ship `app/` changes itself (`sudo ./scripts/server.sh restart app`) but
 defers harness restarts to the operator (it lives inside the harness). It
 maintains `docs/harness/` and `docs/app/`, and reads (never edits)
-`docs/base-harness/`. Reachable **exclusively on Telegram**; `/reset` wipes its
-context. Other agents are instructed to pass code-change requests to Nova
-rather than modify the platform themselves.
+`docs/base-harness/`. Reachable on **Telegram** (`/reset` wipes its context)
+and the **web app's chat panel** ([`webchat`](plugin-webchat.md)); both land on
+its single `default` thread, so they are one conversation. Other agents are
+instructed to pass code-change requests to Nova rather than modify the
+platform themselves.
 
 ## Plugins
 
@@ -45,11 +48,17 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
 - **agent-messaging** — core plugin since harness 0.8.0 (auto-installed on
   every agent); other agents route code-change requests to nova through it,
   and task threads are spawned with it.
+- **webchat** — the web app's chat panel ([user-space
+  plugin](plugin-webchat.md)); `config.json` sets `threadId: "default"` so
+  panel messages join the same thread as everything else (nova's `single`
+  strategy computes `default`, and the override must match it). Replies via
+  `scripts/webchat/webchat-cli`.
 
 ## Scripts & extensions
 
 `scripts/agent/` (shared toolset) + `scripts/scheduler/scheduler-cli` +
-`scripts/telegram/telegram-cli`. Extensions: the two shared ones.
+`scripts/telegram/telegram-cli` + `scripts/webchat/webchat-cli`. Extensions:
+the two shared ones.
 
 ## Skills (`skills/agent/`)
 

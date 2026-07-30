@@ -51,7 +51,7 @@ fidelity", start here rather than reverting one of these by accident:
 |---|---|
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
 | `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
-| Chat lists three agents (Daisy, Rosie, Nova) but only Daisy is chattable | Rosie and Nova are `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |
+| Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |
 | No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
 | A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
 | Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
@@ -70,8 +70,9 @@ fidelity", start here rather than reverting one of these by accident:
   with the page title + subtitle, and the agent chat on the right — a resizable
   docked panel, or a 46px rail when hidden.
 - **Mobile** (<900px, the design's own breakpoint): the left rail is replaced by
-  a bottom tab bar (which carries a tab per agent — Daisy's opens the chat,
-  upcoming agents are disabled), and both list pages swap their tables for card
+  a bottom tab bar (which carries a tab per agent — tapping a chattable agent
+  opens the chat sheet on that agent, tapping it again closes it, and upcoming
+  agents are disabled), and both list pages swap their tables for card
   lists. The chat sheet overlays the page content only — it is rendered inside
   the main column's relative wrapper, above the tab bar, so navigation stays
   visible and usable while chatting. The bar ends in a **⋯ More** menu carrying
@@ -217,19 +218,23 @@ the most common "nudge this one over" gesture. `lib/table-config.check.mjs`
 
 ## Agent chat
 
-`components/workspace/chat.tsx` is the panel from the design, wired to a real
-agent through the harness's [`webchat`](../harness/plugin-webchat.md) plugin.
-Daisy's messages route to her `main` thread — **the same thread Telegram uses**
-— so the panel and Telegram are one conversation.
+`components/workspace/chat.tsx` is the panel from the design, wired to real
+agents through the harness's [`webchat`](../harness/plugin-webchat.md) plugin.
+Each agent's messages route to **the same thread its Telegram uses** (Daisy's
+`main`, Nova's `default`), so the panel and Telegram are one conversation per
+agent.
 
 `lib/agents.ts` is the single list of agents (id, display name, role, avatar,
-profile banner, starter suggestions). It drives the collapsed rail, the mobile
-tab, the `/agents` page and the `/api/chat/<id>/…` allowlist. Entries with
-`upcoming: true` (Rosie, Nova) appear everywhere but are disabled — the UI
-greys them out as "Coming soon" and the chat proxy answers 404 for them;
-`CHAT_AGENTS` is the filtered chattable subset. Activating one is removing the
-flag plus `mkdir harness/agents/<id>/plugins/webchat`. There is no selector in
-the panel header — switching agents happens from the collapsed rail.
+profile banner, empty-state intro, starter suggestions). It drives the
+collapsed rail, the mobile tab, the `/agents` page and the `/api/chat/<id>/…`
+allowlist. Entries with `upcoming: true` (Rosie) appear everywhere but are
+disabled — the UI greys them out as "Coming soon" and the chat proxy answers
+404 for them; `CHAT_AGENTS` is the filtered chattable subset. Activating one is
+removing the flag plus `mkdir harness/agents/<id>/plugins/webchat` (with a
+`config.json` naming the thread its Telegram routes to — see the plugin doc).
+There is no selector in the panel header — switching agents happens from the
+collapsed rail on desktop and the tab bar's agent tabs on mobile (`shell.tsx`
+owns the mobile selection and passes it down as `mobileAgentId`).
 
 **Transport.** `app/api/chat/[...path]/route.ts` forwards to
 `<harness>/webhook/<agent>/webchat/api/<action>`, passing the cookie and
@@ -404,7 +409,7 @@ components/
     icons.tsx        the design's icon set
 lib/
   agents.ts        the agents (id, name, role, avatar, profile, upcoming flag,
-                   suggestions) + CHAT_AGENTS, the chattable subset
+                   intro, suggestions) + CHAT_AGENTS, the chattable subset
   columns.ts       column definitions mapped to schema columns + websiteHref()
   rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink)
   queries.ts       every database read, the whitelisted writes, file signing

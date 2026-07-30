@@ -25,7 +25,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
-| [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) |
+| [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) + the app's chat panel |
 
 Comparison:
 
@@ -34,14 +34,14 @@ Comparison:
 | `devAgent` | — | **true** |
 | `maxConcurrentSlots` | 5 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
-| Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram (+ core: agent-messaging) |
+| Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram, **webchat** (+ core: agent-messaging) |
 | Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels, SOP | — |
 | Migrations | 0001 (applied, superseded) | — |
 | Skills | — | cognisphere-upgrade, create-plugin |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
-daisy through the [`webchat`](plugin-webchat.md) plugin. See
+daisy and nova through the [`webchat`](plugin-webchat.md) plugin. See
 [`../app/README.md`](../app/README.md).
 
 ### Database schema is shared, not per-agent
@@ -84,7 +84,7 @@ One user-space plugin lives in `harness/plugins/`:
 
 | Plugin | Purpose | Enabled on |
 |---|---|---|
-| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy |
+| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova |
 
 No catalog plugins are forked. Every other plugin an agent uses is a bundled
 core/catalog plugin enabled by an empty `agents/<id>/plugins/<plugin>/` dir;

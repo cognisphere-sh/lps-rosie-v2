@@ -19,13 +19,24 @@ here).
 
 ### Added
 
+- **Nova is now chattable from the web app**: the `webchat` plugin is enabled
+  on `nova` (`harness/agents/nova/plugins/webchat/config.json` with
+  `threadId: "default"` — the thread nova's `single` strategy computes, so the
+  panel and Telegram share one conversation) and its seed CLI/prompt are
+  checked in. In the app, Nova's `upcoming` flag is removed in `lib/agents.ts`
+  (with dev-flavoured starter suggestions), the panel's empty-state line is now
+  a per-agent `intro` instead of Daisy's hardcoded one, and the mobile tab
+  bar's agent tabs now select which agent the chat sheet opens with (same tab
+  toggles it closed). Rosie remains the only "Coming soon" agent.
+
 - **Animated search loader**: while a search is in flight on Plant search, the
   Suppliers list or a supplier profile's Inventory tab, the results area dims
   under three sprouting seedlings (`components/workspace/search-loader.tsx`,
   theme-coloured, staggered, honours `prefers-reduced-motion`). The loader
   starts on the first keystroke — it also covers the 300ms debounce window that
   already gated the search RPCs — and empty states no longer flash while a
-  search is pending.
+  search is pending. Its caption rotates through a set of quirky lines per
+  search flavour ("Watering the seedlings…", "Ringing the nurseries…", …).
 
 - **Know your Agents page (`/agents`)**: one card per agent showing its
   profile banner (`app/public/*_profile.png`) with an Active / Coming soon

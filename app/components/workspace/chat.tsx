@@ -545,7 +545,7 @@ function Transcript({
       {messages.length === 0 && !pending && (
         <div className="m-auto max-w-[240px] text-center text-[12.5px] text-muted-foreground">
           <Image src={agent.avatar} alt="" width={56} height={56} className="mx-auto mb-3 rounded-full" />
-          Ask {agent.name} about suppliers, availability lists or catalogue data.
+          {agent.intro}
         </div>
       )}
 
@@ -795,10 +795,12 @@ function Composer({
  * tab bar can toggle it.
  */
 export function AgentChat({
-  isMobile, mobileOpen, onMobileClose,
+  isMobile, mobileOpen, mobileAgentId, onMobileClose,
 }: {
   isMobile: boolean
   mobileOpen: boolean
+  /** Mobile only: which agent the tab bar picked — the sheet has no rail. */
+  mobileAgentId?: string
   onMobileClose: () => void
 }) {
   const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
@@ -808,10 +810,11 @@ export function AgentChat({
   const [menu, setMenu] = useState(false)
   const hydrated = useRef(false)
 
-  const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === agentId) ?? CHAT_AGENTS[0], [agentId])
+  const activeId = isMobile ? mobileAgentId ?? CHAT_AGENTS[0].id : agentId
+  const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === activeId) ?? CHAT_AGENTS[0], [activeId])
   const visible = isMobile ? mobileOpen : open
-  const chat = useChat(agentId, visible)
-  const composer = useComposer(agentId)
+  const chat = useChat(agent.id, visible)
+  const composer = useComposer(agent.id)
 
   // Restore the docked panel's state after mount, so the server render and the
   // first client render agree (same guard the table layout uses).

@@ -1,13 +1,17 @@
 # Plugin: webchat
 
 **A browser chat channel for an agent.** User-space plugin at
-`harness/plugins/webchat/`; enabled on [`daisy`](agent-daisy.md).
+`harness/plugins/webchat/`; enabled on [`daisy`](agent-daisy.md) and
+[`nova`](agent-nova.md).
 
 The web app's chat panel (`app/components/workspace/chat.tsx`) posts here
 through a thin app-side proxy; the agent answers with the seeded
 `scripts/webchat/webchat-cli`. Messages land on the thread named in config —
-`main` for daisy, **the same thread telegram routes to** — so the panel and
-Telegram are one conversation, not two.
+**the same thread telegram routes to** — so the panel and Telegram are one
+conversation, not two. That thread id depends on the agent: `main` for daisy
+(her telegram main route's override), `default` for nova (what its `single`
+strategy computes — `threadIdOverride` bypasses the strategy, so naming any
+other thread here would split the conversation).
 
 ## Config
 

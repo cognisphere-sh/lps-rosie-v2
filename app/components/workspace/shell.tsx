@@ -12,7 +12,7 @@ import {
   AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InventoryIcon, LogoutIcon,
   MoonIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
-import { AGENTS } from '@/lib/agents'
+import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
 export type PageId = 'suppliers' | 'inventory' | 'agents' | 'requests' | 'settings'
@@ -113,6 +113,7 @@ export function Shell({
   const [navOpen, setNavOpen] = useState(true)
   const [userMenu, setUserMenu] = useState(false)
   const [mobileChat, setMobileChat] = useState(false)
+  const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -303,6 +304,7 @@ export function Shell({
                 <AgentChat
                   isMobile
                   mobileOpen={mobileChat}
+                  mobileAgentId={mobileAgent}
                   onMobileClose={() => setMobileChat(false)}
                 />
               )}
@@ -384,11 +386,19 @@ export function Shell({
                     key={a.id}
                     type="button"
                     disabled={a.upcoming}
-                    onClick={() => setMobileChat((v) => !v)}
+                    onClick={() => {
+                      // Same agent again toggles the sheet; another agent switches it.
+                      if (mobileChat && mobileAgent === a.id) {
+                        setMobileChat(false)
+                      } else {
+                        setMobileAgent(a.id)
+                        setMobileChat(true)
+                      }
+                    }}
                     aria-label={a.upcoming ? `${a.name} — coming soon` : a.name}
                     className={cn(
                       'flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
-                      mobileChat ? 'text-primary' : 'text-muted-foreground',
+                      mobileChat && mobileAgent === a.id ? 'text-primary' : 'text-muted-foreground',
                       a.upcoming ? 'cursor-not-allowed opacity-45' : 'cursor-pointer',
                     )}
                   >

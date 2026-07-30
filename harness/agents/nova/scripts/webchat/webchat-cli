@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# webchat-cli — deliver a reply to the web chat panel. Seeded by the `webchat`
+# plugin; your turn text is internal, so a reply only reaches the user when it
+# goes through here.
+#
+#   webchat-cli send --text "…" [--file <path>]…
+#
+# --file may be repeated. Paths are relative to the agent dir (or absolute
+# inside it); the plugin copies each into its outbox and the browser renders
+# images inline and everything else as a download.
+#
+# Auth: sends $COGNISPHERE_WEBHOOK_SECRET as X-Webhook-Secret (harness env).
+# The inbox URL comes from $PI_WEBHOOK_BASE (`<server>/webhook/<agent>`, set by
+# the harness runner) — never a hardcoded port, which would break the moment the
+# harness moved off its default. Override the whole origin with HARNESS_BASE_URL.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+webchat-cli — reply to the web chat panel.
+
+USAGE
+  scripts/webchat/webchat-cli send --text "…" [--file <path>]…
+  scripts/webchat/webchat-cli --self-check
+
+FLAGS
+  --text <text>   the reply body (markdown)
+  --file <path>   attach a file, relative to the agent dir; repeatable
+  --self-check    offline payload self-test, no network
+  -h, --help      show this help
+
+The inbox URL comes from $PI_WEBHOOK_BASE (set by the harness). Set
+HARNESS_BASE_URL to point at a different harness origin.
+EOF
+}
+
+agent="${PI_AGENT_ID:-}"
+text="" selfcheck=false
+files=()
+
+cmd="${1:-}"
+case "$cmd" in
+  -h|--help) usage; exit 0 ;;
+  send) shift ;;
+  --self-check) selfcheck=true; shift ;;
+  *) echo "unknown command: ${cmd:-<none>} (expected: send)" >&2; usage >&2; exit 2 ;;
+esac
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)    usage; exit 0 ;;
+    --text)       text="$2"; shift 2 ;;
+    --file)       files+=("$2"); shift 2 ;;
+    --self-check) selfcheck=true; shift ;;
+    *) echo "unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
+
+payload() {
+  local list='[]'
+  if [ ${#files[@]} -gt 0 ]; then
+    list="$(printf '%s\n' "${files[@]}" | jq -R . | jq -sc .)"
+  fi
+  jq -cn --arg text "$text" --argjson att "$list" '{text:$text, attachments:$att}'
+}
+
+if $selfcheck; then
+  text="hi" files=("a.png" "b b.pdf")
+  payload | jq -e '.text=="hi" and (.attachments|length)==2 and .attachments[1]=="b b.pdf"' >/dev/null \
+    && { echo "self-check OK"; exit 0; } || { echo "self-check FAILED" >&2; exit 1; }
+fi
+
+[ -n "$text" ] || [ ${#files[@]} -gt 0 ] || {
+  echo "usage: webchat-cli send --text \"…\" [--file path]" >&2; exit 2; }
+
+# Prefer the runner-provided base; fall back to composing one only if it's absent.
+if [ -n "${HARNESS_BASE_URL:-}" ]; then
+  : "${agent:?PI_AGENT_ID not set — run this from inside an agent}"
+  inbox="$HARNESS_BASE_URL/webhook/$agent/webchat"
+else
+  : "${PI_WEBHOOK_BASE:?PI_WEBHOOK_BASE not set — run this from inside an agent}"
+  inbox="$PI_WEBHOOK_BASE/webchat"
+fi
+
+resp="$(curl -sS -X POST -H 'content-type: application/json' \
+  -H "x-webhook-secret: ${COGNISPHERE_WEBHOOK_SECRET:-}" -w $'\n%{http_code}' \
+  --data "$(payload)" "$inbox/api/reply")" \
+  || { echo "webchat send failed — could not reach the inbox at $inbox" >&2; exit 1; }
+code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+if [ "$code" != "200" ]; then
+  echo "webchat send failed (HTTP $code): $body" >&2; exit 1
+fi
+echo "$body"
