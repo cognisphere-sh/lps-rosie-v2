@@ -11,7 +11,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.8.3**, timezone **America/Chicago**.
+- `harness.json` — version **0.8.5**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
   wholesale plant nursery. Two agents run the supply and dev split.
 

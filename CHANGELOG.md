@@ -17,6 +17,19 @@ here).
 
 ## 2026-07-30
 
+### Changed
+
+- **Harness upgraded 0.8.3 → 0.8.5.** Task-thread ids move to the
+  unambiguous `<ThreadId>-§-[TASK]-§-<task-slug>` form and the admin UI
+  groups task threads under their parent thread (no data migration —
+  old-format threads keep working). Migration re-seeded both agents'
+  `0-base_prompt.md`, `plugin-agent-messaging.md`, and `session-reader`
+  (all were clean forks), and refreshed the harness-owned scaffold
+  (`.claude/skills/`, `.agents/skills/`, `docs/base-harness/`); the local
+  Supabase env wiring in `scripts/server.sh` / `config.example` was
+  untouched upstream and survives intact. 0.8.4 also reworked the upgrade
+  skill's scaffold refresh to audit local edits before copying.
+
 ### Added
 
 - **Nova is now chattable from the web app**: the `webchat` plugin is enabled
