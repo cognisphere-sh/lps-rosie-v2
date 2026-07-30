@@ -19,6 +19,14 @@ here).
 
 ### Changed
 
+- **Upgraded `cognisphere-harness` 0.8.0 → 0.8.1** (prompt/script corrections
+  from upstream): re-seeded `0-base_prompt.md` (drops the `ddgs -o json`
+  advice, routes plugin requests to `nova` instead of the operator) and the
+  `scripts/agent/` wrappers (`session-reader` help reflects the task-thread
+  session layout; wrapper headers no longer cite the removed `pi -p` CLI) on
+  both agents. Daisy's local `cd /tmp` guard in the `ddgs` wrapper was
+  re-applied on top of the new seed.
+
 - **Upgraded `cognisphere-harness` 0.7.1 → 0.8.0** (two-phase: dependency bump +
   data-dir migration per the upstream CHANGELOG window):
   - Sub-agent CLI removed upstream — deleted the seeded
