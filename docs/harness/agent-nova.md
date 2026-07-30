@@ -30,8 +30,11 @@ It can ship `app/` changes itself (`sudo ./scripts/server.sh restart app`) but
 defers harness restarts to the operator (it lives inside the harness). It
 maintains `docs/harness/` and `docs/app/`, and reads (never edits)
 `docs/base-harness/`. Reachable on **Telegram** (`/reset` wipes its context)
-and the **web app's chat panel** ([`webchat`](plugin-webchat.md)); both land on
-its single `default` thread, so they are one conversation. Other agents are
+and the **web app's chat panel** ([`webchat`](plugin-webchat.md)); both target
+the `main` thread — webchat pins it in config, telegram via a `main` chat
+route (daisy's pattern; until that route exists in
+`plugins/telegram/state/routes.json`, telegram messages fall through to the
+`single` strategy's `default` thread). Other agents are
 instructed to pass code-change requests to Nova rather than modify the
 platform themselves.
 
@@ -49,9 +52,9 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
   every agent); other agents route code-change requests to nova through it,
   and task threads are spawned with it.
 - **webchat** — the web app's chat panel ([user-space
-  plugin](plugin-webchat.md)); `config.json` sets `threadId: "default"` so
-  panel messages join the same thread as everything else (nova's `single`
-  strategy computes `default`, and the override must match it). Replies via
+  plugin](plugin-webchat.md)); `config.json` sets `threadId: "main"` (plus
+  explicit defaults for the other keys) so panel messages share the `main`
+  thread with telegram's main route. Replies via
   `scripts/webchat/webchat-cli`.
 
 ## Scripts & extensions

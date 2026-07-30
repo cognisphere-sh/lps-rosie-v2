@@ -8,10 +8,9 @@ The web app's chat panel (`app/components/workspace/chat.tsx`) posts here
 through a thin app-side proxy; the agent answers with the seeded
 `scripts/webchat/webchat-cli`. Messages land on the thread named in config —
 **the same thread telegram routes to** — so the panel and Telegram are one
-conversation, not two. That thread id depends on the agent: `main` for daisy
-(her telegram main route's override), `default` for nova (what its `single`
-strategy computes — `threadIdOverride` bypasses the strategy, so naming any
-other thread here would split the conversation).
+conversation, not two. The thread id is per-agent config (`threadId`, table
+below); `threadIdOverride` bypasses the agent's `threadIdStrategy`, so naming
+a thread telegram doesn't route to would split the conversation.
 
 ## Config
 

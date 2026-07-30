@@ -1,3 +1,6 @@
 {
-  "threadId": "default"
+  "threadId": "main",
+  "maxUploadMb": 25,
+  "pendingTimeoutSec": 900,
+  "historyLimit": 200
 }

@@ -19,6 +19,16 @@ here).
 
 ### Changed
 
+- **Nova's webchat re-pointed to the `main` thread**
+  (`harness/agents/nova/plugins/webchat/config.json`, now with the other
+  keys' defaults spelled out), matching the telegram main-route pattern;
+  daisy's `config.json` was dropped as redundant (the plugin default is
+  already `main`). Nova's telegram bot is live (`lps_nova_bot`), but until
+  a `main` chat route exists in its `plugins/telegram/state/routes.json`
+  (runtime state, like daisy's), telegram messages still land on the
+  `single` strategy's `default` thread rather than sharing `main` with the
+  panel.
+
 - **Harness upgraded 0.8.3 → 0.8.5.** Task-thread ids move to the
   unambiguous `<ThreadId>-§-[TASK]-§-<task-slug>` form and the admin UI
   groups task threads under their parent thread (no data migration —
