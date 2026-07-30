@@ -33,6 +33,14 @@ export const RequestsIcon = (p: P) => (
   </svg>
 )
 
+export const AgentsIcon = (p: P) => (
+  <svg {...stroke} {...box(p)} className={p.className}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M3.5 20c.6-3.4 2.6-5 5.5-5s4.9 1.6 5.5 5" />
+    <path d="M15.5 4.6a3.5 3.5 0 0 1 0 6.8M17.5 15.3c1.7.6 2.7 2.1 3 4.7" />
+  </svg>
+)
+
 export const SettingsIcon = (p: P) => (
   <svg {...stroke} {...box(p)} className={p.className}>
     <circle cx="12" cy="12" r="3" />

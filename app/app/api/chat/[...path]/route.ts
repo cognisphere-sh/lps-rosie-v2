@@ -21,7 +21,8 @@ const ACTIONS = new Set(['messages', 'send', 'upload', 'file', 'reset'])
 
 async function forward(req: Request, path: string[]): Promise<Response> {
   const [agentId, action] = path
-  if (!agentById(agentId ?? '') || !ACTIONS.has(action ?? '')) {
+  const agent = agentById(agentId ?? '')
+  if (!agent || agent.upcoming || !ACTIONS.has(action ?? '')) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 

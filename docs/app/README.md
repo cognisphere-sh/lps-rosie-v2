@@ -51,7 +51,9 @@ fidelity", start here rather than reverting one of these by accident:
 |---|---|
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
 | `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
-| Chat has one agent (Daisy), not the mock's Rosie + Daisy pair | Rosie was removed from this deployment. The selector is driven by `lib/agents.ts` and hides itself below two agents. |
+| Chat lists three agents (Daisy, Rosie, Nova) but only Daisy is chattable | Rosie and Nova are `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |
+| No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
+| A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
 | Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
 | No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
 | Signed-in user read from `/api/auth/me` | The mock hardcoded a name and initials into the markup. |
@@ -68,8 +70,15 @@ fidelity", start here rather than reverting one of these by accident:
   with the page title + subtitle, and the agent chat on the right — a resizable
   docked panel, or a 46px rail when hidden.
 - **Mobile** (<900px, the design's own breakpoint): the left rail is replaced by
-  a bottom tab bar (which carries a Daisy tab opening the chat full-screen), and
-  both list pages swap their tables for card lists.
+  a bottom tab bar (which carries a tab per agent — Daisy's opens the chat,
+  upcoming agents are disabled), and both list pages swap their tables for card
+  lists. The chat sheet overlays the page content only — it is rendered inside
+  the main column's relative wrapper, above the tab bar, so navigation stays
+  visible and usable while chatting. The bar ends in a **⋯ More** menu carrying
+  what the desktop rail keeps at the bottom — Settings (disabled), the theme
+  toggle, Know your Agents, and the signed-in user with log out. The popover
+  renders outside the bar (the bar scrolls horizontally, so it would clip a
+  child popover).
 
 `Job Requests` and `Settings` are **rendered disabled** — they exist in the
 design but are out of scope for this build, so the frame keeps its shape without
@@ -84,6 +93,7 @@ offering routes that go nowhere.
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile. |
 | `/suppliers/:id` | client | Profile: editable field grid, then Notes / Communications / Inventory / Files tabs. |
 | `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, plus a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list — with a collapsible **Filters** card (supplier, supplier category, state, city, size, price). |
+| `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 
 | API route | Purpose |
 |---|---|
@@ -204,11 +214,14 @@ agent through the harness's [`webchat`](../harness/plugin-webchat.md) plugin.
 Daisy's messages route to her `main` thread — **the same thread Telegram uses**
 — so the panel and Telegram are one conversation.
 
-`lib/agents.ts` is the single list of chattable agents (id, display name, role,
-avatar, starter suggestions). It drives the selector, the collapsed rail, the
-mobile tab and the `/api/chat/<id>/…` allowlist. Adding a second agent is one
-entry plus `mkdir harness/agents/<id>/plugins/webchat`; the selector row hides
-itself while there is only one.
+`lib/agents.ts` is the single list of agents (id, display name, role, avatar,
+profile banner, starter suggestions). It drives the collapsed rail, the mobile
+tab, the `/agents` page and the `/api/chat/<id>/…` allowlist. Entries with
+`upcoming: true` (Rosie, Nova) appear everywhere but are disabled — the UI
+greys them out as "Coming soon" and the chat proxy answers 404 for them;
+`CHAT_AGENTS` is the filtered chattable subset. Activating one is removing the
+flag plus `mkdir harness/agents/<id>/plugins/webchat`. There is no selector in
+the panel header — switching agents happens from the collapsed rail.
 
 **Transport.** `app/api/chat/[...path]/route.ts` forwards to
 `<harness>/webhook/<agent>/webchat/api/<action>`, passing the cookie and
@@ -361,10 +374,13 @@ app/
   api/           suppliers, suppliers/[id], plants, file, rows, chat/[...path]
   suppliers/     list + [id] profile
   plants/        grouped plant search
+  agents/        Know your Agents — profile banner cards
   login/
   globals.css    design tokens — the theme's source of truth
 public/
-  daisy.png      Daisy's avatar — panel header, rail, agent selector, mobile tab
+  daisy.png, rosie.png, nova.png    avatars (cropped from the banners) —
+                                    panel header, rail, selector, mobile tab
+  *_profile.png                     full profile banners, shown on /agents
 components/
   ui/            lps-ui primitives (button, input, label, card, alert, badge)
   workspace/
@@ -378,7 +394,8 @@ components/
     toolbar.tsx      search box, filter chips, count summary
     icons.tsx        the design's icon set
 lib/
-  agents.ts        the chattable agents (id, name, role, avatar, suggestions)
+  agents.ts        the agents (id, name, role, avatar, profile, upcoming flag,
+                   suggestions) + CHAT_AGENTS, the chattable subset
   columns.ts       column definitions mapped to schema columns + websiteHref()
   rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink)
   queries.ts       every database read, the whitelisted writes, file signing

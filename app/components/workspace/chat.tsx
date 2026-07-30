@@ -7,7 +7,7 @@ import {
 import { Mic, Pause, Paperclip, Play, Send, Trash2, X } from 'lucide-react'
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
-import { AGENTS, type Agent } from '@/lib/agents'
+import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -683,7 +683,7 @@ function Composer({
       )}
 
       {composer.recording ? (
-        <div className={cn('flex items-center gap-2.5 px-3.5 py-3', big ? 'pb-[calc(12px+env(safe-area-inset-bottom))]' : '')}>
+        <div className="flex items-center gap-2.5 px-3.5 py-3">
           <button
             type="button"
             onClick={composer.cancelRecording}
@@ -721,7 +721,7 @@ function Composer({
           </button>
         </div>
       ) : (
-      <div className={cn('flex items-center gap-2 px-3.5 py-3', big ? 'pb-[calc(12px+env(safe-area-inset-bottom))]' : '')}>
+      <div className="flex items-center gap-2 px-3.5 py-3">
         <input
           ref={picker}
           type="file"
@@ -785,31 +785,6 @@ function Composer({
   )
 }
 
-function AgentTabs({ current, onPick }: { current: string; onPick: (id: string) => void }) {
-  if (AGENTS.length < 2) return null
-  return (
-    <>
-      {AGENTS.map((a) => (
-        <button
-          key={a.id}
-          type="button"
-          onClick={() => onPick(a.id)}
-          className={cn(
-            'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold',
-            a.id === current
-              ? 'border-primary bg-secondary text-primary'
-              : 'border-transparent bg-transparent text-muted-foreground',
-          )}
-        >
-          <Image src={a.avatar} alt="" width={16} height={16} className="rounded-full" />
-          {a.name}
-        </button>
-      ))}
-      <span className="mx-1 h-[18px] w-px bg-border" />
-    </>
-  )
-}
-
 // -------------------------------------------------------------------- panels
 
 /**
@@ -826,14 +801,14 @@ export function AgentChat({
   mobileOpen: boolean
   onMobileClose: () => void
 }) {
-  const [agentId, setAgentId] = useState(AGENTS[0].id)
+  const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
   const [width, setWidth] = useState(330)
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState(false)
   const hydrated = useRef(false)
 
-  const agent = useMemo(() => AGENTS.find((a) => a.id === agentId) ?? AGENTS[0], [agentId])
+  const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === agentId) ?? CHAT_AGENTS[0], [agentId])
   const visible = isMobile ? mobileOpen : open
   const chat = useChat(agentId, visible)
   const composer = useComposer(agentId)
@@ -913,10 +888,12 @@ export function AgentChat({
   )
 
   // ------------------------------------------------------------- mobile sheet
+  // Overlays the page content only — shell.tsx renders this inside the main
+  // column's relative wrapper, so the bottom tab bar stays visible below it.
   if (isMobile) {
     if (!mobileOpen) return null
     return (
-      <div className="fixed inset-0 z-[90] flex flex-col bg-background">
+      <div className="absolute inset-0 z-[70] flex flex-col bg-background">
         {header(true)}
         <Transcript
           agent={agent}
@@ -939,10 +916,14 @@ export function AgentChat({
           <button
             key={a.id}
             type="button"
+            disabled={a.upcoming}
             onClick={() => { setAgentId(a.id); setOpen(true) }}
             aria-label={a.name}
-            title={`${a.name} · ${a.role}`}
-            className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground hover:text-foreground"
+            title={a.upcoming ? `${a.name} · Coming soon` : `${a.name} · ${a.role}`}
+            className={cn(
+              'flex flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground',
+              a.upcoming ? 'cursor-not-allowed opacity-45' : 'cursor-pointer hover:text-foreground',
+            )}
           >
             <span className="relative inline-flex">
               <Image src={a.avatar} alt="" width={26} height={26} className="size-[26px] rounded-full object-cover" />
@@ -973,7 +954,6 @@ export function AgentChat({
       {header()}
 
       <div className="flex flex-none items-center gap-1 border-b border-border px-3 py-2">
-        <AgentTabs current={agentId} onPick={setAgentId} />
         {([['Full', () => Math.max(320, window.innerWidth - 260)], ['50%', () => Math.round(window.innerWidth * 0.5)], ['30%', () => Math.round(window.innerWidth * 0.3)]] as const).map(
           ([label, w]) => (
             <SizePill key={label} label={label} width={width} target={w} onPick={setWidth} />

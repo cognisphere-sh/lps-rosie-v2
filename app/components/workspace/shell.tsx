@@ -9,13 +9,13 @@ import {
 
 import { AgentChat } from '@/components/workspace/chat'
 import {
-  ChevronLeft, ChevronRight, CheckIcon, InventoryIcon, LogoutIcon, MoonIcon,
-  RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
+  AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InventoryIcon, LogoutIcon,
+  MoonIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { AGENTS } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
-export type PageId = 'suppliers' | 'inventory' | 'requests' | 'settings'
+export type PageId = 'suppliers' | 'inventory' | 'agents' | 'requests' | 'settings'
 
 const NAV = [
   { id: 'suppliers', label: 'Suppliers', href: '/suppliers', Icon: SuppliersIcon, enabled: true },
@@ -113,6 +113,7 @@ export function Shell({
   const [navOpen, setNavOpen] = useState(true)
   const [userMenu, setUserMenu] = useState(false)
   const [mobileChat, setMobileChat] = useState(false)
+  const [moreMenu, setMoreMenu] = useState(false)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -133,6 +134,16 @@ export function Shell({
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [userMenu])
+
+  // Same treatment for the mobile ⋯ menu.
+  useEffect(() => {
+    if (!moreMenu) return
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-more-menu]')) setMoreMenu(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [moreMenu])
 
   const signOut = async () => {
     try {
@@ -212,6 +223,11 @@ export function Shell({
                   )}
                 </button>
 
+                <Link href="/agents" title="Know your Agents" className={railBtn(page === 'agents')}>
+                  <span className="flex size-4 flex-none items-center justify-center"><AgentsIcon /></span>
+                  {navOpen && <span>Know your Agents</span>}
+                </Link>
+
                 <div data-menu className="relative">
                   <button
                     type="button"
@@ -267,18 +283,75 @@ export function Shell({
           )}
 
           {/* Main column */}
-          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-            {toolbar}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {toolbar}
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
 
-            {toast && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-[22px] z-[65] flex justify-center">
-                <span className="lps-pop inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-[9px] text-[12.5px] font-semibold text-background shadow-[var(--lps-shadow)]">
-                  <CheckIcon size={14} />
-                  {toast}
-                </span>
-              </div>
-            )}
+              {toast && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-[22px] z-[65] flex justify-center">
+                  <span className="lps-pop inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-[9px] text-[12.5px] font-semibold text-background shadow-[var(--lps-shadow)]">
+                    <CheckIcon size={14} />
+                    {toast}
+                  </span>
+                </div>
+              )}
+
+              {/* The chat sheet overlays the content inside this wrapper, so
+                  the tab bar below stays visible while it is open. */}
+              {isMobile && (
+                <AgentChat
+                  isMobile
+                  mobileOpen={mobileChat}
+                  onMobileClose={() => setMobileChat(false)}
+                />
+              )}
+
+              {/* The ⋯ menu popover lives here rather than in the tab bar —
+                  the bar scrolls horizontally, and an overflow container would
+                  clip anything popping out of it. */}
+              {isMobile && moreMenu && (
+                <div data-more-menu className="lps-pop absolute bottom-2 right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+                  <button
+                    type="button"
+                    disabled
+                    title="Settings — not built yet"
+                    className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
+                  >
+                    <SettingsIcon size={14} />
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                  >
+                    {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
+                    {dark ? 'Dark mode' : 'Light mode'}
+                  </button>
+                  <Link
+                    href="/agents"
+                    onClick={() => setMoreMenu(false)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                  >
+                    <AgentsIcon size={14} />
+                    Know your Agents
+                  </Link>
+                  <div className="mb-1 mt-1 border-t border-lps-hair px-2.5 pb-1 pt-2">
+                    <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
+                    <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg"
+                  >
+                    <LogoutIcon size={14} />
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Mobile bottom tab bar. items-stretch, not items-center: a label
                 that wraps to two lines ("Plant search") must not push its icon
@@ -310,11 +383,13 @@ export function Shell({
                   <button
                     key={a.id}
                     type="button"
+                    disabled={a.upcoming}
                     onClick={() => setMobileChat((v) => !v)}
-                    aria-label={a.name}
+                    aria-label={a.upcoming ? `${a.name} — coming soon` : a.name}
                     className={cn(
-                      'flex min-w-[72px] flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
+                      'flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
                       mobileChat ? 'text-primary' : 'text-muted-foreground',
+                      a.upcoming ? 'cursor-not-allowed opacity-45' : 'cursor-pointer',
                     )}
                   >
                     <Image src={a.avatar} alt="" width={18} height={18} className="size-[18px] rounded-full object-cover" />
@@ -323,24 +398,32 @@ export function Shell({
                 ))}
                 <button
                   type="button"
-                  onClick={toggle}
-                  aria-label="Toggle theme"
-                  className="flex min-w-[72px] flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5 text-muted-foreground"
+                  data-more-menu
+                  onClick={() => setMoreMenu((v) => !v)}
+                  aria-label="More"
+                  aria-expanded={moreMenu}
+                  className={cn(
+                    'flex min-w-[72px] flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
+                    moreMenu ? 'text-primary' : 'text-muted-foreground',
+                  )}
                 >
-                  <span className="flex size-[18px] items-center justify-center">{dark ? <MoonIcon /> : <SunIcon />}</span>
-                  <span className="text-[10.5px] font-semibold">Theme</span>
+                  <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
+                  <span className="text-[10.5px] font-semibold">More</span>
                 </button>
               </nav>
             )}
           </div>
 
-          {/* Agent chat: docked panel or collapsed rail on desktop, a
-              full-screen sheet on mobile (opened from the tab bar above). */}
-          <AgentChat
-            isMobile={isMobile}
-            mobileOpen={mobileChat}
-            onMobileClose={() => setMobileChat(false)}
-          />
+          {/* Agent chat on desktop: a docked panel, or a collapsed rail when
+              hidden. The mobile sheet is rendered inside the main column above
+              so the bottom tab bar stays put. */}
+          {!isMobile && (
+            <AgentChat
+              isMobile={false}
+              mobileOpen={mobileChat}
+              onMobileClose={() => setMobileChat(false)}
+            />
+          )}
         </div>
       </div>
     </ToastCtx.Provider>

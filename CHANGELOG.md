@@ -17,7 +17,28 @@ here).
 
 ## 2026-07-30
 
+### Added
+
+- **Know your Agents page (`/agents`)**: one card per agent showing its
+  profile banner (`app/public/*_profile.png`) with an Active / Coming soon
+  badge. Reachable from the nav rail's bottom section (above the user entry)
+  on desktop and the ⋯ More menu on mobile.
+- **Rosie and Nova listed as upcoming agents** in `lib/agents.ts` — they appear
+  in the chat selector, the collapsed rail and the mobile tab bar as disabled
+  "Coming soon" entries, and the chat proxy refuses them until the flag is
+  removed. Daisy remains the only chattable agent.
+- **New avatars for all three agents** (`daisy.png` replaced, `rosie.png` and
+  `nova.png` added), cropped from the profile banners.
+
 ### Changed
+
+- **Chat panel header simplified** — the agent selector tabs are gone; the
+  header keeps only the Full / 50% / 30% size presets. Agents are picked from
+  the collapsed rail.
+- **Mobile chat no longer covers the bottom tab bar.** The sheet overlays the
+  page content only, so navigation stays visible and usable while chatting.
+- **Mobile bottom bar gained a ⋯ More menu** (Settings, theme toggle, Know
+  your Agents, signed-in user + log out), replacing the bare Theme tab.
 
 - **Upgraded `cognisphere-harness` 0.8.1 → 0.8.3.** No data-dir breaking
   changes (0.8.2 fixes `HARNESS_BASE_URL` export in the runner itself). Per
