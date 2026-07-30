@@ -6,7 +6,7 @@ import type { NextConfig } from 'next'
 // cross-origin call (the harness ships no CORS headers) and lets the cookie
 // ride along on the app's own domain.
 // ponytail: one rewrite IS the whole harness integration — no BFF routes.
-const harness = process.env.HARNESS_URL ?? 'http://127.0.0.1:7331'
+const harness = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 
 const config: NextConfig = {
   // Dev-only: allow HMR/asset requests from the deployed domain (set by

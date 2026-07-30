@@ -15,7 +15,7 @@ import type { NextRequest } from 'next/server'
 // `proxy` is Next 16's replacement for the `middleware` file convention.
 const PUBLIC_PREFIXES = ['/login', '/api/auth']
 
-const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:7331'
+const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 
 async function resolveUser(cookie: string): Promise<string | null> {
   try {

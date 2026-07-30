@@ -17,9 +17,9 @@ A cognisphere **app home** (pnpm workspace) with two co-located services:
 
 ```
 browser ──https──> nginx ──┬─ $DOMAIN          → app  (Next.js, :3000)
-                           └─ $CONSOLE_DOMAIN  → harness console (cognisphere, :7331)
+                           └─ $CONSOLE_DOMAIN  → harness console (cognisphere, :3142)
 
-app ── /api,/admin ──> 127.0.0.1:7331 (harness)   # proxied in next.config.ts
+app ── /api,/admin ──> 127.0.0.1:3142 (harness)   # proxied in next.config.ts
 ```
 
 The app proxies `/api` and `/admin` to the harness, so the browser only

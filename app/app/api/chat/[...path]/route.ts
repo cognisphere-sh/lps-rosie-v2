@@ -15,7 +15,7 @@ import { agentById } from '@/lib/agents'
  * ponytail: one catch-all instead of five route files — every action has the
  *   same shape (forward, return).
  */
-const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:7331'
+const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 
 const ACTIONS = new Set(['messages', 'send', 'upload', 'file', 'reset'])
 
