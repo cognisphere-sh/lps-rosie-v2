@@ -17,6 +17,16 @@ here).
 
 ## 2026-07-29
 
+### Changed
+
+- **Harness upgraded 0.7.0 → 0.7.1.** Adds gws thread-routing on the raw
+  Gmail thread id (`scripts/gws/routes add --gmail-thread-id RE`) — the
+  precise way to keep replies to one mail in one thread; daisy's forked
+  `scripts/gws/routes` and `system_prompts/plugin-gws.md` were pristine
+  0.7.0 seeds and took the 0.7.1 seeds unchanged. (The registry publish
+  lagged the git tag by a couple of hours; a briefly vendored tarball was
+  replaced with the registry package once 0.7.1 appeared.)
+
 ### Fixed
 
 - Agent chat now renders literal `\\n` sequences from CLI replies as line
