@@ -286,7 +286,7 @@ export function Shell({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="relative flex min-h-0 flex-1 flex-col">
               {toolbar}
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+              <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
 
               {toast && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-[22px] z-[65] flex justify-center">

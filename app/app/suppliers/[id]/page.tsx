@@ -11,6 +11,7 @@ import {
   CheckIcon, ChevronLeft, ChevronRight, CloseIcon, FileIcon, PencilIcon, UploadIcon,
 } from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
+import { SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { badgeFor } from '@/components/workspace/table-parts'
 import { MASTER_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
@@ -156,6 +157,9 @@ export default function SupplierProfilePage() {
   const debouncedQuery = useDebounced(query)
   const [plants, setPlants] = useState<PlantRow[]>([])
   const [loadingPlants, setLoadingPlants] = useState(true)
+  // The loader covers the debounce window too, so it appears on the first
+  // keystroke rather than 300ms later when the fetch actually fires.
+  const searchingPlants = loadingPlants || query !== debouncedQuery
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
@@ -555,7 +559,7 @@ export default function SupplierProfilePage() {
                 />
               </div>
               <span className="text-[12px] text-muted-foreground">
-                {loadingPlants
+                {searchingPlants
                   ? 'Searching…'
                   : `${visiblePlants.length} shown · page ${page} of ${values.item_count == null ? '?' : Math.max(1, Math.ceil(Number(values.item_count) / 100))}`}
               </span>
@@ -581,52 +585,55 @@ export default function SupplierProfilePage() {
               </div>
             </div>
 
-            {isMobile ? (
-              <div className="flex flex-col">
-                {visiblePlants.map((p) => (
-                  <div key={p.id} className="flex items-start gap-3 border-b border-lps-hair p-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
-                      {p.values.other && (
-                        <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
-                      )}
-                      <div className="mt-1 text-[11.5px] text-muted-foreground">
-                        {[p.values.size, p.values.cat].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                    <div className="flex-none text-right">
-                      <div className="text-[14px] font-bold tabular-nums">{money(p.values.price)}</div>
-                      <div className="text-[11px] text-muted-foreground tabular-nums">
-                        {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="relative min-h-0 flex-1 overflow-auto">
-                <div style={{ width: plantsWidth(plantCfg, true), minWidth: '100%' }}>
-                  <div className="sticky top-0 z-30 flex items-stretch border-b border-border">
-                    <PlantHeaderRow cfg={plantCfg} options={(key) => optionsFor(plants, key)} showDelete />
-                  </div>
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {isMobile ? (
+                <div className="flex flex-col">
                   {visiblePlants.map((p) => (
-                    <PlantRowLine
-                      key={p.id}
-                      row={p}
-                      cfg={plantCfg}
-                      onHide={() => setHiddenPlants((prev) => [...prev, p.id])}
-                      onDelete={() => void deletePlant(p)}
-                      onEdit={(col, next) => savePlant(p, col, next)}
-                    />
+                    <div key={p.id} className="flex items-start gap-3 border-b border-lps-hair p-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
+                        {p.values.other && (
+                          <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
+                        )}
+                        <div className="mt-1 text-[11.5px] text-muted-foreground">
+                          {[p.values.size, p.values.cat].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+                      <div className="flex-none text-right">
+                        <div className="text-[14px] font-bold tabular-nums">{money(p.values.price)}</div>
+                        <div className="text-[11px] text-muted-foreground tabular-nums">
+                          {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                {!loadingPlants && visiblePlants.length === 0 && (
-                  <div className="px-5 py-11 text-center text-[12.5px] text-muted-foreground">
-                    No plants match this search.
+              ) : (
+                <div className="relative min-h-0 flex-1 overflow-auto">
+                  <div style={{ width: plantsWidth(plantCfg, true), minWidth: '100%' }}>
+                    <div className="sticky top-0 z-30 flex items-stretch border-b border-border">
+                      <PlantHeaderRow cfg={plantCfg} options={(key) => optionsFor(plants, key)} showDelete />
+                    </div>
+                    {visiblePlants.map((p) => (
+                      <PlantRowLine
+                        key={p.id}
+                        row={p}
+                        cfg={plantCfg}
+                        onHide={() => setHiddenPlants((prev) => [...prev, p.id])}
+                        onDelete={() => void deletePlant(p)}
+                        onEdit={(col, next) => savePlant(p, col, next)}
+                      />
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
+                  {!searchingPlants && visiblePlants.length === 0 && (
+                    <div className="px-5 py-11 text-center text-[12.5px] text-muted-foreground">
+                      No plants match this search.
+                    </div>
+                  )}
+                </div>
+              )}
+              <SearchOverlay show={searchingPlants} label="Searching this supplier's list…" />
+            </div>
           </div>
         )}
 

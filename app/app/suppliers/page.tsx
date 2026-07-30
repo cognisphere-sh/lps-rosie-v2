@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { EyeOffIcon } from '@/components/workspace/icons'
+import { SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { Cell, ColumnHead, ColumnPicker, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
@@ -26,6 +27,9 @@ export default function SuppliersPage() {
   const debouncedQuery = useDebounced(query)
   const [rows, setRows] = useState<SupplierRow[]>([])
   const [loading, setLoading] = useState(true)
+  // The loader covers the debounce window too, so it appears on the first
+  // keystroke rather than 300ms later when the fetch actually fires.
+  const searching = loading || query !== debouncedQuery
   const [cat, setCat] = useState('all')
   const [region, setRegion] = useState('all')
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
@@ -114,7 +118,7 @@ export default function SuppliersPage() {
         setRegion('all')
         cfg.clearFilters()
       }}
-      summary={loading ? 'Searching…' : `Showing ${visibleRows.length} of ${rows.length} suppliers`}
+      summary={searching ? 'Searching…' : `Showing ${visibleRows.length} of ${rows.length} suppliers`}
     />
   )
 
@@ -160,7 +164,7 @@ export default function SuppliersPage() {
               <span className="text-[12.5px] font-semibold text-primary">Open supplier →</span>
             </button>
           ))}
-          {!loading && visibleRows.length === 0 && (
+          {!searching && visibleRows.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches these filters.</div>
           )}
         </div>
@@ -249,7 +253,7 @@ export default function SuppliersPage() {
               </tbody>
             </table>
 
-            {!loading && visibleRows.length === 0 && (
+            {!searching && visibleRows.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
                 <span className="text-[14px] font-semibold">Nothing matches these filters</span>
                 <span className="text-[12.5px] text-muted-foreground">
@@ -273,6 +277,7 @@ export default function SuppliersPage() {
           )}
         </div>
       )}
+      <SearchOverlay show={searching} label="Digging through suppliers…" />
     </Shell>
   )
 }

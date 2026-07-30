@@ -8,6 +8,7 @@ import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import {
   PlantHeaderRow, PlantRowLine, plantsWidth,
 } from '@/components/workspace/plant-table'
+import { SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, FilterControl, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
@@ -44,6 +45,9 @@ export default function PlantSearchPage() {
   const debouncedQuery = useDebounced(query)
   const [groups, setGroups] = useState<PlantGroup[]>([])
   const [loading, setLoading] = useState(true)
+  // The loader covers the debounce window too, so it appears on the first
+  // keystroke rather than 300ms later when the fetch actually fires.
+  const searching = loading || query !== debouncedQuery
   const [panelW, setPanelW] = useState(292)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
@@ -172,7 +176,7 @@ export default function PlantSearchPage() {
         masterCfg.clearFilters()
       }}
       summary={
-        loading
+        searching
           ? 'Searching…'
           : `${visibleGroups.length} suppliers · ${shownPlants} of ${allPlants.length} plants`
       }
@@ -316,7 +320,7 @@ export default function PlantSearchPage() {
             </div>
             )
           })}
-          {!loading && visibleGroups.length === 0 && (
+          {!searching && visibleGroups.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches this search.</div>
           )}
         </div>
@@ -434,7 +438,7 @@ export default function PlantSearchPage() {
               })}
             </div>
 
-            {!loading && visibleGroups.length === 0 && (
+            {!searching && visibleGroups.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
                 <span className="text-[14px] font-semibold">Nothing matches these filters</span>
                 <span className="text-[12.5px] text-muted-foreground">
@@ -465,6 +469,7 @@ export default function PlantSearchPage() {
           )}
         </div>
       )}
+      <SearchOverlay show={searching} label="Growing your matches…" />
     </Shell>
   )
 }

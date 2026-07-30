@@ -117,6 +117,14 @@ Every search box is **debounced** (`lib/use-debounced.ts`, 300ms) before it hits
 expensive to fire per keystroke. In-flight responses are discarded if a newer
 query has started, so a slow early request can't overwrite a later result.
 
+While a search is ongoing, the results area dims under an animated sprouting-
+seedlings loader (`components/workspace/search-loader.tsx`; keyframes in
+`globals.css`). The "searching" state starts on the first keystroke — it covers
+the debounce window as well as the fetch — and each page anchors the overlay so
+it never covers its search box: the list pages use the Shell content slot
+(below the toolbar), the supplier profile a wrapper around the Inventory tab's
+plant list.
+
 `search_inventory` **cannot be called with an empty search** (it walks all ~74k
 active rows and exceeds the statement timeout — see the schema doc). With no
 term, `searchPlantGroups` instead picks the suppliers behind the newest
@@ -392,6 +400,7 @@ components/
                      cell (plain/link/badge/list/file/url), MultiFilter
     plant-table.tsx  the plant sub-table, shared by search + profile
     toolbar.tsx      search box, filter chips, count summary
+    search-loader.tsx  sprouting-seedlings loader + overlay for ongoing searches
     icons.tsx        the design's icon set
 lib/
   agents.ts        the agents (id, name, role, avatar, profile, upcoming flag,

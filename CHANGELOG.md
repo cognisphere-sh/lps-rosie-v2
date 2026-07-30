@@ -19,6 +19,14 @@ here).
 
 ### Added
 
+- **Animated search loader**: while a search is in flight on Plant search, the
+  Suppliers list or a supplier profile's Inventory tab, the results area dims
+  under three sprouting seedlings (`components/workspace/search-loader.tsx`,
+  theme-coloured, staggered, honours `prefers-reduced-motion`). The loader
+  starts on the first keystroke — it also covers the 300ms debounce window that
+  already gated the search RPCs — and empty states no longer flash while a
+  search is pending.
+
 - **Know your Agents page (`/agents`)**: one card per agent showing its
   profile banner (`app/public/*_profile.png`) with an Active / Coming soon
   badge. Reachable from the nav rail's bottom section (above the user entry)
