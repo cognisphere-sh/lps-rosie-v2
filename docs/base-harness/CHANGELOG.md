@@ -18,6 +18,312 @@ the harness directory, and applies it after user approval. See
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.3]
+
+### Changed
+
+- **The upgrade skill now refreshes every harness-owned scaffold file on
+  upgrade** — `scripts/`, `config.example`, `docs/base-harness/`, and
+  `.claude/skills/` are re-copied wholesale from the installed package as
+  part of the reviewed migration diff, so scaffold fixes reach existing
+  homes even when a release didn't list them as breaking changes. User-owned
+  files (`app/`, `docs/harness/`, `docs/app/`, `CLAUDE.md`, `config`, and
+  the harness data dir) are never touched by the refresh.
+- **The publish preflight gates shipped-artifact changes.** Changes since the
+  last release to files forked into agent dirs (`src/agents/**`,
+  `src/plugins/*/seed/**`) fail preflight unless the version's CHANGELOG
+  section carries a `### Breaking changes` block; changed scaffold/skill
+  files are listed as a reminder to note them under `### Changed`.
+- Shipped docs updated to match (`docs/base-harness/skills.md`).
+
+## [0.8.2]
+
+### Fixed
+
+- **The runner now exports `HARNESS_BASE_URL` (= `serverBaseUrl`) to every
+  agent process.** The seeded `agent-msg/send` reads
+  `${HARNESS_BASE_URL:-http://127.0.0.1:3142}`, but nothing ever set the
+  variable — the runner didn't export it and the deploy scripts only define
+  `HARNESS_PORT`, which the script never reads. So on any non-default port
+  (`PORT` / `cognisphere serve --port`), agent-messaging silently posted to
+  the wrong origin. The fallback in the seed is unchanged and now only
+  covers running the script outside a runner-spawned process.
+
+## [0.8.1]
+
+### Fixed
+
+- **Base prompt no longer tells agents to pass `-o json` to ddgs.** That flag
+  doesn't print to stdout — it writes the results to a file in the cwd (e.g.
+  `text_<query>_<timestamp>.json`), so piping to `jq` got empty input and
+  agent dirs silently accumulated result files. The prompt now says to read
+  the default stdout table directly and warns against `-o json`/`-o csv`.
+- **Plugin requests route to `nova`, not the operator.** The communication
+  model section still said to ask the operator (via the admin plugin) to
+  install or write missing plugins, contradicting 0.8.0's ownership model
+  (§Platform code changes). It now forwards those requests to the developer
+  agent via agent-messaging, keeping the operator for what genuinely needs
+  them (secrets, harness restarts).
+- **`session-reader --help` documented a session layout 0.8.0 deleted.** The
+  `sessions/<ThreadId>/subagents/<subAgentId>/` path example is now
+  `sessions/<ThreadId>-<task-slug>/` — task-thread sessions are ordinary
+  threads.
+- **Wrapper headers (`agent-browser`, `ddgs`, `markitdown`) no longer cite the
+  removed `pi -p` sub-agent CLI** as their reason to exist. The wrappers stay
+  (the PATH/venv rationale holds); the header comments and `--help` text now
+  state it without referencing sub-agents.
+
+### Breaking changes
+
+- Base prompt corrections (ddgs output flags, plugin-request routing) —
+  replace the fork's copy with the new seed, re-applying any local
+  edits.   [affects: agents/*/system_prompts/0-base_prompt.md]
+- session-reader help updated for the task-thread session layout —
+  re-seed.   [affects: agents/*/scripts/agent/session-reader]
+- Wrapper rationale comments dropped the `pi -p` reference — re-seed (no
+  behavior change).   [affects: agents/*/scripts/agent/agent-browser, agents/*/scripts/agent/ddgs, agents/*/scripts/agent/markitdown]
+
+## [0.8.0]
+
+### Changed
+
+- **Sub-agents are now task threads.** The `pi -p` sub-agent CLI is gone;
+  delegation runs through the core agent-messaging plugin instead. An agent
+  spawns a task by messaging **itself** on a new thread id
+  `<parentThreadId>-<task-slug>`; the task thread runs with the full agent
+  prompt in its own context window and **must report back** to the parent
+  thread (named explicitly in the brief) via `scripts/agent-msg/send` when
+  done. Delegation is asynchronous — the parent ends its turn and is woken by
+  the report; follow-ups and status checks are messages to the same task
+  thread. Task-thread status is declared **in the brief**, never inferred from
+  the sender (self-messages also arrive for other reasons).
+- **One agent prompt.** `0-base_prompt.md` and `0.1-main-agent.md` merged into
+  a single `0-base_prompt.md` covering identity, tools, workspace, threads,
+  plugins, communication, task threads, app home, and the dev-agent hand-off.
+  Ownership is now explicit: each agent owns its own agent dir (scripts,
+  skills, workspace, knowledge); platform code **and software installs** go to
+  the developer agent.
+- **agent-messaging is a core plugin** (`CORE_PLUGIN_IDS`) — auto-installed
+  and seeded on every agent alongside admin and scheduler; `cognisphere
+  plugin add agent-messaging` is refused. Messaging a thread id that doesn't
+  exist yet starts a fresh thread (that's how task threads spawn).
+- **The developer agent is always `nova`.** `cognisphere init` creates it
+  under that fixed id (`--dev-agent` flag removed), `agent new` refuses the
+  name for any other agent, and the prompt templates reference `nova`
+  literally — the `{{DevAgentId}}`/`{{DevAgentName}}` baking (and the
+  `bakeDevAgentName`/`findDevAgentId` CLI machinery) is gone. Telegram is no
+  longer auto-enabled on it; human channels are opt-in (other agents reach it
+  via agent-messaging).
+- **Web console:** agent messages are hyperlinked — an incoming
+  `agent_message` links to the sender's thread (`From`/`FromThread`), and an
+  `agent-msg/send` tool call links to the destination agent thread
+  (`$PI_AGENT_ID` resolves to the current agent). Thread-only deep links
+  (`?thread=`) now work without a session id.
+- Base template and dev overlay moved to `src/agents/base-agent/` and
+  `src/agents/nova/` inside the package (was `src/base-agent/`,
+  `src/dev-agent/`). No harness-side effect; `files` already ships `src/`.
+
+### Removed
+
+- `subagentModel` from `agent.json` and the `PI_SUBAGENT_PROVIDER` /
+  `PI_SUBAGENT_MODEL` / `PI_SUBAGENT_THINKING` env vars — task threads run on
+  the agent's own model (per-thread overrides still apply).
+- The `subagents` array from `GET /api/agents/:id/sessions/:threadId/usage`
+  (and the legacy `sessions/<threadId>/subagents/*/` scanning behind it). The
+  response is now `{ threadId, main }`; task-thread usage shows up as
+  ordinary threads.
+
+### Breaking changes
+
+- Sub-agent CLI removed — delete the seeded wrapper and role prompt from every
+  agent fork.   [affects: agents/*/scripts/agent/subagent]
+- Sub-agent role prompt removed with it.   [affects: agents/*/scripts/agent/sub-agent-prompt.md]
+- `0.1-main-agent.md` merged into `0-base_prompt.md` — replace the fork's
+  `0-base_prompt.md` with the new seed (re-apply any local edits) and delete
+  `0.1-main-agent.md`.   [affects: agents/*/system_prompts/]
+- Agent-directory roster renamed — rename the file to
+  `0.1-agent-directory.md` (contents unchanged; the manager only regenerates
+  the new name when absent, so an un-renamed copy would duplicate the
+  roster).   [affects: agents/*/system_prompts/0.3-agent-directory.md]
+- `subagentModel` no longer read — remove the key where present.   [affects: agents/*/agent.json]
+- agent-messaging became a core plugin — the per-agent enable dir is
+  redundant (remove), and a forked copy now shadows the bundled core plugin
+  (remove unless the fork is intentional).   [affects: agents/*/plugins/agent-messaging, plugins/agent-messaging]
+- Developer agent id frozen to `nova` — rename the existing dev agent's dir
+  (the one whose `agent.json` has `devAgent: true`, e.g. `dory`) to `nova`,
+  and update any references to the old id (other agents' roster fragments,
+  `allowMessageFrom` lists, workspace notes). New prompt seeds address the
+  dev agent as `nova` literally.   [affects: agents/*]
+
+## [0.7.2]
+
+### Fixed
+
+- **`spawn E2BIG` on every batch once `system_prompts/` crossed 128 KiB.** The
+  runner passed the whole assembled system prompt as a single `--system-prompt`
+  argv value. Linux caps **one** argv/env string at `MAX_ARG_STRLEN` = 131 072
+  bytes — a per-string limit, independent of the ~2 MB `ARG_MAX` total — so a
+  prompt tree that grew past 128 KiB killed `spawn("pi", …)` outright. Because
+  `assembleSystemPrompt` hands every thread the same files, this took *all* of
+  an agent's threads down at once, with `E2BIG` and no partial failure to
+  narrow it down.
+
+  The runner now writes the assembled prompt to
+  `sessions/<threadId>/.system-prompt.md` (rewritten on every spawn) and passes
+  **that path** to `--system-prompt`. pi's `resolvePromptInput` already reads a
+  flag value as a file when it names an existing path, so this needs no pi-side
+  change, and files have no length ceiling. An env var would not have worked —
+  same per-string cap.
+
+  `scripts/agent/subagent` had the identical exposure (it concatenated
+  `0-base_prompt.md` + `sub-agent-prompt.md` into one `--system-prompt` string,
+  so sub-agents were on course to fail the same way at the same threshold). It
+  now passes the two files as paths — `--system-prompt <base>
+  --append-system-prompt <role>` — which pi composes as
+  `<system-prompt>\n\n<append>`, byte-identical to the concatenation it
+  replaces.
+
+### Changed
+
+- **The developer agent now gets the `agent-messaging` plugin by default**, on
+  top of telegram. It owns the home's platform code and every other agent's
+  prompt tells it to route code and doc changes there — but until now nothing
+  gave those agents a way to actually send it one; the request had to go
+  through a human on Telegram. `cognisphere init` and
+  `cognisphere agent new <name> --dev` both enable it. The inbox default is
+  unchanged (`allowMessageFrom: ["*"]`, i.e. any in-harness agent).
+
+### Breaking changes
+
+- Existing developer agents don't have the `agent-messaging` plugin enabled;
+  create the (empty) plugin dir to install the bundled copy with its default
+  config.   [affects: agents/*/plugins/agent-messaging/]
+- `scripts/agent/subagent` passes the sub-agent system prompt as two file
+  paths instead of one concatenated string (operator edits survive — merge
+  rather than overwrite).   [affects: agents/*/scripts/agent/subagent]
+
+## [0.7.1]
+
+### Added
+
+- **gws routing on the Gmail thread id** — `scripts/gws/routes add` takes a
+  new `--gmail-thread-id RE` (rule field `gmailThreadId`), matched as an
+  **anchored**, case-insensitive regex against the raw Gmail thread id — a
+  plain id is an exact match, `a|b` a set. This is the precise way to park
+  replies: a reply always stays in the Gmail thread of the message it
+  answers, so routing on that id captures the follow-ups to one mail and
+  nothing else, where `--from`/`--subject` also catch unrelated mail. A rule
+  still needs at least one of `--from` / `--subject` / `--gmail-thread-id`,
+  and when several are given all must match; first matching rule wins.
+
+### Breaking changes
+
+*(Nothing breaks — rules without `gmailThreadId` behave exactly as before.)*
+
+- `scripts/gws/routes` gained the `--gmail-thread-id` flag, and
+  `system_prompts/plugin-gws.md`'s "Routing rules" section documents it
+  (operator edits survive — merge rather than overwrite).   [affects: agents/*/scripts/gws/routes, agents/*/system_prompts/plugin-gws.md]
+
+## [0.7.0]
+
+### Added
+
+- **Telegram thread-routing rules** — `plugins/telegram/state/routes.json`,
+  managed by the seeded `scripts/telegram/routes` CLI (`add | list |
+  remove`), mirrors the gws routing added in 0.6.0. A rule maps a chat id to
+  a thread id of the agent's choosing, overriding the agent's
+  `threadIdStrategy`: `routes add --name ops --thread-id ops-room --chat
+  '-100.*'`. `--chat` is an **anchored**, case-insensitive regex matched
+  against the chat id — a plain id is an exact match, `.*` is a wildcard,
+  `123|456` a set. First matching rule wins; the plugin re-reads the file on
+  every batch of updates, so a new rule takes effect immediately. `/reset`
+  in a routed chat resets the routed thread.
+
+### Changed
+
+- **`PluginInstanceContext.resetThread` takes an optional second argument**
+  — `resetThread(channelId, threadIdOverride?)`. Plugins that route a
+  channel to a custom thread pass the same override they gave `notify`, so
+  the reset hits the thread the messages actually landed in. Omitted → the
+  previous `threadIdStrategy` mapping, unchanged.
+
+### Breaking changes
+
+*(Nothing breaks — the routing CLI is a new on-disk artifact an existing
+home syncs to adopt; agents without `routes.json` behave exactly as before.)*
+
+- New seeded script `scripts/telegram/routes` and a "Routing rules" section
+  in `system_prompts/plugin-telegram.md` (operator edits survive — merge
+  rather than overwrite).   [affects: agents/*/scripts/telegram/routes, agents/*/system_prompts/plugin-telegram.md]
+
+## [0.6.2]
+
+### Changed
+
+- **Base agent knows about the app home.** `0.1-main-agent.md` gained a
+  `# The app home` section pointing every agent at the repo above its agent
+  dir: `../../../app/` (the user-facing frontend users see in a browser),
+  `../../../docs/` (`base-harness/` platform reference, `harness/` this
+  deployment's agents/plugins, `app/` the frontend), plus `harness/` and
+  `scripts/`. The `# Platform code changes` hand-off now covers the app and
+  the docs explicitly — read freely, route every change to the developer
+  agent, report stale docs there.
+- **Developer agent's `agent.json.description`** (what the agent-directory
+  roster shows other agents) now names the frontend app and the docs duty:
+  "…owns and modifies this deployment's platform code — agent
+  prompts/scripts, forked plugins, the user-facing frontend app, deploy
+  scripts — and keeps docs/harness + docs/app current."
+
+### Breaking changes
+
+*(Nothing breaks — both are on-disk artifacts an existing home must sync to
+adopt; old copies keep working untouched.)*
+
+- `system_prompts/0.1-main-agent.md` gained the app-home + docs sections
+  (operator edits survive — merge rather than overwrite; `{{DevAgentId}}` /
+  `{{DevAgentName}}` are baked at fork time, so substitute the dev agent's
+  actual id when hand-merging).   [affects: agents/*/system_prompts/0.1-main-agent.md]
+- The developer agent's `agent.json.description` is only written at
+  `agent new --dev` time; existing homes keep the old one-liner until
+  edited.   [affects: agents/*/agent.json]
+
+## [0.6.1]
+
+### Changed
+
+- **Default HTTP port is now `3142`** (was `7331`) — `PORT` / `cognisphere
+  serve --port` still override it. Updated everywhere the old default was
+  baked in: `config.ts`, the CLI's `DEFAULT_PORT`, the web dev-server proxy
+  target, the scaffold's `HARNESS_PORT` default, the seeded `agent-msg/send`
+  fallback base URL, and the docs.
+
+### Breaking changes
+
+- Existing homes pin `HARNESS_PORT=7331` in their `config`, so they keep
+  serving on 7331 — but the re-seeded `scripts/agent-msg/send` now falls back
+  to `127.0.0.1:3142`, which breaks agent-to-agent messaging. Either set
+  `HARNESS_PORT=3142` in `config` (then re-run `scripts/setup-server.sh` to
+  regenerate the systemd unit + nginx vhost, and restart), or keep 7331 and
+  export `HARNESS_BASE_URL=http://127.0.0.1:7331` into the harness
+  environment.   [affects: config, scripts/setup-server.sh]
+
+## [0.6.0]
+
+### Added
+
+- **gws thread routing.** The `gws` plugin now reads routing rules from
+  `plugins/gws/state/routes.json` on every poll; the first rule whose
+  `from` / `subject` patterns match an inbound thread replaces the default
+  harness thread id (`<Subject>[<gmailThreadId>]`) with the rule's own
+  `threadId`. Patterns are case-insensitive, unanchored regexes, so a plain
+  string is a substring match. Lets an agent mail someone from a thread and
+  have the reply land back in that same thread instead of opening a new one.
+- **`scripts/gws/routes` CLI** (seeded with the plugin): `add|list|remove`,
+  atomic writes, rules take effect within one poll interval. A rule with
+  neither `--from` nor `--subject` is rejected — it would capture every
+  inbound email. Documented in the plugin's system prompt; existing homes
+  pick both up automatically (the gws seed is re-copied on plugin start).
+
 ## [0.5.1]
 
 ### Added

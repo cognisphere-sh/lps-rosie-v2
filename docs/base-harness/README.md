@@ -33,7 +33,7 @@ config.
 └── harness/                   ← the harness data dir
     ├── harness.json           ← { version, timezone }
     ├── .secrets/              ← secrets.json, models.json, users.json (gitignored)
-    ├── agents/<id>/           ← one dir per agent (incl. the developer agent, default `dory`)
+    ├── agents/<id>/           ← one dir per agent (incl. the developer agent `nova`)
     └── plugins/<id>/          ← forked catalog plugins (shadow built-ins)
 ```
 
@@ -43,7 +43,7 @@ Run from the app home or `harness/` (`pnpm exec cognisphere …`):
 
 | Command | Purpose |
 |---|---|
-| `cognisphere agent new <name> [--dev]` | fork the base template into `agents/<name>/` (`--dev`: developer-agent persona + cognisphere skills + telegram) |
+| `cognisphere agent new <name> [--dev]` | fork the base template into `agents/<name>/` (`--dev`: developer-agent persona + cognisphere skills) |
 | `cognisphere plugin add <id>` | fork a catalog plugin into `plugins/<id>/` |
 | `cognisphere dev` | run locally with hot reload (+ web console) |
 | `cognisphere serve` | run once — the production entrypoint |
@@ -63,11 +63,13 @@ plugin config, secrets, and model providers. Login users live in
   `maxConcurrentSlots?`, `devAgent?` (marks the developer agent), optional
   `secretsSchema`/`configSchema`/`config`.
 - `system_prompts/*.md` — concatenated in lexical order into the system
-  prompt. `0-*` files come from the base template; write the persona in
-  `1-<something>.md`.
+  prompt. `0-*` files are harness-owned and kept in sync with the installed
+  harness version on upgrade (replaced by the new seed — don't edit them).
+  All agent- or app-specific instructions go in `1-agent.md`.
 - `workspace/` — the agent's durable notes; `knowledge/` for cross-thread
   reference docs.
-- `sessions/<threadId>/` — conversation history (JSONL) + `.events.db`
+- `sessions/<threadId>/` — conversation history (JSONL), the assembled
+  `.system-prompt.md` handed to pi on each spawn, + `.events.db`
   (message queue / event log — inspect with `sqlite3`).
 - `plugins/<id>/` — an empty dir installs that plugin for this agent;
   `config.json` inside it holds the plugin's per-agent config.
@@ -83,9 +85,9 @@ plugin+channel).
 
 ## Plugins
 
-- **Core** (`admin`, `scheduler`) — bundled, auto-installed on every agent,
-  not forkable.
-- **Catalog** (`telegram`, `gws`, `agent-messaging`, …) — forked into
+- **Core** (`admin`, `scheduler`, `agent-messaging`) — bundled, auto-installed
+  on every agent, not forkable.
+- **Catalog** (`telegram`, `gws`, …) — forked into
   `harness/plugins/<id>/` by `cognisphere plugin add`, then enabled per agent
   by creating `agents/<agent>/plugins/<id>/`. Forked copies are yours to edit
   and shadow the bundled ones.
@@ -110,14 +112,17 @@ Hand edits need an agent restart; console edits hot-reload.
 
 ## The developer agent
 
-Every home ships with a developer agent (default id `dory`; chosen at
-`cognisphere init` via `--dev-agent <name>`) whose job is to own and modify
-this home's code (agents, user-space plugins, the app). It is reachable
-exclusively via Telegram and keeps `docs/harness/` and `docs/app/` up to
+Every home ships with a developer agent — always named `nova` (the id is
+frozen and reserved; no other agent may use it) — whose job is to own and modify
+this home's code (agents, user-space plugins, the app). The core
+**agent-messaging** plugin lets the harness's other agents hand it code, doc
+and software-install requests directly; human-facing channels (e.g. telegram)
+are opt-in per deployment. It keeps
+`docs/harness/` and `docs/app/` up to
 date after every change. The cognisphere skills (`cognisphere-upgrade`,
 `create-plugin`) are installed in its own `skills/agent/` dir, so it can
-drive harness upgrades and author plugins directly. To bring it up: set its
-telegram bot token and a model provider. Other agents are instructed to pass code-change
+drive harness upgrades and author plugins directly. To bring it up: set a
+model provider. Other agents are instructed to pass code-change and install
 requests to it rather than modify the platform themselves.
 
 Who may message the developer agent (or any agent) is set per-inbox, not

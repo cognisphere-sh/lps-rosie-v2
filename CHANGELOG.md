@@ -19,6 +19,18 @@ here).
 
 ### Changed
 
+- **Upgraded `cognisphere-harness` 0.8.1 → 0.8.3.** No data-dir breaking
+  changes (0.8.2 fixes `HARNESS_BASE_URL` export in the runner itself). Per
+  0.8.3's new upgrade procedure, refreshed the harness-owned scaffold from the
+  package: `scripts/` (upstream refactor of aws/contabo setup into
+  `scripts/lib/remote-bootstrap.sh`; default `HARNESS_PORT` now 3142; dropped
+  the now-redundant `HARNESS_BASE_URL` systemd line and the auto-retire of
+  stale units), `config.example`, `docs/base-harness/`, and the
+  `cognisphere-upgrade` skill (in `.claude/skills/`, `.agents/skills/`, and
+  nova's `skills/agent/` mirror). Re-applied the local Supabase env wiring
+  (`SUPABASE_URL`/`SUPABASE_SECRET_KEY` in `config.example` +
+  `scripts/server.sh` gen_secrets) that the refresh reverted.
+
 - **Upgraded `cognisphere-harness` 0.8.0 → 0.8.1** (prompt/script corrections
   from upstream): re-seeded `0-base_prompt.md` (drops the `ddgs -o json`
   advice, routes plugin requests to `nova` instead of the operator) and the

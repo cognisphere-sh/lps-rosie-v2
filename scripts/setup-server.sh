@@ -123,20 +123,7 @@ PNPM_BIN_DIR="$(dirname "$PNPM_BIN")"
 # root-owned. Must be on the unit PATH or bare `agent-browser`/`pi` spawns 127.
 UNIT_PATH="$RUN_HOME/.local/bin:$RUN_HOME/.npm-global/bin:$PNPM_BIN_DIR:$NODE_BIN_DIR:/usr/bin:/bin"
 
-# A previous run under a different APP_NAME leaves its units behind, and both
-# names would then fight over the same ports. Retire anything pointing at this
-# ROOT under another name (units + nginx site + backup cron).
-for u in /etc/systemd/system/*-harness.service; do
-  [[ -f "$u" ]] || continue
-  OLD="$(basename "$u" -harness.service)"
-  [[ "$OLD" == "$NAME" ]] && continue
-  grep -q "^WorkingDirectory=$ROOT/harness$" "$u" || continue
-  echo ">> retiring stale units from previous name '$OLD'"
-  systemctl disable --now "$OLD-harness.service" "$OLD-app.service" 2>/dev/null || true
-  rm -f "/etc/systemd/system/$OLD-harness.service" "/etc/systemd/system/$OLD-app.service" \
-        "/etc/nginx/sites-enabled/$OLD" "/etc/nginx/sites-available/$OLD" "/etc/cron.d/$OLD-backup"
-done
-
+# Renaming APP_NAME leaves the old name's units/nginx site/cron behind — clean those up by hand.
 cat > "/etc/systemd/system/$NAME-harness.service" <<EOF
 [Unit]
 Description=$NAME cognisphere harness (backend + operator console)
@@ -151,9 +138,6 @@ Environment=PATH=$UNIT_PATH
 # ~/.npmrc without warning. The service does no installs, so no real token is
 # needed at runtime.
 Environment=COGNISPHERE_NPM_TOKEN=
-# Harness ≥0.6.1 defaults to port 3142; we keep $HARNESS_PORT, so seeded
-# scripts (agent-msg/send) need the real base URL.
-Environment=HARNESS_BASE_URL=http://127.0.0.1:$HARNESS_PORT
 ExecStart=$PNPM_BIN exec cognisphere serve --port $HARNESS_PORT
 Restart=on-failure
 RestartSec=3
