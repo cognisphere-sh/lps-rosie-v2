@@ -19,6 +19,9 @@ here).
 
 ### Changed
 
+- **Increased dark-mode contrast in the search workspace.** Muted labels,
+  empty-state text, input outlines, borders, header rows, resize affordances and
+  table hairlines are now brighter and easier to distinguish.
 - **`cognisphere-harness` 0.8.7 → 0.8.11.** Two seeded artifacts moved, both
   re-seeded into daisy and nova (clean forks, no local edits): `context-meta.ts`
   now emits checkpoints as standalone prune-safe messages

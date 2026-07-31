@@ -36,6 +36,9 @@ the real schema. Two things the design owns that are easy to lose:
   `--lps-bubble`, `--lps-shadow`, `--lps-warn-*`) **and overrides dark mode's
   purple accent back to green** (`--primary: #4DD67D`), so dark mode stays the
   same product as light mode.
+- **Dark-mode contrast.** Muted copy, empty states, borders, input outlines,
+  header rows and table hairlines use brighter dark-mode tokens than the design
+  mock so the dense search workspace remains legible on typical displays.
 - **`--destructive-foreground`** ships equal to `--destructive` upstream, which
   makes destructive text invisible on a destructive surface. `globals.css` sets
   it to white, as the lps-ui README instructs.
@@ -49,6 +52,7 @@ fidelity", start here rather than reverting one of these by accident:
 
 | Deviation | Why |
 |---|---|
+| Higher-contrast dark-mode muted text and table chrome | The mock's small labels, empty states, controls and dividers were difficult to distinguish on typical displays. |
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
 | `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
 | Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |

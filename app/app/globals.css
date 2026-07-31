@@ -87,8 +87,8 @@
   --secondary: #1E1E1E;
   --secondary-foreground: #E8E8E8;
 
-  --muted: #1E1E1E;
-  --muted-foreground: #888888;
+  --muted: #242424;
+  --muted-foreground: #B5B5B5;
 
   --accent: #4DD67D;
   --accent-foreground: #0A0A0A;
@@ -96,8 +96,8 @@
   --destructive: #C87F55;
   --destructive-foreground: #E8E8E8;
 
-  --border: #2A2A2A;
-  --input: #2A2A2A;
+  --border: #414141;
+  --input: #4A4A4A;
   --ring: #7C4DFF;
 
   --chart-1: #7C4DFF;
@@ -108,29 +108,29 @@
 
   --sidebar: #0F0F0F;
   --sidebar-foreground: #E8E8E8;
-  --sidebar-border: #2A2A2A;
+  --sidebar-border: #414141;
 
   /* The Supplier Workspace design overrides the base dark theme's purple accent
      back to green, so dark mode stays the same product as light mode. */
   --primary: #4DD67D;
   --primary-foreground: #0A0A0A;
   --ring: #4DD67D;
-  --secondary: #17301F;
-  --secondary-foreground: #8FE3A8;
+  --secondary: #193823;
+  --secondary-foreground: #9BEAB2;
   --accent: #A8E06D;
   --accent-foreground: #0A0A0A;
   --chart-1: #4DD67D;
   --chart-2: #8FE3A8;
   --sidebar-primary: #4DD67D;
   --sidebar-primary-foreground: #0A0A0A;
-  --sidebar-accent: #17301F;
-  --sidebar-accent-foreground: #8FE3A8;
+  --sidebar-accent: #193823;
+  --sidebar-accent-foreground: #9BEAB2;
   --sidebar-ring: #4DD67D;
 
-  --lps-headrow: #151515;
-  --lps-hair: #242424;
-  --lps-edge: #2F3B31;
-  --lps-dim: #7C8A7E;
+  --lps-headrow: #202020;
+  --lps-hair: #353535;
+  --lps-edge: #526956;
+  --lps-dim: #A2AFA4;
   --lps-tint: #141414;
   --lps-bubble: #1B1B1B;
   --lps-shadow: 0 12px 28px rgba(0, 0, 0, .55);
