@@ -79,19 +79,17 @@ export const MASTER_HIDDEN = MASTER_COLS.map((c) => c.key).filter((k) => !MASTER
 export const PLANT_COLS: ColumnDef[] = [
   { key: 'name', label: 'Plant', width: 200, edit: true, writes: { table: 'inventory', column: 'name' } },
   { key: 'other', label: 'Other names', width: 190 },
-  { key: 'cat', label: 'Category', width: 120, filter: 'multiselect' },
   { key: 'size', label: 'Size', width: 104, filter: 'multiselect' },
   { key: 'price', label: 'Price', width: 100, align: 'right', edit: true, filter: 'range', money: true, writes: { table: 'inventory', column: 'unit_price' } },
   { key: 'qty', label: 'Quantity', width: 104, align: 'right', edit: true, filter: 'range', num: true, writes: { table: 'inventory', column: 'quantity' } },
   { key: 'h', label: 'Height', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'height' } },
   { key: 'w', label: 'Width', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'width' } },
   { key: 'cal', label: 'Caliper', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'caliper' } },
-  { key: 'variety', label: 'Variety', width: 124, edit: true, writes: { table: 'inventory', column: 'variety' } },
   { key: 'notes', label: 'Notes', width: 190, edit: true, writes: { table: 'inventory', column: 'notes' } },
   { key: 'source', label: 'Source', width: 180, kind: 'file', filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 130, filter: 'none' },
 ]
-export const PLANT_HIDDEN = ['variety', 'notes', 'cal']
+export const PLANT_HIDDEN = ['notes', 'cal']
 
 export type TableId = 'suppliers' | 'plantMaster' | 'plants'
 

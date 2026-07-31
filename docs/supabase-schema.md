@@ -110,10 +110,8 @@ availability files.
 | `id` | uuid | no | PK, `gen_random_uuid()`. Constraint is still named `plants_pkey` |
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | yes | Owning supplier |
 | `source_id` | uuid → `inventory_sources.id` | yes | File/URL this row came from; null for hand-entered rows |
-| `name` | text | no | Plant name, botanical/scientific preferred ("Quercus virginiana") |
+| `name` | text | no | The whole plant identity: `Name [scientific name, variant]`, e.g. `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`. `Name` is as the source prints it; either bracket part is omitted when the source doesn't give it. **Part of a row's identity** — (name, size) alone is NOT unique |
 | `name_key` | text **generated stored** | — | `normalize_plant_key(name)`; joins to `plant_other_names`. Do not write |
-| `variety` | text | yes | Cultivar. **Part of a row's identity** — (name, size) alone is NOT unique |
-| `category` | text | yes | Free-text grouping from the source file ("TREES", "PERENNIAL"); 291 distinct values, ~50k active rows have none |
 | `size` | text | yes | Normalized: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`). `#`/`gal` mean gallons |
 | `unit_price` | numeric(10,2) | **no** | USD; lower bound if the source gave a range |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
@@ -124,7 +122,11 @@ availability files.
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
 There is deliberately **no** common-names column — alternative names live in
-`plant_other_names` and are derived at read time.
+`plant_other_names` and are derived at read time. There is also no `category`
+column (the source's own grouping is not tracked) and no `variety` column — the
+cultivar is part of `name`. Both were dropped 2026-07-31, along with the rollback
+table that briefly held their pre-change values, so the change is irreversible
+and the old category values no longer exist anywhere.
 
 ### `inventory_sources`
 
@@ -141,20 +143,43 @@ Provenance: one row per ingested pricing / availability file or URL, per supplie
 
 ### `plant_other_names`
 
-Mapping rows connecting a plant name to one alternative (common / marketing)
-name. Powers bidirectional name search and the derived "Other Names" column.
+Mapping rows connecting a plant name to one alternative name. Powers
+bidirectional name search and the derived "Other Names" column.
+
+An alias exists for exactly one reason: so a search finds the row when the user
+types **another name the same plant is known by** — a genuine common name, the
+botanical/scientific name, an accepted synonym, an abbreviation, or a spelling
+variant. `other_name` must **never** carry a cultivar, selection, variant, trade
+name or patent code; those identify one selection rather than the plant, and
+linking them makes every sibling cultivar match every other one. The cultivar is
+already searchable inside `inventory.name`.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint identity | no | PK (constraint named `plant_common_names_pkey`) |
 | `name` | text | no | Canonical/botanical name, display-cased |
-| `other_name` | text | no | One alternative name, display-cased |
+| `other_name` | text | no | One alternative name, display-cased. No cultivars/trade names |
 | `name_key` / `other_name_key` | text **generated stored** | — | `normalize_plant_key()` of each side; all matching runs on these |
+| `is_active` | boolean | no, default true | Inactive pairs are history: they power neither search nor display |
 
 Uniqueness is on `(name_key, other_name_key)` — case/spacing/symbol variants of a
 pair are the same pair. A BEFORE INSERT trigger silently drops duplicates,
 self-pairs and empty-keyed rows, so writers can blind-insert without conflict
 handling.
+
+**13,429 pairs, all active** — the 2026-07-31 cleanup and quality audit retired
+78,807 and they were then deleted outright. An alias must name the *same plant*
+— never a cultivar, never a generic category label ("Oak", "Grass"), never a
+size/grade code. Search hops between siblings, so one bad pair pollutes a whole
+neighbourhood; the ingestion SOP's rule is "when in doubt, insert nothing".
+Before adding any cleanup rule, read the REJECTED RULES section of
+`harness/agents/daisy/migrations/0008_alias_quality_audit.sql`.
+
+> The dedupe trigger rejects a duplicate `(name_key, other_name_key)` **whether
+> or not the existing row is active**. While retired rows existed they doubled as
+> a blocklist; now that they are deleted, nothing at the database level stops a
+> bad alias being re-inserted. Keeping the directory clean is the ingestion
+> SOP's job.
 
 ---
 
@@ -164,8 +189,9 @@ handling.
 
 Every `inventory` column plus derived `other_names` (text, comma-separated,
 alphabetical, deduped on key). A row's other names are every name connected to
-its `name_key` in `plant_other_names` — aliases of it, canonical names it is an
-alias of, and sibling aliases through those — minus itself.
+its `name_key` through an **active** pair in `plant_other_names` — aliases of it,
+canonical names it is an alias of, and sibling aliases through those — minus
+itself.
 
 Read through this view whenever you display inventory; **write to `inventory`
 directly**. PostgREST embedding works through it
@@ -175,8 +201,9 @@ embedded to-one column.
 ### `rate_charts`
 
 Backwards-compatibility view: a plain `SELECT` of the pre-rename `inventory`
-columns (no `name_key`, no `other_names`). `inventory` used to be called
-`rate_charts`. **Do not build anything new on it.**
+columns (no `name_key`, no `other_names`; no `category`/`variety` either, since
+those columns are gone). `inventory` used to be called `rate_charts`. **Do not
+build anything new on it.**
 
 ---
 
@@ -193,15 +220,19 @@ columns (no `name_key`, no `other_names`). `inventory` used to be called
 ### Search RPCs
 
 ```
-search_inventory(search text = '', supplier_ids bigint[] = null, category_filter text = null,
+search_inventory(search text = '', supplier_ids bigint[] = null,
                  fuzzy_ratio real = 0.34, sort_column text = null, sort_direction text = null)
 ```
 Returns the inventory columns plus `other_names`, `source` (=
 `inventory_sources.file_path`), `supplier_name`, `supplier_category`,
-`supplier_state`, `supplier_city`.
+`supplier_state`, `supplier_city`. There is no `category_filter` — the column it
+filtered was dropped 2026-07-31. (`search_suppliers` keeps its own, over
+`suppliers.category`.)
 
-- Active rows only; optional supplier / category filters.
-- A row matches if its **document** (name, category, variety, size, height,
+- Active rows only; optional supplier filter.
+- Only **active** `plant_other_names` pairs participate in matching and in the
+  derived `other_names`.
+- A row matches if its **document** (name, size, height,
   width, caliper, notes — normalized) matches the pgroonga query
   (typo-tolerant, and the query's trailing word is also **prefix-matched** when
   it is ≥ 3 chars — typing "Mexican Sycamor" finds "Mexican Sycamore"), **or**
@@ -229,20 +260,19 @@ suppliers.
 - `search_suppliers`: `name`, `category`, `poc_name`, `poc_email`, `poc_phone`,
   `website`, `email`, `phone`, `address`, `city`, `state`, `zip`, `notes`,
   `created_at`, `updated_at`.
-- `search_inventory`: `name`, `other_names`, `category`, `size`, `unit_price`,
-  `quantity`, `height`, `width`, `caliper`, `variety`, `notes`, `source`,
+- `search_inventory`: `name`, `other_names`, `size`, `unit_price`,
+  `quantity`, `height`, `width`, `caliper`, `notes`, `source`,
   `created_at`, `updated_at`, `supplier_name`, `supplier_category`,
   `supplier_state`, `supplier_city`.
 
 > ### ⚠️ Do not call `search_inventory` with an empty `search`
 >
 > With no query there is nothing to rank, and the function walks all ~74k active
-> rows — it **exceeds the statement timeout** and the call fails. A
-> `category_filter` alone narrows it enough to return, but still takes seconds.
+> rows — it **exceeds the statement timeout** and the call fails.
 >
 > To list rather than search, read `inventory_enriched` directly with an
 > `ORDER BY` and a `LIMIT`; that returns in well under a second. This is what
-> `browseInventory()` in `app/lib/queries.ts` does.
+> `searchPlantGroups()` in `app/lib/queries.ts` does when the term is empty.
 
 ### Other
 
@@ -264,7 +294,8 @@ suppliers.
   document expression. **Must match `search_inventory`'s concatenation exactly.**
 - `inventory_trgm_idx` — gin/`pg_trgm` over the same expression (fuzzy fallback).
 - `plant_other_names_pgroonga_idx` — pgroonga over
-  `normalize_search_text(name || ' ' || other_name)`.
+  `normalize_search_text(name || ' ' || other_name)`. Note it does not cover
+  `is_active`, which the search filters on separately.
 - `suppliers_pgroonga_idx` — pgroonga over the supplier document.
 - Btree on the stored keys: `inventory(name_key)`, `plant_other_names(name_key)`,
   `(other_name_key)`, unique `(name_key, other_name_key)`. These exist because
@@ -342,8 +373,10 @@ required.
 ## Conventions recap
 
 - Sizes: `"15 G"`, `"6'"`, `"24\""`, `"3' cal"`, `"24\" box"`; `#` = gallons.
-- Plant `name`: botanical preferred; marketing names go to `plant_other_names`,
-  never into `inventory.name` alongside it.
+- Plant `name`: `Name [scientific name, variant]` — the printed name in full,
+  plus the scientific name and cultivar/trade name when the source gives them.
+  `plant_other_names` holds only other names for the *same plant* (common,
+  scientific, synonyms) — never a cultivar or trade name.
 - `file_path`: object key or full URL; anything without `http(s)://` is a key in
   the `lps` bucket.
 - Never write generated `*_key` columns.

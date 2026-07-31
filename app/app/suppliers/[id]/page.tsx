@@ -596,7 +596,7 @@ export default function SupplierProfilePage() {
                           <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
                         )}
                         <div className="mt-1 text-[11.5px] text-muted-foreground">
-                          {[p.values.size, p.values.cat].filter(Boolean).join(' · ')}
+                          {String(p.values.size ?? '')}
                         </div>
                       </div>
                       <div className="flex-none text-right">

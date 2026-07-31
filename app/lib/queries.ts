@@ -39,13 +39,11 @@ interface InventoryRecord {
   id: string
   name: string
   other_names: string | null
-  category: string | null
   size: string | null
   unit_price: number | null
   quantity: number | null
   supplier_id: number | null
   source_id?: string | null
-  variety: string | null
   notes: string | null
   height: string | null
   width: string | null
@@ -100,14 +98,12 @@ function toPlantRow(r: InventoryRecord, sourcePath?: string | null): PlantRow {
     values: {
       name: r.name,
       other: r.other_names ?? null,
-      cat: r.category,
       size: r.size,
       price: r.unit_price,
       qty: r.quantity,
       h: r.height,
       w: r.width,
       cal: r.caliper,
-      variety: r.variety,
       notes: r.notes,
       source: path ? fileLabel(path) : null,
       updated: r.updated_at,
@@ -431,7 +427,7 @@ const WRITABLE: Record<string, string[]> = {
     'name', 'poc_name', 'poc_email', 'poc_phone', 'email', 'phone', 'city', 'state',
     'notes', 'communication_notes',
   ],
-  inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'variety', 'notes'],
+  inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes'],
 }
 
 const NUMERIC = new Set(['unit_price', 'quantity'])

@@ -71,10 +71,60 @@ the same session. Ask early rather than guessing.
 One logical row per **plant × size offering**. Normalize every line:
 
 - **Size** (`inventory.size`): gallons `XX G` (space before the G) — `#15`/`15gal`/`15G` → `15 G` (`#` means gallons). Inches `XX"` — `24 inch` → `24"`. Feet `XX'` — `6ft` → `6'`. Compounds keep units: `3' cal`, `24" box`. Plant name excludes size — size is its own column.
-- **Name**: botanical/scientific preferred in `name` (e.g. `Quercus virginiana`). Cultivar goes in `variety` — **part of the row's identity**, don't fold it into `name` or drop it.
-- **Aliases**: every common/marketing name becomes a `plant_other_names` `(name, other_name)` pair (display-cased) — **never** into `inventory.name` alongside the botanical name.
+- **Name** (`inventory.name`): one column carries the whole identity, written as
+  **`Name [scientific name, variant, cultivar]`**.
+  - `Name` is the plant name **as the source prints it**, in full — including any
+    cultivar, selection, form, or trade name that is part of that printed name.
+    Don't invent a name the source doesn't give, and don't strip anything it does.
+  - Append the bracket when the source also gives a **scientific/botanical name**
+    and/or a **variant / cultivar / trade name**, in that order: both →
+    `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`; scientific name only →
+    `Eastern Redbud [Cercis canadensis]`; variant only →
+    `Forest Pansy Redbud [Forest Pansy]`. Neither → no bracket at all.
+  - There is **no `variety` column** — the variant lives in the bracket. Size is
+    still its own column and never goes in the name.
+  - Put the **common name first** whenever the source prints one, even if it also
+    prints the botanical name: `Redbud, Forest Pansy [Cercis canadensis, Forest
+    Pansy]`, not `Cercis canadensis [Forest Pansy]`. The name is the only place a
+    printed common name is kept, so dropping it loses it permanently — it cannot
+    be recovered later without reparsing the source.
+- **Aliases** (`plant_other_names`): an alias exists for exactly one reason — so a
+  search finds the row when the user types **another name the same plant is known
+  by**. Insert `(inventory.name, other_name)` pairs, where `other_name` is a
+  genuine common name, the botanical/scientific name, an accepted synonym, an
+  abbreviation, or a spelling variant.
+  **Quality bar — an alias is a liability, not a freebie.** Search follows this
+  graph *and* hops between siblings: if hub `H` has aliases `A` and `B`, someone
+  searching `A` gets rows named `B`. One bad pair pollutes a whole neighbourhood,
+  which is why a 2026-07-31 audit had to retire most of the directory. **When in
+  doubt, insert nothing** — a missing alias costs one search; a wrong one
+  corrupts many. Before inserting, every pair must pass all of these:
+
+  - **Same plant, not a relative.** Both sides must name the *same* plant. Never
+    a species ↔ one of its cultivars, never sibling cultivars, and never two
+    different species — `Cercis canadensis` ↔ `Cercis mexicana` is wrong, they
+    are different plants. Genuine renames are fine (`Sedum spectabile` ↔
+    `Hylotelephium spectabile`).
+  - **No cultivar, selection, variant, trade name or patent code in
+    `other_name`** — not `'Forest Pansy'`, `Merlot Redbud`, `PP21929`,
+    `Kaleidoscope™`. Those identify one selection. They are already searchable
+    inside `inventory.name`, so the alias adds nothing and costs cross-matches.
+  - **Nothing generic.** A label that fits many plants — `Oak`, `Grass`, `Maple`,
+    `Redbud`, `Perennial`, `Native`, `Shade Tree` — is a category, not a name.
+    Text search already finds a name containing "Maple"; an alias only wires
+    unrelated plants together. Rule of thumb: if it would fit more than a couple
+    of distinct plants in the catalogue, don't insert it.
+  - **A name, not data.** Never a size, grade, container or form code (`15 G`,
+    `B&B`, `M/S`, `STD`, `Clump`), a price, a quantity, a SKU, a zone or shipping
+    note, or a truncated fragment of a longer name.
+  - **Not redundant.** Skip it if it differs from `inventory.name` only by
+    punctuation, casing, spacing, or a size/form suffix — those already match.
+
+  New pairs are `is_active = true` (the default). Inactive pairs are historical
+  and power neither search nor display; **never reactivate one** to "restore" a
+  name, and never re-add a pair a cleanup retired.
 - **Price**: `unit_price` is required; use the lower bound if the source gives a range. **Do not ignore zero-priced rows** — if the source lists an item at `0` (or with no price printed), still ingest the row with `unit_price = 0` and flag it for Chris (see output contract), don't drop it. Stock counts go in `quantity`.
-- `category` is plain text from the source (e.g. `Shade Trees`); null if the source has no grouping. `height`/`width`/`caliper` as printed.
+- `height`/`width`/`caliper` as printed. The source's own grouping (e.g. `Shade Trees`) is **not** stored — there is no `category` column on `inventory`.
 - To check "does the system already know this plant?", call the `search_inventory` RPC — typo-tolerant, follows the alias graph.
 
 ## 3. Stash the source and create provenance
@@ -92,8 +142,8 @@ One logical row per **plant × size offering**. Normalize every line:
 Each ingestion *supersedes* the supplier's current availability — never edit rows in place:
 
 - **Insert one `inventory` row per offering**, stamping `supplier_id` and `source_id`, with the normalized fields from §2. `id` defaults to `gen_random_uuid()`; **never write `name_key`** — it's a generated column, and never match plant names with `=` on raw text (join on `name_key` / `normalize_plant_key()`).
-- **Insert alias pairs into `plant_other_names`.** A BEFORE INSERT trigger silently drops duplicates and self-pairs, so blind-insert without conflict handling.
-- **Carry forward `notes`** (availability status + seller notes) from the matching old active row — match on `(supplier_id, name_key, size, coalesce(variety, ''))`. Don't lose prior status.
+- **Insert only approved active alias pairs into `plant_other_names`** as defined in §2: scientific names and true synonyms/spelling variants, never cultivar/selection/trade-name aliases. A BEFORE INSERT trigger silently drops duplicates and self-pairs, so blind-insert without conflict handling; new valid pairs use `is_active = true` (default).
+- **Carry forward `notes`** (availability status + seller notes) from the matching old active row — match on `(supplier_id, name_key, size)`. Don't lose prior status.
 - **Then retire the old version** (soft delete — `DELETE` is blocked anyway):
   ```sql
   UPDATE inventory SET is_active = false
@@ -127,7 +177,7 @@ note, so include:
 - **Onboarding** (when performed): new `supplier_id`, fields set via browser
   research, newsletter subscribed (or why not).
 - **Result**: supplier_id, source ids + `file_path`s created, rows inserted,
-  rows deactivated, categories touched, alias pairs added.
+  rows deactivated, alias pairs added.
 - **Follow-up questions**: anything you need from the main agent to finish
   (missing/ambiguous inputs, credentials, a decision). If you stopped early
   because of one, say exactly where you stopped and what remains.

@@ -99,13 +99,34 @@ Extensions: the three shared ones.
 
 ## Migrations (`migrations/`)
 
-- `0001_availability_versioning.sql` + `NOTE.md` — **operator-run** DDL applied
-  to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) on 2026-07-01 as
-  `20260701104209_daisy_availability_versioning`. Reworks `public.rate_charts`:
+**Operator-run** DDL against Supabase project `xyeyiqchadfszewztnrf` (lps-rosie),
+because daisy's own `query` script blocks DDL. `NOTE.md` records what was applied
+and when; the summaries below are one line each.
+
+- `0001_availability_versioning.sql` — 2026-07-01. Reworks `public.rate_charts`:
   renames `common_name`→`common_names`, adds `category` (backfilled) and
   `is_active` (+ `rate_charts_supplier_active_idx` for versioned ingestion),
   drops `section_id` and the `rate_chart_sections` table. No data lost, RLS
-  unchanged. Run by the operator because daisy's own `query` script blocks DDL.
+  unchanged.
+- `0002_supplier_communication_notes.sql` — 2026-07-27. Adds
+  `suppliers.communication_notes` and the column comments separating it from
+  `suppliers.notes`.
+- `0003_search_prefix_match.sql` — 2026-07-28. Adds trailing-word prefix matching
+  to `search_inventory` / `search_suppliers`.
+- `0004_active_plant_aliases.sql` — 2026-07-31. Adds `plant_other_names.is_active`
+  so only active aliases power search and display.
+- `0005_inventory_name_consolidation.sql` — 2026-07-31. Moves the whole plant
+  identity into `inventory.name` as `Name [scientific name, variant]` and
+  **drops** `inventory.category` and `inventory.variety`; rebuilds both search
+  indexes, both views, and `search_inventory` (which loses `category_filter`).
+- `0006_cultivar_alias_cleanup.sql` — 2026-07-31. Deactivates cultivar and
+  trade-name alias pairs, which made sibling cultivars match each other.
+- `0007_retire_carryforward_aliases.sql` — 2026-07-31. Retires 0005's alias
+  carry-forward, which had become the largest source of search false positives.
+- `0008_alias_quality_audit.sql` — 2026-07-31. Audits and prunes the alias
+  directory (generic labels, junk, wrong taxa, cultivar residue); 19,106 → 13,452
+  active pairs. Records the rules that were **rejected** for destroying genuine
+  names — read it before writing another cleanup.
 
 ## Skills
 

@@ -1,0 +1,61 @@
+-- 0009: the last four Merlot-class alias pairs
+-- Applied 2026-07-31 as migration 049. Identified by Bhoumik.
+--
+-- "Merlot" is a cultivar, so pairing it with the Cercis species hubs let a
+-- Merlot search return every redbud hanging off those hubs.
+--
+--   5114  Cercis canadensis x <-> Merlot Redbud
+--  31002  Cercis texensis     <-> Merlot Redbud
+--   5163  Cercis texensis     <-> Redbud Merlot
+--   5164  Cercis texensis     <-> Redbud Merlot Clump
+--
+-- Deactivated by id, not by rule. Every generic predicate that catches these
+-- also deletes genuine names -- "Texas Redbud" and "Mexican Redbud" are built
+-- the same way but are real common names. See the REJECTED RULES section of
+-- 0008_alias_quality_audit.sql before trying to generalize this.
+--
+-- After this the alias graph is clean for all three reported cultivars:
+--   Forest Pansy  45 results, 0 false positives
+--   Ruby Falls    46 results, 0 false positives
+--   Merlot Redbud 12 results, 0 alias false positives
+--   Texas Redbud  57 results (unharmed)
+--
+-- "Merlot Redbud" still shows two "Redbud, Mexican" rows. Those carry no Merlot
+-- alias: they match on the shared token "redbud" alone, which is pgroonga's
+-- any-token behaviour, not an alias fault. Tracked separately as a
+-- ranking/result-count question -- fixing it means requiring all query tokens,
+-- which changes every search in the app.
+
+UPDATE public.plant_other_names
+SET is_active = false
+WHERE is_active AND id IN (5114, 31002, 5163, 5164);
+
+-- ---------------------------------------------------------------------------
+-- Migration 050: sweep for the same shape table-wide.
+--
+-- 0008's rule missed the four pairs above because of its hub-dominance filters
+-- (Cercis texensis had "merlot" in 3 of 5 aliases; Cercis canadensis x had only
+-- 2 aliases). Dropping those filters raises recall to 484 pairs -- and was
+-- REFUSED, because it flags genuine common names: Pinus taeda <-> Loblolly
+-- Pine, Agave vilmoriniana <-> Octopus Agave, Rhus trilobata <-> Skunkbush
+-- Sumac, Quercus fusiformis <-> Texas Live Oak, Cercis canadensis f. alba <->
+-- Redbud, Whitebud.
+--
+-- What was applied instead: the same relaxed rule PLUS trademark corroboration
+-- -- the epithet must appear in an inventory bracket for the same genus next to
+-- a PP####/PPAF/®/™ marker. A patented name is definitionally a cultivar, so
+-- this cannot pick up a common name. 19 hits, all eyeballed, 19/19 correct:
+--
+--   Sedum rupestre    <-> Angelina Stonecrop / Sedum Angelina  (6 rows)
+--   Hydrangea x       <-> Let's Dance Sky View / Can Do Hydrangea
+--   Quercus x warei   <-> Nadler's Kindred Spirit Oak
+--   Cornus            <-> Venus Dogwood / STARLIGHT Dogwood
+--   Ilex              <-> Oakland Holly / Amore Holly
+--   Ulmus chinensis   <-> Allee Elm
+--   Abelia hybrid     <-> Radiance Abelia
+--   Carex oshimeensis <-> Evercolor Everest Sedge
+--   DIANTHUS PERENNIAL<-> CARNATION KAHORI PINK
+--
+-- Verified unharmed afterwards: Loblolly Pine 59, Octopus Agave 11,
+-- Texas Redbud 57. The full predicate is in the migration history.
+-- ---------------------------------------------------------------------------

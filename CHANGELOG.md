@@ -15,6 +15,81 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-07-31
+
+### Changed
+
+- **Plant identity now lives entirely in `inventory.name`.** The name is written
+  `Name [scientific name, variant]` — the printed name in full, plus the
+  scientific name and cultivar/trade name when the source gives them. The
+  ingestion SOP (`harness/agents/daisy/knowledge/SOPs/`) and `SCHEMA.md` were
+  rewritten to match; both had said the opposite ("botanical preferred; marketing
+  names go to `plant_other_names`, never into `inventory.name`").
+- **Dropped `inventory.category` and `inventory.variety`**
+  (`harness/agents/daisy/migrations/0005_inventory_name_consolidation.sql`). The
+  source's own grouping is no longer tracked, and the cultivar is part of the
+  name. 101,678 rows had their variety folded in; both search indexes, the
+  `rate_charts` and `inventory_enriched` views and `search_inventory` were
+  rebuilt around the drop, and the RPC lost its `category_filter` parameter.
+  `suppliers.category` is untouched. The app drops the plants table's Category
+  and Variety columns to match. Pre-change values are kept in
+  a rollback table (since dropped — see below); the scientific name was **not**
+  backfilled, because deriving it from the existing alias graph proved
+  unreliable (`Acer Palmatum` resolved to the cultivar `Oto hime`).
+- **Purged the retired aliases and the rollback scaffolding**
+  (`0010_purge_inactive_aliases_and_rollback_tables.sql`): 78,807 deactivated
+  pairs deleted, leaving 13,429 — the entire table, all active — and both
+  rollback tables dropped. Two consequences worth knowing: the name
+  consolidation can no longer be reversed and the source `category` values are
+  gone for good; and because the dedupe trigger ignores `is_active`, the retired
+  rows had been silently acting as a blocklist against bad aliases returning.
+  That guard is now the ingestion SOP's job alone.
+- **Aliases are search equivalents only.** `plant_other_names.other_name` may now
+  hold only another name for the *same plant* — common name, scientific name,
+  synonym, abbreviation, spelling variant — never a cultivar, variant, trade name
+  or patent code. Those linked a species to one of its selections, so every
+  sibling cultivar matched every other one; the cultivar is searchable in the
+  name instead (`0006_cultivar_alias_cleanup.sql`).
+- **Retired 0005's alias carry-forward** (`0007_retire_carryforward_aliases.sql`),
+  which turned out to be the largest single source of search false positives: it
+  ran before the cleanup and copied unquoted cultivar compounds and sibling
+  *species* onto cultivar rows, so `Redbud [Forest Pansy]` inherited
+  `Cercis mexicana`. 48,269 pairs retired; 19,106 of 92,236 remain active.
+  "Forest Pansy" and "Ruby Falls" now return zero false positives. The cost is
+  that only 4,378 of 40,715 bracketed rows are still reachable through the alias
+  graph — the durable fix is reparsing sources so the name carries the printed
+  common-first identity. Cultivar cleanup is **not finished**: see
+  `migrations/NOTE.md` for the Merlot-class residue and the token-OR noise, both
+  left deliberately rather than fixed with a rule that deleted genuine names.
+- **Audited and pruned the alias directory** (`0008_alias_quality_audit.sql`):
+  generic category labels by fan-out ("Grass" was an alias for 64 distinct
+  plants), non-plant junk (hardgoods, 31-char feed truncations, grade codes),
+  nine hand-verified wrong-taxon pairs, and cultivar residue on single-word
+  epithets. Active pairs 19,106 → 13,452; "Forest Pansy" and "Ruby Falls" return
+  zero false positives and "Merlot Redbud" went 46 → 7. Four plausible rules
+  were built, measured and **rejected** for destroying genuine names — the
+  migration records why, so they don't get retried.
+- **Cleared the last cultivar aliases** (`0009_residual_merlot_aliases.sql`): the
+  four Merlot/Cercis pairs, plus a table-wide sweep for the same shape that found
+  19 more (`Sedum rupestre` ↔ `Angelina Stonecrop`, `Ulmus` ↔ `Allee Elm`). The
+  sweep is gated on trademark corroboration — ungated it also flags `Pinus taeda`
+  ↔ `Loblolly Pine` and `Agave vilmoriniana` ↔ `Octopus Agave`, which are real
+  names. Forest Pansy, Ruby Falls and Merlot Redbud now have **no alias false
+  positives**; Loblolly Pine, Octopus Agave and Texas Redbud are unharmed.
+- **The ingestion SOP now sets an explicit alias quality bar** — same plant only,
+  no cultivars/trade names, nothing generic, names not data, and "when in doubt
+  insert nothing", because search hops between siblings so one bad pair pollutes
+  a neighbourhood. It also requires the printed **common name first** in
+  `inventory.name`, since the name is the only place a printed common name
+  survives.
+
+### Added
+
+- **Applied `0004_active_plant_aliases.sql`**, which had been prepared on
+  2026-07-30 but held back because daisy's guarded query runner blocks
+  `ALTER TABLE`. Adds `plant_other_names.is_active`, so inactive pairs power
+  neither search nor the derived "Other names" column.
+
 ## 2026-07-30
 
 ### Changed

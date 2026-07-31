@@ -1,0 +1,71 @@
+-- 0008: alias directory quality audit and prune
+-- Applied 2026-07-31 as migrations 047 / 048a / 048b / 048c / 048d.
+-- Approved by Bhoumik Shah, who noted the directory is rebuilt on re-ingestion,
+-- so pruning may be aggressive.
+--
+-- Three independent audits (generic labels, cultivar residue, wrong-taxon links,
+-- non-plant junk). The SQL that was applied lives in the migration history; this
+-- file records WHAT was done and, just as importantly, what was deliberately NOT
+-- done. Active pairs went 19,106 -> 13,452.
+--
+-- 047  Generic common names, by fan-out: a label used as an alias for >= 5
+--      DISTINCT plants is a category, not an equivalent ("Grass" 64 plants,
+--      "Oak" 49, "Maple" 47, "Redbud" 21). They add no search value — text
+--      search already matches a name containing "Maple" — while wiring dozens
+--      of unrelated plants into one cross-matching hub. Fan-out is measured on
+--      the alias side, so "Cercis canadensis" is untouched: HAVING many aliases
+--      is not the same as BEING one for many plants.
+--
+-- 048a Non-plant junk: hardgoods (TreeShelter, Corona Loppers, Blood Meal),
+--      31-char feed truncations, packaging/grade codes, category labels,
+--      shipping annotations. Word boundaries matter — naive patterns ate
+--      Foxglove (glove), Milkweed (weed), Brake Fern (rake), Cabernet (net).
+--
+-- 048b Wrong-taxon pairs: nine hand-verified ids only.
+-- 048c Cultivar residue, trademark-corroborated (100% precision when sampled).
+-- 048d Cultivar residue, broad (93.6% precision on 110 eyeballed rows).
+--
+-- Result on the reported failures: "Forest Pansy" and "Ruby Falls" now return
+-- zero false positives; "Merlot Redbud" went 46 -> 7.
+--
+-- ============================ REJECTED RULES =============================
+-- Do not "fix" these later without re-reading why they were refused. Each was
+-- built, measured, and thrown away because it destroyed genuine data:
+--
+--  * Single-word cultivar epithet dictionary. The corpus yields "texas",
+--    "oklahoma", "eastern", "mexican", "rock", "japanese", "firecracker", so it
+--    deleted Penstemon eatonii <-> Firecracker Penstemon, Pachysandra
+--    terminalis <-> Japanese Pachysandra, Cercis canadensis var. texensis <->
+--    Texas Redbud. 048c/048d instead require a CONJUNCTION of structural
+--    signals (modifier confined to <=2 genera, >=3x rarer than the alias's
+--    dominant token, present in <=1/3 of its hub's aliases).
+--
+--  * Same genus, different epithet. 37-371 pairs depending on strictness,
+--    ~0-1.5% precision. It is almost purely accepted synonyms: Aloe barbadensis
+--    <-> A. vera, Cordyline fruticosa <-> C. terminalis, Ficus pumila <->
+--    F. repens, Quercus texana <-> Q. nuttallii.
+--
+--  * Different genus, both binomials. 50 pairs, 1 true positive. The rest are
+--    nomenclatural transfers: Myrica <-> Morella cerifera, Senna <-> Cassia,
+--    Salvia rosmarinus <-> Rosmarinus officinalis, Veitchia <-> Adonidia.
+--
+--  * "Alias shares a token with its hub but adds an epithet." Looked precise,
+--    actually deleted Penstemon eatonii <-> Firecracker Penstemon and
+--    Pachysandra terminalis <-> Japanese Pachysandra.
+--
+--  * Any alias-length threshold, and "contains a digit". Short aliases are
+--    mostly genus abbreviations and real names (Okra, Pecan, Sago, Buxus);
+--    digits appear in 20th Century Asian Pear, 4-way Combo Apple.
+--
+-- ============================ LEFT FOR A HUMAN ===========================
+--  * 11 pairs where a common name is attached to two or more species and only a
+--    taxonomic authority can say which attachment is wrong:
+--    6168, 10432, 25414, 18521, 12503, 25249, 25329, 21766, 10982, 11167, 10890
+--  * 6 "-Plants for Texas" vendor-tagged aliases with no clean twin; they need
+--    the suffix stripped, not deactivation, or the name is lost.
+--  * ~25 single-word fragments of multi-word common names (Live, Bur, Pin,
+--    Bald, Wax). No predicate separates them from genuine one-word common names
+--    like Fir, Gum, Pea, Cork.
+--  * "Merlot Redbud" still returns 7 wrong rows. Closing that needs the hub
+--    filter dropped, which immediately re-breaks Loblolly Pine, Octopus Agave
+--    and Skunkbush Sumac. Residue is the cheaper error.
