@@ -19,6 +19,19 @@ here).
 
 ### Changed
 
+- **`cognisphere-harness` 0.8.7 → 0.8.11.** Two seeded artifacts moved, both
+  re-seeded into daisy and nova (clean forks, no local edits): `context-meta.ts`
+  now emits checkpoints as standalone prune-safe messages
+  (`customType: "context-meta.checkpoint"`) instead of stamps fused onto
+  neighboring messages — 0.8.9 fixed an 0.8.8 infinite-LLM-call regression and
+  0.8.10 lands turn-ending checkpoints on `agent_settled` — and
+  `0-base_prompt.md` documents the checkpoint messages as FYI-only telemetry.
+  0.8.11 (no data migration) makes pi's own models.json mirror
+  `.secrets/models.json` overrides, so spawned pi children and the dashboard
+  agree on context windows. Scaffold refresh was a no-op apart from
+  `docs/base-harness/CHANGELOG.md`; the local Supabase env wiring in
+  `server.sh`/`config.example` was untouched upstream.
+
 - **Plant identity now lives entirely in `inventory.name`.** The name is written
   `Name [scientific name, variant]` — the printed name in full, plus the
   scientific name and cultivar/trade name when the source gives them. The

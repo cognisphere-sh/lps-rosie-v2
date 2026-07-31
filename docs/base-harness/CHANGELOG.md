@@ -18,6 +18,105 @@ the harness directory, and applies it after user approval. See
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.11]
+
+### Changed
+
+- **Model overrides in `.secrets/models.json` now configure pi itself.**
+  New `core/pi-models-sync.ts` mirrors the store's `modelOverrides` into
+  pi's own models.json (`~/.pi/agent/models.json`, or
+  `$PI_CODING_AGENT_DIR/models.json`) at server boot, on every agent
+  start, and after `PUT /api/models` — so spawned pi children resolve the
+  overridden `contextWindow`/`maxTokens` natively (model registry,
+  in-context ContextUsage telemetry, and pi's compaction thresholds).
+  Ownership: for providers present in the harness store, the
+  `modelOverrides` key of pi's models.json is harness-owned (replaced
+  wholesale, removed when the store has none); all other fields and
+  providers in that file are preserved, and a corrupt file is skipped,
+  never clobbered.
+- **Pi-as-configured is now the single source of truth for context
+  windows.** The API's reporting (`lastContext` in `/api/agents/usage`
+  and the threads list) resolves context windows via pi models.json
+  (`modelOverrides`, then custom model entries) with pi-ai's built-in
+  catalog as fallback, instead of consulting `.secrets/models.json`
+  directly — the dashboard and the agent's in-context telemetry can no
+  longer disagree, and hand-written custom providers in pi's models.json
+  now report correct context windows too.
+
+## [0.8.10]
+
+### Changed
+
+- **`extensions/context-meta.ts`: turn-ending checkpoints now land right
+  after the final response.** Instead of deferring to the next inbound
+  message (which placed the checkpoint after the next user message), the
+  deferred emit fires on `agent_settled` — the agent is idle there, so
+  `sendMessage` appends the checkpoint directly to the session without
+  triggering a turn or an LLM call. Tool-use responses keep the immediate
+  steer emit (checkpoint after that response's tool results). Inbound-flush
+  and seed-time catch-up remain as fallbacks.
+
+### Breaking changes
+
+- Seeded file `extensions/context-meta.ts` changed (turn-ending checkpoint
+  placement via agent_settled). Copy it from the new seed into existing
+  agents.   [affects: agents/*/extensions/*]
+
+## [0.8.9]
+
+### Fixed
+
+- **`extensions/context-meta.ts`: infinite invocation loop after
+  turn-ending responses (0.8.8 regression — upgrade off 0.8.8
+  immediately).** A checkpoint message queued via `sendMessage` lands in
+  pi's pending-message queue, and the agent loop keeps running while any
+  pending message exists — so a checkpoint emitted right after a response
+  with no tool calls kept provoking empty LLM calls forever, one paid call
+  per cycle. Checkpoints are now sent immediately only when the response
+  has tool calls (the loop continues anyway); for a turn-ending response
+  the emit is deferred to the next inbound message, with the existing
+  seed-time catch-up covering process exit. Per-step granularity and the
+  gapless trail are unchanged.
+
+### Breaking changes
+
+- Seeded file `extensions/context-meta.ts` changed (checkpoint emission no
+  longer extends the agent loop). Copy it from the new seed into existing
+  agents.   [affects: agents/*/extensions/*]
+
+## [0.8.8]
+
+### Changed
+
+- **`extensions/context-meta.ts`: checkpoints are now standalone messages
+  instead of stamps on neighboring messages.** After each assistant
+  response the extension injects a custom message
+  (`customType: "context-meta.checkpoint"`) carrying
+  `CheckpointTokens: +<n>` and a self-describing `Covers:` line, delivered
+  at the first provider-legal seam (after the response's tool calls,
+  before the next LLM call). Standalone messages are prune-safe: a future
+  context cleaner can remove a span and its checkpoint by identity,
+  instead of stranding a stamp fused into a kept message that describes
+  deleted content. A checkpoint covers everything up through the nearest
+  assistant response above it; seeding emits a catch-up checkpoint on
+  spawn if the previous batch exited with one still queued, keeping the
+  trail gapless across batches. User messages and tool results are no
+  longer stamped.
+- Base system prompt: `CheckpointTokens` moved out of the incoming-message
+  metadata fields into the telemetry section — documents the standalone
+  checkpoint messages, their coverage rule, and that they are informational
+  only (never act on or reply to them).
+
+### Breaking changes
+
+- Seeded file `extensions/context-meta.ts` changed (standalone checkpoint
+  messages replace per-message stamps). Copy it from the new seed into
+  existing agents.   [affects: agents/*/extensions/*]
+- Message-metadata section of the seeded base system prompt changed
+  (checkpoint messages documented as standalone telemetry, FYI-only; field
+  removed from the block example). Graft into existing agents'
+  prompts.   [affects: agents/*/system_prompts/0-base_prompt.md]
+
 ## [0.8.7]
 
 ### Changed

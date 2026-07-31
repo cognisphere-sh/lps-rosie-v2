@@ -69,8 +69,8 @@ importers:
   harness:
     dependencies:
       '@cognisphere-sh/cognisphere-harness':
-        specifier: 0.8.7
-        version: 0.8.7(ws@8.21.0)(zod@4.4.3)
+        specifier: 0.8.11
+        version: 0.8.11(ws@8.21.0)(zod@4.4.3)
 
 packages:
 
@@ -192,8 +192,8 @@ packages:
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
     engines: {node: '>=6.9.0'}
 
-  '@cognisphere-sh/cognisphere-harness@0.8.7':
-    resolution: {integrity: sha512-eNdlBgHv4lgE5odqndTZQM50NEJbhgzU4iCbwoZYisp8d5ASOJqlfd/OSbmF0SEJBdGZwLjB3dsDsY8FdISxBw==, tarball: https://npm.pkg.github.com/download/@cognisphere-sh/cognisphere-harness/0.8.7/0dcc74e0b16b6c9ec352c52a4aa019e9c65f3479}
+  '@cognisphere-sh/cognisphere-harness@0.8.11':
+    resolution: {integrity: sha512-6sscV5xOBpwUMpTrFh+M/SPXCDK0OqxVIOymQ6K+Ev5Ra/DybNEBuUBr8NPN2UuKwNntbixo2YbetNASSMsvBw==, tarball: https://npm.pkg.github.com/download/@cognisphere-sh/cognisphere-harness/0.8.11/a400d45c0e4bb9e5bb2dc432ee7e99f44e93a999}
     engines: {node: '>=20.12'}
     hasBin: true
 
@@ -1905,7 +1905,7 @@ snapshots:
 
   '@babel/runtime@7.29.7': {}
 
-  '@cognisphere-sh/cognisphere-harness@0.8.7(ws@8.21.0)(zod@4.4.3)':
+  '@cognisphere-sh/cognisphere-harness@0.8.11(ws@8.21.0)(zod@4.4.3)':
     dependencies:
       '@earendil-works/pi-ai': 0.81.1(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-coding-agent': 0.81.1(ws@8.21.0)(zod@4.4.3)

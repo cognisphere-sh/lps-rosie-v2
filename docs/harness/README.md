@@ -11,7 +11,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.8.7**, timezone **America/Chicago**.
+- `harness.json` — version **0.8.11**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
   wholesale plant nursery. Two agents run the supply and dev split.
 
@@ -67,9 +67,10 @@ These are byte-identical in every agent dir:
   per-command with `set +u`); `harness-bridge.ts` reports each user-message
   session entry id back to the harness in real time so the parent can link a
   queued event to its place in the session JSONL; `context-meta.ts` (seeded in
-  harness 0.8.6) stamps per-step `CheckpointTokens` context-growth deltas into
-  the session and injects live `Model`/`ContextUsage` telemetry into each LLM
-  call.
+  harness 0.8.6, reworked through 0.8.10) tracks per-step context growth and
+  emits it as standalone `CheckpointTokens` checkpoint messages
+  (`customType: "context-meta.checkpoint"`) after each response, and injects
+  live `Model`/`ContextUsage` telemetry into each LLM call.
 - **`scripts/agent/` toolset**: `agent-browser` (browser CLI), `ddgs` (web
   metasearch), `markitdown` (file/URL → markdown), `session-reader` (paginated
   session-transcript reader). (The `subagent` wrapper and `sub-agent-prompt.md`

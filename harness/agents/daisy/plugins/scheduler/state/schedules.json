@@ -1,1 +1,19 @@
-{"schedules":[{"name":"daisy-daily-9am-checkin","cron":"0 9 * * *","text":"Daily 9 AM check-in: Review the prior calendar day's workspace/daily_notes entry (and individual threads only when necessary). Send Chris and Bhoumik a short Telegram summary of completed work, blockers, pending approvals, and any recommended changes.","threadId":"main","channelId":"admin"}]}
+{
+  "schedules": [
+    {
+      "name": "daisy-daily-9am-checkin",
+      "cron": "0 9 * * *",
+      "text": "Daily 9 AM check-in: Review the prior calendar day's workspace/daily_notes entry (and individual threads only when necessary). Send Chris and Bhoumik a short Telegram summary of completed work, blockers, pending approvals, and any recommended changes.",
+      "threadId": "main",
+      "channelId": "admin"
+    },
+    {
+      "name": "bhoumik-plant-search-model-reminder-2026-07-31",
+      "cron": "30 0 31 7 *",
+      "text": "Reminder for Bhoumik: review the plant data/search-model issue raised by Chris—preserve and display Common Name, Scientific Name, and Cultivar separately; restrict aliases to true synonyms/spelling variants; prevent cultivar searches such as Forest Pansy from returning sibling cultivars.",
+      "threadId": "main",
+      "onetime": true,
+      "paused": true
+    }
+  ]
+}
