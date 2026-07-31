@@ -61,7 +61,7 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
 
 `scripts/agent/` (shared toolset) + `scripts/scheduler/scheduler-cli` +
 `scripts/telegram/telegram-cli` + `scripts/webchat/webchat-cli`. Extensions:
-the two shared ones.
+the three shared ones.
 
 ## Skills (`skills/agent/`)
 

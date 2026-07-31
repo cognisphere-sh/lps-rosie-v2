@@ -19,6 +19,15 @@ here).
 
 ### Changed
 
+- **`cognisphere-harness` 0.8.5 → 0.8.6.** Ships context-window telemetry
+  for agents: a new seeded extension `context-meta.ts` (copied into daisy
+  and nova) stamps per-step `CheckpointTokens` deltas into the session and
+  injects ephemeral `Model`/`ContextUsage` figures into each LLM call, and
+  the seeded `0-base_prompt.md` documents both (re-seeded in both agents —
+  clean forks). Scaffold refresh was a no-op apart from
+  `docs/base-harness/CHANGELOG.md`; the local Supabase env wiring in
+  `server.sh`/`config.example` was untouched upstream.
+
 - **Nova's webchat re-pointed to the `main` thread**
   (`harness/agents/nova/plugins/webchat/config.json`, now with the other
   keys' defaults spelled out), matching the telegram main-route pattern;

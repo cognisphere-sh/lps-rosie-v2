@@ -95,7 +95,7 @@ notes/memory.
 - `scripts/scheduler/scheduler-cli`, `scripts/telegram/telegram-cli`,
   `scripts/webchat/webchat-cli`.
 
-Extensions: the two shared ones.
+Extensions: the three shared ones.
 
 ## Migrations (`migrations/`)
 
