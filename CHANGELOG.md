@@ -19,6 +19,13 @@ here).
 
 ### Changed
 
+- **`cognisphere-harness` 0.8.6 → 0.8.7.** Fixes the gap we hit testing
+  0.8.6: `context-meta.ts` (re-seeded into daisy and nova) now replays its
+  stamping state machine over the persisted session on spawn, so
+  `CheckpointTokens` stamps span batch boundaries — plain chat turns get
+  stamped from a thread's second message on, instead of only tool
+  results/steers within a single batch. No other seeded files changed.
+
 - **`cognisphere-harness` 0.8.5 → 0.8.6.** Ships context-window telemetry
   for agents: a new seeded extension `context-meta.ts` (copied into daisy
   and nova) stamps per-step `CheckpointTokens` deltas into the session and
