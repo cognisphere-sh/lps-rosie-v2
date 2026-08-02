@@ -82,6 +82,7 @@ header rather than repeating the page title inside the content:
   lists. The chat sheet overlays the page content only — it is rendered inside
   the main column's relative wrapper, above the tab bar, so navigation stays
   visible and usable while chatting. Its compact agent identity/status row
+  keeps avatar, name, short role and live status centered on one line and
   replaces the underlying page header while open instead of stacking a second
   header. There is no redundant close icon: tapping the highlighted active-agent
   tab again closes the sheet, while another agent tab switches chats. The bar

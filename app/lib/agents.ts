@@ -46,7 +46,7 @@ export const AGENTS: Agent[] = [
   {
     id: 'nova',
     name: 'Nova',
-    role: 'Developer & app builder',
+    role: 'Developer',
     avatar: '/nova.png',
     profile: '/nova_profile.png',
     intro: 'Ask Nova for changes to this app — bug fixes, tweaks and new features.',

@@ -877,14 +877,26 @@ export function AgentChat({
         height={30}
         className={cn('flex-none rounded-full object-cover', big ? 'size-[26px]' : 'size-[30px]')}
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className={cn('font-bold', big ? 'text-[14px]' : 'text-[13.5px]')}>{agent.name}</span>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <StatusDot pending={chat.pending} />
-          {big && `${agent.role} · `}
-          {chat.pending ? 'Working…' : 'Online'}
-        </span>
-      </div>
+      {big ? (
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px]">
+          <span className="flex-none text-[14px] font-bold">{agent.name}</span>
+          <span className="text-lps-dim">·</span>
+          <span className="flex-none text-muted-foreground">{agent.role}</span>
+          <span className="text-lps-dim">·</span>
+          <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-muted-foreground">
+            <StatusDot pending={chat.pending} />
+            {chat.pending ? 'Working…' : 'Online'}
+          </span>
+        </div>
+      ) : (
+        <div className="flex min-w-0 flex-1 flex-col gap-px">
+          <span className="text-[13.5px] font-bold">{agent.name}</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <StatusDot pending={chat.pending} />
+            {chat.pending ? 'Working…' : 'Online'}
+          </span>
+        </div>
+      )}
     </div>
   )
 
