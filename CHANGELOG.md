@@ -25,9 +25,11 @@ here).
   both headers above the conversation. The redundant close icon is removed;
   the highlighted active-agent tab remains the close toggle.
 - **Mobile supplier profiles now prioritize inventory space.** The supplier
-  name/category and pencil live in one sticky header; the duplicate title and
-  mobile back link are gone. Company data is collapsed behind a compact
-  Supplier details summary by default, with one-tap call, email, website and
+  name/category live in one sticky header; the duplicate title and mobile back
+  link are gone. The pencil appears only at the bottom of expanded Supplier
+  details, making expand → edit an intentional safety gate. Company data is
+  collapsed behind a compact Supplier details summary by default, with one-tap
+  call, email, website and
   map actions. The pencil expands the safe staged-edit form automatically;
   desktop details and its back link remain visible.
 - **Supplier profiles now open directly to Inventory.** Tabs are ordered

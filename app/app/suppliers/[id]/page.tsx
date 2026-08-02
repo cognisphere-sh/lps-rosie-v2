@@ -402,7 +402,7 @@ export default function SupplierProfilePage() {
             Cancel
           </Button>
         </>
-      ) : (
+      ) : !isMobile ? (
         <Button
           variant="outline"
           size="icon-sm"
@@ -412,7 +412,7 @@ export default function SupplierProfilePage() {
         >
           <PencilIcon size={15} />
         </Button>
-      )) : undefined}
+      ) : undefined) : undefined}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {/* Compact supplier profile: collapsed by default on mobile. */}
@@ -523,6 +523,20 @@ export default function SupplierProfilePage() {
                   />
                 ))}
               </div>
+
+              {isMobile && !profileEditing && (
+                <div className="flex w-full justify-end">
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={startProfileEdit}
+                    aria-label="Edit supplier"
+                    title="Edit supplier"
+                  >
+                    <PencilIcon size={15} />
+                  </Button>
+                </div>
+              )}
 
               {!isMobile && (
                 <div className="flex min-w-[196px] flex-col gap-2">
