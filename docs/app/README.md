@@ -159,6 +159,14 @@ searches still work. This keeps `Agave Americana` from including every `Tilia`,
 `Ulmus` and `Fraxinus americana`; the same refined rows feed the size selector,
 so tree calipers cannot leak into an Agave menu.
 
+The alias RPC matches one whole query and cannot natively combine a species
+alias with a separate cultivar term (`Live oak` + `Boardwalk`). If a full
+multi-word query returns zero, the server searches its unique words (three or
+more characters) in parallel and uses the smallest non-empty result set — the
+most selective term. This fallback runs only after zero results, so normal
+searches still make one RPC call; both `Live oak boardwalk` and `Boardwalk live
+oak` can fall back to the 32-row `Boardwalk` set.
+
 When no size is typed, results add one compact **Size: Any** selector populated
 only with conservative commercial categories from the refined matches:
 explicit gallons, explicit boxes and context-confirmed plausible calipers.

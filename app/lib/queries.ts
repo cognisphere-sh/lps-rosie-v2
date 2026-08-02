@@ -226,18 +226,40 @@ export async function listSuppliers(search: string): Promise<SupplierRow[]> {
  * active rows and blows the statement timeout — see docs/supabase-schema.md),
  * so an empty search browses `inventory_enriched` instead.
  */
+async function inventorySearch(term: string): Promise<InventoryRecord[]> {
+  const { data, error } = await supabase
+    .rpc('search_inventory', { search: term })
+    .range(0, 299)
+  if (error) throw new Error(`search_inventory: ${error.message}`)
+  return (data ?? []) as InventoryRecord[]
+}
+
 export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
   const term = search.trim()
   let records: InventoryRecord[]
   let fromSearchRpc = false
 
   if (term) {
-    const { data, error } = await supabase
-      .rpc('search_inventory', { search: term })
-      .range(0, 299)
-    if (error) throw new Error(`search_inventory: ${error.message}`)
-    records = (data ?? []) as InventoryRecord[]
+    records = await inventorySearch(term)
     fromSearchRpc = true
+
+    // The alias graph resolves a whole common name (`Live oak`) but cannot
+    // combine that species alias with a cultivar term (`Boardwalk`). Only when
+    // the full multi-word query returns nothing, search its words in parallel
+    // and use the smallest non-empty result set — the most selective term.
+    if (records.length === 0) {
+      const words = [...new Set(term.match(/[\p{L}\p{N}]+/gu) ?? [])]
+        .filter((word) => word.length >= 3)
+      if (words.length > 1) {
+        const candidates = await Promise.all(
+          words.map(async (word) => ({ word, records: await inventorySearch(word) })),
+        )
+        const best = candidates
+          .filter((candidate) => candidate.records.length > 0)
+          .sort((a, b) => a.records.length - b.records.length || b.word.length - a.word.length)[0]
+        records = best?.records ?? []
+      }
+    }
   } else {
     // Browsing with no search term. Ordering the whole catalogue by updated_at
     // returns rows from only the one or two suppliers ingested most recently,

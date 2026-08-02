@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Common-name + cultivar searches now recover from alias-combination gaps.**
+  When a full multi-word search returns zero, the server searches its individual
+  words in parallel and uses the smallest non-empty result set. `Live oak
+  boardwalk` now reaches the same 32 Boardwalk rows as `Quercus boardwalk`,
+  without adding fallback calls to normal successful searches.
 - **Multi-word Plant Search now respects the full identity.** Broad fuzzy/alias
   results are refined to rows whose own name or aliases contain every requested
   word (with prefix support), falling back to the broad result only when none
