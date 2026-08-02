@@ -15,6 +15,7 @@ import { Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
+import { refinePlantGroups } from '@/lib/search-refine'
 import {
   matchesSizeFilter, parseSizeQuery, sizeChoicesFor, type SizeChoice, type TypedSize,
 } from '@/lib/size-range'
@@ -207,18 +208,26 @@ export default function PlantSearchPage() {
     [toast],
   )
 
+  // The RPC casts a deliberately broad fuzzy/alias net. Multi-word identities
+  // prefer rows containing every requested word, so `Agave Americana` does not
+  // inherit every tree and shrub whose epithet happens to be `americana`.
+  const refinedGroups = useMemo(
+    () => refinePlantGroups(groups, parsedSearch.plantQuery),
+    [groups, parsedSearch.plantQuery],
+  )
+
   // Plant-level column filters apply across every supplier; a supplier whose
   // plants all filter out drops off the page entirely.
   const visibleGroups = useMemo(() => {
-    const masterRows = groups.map((g) => g.supplier)
+    const masterRows = refinedGroups.map((g) => g.supplier)
     const keptSuppliers = new Set(
       applyFilters(masterRows, masterCfg.filters, masterCfg.sort).map((r) => r.id),
     )
     const ordered = masterCfg.sort
       ? applyFilters(masterRows, masterCfg.filters, masterCfg.sort).map(
-          (r) => groups.find((g) => g.supplier.id === r.id)!,
+          (r) => refinedGroups.find((g) => g.supplier.id === r.id)!,
         )
-      : groups
+      : refinedGroups
 
     return ordered
       .filter(
@@ -240,14 +249,14 @@ export default function PlantSearchPage() {
         ),
       }))
       .filter((g) => g.plants.length > 0)
-  }, [groups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, selectedSize, supplierPick])
+  }, [refinedGroups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, selectedSize, supplierPick])
 
   const supplierNames = useMemo(
-    () => [...new Set(groups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
-    [groups],
+    () => [...new Set(refinedGroups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
+    [refinedGroups],
   )
 
-  const allPlants = useMemo(() => groups.flatMap((g) => g.plants), [groups])
+  const allPlants = useMemo(() => refinedGroups.flatMap((g) => g.plants), [refinedGroups])
   const sizeChoices = useMemo(() => sizeChoicesFor(allPlants), [allPlants])
   const shownPlants = visibleGroups.reduce((n, g) => n + g.plants.length, 0)
 

@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Multi-word Plant Search now respects the full identity.** Broad fuzzy/alias
+  results are refined to rows whose own name or aliases contain every requested
+  word (with prefix support), falling back to the broad result only when none
+  qualify. `Agave Americana` no longer pulls in unrelated `americana` trees,
+  and their caliper sizes no longer contaminate its available-size selector.
 - **Simplified size filtering in Plant Search.** Removed the permanent
   unit/min/max form. Users can type a natural query such as `15g Agave
   Americana`, or search the plant name first and choose from a compact selector

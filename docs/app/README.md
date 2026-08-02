@@ -152,8 +152,15 @@ alias matching cannot silently ignore the size token. Explicit gallon spellings
 (`15 G`, `15G`, `15 gallon`) and explicit box notation are normalized; the
 supplier's original size text remains unchanged.
 
+For multi-word identities, the broad fuzzy/alias RPC result is refined before
+rendering: every query word must occur (or be a word prefix) in the row's own
+name or aliases. If that finds nothing, the broad set is retained so typo/fuzzy
+searches still work. This keeps `Agave Americana` from including every `Tilia`,
+`Ulmus` and `Fraxinus americana`; the same refined rows feed the size selector,
+so tree calipers cannot leak into an Agave menu.
+
 When no size is typed, results add one compact **Size: Any** selector populated
-only from sizes present in the current matches. Equivalent notations collapse
+only from sizes present in the refined current matches. Equivalent notations collapse
 (`15 G`, `15G`, `15 G/17"` → `15 gal`); unambiguous gallon/box ranges retain a
 range label, and other source text remains selectable verbatim rather than being
 guessed. The selected result size is mirrored into the URL's `size` parameter
