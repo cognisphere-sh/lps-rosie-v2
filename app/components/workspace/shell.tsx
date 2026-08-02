@@ -98,12 +98,14 @@ export function Shell({
   title,
   subtitle,
   toolbar,
+  headerAction,
   children,
 }: {
   page: PageId
   title: string
   subtitle?: string
   toolbar?: React.ReactNode
+  headerAction?: React.ReactNode
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -174,6 +176,7 @@ export function Shell({
               <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
             )}
           </div>
+          {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
         </div>
 
         <div className="flex min-h-0 flex-1">

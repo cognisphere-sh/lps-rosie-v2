@@ -68,7 +68,9 @@ fidelity", start here rather than reverting one of these by accident:
 
 ## Shell and responsive behaviour
 
-`components/workspace/shell.tsx` renders the frame for every page:
+`components/workspace/shell.tsx` renders the frame for every page. Its optional
+`headerAction` slot lets detail routes keep a compact, single sticky identity
+header rather than repeating the page title inside the content:
 
 - **Desktop** (≥900px): a collapsible left nav rail (196px ↔ 56px), a header
   with the page title + subtitle, and the agent chat on the right — a resizable
@@ -96,7 +98,7 @@ offering routes that go nowhere.
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile. |
-| `/suppliers/:id` | client | Profile: deliberately editable field grid, then Inventory / Communications / Notes / Files tabs. Inventory opens by default; mobile keeps all four compact tabs on one line. |
+| `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category and the safe edit action; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; it expands the deliberately editable field grid. Inventory opens by default, followed by Communications / Notes / Files, with all four tabs on one line. Desktop keeps details expanded and its back link visible. |
 | `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens in the search query, an available-size selector populated from the current plant matches, a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list, and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline — with the same compact result-size selector and a collapsible **Filters** card (supplier, supplier category, state, city, price). |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 

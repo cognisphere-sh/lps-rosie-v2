@@ -4,14 +4,15 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronLeft, ChevronRight, FileIcon, PencilIcon, UploadIcon } from '@/components/workspace/icons'
+import {
+  ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
+  MapPinIcon, PencilIcon, PhoneIcon, UploadIcon,
+} from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { badgeFor } from '@/components/workspace/table-parts'
 import { MASTER_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
@@ -94,6 +95,7 @@ export default function SupplierProfilePage() {
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('inventory')
   const [profileEditing, setProfileEditing] = useState(false)
+  const [profileDetailsOpen, setProfileDetailsOpen] = useState(false)
   const [profileDraft, setProfileDraft] = useState<Record<string, string>>({})
   const [savingProfile, setSavingProfile] = useState(false)
 
@@ -227,6 +229,7 @@ export default function SupplierProfilePage() {
         }),
       ),
     )
+    setProfileDetailsOpen(true)
     setProfileEditing(true)
   }
 
@@ -363,6 +366,15 @@ export default function SupplierProfilePage() {
       ? `https://www.google.com/maps?q=${supplier.ref.latitude},${supplier.ref.longitude}`
       : null
 
+  const quickPhone = values.phone || values.poc_phone
+  const quickEmail = values.email || values.poc_email
+  const detailsSummary = [
+    [values.city, values.state].filter(Boolean).join(', '),
+    values.item_count == null ? null : `${num(values.item_count)} items`,
+    supplier && !supplier.ref.is_active ? 'Inactive' : null,
+  ].filter(Boolean).join(' · ')
+  const profileExpanded = !isMobile || profileDetailsOpen || profileEditing
+
   const tabs: [Tab, string][] = [
     ['inventory', `Inventory (${values.item_count == null ? plants.length : num(values.item_count)})`],
     ['comms', `Communications (${commsEntries.length})`],
@@ -371,96 +383,160 @@ export default function SupplierProfilePage() {
   ]
 
   return (
-    <Shell page="suppliers" title={String(values.name ?? 'Supplier')} subtitle={supplier ? 'Supplier profile' : 'Loading…'}>
+    <Shell
+      page="suppliers"
+      title={String(values.name ?? 'Supplier')}
+      subtitle={supplier && !profileEditing
+        ? [values.category, !supplier.ref.is_active ? 'Inactive' : null].filter(Boolean).join(' · ')
+        : supplier ? undefined : 'Loading…'}
+      headerAction={supplier ? (profileEditing ? (
+        <>
+          <Button
+            size="sm"
+            disabled={!profileDirty || savingProfile}
+            onClick={() => void saveProfile()}
+          >
+            {savingProfile ? 'Saving…' : 'Save'}
+          </Button>
+          <Button variant="outline" size="sm" disabled={savingProfile} onClick={cancelProfileEdit}>
+            Cancel
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={startProfileEdit}
+          aria-label="Edit supplier"
+          title="Edit supplier"
+        >
+          <PencilIcon size={15} />
+        </Button>
+      )) : undefined}
+    >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        {/* Header */}
-        <div className="flex flex-wrap items-start gap-4 border-b border-border bg-card p-4">
-          <div className="flex min-w-[250px] flex-1 flex-col gap-2.5">
-            <Link
-              href="/suppliers"
-              onClick={(event) => {
-                if (profileDirty && !window.confirm('Discard your unsaved supplier changes?')) {
-                  event.preventDefault()
-                }
-              }}
-              className="flex items-center gap-1.5 self-start text-[12px] text-muted-foreground hover:text-foreground"
-            >
-              ← All suppliers
-            </Link>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="m-0 font-serif text-[24px] font-semibold tracking-[-.01em]">
-                {String(values.name ?? '')}
-              </h2>
-              {values.category && (
-                <Badge variant={badgeFor(String(values.category)) as 'default' | 'secondary' | 'outline'}>
-                  {String(values.category)}
-                </Badge>
-              )}
-              {supplier && !supplier.ref.is_active && <Badge variant="destructive">Inactive</Badge>}
-              {supplier && (profileEditing ? (
-                <div className="ml-auto flex gap-2">
-                  <Button
-                    size="sm"
-                    disabled={!profileDirty || savingProfile}
-                    onClick={() => void saveProfile()}
+        {/* Compact supplier profile: collapsed by default on mobile. */}
+        <div className="border-b border-border bg-card">
+          {!isMobile && (
+            <div className="px-4 pt-4">
+              <Link
+                href="/suppliers"
+                onClick={(event) => {
+                  if (profileDirty && !window.confirm('Discard your unsaved supplier changes?')) {
+                    event.preventDefault()
+                  }
+                }}
+                className="text-[12px] text-muted-foreground hover:text-foreground"
+              >
+                ← All suppliers
+              </Link>
+            </div>
+          )}
+
+          {isMobile && (
+            <div className="flex items-center gap-1.5 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setProfileDetailsOpen((open) => !open)}
+                aria-expanded={profileExpanded}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-semibold">Supplier details</span>
+                  <span className="block truncate text-[10.5px] text-muted-foreground">{detailsSummary}</span>
+                </span>
+                <ChevronDown size={14} className={cn('flex-none text-lps-dim', !profileExpanded && '-rotate-90')} />
+              </button>
+
+              <div className="flex flex-none items-center gap-1">
+                {quickPhone && (
+                  <a
+                    href={`tel:${String(quickPhone).replace(/[^\d+]/g, '')}`}
+                    aria-label={`Call ${String(quickPhone)}`}
+                    title={`Call ${String(quickPhone)}`}
+                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
                   >
-                    {savingProfile ? 'Saving…' : 'Save changes'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={savingProfile}
-                    onClick={cancelProfileEdit}
+                    <PhoneIcon size={15} />
+                  </a>
+                )}
+                {quickEmail && (
+                  <a
+                    href={`mailto:${String(quickEmail)}`}
+                    aria-label={`Email ${String(quickEmail)}`}
+                    title={`Email ${String(quickEmail)}`}
+                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
                   >
-                    Cancel
+                    <MailIcon size={15} />
+                  </a>
+                )}
+                {values.website && (
+                  <a
+                    href={websiteHref(String(values.website))}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open supplier website"
+                    title="Open supplier website"
+                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
+                  >
+                    <GlobeIcon size={15} />
+                  </a>
+                )}
+                {mapHref && (
+                  <a
+                    href={mapHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open supplier on map"
+                    title="Open supplier on map"
+                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
+                  >
+                    <MapPinIcon size={15} />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {profileExpanded && (
+            <div className="flex flex-wrap items-start gap-4 p-4 pt-3">
+              <div
+                className="grid min-w-[250px] max-w-[760px] flex-1 gap-x-5 gap-y-2.5"
+                style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(178px,1fr))' }}
+              >
+                {FIELDS.map((f) => (
+                  <ProfileField
+                    key={f.key}
+                    label={f.label}
+                    display={fieldValue(f.key)}
+                    value={f.column ? profileDraft[f.column] ?? '' : ''}
+                    editing={profileEditing && !!f.column}
+                    href={
+                      f.key === 'website' && values.website
+                        ? websiteHref(String(values.website))
+                        : undefined
+                    }
+                    onChange={
+                      f.column
+                        ? (next) => setProfileDraft((current) => ({ ...current, [f.column!]: next }))
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+
+              {!isMobile && (
+                <div className="flex min-w-[196px] flex-col gap-2">
+                  <Button variant="outline" size="sm" asChild={!!mapHref} disabled={!mapHref} className="w-full">
+                    {mapHref ? (
+                      <a href={mapHref} target="_blank" rel="noreferrer">Open on map</a>
+                    ) : (
+                      <span>No coordinates</span>
+                    )}
                   </Button>
                 </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={startProfileEdit}
-                  aria-label="Edit supplier"
-                  title="Edit supplier"
-                  className="ml-auto"
-                >
-                  <PencilIcon size={15} />
-                </Button>
-              ))}
-            </div>
-
-            <div className="grid max-w-[760px] gap-x-5 gap-y-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(178px,1fr))' }}>
-              {FIELDS.map((f) => (
-                <ProfileField
-                  key={f.key}
-                  label={f.label}
-                  display={fieldValue(f.key)}
-                  value={f.column ? profileDraft[f.column] ?? '' : ''}
-                  editing={profileEditing && !!f.column}
-                  href={
-                    f.key === 'website' && values.website
-                      ? websiteHref(String(values.website))
-                      : undefined
-                  }
-                  onChange={
-                    f.column
-                      ? (next) => setProfileDraft((current) => ({ ...current, [f.column!]: next }))
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex min-w-[196px] flex-col gap-2">
-            <Button variant="outline" size="sm" asChild={!!mapHref} disabled={!mapHref} className="w-full">
-              {mapHref ? (
-                <a href={mapHref} target="_blank" rel="noreferrer">Open on map</a>
-              ) : (
-                <span>No coordinates</span>
               )}
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Tabs */}

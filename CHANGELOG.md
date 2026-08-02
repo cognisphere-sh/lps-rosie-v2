@@ -19,6 +19,12 @@ here).
 
 ### Changed
 
+- **Mobile supplier profiles now prioritize inventory space.** The supplier
+  name/category and pencil live in one sticky header; the duplicate title and
+  mobile back link are gone. Company data is collapsed behind a compact
+  Supplier details summary by default, with one-tap call, email, website and
+  map actions. The pencil expands the safe staged-edit form automatically;
+  desktop details and its back link remain visible.
 - **Supplier profiles now open directly to Inventory.** Tabs are ordered
   Inventory, Communications, Notes and Files; all four use compact mobile
   sizing and remain on one line.
