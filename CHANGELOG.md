@@ -19,11 +19,12 @@ here).
 
 ### Changed
 
-- **Size is now a first-class Plant Search filter.** An always-visible unit,
-  minimum and maximum control supports gallon, box, height and caliper ranges;
-  blank remains Any size. Listed ranges match on overlap, ambiguous legacy size
-  text is not guessed, and the selection survives navigation in the URL and
-  browser storage.
+- **Simplified size filtering in Plant Search.** Removed the permanent
+  unit/min/max form. Users can type a natural query such as `15g Agave
+  Americana`, or search the plant name first and choose from a compact selector
+  containing only sizes present in those matches. Common gallon/box spellings
+  collapse without inventing cross-unit equivalences, and the choice survives
+  navigation in the URL and browser storage.
 - **Plant Search now starts with a useful state instead of an unexplained
   sample.** A blank search shows a prompt and makes no catalogue request. The
   last term is restored from the URL or browser storage when returning, current

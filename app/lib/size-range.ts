@@ -1,16 +1,15 @@
-export const SIZE_UNITS = [
-  { value: 'gallon', label: 'Gallon', suffix: 'gal', step: 1 },
-  { value: 'box', label: 'Box', suffix: 'in', step: 1 },
-  { value: 'height', label: 'Height', suffix: 'ft', step: 0.5 },
-  { value: 'caliper', label: 'Caliper', suffix: 'in', step: 0.25 },
-] as const
-
-export type SizeUnit = (typeof SIZE_UNITS)[number]['value']
-export type SizeBounds = { min: number; max: number }
-
-export function isSizeUnit(value: string | null): value is SizeUnit {
-  return SIZE_UNITS.some((unit) => unit.value === value)
+export type TypedSize = {
+  unit: 'gallon' | 'box'
+  value: number
+  label: string
 }
+
+export type SizeChoice = {
+  key: string
+  label: string
+}
+
+type SizeBounds = { min: number; max: number }
 
 function bounds(numbers: number[]): SizeBounds | null {
   if (numbers.length === 0) return null
@@ -21,60 +20,100 @@ function numbersIn(value: unknown): number[] {
   return [...String(value ?? '').matchAll(/\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
 }
 
-/**
- * Read an inventory row's range for one comparable size unit. `size` is legacy
- * source text, so only explicit units are classified; ambiguous values such as
- * `4"` are deliberately not guessed to be pot diameter, box or caliper.
- */
-export function sizeBoundsFor(
-  values: Record<string, unknown>,
-  unit: SizeUnit,
-): SizeBounds | null {
-  const size = String(values.size ?? '')
-
+function explicitBounds(size: string, unit: 'gallon' | 'box'): SizeBounds | null {
   if (unit === 'gallon') {
     const found: number[] = []
-    const unitPattern = /\b(?:g|gal|gallon)s?\b/gi
+    const unitPattern = /(?:gallon|gal|g)s?\b/gi
     let previousEnd = 0
     for (const match of size.matchAll(unitPattern)) {
-      const segment = size.slice(previousEnd, match.index)
-      found.push(...numbersIn(segment))
-      previousEnd = (match.index ?? 0) + match[0].length
+      const index = match.index ?? 0
+      if (index > 0 && /[a-z]/i.test(size[index - 1])) continue
+      found.push(...numbersIn(size.slice(previousEnd, index)))
+      previousEnd = index + match[0].length
     }
     return bounds(found)
   }
 
-  if (unit === 'box') {
-    const match = /(^|[^a-z])([\d.][\d.\s/-]*)\s*(?:"|in(?:ch(?:es)?)?)?\s*box\b/i.exec(size)
-    return bounds(match ? numbersIn(match[2]) : [])
-  }
-
-  if (unit === 'height') {
-    if (values.h != null && values.h !== '') return bounds(numbersIn(values.h))
-    const match = /([\d.][\d.\s/-]*)\s*(?:'|ft\b|feet\b)/i.exec(size)
-    return bounds(match ? numbersIn(match[1]) : [])
-  }
-
-  if (values.cal != null && values.cal !== '') return bounds(numbersIn(values.cal))
-  const match = /([\d.][\d.\s/-]*)\s*(?:"|in(?:ch(?:es)?)?)?\s*cal(?:iper)?\b/i.exec(size)
-  return bounds(match ? numbersIn(match[1]) : [])
+  const match = /(^|[^a-z])([\d.][\d.\s/-]*)\s*(?:"|in(?:ch(?:es)?)?)?\s*box\b/i.exec(size)
+  return bounds(match ? numbersIn(match[2]) : [])
 }
 
-/** Match when the listed size overlaps the requested range. */
-export function matchesSizeRange(
+function compactNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(value).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+function removeMatch(query: string, match: RegExpExecArray): string {
+  return `${query.slice(0, match.index)} ${query.slice(match.index + match[0].length)}`
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+/**
+ * Pull an explicit size out of a natural plant query. The remaining text is the
+ * plant-name query sent to search_inventory; the size is applied independently
+ * so alias matching cannot accidentally ignore it.
+ */
+export function parseSizeQuery(query: string): { plantQuery: string; size: TypedSize | null } {
+  const gallon = /(?:^|\s)(\d+(?:\.\d+)?)\s*(?:g|gal|gallon)s?\b/i.exec(query)
+  if (gallon) {
+    const value = Number(gallon[1])
+    return {
+      plantQuery: removeMatch(query, gallon),
+      size: { unit: 'gallon', value, label: `${compactNumber(value)} gal` },
+    }
+  }
+
+  const box = /(?:^|\s)(\d+(?:\.\d+)?)\s*(?:"|in(?:ch(?:es)?)?)\s*box\b/i.exec(query)
+  if (box) {
+    const value = Number(box[1])
+    return {
+      plantQuery: removeMatch(query, box),
+      size: { unit: 'box', value, label: `${compactNumber(value)}\" box` },
+    }
+  }
+
+  return { plantQuery: query.trim(), size: null }
+}
+
+/** Collapse spelling variants such as `15 G`, `15G` and `15 G/17"`. */
+export function sizeChoiceFor(values: Record<string, unknown>): SizeChoice | null {
+  const original = String(values.size ?? '').trim()
+  if (!original) return null
+
+  for (const unit of ['gallon', 'box'] as const) {
+    const listed = explicitBounds(original, unit)
+    if (!listed) continue
+    const suffix = unit === 'gallon' ? ' gal' : '" box'
+    const label = listed.min === listed.max
+      ? `${compactNumber(listed.min)}${suffix}`
+      : `${compactNumber(listed.min)}–${compactNumber(listed.max)}${suffix}`
+    return { key: `${unit}:${listed.min}:${listed.max}`, label }
+  }
+
+  return {
+    key: `raw:${original.toLowerCase().replace(/\s+/g, ' ')}`,
+    label: original,
+  }
+}
+
+export function sizeChoicesFor(rows: { values: Record<string, unknown> }[]): SizeChoice[] {
+  const choices = new Map<string, SizeChoice>()
+  for (const row of rows) {
+    const choice = sizeChoiceFor(row.values)
+    if (choice) choices.set(choice.key, choice)
+  }
+  return [...choices.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+}
+
+export function matchesSizeFilter(
   values: Record<string, unknown>,
-  unit: SizeUnit | '',
-  requestedMin: string,
-  requestedMax: string,
+  typed: TypedSize | null,
+  selectedKey: string,
 ): boolean {
-  if (!unit) return true
-  const listed = sizeBoundsFor(values, unit)
-  if (!listed) return false
-
-  const parsedMin = requestedMin === '' ? null : Number(requestedMin)
-  const parsedMax = requestedMax === '' ? null : Number(requestedMax)
-  const low = parsedMin != null && parsedMax != null ? Math.min(parsedMin, parsedMax) : parsedMin
-  const high = parsedMin != null && parsedMax != null ? Math.max(parsedMin, parsedMax) : parsedMax
-
-  return (low == null || listed.max >= low) && (high == null || listed.min <= high)
+  if (typed) {
+    const listed = explicitBounds(String(values.size ?? ''), typed.unit)
+    return !!listed && listed.min <= typed.value && listed.max >= typed.value
+  }
+  if (!selectedKey) return true
+  return sizeChoiceFor(values)?.key === selectedKey
 }

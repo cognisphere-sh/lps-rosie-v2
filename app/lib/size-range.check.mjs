@@ -1,18 +1,36 @@
 import assert from 'node:assert/strict'
 
-import { matchesSizeRange, sizeBoundsFor } from './size-range.ts'
+import {
+  matchesSizeFilter, parseSizeQuery, sizeChoiceFor, sizeChoicesFor,
+} from './size-range.ts'
 
-assert.deepEqual(sizeBoundsFor({ size: '5 G' }, 'gallon'), { min: 5, max: 5 })
-assert.deepEqual(sizeBoundsFor({ size: '10/15 G' }, 'gallon'), { min: 10, max: 15 })
-assert.deepEqual(sizeBoundsFor({ size: '3 G/5 G' }, 'gallon'), { min: 3, max: 5 })
-assert.deepEqual(sizeBoundsFor({ size: '25 G/21"' }, 'gallon'), { min: 25, max: 25 })
-assert.deepEqual(sizeBoundsFor({ size: '72" Box' }, 'box'), { min: 72, max: 72 })
-assert.deepEqual(sizeBoundsFor({ size: "3-4'" }, 'height'), { min: 3, max: 4 })
-assert.deepEqual(sizeBoundsFor({ h: "6-7' HT", size: 'anything' }, 'height'), { min: 6, max: 7 })
-assert.deepEqual(sizeBoundsFor({ size: '2.5" cal' }, 'caliper'), { min: 2.5, max: 2.5 })
-assert.equal(sizeBoundsFor({ size: '4"' }, 'box'), null)
-assert.equal(matchesSizeRange({ size: '15 G' }, 'gallon', '5', '15'), true)
-assert.equal(matchesSizeRange({ size: '25 G' }, 'gallon', '5', '15'), false)
-assert.equal(matchesSizeRange({ size: '10/15 G' }, 'gallon', '12', '20'), true)
+assert.deepEqual(parseSizeQuery('15g Agave Americana'), {
+  plantQuery: 'Agave Americana',
+  size: { unit: 'gallon', value: 15, label: '15 gal' },
+})
+assert.deepEqual(parseSizeQuery('Agave Americana 15 gallon'), {
+  plantQuery: 'Agave Americana',
+  size: { unit: 'gallon', value: 15, label: '15 gal' },
+})
+assert.deepEqual(parseSizeQuery('24" box live oak'), {
+  plantQuery: 'live oak',
+  size: { unit: 'box', value: 24, label: '24" box' },
+})
+assert.deepEqual(parseSizeQuery('Agave Americana'), { plantQuery: 'Agave Americana', size: null })
 
-console.log('size range checks passed')
+assert.deepEqual(sizeChoiceFor({ size: '15 G/17"' }), { key: 'gallon:15:15', label: '15 gal' })
+assert.deepEqual(sizeChoiceFor({ size: '10/15 G' }), { key: 'gallon:10:15', label: '10–15 gal' })
+assert.deepEqual(sizeChoiceFor({ size: '24" Box' }), { key: 'box:24:24', label: '24" box' })
+assert.deepEqual(sizeChoiceFor({ size: 'B&B 7\'' }), { key: "raw:b&b 7'", label: "B&B 7'" })
+assert.equal(matchesSizeFilter({ size: '15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, ''), true)
+assert.equal(matchesSizeFilter({ size: '25 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, ''), false)
+assert.equal(matchesSizeFilter({ size: '10/15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, ''), true)
+assert.equal(matchesSizeFilter({ size: '15G' }, null, 'gallon:15:15'), true)
+assert.equal(matchesSizeFilter({ size: '10 G' }, null, 'gallon:15:15'), false)
+assert.deepEqual(sizeChoicesFor([
+  { values: { size: '15 G' } },
+  { values: { size: '15G' } },
+  { values: { size: '5 G' } },
+]).map((choice) => choice.label), ['5 gal', '15 gal'])
+
+console.log('size search checks passed')

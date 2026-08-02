@@ -97,7 +97,7 @@ offering routes that go nowhere.
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile. |
 | `/suppliers/:id` | client | Profile: editable field grid, then Notes / Communications / Inventory / Files tabs. |
-| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, a first-class unit/min/max size range beside the search field, a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list — with the same size range directly below the search field and a collapsible **Filters** card (supplier, supplier category, state, city, price). |
+| `/plants` | client | Plant search **grouped by supplier**: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens in the search query, an available-size selector populated from the current plant matches, a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list — with the same compact result-size selector and a collapsible **Filters** card (supplier, supplier category, state, city, price). |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 
 | API route | Purpose |
@@ -145,19 +145,20 @@ the saved state cannot serve stale inventory. Clearing the search removes both
 the URL parameter and saved term. Browser Back/Forward changes are restored via
 `popstate`.
 
-Plant Search treats size as a primary part of the question. Its always-visible
-range control supports **Gallon**, **Box**, **Height** and **Caliper**, each with
-optional minimum and maximum values; no unit selected means Any size. A listed
-range matches when it overlaps the requested range. The selected unit/range is
-mirrored into `size_unit`, `size_min` and `size_max` URL parameters and restored
-from `localStorage` under `lps.plant-search.size.v1` alongside the search term.
+Plant Search treats size as part of the natural question without showing a
+permanent filter form. A query such as `15g Agave Americana` is parsed into the
+plant-name query (`Agave Americana`) and an independent 15-gallon constraint, so
+alias matching cannot silently ignore the size token. Explicit gallon spellings
+(`15 G`, `15G`, `15 gallon`) and explicit box notation are normalized; the
+supplier's original size text remains unchanged.
 
-The catalogue's legacy `size` field is source text rather than normalized data.
-`lib/size-range.ts` therefore classifies only explicit units (`G`/gallon and
-`Box`); Height and Caliper prefer their dedicated inventory fields and fall back
-to explicitly marked source text. Ambiguous values such as `4"` are deliberately
-not guessed. Range filtering applies to the name search result set currently
-returned by `search_inventory` (up to 300 rows).
+When no size is typed, results add one compact **Size: Any** selector populated
+only from sizes present in the current matches. Equivalent notations collapse
+(`15 G`, `15G`, `15 G/17"` → `15 gal`); unambiguous gallon/box ranges retain a
+range label, and other source text remains selectable verbatim rather than being
+guessed. The selected result size is mirrored into the URL's `size` parameter
+and saved under `lps.plant-search.size-choice.v1`. Filtering applies to the
+current `search_inventory` result set (up to 300 rows).
 
 ## Source files
 
