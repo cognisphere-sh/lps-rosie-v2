@@ -160,12 +160,19 @@ searches still work. This keeps `Agave Americana` from including every `Tilia`,
 so tree calipers cannot leak into an Agave menu.
 
 When no size is typed, results add one compact **Size: Any** selector populated
-only from sizes present in the refined current matches. Equivalent notations collapse
-(`15 G`, `15G`, `15 G/17"` → `15 gal`); unambiguous gallon/box ranges retain a
-range label, and other source text remains selectable verbatim rather than being
-guessed. The selected result size is mirrored into the URL's `size` parameter
-and saved under `lps.plant-search.size-choice.v1`. Filtering applies to the
-current `search_inventory` result set (up to 300 rows).
+only with conservative commercial categories from the refined matches:
+explicit gallons, explicit boxes and context-confirmed plausible calipers.
+Equivalent gallon spellings collapse (`15 G`, `15G`, `15 G/17"` → `15 gal`),
+and a description range contributes its endpoints (`3–5 G` → 3 gal and 5 gal)
+rather than becoming another menu item. Bare inch measurements, height/width
+specifications, untyped decimals and other grower-description fragments remain
+visible on result rows but never become choices. Calipers require inch/caliper
+context and a plausible value (greater than 0 and at most 20 inches), guarding against known source-column
+noise such as Agave rows with `caliper = 55/80/215`.
+
+The selected result size is mirrored into the URL's `size` parameter and saved
+under `lps.plant-search.size-choice.v1`. Filtering applies to the current
+`search_inventory` result set (up to 300 rows).
 
 ## Source files
 

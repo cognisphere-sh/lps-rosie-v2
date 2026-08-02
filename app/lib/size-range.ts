@@ -75,34 +75,65 @@ export function parseSizeQuery(query: string): { plantQuery: string; size: Typed
   return { plantQuery: query.trim(), size: null }
 }
 
-/** Collapse spelling variants such as `15 G`, `15G` and `15 G/17"`. */
-export function sizeChoiceFor(values: Record<string, unknown>): SizeChoice | null {
+function caliperBounds(values: Record<string, unknown>): SizeBounds | null {
+  const dedicated = String(values.cal ?? '').trim()
+  const size = String(values.size ?? '')
+  const hasCaliperContext = /\bcal(?:iper)?\b|"|\bin(?:ch(?:es)?)?\b/i.test(`${dedicated} ${size}`)
+  if (dedicated && hasCaliperContext) {
+    const parsed = bounds(numbersIn(dedicated))
+    // Values such as 55, 80 and 215 are known source-column mapping noise, not
+    // plausible nursery calipers. Keep them out of customer-facing facets.
+    if (parsed && parsed.min > 0 && parsed.max <= 20) return parsed
+  }
+
+  const match = /([\d.][\d.\s/-]*)\s*(?:"|in(?:ch(?:es)?)?)?\s*cal(?:iper)?\b/i.exec(size)
+  const parsed = bounds(match ? numbersIn(match[1]) : [])
+  return parsed && parsed.min > 0 && parsed.max <= 20 ? parsed : null
+}
+
+function endpointChoices(
+  listed: SizeBounds,
+  unit: 'gallon' | 'box' | 'caliper',
+): SizeChoice[] {
+  const values = listed.min === listed.max ? [listed.min] : [listed.min, listed.max]
+  return values.map((value) => ({
+    key: `${unit}:${value}`,
+    label: unit === 'gallon'
+      ? `${compactNumber(value)} gal`
+      : unit === 'box'
+        ? `${compactNumber(value)}" box`
+        : `${compactNumber(value)}" caliper`,
+  }))
+}
+
+/**
+ * Build conservative commercial choices only. Grower descriptions stay on the
+ * row, but bare inch measurements, dimensions and untyped numbers never become
+ * filter options. A listed range contributes its two standard endpoints.
+ */
+export function sizeChoicesForValues(values: Record<string, unknown>): SizeChoice[] {
   const original = String(values.size ?? '').trim()
-  if (!original) return null
-
-  for (const unit of ['gallon', 'box'] as const) {
-    const listed = explicitBounds(original, unit)
-    if (!listed) continue
-    const suffix = unit === 'gallon' ? ' gal' : '" box'
-    const label = listed.min === listed.max
-      ? `${compactNumber(listed.min)}${suffix}`
-      : `${compactNumber(listed.min)}–${compactNumber(listed.max)}${suffix}`
-    return { key: `${unit}:${listed.min}:${listed.max}`, label }
-  }
-
-  return {
-    key: `raw:${original.toLowerCase().replace(/\s+/g, ' ')}`,
-    label: original,
-  }
+  const choices: SizeChoice[] = []
+  const gallons = explicitBounds(original, 'gallon')
+  const boxes = explicitBounds(original, 'box')
+  const calipers = caliperBounds(values)
+  if (gallons) choices.push(...endpointChoices(gallons, 'gallon'))
+  if (boxes) choices.push(...endpointChoices(boxes, 'box'))
+  if (calipers) choices.push(...endpointChoices(calipers, 'caliper'))
+  return choices
 }
 
 export function sizeChoicesFor(rows: { values: Record<string, unknown> }[]): SizeChoice[] {
   const choices = new Map<string, SizeChoice>()
   for (const row of rows) {
-    const choice = sizeChoiceFor(row.values)
-    if (choice) choices.set(choice.key, choice)
+    for (const choice of sizeChoicesForValues(row.values)) choices.set(choice.key, choice)
   }
-  return [...choices.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+  const unitOrder: Record<string, number> = { gallon: 0, box: 1, caliper: 2 }
+  return [...choices.values()].sort((a, b) => {
+    const [aUnit, aValue] = a.key.split(':')
+    const [bUnit, bValue] = b.key.split(':')
+    return unitOrder[aUnit] - unitOrder[bUnit] || Number(aValue) - Number(bValue)
+  })
 }
 
 export function matchesSizeFilter(
@@ -115,5 +146,5 @@ export function matchesSizeFilter(
     return !!listed && listed.min <= typed.value && listed.max >= typed.value
   }
   if (!selectedKey) return true
-  return sizeChoiceFor(values)?.key === selectedKey
+  return sizeChoicesForValues(values).some((choice) => choice.key === selectedKey)
 }

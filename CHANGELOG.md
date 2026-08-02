@@ -27,9 +27,11 @@ here).
 - **Simplified size filtering in Plant Search.** Removed the permanent
   unit/min/max form. Users can type a natural query such as `15g Agave
   Americana`, or search the plant name first and choose from a compact selector
-  containing only sizes present in those matches. Common gallon/box spellings
-  collapse without inventing cross-unit equivalences, and the choice survives
-  navigation in the URL and browser storage.
+  containing conservative commercial categories from those matches. Gallon/box
+  spellings collapse without inventing cross-unit equivalences; range descriptions
+  contribute their endpoint categories; and bare dimensions, untyped numbers and
+  implausible source-column values stay on result rows instead of becoming menu
+  options. The choice survives navigation in the URL and browser storage.
 - **Plant Search now starts with a useful state instead of an unexplained
   sample.** A blank search shows a prompt and makes no catalogue request. The
   last term is restored from the URL or browser storage when returning, current
