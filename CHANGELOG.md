@@ -19,6 +19,10 @@ here).
 
 ### Changed
 
+- **Generic list-page headers are removed on mobile.** Suppliers and Plant
+  Search now start with their primary controls; highlighted bottom tabs already
+  identify those pages. Desktop headers and supplier-specific identity headers
+  remain unchanged.
 - **Mobile chat now uses one compact header.** Avatar, agent name, short role
   (`Suppliers`, `Customers`, or `Developer`) and live status align on one line. Opening an agent
   replaces the underlying page-title row rather than stacking

@@ -99,6 +99,7 @@ export function Shell({
   subtitle,
   toolbar,
   headerAction,
+  hideHeaderOnMobile = false,
   children,
 }: {
   page: PageId
@@ -106,6 +107,7 @@ export function Shell({
   subtitle?: string
   toolbar?: React.ReactNode
   headerAction?: React.ReactNode
+  hideHeaderOnMobile?: boolean
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -170,7 +172,7 @@ export function Shell({
       <div className="flex h-dvh flex-col overflow-hidden">
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}
-        {!(isMobile && mobileChat) && (
+        {!(isMobile && (mobileChat || hideHeaderOnMobile)) && (
           <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
             <div className="flex min-w-0 flex-1 items-baseline gap-3">
               <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
