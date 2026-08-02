@@ -23,7 +23,7 @@ export const AGENTS: Agent[] = [
   {
     id: 'daisy',
     name: 'Daisy',
-    role: 'Supplier management',
+    role: 'Suppliers',
     avatar: '/daisy.png',
     profile: '/daisy_profile.png',
     intro: 'Ask Daisy about suppliers, availability lists or catalogue data.',
@@ -36,7 +36,7 @@ export const AGENTS: Agent[] = [
   {
     id: 'rosie',
     name: 'Rosie',
-    role: 'Customer relationships',
+    role: 'Customers',
     avatar: '/rosie.png',
     profile: '/rosie_profile.png',
     upcoming: true,

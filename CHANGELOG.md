@@ -20,7 +20,7 @@ here).
 ### Changed
 
 - **Mobile chat now uses one compact header.** Avatar, agent name, short role
-  (`Developer` for Nova) and live status align on one line. Opening an agent
+  (`Suppliers`, `Customers`, or `Developer`) and live status align on one line. Opening an agent
   replaces the underlying page-title row rather than stacking
   both headers above the conversation. The redundant close icon is removed;
   the highlighted active-agent tab remains the close toggle.
