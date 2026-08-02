@@ -466,23 +466,38 @@ export async function updateCell(
   column: string,
   raw: string,
 ): Promise<void> {
-  if (!WRITABLE[table]?.includes(column)) {
-    throw new Error(`refusing to write ${table}.${column}`)
+  await updateFields(table, id, { [column]: raw })
+}
+
+/** Validate and update several cells on one row in one atomic database write. */
+export async function updateFields(
+  table: string,
+  id: string | number,
+  changes: Record<string, string>,
+): Promise<void> {
+  const entries = Object.entries(changes)
+  if (entries.length === 0) throw new Error('at least one change is required')
+
+  const values: Record<string, string | number | null> = {}
+  for (const [column, raw] of entries) {
+    if (!WRITABLE[table]?.includes(column)) {
+      throw new Error(`refusing to write ${table}.${column}`)
+    }
+
+    let value: string | number | null = raw.trim() === '' ? null : raw.trim()
+    if (value !== null && NUMERIC.has(column)) {
+      const n = Number(value)
+      if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
+      value = n
+    }
+    if (value === null && column === 'unit_price') {
+      throw new Error('unit_price cannot be empty')
+    }
+    values[column] = value
   }
 
-  let value: string | number | null = raw.trim() === '' ? null : raw.trim()
-  if (value !== null && NUMERIC.has(column)) {
-    const n = Number(value)
-    if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
-    // unit_price is NOT NULL in the schema; a blank would violate it.
-    value = n
-  }
-  if (value === null && column === 'unit_price') {
-    throw new Error('unit_price cannot be empty')
-  }
-
-  const { error } = await supabase.from(table).update({ [column]: value }).eq('id', id)
-  if (error) throw new Error(`${table}.${column}: ${error.message}`)
+  const { error } = await supabase.from(table).update(values).eq('id', id)
+  if (error) throw new Error(`${table} update: ${error.message}`)
 }
 
 /** Soft delete — the schema's convention is to flip is_active, never DELETE. */

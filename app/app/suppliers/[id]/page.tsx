@@ -7,9 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  CheckIcon, ChevronLeft, ChevronRight, CloseIcon, FileIcon, PencilIcon, UploadIcon,
-} from '@/components/workspace/icons'
+import { ChevronLeft, ChevronRight, FileIcon, UploadIcon } from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
@@ -39,70 +37,32 @@ const FIELDS: { key: string; label: string; column?: string }[] = [
   { key: 'updated', label: 'Last updated' },
 ]
 
-/** One field in the profile header, editable in place when it has a column. */
-function EditableField({
+/** Profile fields are inert until the whole card enters deliberate edit mode. */
+function ProfileField({
   label,
   display,
-  raw,
-  editable,
+  value,
+  editing,
   href,
-  onSave,
+  onChange,
 }: {
   label: string
   display: string
-  raw: string
-  editable: boolean
+  value: string
+  editing: boolean
   href?: string
-  onSave: (next: string) => Promise<void>
+  onChange?: (next: string) => void
 }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const commit = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      await onSave(draft)
-      setEditing(false)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
-    <div className="lps-row flex min-w-0 flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">{label}</span>
-      {editing ? (
-        <div className="flex items-center gap-1 rounded-lg bg-background p-0.5 outline outline-2 -outline-offset-2 outline-primary">
-          <input
-            autoFocus
-            value={draft}
-            disabled={busy}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void commit()
-              if (e.key === 'Escape') setEditing(false)
-            }}
-            className="h-6 min-w-0 flex-1 border-none bg-transparent px-1 text-[13px] text-foreground outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => void commit()}
-            aria-label="Save"
-            className="inline-flex size-5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-primary hover:bg-secondary"
-          >
-            <CheckIcon size={11} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing(false)}
-            aria-label="Cancel"
-            className="inline-flex size-5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
-          >
-            <CloseIcon size={11} />
-          </button>
-        </div>
+      {editing && onChange ? (
+        <Input
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-[13px]"
+        />
       ) : href ? (
         <a
           href={href}
@@ -114,27 +74,8 @@ function EditableField({
           {display}
         </a>
       ) : (
-        <span
-          onClick={
-            editable
-              ? () => {
-                  setDraft(raw)
-                  setEditing(true)
-                }
-              : undefined
-          }
-          title={display}
-          className={cn(
-            'flex items-center gap-1 truncate text-[13px]',
-            editable && 'cursor-text rounded px-0.5 hover:bg-muted',
-          )}
-        >
-          <span className="truncate">{display}</span>
-          {editable && (
-            <span className="lps-pencil inline-flex flex-none text-lps-dim opacity-0 transition-opacity">
-              <PencilIcon size={11} />
-            </span>
-          )}
+        <span title={display} className="truncate text-[13px]">
+          {display}
         </span>
       )}
     </div>
@@ -152,6 +93,9 @@ export default function SupplierProfilePage() {
   const [sources, setSources] = useState<SupplierSource[]>([])
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('notes')
+  const [profileEditing, setProfileEditing] = useState(false)
+  const [profileDraft, setProfileDraft] = useState<Record<string, string>>({})
+  const [savingProfile, setSavingProfile] = useState(false)
 
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounced(query)
@@ -171,6 +115,28 @@ export default function SupplierProfilePage() {
   const [commsDraft, setCommsDraft] = useState('')
   const [commsChannel, setCommsChannel] = useState('email')
   const [savingComms, setSavingComms] = useState(false)
+
+  const profileDirty = useMemo(
+    () =>
+      profileEditing &&
+      !!supplier &&
+      FIELDS.some((field) => {
+        if (!field.column) return false
+        const current = supplier.values[field.column]
+        return (profileDraft[field.column] ?? '').trim() !== (current == null ? '' : String(current).trim())
+      }),
+    [profileDraft, profileEditing, supplier],
+  )
+
+  useEffect(() => {
+    if (!profileDirty) return
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [profileDirty])
 
   useEffect(() => {
     if (!Number.isInteger(id)) return
@@ -251,24 +217,58 @@ export default function SupplierProfilePage() {
     [toast],
   )
 
-  const saveField = useCallback(
-    async (column: string, label: string, next: string) => {
-      if (!supplier) return
-      const res = await fetch('/api/rows', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ table: 'suppliers', id: supplier.id, column, value: next }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast(body.error ?? `Could not save ${label}`)
-        return
-      }
-      setSupplier({ ...supplier, values: { ...supplier.values, [column]: next || null } })
-      toast(`${label} updated`)
-    },
-    [supplier, toast],
-  )
+  const startProfileEdit = () => {
+    if (!supplier) return
+    setProfileDraft(
+      Object.fromEntries(
+        FIELDS.filter((field) => field.column).map((field) => {
+          const value = supplier.values[field.column!]
+          return [field.column!, value == null ? '' : String(value)]
+        }),
+      ),
+    )
+    setProfileEditing(true)
+  }
+
+  const cancelProfileEdit = () => {
+    if (profileDirty && !window.confirm('Discard your unsaved supplier changes?')) return
+    setProfileEditing(false)
+    setProfileDraft({})
+  }
+
+  const saveProfile = async () => {
+    if (!supplier || !profileDirty || savingProfile) return
+    const changes = Object.fromEntries(
+      FIELDS.filter((field) => {
+        if (!field.column) return false
+        const current = supplier.values[field.column]
+        return (profileDraft[field.column] ?? '').trim() !== (current == null ? '' : String(current).trim())
+      }).map((field) => [field.column!, profileDraft[field.column!] ?? '']),
+    )
+
+    setSavingProfile(true)
+    const res = await fetch('/api/rows', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ table: 'suppliers', id: supplier.id, changes }),
+    })
+    setSavingProfile(false)
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      toast(body.error ?? 'Could not save supplier changes')
+      return
+    }
+
+    const saved = Object.fromEntries(
+      Object.entries(changes).map(([column, value]) => [column, value.trim() || null]),
+    )
+    setSupplier((current) =>
+      current ? { ...current, values: { ...current.values, ...saved } } : current,
+    )
+    setProfileEditing(false)
+    setProfileDraft({})
+    toast(`${Object.keys(changes).length} supplier field${Object.keys(changes).length === 1 ? '' : 's'} updated`)
+  }
 
   // `notes` holds durable profile facts, so it is edited in place — replaced,
   // not appended to.
@@ -378,6 +378,11 @@ export default function SupplierProfilePage() {
           <div className="flex min-w-[250px] flex-1 flex-col gap-2.5">
             <Link
               href="/suppliers"
+              onClick={(event) => {
+                if (profileDirty && !window.confirm('Discard your unsaved supplier changes?')) {
+                  event.preventDefault()
+                }
+              }}
               className="flex items-center gap-1.5 self-start text-[12px] text-muted-foreground hover:text-foreground"
             >
               ← All suppliers
@@ -392,22 +397,49 @@ export default function SupplierProfilePage() {
                 </Badge>
               )}
               {supplier && !supplier.ref.is_active && <Badge variant="destructive">Inactive</Badge>}
+              {supplier && (profileEditing ? (
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!profileDirty || savingProfile}
+                    onClick={() => void saveProfile()}
+                  >
+                    {savingProfile ? 'Saving…' : 'Save changes'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={savingProfile}
+                    onClick={cancelProfileEdit}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={startProfileEdit} className="ml-auto">
+                  Edit supplier
+                </Button>
+              ))}
             </div>
 
             <div className="grid max-w-[760px] gap-x-5 gap-y-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(178px,1fr))' }}>
               {FIELDS.map((f) => (
-                <EditableField
+                <ProfileField
                   key={f.key}
                   label={f.label}
                   display={fieldValue(f.key)}
-                  raw={values[f.key] == null ? '' : String(values[f.key])}
-                  editable={!!f.column && !!supplier}
+                  value={f.column ? profileDraft[f.column] ?? '' : ''}
+                  editing={profileEditing && !!f.column}
                   href={
                     f.key === 'website' && values.website
                       ? websiteHref(String(values.website))
                       : undefined
                   }
-                  onSave={(next) => saveField(f.column!, f.label, next)}
+                  onChange={
+                    f.column
+                      ? (next) => setProfileDraft((current) => ({ ...current, [f.column!]: next }))
+                      : undefined
+                  }
                 />
               ))}
             </div>

@@ -61,7 +61,7 @@ fidelity", start here rather than reverting one of these by accident:
 | Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
 | No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
 | Signed-in user read from `/api/auth/me` | The mock hardcoded a name and initials into the markup. |
-| **Communications** tab added; **Notes** edits in place | The schema has two distinct columns; the mock's threaded notes map onto neither. See below. |
+| **Communications** tab added; **Notes** edits in place; supplier profile fields require explicit edit mode | The schema has two distinct note columns, and tap-anywhere field editing is unsafe on touch screens. Profile changes are staged and saved together. See below. |
 | Profile inventory is paginated | The mock had a fixed list; real suppliers carry thousands of rows. |
 | Column reorder is direction-aware | The mock's algorithm makes an adjacent rightward drag a no-op. See *Column layout*. |
 | Source/website cells are links; source lists scroll | The mock rendered them as plain text. |
@@ -108,7 +108,7 @@ offering routes that go nowhere.
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
-| `PATCH /api/rows` | Inline cell edit. |
+| `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). |
 
 Pages are client components that fetch from these routes — the workspace is
@@ -227,9 +227,13 @@ The supplier profile's Inventory tab still supports row delete as a **soft delet
 (`is_active = false`, the schema's convention).
 
 Editing happens in two places: table cells, and the **supplier profile's detail
-card**, whose fields edit in place (`poc_*`, `phone`, `email`, `city`, `state`).
-`website`, `Active items` and `Last updated` are not editable — `website` isn't
-editable in the design either, and the other two are derived.
+card**. Profile values are inert by default: a deliberate **Edit supplier**
+button exposes `poc_*`, `phone`, `email`, `city` and `state`; changes remain local
+until one **Save changes** action writes only changed fields in one database
+update. **Cancel** confirms before discarding a dirty draft, and reload/close
+triggers the browser's unsaved-change warning. `website`, `Active items` and
+`Last updated` are not editable — `website` isn't editable in the design either,
+and the other two are derived.
 
 The table/column pair is checked against a whitelist in `lib/queries.ts`
 (`WRITABLE`), **server-side**. The request body comes from the browser, so a

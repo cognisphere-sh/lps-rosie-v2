@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
-import { softDelete, updateCell } from '@/lib/queries'
+import { softDelete, updateCell, updateFields } from '@/lib/queries'
 
-/** Inline cell edit. Body: { table, id, column, value }. */
+/** One inline edit, or a staged set of fields written atomically. */
 export async function PATCH(req: Request) {
   try {
     const body = (await req.json()) as {
@@ -10,11 +10,18 @@ export async function PATCH(req: Request) {
       id?: string | number
       column?: string
       value?: string
+      changes?: Record<string, string>
     }
-    if (!body.table || body.id == null || !body.column) {
-      return NextResponse.json({ error: 'table, id and column are required' }, { status: 400 })
+    if (!body.table || body.id == null) {
+      return NextResponse.json({ error: 'table and id are required' }, { status: 400 })
     }
-    await updateCell(body.table, body.id, body.column, body.value ?? '')
+    if (body.changes) {
+      await updateFields(body.table, body.id, body.changes)
+    } else if (body.column) {
+      await updateCell(body.table, body.id, body.column, body.value ?? '')
+    } else {
+      return NextResponse.json({ error: 'column or changes is required' }, { status: 400 })
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })

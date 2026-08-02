@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Supplier profiles now require deliberate edit mode.** Profile fields are
+  read-only until **Edit supplier** is pressed; edits are staged locally and a
+  single **Save changes** action writes only changed fields atomically. Cancel
+  warns before discarding changes, and reload/close gets an unsaved-change
+  warning, preventing accidental mobile taps from entering or saving edits.
 - **Mobile Plant Search rows now show availability specifications.** Height,
   width/spread and caliper appear beside the source size when present, rather
   than being stored correctly but hidden from mobile results. Tapping a row
