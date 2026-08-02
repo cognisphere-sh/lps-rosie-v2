@@ -20,7 +20,7 @@ here).
 ### Changed
 
 - **Supplier profiles now require deliberate edit mode.** Profile fields are
-  read-only until **Edit supplier** is pressed; edits are staged locally and a
+  read-only until the pencil icon (**Edit supplier**) is pressed; edits are staged locally and a
   single **Save changes** action writes only changed fields atomically. Cancel
   warns before discarding changes, and reload/close gets an unsaved-change
   warning, preventing accidental mobile taps from entering or saving edits.

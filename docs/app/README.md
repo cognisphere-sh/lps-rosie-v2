@@ -227,8 +227,8 @@ The supplier profile's Inventory tab still supports row delete as a **soft delet
 (`is_active = false`, the schema's convention).
 
 Editing happens in two places: table cells, and the **supplier profile's detail
-card**. Profile values are inert by default: a deliberate **Edit supplier**
-button exposes `poc_*`, `phone`, `email`, `city` and `state`; changes remain local
+card**. Profile values are inert by default: a deliberate pencil-icon edit
+button (accessible label: **Edit supplier**) exposes `poc_*`, `phone`, `email`, `city` and `state`; changes remain local
 until one **Save changes** action writes only changed fields in one database
 update. **Cancel** confirms before discarding a dirty draft, and reload/close
 triggers the browser's unsaved-change warning. `website`, `Active items` and

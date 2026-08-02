@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronLeft, ChevronRight, FileIcon, UploadIcon } from '@/components/workspace/icons'
+import { ChevronLeft, ChevronRight, FileIcon, PencilIcon, UploadIcon } from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
@@ -416,8 +416,15 @@ export default function SupplierProfilePage() {
                   </Button>
                 </div>
               ) : (
-                <Button variant="outline" size="sm" onClick={startProfileEdit} className="ml-auto">
-                  Edit supplier
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={startProfileEdit}
+                  aria-label="Edit supplier"
+                  title="Edit supplier"
+                  className="ml-auto"
+                >
+                  <PencilIcon size={15} />
                 </Button>
               ))}
             </div>
