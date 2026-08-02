@@ -134,12 +134,16 @@ set per search flavour (`PLANT_SEARCH_LABELS` for the two plant searches,
 `search-loader.tsx`.
 
 `search_inventory` **cannot be called with an empty search** (it walks all ~74k
-active rows and exceeds the statement timeout — see the schema doc). With no
-term, `searchPlantGroups` instead picks the suppliers behind the newest
-availability files and reads a capped page per supplier. Both parts matter: a
-single shared limit gets eaten by whichever supplier sorts first — two suppliers
-with 150 rows each would consume a 300-row budget on their own and the page
-would show two groups instead of eight.
+active rows and exceeds the statement timeout — see the schema doc). Plant
+Search therefore shows a clean prompt and makes no inventory request until a
+term is entered; the API also returns an empty group list for a blank `q`.
+
+The current Plant Search term is mirrored into the URL's `q` parameter and
+saved in `localStorage` under `lps.plant-search.query.v1`. Returning to the page
+restores the URL term first, then the saved term; results are fetched again so
+the saved state cannot serve stale inventory. Clearing the search removes both
+the URL parameter and saved term. Browser Back/Forward changes are restored via
+`popstate`.
 
 ## Source files
 

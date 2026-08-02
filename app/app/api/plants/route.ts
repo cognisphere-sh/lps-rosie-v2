@@ -18,6 +18,7 @@ export async function GET(req: Request) {
         await getSupplierPlants(id, search, Number.isInteger(page) && page > 0 ? page : 1),
       )
     }
+    if (!search.trim()) return NextResponse.json({ groups: [] })
     return NextResponse.json({ groups: await searchPlantGroups(search) })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

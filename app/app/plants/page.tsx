@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 // Supplier-panel fields — everything on the master row that isn't already shown
 // as the heading, the count, the category badge or the state.
 const PANEL_FIXED = ['name', 'plant_count', 'category', 'state']
+const PLANT_SEARCH_KEY = 'lps.plant-search.query.v1'
 
 // Mobile filter sheet. Phones get the filters people actually narrow by — the
 // supplier's category and location, plus plant size and price — not every
@@ -42,12 +43,14 @@ export default function PlantSearchPage() {
   const masterCfg = useTableConfig('plantMaster')
 
   const [query, setQuery] = useState('')
+  const [searchHydrated, setSearchHydrated] = useState(false)
   const debouncedQuery = useDebounced(query)
   const [groups, setGroups] = useState<PlantGroup[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const hasQuery = query.trim().length > 0
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
-  const searching = loading || query !== debouncedQuery
+  const searching = searchHydrated && hasQuery && (loading || query !== debouncedQuery)
   const [panelW, setPanelW] = useState(292)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
@@ -56,7 +59,43 @@ export default function PlantSearchPage() {
   // Mobile only: supplier cards whose plant list is collapsed.
   const [collapsed, setCollapsed] = useState<number[]>([])
 
+  // A URL query wins on arrival; otherwise restore the last search from this
+  // browser. Results are always fetched again, so only the question is saved.
   useEffect(() => {
+    const urlQuery = new URL(window.location.href).searchParams.get('q')
+    setQuery(urlQuery ?? window.localStorage.getItem(PLANT_SEARCH_KEY) ?? '')
+    setSearchHydrated(true)
+
+    const restoreFromHistory = () => {
+      setQuery(new URL(window.location.href).searchParams.get('q') ?? '')
+    }
+    window.addEventListener('popstate', restoreFromHistory)
+    return () => window.removeEventListener('popstate', restoreFromHistory)
+  }, [])
+
+  // Keep navigation back to this page meaningful without adding an entry for
+  // every keystroke. Clearing the box intentionally forgets the saved search.
+  useEffect(() => {
+    if (!searchHydrated) return
+    const url = new URL(window.location.href)
+    if (hasQuery) {
+      url.searchParams.set('q', query)
+      window.localStorage.setItem(PLANT_SEARCH_KEY, query)
+    } else {
+      url.searchParams.delete('q')
+      window.localStorage.removeItem(PLANT_SEARCH_KEY)
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [hasQuery, query, searchHydrated])
+
+  useEffect(() => {
+    if (!searchHydrated) return
+    if (!debouncedQuery.trim()) {
+      setGroups([])
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     setLoading(true)
     fetch(`/api/plants?q=${encodeURIComponent(debouncedQuery)}`)
@@ -70,7 +109,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery])
+  }, [debouncedQuery, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -178,7 +217,9 @@ export default function PlantSearchPage() {
       summary={
         searching
           ? 'Searching…'
-          : `${visibleGroups.length} suppliers · ${shownPlants} of ${allPlants.length} plants`
+          : hasQuery
+            ? `${visibleGroups.length} suppliers · ${shownPlants} of ${allPlants.length} plants`
+            : 'Search by plant name'
       }
     />
   )
@@ -196,7 +237,14 @@ export default function PlantSearchPage() {
 
   return (
     <Shell page="inventory" title="Plant search" subtitle="Grouped by supplier" toolbar={toolbar}>
-      {isMobile ? (
+      {!searchHydrated ? null : !hasQuery ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <span className="text-[15px] font-semibold">What plant are you looking for?</span>
+          <span className="max-w-[430px] text-[12.5px] text-muted-foreground">
+            Search by printed, botanical or common name. Your last search will be restored when you return.
+          </span>
+        </div>
+      ) : isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5">
           {/* Mobile has no column heads, so the filters they carry live here. */}
           <div className="shrink-0 rounded-xl border border-border bg-card">

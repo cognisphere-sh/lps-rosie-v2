@@ -15,6 +15,16 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-02
+
+### Changed
+
+- **Plant Search now starts with a useful state instead of an unexplained
+  sample.** A blank search shows a prompt and makes no catalogue request. The
+  last term is restored from the URL or browser storage when returning, current
+  results are fetched afresh, browser Back/Forward is honored, and Clear forgets
+  the saved term.
+
 ## 2026-07-31
 
 ### Changed
