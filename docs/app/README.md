@@ -81,7 +81,11 @@ header rather than repeating the page title inside the content:
   agents are disabled), and both list pages swap their tables for card
   lists. The chat sheet overlays the page content only — it is rendered inside
   the main column's relative wrapper, above the tab bar, so navigation stays
-  visible and usable while chatting. The bar ends in a **⋯ More** menu carrying
+  visible and usable while chatting. Its compact agent identity/status row
+  replaces the underlying page header while open instead of stacking a second
+  header. There is no redundant close icon: tapping the highlighted active-agent
+  tab again closes the sheet, while another agent tab switches chats. The bar
+  ends in a **⋯ More** menu carrying
   what the desktop rail keeps at the bottom — Settings (disabled), the theme
   toggle, Know your Agents, and the signed-in user with log out. The popover
   renders outside the bar (the bar scrolls horizontally, so it would clip a

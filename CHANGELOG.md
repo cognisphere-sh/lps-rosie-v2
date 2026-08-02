@@ -19,6 +19,10 @@ here).
 
 ### Changed
 
+- **Mobile chat now uses one compact header.** Opening an agent replaces the
+  underlying page-title row with the agent identity/status rather than stacking
+  both headers above the conversation. The redundant close icon is removed;
+  the highlighted active-agent tab remains the close toggle.
 - **Mobile supplier profiles now prioritize inventory space.** The supplier
   name/category and pencil live in one sticky header; the duplicate title and
   mobile back link are gone. Company data is collapsed behind a compact

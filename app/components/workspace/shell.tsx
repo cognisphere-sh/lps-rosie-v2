@@ -168,16 +168,19 @@ export function Shell({
   return (
     <ToastCtx.Provider value={showToast}>
       <div className="flex h-dvh flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
-          <div className="flex min-w-0 flex-1 items-baseline gap-3">
-            <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
-            {subtitle && (
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
-            )}
+        {/* Mobile chat supplies its own compact identity header; do not stack
+            the underlying page header above it. */}
+        {!(isMobile && mobileChat) && (
+          <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
+            <div className="flex min-w-0 flex-1 items-baseline gap-3">
+              <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
+              {subtitle && (
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
+              )}
+            </div>
+            {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
           </div>
-          {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
-        </div>
+        )}
 
         <div className="flex min-h-0 flex-1">
           {/* Desktop nav rail */}
@@ -308,7 +311,6 @@ export function Shell({
                   isMobile
                   mobileOpen={mobileChat}
                   mobileAgentId={mobileAgent}
-                  onMobileClose={() => setMobileChat(false)}
                 />
               )}
 
@@ -434,7 +436,6 @@ export function Shell({
             <AgentChat
               isMobile={false}
               mobileOpen={mobileChat}
-              onMobileClose={() => setMobileChat(false)}
             />
           )}
         </div>

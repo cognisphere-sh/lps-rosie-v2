@@ -791,17 +791,16 @@ function Composer({
  * Desktop: a resizable docked panel, or a 46px rail when hidden.
  * Mobile: a full-screen sheet, opened from the bottom tab bar.
  *
- * Rendered by `shell.tsx`; `mobileOpen`/`onMobileClose` are owned there so the
- * tab bar can toggle it.
+ * Rendered by `shell.tsx`; `mobileOpen` is owned there so the active bottom
+ * agent tab can toggle the sheet without a redundant close button.
  */
 export function AgentChat({
-  isMobile, mobileOpen, mobileAgentId, onMobileClose,
+  isMobile, mobileOpen, mobileAgentId,
 }: {
   isMobile: boolean
   mobileOpen: boolean
   /** Mobile only: which agent the tab bar picked — the sheet has no rail. */
   mobileAgentId?: string
-  onMobileClose: () => void
 }) {
   const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
@@ -867,8 +866,17 @@ export function AgentChat({
   }
 
   const header = (big?: boolean) => (
-    <div className="flex flex-none items-center gap-2.5 border-b border-border px-4 py-3">
-      <Image src={agent.avatar} alt="" width={30} height={30} className="size-[30px] flex-none rounded-full object-cover" />
+    <div className={cn(
+      'flex flex-none items-center gap-2.5 border-b border-border',
+      big ? 'px-3 py-2' : 'px-4 py-3',
+    )}>
+      <Image
+        src={agent.avatar}
+        alt=""
+        width={30}
+        height={30}
+        className={cn('flex-none rounded-full object-cover', big ? 'size-[26px]' : 'size-[30px]')}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-px">
         <span className={cn('font-bold', big ? 'text-[14px]' : 'text-[13.5px]')}>{agent.name}</span>
         <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -877,16 +885,6 @@ export function AgentChat({
           {chat.pending ? 'Working…' : 'Online'}
         </span>
       </div>
-      {big && (
-        <button
-          type="button"
-          onClick={onMobileClose}
-          aria-label="Close assistant"
-          className="flex size-8 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-background text-foreground"
-        >
-          <X size={16} />
-        </button>
-      )}
     </div>
   )
 
