@@ -62,6 +62,7 @@ export function Toolbar({
   query,
   onQuery,
   chips = [],
+  controls,
   hasFilters,
   onClear,
   summary,
@@ -70,6 +71,7 @@ export function Toolbar({
   query: string
   onQuery: (value: string) => void
   chips?: Chip[]
+  controls?: React.ReactNode
   hasFilters: boolean
   onClear: () => void
   summary: string
@@ -85,6 +87,7 @@ export function Toolbar({
           className="h-9"
         />
       </div>
+      {controls}
       {chips.map((chip) => (
         <ChipMenu key={chip.label} chip={chip} />
       ))}

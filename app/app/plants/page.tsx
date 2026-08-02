@@ -15,6 +15,9 @@ import { Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
+import {
+  isSizeUnit, matchesSizeRange, SIZE_UNITS, type SizeUnit,
+} from '@/lib/size-range'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
@@ -23,17 +26,99 @@ import { cn } from '@/lib/utils'
 // as the heading, the count, the category badge or the state.
 const PANEL_FIXED = ['name', 'plant_count', 'category', 'state']
 const PLANT_SEARCH_KEY = 'lps.plant-search.query.v1'
+const PLANT_SIZE_KEY = 'lps.plant-search.size.v1'
 
-// Mobile filter sheet. Phones get the filters people actually narrow by — the
-// supplier's category and location, plus plant size and price — not every
-// filterable column the desktop header carries.
+// Mobile filter sheet. Size is always visible beside the search field, so the
+// collapsible sheet carries the remaining common supplier/location and price
+// filters rather than every filterable desktop column.
 const MOBILE_FILTERS = [
   { key: 'category', label: 'Supplier category', master: true },
   { key: 'state', label: 'State', master: true },
   { key: 'city', label: 'City', master: true },
-  { key: 'size', label: 'Size', master: false },
   { key: 'price', label: 'Price', master: false },
 ] as const
+
+function SizeRangeControl({
+  unit,
+  min,
+  max,
+  onUnit,
+  onMin,
+  onMax,
+  onClear,
+}: {
+  unit: SizeUnit | ''
+  min: string
+  max: string
+  onUnit: (unit: SizeUnit | '') => void
+  onMin: (value: string) => void
+  onMax: (value: string) => void
+  onClear: () => void
+}) {
+  const definition = SIZE_UNITS.find((candidate) => candidate.value === unit)
+  const active = unit !== ''
+
+  return (
+    <div className="flex w-full items-center gap-1.5 md:w-auto">
+      <span className="flex-none text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+        Size
+      </span>
+      <select
+        value={unit}
+        onChange={(event) => onUnit(event.target.value as SizeUnit | '')}
+        aria-label="Size unit"
+        className={cn(
+          'h-8 min-w-0 flex-1 rounded-[7px] border bg-background px-2 text-[12px] font-medium outline-none md:w-[104px] md:flex-none',
+          active ? 'border-primary text-primary' : 'border-input text-foreground',
+        )}
+      >
+        <option value="">Any size</option>
+        {SIZE_UNITS.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+      <input
+        type="number"
+        inputMode="decimal"
+        min="0"
+        step={definition?.step ?? 1}
+        disabled={!active}
+        value={min}
+        onChange={(event) => onMin(event.target.value)}
+        placeholder="Min"
+        aria-label="Minimum size"
+        className="h-8 w-[66px] rounded-[7px] border border-input bg-background px-2 text-[12px] outline-none disabled:cursor-not-allowed disabled:opacity-45"
+      />
+      <span className="text-[11px] text-muted-foreground">to</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        min="0"
+        step={definition?.step ?? 1}
+        disabled={!active}
+        value={max}
+        onChange={(event) => onMax(event.target.value)}
+        placeholder="Max"
+        aria-label="Maximum size"
+        className="h-8 w-[66px] rounded-[7px] border border-input bg-background px-2 text-[12px] outline-none disabled:cursor-not-allowed disabled:opacity-45"
+      />
+      {active && (
+        <span className="w-6 flex-none text-[10.5px] text-muted-foreground">{definition?.suffix}</span>
+      )}
+      {active && (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear size range"
+          title="Clear size range"
+          className="inline-flex size-7 flex-none items-center justify-center rounded-[7px] text-[17px] text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  )
+}
 
 export default function PlantSearchPage() {
   const router = useRouter()
@@ -47,6 +132,9 @@ export default function PlantSearchPage() {
   const debouncedQuery = useDebounced(query)
   const [groups, setGroups] = useState<PlantGroup[]>([])
   const [loading, setLoading] = useState(false)
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit | ''>('')
+  const [sizeMin, setSizeMin] = useState('')
+  const [sizeMax, setSizeMax] = useState('')
   const hasQuery = query.trim().length > 0
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
@@ -62,12 +150,29 @@ export default function PlantSearchPage() {
   // A URL query wins on arrival; otherwise restore the last search from this
   // browser. Results are always fetched again, so only the question is saved.
   useEffect(() => {
-    const urlQuery = new URL(window.location.href).searchParams.get('q')
-    setQuery(urlQuery ?? window.localStorage.getItem(PLANT_SEARCH_KEY) ?? '')
+    const url = new URL(window.location.href)
+    const hasUrlQuery = url.searchParams.has('q')
+    setQuery(url.searchParams.get('q') ?? window.localStorage.getItem(PLANT_SEARCH_KEY) ?? '')
+
+    let savedSize: { unit?: string; min?: string; max?: string } = {}
+    try {
+      savedSize = JSON.parse(window.localStorage.getItem(PLANT_SIZE_KEY) ?? '{}') as typeof savedSize
+    } catch {
+      // A malformed local preference is equivalent to no saved range.
+    }
+    const restoredUnit = hasUrlQuery ? url.searchParams.get('size_unit') : (savedSize.unit ?? null)
+    setSizeUnit(isSizeUnit(restoredUnit) ? restoredUnit : '')
+    setSizeMin(hasUrlQuery ? (url.searchParams.get('size_min') ?? '') : (savedSize.min ?? ''))
+    setSizeMax(hasUrlQuery ? (url.searchParams.get('size_max') ?? '') : (savedSize.max ?? ''))
     setSearchHydrated(true)
 
     const restoreFromHistory = () => {
-      setQuery(new URL(window.location.href).searchParams.get('q') ?? '')
+      const historyUrl = new URL(window.location.href)
+      const historyUnit = historyUrl.searchParams.get('size_unit')
+      setQuery(historyUrl.searchParams.get('q') ?? '')
+      setSizeUnit(isSizeUnit(historyUnit) ? historyUnit : '')
+      setSizeMin(historyUrl.searchParams.get('size_min') ?? '')
+      setSizeMax(historyUrl.searchParams.get('size_max') ?? '')
     }
     window.addEventListener('popstate', restoreFromHistory)
     return () => window.removeEventListener('popstate', restoreFromHistory)
@@ -85,8 +190,22 @@ export default function PlantSearchPage() {
       url.searchParams.delete('q')
       window.localStorage.removeItem(PLANT_SEARCH_KEY)
     }
+    if (sizeUnit) {
+      url.searchParams.set('size_unit', sizeUnit)
+      sizeMin ? url.searchParams.set('size_min', sizeMin) : url.searchParams.delete('size_min')
+      sizeMax ? url.searchParams.set('size_max', sizeMax) : url.searchParams.delete('size_max')
+      window.localStorage.setItem(
+        PLANT_SIZE_KEY,
+        JSON.stringify({ unit: sizeUnit, min: sizeMin, max: sizeMax }),
+      )
+    } else {
+      url.searchParams.delete('size_unit')
+      url.searchParams.delete('size_min')
+      url.searchParams.delete('size_max')
+      window.localStorage.removeItem(PLANT_SIZE_KEY)
+    }
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
-  }, [hasQuery, query, searchHydrated])
+  }, [hasQuery, query, searchHydrated, sizeMax, sizeMin, sizeUnit])
 
   useEffect(() => {
     if (!searchHydrated) return
@@ -160,13 +279,17 @@ export default function PlantSearchPage() {
       .map((g) => ({
         ...g,
         plants: applyFilters(
-          g.plants.filter((p) => !hiddenPlants.includes(p.id)),
+          g.plants.filter(
+            (p) =>
+              !hiddenPlants.includes(p.id) &&
+              matchesSizeRange(p.values, sizeUnit, sizeMin, sizeMax),
+          ),
           plantCfg.filters,
           plantCfg.sort,
         ),
       }))
       .filter((g) => g.plants.length > 0)
-  }, [groups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, supplierPick])
+  }, [groups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, supplierPick, sizeMax, sizeMin, sizeUnit])
 
   const supplierNames = useMemo(
     () => [...new Set(groups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
@@ -197,6 +320,7 @@ export default function PlantSearchPage() {
 
   const activeFilterCount =
     (supplierPick.length > 0 ? 1 : 0) +
+    (sizeUnit ? 1 : 0) +
     Object.keys(plantCfg.filters).length +
     Object.keys(masterCfg.filters).length
 
@@ -207,9 +331,33 @@ export default function PlantSearchPage() {
       placeholder="Search plant, botanical or common name…"
       query={query}
       onQuery={setQuery}
+      controls={(
+        <SizeRangeControl
+          unit={sizeUnit}
+          min={sizeMin}
+          max={sizeMax}
+          onUnit={(next) => {
+            setSizeUnit(next)
+            if (!next) {
+              setSizeMin('')
+              setSizeMax('')
+            }
+          }}
+          onMin={setSizeMin}
+          onMax={setSizeMax}
+          onClear={() => {
+            setSizeUnit('')
+            setSizeMin('')
+            setSizeMax('')
+          }}
+        />
+      )}
       hasFilters={hasFilters}
       onClear={() => {
         setQuery('')
+        setSizeUnit('')
+        setSizeMin('')
+        setSizeMax('')
         setSupplierPick([])
         plantCfg.clearFilters()
         masterCfg.clearFilters()

@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Size is now a first-class Plant Search filter.** An always-visible unit,
+  minimum and maximum control supports gallon, box, height and caliper ranges;
+  blank remains Any size. Listed ranges match on overlap, ambiguous legacy size
+  text is not guessed, and the selection survives navigation in the URL and
+  browser storage.
 - **Plant Search now starts with a useful state instead of an unexplained
   sample.** A blank search shows a prompt and makes no catalogue request. The
   last term is restored from the URL or browser storage when returning, current
