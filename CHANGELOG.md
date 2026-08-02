@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Mobile Plant Search rows now show availability specifications.** Height,
+  width/spread and caliper appear beside the source size when present, rather
+  than being stored correctly but hidden from mobile results. Tapping a row
+  expands full other names, notes, update date and source link inline without
+  leaving the supplier comparison.
 - **Common-name + cultivar searches now recover from alias-combination gaps.**
   When a full multi-word search returns zero, the server searches its individual
   words in parallel and uses the smallest non-empty result set. `Live oak

@@ -10,7 +10,7 @@ import {
 } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { ColumnPicker, FilterControl, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
+import { ColumnPicker, FilterControl, MultiFilter, badgeFor, fileHref } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
@@ -113,6 +113,7 @@ export default function PlantSearchPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   // Mobile only: supplier cards whose plant list is collapsed.
   const [collapsed, setCollapsed] = useState<number[]>([])
+  const [expandedPlants, setExpandedPlants] = useState<string[]>([])
 
   // A URL query wins on arrival; otherwise restore the last question and size
   // choice from this browser. Results themselves are always fetched again.
@@ -342,6 +343,13 @@ export default function PlantSearchPage() {
 
   const plantW = plantsWidth(plantCfg)
 
+  const mobilePlantSpecs = (plant: PlantRow) => [
+    { label: '', value: plant.values.size },
+    { label: 'H', value: plant.values.h },
+    { label: 'W', value: plant.values.w },
+    { label: 'Cal', value: plant.values.cal },
+  ].filter((spec) => spec.value != null && spec.value !== '')
+
   const detailText = (g: PlantGroup, col: ColumnDef) => {
     const v = g.supplier.values[col.key]
     if (col.key === 'city') return [v, g.supplier.values.state].filter(Boolean).join(', ')
@@ -461,25 +469,78 @@ export default function PlantSearchPage() {
                 </button>
               </div>
               <div className={cn('flex flex-col', !open && 'hidden')}>
-                {g.plants.map((p) => (
-                  <div key={p.id} className="flex items-start gap-3 border-b border-lps-hair p-3 last:border-b-0">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
-                      {p.values.other && (
-                        <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
+                {g.plants.map((p) => {
+                  const detailsOpen = expandedPlants.includes(p.id)
+                  return (
+                    <div key={p.id} className="border-b border-lps-hair last:border-b-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedPlants((prev) =>
+                            detailsOpen ? prev.filter((id) => id !== p.id) : [...prev, p.id],
+                          )
+                        }
+                        aria-expanded={detailsOpen}
+                        className="flex w-full items-start gap-3 p-3 text-left"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
+                          {p.values.other && (
+                            <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
+                          )}
+                          {mobilePlantSpecs(p).length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                              {mobilePlantSpecs(p).map((spec) => (
+                                <span key={spec.label || 'size'}>
+                                  {spec.label && <span className="text-lps-dim">{spec.label} </span>}
+                                  {String(spec.value)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-none items-start gap-1.5 text-right">
+                          <div>
+                            <div className="text-[14px] font-bold tabular-nums">{money(p.values.price)}</div>
+                            <div className="text-[11px] text-muted-foreground tabular-nums">
+                              {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
+                            </div>
+                          </div>
+                          <ChevronDown size={14} className={cn('mt-1.5 text-lps-dim', !detailsOpen && '-rotate-90')} />
+                        </div>
+                      </button>
+                      {detailsOpen && (
+                        <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[11.5px]">
+                          {p.values.other && (
+                            <div>
+                              <span className="font-semibold text-lps-dim">Other names: </span>
+                              <span className="text-muted-foreground">{String(p.values.other)}</span>
+                            </div>
+                          )}
+                          {p.values.notes && (
+                            <div>
+                              <span className="font-semibold text-lps-dim">Notes: </span>
+                              <span className="text-muted-foreground">{String(p.values.notes)}</span>
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+                            {p.values.updated && <span>Updated {formatDate(String(p.values.updated))}</span>}
+                            {p.sourcePath && (
+                              <a
+                                href={fileHref(p.sourcePath)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-semibold text-primary hover:underline"
+                              >
+                                Open source
+                              </a>
+                            )}
+                          </div>
+                        </div>
                       )}
-                      <div className="mt-1 text-[11.5px] text-muted-foreground">
-                        {String(p.values.size ?? '')}
-                      </div>
                     </div>
-                    <div className="flex-none text-right">
-                      <div className="text-[14px] font-bold tabular-nums">{money(p.values.price)}</div>
-                      <div className="text-[11px] text-muted-foreground tabular-nums">
-                        {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
             )
