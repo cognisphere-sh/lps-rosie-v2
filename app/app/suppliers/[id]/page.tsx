@@ -92,7 +92,7 @@ export default function SupplierProfilePage() {
   const [supplier, setSupplier] = useState<SupplierRow | null>(null)
   const [sources, setSources] = useState<SupplierSource[]>([])
   const [notFound, setNotFound] = useState(false)
-  const [tab, setTab] = useState<Tab>('notes')
+  const [tab, setTab] = useState<Tab>('inventory')
   const [profileEditing, setProfileEditing] = useState(false)
   const [profileDraft, setProfileDraft] = useState<Record<string, string>>({})
   const [savingProfile, setSavingProfile] = useState(false)
@@ -364,9 +364,9 @@ export default function SupplierProfilePage() {
       : null
 
   const tabs: [Tab, string][] = [
-    ['notes', 'Notes'],
-    ['comms', `Communications (${commsEntries.length})`],
     ['inventory', `Inventory (${values.item_count == null ? plants.length : num(values.item_count)})`],
+    ['comms', `Communications (${commsEntries.length})`],
+    ['notes', 'Notes'],
     ['files', `Files (${sources.length})`],
   ]
 
@@ -464,14 +464,14 @@ export default function SupplierProfilePage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card px-4 py-2.5">
+        <div className="flex flex-nowrap items-center justify-between gap-1 border-b border-border bg-card px-3 py-2.5 sm:justify-start sm:gap-1.5 sm:px-4">
           {tabs.map(([id_, label]) => (
             <button
               key={id_}
               type="button"
               onClick={() => setTab(id_)}
               className={cn(
-                'cursor-pointer rounded-full border px-3.5 py-1.5 text-[12.5px] font-semibold',
+                'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[11.5px] font-semibold sm:px-3.5 sm:py-1.5 sm:text-[12.5px]',
                 tab === id_ ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-foreground',
               )}
             >

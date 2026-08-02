@@ -19,6 +19,9 @@ here).
 
 ### Changed
 
+- **Supplier profiles now open directly to Inventory.** Tabs are ordered
+  Inventory, Communications, Notes and Files; all four use compact mobile
+  sizing and remain on one line.
 - **Supplier profiles now require deliberate edit mode.** Profile fields are
   read-only until the pencil icon (**Edit supplier**) is pressed; edits are staged locally and a
   single **Save changes** action writes only changed fields atomically. Cancel
