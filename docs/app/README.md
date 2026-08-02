@@ -170,8 +170,10 @@ visible on result rows but never become choices. Calipers require inch/caliper
 context and a plausible value (greater than 0 and at most 20 inches), guarding against known source-column
 noise such as Agave rows with `caliper = 55/80/215`.
 
-The selected result size is mirrored into the URL's `size` parameter and saved
-under `lps.plant-search.size-choice.v1`. Filtering applies to the current
+The selector is a checkbox-style multiselect. Selected categories use OR logic
+(a row matching any selected size remains), are mirrored as repeated URL `size`
+parameters, and are saved as a JSON array under
+`lps.plant-search.size-choice.v1`. Filtering applies to the current
 `search_inventory` result set (up to 300 rows).
 
 ## Source files

@@ -107,11 +107,17 @@ export function MultiFilter({
   options,
   selected,
   onChange,
+  selectionLabel,
+  buttonClassName,
+  filterPlaceholder = 'Filter suppliers…',
 }: {
   allLabel: string
   options: string[]
   selected: string[]
   onChange: (next: string[]) => void
+  selectionLabel?: string
+  buttonClassName?: string
+  filterPlaceholder?: string
 }) {
   const [open, setOpen] = useState(false)
   const [needle, setNeedle] = useState('')
@@ -129,10 +135,13 @@ export function MultiFilter({
         className={cn(
           'flex h-6 w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] text-[11px] font-medium',
           selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
+          buttonClassName,
         )}
       >
         <span className="truncate">
-          {selected.length ? `${selected.length} selected` : allLabel}
+          {selected.length
+            ? `${selectionLabel ? `${selectionLabel}: ` : ''}${selected.length} selected`
+            : allLabel}
         </span>
         <ChevronDown size={10} className="flex-none opacity-50" />
       </button>
@@ -141,7 +150,7 @@ export function MultiFilter({
           <input
             value={needle}
             onChange={(e) => setNeedle(e.target.value)}
-            placeholder="Filter suppliers…"
+            placeholder={filterPlaceholder}
             className="mb-1 h-7 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] outline-none"
           />
           {selected.length > 0 && (

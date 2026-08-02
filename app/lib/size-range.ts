@@ -139,12 +139,12 @@ export function sizeChoicesFor(rows: { values: Record<string, unknown> }[]): Siz
 export function matchesSizeFilter(
   values: Record<string, unknown>,
   typed: TypedSize | null,
-  selectedKey: string,
+  selectedKeys: string[],
 ): boolean {
   if (typed) {
     const listed = explicitBounds(String(values.size ?? ''), typed.unit)
     return !!listed && listed.min <= typed.value && listed.max >= typed.value
   }
-  if (!selectedKey) return true
-  return sizeChoicesForValues(values).some((choice) => choice.key === selectedKey)
+  if (selectedKeys.length === 0) return true
+  return sizeChoicesForValues(values).some((choice) => selectedKeys.includes(choice.key))
 }

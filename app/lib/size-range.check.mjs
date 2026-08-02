@@ -33,11 +33,14 @@ assert.deepEqual(sizeChoicesForValues({ size: '10"' }), [])
 assert.deepEqual(sizeChoicesForValues({ size: '7.00' }), [])
 assert.deepEqual(sizeChoicesForValues({ size: "B&B 7'" }), [])
 
-assert.equal(matchesSizeFilter({ size: '15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, ''), true)
-assert.equal(matchesSizeFilter({ size: '25 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, ''), false)
-assert.equal(matchesSizeFilter({ size: '10/15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, ''), true)
-assert.equal(matchesSizeFilter({ size: '15G' }, null, 'gallon:15'), true)
-assert.equal(matchesSizeFilter({ size: '10 G' }, null, 'gallon:15'), false)
+assert.equal(matchesSizeFilter({ size: '15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), true)
+assert.equal(matchesSizeFilter({ size: '25 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), false)
+assert.equal(matchesSizeFilter({ size: '10/15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), true)
+assert.equal(matchesSizeFilter({ size: '15G' }, null, ['gallon:15']), true)
+assert.equal(matchesSizeFilter({ size: '10 G' }, null, ['gallon:15']), false)
+assert.equal(matchesSizeFilter({ size: '5 G' }, null, ['gallon:5', 'gallon:15']), true)
+assert.equal(matchesSizeFilter({ size: '15 G' }, null, ['gallon:5', 'gallon:15']), true)
+assert.equal(matchesSizeFilter({ size: '10 G' }, null, ['gallon:5', 'gallon:15']), false)
 assert.deepEqual(sizeChoicesFor([
   { values: { size: '15 G' } },
   { values: { size: '15G' } },

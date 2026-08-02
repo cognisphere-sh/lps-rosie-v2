@@ -31,7 +31,9 @@ here).
   spellings collapse without inventing cross-unit equivalences; range descriptions
   contribute their endpoint categories; and bare dimensions, untyped numbers and
   implausible source-column values stay on result rows instead of becoming menu
-  options. The choice survives navigation in the URL and browser storage.
+  options. The compact selector now accepts multiple categories with OR logic;
+  repeated URL parameters and browser storage preserve the selected set across
+  navigation.
 - **Plant Search now starts with a useful state instead of an unexplained
   sample.** A blank search shows a prompt and makes no catalogue request. The
   last term is restored from the URL or browser storage when returning, current

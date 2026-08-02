@@ -48,8 +48,8 @@ function ResultSizeControl({
 }: {
   typed: TypedSize | null
   choices: SizeChoice[]
-  selected: string
-  onSelect: (key: string) => void
+  selected: string[]
+  onSelect: (keys: string[]) => void
   onClearTyped: () => void
 }) {
   if (typed) {
@@ -66,21 +66,24 @@ function ResultSizeControl({
     )
   }
 
+  const byLabel = new Map(choices.map((choice) => [choice.label, choice.key]))
+  const labels = choices.map((choice) => choice.label)
+  const selectedLabels = selected
+    .map((key) => choices.find((choice) => choice.key === key)?.label)
+    .filter((label): label is string => !!label)
+
   return (
-    <select
-      value={selected}
-      onChange={(event) => onSelect(event.target.value)}
-      aria-label="Available size"
-      className={cn(
-        'h-8 w-full rounded-[7px] border bg-background px-2 text-[12px] font-medium outline-none md:w-[150px]',
-        selected ? 'border-primary text-primary' : 'border-input text-foreground',
-      )}
-    >
-      <option value="">Size: Any</option>
-      {choices.map((choice) => (
-        <option key={choice.key} value={choice.key}>{choice.label}</option>
-      ))}
-    </select>
+    <div className="w-full md:w-[170px]">
+      <MultiFilter
+        allLabel="Size: Any"
+        options={labels}
+        selected={selectedLabels}
+        selectionLabel="Size"
+        buttonClassName="h-8 text-[12px] px-2"
+        filterPlaceholder="Filter sizes…"
+        onChange={(next) => onSelect(next.map((label) => byLabel.get(label)!).filter(Boolean))}
+      />
+    </div>
   )
 }
 
@@ -98,7 +101,7 @@ export default function PlantSearchPage() {
   const debouncedSearch = useMemo(() => parseSizeQuery(debouncedQuery), [debouncedQuery])
   const [groups, setGroups] = useState<PlantGroup[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedSize, setSelectedSize] = useState('')
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const hasQuery = query.trim().length > 0
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
@@ -117,18 +120,23 @@ export default function PlantSearchPage() {
     const url = new URL(window.location.href)
     const hasUrlQuery = url.searchParams.has('q')
     setQuery(url.searchParams.get('q') ?? window.localStorage.getItem(PLANT_SEARCH_KEY) ?? '')
-    setSelectedSize(
-      hasUrlQuery
-        ? (url.searchParams.get('size') ?? '')
-        : (window.localStorage.getItem(PLANT_SIZE_CHOICE_KEY) ?? ''),
-    )
+    let savedSizes: string[] = []
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(PLANT_SIZE_CHOICE_KEY) ?? '[]') as unknown
+      savedSizes = Array.isArray(stored) ? stored.filter((value): value is string => typeof value === 'string') : []
+    } catch {
+      // The previous single-select version stored one raw key rather than JSON.
+      const stored = window.localStorage.getItem(PLANT_SIZE_CHOICE_KEY)
+      if (stored) savedSizes = [stored]
+    }
+    setSelectedSizes(hasUrlQuery ? url.searchParams.getAll('size') : savedSizes)
     window.localStorage.removeItem(RETIRED_PLANT_SIZE_KEY)
     setSearchHydrated(true)
 
     const restoreFromHistory = () => {
       const historyUrl = new URL(window.location.href)
       setQuery(historyUrl.searchParams.get('q') ?? '')
-      setSelectedSize(historyUrl.searchParams.get('size') ?? '')
+      setSelectedSizes(historyUrl.searchParams.getAll('size'))
     }
     window.addEventListener('popstate', restoreFromHistory)
     return () => window.removeEventListener('popstate', restoreFromHistory)
@@ -146,18 +154,18 @@ export default function PlantSearchPage() {
       url.searchParams.delete('q')
       window.localStorage.removeItem(PLANT_SEARCH_KEY)
     }
-    if (selectedSize && !parsedSearch.size) {
-      url.searchParams.set('size', selectedSize)
-      window.localStorage.setItem(PLANT_SIZE_CHOICE_KEY, selectedSize)
+    url.searchParams.delete('size')
+    if (selectedSizes.length > 0 && !parsedSearch.size) {
+      for (const key of selectedSizes) url.searchParams.append('size', key)
+      window.localStorage.setItem(PLANT_SIZE_CHOICE_KEY, JSON.stringify(selectedSizes))
     } else {
-      url.searchParams.delete('size')
       window.localStorage.removeItem(PLANT_SIZE_CHOICE_KEY)
     }
     url.searchParams.delete('size_unit')
     url.searchParams.delete('size_min')
     url.searchParams.delete('size_max')
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
-  }, [hasQuery, parsedSearch.size, query, searchHydrated, selectedSize])
+  }, [hasQuery, parsedSearch.size, query, searchHydrated, selectedSizes])
 
   useEffect(() => {
     if (!searchHydrated) return
@@ -242,14 +250,14 @@ export default function PlantSearchPage() {
           g.plants.filter(
             (p) =>
               !hiddenPlants.includes(p.id) &&
-              matchesSizeFilter(p.values, parsedSearch.size, selectedSize),
+              matchesSizeFilter(p.values, parsedSearch.size, selectedSizes),
           ),
           plantCfg.filters,
           plantCfg.sort,
         ),
       }))
       .filter((g) => g.plants.length > 0)
-  }, [refinedGroups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, selectedSize, supplierPick])
+  }, [refinedGroups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, selectedSizes, supplierPick])
 
   const supplierNames = useMemo(
     () => [...new Set(refinedGroups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
@@ -261,10 +269,11 @@ export default function PlantSearchPage() {
   const shownPlants = visibleGroups.reduce((n, g) => n + g.plants.length, 0)
 
   useEffect(() => {
-    if (!loading && allPlants.length > 0 && selectedSize && !sizeChoices.some((choice) => choice.key === selectedSize)) {
-      setSelectedSize('')
-    }
-  }, [allPlants.length, loading, selectedSize, sizeChoices])
+    if (loading || allPlants.length === 0 || selectedSizes.length === 0) return
+    const valid = new Set(sizeChoices.map((choice) => choice.key))
+    const next = selectedSizes.filter((key) => valid.has(key))
+    if (next.length !== selectedSizes.length) setSelectedSizes(next)
+  }, [allPlants.length, loading, selectedSizes, sizeChoices])
 
   const panelDetailCols = MASTER_COLS.filter(
     (c) => !masterCfg.config.hidden.includes(c.key) && !PANEL_FIXED.includes(c.key),
@@ -287,7 +296,7 @@ export default function PlantSearchPage() {
 
   const activeFilterCount =
     (supplierPick.length > 0 ? 1 : 0) +
-    (parsedSearch.size || selectedSize ? 1 : 0) +
+    (parsedSearch.size || selectedSizes.length > 0 ? 1 : 0) +
     Object.keys(plantCfg.filters).length +
     Object.keys(masterCfg.filters).length
 
@@ -299,7 +308,7 @@ export default function PlantSearchPage() {
       query={query}
       onQuery={(next) => {
         const nextSearch = parseSizeQuery(next)
-        if (nextSearch.size || nextSearch.plantQuery !== parsedSearch.plantQuery) setSelectedSize('')
+        if (nextSearch.size || nextSearch.plantQuery !== parsedSearch.plantQuery) setSelectedSizes([])
         setQuery(next)
       }}
       controls={
@@ -307,8 +316,8 @@ export default function PlantSearchPage() {
           <ResultSizeControl
             typed={parsedSearch.size}
             choices={sizeChoices}
-            selected={selectedSize}
-            onSelect={setSelectedSize}
+            selected={selectedSizes}
+            onSelect={setSelectedSizes}
             onClearTyped={() => setQuery(parsedSearch.plantQuery)}
           />
         ) : undefined
@@ -316,7 +325,7 @@ export default function PlantSearchPage() {
       hasFilters={hasFilters}
       onClear={() => {
         setQuery('')
-        setSelectedSize('')
+        setSelectedSizes([])
         setSupplierPick([])
         plantCfg.clearFilters()
         masterCfg.clearFilters()
