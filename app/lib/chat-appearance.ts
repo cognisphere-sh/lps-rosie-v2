@@ -66,6 +66,13 @@ export function chatWallpaperStyle(wallpaperId: ChatWallpaperId): CSSProperties 
     backgroundImage: `url('${wallpaper.image}')`,
     backgroundRepeat: 'repeat',
     backgroundSize: wallpaper.size,
+    ...(wallpaperId === 'desert-night' ? {
+      // Telegram-like treatment: the image and active bubble palette read as
+      // one theme. Screen blending lifts the charcoal and rolls each agent's
+      // accent through it without obscuring the original line work.
+      backgroundColor: 'color-mix(in srgb, var(--primary) 14%, #0f0f0f)',
+      backgroundBlendMode: 'screen',
+    } : {}),
   }
 }
 

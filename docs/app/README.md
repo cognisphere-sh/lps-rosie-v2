@@ -408,8 +408,10 @@ Agave Blue remain optional choices. Wallpaper choices are None, the original
 light **Desert line art** SVG at `public/desert-plants-chat.svg`, and the dense
 charcoal **Desert Night** cactus/agave pattern at
 `public/desert-night-chat.webp` (a rights-confirmed user-provided image,
-contrast-softened and optimized from 272KB JPEG to 172KB WebP). Neither wallpaper is a Telegram asset.
-Color variables are scoped
+contrast-softened and optimized from 272KB JPEG to 172KB WebP). Desert Night
+uses CSS `screen` blending over a dark 14% mix of the active agent accent, so
+Daisy, Rosie and Nova tint the same artwork forest, coral and violet respectively.
+Neither wallpaper is a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also
 apply to the desktop chat panel. The wallpaper field is an id (`none`,
