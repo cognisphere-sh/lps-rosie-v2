@@ -243,7 +243,11 @@ export function Shell({
   return (
     <ChatAppearanceCtx.Provider value={{ appearance: chatAppearance, save: saveChatAppearance }}>
       <ToastCtx.Provider value={showToast}>
-        <div className="flex flex-col overflow-hidden" style={{ height: viewportHeight }}>
+        <div
+          data-workspace-shell
+          className="fixed inset-x-0 top-0 flex flex-col overflow-hidden"
+          style={{ height: viewportHeight }}
+        >
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}
         {!(isMobile && (mobileChat || hideHeaderOnMobile)) && (

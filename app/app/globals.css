@@ -202,6 +202,15 @@
   }
 }
 
+/* Workspace pages own their scrolling inside the Shell. Locking the document
+   prevents a standalone Android PWA swipe from moving the entire shell—header,
+   composer and bottom navigation—off the visual viewport. */
+html:has([data-workspace-shell]),
+body:has([data-workspace-shell]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* The pencil affordance only appears on the row you are pointing at. */
 .lps-row:hover .lps-pencil {
   opacity: 1;

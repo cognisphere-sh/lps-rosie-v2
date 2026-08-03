@@ -33,6 +33,9 @@ here).
 
 ### Changed
 
+- **PWA scrolling stays inside content panes.** The workspace Shell is fixed to
+  the visual viewport and locks document overflow, so transcript/list swipes no
+  longer move the header off-screen or leave blank space below the bottom nav.
 - **Nova now recognizes its shared Telegram group.** Its system prompt records
   group `-1004330045748` as the communication channel with Bhoumik Shah and
   Chris and explicitly treats posts there as group-visible.
