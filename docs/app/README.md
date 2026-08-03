@@ -406,11 +406,12 @@ six scoped chat palettes. Profile-matched defaults are Daisy Forest Green,
 Rosie Coral Rose and Nova Electric Violet; Garden Green, Fuchsia Bloom and
 Agave Blue remain optional choices. Wallpaper choices are None, the original
 light **Desert line art** SVG at `public/desert-plants-chat.svg`, and the dense
-charcoal **Desert Night** cactus/agave pattern at
+black **Desert Night** cactus/agave pattern at
 `public/desert-night-chat.webp` (a rights-confirmed user-provided image,
-contrast-softened and optimized from 272KB JPEG to 172KB WebP). Desert Night
-uses CSS `screen` blending over a dark 14% mix of the active agent accent, so
-Daisy, Rosie and Nova tint the same artwork forest, coral and violet respectively.
+optimized from JPEG to WebP with only the visible icon strokes brightened).
+Desert Night uses CSS `color` blending with the active agent accent: image
+luminance is preserved, so black stays black while Daisy, Rosie and Nova tint
+only the brighter artwork forest, coral and violet respectively.
 Neither wallpaper is a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also

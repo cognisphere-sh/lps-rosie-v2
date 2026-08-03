@@ -62,17 +62,22 @@ export const isChatWallpaper = (value: unknown): value is ChatWallpaperId =>
 export function chatWallpaperStyle(wallpaperId: ChatWallpaperId): CSSProperties | undefined {
   const wallpaper = CHAT_WALLPAPERS.find((item) => item.id === wallpaperId)
   if (!wallpaper?.image) return undefined
+  if (wallpaperId === 'desert-night') {
+    return {
+      // Color blending takes hue/saturation from the active agent accent but
+      // preserves the image luminance: black stays black while the brightened
+      // cactus/agave line work rolls forest, coral or violet with the agent.
+      backgroundColor: '#000',
+      backgroundImage: `linear-gradient(var(--primary), var(--primary)), url('${wallpaper.image}')`,
+      backgroundBlendMode: 'color, normal',
+      backgroundRepeat: 'repeat',
+      backgroundSize: wallpaper.size,
+    }
+  }
   return {
     backgroundImage: `url('${wallpaper.image}')`,
     backgroundRepeat: 'repeat',
     backgroundSize: wallpaper.size,
-    ...(wallpaperId === 'desert-night' ? {
-      // Telegram-like treatment: the image and active bubble palette read as
-      // one theme. Screen blending lifts the charcoal and rolls each agent's
-      // accent through it without obscuring the original line work.
-      backgroundColor: 'color-mix(in srgb, var(--primary) 14%, #0f0f0f)',
-      backgroundBlendMode: 'screen',
-    } : {}),
   }
 }
 
