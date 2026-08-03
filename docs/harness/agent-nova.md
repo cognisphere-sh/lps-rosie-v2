@@ -34,9 +34,11 @@ and the **web app's chat panel** ([`webchat`](plugin-webchat.md)); both target
 the `main` thread — webchat pins it in config, telegram via a `main` chat
 route (daisy's pattern; until that route exists in
 `plugins/telegram/state/routes.json`, telegram messages fall through to the
-`single` strategy's `default` thread). Other agents are
-instructed to pass code-change requests to Nova rather than modify the
-platform themselves.
+`single` strategy's `default` thread). Nova's prompt identifies Telegram group
+`-1004330045748` as its shared communication channel with Bhoumik Shah and
+Chris, and reminds it that group messages are visible to everyone there. Other
+agents are instructed to pass code-change requests to Nova rather than modify
+the platform themselves.
 
 ## Plugins
 

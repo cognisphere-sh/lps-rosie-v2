@@ -33,6 +33,9 @@ here).
 
 ### Changed
 
+- **Nova now recognizes its shared Telegram group.** Its system prompt records
+  group `-1004330045748` as the communication channel with Bhoumik Shah and
+  Chris and explicitly treats posts there as group-visible.
 - **Mobile Plant Search opens a supplier only from its name.** The whole card
   header used to be the link, so a tap meant to read the category, location or
   match count navigated away. Only the underlined supplier name now navigates;
