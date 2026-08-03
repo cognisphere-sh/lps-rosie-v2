@@ -378,8 +378,10 @@ reason, as the table layout.
 ### Chat appearance
 
 Mobile **More → Chat appearance** opens a Telegram-inspired original settings
-sheet with a live bubble preview, three scoped chat palettes (Garden Green,
-Fuchsia Bloom and Agave Blue), an optional repeating desert-plants wallpaper and Reset.
+sheet with a live bubble preview, independently configurable agent colors and
+three scoped chat palettes (Garden Green, Fuchsia Bloom and Agave Blue), an
+optional repeating desert-plants wallpaper and Reset. Defaults follow the agent
+identity: Daisy is green, Rosie is fuchsia and Nova is blue.
 The wallpaper is original dense, low-contrast cactus/agave/yucca/sun SVG doodle
 art at `public/desert-plants-chat.svg`, with green, blue and fuchsia strokes; it
 is not a Telegram asset. Color variables are scoped

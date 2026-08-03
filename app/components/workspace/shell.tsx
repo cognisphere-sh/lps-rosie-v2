@@ -15,7 +15,7 @@ import {
 import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import {
   CHAT_APPEARANCE_STORE, CHAT_THEMES, DEFAULT_CHAT_APPEARANCE,
-  chatThemeStyle, type ChatAppearance,
+  chatThemeForAgent, chatThemeStyle, isChatTheme, type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
@@ -124,6 +124,7 @@ export function Shell({
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
   const [chatAppearanceOpen, setChatAppearanceOpen] = useState(false)
+  const [appearanceAgent, setAppearanceAgent] = useState<ChatAgentId>('nova')
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -138,10 +139,17 @@ export function Shell({
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(CHAT_APPEARANCE_STORE) ?? 'null') as Partial<ChatAppearance> | null
-      if (saved && CHAT_THEMES.some((theme) => theme.id === saved.theme)) {
-        setChatAppearance({ theme: saved.theme!, wallpaper: !!saved.wallpaper })
+      // `theme` is the legacy global-color shape. Preserve its wallpaper choice,
+      // then migrate colors to the new agent-specific defaults.
+      const saved = JSON.parse(window.localStorage.getItem(CHAT_APPEARANCE_STORE) ?? 'null') as
+        | { themes?: Partial<Record<ChatAgentId, unknown>>; theme?: unknown; wallpaper?: unknown }
+        | null
+      if (!saved) return
+      const themes = { ...DEFAULT_CHAT_APPEARANCE.themes }
+      for (const id of ['daisy', 'rosie', 'nova'] as const) {
+        if (isChatTheme(saved.themes?.[id])) themes[id] = saved.themes[id]
       }
+      setChatAppearance({ themes, wallpaper: !!saved.wallpaper })
     } catch {
       // A malformed local preference should fall back to the product default.
     }
@@ -342,7 +350,7 @@ export function Shell({
               {isMobile && chatAppearanceOpen && (
                 <div
                   className="absolute inset-0 z-[90] flex flex-col bg-background"
-                  style={chatThemeStyle(chatAppearance.theme)}
+                  style={chatThemeStyle(chatThemeForAgent(chatAppearance, appearanceAgent))}
                 >
                   <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-3 py-2.5">
                     <button
@@ -381,31 +389,65 @@ export function Shell({
                         </div>
                       </div>
                       <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-                        Live preview
+                        {AGENTS.find((agent) => agent.id === appearanceAgent)?.name} preview
                       </div>
                     </section>
 
                     <section className="flex flex-col gap-2">
-                      <h3 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">Color theme</h3>
-                      <div className="grid grid-cols-3 gap-2">
-                        {CHAT_THEMES.map((theme) => {
-                          const selected = chatAppearance.theme === theme.id
+                      <h3 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">Agent colors</h3>
+                      <div className="flex flex-col gap-2">
+                        {AGENTS.map((agent) => {
+                          const agentId = agent.id as ChatAgentId
                           return (
-                            <button
-                              key={theme.id}
-                              type="button"
-                              onClick={() => saveChatAppearance({ ...chatAppearance, theme: theme.id })}
+                            <div
+                              key={agent.id}
                               className={cn(
-                                'flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-2 text-left',
-                                selected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
+                                'flex items-center gap-2.5 rounded-xl border bg-card p-2.5',
+                                appearanceAgent === agentId ? 'border-primary' : 'border-border',
                               )}
                             >
-                              <span
-                                className="h-12 w-full rounded-lg"
-                                style={{ background: `linear-gradient(135deg, ${theme.preview}, ${theme.accent})` }}
-                              />
-                              <span className="truncate text-[11px] font-semibold">{theme.label}</span>
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => setAppearanceAgent(agentId)}
+                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                              >
+                                <Image src={agent.avatar} alt="" width={32} height={32} className="rounded-full" />
+                                <span className="min-w-0">
+                                  <span className="block truncate text-[12.5px] font-bold">{agent.name}</span>
+                                  <span className="block truncate text-[10.5px] text-muted-foreground">{agent.role}</span>
+                                </span>
+                              </button>
+                              <span className="flex flex-none gap-1.5">
+                                {CHAT_THEMES.map((theme) => {
+                                  const selected = chatAppearance.themes[agentId] === theme.id
+                                  return (
+                                    <button
+                                      key={theme.id}
+                                      type="button"
+                                      title={theme.label}
+                                      aria-label={`${agent.name}: ${theme.label}`}
+                                      aria-pressed={selected}
+                                      onClick={() => {
+                                        setAppearanceAgent(agentId)
+                                        saveChatAppearance({
+                                          ...chatAppearance,
+                                          themes: { ...chatAppearance.themes, [agentId]: theme.id },
+                                        })
+                                      }}
+                                      className={cn(
+                                        'relative size-8 rounded-full border-2 p-[3px]',
+                                        selected ? 'border-foreground' : 'border-transparent',
+                                      )}
+                                    >
+                                      <span className="block size-full rounded-full" style={{ backgroundColor: theme.accent }} />
+                                      {selected && (
+                                        <CheckIcon className="absolute inset-0 m-auto size-3.5 text-white" />
+                                      )}
+                                    </button>
+                                  )
+                                })}
+                              </span>
+                            </div>
                           )
                         })}
                       </div>
@@ -457,6 +499,7 @@ export function Shell({
                     type="button"
                     onClick={() => {
                       setMoreMenu(false)
+                      setAppearanceAgent(mobileAgent as ChatAgentId)
                       setChatAppearanceOpen(true)
                     }}
                     className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"

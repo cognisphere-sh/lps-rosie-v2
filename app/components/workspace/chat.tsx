@@ -8,7 +8,7 @@ import { Mic, Pause, Paperclip, Play, Send, Trash2, X } from 'lucide-react'
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
-import { chatThemeStyle, type ChatAppearance } from '@/lib/chat-appearance'
+import { chatThemeForAgent, chatThemeStyle, type ChatAppearance } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -916,7 +916,7 @@ export function AgentChat({
     return (
       <div
         className="absolute inset-0 z-[70] flex flex-col bg-background"
-        style={chatThemeStyle(appearance.theme)}
+        style={chatThemeStyle(chatThemeForAgent(appearance, agent.id))}
       >
         {header(true)}
         <Transcript
@@ -969,7 +969,7 @@ export function AgentChat({
   return (
     <div
       className="relative flex min-h-0 flex-none flex-col border-l border-border bg-card"
-      style={{ width, ...chatThemeStyle(appearance.theme) }}
+      style={{ width, ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)) }}
     >
       <div
         onMouseDown={startResize}
