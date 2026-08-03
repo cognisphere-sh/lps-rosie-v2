@@ -35,7 +35,7 @@ here).
 
 - **Desert Night is available as a chat wallpaper.** The rights-confirmed
   user-provided cactus/agave pattern keeps its deep-black base while the icon
-  strokes are selectively brightened. CSS color blending preserves luminance,
+  strokes are selectively dimmed. CSS color blending preserves luminance,
   tinting only the artwork forest/coral/violet with the active agent; None and
   the original light line-art wallpaper remain available in Settings.
 - **Pull-to-refresh works across mobile workspace pages.** Pulling down from a

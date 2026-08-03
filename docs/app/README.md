@@ -408,7 +408,7 @@ Agave Blue remain optional choices. Wallpaper choices are None, the original
 light **Desert line art** SVG at `public/desert-plants-chat.svg`, and the dense
 black **Desert Night** cactus/agave pattern at
 `public/desert-night-chat.webp` (a rights-confirmed user-provided image,
-optimized from JPEG to WebP with only the visible icon strokes brightened).
+optimized from JPEG to WebP with only the visible icon strokes dimmed).
 Desert Night uses CSS `color` blending with the active agent accent: image
 luminance is preserved, so black stays black while Daisy, Rosie and Nova tint
 only the brighter artwork forest, coral and violet respectively.
