@@ -100,7 +100,10 @@ already identify the page:
   `visualViewport.offsetTop` when Android pans to the on-screen keyboard.
   Workspace pages lock document-level overflow via `data-workspace-shell`; only
   their designated content panes scroll, so the header and bottom bar cannot be
-  swiped off-screen. While a mobile text field is focused, the app bottom nav is
+  swiped off-screen. Pulling down from the top of a mobile page pane dispatches
+  `lps:refresh` and refreshes the route; Suppliers and Plant Search rerun their
+  active query without clearing its current term or filters. While a mobile text
+  field is focused, the app bottom nav is
   hidden and the composer/control row sits directly above the keyboard.
   The More popover
   renders outside the overflow-clipped bar. Settings is a normal
@@ -501,7 +504,9 @@ screen. No library — a manifest, a service worker, and Chrome's
 **Standalone viewport.** `Shell` is fixed to the visual viewport and tracks its
 height and top offset rather than relying solely on `100dvh`. Document scrolling
 is locked while a workspace Shell is mounted; only inner transcript/list panes
-scroll. The app bottom nav hides while a mobile text-entry control is focused,
+scroll. A custom pull-down gesture at an inner page's top refreshes the route;
+Suppliers and Plant Search also rerun the currently active client query. The app
+bottom nav hides while a mobile text-entry control is focused,
 letting the composer sit directly above the keyboard, then returns on blur. This
 keeps the header and navigation aligned through swipes, orientation and keyboard
 panning.

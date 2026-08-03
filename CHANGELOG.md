@@ -33,6 +33,9 @@ here).
 
 ### Changed
 
+- **Pull-to-refresh works across mobile workspace pages.** Pulling down from a
+  page pane's top refreshes its route; Suppliers and Plant Search additionally
+  rerun the active client query while preserving its term and filters.
 - **Chat history has edge navigation and pull-to-refresh.** Contextual arrows
   jump to the first/latest message, and pulling down from transcript top runs an
   immediate message poll without re-enabling unsafe document overscroll.

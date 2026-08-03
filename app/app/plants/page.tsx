@@ -114,6 +114,13 @@ export default function PlantSearchPage() {
   // Mobile only: supplier cards whose plant list is collapsed.
   const [collapsed, setCollapsed] = useState<number[]>([])
   const [expandedPlants, setExpandedPlants] = useState<string[]>([])
+  const [refreshNonce, setRefreshNonce] = useState(0)
+
+  useEffect(() => {
+    const refresh = () => setRefreshNonce((value) => value + 1)
+    window.addEventListener('lps:refresh', refresh)
+    return () => window.removeEventListener('lps:refresh', refresh)
+  }, [])
 
   // A URL query wins on arrival; otherwise restore the last question and size
   // choice from this browser. Results themselves are always fetched again.
@@ -189,7 +196,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch.plantQuery, searchHydrated])
+  }, [debouncedSearch.plantQuery, refreshNonce, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {

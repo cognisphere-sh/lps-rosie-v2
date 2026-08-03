@@ -33,6 +33,13 @@ export default function SuppliersPage() {
   const [cat, setCat] = useState('all')
   const [region, setRegion] = useState('all')
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
+  const [refreshNonce, setRefreshNonce] = useState(0)
+
+  useEffect(() => {
+    const refresh = () => setRefreshNonce((value) => value + 1)
+    window.addEventListener('lps:refresh', refresh)
+    return () => window.removeEventListener('lps:refresh', refresh)
+  }, [])
 
   // Debounced search → search_suppliers RPC. Stale responses are dropped so a
   // slow early query can't overwrite the results of a later one.
@@ -50,7 +57,7 @@ export default function SuppliersPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery])
+  }, [debouncedQuery, refreshNonce])
 
   // Second pass: "# Items" needs one COUNT per supplier, so it arrives after
   // the table has already rendered rather than holding it up.

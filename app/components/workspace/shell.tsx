@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
@@ -21,6 +22,16 @@ import {
 import { cn } from '@/lib/utils'
 
 export type PageId = 'suppliers' | 'inventory' | 'agents' | 'requests' | 'settings'
+
+function nearestVerticalScroller(target: EventTarget | null, boundary: HTMLElement): HTMLElement | null {
+  let el = target instanceof HTMLElement ? target : null
+  while (el && el !== boundary) {
+    const overflow = window.getComputedStyle(el).overflowY
+    if ((overflow === 'auto' || overflow === 'scroll') && el.scrollHeight > el.clientHeight) return el
+    el = el.parentElement
+  }
+  return null
+}
 
 const NAV = [
   { id: 'suppliers', label: 'Suppliers', href: '/suppliers', Icon: SuppliersIcon, enabled: true },
@@ -138,8 +149,12 @@ export function Shell({
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const [pagePull, setPagePull] = useState(0)
+  const [pageRefreshing, setPageRefreshing] = useState(false)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pageRefreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pagePullStart = useRef<{ x: number; y: number; scroller: HTMLElement | null } | null>(null)
 
   const showToast = useCallback((message: string) => {
     setToast(message)
@@ -147,7 +162,10 @@ export function Shell({
     timer.current = setTimeout(() => setToast(''), 2200)
   }, [])
 
-  useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => () => {
+    clearTimeout(timer.current)
+    clearTimeout(pageRefreshTimer.current)
+  }, [])
 
   useEffect(() => {
     // Android standalone PWAs can report 100dvh as the full physical display,
@@ -393,7 +411,66 @@ export function Shell({
 
           {/* Main column */}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="relative flex min-h-0 flex-1 flex-col">
+            <div
+              className="relative flex min-h-0 flex-1 flex-col"
+              onTouchStart={(e) => {
+                if (!isMobile || mobileChat || keyboardOpen || pageRefreshing || e.touches.length !== 1) return
+                const scroller = nearestVerticalScroller(e.target, e.currentTarget)
+                if (scroller && scroller.scrollTop > 0) return
+                pagePullStart.current = {
+                  x: e.touches[0].clientX,
+                  y: e.touches[0].clientY,
+                  scroller,
+                }
+              }}
+              onTouchMove={(e) => {
+                const start = pagePullStart.current
+                if (!start || e.touches.length !== 1) return
+                if (start.scroller && start.scroller.scrollTop > 0) {
+                  pagePullStart.current = null
+                  setPagePull(0)
+                  return
+                }
+                const x = e.touches[0].clientX - start.x
+                const y = e.touches[0].clientY - start.y
+                if (y <= 0 || Math.abs(y) <= Math.abs(x)) {
+                  setPagePull(0)
+                  return
+                }
+                e.preventDefault()
+                setPagePull(Math.min(72, y * 0.45))
+              }}
+              onTouchEnd={() => {
+                pagePullStart.current = null
+                if (pagePull < 54 || pageRefreshing) {
+                  setPagePull(0)
+                  return
+                }
+                setPageRefreshing(true)
+                setPagePull(48)
+                window.dispatchEvent(new Event('lps:refresh'))
+                router.refresh()
+                clearTimeout(pageRefreshTimer.current)
+                pageRefreshTimer.current = setTimeout(() => {
+                  setPageRefreshing(false)
+                  setPagePull(0)
+                }, 700)
+              }}
+              onTouchCancel={() => {
+                pagePullStart.current = null
+                setPagePull(0)
+              }}
+            >
+              {(pagePull > 0 || pageRefreshing) && (
+                <div
+                  className="pointer-events-none absolute left-1/2 top-2 z-[95] flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)]"
+                  style={{ transform: `translate(-50%, ${Math.max(0, pagePull - 18)}px)` }}
+                  aria-live="polite"
+                >
+                  <RefreshCw size={16} className={pageRefreshing ? 'animate-spin' : ''} />
+                  <span className="sr-only">{pageRefreshing ? 'Refreshing page' : 'Pull to refresh'}</span>
+                </div>
+              )}
               {toolbar}
               <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
 
