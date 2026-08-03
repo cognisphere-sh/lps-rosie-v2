@@ -33,6 +33,9 @@ here).
 
 ### Changed
 
+- **Desert Night is available as a chat wallpaper.** The rights-confirmed
+  user-provided cactus/agave doodle pattern is optimized to WebP and joins None
+  and the existing light line-art option in responsive Settings.
 - **Pull-to-refresh works across mobile workspace pages.** Pulling down from a
   page pane's top refreshes its route; Suppliers and Plant Search additionally
   rerun the active client query while preserving its term and filters.

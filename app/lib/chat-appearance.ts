@@ -2,10 +2,11 @@ import type { CSSProperties } from 'react'
 
 export type ChatThemeId = 'forest' | 'rose' | 'violet' | 'garden' | 'desert' | 'agave'
 export type ChatAgentId = 'daisy' | 'rosie' | 'nova'
+export type ChatWallpaperId = 'none' | 'line-art' | 'desert-night'
 
 export type ChatAppearance = {
   themes: Record<ChatAgentId, ChatThemeId>
-  wallpaper: boolean
+  wallpaper: ChatWallpaperId
 }
 
 export const CHAT_APPEARANCE_STORE = 'lps.chat.appearance.v1'
@@ -15,7 +16,7 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
     rosie: 'rose',
     nova: 'violet',
   },
-  wallpaper: false,
+  wallpaper: 'none',
 }
 
 export const CHAT_THEMES: { id: ChatThemeId; label: string; accent: string; preview: string }[] = [
@@ -28,8 +29,45 @@ export const CHAT_THEMES: { id: ChatThemeId; label: string; accent: string; prev
   { id: 'agave', label: 'Agave Blue', accent: '#347fbd', preview: '#d7e9f7' },
 ]
 
+export const CHAT_WALLPAPERS: {
+  id: ChatWallpaperId
+  label: string
+  description: string
+  image?: string
+  size?: string
+}[] = [
+  { id: 'none', label: 'None', description: 'Solid chat background' },
+  {
+    id: 'line-art',
+    label: 'Desert line art',
+    description: 'Light original plant doodles',
+    image: '/desert-plants-chat.svg',
+    size: '320px 320px',
+  },
+  {
+    id: 'desert-night',
+    label: 'Desert Night',
+    description: 'Dense cactus and agave doodles',
+    image: '/desert-night-chat.webp',
+    size: '480px 480px',
+  },
+]
+
 export const isChatTheme = (value: unknown): value is ChatThemeId =>
   CHAT_THEMES.some((theme) => theme.id === value)
+
+export const isChatWallpaper = (value: unknown): value is ChatWallpaperId =>
+  CHAT_WALLPAPERS.some((wallpaper) => wallpaper.id === value)
+
+export function chatWallpaperStyle(wallpaperId: ChatWallpaperId): CSSProperties | undefined {
+  const wallpaper = CHAT_WALLPAPERS.find((item) => item.id === wallpaperId)
+  if (!wallpaper?.image) return undefined
+  return {
+    backgroundImage: `url('${wallpaper.image}')`,
+    backgroundRepeat: 'repeat',
+    backgroundSize: wallpaper.size,
+  }
+}
 
 export function chatThemeForAgent(appearance: ChatAppearance, agentId: string): ChatThemeId {
   if (agentId === 'daisy' || agentId === 'rosie' || agentId === 'nova') {

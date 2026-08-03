@@ -7,7 +7,8 @@ import { CheckIcon } from '@/components/workspace/icons'
 import { useChatAppearanceSettings } from '@/components/workspace/shell'
 import { AGENTS } from '@/lib/agents'
 import {
-  CHAT_THEMES, DEFAULT_CHAT_APPEARANCE, chatThemeForAgent, chatThemeStyle,
+  CHAT_THEMES, CHAT_WALLPAPERS, DEFAULT_CHAT_APPEARANCE,
+  chatThemeForAgent, chatThemeStyle, chatWallpaperStyle,
   type ChatAgentId,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
@@ -43,11 +44,7 @@ export function ChatAppearanceSettings() {
           <section className="overflow-hidden rounded-2xl border border-border bg-card lg:sticky lg:top-0">
             <div
               className="flex min-h-[230px] flex-col justify-end gap-2 p-4"
-              style={appearance.wallpaper ? {
-                backgroundImage: "url('/desert-plants-chat.svg')",
-                backgroundRepeat: 'repeat',
-                backgroundSize: '240px 240px',
-              } : undefined}
+              style={chatWallpaperStyle(appearance.wallpaper)}
             >
               <div className="font-chat max-w-[82%] self-start rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2 text-[16px] leading-[1.35]">
                 The agaves are looking sharp today.
@@ -122,37 +119,41 @@ export function ChatAppearanceSettings() {
 
             <section className="flex flex-col gap-2">
               <h3 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">Wallpaper</h3>
-              <button
-                type="button"
-                onClick={() => save({ ...appearance, wallpaper: !appearance.wallpaper })}
-                className={cn(
-                  'flex items-center gap-3 overflow-hidden rounded-2xl border bg-card p-3 text-left',
-                  appearance.wallpaper ? 'border-primary ring-2 ring-primary/20' : 'border-border',
-                )}
-              >
-                <span
-                  className="h-20 w-24 flex-none rounded-xl border border-lps-hair bg-background"
-                  style={{
-                    backgroundImage: "url('/desert-plants-chat.svg')",
-                    backgroundSize: '150px 150px',
-                  }}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-bold">Desert plants</span>
-                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                    Cactus, agave and yucca line art
-                  </span>
-                </span>
-                <span className={cn(
-                  'relative h-[22px] w-10 flex-none rounded-full transition-colors',
-                  appearance.wallpaper ? 'bg-primary' : 'bg-muted',
-                )}>
-                  <span className={cn(
-                    'absolute top-[3px] size-4 rounded-full bg-white transition-all',
-                    appearance.wallpaper ? 'left-[21px]' : 'left-[3px]',
-                  )} />
-                </span>
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                {CHAT_WALLPAPERS.map((wallpaper) => {
+                  const selected = appearance.wallpaper === wallpaper.id
+                  return (
+                    <button
+                      key={wallpaper.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => save({ ...appearance, wallpaper: wallpaper.id })}
+                      className={cn(
+                        'relative flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-2 text-left',
+                        selected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
+                      )}
+                    >
+                      <span
+                        className="relative flex h-20 w-full items-center justify-center overflow-hidden rounded-lg border border-lps-hair bg-background text-[12px] font-semibold text-muted-foreground"
+                        style={wallpaper.image ? {
+                          backgroundImage: `url('${wallpaper.image}')`,
+                          backgroundRepeat: 'repeat',
+                          backgroundSize: wallpaper.id === 'desert-night' ? '180px 180px' : '150px 150px',
+                        } : undefined}
+                      >
+                        {!wallpaper.image && 'No image'}
+                        {selected && (
+                          <span className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <CheckIcon className="size-3" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="truncate text-[11.5px] font-bold">{wallpaper.label}</span>
+                      <span className="line-clamp-2 text-[10.5px] leading-tight text-muted-foreground">{wallpaper.description}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </section>
           </div>
         </div>

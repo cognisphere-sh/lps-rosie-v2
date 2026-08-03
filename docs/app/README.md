@@ -404,14 +404,16 @@ Settings or mobile **More → Settings**, with a live bubble preview,
 independently configurable agent colors and
 six scoped chat palettes. Profile-matched defaults are Daisy Forest Green,
 Rosie Coral Rose and Nova Electric Violet; Garden Green, Fuchsia Bloom and
-Agave Blue remain optional choices. The sheet also includes an optional
-repeating desert-plants wallpaper and Reset.
-The wallpaper is original dense, low-contrast cactus/agave/yucca/sun SVG doodle
-art at `public/desert-plants-chat.svg`, with green, blue and fuchsia strokes; it
-is not a Telegram asset. Color variables are scoped
+Agave Blue remain optional choices. Wallpaper choices are None, the original
+light **Desert line art** SVG at `public/desert-plants-chat.svg`, and the dense
+black **Desert Night** cactus/agave pattern at
+`public/desert-night-chat.webp` (a rights-confirmed user-provided image,
+optimized from 272KB JPEG to 196KB WebP). Neither wallpaper is a Telegram asset.
+Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also
-apply to the desktop chat panel. Chat messages, the composer and the appearance
+apply to the desktop chat panel. The wallpaper field is an id (`none`,
+`line-art`, or `desert-night`); legacy boolean `true` migrates to `line-art`. Chat messages, the composer and the appearance
 preview use Roboto at 16px with a compact 1.35 line height, approximating native
 Telegram typography while leaving the rest of the app on Inter.
 

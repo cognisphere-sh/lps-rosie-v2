@@ -16,7 +16,7 @@ import {
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import {
-  CHAT_APPEARANCE_STORE, DEFAULT_CHAT_APPEARANCE, isChatTheme,
+  CHAT_APPEARANCE_STORE, DEFAULT_CHAT_APPEARANCE, isChatTheme, isChatWallpaper,
   type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
@@ -218,7 +218,10 @@ export function Shell({
       if (themes.daisy === 'garden' && themes.rosie === 'desert' && themes.nova === 'agave') {
         Object.assign(themes, DEFAULT_CHAT_APPEARANCE.themes)
       }
-      setChatAppearance({ themes, wallpaper: !!saved.wallpaper })
+      const wallpaper = isChatWallpaper(saved.wallpaper)
+        ? saved.wallpaper
+        : saved.wallpaper === true ? 'line-art' : 'none'
+      setChatAppearance({ themes, wallpaper })
     } catch {
       // A malformed local preference should fall back to the product default.
     }

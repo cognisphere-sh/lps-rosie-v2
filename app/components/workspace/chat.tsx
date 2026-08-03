@@ -8,7 +8,10 @@ import { ArrowDown, ArrowUp, Mic, Pause, Paperclip, Play, RefreshCw, Send, Trash
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
-import { chatThemeForAgent, chatThemeStyle, type ChatAppearance } from '@/lib/chat-appearance'
+import {
+  chatThemeForAgent, chatThemeStyle, chatWallpaperStyle,
+  type ChatAppearance, type ChatWallpaperId,
+} from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -518,7 +521,7 @@ function Transcript({
   onSuggest: (s: string) => void
   onRefresh: () => Promise<void>
   mobile?: boolean
-  wallpaper?: boolean
+  wallpaper: ChatWallpaperId
 }) {
   const box = useRef<HTMLDivElement>(null)
   const pullStart = useRef<number | null>(null)
@@ -592,11 +595,7 @@ function Transcript({
       onTouchEnd={() => { void finishPull() }}
       onTouchCancel={() => { pullStart.current = null; setPull(0) }}
       className="font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background p-4"
-      style={wallpaper ? {
-        backgroundImage: "url('/desert-plants-chat.svg')",
-        backgroundRepeat: 'repeat',
-        backgroundSize: '320px 320px',
-      } : undefined}
+      style={chatWallpaperStyle(wallpaper)}
     >
       {messages.length === 0 && !pending && (
         <div className="m-auto max-w-[260px] text-center text-[14px] leading-[1.4] text-muted-foreground">
