@@ -96,9 +96,12 @@ already identify the page:
   share the available width, so More stays visible without horizontal scrolling.
   The fixed Shell height follows `window.visualViewport.height` (with
   `window.innerHeight` as its ceiling), keeping the tab bar above Android PWA
-  system chrome even when standalone mode misreports `100dvh`. Workspace pages
-  lock document-level overflow via `data-workspace-shell`; only their designated
-  content panes scroll, so the header and bottom bar cannot be swiped off-screen.
+  system chrome even when standalone mode misreports `100dvh`; it also follows
+  `visualViewport.offsetTop` when Android pans to the on-screen keyboard.
+  Workspace pages lock document-level overflow via `data-workspace-shell`; only
+  their designated content panes scroll, so the header and bottom bar cannot be
+  swiped off-screen. While a mobile text field is focused, the app bottom nav is
+  hidden and the composer/control row sits directly above the keyboard.
   The More popover
   renders outside the overflow-clipped bar. Settings is a normal
   `/settings` route rather than an overlay, so any bottom-nav selection
@@ -492,10 +495,12 @@ screen. No library — a manifest, a service worker, and Chrome's
 | `public/icon-{192,512}.png`, `apple-touch-icon.png` | Generated leaf mark on the brand green; the 512 doubles as the Android `maskable` icon. |
 
 **Standalone viewport.** `Shell` is fixed to the visual viewport and tracks its
-height on resize rather than relying solely on `100dvh`. Document scrolling is
-locked while a workspace Shell is mounted; only inner transcript/list panes
-scroll. This keeps the header and mobile bottom navigation inside the usable
-Android PWA window through swipes, orientation and keyboard changes.
+height and top offset rather than relying solely on `100dvh`. Document scrolling
+is locked while a workspace Shell is mounted; only inner transcript/list panes
+scroll. The app bottom nav hides while a mobile text-entry control is focused,
+letting the composer sit directly above the keyboard, then returns on blur. This
+keeps the header and navigation aligned through swipes, orientation and keyboard
+panning.
 
 **Flow.** `PWAProvider` registers `/sw.js`. Chrome runs its installability check
 (HTTPS or `localhost`, linked manifest, `standalone`, 192 + 512 icons, a

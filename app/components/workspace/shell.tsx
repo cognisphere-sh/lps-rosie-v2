@@ -136,7 +136,8 @@ export function Shell({
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
-  const [viewportHeight, setViewportHeight] = useState('100dvh')
+  const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -150,19 +151,35 @@ export function Shell({
 
   useEffect(() => {
     // Android standalone PWAs can report 100dvh as the full physical display,
-    // including system bars that are outside the usable visual viewport. Keep
-    // the shell—and therefore its final bottom-nav row—inside the visible area.
+    // including system bars outside the usable visual viewport. When its
+    // keyboard pans to a focused field, visualViewport.offsetTop is non-zero;
+    // anchoring to that offset prevents equal-and-opposite clipping/blank space.
     const viewport = window.visualViewport
     const update = () => {
       const height = Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)
-      setViewportHeight(`${Math.round(height)}px`)
+      setViewportFrame({
+        top: `${Math.round(viewport?.offsetTop ?? 0)}px`,
+        height: `${Math.round(height)}px`,
+      })
+
+      const active = document.activeElement
+      const typing = active instanceof HTMLInputElement
+        || active instanceof HTMLTextAreaElement
+        || (active instanceof HTMLElement && active.isContentEditable)
+      setKeyboardOpen(window.matchMedia('(max-width: 899px)').matches && typing)
     }
     update()
     window.addEventListener('resize', update)
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
     viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
     return () => {
       window.removeEventListener('resize', update)
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update)
       viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
     }
   }, [])
 
@@ -245,8 +262,8 @@ export function Shell({
       <ToastCtx.Provider value={showToast}>
         <div
           data-workspace-shell
-          className="fixed inset-x-0 top-0 flex flex-col overflow-hidden"
-          style={{ height: viewportHeight }}
+          className="fixed inset-x-0 flex flex-col overflow-hidden"
+          style={{ top: viewportFrame.top, height: viewportFrame.height }}
         >
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}
@@ -457,7 +474,7 @@ export function Shell({
             {/* Mobile bottom tab bar. items-stretch, not items-center: a label
                 that wraps to two lines ("Plant search") must not push its icon
                 out of line with the rest. */}
-            {isMobile && (
+            {isMobile && !keyboardOpen && (
               <nav className="flex flex-none items-stretch gap-0.5 overflow-hidden border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
                 {NAV.map(({ id, label, href, Icon, enabled }) => {
                   const active = page === id

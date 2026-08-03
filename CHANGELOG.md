@@ -33,6 +33,10 @@ here).
 
 ### Changed
 
+- **Keyboard-open PWA layout follows the visual viewport pan.** The Shell now
+  tracks `visualViewport.offsetTop` as well as height; mobile bottom navigation
+  hides while typing so the composer sits directly above the keyboard and
+  returns when focus leaves the field.
 - **PWA scrolling stays inside content panes.** The workspace Shell is fixed to
   the visual viewport and locks document overflow, so transcript/list swipes no
   longer move the header off-screen or leave blank space below the bottom nav.
