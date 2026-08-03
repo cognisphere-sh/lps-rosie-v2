@@ -19,6 +19,9 @@ here).
 
 ### Changed
 
+- **Agent chat uses Telegram-like typography.** Message bubbles, the composer
+  and Chat appearance preview now use 16px Roboto with compact line spacing;
+  timestamps remain small and the inventory/search workspace remains on Inter.
 - **Mobile More is always visible.** All seven bottom-nav items now share the
   available width instead of overflowing horizontally, so Chat appearance and
   other More actions remain discoverable without swiping the tab bar.

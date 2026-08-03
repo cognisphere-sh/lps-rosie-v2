@@ -373,10 +373,10 @@ export function Shell({
                           backgroundSize: '240px 240px',
                         } : undefined}
                       >
-                        <div className="max-w-[78%] self-start rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2 text-[12px]">
+                        <div className="font-chat max-w-[82%] self-start rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2 text-[16px] leading-[1.35]">
                           The agaves are looking sharp today.
                         </div>
-                        <div className="max-w-[78%] self-end rounded-[12px_12px_4px_12px] bg-primary px-3 py-2 text-[12px] text-primary-foreground">
+                        <div className="font-chat max-w-[82%] self-end rounded-[12px_12px_4px_12px] bg-primary px-3 py-2 text-[16px] leading-[1.35] text-primary-foreground">
                           Send me the availability 🌵
                         </div>
                       </div>

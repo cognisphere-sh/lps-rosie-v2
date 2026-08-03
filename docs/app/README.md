@@ -385,7 +385,9 @@ art at `public/desert-plants-chat.svg`, with green, blue and fuchsia strokes; it
 is not a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also
-apply to the desktop chat panel.
+apply to the desktop chat panel. Chat messages, the composer and the appearance
+preview use Roboto at 16px with a compact 1.35 line height, approximating native
+Telegram typography while leaving the rest of the app on Inter.
 
 ## Notes vs Communications
 

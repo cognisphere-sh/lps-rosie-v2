@@ -45,7 +45,7 @@ function inline(text: string, key: string) {
     if (m.index > last) parts.push(text.slice(last, m.index))
     const k = `${key}-${i++}`
     if (m[1]) parts.push(<strong key={k}>{m[1]}</strong>)
-    else if (m[2]) parts.push(<code key={k} className="rounded bg-muted px-1 py-px font-mono text-[11.5px]">{m[2]}</code>)
+    else if (m[2]) parts.push(<code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{m[2]}</code>)
     else if (m[3]) parts.push(<a key={k} href={m[4]} target="_blank" rel="noreferrer" className="underline">{m[3]}</a>)
     else parts.push(<a key={k} href={m[5]} target="_blank" rel="noreferrer" className="underline">{m[5]}</a>)
     last = re.lastIndex
@@ -542,7 +542,7 @@ function Transcript({
         const el = e.currentTarget
         pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
       }}
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-background p-4"
+      className="font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-background p-4"
       style={wallpaper ? {
         backgroundImage: "url('/desert-plants-chat.svg')",
         backgroundRepeat: 'repeat',
@@ -550,7 +550,7 @@ function Transcript({
       } : undefined}
     >
       {messages.length === 0 && !pending && (
-        <div className="m-auto max-w-[240px] text-center text-[12.5px] text-muted-foreground">
+        <div className="m-auto max-w-[260px] text-center text-[14px] leading-[1.4] text-muted-foreground">
           <Image src={agent.avatar} alt="" width={56} height={56} className="mx-auto mb-3 rounded-full" />
           {agent.intro}
         </div>
@@ -582,7 +582,7 @@ function Transcript({
           {m.text && (
             <div
               className={cn(
-                'px-3 py-2.5 text-[12.5px] leading-[1.5]',
+                'px-3 py-2.5 text-[16px] leading-[1.35]',
                 m.role === 'user'
                   ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
                   : 'rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble text-foreground',
@@ -591,7 +591,7 @@ function Transcript({
               <Markdown text={m.text} />
             </div>
           )}
-          <span className={cn('text-[10.5px] text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
+          <span className={cn('text-[11px] leading-none text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
             {new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </span>
         </div>
@@ -599,7 +599,7 @@ function Transcript({
 
       {pending && (
         <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
-          <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2.5 text-[12.5px] text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
             <span className="flex gap-1">
               {[0, 1, 2].map((i) => (
                 <span
@@ -770,7 +770,7 @@ function Composer({
           }}
           placeholder={composer.busy ? 'Uploading…' : `Ask ${agent.name}…`}
           className={cn(
-            'min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-[12.5px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+            'font-chat min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-[16px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
             big ? 'h-10' : 'h-9',
           )}
         />
