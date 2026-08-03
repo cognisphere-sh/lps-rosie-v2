@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-export type ChatThemeId = 'garden' | 'desert' | 'agave'
+export type ChatThemeId = 'forest' | 'rose' | 'violet' | 'garden' | 'desert' | 'agave'
 export type ChatAgentId = 'daisy' | 'rosie' | 'nova'
 
 export type ChatAppearance = {
@@ -11,14 +11,18 @@ export type ChatAppearance = {
 export const CHAT_APPEARANCE_STORE = 'lps.chat.appearance.v1'
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
   themes: {
-    daisy: 'garden',
-    rosie: 'desert',
-    nova: 'agave',
+    daisy: 'forest',
+    rosie: 'rose',
+    nova: 'violet',
   },
   wallpaper: false,
 }
 
 export const CHAT_THEMES: { id: ChatThemeId; label: string; accent: string; preview: string }[] = [
+  // The first three are sampled toward each profile image's dominant backdrop.
+  { id: 'forest', label: 'Forest Green', accent: '#3e7b36', preview: '#dcebd8' },
+  { id: 'rose', label: 'Coral Rose', accent: '#b15150', preview: '#f0d9d8' },
+  { id: 'violet', label: 'Electric Violet', accent: '#6540bd', preview: '#e3dcf4' },
   { id: 'garden', label: 'Garden Green', accent: '#2f9f5b', preview: '#dff3e6' },
   { id: 'desert', label: 'Fuchsia Bloom', accent: '#c34fa3', preview: '#f3d5ea' },
   { id: 'agave', label: 'Agave Blue', accent: '#347fbd', preview: '#d7e9f7' },

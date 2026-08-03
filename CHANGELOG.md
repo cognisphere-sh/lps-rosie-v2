@@ -19,9 +19,10 @@ here).
 
 ### Changed
 
-- **Chat colors now follow each agent.** Daisy defaults to Garden Green, Rosie
-  to Fuchsia Bloom and Nova to Agave Blue. Chat appearance can customize each
-  mapping independently while wallpaper remains shared.
+- **Chat colors now follow each agent's profile art.** Daisy defaults to Forest
+  Green, Rosie to Coral Rose and Nova to Electric Violet. The earlier Garden
+  Green, Fuchsia Bloom and Agave Blue remain optional; Chat appearance can
+  customize each mapping independently while wallpaper remains shared.
 - **Agent chat uses Telegram-like typography.** Message bubbles, the composer
   and Chat appearance preview now use 16px Roboto with compact line spacing;
   timestamps remain small and the inventory/search workspace remains on Inter.

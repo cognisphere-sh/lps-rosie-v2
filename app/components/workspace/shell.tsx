@@ -149,6 +149,11 @@ export function Shell({
       for (const id of ['daisy', 'rosie', 'nova'] as const) {
         if (isChatTheme(saved.themes?.[id])) themes[id] = saved.themes[id]
       }
+      // Upgrade the original agent-color defaults to profile-matched colors;
+      // any genuinely customized combination remains untouched.
+      if (themes.daisy === 'garden' && themes.rosie === 'desert' && themes.nova === 'agave') {
+        Object.assign(themes, DEFAULT_CHAT_APPEARANCE.themes)
+      }
       setChatAppearance({ themes, wallpaper: !!saved.wallpaper })
     } catch {
       // A malformed local preference should fall back to the product default.
