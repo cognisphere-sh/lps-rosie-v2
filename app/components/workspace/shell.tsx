@@ -378,7 +378,7 @@ export function Shell({
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
                   >
                     <SettingsIcon size={14} />
-                    Chat appearance
+                    Settings
                   </Link>
                   <button
                     type="button"

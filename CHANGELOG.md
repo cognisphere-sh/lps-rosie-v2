@@ -43,7 +43,8 @@ here).
 ### Changed
 
 - **Chat appearance is now a responsive Settings page.** `/settings` is enabled
-  in the desktop rail and mobile More links to the same page. The redundant
+  in the desktop rail and mobile More uses the same **Settings** label and route.
+  The redundant
   mobile Back button/overlay are gone, so tapping another bottom-nav item always
   navigates normally.
 - **Chat colors now follow each agent's profile art.** Daisy defaults to Forest

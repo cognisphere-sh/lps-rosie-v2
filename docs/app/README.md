@@ -90,12 +90,12 @@ already identify the page:
   header. There is no redundant close icon: tapping the highlighted active-agent
   tab again closes the sheet, while another agent tab switches chats. The bar
   ends in a **⋯ More** menu carrying
-  what the desktop rail keeps at the bottom — Chat appearance, the app theme
+  what the desktop rail keeps at the bottom — Settings, the app theme
   toggle, Know your Agents, **Install app**, and the signed-in user with log
   out. All seven tabs
   share the available width, so More stays visible without horizontal scrolling.
-  Its popover renders outside the overflow-clipped bar. Chat appearance is a
-  normal `/settings` route rather than an overlay, so any bottom-nav selection
+  Its popover renders outside the overflow-clipped bar. Settings is a normal
+  `/settings` route rather than an overlay, so any bottom-nav selection
   navigates immediately without requiring a Back control.
 
 `Job Requests` remains **rendered disabled** because it is out of scope. Settings
@@ -380,7 +380,7 @@ reason, as the table layout.
 ### Chat appearance
 
 **Settings → Chat appearance** is a responsive route, reached from desktop
-Settings or mobile **More → Chat appearance**, with a live bubble preview,
+Settings or mobile **More → Settings**, with a live bubble preview,
 independently configurable agent colors and
 six scoped chat palettes. Profile-matched defaults are Daisy Forest Green,
 Rosie Coral Rose and Nova Electric Violet; Garden Green, Fuchsia Bloom and
