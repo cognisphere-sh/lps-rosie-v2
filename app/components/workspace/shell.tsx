@@ -136,6 +136,7 @@ export function Shell({
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
+  const [viewportHeight, setViewportHeight] = useState('100dvh')
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -146,6 +147,24 @@ export function Shell({
   }, [])
 
   useEffect(() => () => clearTimeout(timer.current), [])
+
+  useEffect(() => {
+    // Android standalone PWAs can report 100dvh as the full physical display,
+    // including system bars that are outside the usable visual viewport. Keep
+    // the shell—and therefore its final bottom-nav row—inside the visible area.
+    const viewport = window.visualViewport
+    const update = () => {
+      const height = Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)
+      setViewportHeight(`${Math.round(height)}px`)
+    }
+    update()
+    window.addEventListener('resize', update)
+    viewport?.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      viewport?.removeEventListener('resize', update)
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -215,7 +234,7 @@ export function Shell({
   return (
     <ChatAppearanceCtx.Provider value={{ appearance: chatAppearance, save: saveChatAppearance }}>
       <ToastCtx.Provider value={showToast}>
-        <div className="flex h-dvh flex-col overflow-hidden">
+        <div className="flex flex-col overflow-hidden" style={{ height: viewportHeight }}>
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}
         {!(isMobile && (mobileChat || hideHeaderOnMobile)) && (

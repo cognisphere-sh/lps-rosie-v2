@@ -42,6 +42,10 @@ here).
 
 ### Changed
 
+- **Mobile navigation stays inside the Android PWA viewport.** The Shell now
+  tracks the live visual viewport rather than trusting standalone-mode
+  `100dvh`, keeping the bottom bar above system chrome through resize,
+  orientation and keyboard changes.
 - **Chat appearance is now a responsive Settings page.** `/settings` is enabled
   in the desktop rail and mobile More uses the same **Settings** label and route.
   The redundant

@@ -94,7 +94,10 @@ already identify the page:
   toggle, Know your Agents, **Install app**, and the signed-in user with log
   out. All seven tabs
   share the available width, so More stays visible without horizontal scrolling.
-  Its popover renders outside the overflow-clipped bar. Settings is a normal
+  The Shell height follows `window.visualViewport.height` (with
+  `window.innerHeight` as its ceiling), keeping the tab bar above Android PWA
+  system chrome even when standalone mode misreports `100dvh`. Its popover
+  renders outside the overflow-clipped bar. Settings is a normal
   `/settings` route rather than an overlay, so any bottom-nav selection
   navigates immediately without requiring a Back control.
 
@@ -480,6 +483,11 @@ screen. No library — a manifest, a service worker, and Chrome's
 | `components/pwa/install-app-button.tsx` | The manual entry point, rendered in the desktop rail and mobile ⋯ More. |
 | `components/pwa/ios-install-modal.tsx` | Safari has no install API, so iOS gets Share → Add to Home Screen instructions. |
 | `public/icon-{192,512}.png`, `apple-touch-icon.png` | Generated leaf mark on the brand green; the 512 doubles as the Android `maskable` icon. |
+
+**Standalone viewport.** `Shell` tracks the visual viewport on resize rather
+than relying solely on `100dvh`; this keeps the mobile bottom navigation inside
+the usable Android PWA window and responds correctly to orientation/keyboard
+changes.
 
 **Flow.** `PWAProvider` registers `/sw.js`. Chrome runs its installability check
 (HTTPS or `localhost`, linked manifest, `standalone`, 192 + 512 icons, a
