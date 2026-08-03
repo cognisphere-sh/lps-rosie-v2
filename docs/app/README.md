@@ -334,7 +334,11 @@ the id the server returns, so the next poll doesn't duplicate it.
 than flashing the top of the transcript. A scroll listener drops the pin once
 the user is more than 40px up, so reading history isn't interrupted by an
 arriving message, and image `onLoad` re-pins because a late image makes the
-transcript taller after layout.
+transcript taller after layout. Contextual floating arrows jump smoothly to the
+first or latest message whenever the transcript is away from those edges.
+Pulling down from transcript top triggers an immediate message poll with an
+inline refresh indicator; this replaces document-level native pull-to-refresh,
+which is intentionally unavailable while the PWA Shell is scroll-locked.
 
 **Attachments.** Files are uploaded one at a time *before* send (`api/upload`,
 raw body + `x-file-name`), and `api/send` then carries the stored names. That

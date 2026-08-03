@@ -4,7 +4,7 @@ import Image from 'next/image'
 import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from 'react'
-import { Mic, Pause, Paperclip, Play, Send, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Mic, Pause, Paperclip, Play, RefreshCw, Send, Trash2, X } from 'lucide-react'
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
@@ -311,7 +311,7 @@ function useChat(agentId: string, active: boolean) {
     setPending(false)
   }, [agentId])
 
-  return { messages, pending, error, send, reset }
+  return { messages, pending, error, send, reset, refresh: poll }
 }
 
 /**
@@ -509,40 +509,89 @@ function StatusDot({ pending }: { pending: boolean }) {
 }
 
 function Transcript({
-  agent, messages, pending, error, onSuggest, mobile, wallpaper,
+  agent, messages, pending, error, onSuggest, onRefresh, mobile, wallpaper,
 }: {
   agent: Agent
   messages: ChatMessage[]
   pending: boolean
   error: string
   onSuggest: (s: string) => void
+  onRefresh: () => Promise<void>
   mobile?: boolean
   wallpaper?: boolean
 }) {
   const box = useRef<HTMLDivElement>(null)
+  const pullStart = useRef<number | null>(null)
   // Stay pinned to the newest message, but never yank the user back down while
   // they are scrolled up reading history.
   const pinned = useRef(true)
+  const [atTop, setAtTop] = useState(true)
+  const [atBottom, setAtBottom] = useState(true)
+  const [pull, setPull] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const toBottom = useCallback(() => {
+  const updateEdges = useCallback((el: HTMLDivElement) => {
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    pinned.current = bottom < 40
+    setAtTop(el.scrollTop < 40)
+    setAtBottom(bottom < 40)
+  }, [])
+
+  const toBottom = useCallback((smooth = false) => {
     const el = box.current
-    if (el) el.scrollTop = el.scrollHeight
+    el?.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+
+  const toTop = useCallback(() => {
+    box.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
   // Layout effect, not effect: the jump happens before paint, so a reload opens
   // at the bottom instead of flashing the top of the transcript first.
   useLayoutEffect(() => {
     if (pinned.current) toBottom()
-  }, [messages.length, pending, toBottom])
+    if (box.current) updateEdges(box.current)
+  }, [messages.length, pending, toBottom, updateEdges])
+
+  const finishPull = useCallback(async () => {
+    pullStart.current = null
+    if (pull < 54 || refreshing) {
+      setPull(0)
+      return
+    }
+    setRefreshing(true)
+    setPull(48)
+    try {
+      await onRefresh()
+    } finally {
+      setRefreshing(false)
+      setPull(0)
+    }
+  }, [onRefresh, pull, refreshing])
 
   return (
-    <div
+    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div
       ref={box}
-      onScroll={(e) => {
-        const el = e.currentTarget
-        pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+      onScroll={(e) => updateEdges(e.currentTarget)}
+      onTouchStart={(e) => {
+        if (e.touches.length === 1 && e.currentTarget.scrollTop <= 0) {
+          pullStart.current = e.touches[0].clientY
+        }
       }}
-      className="font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-background p-4"
+      onTouchMove={(e) => {
+        if (pullStart.current === null || e.touches.length !== 1) return
+        const distance = e.touches[0].clientY - pullStart.current
+        if (distance <= 0) {
+          setPull(0)
+          return
+        }
+        e.preventDefault()
+        setPull(Math.min(72, distance * 0.45))
+      }}
+      onTouchEnd={() => { void finishPull() }}
+      onTouchCancel={() => { pullStart.current = null; setPull(0) }}
+      className="font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background p-4"
       style={wallpaper ? {
         backgroundImage: "url('/desert-plants-chat.svg')",
         backgroundRepeat: 'repeat',
@@ -635,6 +684,45 @@ function Transcript({
         </div>
       )}
 
+      </div>
+
+      {(pull > 0 || refreshing) && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-2 z-20 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)]"
+          style={{ transform: `translate(-50%, ${Math.max(0, pull - 18)}px)` }}
+          aria-live="polite"
+        >
+          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          <span className="sr-only">{refreshing ? 'Refreshing conversation' : 'Pull to refresh'}</span>
+        </div>
+      )}
+
+      {(!atTop || !atBottom) && (
+        <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-2">
+          {!atTop && (
+            <button
+              type="button"
+              onClick={toTop}
+              aria-label="Jump to top of conversation"
+              title="Jump to top"
+              className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--lps-shadow)] hover:bg-muted"
+            >
+              <ArrowUp size={17} />
+            </button>
+          )}
+          {!atBottom && (
+            <button
+              type="button"
+              onClick={() => toBottom(true)}
+              aria-label="Jump to latest message"
+              title="Jump to latest"
+              className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)] hover:bg-muted"
+            >
+              <ArrowDown size={17} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -925,6 +1013,7 @@ export function AgentChat({
           pending={chat.pending}
           error={chat.error}
           onSuggest={setDraft}
+          onRefresh={chat.refresh}
           mobile
           wallpaper={appearance.wallpaper}
         />
@@ -1027,6 +1116,7 @@ export function AgentChat({
         pending={chat.pending}
         error={chat.error}
         onSuggest={setDraft}
+        onRefresh={chat.refresh}
         wallpaper={appearance.wallpaper}
       />
       <Composer agent={agent} composer={composer} onSend={send} draft={draft} setDraft={setDraft} />
