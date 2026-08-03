@@ -1,0 +1,9 @@
+{
+    "routes": [
+        {
+            "name": "main",
+            "threadId": "main",
+            "chat": "-1004330045748"
+        }
+    ]
+}
