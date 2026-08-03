@@ -33,6 +33,10 @@ here).
 
 ### Changed
 
+- **More → Settings works from an agent chat on mobile.** The chat sheet is a
+  full-screen overlay over the outgoing page, which stays mounted until the new
+  route commits — so the tap looked ignored. Both More-menu route entries now
+  close the sheet as they navigate.
 - **The viewport now declares `viewport-fit=cover`.** The mobile bottom tab bar
   already padded itself with `env(safe-area-inset-bottom)`, which resolves to
   zero without it — so the bar sat under the home indicator on notched phones,

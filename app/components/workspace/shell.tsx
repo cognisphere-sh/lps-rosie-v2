@@ -223,6 +223,15 @@ export function Shell({
     }
   }
 
+  // Leaving the More menu for another page. The mobile chat sheet is a
+  // full-screen overlay inside the same wrapper as this popover, so it has to
+  // go: a route transition keeps the current page mounted until the new one
+  // arrives, and behind the sheet that reads as the tap having done nothing.
+  const leaveMoreMenu = () => {
+    setMoreMenu(false)
+    setMobileChat(false)
+  }
+
   const railBtn = (active: boolean, enabled = true) =>
     cn(
       'flex items-center gap-2.5 rounded-[10px] border-none text-[13px] font-semibold w-full text-left transition-colors',
@@ -393,7 +402,7 @@ export function Shell({
                 <div data-more-menu className="lps-pop absolute bottom-2 right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
                   <Link
                     href="/settings"
-                    onClick={() => setMoreMenu(false)}
+                    onClick={leaveMoreMenu}
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
                   >
                     <SettingsIcon size={14} />
@@ -409,7 +418,7 @@ export function Shell({
                   </button>
                   <Link
                     href="/agents"
-                    onClick={() => setMoreMenu(false)}
+                    onClick={leaveMoreMenu}
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
                   >
                     <AgentsIcon size={14} />

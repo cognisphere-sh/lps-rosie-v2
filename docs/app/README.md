@@ -99,7 +99,11 @@ already identify the page:
   system chrome even when standalone mode misreports `100dvh`. Its popover
   renders outside the overflow-clipped bar. Settings is a normal
   `/settings` route rather than an overlay, so any bottom-nav selection
-  navigates immediately without requiring a Back control.
+  navigates immediately without requiring a Back control. Its two route
+  entries also close the mobile chat sheet as they navigate — that sheet
+  overlays the same wrapper the popover sits in, and the outgoing page stays
+  mounted until the new route commits, so leaving it open hides the
+  destination.
 
 `Job Requests` remains **rendered disabled** because it is out of scope. Settings
 is enabled in the desktop rail and through mobile More.
