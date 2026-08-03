@@ -62,7 +62,9 @@ the same session. Ask early rather than guessing.
 
 ## 1. Acquire and convert the source
 
-- Attachments: `scripts/agent/markitdown <file>` for PDF/xlsx/docx; `pdftoppm -png` + `read` for scanned PDFs/images.
+- **Text-based PDFs:** use `scripts/agent/markitdown <file>` as the primary extractor and inspect its Markdown tables/continuation lines before parsing. Do not default to `pdftotext` or write an ad hoc custom PDF parser merely because fixed-width text looks usable. If MarkItDown leaves wrapped/ambiguous rows, preserve the extracted evidence and resolve it with visual row-level review rather than a heuristic that can silently cross or drop cells.
+- **Scanned/image-only PDFs:** `pdftotext` cannot OCR pixels unless the file already contains a hidden text layer. Render with `pdftoppm -png`, then use image reading/OCR/vision with page- and row-level visual checks. `pdftotext -layout` may be used only as a diagnostic/fallback when an actual text layer exists, not as the primary parser for scans.
+- **Other attachments:** use `scripts/agent/markitdown <file>` for xlsx/docx and supported office formats. Avoid one-off custom parsers when the standard converter preserves the source structure; if conversion remains ambiguous, retain raw evidence and flag the affected rows instead of guessing.
 - If the email **body** contains a URL that may hold the availability (link to a price list / catalog / sheet), open it with `markitdown` or `scripts/agent/agent-browser` — don't treat a bare link as unparseable. If the URL is a downloadable file, download it and check its contents before deciding it's irrelevant.
 - Intermediate files (converted markdown, page images, parse chunks) go to `/tmp` — they are not records.
 
@@ -124,6 +126,7 @@ One logical row per **plant × size offering**. Normalize every line:
   and power neither search nor display; **never reactivate one** to "restore" a
   name, and never re-add a pair a cleanup retired.
 - **Price**: `unit_price` is required; use the lower bound if the source gives a range. **Do not ignore zero-priced rows** — if the source lists an item at `0` (or with no price printed), still ingest the row with `unit_price = 0` and flag it for Chris (see output contract), don't drop it. Stock counts go in `quantity`.
+- **Combined sizes with one shared quantity**: create one inventory row for each printed size (for example, a `3 G/5 G` offer becomes separate `3 G` and `5 G` rows). Copy the source's shared quantity to both rows; quantities are tentative sourcing signals. State in each row's dated `notes` that the quantity is the supplier's shared/tentative count across the combined sizes, so reviewers do not add the copied values together as guaranteed stock. (Approved by Bhoumik, 2026-07-31.)
 - `height`/`width`/`caliper` as printed. The source's own grouping (e.g. `Shade Trees`) is **not** stored — there is no `category` column on `inventory`.
 - To check "does the system already know this plant?", call the `search_inventory` RPC — typo-tolerant, follows the alias graph.
 
@@ -153,7 +156,18 @@ Each ingestion *supersedes* the supplier's current availability — never edit r
   WHERE supplier_id = <id> AND is_active AND id <> ALL(ARRAY[<new source ids>]::uuid[]);
   ```
 - A brand-new supplier's first ingest is just plain inserts (nothing to carry or retire).
-- **Verify** before finishing: active row count for the supplier matches what you inserted; no stray active rows from the old version.
+
+## 5. Post-ingestion QA — required before commit/retirement
+
+Treat extraction and writing as untrusted until the new version passes source-to-database QA. Run these checks **before committing the transaction or retiring the old active version whenever possible**; if a material check fails, roll back/leave the old version active and report the exception instead of publishing partially verified data.
+
+- **Re-open the original source with the approved primary converter** and compare it to the staged/database output — not only to an intermediate CSV made by the same extraction logic.
+- **Reconcile counts:** source offering count versus inserted count, totals by page/section, active rows, priced/unpriced rows, quantities, photos, and distinct source ids. Explain every exclusion, deduplication, split combined size, and retained legacy row; a matching grand total alone is insufficient.
+- **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
+- **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
+- **Validate normalization:** no malformed names/sizes, no zero price presented as free, no guessed missing values, no unsafe cultivar/species alias edges, and no source dimensions left only in notes when they can be mapped unambiguously to structured fields.
+- **Compare versions:** inspect unexpected row-count swings, price/quantity/spec changes, new/removed plants, duplicate inflation, and source activation/retirement. Spot-check several important searches after activation to confirm exact identities rank correctly without sibling-cultivar leakage.
+- **Record QA evidence in the output contract:** converter used, source/output counts, pages/sections checked, risky-row count and result, exceptions retained, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
 ## Recording availability status
 

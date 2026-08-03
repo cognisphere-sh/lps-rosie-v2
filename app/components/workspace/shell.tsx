@@ -7,9 +7,10 @@ import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react'
 
+import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AgentChat } from '@/components/workspace/chat'
 import {
-  AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InventoryIcon, LogoutIcon,
+  AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
   MoonIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
@@ -266,6 +267,11 @@ export function Shell({
                     </>
                   )}
                 </button>
+
+                <InstallAppButton title="Install app" onMessage={showToast} className={railBtn(false)}>
+                  <span className="flex size-4 flex-none items-center justify-center"><InstallIcon /></span>
+                  {navOpen && <span>Install app</span>}
+                </InstallAppButton>
 
                 <Link href="/agents" title="Know your Agents" className={railBtn(page === 'agents')}>
                   <span className="flex size-4 flex-none items-center justify-center"><AgentsIcon /></span>
@@ -528,6 +534,16 @@ export function Shell({
                     <AgentsIcon size={14} />
                     Know your Agents
                   </Link>
+                  <InstallAppButton
+                    onMessage={(message) => {
+                      setMoreMenu(false)
+                      showToast(message)
+                    }}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                  >
+                    <InstallIcon size={14} />
+                    Install app
+                  </InstallAppButton>
                   <div className="mb-1 mt-1 border-t border-lps-hair px-2.5 pb-1 pt-2">
                     <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
                     <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>

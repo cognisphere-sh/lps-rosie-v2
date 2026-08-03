@@ -15,6 +15,29 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-03
+
+### Added
+
+- **The app installs as a PWA.** A static manifest, a service worker and a
+  generated leaf icon set make the workspace installable to a phone home screen
+  or a desktop dock, launching full screen at `/suppliers`. Chrome gets a
+  one-per-session install offer; the desktop rail and mobile **⋯ More** both
+  carry a manual **Install app** entry, which falls back to iOS
+  Share → Add to Home Screen instructions on Safari and to an explanation when
+  the browser cannot install (already installed, or a LAN address rather than
+  HTTPS/localhost). The worker is network-first and caches only whole-page
+  loads, so an offline launch shows the last page instead of a browser error
+  while supplier data itself is never served stale. See
+  [`docs/app/README.md`](docs/app/README.md#installable-app-pwa).
+
+### Changed
+
+- **The viewport now declares `viewport-fit=cover`.** The mobile bottom tab bar
+  already padded itself with `env(safe-area-inset-bottom)`, which resolves to
+  zero without it — so the bar sat under the home indicator on notched phones,
+  which the installed full-screen app would have made obvious.
+
 ## 2026-08-02
 
 ### Changed

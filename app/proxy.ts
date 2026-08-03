@@ -57,6 +57,10 @@ export default async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next internals and static asset files.
+  // Everything except Next internals and static asset files. The trailing
+  // extension rule is load-bearing for PWA install: `/manifest.json`, `/sw.js`
+  // and the icons must answer 200 to a signed-out browser, because Chrome's
+  // installability check follows no redirect and reports no error — it simply
+  // never fires `beforeinstallprompt`.
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.[^/]+$).*)'],
 }

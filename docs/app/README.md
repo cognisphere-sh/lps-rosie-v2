@@ -91,7 +91,8 @@ already identify the page:
   tab again closes the sheet, while another agent tab switches chats. The bar
   ends in a **⋯ More** menu carrying
   what the desktop rail keeps at the bottom — Chat appearance, the app theme
-  toggle, Know your Agents, and the signed-in user with log out. All seven tabs
+  toggle, Know your Agents, **Install app**, and the signed-in user with log
+  out. All seven tabs
   share the available width, so More stays visible without horizontal scrolling.
   Its popover renders outside the overflow-clipped bar.
 
@@ -462,6 +463,53 @@ initials from it. The design mock had a name hardcoded into the markup; don't
 put one back — the harness owns the session and is the only thing that knows
 who is actually logged in.
 
+## Installable app (PWA)
+
+The app installs to a phone home screen or a desktop dock and launches full
+screen. No library — a manifest, a service worker, and Chrome's
+`beforeinstallprompt` event.
+
+| Piece | Role |
+|---|---|
+| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, brand green `theme_color`, 192/512 icons. |
+| `public/sw.js` | Service worker. Its *existence* plus a `fetch` handler is what makes Chrome consider the app installable. |
+| `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
+| `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
+| `components/pwa/install-app-button.tsx` | The manual entry point, rendered in the desktop rail and mobile ⋯ More. |
+| `components/pwa/ios-install-modal.tsx` | Safari has no install API, so iOS gets Share → Add to Home Screen instructions. |
+| `public/icon-{192,512}.png`, `apple-touch-icon.png` | Generated leaf mark on the brand green; the 512 doubles as the Android `maskable` icon. |
+
+**Flow.** `PWAProvider` registers `/sw.js`. Chrome runs its installability check
+(HTTPS or `localhost`, linked manifest, `standalone`, 192 + 512 icons, a
+fetch-handling worker) and fires `beforeinstallprompt`; the provider calls
+`preventDefault()` to suppress Chrome's own mini-infobar and stashes the event,
+which is what `isSupported` reflects. The popup then waits 1s, skips `/login`
+and anything already flagged in `sessionStorage.pwa_prompt_shown`, and offers
+the install. The stashed event is **single-use** — Chrome re-fires it on a later
+load if the offer was dismissed.
+
+**Caching is deliberately thin.** The worker is network-first and caches only
+`request.mode === 'navigate'` GETs, keeping the last page as an offline shell;
+API calls and assets pass straight through, because stale supplier data would be
+worse than none. Nothing is precached — every page is behind the login, so an
+install-time fetch would only cache the redirect to `/login`. Redirected
+responses are skipped (`cache.put` throws on those), and offline lookups pass
+`ignoreVary`, since Next varies its HTML on router headers.
+
+**Things that quietly break it:**
+
+- **A LAN IP never fires the event** — only HTTPS or `localhost`. The install
+  button detects this and says so rather than doing nothing.
+- **Already installed → no event either.** Same fallback message.
+- `proxy.ts`'s matcher must keep excluding `/manifest.json`, `/sw.js` and the
+  icons (it does, via the trailing-extension rule). Chrome's check follows no
+  redirect and reports no error — a gated manifest just means the event never
+  arrives.
+- The manifest is linked through `metadata.manifest`; `theme_color` lives in
+  **both** the manifest and `viewport.themeColor` in `app/layout.tsx`.
+- `viewport.viewportFit: 'cover'` is what gives the mobile tab bar's
+  `env(safe-area-inset-bottom)` a non-zero value once the app runs full screen.
+
 ## File map
 
 ```
@@ -476,8 +524,13 @@ public/
   daisy.png, rosie.png, nova.png    avatars (cropped from the banners) —
                                     panel header, rail, selector, mobile tab
   *_profile.png                     full profile banners, shown on /agents
+  manifest.json, sw.js              PWA manifest + service worker
+  icon-192.png, icon-512.png,       install icons (leaf mark, brand green)
+  apple-touch-icon.png
 components/
   ui/            lps-ui primitives (button, input, label, card, alert, badge)
+  pwa/           install: provider (SW + beforeinstallprompt), auto popup,
+                 rail/menu button, iOS instructions modal
   workspace/
     shell.tsx        nav rail, header, mobile tab bar, theme, session user, toasts
     chat.tsx         agent chat: docked panel / rail / mobile sheet, polling,

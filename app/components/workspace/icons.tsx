@@ -166,3 +166,9 @@ export const LogoutIcon = (p: P) => (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
   </svg>
 )
+
+export const InstallIcon = (p: P) => (
+  <svg {...stroke} {...box(p)} className={p.className}>
+    <path d="M12 3v11" /><path d="m8 10 4 4 4-4" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+  </svg>
+)
