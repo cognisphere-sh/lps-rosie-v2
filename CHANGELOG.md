@@ -33,6 +33,10 @@ here).
 
 ### Changed
 
+- **Mobile Plant Search opens a supplier only from its name.** The whole card
+  header used to be the link, so a tap meant to read the category, location or
+  match count navigated away. Only the underlined supplier name now navigates;
+  the rest of the header is inert and the chevron still expands the plant list.
 - **More → Settings works from an agent chat on mobile.** The chat sheet is a
   full-screen overlay over the outgoing page, which stays mounted until the new
   route commits — so the tap looked ignored. Both More-menu route entries now

@@ -430,15 +430,15 @@ export default function PlantSearchPage() {
             return (
             <div key={g.supplier.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
               <div className="flex items-start gap-2 border-b border-lps-hair bg-lps-tint p-3">
-                <button
-                  type="button"
-                  onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
-                  className="flex min-w-0 flex-1 flex-col gap-1.5 text-left"
-                >
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="flex-1 truncate text-[14px] font-bold text-primary">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
+                      className="min-w-0 flex-1 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
+                    >
                       {String(g.supplier.values.name ?? '')}
-                    </span>
+                    </button>
                     <span className="text-[11px] font-semibold text-muted-foreground">
                       {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
                     </span>
@@ -453,7 +453,7 @@ export default function PlantSearchPage() {
                       {[g.supplier.values.city, g.supplier.values.state].filter(Boolean).join(', ')}
                     </span>
                   </div>
-                </button>
+                </div>
                 <button
                   type="button"
                   onClick={() =>
