@@ -378,8 +378,8 @@ reason, as the table layout.
 ### Chat appearance
 
 Mobile **More → Chat appearance** opens a Telegram-inspired original settings
-sheet with a live bubble preview, three scoped chat palettes (Garden, Desert
-Bloom and Agave Night), an optional repeating desert-plants wallpaper and Reset.
+sheet with a live bubble preview, three scoped chat palettes (Garden Green,
+Fuchsia Bloom and Agave Blue), an optional repeating desert-plants wallpaper and Reset.
 The wallpaper is original low-contrast cactus/agave/yucca SVG line art at
 `public/desert-plants-chat.svg`, not a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.

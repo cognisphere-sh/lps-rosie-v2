@@ -11,9 +11,9 @@ export const CHAT_APPEARANCE_STORE = 'lps.chat.appearance.v1'
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = { theme: 'garden', wallpaper: false }
 
 export const CHAT_THEMES: { id: ChatThemeId; label: string; accent: string; preview: string }[] = [
-  { id: 'garden', label: 'Garden', accent: '#2f9f5b', preview: '#dff3e6' },
-  { id: 'desert', label: 'Desert Bloom', accent: '#c66a45', preview: '#f2dfd4' },
-  { id: 'agave', label: 'Agave Night', accent: '#2b8f91', preview: '#d7ecea' },
+  { id: 'garden', label: 'Garden Green', accent: '#2f9f5b', preview: '#dff3e6' },
+  { id: 'desert', label: 'Fuchsia Bloom', accent: '#c34fa3', preview: '#f3d5ea' },
+  { id: 'agave', label: 'Agave Blue', accent: '#347fbd', preview: '#d7e9f7' },
 ]
 
 export function chatThemeStyle(theme: ChatThemeId): CSSProperties {
