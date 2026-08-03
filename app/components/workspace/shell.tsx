@@ -15,8 +15,8 @@ import {
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import {
-  CHAT_APPEARANCE_STORE, CHAT_THEMES, DEFAULT_CHAT_APPEARANCE,
-  chatThemeForAgent, chatThemeStyle, isChatTheme, type ChatAgentId, type ChatAppearance,
+  CHAT_APPEARANCE_STORE, DEFAULT_CHAT_APPEARANCE, isChatTheme,
+  type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +34,17 @@ const NAV = [
 
 const ToastCtx = createContext<(message: string) => void>(() => {})
 export const useToast = () => useContext(ToastCtx)
+
+const ChatAppearanceCtx = createContext<{
+  appearance: ChatAppearance
+  save: (next: ChatAppearance) => void
+} | null>(null)
+
+export function useChatAppearanceSettings() {
+  const value = useContext(ChatAppearanceCtx)
+  if (!value) throw new Error('useChatAppearanceSettings must be used inside Shell')
+  return value
+}
 
 // ------------------------------------------------------------------- theme
 
@@ -124,8 +135,6 @@ export function Shell({
   const [mobileChat, setMobileChat] = useState(false)
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
-  const [chatAppearanceOpen, setChatAppearanceOpen] = useState(false)
-  const [appearanceAgent, setAppearanceAgent] = useState<ChatAgentId>('nova')
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -204,8 +213,9 @@ export function Shell({
     )
 
   return (
-    <ToastCtx.Provider value={showToast}>
-      <div className="flex h-dvh flex-col overflow-hidden">
+    <ChatAppearanceCtx.Provider value={{ appearance: chatAppearance, save: saveChatAppearance }}>
+      <ToastCtx.Provider value={showToast}>
+        <div className="flex h-dvh flex-col overflow-hidden">
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}
         {!(isMobile && (mobileChat || hideHeaderOnMobile)) && (
@@ -244,10 +254,10 @@ export function Shell({
               <div className="flex-1" />
 
               <div className="flex flex-col gap-0.5 border-t border-lps-hair pt-2">
-                <button type="button" disabled title="Settings — not built yet" className={railBtn(false, false)}>
+                <Link href="/settings" title="Settings" className={railBtn(page === 'settings')}>
                   <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
                   {navOpen && <span>Settings</span>}
-                </button>
+                </Link>
 
                 <button type="button" onClick={toggle} title={dark ? 'Dark mode' : 'Light mode'} className={railBtn(false)}>
                   <span className="flex size-4 flex-none items-center justify-center">
@@ -358,166 +368,18 @@ export function Shell({
                 />
               )}
 
-              {isMobile && chatAppearanceOpen && (
-                <div
-                  className="absolute inset-0 z-[90] flex flex-col bg-background"
-                  style={chatThemeStyle(chatThemeForAgent(chatAppearance, appearanceAgent))}
-                >
-                  <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-3 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setChatAppearanceOpen(false)}
-                      aria-label="Back"
-                      className="inline-flex size-8 items-center justify-center rounded-lg text-foreground hover:bg-muted"
-                    >
-                      <ChevronLeft size={17} />
-                    </button>
-                    <span className="min-w-0 flex-1 text-[15px] font-bold">Chat appearance</span>
-                    <button
-                      type="button"
-                      onClick={() => saveChatAppearance(DEFAULT_CHAT_APPEARANCE)}
-                      className="text-[11.5px] font-semibold text-primary"
-                    >
-                      Reset
-                    </button>
-                  </div>
-
-                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                    <section className="overflow-hidden rounded-2xl border border-border bg-card">
-                      <div
-                        className="flex min-h-[190px] flex-col justify-end gap-2 p-4"
-                        style={chatAppearance.wallpaper ? {
-                          backgroundImage: "url('/desert-plants-chat.svg')",
-                          backgroundRepeat: 'repeat',
-                          backgroundSize: '240px 240px',
-                        } : undefined}
-                      >
-                        <div className="font-chat max-w-[82%] self-start rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2 text-[16px] leading-[1.35]">
-                          The agaves are looking sharp today.
-                        </div>
-                        <div className="font-chat max-w-[82%] self-end rounded-[12px_12px_4px_12px] bg-primary px-3 py-2 text-[16px] leading-[1.35] text-primary-foreground">
-                          Send me the availability 🌵
-                        </div>
-                      </div>
-                      <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-                        {AGENTS.find((agent) => agent.id === appearanceAgent)?.name} preview
-                      </div>
-                    </section>
-
-                    <section className="flex flex-col gap-2">
-                      <h3 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">Agent colors</h3>
-                      <div className="flex flex-col gap-2">
-                        {AGENTS.map((agent) => {
-                          const agentId = agent.id as ChatAgentId
-                          return (
-                            <div
-                              key={agent.id}
-                              className={cn(
-                                'flex items-center gap-2.5 rounded-xl border bg-card p-2.5',
-                                appearanceAgent === agentId ? 'border-primary' : 'border-border',
-                              )}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => setAppearanceAgent(agentId)}
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                              >
-                                <Image src={agent.avatar} alt="" width={32} height={32} className="rounded-full" />
-                                <span className="min-w-0">
-                                  <span className="block truncate text-[12.5px] font-bold">{agent.name}</span>
-                                  <span className="block truncate text-[10.5px] text-muted-foreground">{agent.role}</span>
-                                </span>
-                              </button>
-                              <span className="flex flex-none gap-1.5">
-                                {CHAT_THEMES.map((theme) => {
-                                  const selected = chatAppearance.themes[agentId] === theme.id
-                                  return (
-                                    <button
-                                      key={theme.id}
-                                      type="button"
-                                      title={theme.label}
-                                      aria-label={`${agent.name}: ${theme.label}`}
-                                      aria-pressed={selected}
-                                      onClick={() => {
-                                        setAppearanceAgent(agentId)
-                                        saveChatAppearance({
-                                          ...chatAppearance,
-                                          themes: { ...chatAppearance.themes, [agentId]: theme.id },
-                                        })
-                                      }}
-                                      className={cn(
-                                        'relative size-8 rounded-full border-2 p-[3px]',
-                                        selected ? 'border-foreground' : 'border-transparent',
-                                      )}
-                                    >
-                                      <span className="block size-full rounded-full" style={{ backgroundColor: theme.accent }} />
-                                      {selected && (
-                                        <CheckIcon className="absolute inset-0 m-auto size-3.5 text-white" />
-                                      )}
-                                    </button>
-                                  )
-                                })}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </section>
-
-                    <section className="flex flex-col gap-2">
-                      <h3 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">Wallpaper</h3>
-                      <button
-                        type="button"
-                        onClick={() => saveChatAppearance({ ...chatAppearance, wallpaper: !chatAppearance.wallpaper })}
-                        className={cn(
-                          'flex items-center gap-3 overflow-hidden rounded-2xl border bg-card p-3 text-left',
-                          chatAppearance.wallpaper ? 'border-primary ring-2 ring-primary/20' : 'border-border',
-                        )}
-                      >
-                        <span
-                          className="h-20 w-24 flex-none rounded-xl border border-lps-hair bg-background"
-                          style={{
-                            backgroundImage: "url('/desert-plants-chat.svg')",
-                            backgroundSize: '150px 150px',
-                          }}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[13px] font-bold">Desert plants</span>
-                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                            Cactus, agave and yucca line art
-                          </span>
-                        </span>
-                        <span className={cn(
-                          'relative h-[22px] w-10 flex-none rounded-full transition-colors',
-                          chatAppearance.wallpaper ? 'bg-primary' : 'bg-muted',
-                        )}>
-                          <span className={cn(
-                            'absolute top-[3px] size-4 rounded-full bg-white transition-all',
-                            chatAppearance.wallpaper ? 'left-[21px]' : 'left-[3px]',
-                          )} />
-                        </span>
-                      </button>
-                    </section>
-                  </div>
-                </div>
-              )}
-
               {/* The ⋯ menu popover lives here rather than inside the
                   overflow-clipped tab bar. */}
               {isMobile && moreMenu && (
                 <div data-more-menu className="lps-pop absolute bottom-2 right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoreMenu(false)
-                      setAppearanceAgent(mobileAgent as ChatAgentId)
-                      setChatAppearanceOpen(true)
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                  <Link
+                    href="/settings"
+                    onClick={() => setMoreMenu(false)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
                   >
                     <SettingsIcon size={14} />
                     Chat appearance
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     onClick={toggle}
@@ -640,7 +502,8 @@ export function Shell({
             />
           )}
         </div>
-      </div>
-    </ToastCtx.Provider>
+        </div>
+      </ToastCtx.Provider>
+    </ChatAppearanceCtx.Provider>
   )
 }

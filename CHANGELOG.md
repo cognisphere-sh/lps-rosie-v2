@@ -42,6 +42,10 @@ here).
 
 ### Changed
 
+- **Chat appearance is now a responsive Settings page.** `/settings` is enabled
+  in the desktop rail and mobile More links to the same page. The redundant
+  mobile Back button/overlay are gone, so tapping another bottom-nav item always
+  navigates normally.
 - **Chat colors now follow each agent's profile art.** Daisy defaults to Forest
   Green, Rosie to Coral Rose and Nova to Electric Violet. The earlier Garden
   Green, Fuchsia Bloom and Agave Blue remain optional; Chat appearance can

@@ -54,7 +54,7 @@ fidelity", start here rather than reverting one of these by accident:
 |---|---|
 | Higher-contrast dark-mode muted text and table chrome | The mock's small labels, empty states, controls and dividers were difficult to distinguish on typical displays. |
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
-| `Job Requests` and desktop `Settings` rendered disabled | General settings remain out of scope. Mobile More now exposes a focused **Chat appearance** sheet rather than a dead Settings route. |
+| `Job Requests` rendered disabled | Job Requests remains out of scope. Settings is now a real responsive route containing Chat appearance. |
 | Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |
 | No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
 | A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
@@ -94,12 +94,12 @@ already identify the page:
   toggle, Know your Agents, **Install app**, and the signed-in user with log
   out. All seven tabs
   share the available width, so More stays visible without horizontal scrolling.
-  Its popover renders outside the overflow-clipped bar.
+  Its popover renders outside the overflow-clipped bar. Chat appearance is a
+  normal `/settings` route rather than an overlay, so any bottom-nav selection
+  navigates immediately without requiring a Back control.
 
-`Job Requests` and desktop general `Settings` are **rendered disabled** — they
-exist in the design but are out of scope, so the frame keeps its shape without
-offering routes that go nowhere. Mobile More has a focused Chat appearance
-sheet; it is not a general Settings route.
+`Job Requests` remains **rendered disabled** because it is out of scope. Settings
+is enabled in the desktop rail and through mobile More.
 
 ## Routes
 
@@ -111,6 +111,7 @@ sheet; it is not a general Settings route.
 | `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Communications / Notes / Files, with all four tabs on one line. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens in the search query, an available-size selector populated from the current plant matches, a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list, and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline — with the same compact result-size selector and a collapsible **Filters** card (supplier, supplier category, state, city, price). |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
+| `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 
 | API route | Purpose |
 |---|---|
@@ -378,8 +379,9 @@ reason, as the table layout.
 
 ### Chat appearance
 
-Mobile **More → Chat appearance** opens a Telegram-inspired original settings
-sheet with a live bubble preview, independently configurable agent colors and
+**Settings → Chat appearance** is a responsive route, reached from desktop
+Settings or mobile **More → Chat appearance**, with a live bubble preview,
+independently configurable agent colors and
 six scoped chat palettes. Profile-matched defaults are Daisy Forest Green,
 Rosie Coral Rose and Nova Electric Violet; Garden Green, Fuchsia Bloom and
 Agave Blue remain optional choices. The sheet also includes an optional
