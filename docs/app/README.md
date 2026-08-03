@@ -54,7 +54,7 @@ fidelity", start here rather than reverting one of these by accident:
 |---|---|
 | Higher-contrast dark-mode muted text and table chrome | The mock's small labels, empty states, controls and dividers were difficult to distinguish on typical displays. |
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
-| `Job Requests` and `Settings` rendered disabled | Out of scope for this build. The frame keeps its shape without offering dead routes. |
+| `Job Requests` and desktop `Settings` rendered disabled | General settings remain out of scope. Mobile More now exposes a focused **Chat appearance** sheet rather than a dead Settings route. |
 | Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |
 | No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
 | A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
@@ -90,14 +90,15 @@ already identify the page:
   header. There is no redundant close icon: tapping the highlighted active-agent
   tab again closes the sheet, while another agent tab switches chats. The bar
   ends in a **⋯ More** menu carrying
-  what the desktop rail keeps at the bottom — Settings (disabled), the theme
+  what the desktop rail keeps at the bottom — Chat appearance, the app theme
   toggle, Know your Agents, and the signed-in user with log out. The popover
   renders outside the bar (the bar scrolls horizontally, so it would clip a
   child popover).
 
-`Job Requests` and `Settings` are **rendered disabled** — they exist in the
-design but are out of scope for this build, so the frame keeps its shape without
-offering routes that go nowhere.
+`Job Requests` and desktop general `Settings` are **rendered disabled** — they
+exist in the design but are out of scope, so the frame keeps its shape without
+offering routes that go nowhere. Mobile More has a focused Chat appearance
+sheet; it is not a general Settings route.
 
 ## Routes
 
@@ -373,6 +374,17 @@ prompt tells Daisy to use bullet lists.
 Panel open/closed and width persist to `localStorage` under `lps.chat.v1`,
 written from an effect behind a `hydrated` ref — the same pattern, and the same
 reason, as the table layout.
+
+### Chat appearance
+
+Mobile **More → Chat appearance** opens a Telegram-inspired original settings
+sheet with a live bubble preview, three scoped chat palettes (Garden, Desert
+Bloom and Agave Night), an optional repeating desert-plants wallpaper and Reset.
+The wallpaper is original low-contrast cactus/agave/yucca SVG line art at
+`public/desert-plants-chat.svg`, not a Telegram asset. Color variables are scoped
+to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
+Preferences persist per browser/device under `lps.chat.appearance.v1` and also
+apply to the desktop chat panel.
 
 ## Notes vs Communications
 

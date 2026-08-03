@@ -19,6 +19,10 @@ here).
 
 ### Changed
 
+- **Chat appearance settings are available on mobile.** More → Chat appearance
+  provides a live preview, Garden / Desert Bloom / Agave Night palettes, an
+  optional original cactus-agave-yucca line-art wallpaper and Reset. Preferences
+  persist per device and remain scoped to chat rather than recoloring the app.
 - **Generic list-page headers are removed on mobile.** Suppliers and Plant
   Search now start with their primary controls; highlighted bottom tabs already
   identify those pages. Desktop headers and supplier-specific identity headers

@@ -8,6 +8,7 @@ import { Mic, Pause, Paperclip, Play, Send, Trash2, X } from 'lucide-react'
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
+import { chatThemeStyle, type ChatAppearance } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -508,7 +509,7 @@ function StatusDot({ pending }: { pending: boolean }) {
 }
 
 function Transcript({
-  agent, messages, pending, error, onSuggest, mobile,
+  agent, messages, pending, error, onSuggest, mobile, wallpaper,
 }: {
   agent: Agent
   messages: ChatMessage[]
@@ -516,6 +517,7 @@ function Transcript({
   error: string
   onSuggest: (s: string) => void
   mobile?: boolean
+  wallpaper?: boolean
 }) {
   const box = useRef<HTMLDivElement>(null)
   // Stay pinned to the newest message, but never yank the user back down while
@@ -540,7 +542,12 @@ function Transcript({
         const el = e.currentTarget
         pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
       }}
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-background p-4"
+      style={wallpaper ? {
+        backgroundImage: "url('/desert-plants-chat.svg')",
+        backgroundRepeat: 'repeat',
+        backgroundSize: '320px 320px',
+      } : undefined}
     >
       {messages.length === 0 && !pending && (
         <div className="m-auto max-w-[240px] text-center text-[12.5px] text-muted-foreground">
@@ -795,12 +802,13 @@ function Composer({
  * agent tab can toggle the sheet without a redundant close button.
  */
 export function AgentChat({
-  isMobile, mobileOpen, mobileAgentId,
+  isMobile, mobileOpen, mobileAgentId, appearance,
 }: {
   isMobile: boolean
   mobileOpen: boolean
   /** Mobile only: which agent the tab bar picked — the sheet has no rail. */
   mobileAgentId?: string
+  appearance: ChatAppearance
 }) {
   const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
@@ -906,7 +914,10 @@ export function AgentChat({
   if (isMobile) {
     if (!mobileOpen) return null
     return (
-      <div className="absolute inset-0 z-[70] flex flex-col bg-background">
+      <div
+        className="absolute inset-0 z-[70] flex flex-col bg-background"
+        style={chatThemeStyle(appearance.theme)}
+      >
         {header(true)}
         <Transcript
           agent={agent}
@@ -915,6 +926,7 @@ export function AgentChat({
           error={chat.error}
           onSuggest={setDraft}
           mobile
+          wallpaper={appearance.wallpaper}
         />
         <Composer agent={agent} composer={composer} onSend={send} draft={draft} setDraft={setDraft} big />
       </div>
@@ -957,7 +969,7 @@ export function AgentChat({
   return (
     <div
       className="relative flex min-h-0 flex-none flex-col border-l border-border bg-card"
-      style={{ width }}
+      style={{ width, ...chatThemeStyle(appearance.theme) }}
     >
       <div
         onMouseDown={startResize}
@@ -1015,6 +1027,7 @@ export function AgentChat({
         pending={chat.pending}
         error={chat.error}
         onSuggest={setDraft}
+        wallpaper={appearance.wallpaper}
       />
       <Composer agent={agent} composer={composer} onSend={send} draft={draft} setDraft={setDraft} />
     </div>
