@@ -449,9 +449,8 @@ export function Shell({
                 </div>
               )}
 
-              {/* The ⋯ menu popover lives here rather than in the tab bar —
-                  the bar scrolls horizontally, and an overflow container would
-                  clip anything popping out of it. */}
+              {/* The ⋯ menu popover lives here rather than inside the
+                  overflow-clipped tab bar. */}
               {isMobile && moreMenu && (
                 <div data-more-menu className="lps-pop absolute bottom-2 right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
                   <button
@@ -501,7 +500,7 @@ export function Shell({
                 that wraps to two lines ("Plant search") must not push its icon
                 out of line with the rest. */}
             {isMobile && (
-              <nav className="flex flex-none items-stretch gap-0.5 overflow-x-auto border-t border-border bg-card px-1.5 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
+              <nav className="flex flex-none items-stretch gap-0.5 overflow-hidden border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
                 {NAV.map(({ id, label, href, Icon, enabled }) => {
                   const active = page === id
                   const inner = (
@@ -513,7 +512,7 @@ export function Shell({
                     </>
                   )
                   const klass = cn(
-                    'flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-1 py-1.5',
+                    'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
                     active ? 'text-primary' : 'text-muted-foreground',
                     enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
                   )
@@ -539,7 +538,7 @@ export function Shell({
                     }}
                     aria-label={a.upcoming ? `${a.name} — coming soon` : a.name}
                     className={cn(
-                      'flex min-w-[72px] flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
+                      'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
                       mobileChat && mobileAgent === a.id ? 'text-primary' : 'text-muted-foreground',
                       a.upcoming ? 'cursor-not-allowed opacity-45' : 'cursor-pointer',
                     )}
@@ -555,7 +554,7 @@ export function Shell({
                   aria-label="More"
                   aria-expanded={moreMenu}
                   className={cn(
-                    'flex min-w-[72px] flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-2 py-1.5',
+                    'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
                     moreMenu ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >

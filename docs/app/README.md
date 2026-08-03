@@ -91,9 +91,9 @@ already identify the page:
   tab again closes the sheet, while another agent tab switches chats. The bar
   ends in a **⋯ More** menu carrying
   what the desktop rail keeps at the bottom — Chat appearance, the app theme
-  toggle, Know your Agents, and the signed-in user with log out. The popover
-  renders outside the bar (the bar scrolls horizontally, so it would clip a
-  child popover).
+  toggle, Know your Agents, and the signed-in user with log out. All seven tabs
+  share the available width, so More stays visible without horizontal scrolling.
+  Its popover renders outside the overflow-clipped bar.
 
 `Job Requests` and desktop general `Settings` are **rendered disabled** — they
 exist in the design but are out of scope, so the frame keeps its shape without

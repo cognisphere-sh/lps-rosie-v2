@@ -19,6 +19,9 @@ here).
 
 ### Changed
 
+- **Mobile More is always visible.** All seven bottom-nav items now share the
+  available width instead of overflowing horizontally, so Chat appearance and
+  other More actions remain discoverable without swiping the tab bar.
 - **Chat appearance settings are available on mobile.** More → Chat appearance
   provides a live preview, Garden Green / Fuchsia Bloom / Agave Blue palettes, an
   optional original cactus-agave-yucca line-art wallpaper and Reset. Preferences
