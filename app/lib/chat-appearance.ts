@@ -68,7 +68,7 @@ export function chatWallpaperStyle(wallpaperId: ChatWallpaperId): CSSProperties 
       // preserves the image luminance: black stays black while the brightened
       // cactus/agave line work rolls forest, coral or violet with the agent.
       backgroundColor: '#000',
-      backgroundImage: `linear-gradient(var(--primary), var(--primary)), url('${wallpaper.image}')`,
+      backgroundImage: `linear-gradient(color-mix(in srgb, var(--primary) 58%, transparent), color-mix(in srgb, var(--primary) 58%, transparent)), url('${wallpaper.image}')`,
       backgroundBlendMode: 'color, normal',
       backgroundRepeat: 'repeat',
       backgroundSize: wallpaper.size,
