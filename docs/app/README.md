@@ -380,8 +380,9 @@ reason, as the table layout.
 Mobile **More → Chat appearance** opens a Telegram-inspired original settings
 sheet with a live bubble preview, three scoped chat palettes (Garden Green,
 Fuchsia Bloom and Agave Blue), an optional repeating desert-plants wallpaper and Reset.
-The wallpaper is original low-contrast cactus/agave/yucca SVG line art at
-`public/desert-plants-chat.svg`, not a Telegram asset. Color variables are scoped
+The wallpaper is original dense, low-contrast cactus/agave/yucca/sun SVG doodle
+art at `public/desert-plants-chat.svg`, with green, blue and fuchsia strokes; it
+is not a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also
 apply to the desktop chat panel.

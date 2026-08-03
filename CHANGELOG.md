@@ -24,7 +24,8 @@ here).
   other More actions remain discoverable without swiping the tab bar.
 - **Chat appearance settings are available on mobile.** More → Chat appearance
   provides a live preview, Garden Green / Fuchsia Bloom / Agave Blue palettes, an
-  optional original cactus-agave-yucca line-art wallpaper and Reset. Preferences
+  optional original dense cactus-agave-yucca-sun doodle wallpaper in green,
+  blue and fuchsia, plus Reset. Preferences
   persist per device and remain scoped to chat rather than recoloring the app.
 - **Generic list-page headers are removed on mobile.** Suppliers and Plant
   Search now start with their primary controls; highlighted bottom tabs already
