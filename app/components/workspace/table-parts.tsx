@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -531,15 +532,14 @@ export function Cell({
     const items = links ?? (Array.isArray(value) ? value.map((l) => ({ label: l, path: '' })) : [])
     if (items.length === 0) return <span className="px-1.5 text-[11.5px] italic text-lps-dim">none</span>
     return (
-      <button
-        type="button"
-        onClick={onOpen}
+      <Link
+        href={`/suppliers/${rowId}?tab=files`}
         title={`Open all ${items.length} availability files`}
-        className="flex h-7 cursor-pointer items-center gap-1.5 rounded-lg border-none bg-transparent px-1.5 text-[11.5px] font-semibold text-primary hover:bg-secondary"
+        className="flex h-7 items-center gap-1.5 rounded-lg px-1.5 text-[11.5px] font-semibold text-primary hover:bg-secondary"
       >
         <FileIcon size={11} className="flex-none" />
         {items.length} {items.length === 1 ? 'file' : 'files'}
-      </button>
+      </Link>
     )
   }
 
