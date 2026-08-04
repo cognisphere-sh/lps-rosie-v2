@@ -169,6 +169,9 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
       if (typeof filter === 'string') return text.toLowerCase().includes(filter.toLowerCase())
       if (Array.isArray(filter)) return filter.length === 0 || filter.includes(text)
 
+      // Missing numeric values are not zero. Keep them when no range is active,
+      // but exclude them from any min/max query.
+      if (raw == null || raw === '') return !filter.min && !filter.max
       const n = Number(raw)
       if (!Number.isFinite(n)) return false
       if (filter.min && n < Number(filter.min)) return false
@@ -182,8 +185,13 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
     out = [...out].sort((a, b) => {
       const av = a.values[sort.column]
       const bv = b.values[sort.column]
+      // Missing values stay at the end in both directions; descending price
+      // must not promote unpriced inventory above real supplier prices.
+      const aMissing = av == null || av === ''
+      const bMissing = bv == null || bv === ''
+      if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
-      return String(av ?? '').localeCompare(String(bv ?? '')) * dir
+      return String(av).localeCompare(String(bv)) * dir
     })
   }
   return out

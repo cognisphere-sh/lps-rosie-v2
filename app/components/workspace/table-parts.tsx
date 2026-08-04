@@ -593,7 +593,7 @@ export function Cell({
           display === '' ? 'italic text-lps-dim' : 'text-foreground',
         )}
       >
-        {display === '' ? 'empty' : display}
+        {display === '' ? (col.money ? 'Price unavailable' : 'empty') : display}
       </span>
       {editable && (
         <span className="lps-pencil inline-flex flex-none text-lps-dim opacity-0 transition-opacity">

@@ -490,9 +490,6 @@ export async function updateFields(
       if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
       value = n
     }
-    if (value === null && column === 'unit_price') {
-      throw new Error('unit_price cannot be empty')
-    }
     values[column] = value
   }
 

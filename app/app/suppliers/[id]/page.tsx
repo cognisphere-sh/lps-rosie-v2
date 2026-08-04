@@ -736,7 +736,9 @@ export default function SupplierProfilePage() {
                         </div>
                       </div>
                       <div className="flex-none text-right">
-                        <div className="text-[14px] font-bold tabular-nums">{money(p.values.price)}</div>
+                        <div className={cn('text-[14px] tabular-nums', p.values.price == null ? 'text-[11px] italic text-lps-dim' : 'font-bold')}>
+                          {p.values.price == null ? 'Price unavailable' : money(p.values.price)}
+                        </div>
                         <div className="text-[11px] text-muted-foreground tabular-nums">
                           {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
                         </div>

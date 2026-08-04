@@ -113,13 +113,20 @@ availability files.
 | `name` | text | no | The whole plant identity: `Name [scientific name, variant]`, e.g. `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`. `Name` is as the source prints it; either bracket part is omitted when the source doesn't give it. **Part of a row's identity** — (name, size) alone is NOT unique |
 | `name_key` | text **generated stored** | — | `normalize_plant_key(name)`; joins to `plant_other_names`. Do not write |
 | `size` | text | yes | Normalized: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`). `#`/`gal` mean gallons |
-| `unit_price` | numeric(10,2) | **no** | USD; lower bound if the source gave a range |
+| `unit_price` | numeric(10,2) | yes | USD; lower bound if the source gave a range. `NULL` means the supplier provided no price; never coerce missing to zero |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
 | `height` / `width` / `caliper` | text | yes | As printed in the source |
 | `notes` | text | yes | Per-row qualifier ("limited", "B&B only") |
 | `image_url` | text | yes | Optional product image |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
+
+Price semantics are intentionally strict: `NULL` means no price was printed or
+provided, while a numeric value is the supplier's printed price. Legacy zero
+rows are not reinterpreted automatically; they require source-level review to
+distinguish genuine printed zeroes from historical missing-price placeholders.
+`inventory_enriched`, `rate_charts`, and `search_inventory` pass `unit_price`
+through unchanged, including `NULL`.
 
 There is deliberately **no** common-names column — alternative names live in
 `plant_other_names` and are derived at read time. There is also no `category`

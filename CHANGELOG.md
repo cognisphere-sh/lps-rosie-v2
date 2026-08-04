@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Missing inventory prices retain their meaning.** The approved nullable-price
+  migration stores an omitted supplier price as `NULL`, leaves legacy zero rows
+  untouched, and updates the app so missing prices display as unavailable rather
+  than `$0.00`. Blank price edits, range filters and sorting now preserve that
+  distinction.
 - **Mobile agent navigation is consolidated.** One **Agents** bottom tab now
   opens Daisy, Rosie and Nova as channels; selecting an active agent opens the
   same existing conversation and Back returns to Agents. This is UI-only — no

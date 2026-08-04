@@ -264,8 +264,10 @@ and the other two are derived.
 The table/column pair is checked against a whitelist in `lib/queries.ts`
 (`WRITABLE`), **server-side**. The request body comes from the browser, so a
 client asking to write `is_active`, or a column on `users`, must be refused
-regardless of what the UI would send. `unit_price` is `NOT NULL` in the schema,
-so a blank is rejected rather than being written as null.
+regardless of what the UI would send. `unit_price` is nullable: clearing an
+inventory price writes `NULL`, and every table/card renders that as **Price
+unavailable** rather than `$0.00`. Numeric sorting keeps missing values last in
+both directions, and active min/max filters exclude missing values.
 
 Deleting is genuinely destructive in effect: a soft-deleted row disappears from
 `search_inventory` and from what the agents see.
