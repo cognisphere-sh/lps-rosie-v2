@@ -670,6 +670,7 @@ export function Shell({
               isMobile={false}
               mobileOpen={mobileChat}
               appearance={chatAppearance}
+              onDesktopFull={() => setNavOpen(false)}
             />
           )}
         </div>

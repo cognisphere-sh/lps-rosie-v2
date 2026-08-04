@@ -19,12 +19,16 @@ here).
 
 ### Changed
 
+- **Desktop Full chat coordinates the surrounding workspace.** Selecting Full
+  now collapses the left navigation automatically while preserving a narrow
+  supplier-name/search peek pane; restored Full state keeps the same layout.
 - **Missing inventory prices retain their meaning.** The approved nullable-price
-  migration stores an omitted supplier price as `NULL`, leaves legacy zero rows
-  untouched, and updates the app so missing prices display as unavailable rather
-  than `$0.00`. Blank price edits, range filters and sorting now preserve that
-  distinction. Client and `search_inventory` sorts keep missing values last in
-  both directions.
+  migration stores an omitted supplier price as `NULL`; a follow-up cleanup
+  converts all 28,998 historical zero-price placeholders to `NULL`. The app
+  displays them as unavailable rather than `$0.00`; blank edits, range filters,
+  and client/`search_inventory` sorting preserve the distinction and keep
+  missing values last. Future numeric zero remains valid only when explicitly
+  printed by the supplier.
 - **Mobile agent navigation is consolidated.** One **Agents** bottom tab now
   opens Daisy, Rosie and Nova as channels; selecting an active agent opens the
   same existing conversation and Back returns to Agents. This is UI-only — no

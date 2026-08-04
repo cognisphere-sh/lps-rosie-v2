@@ -29,6 +29,18 @@ const POLL_MS = 2000
 const MIN_W = 280
 const STORE = 'lps.chat.v1'
 
+const COLLAPSED_NAV_W = 56
+const WORKSPACE_PEEK_W = 240
+
+/** Full chat still leaves one supplier-name/search column visible. */
+function maxDesktopChatWidth() {
+  return Math.max(MIN_W, window.innerWidth - COLLAPSED_NAV_W - WORKSPACE_PEEK_W)
+}
+
+function clampDesktopChatWidth(width: number) {
+  return Math.min(Math.max(width, MIN_W), maxDesktopChatWidth())
+}
+
 // ------------------------------------------------------------------ markdown
 
 /**
@@ -889,7 +901,7 @@ function Composer({
  * agent tab can toggle the sheet without a redundant close button.
  */
 export function AgentChat({
-  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack,
+  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack, onDesktopFull,
 }: {
   isMobile: boolean
   mobileOpen: boolean
@@ -898,6 +910,8 @@ export function AgentChat({
   appearance: ChatAppearance
   /** Returns the mobile conversation to the Agents channel list. */
   onMobileBack?: () => void
+  /** Coordinates Full chat with the Shell's collapsible desktop navigation. */
+  onDesktopFull?: () => void
 }) {
   const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
@@ -919,7 +933,11 @@ export function AgentChat({
       const raw = window.localStorage.getItem(STORE)
       const saved = raw ? (JSON.parse(raw) as { open?: boolean; width?: number }) : null
       setOpen(saved?.open ?? window.innerWidth >= 1180)
-      if (saved?.width) setWidth(saved.width)
+      if (saved?.width) {
+        const restored = clampDesktopChatWidth(saved.width)
+        setWidth(restored)
+        if (restored >= maxDesktopChatWidth() - 8) onDesktopFull?.()
+      }
     } catch {
       setOpen(window.innerWidth >= 1180)
     }
@@ -930,6 +948,13 @@ export function AgentChat({
     if (!hydrated.current) return
     window.localStorage.setItem(STORE, JSON.stringify({ open, width }))
   }, [open, width])
+
+  useEffect(() => {
+    if (isMobile) return
+    const clamp = () => setWidth((current) => clampDesktopChatWidth(current))
+    window.addEventListener('resize', clamp)
+    return () => window.removeEventListener('resize', clamp)
+  }, [isMobile])
 
   useEffect(() => {
     if (!menu) return
@@ -952,8 +977,7 @@ export function AgentChat({
     e.preventDefault()
     const startX = e.clientX
     const startW = width
-    const move = (ev: MouseEvent) =>
-      setWidth(Math.min(Math.max(startW + (startX - ev.clientX), MIN_W), Math.max(320, window.innerWidth - 260)))
+    const move = (ev: MouseEvent) => setWidth(clampDesktopChatWidth(startW + (startX - ev.clientX)))
     const up = () => {
       document.removeEventListener('mousemove', move)
       document.removeEventListener('mouseup', up)
@@ -1079,9 +1103,18 @@ export function AgentChat({
       {header()}
 
       <div className="flex flex-none items-center gap-1 border-b border-border px-3 py-2">
-        {([['Full', () => Math.max(320, window.innerWidth - 260)], ['50%', () => Math.round(window.innerWidth * 0.5)], ['30%', () => Math.round(window.innerWidth * 0.3)]] as const).map(
+        {([['Full', maxDesktopChatWidth], ['50%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.5))], ['30%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.3))]] as const).map(
           ([label, w]) => (
-            <SizePill key={label} label={label} width={width} target={w} onPick={setWidth} />
+            <SizePill
+              key={label}
+              label={label}
+              width={width}
+              target={w}
+              onPick={(next) => {
+                if (label === 'Full') onDesktopFull?.()
+                setWidth(next)
+              }}
+            />
           ),
         )}
         <div className="flex-1" />
