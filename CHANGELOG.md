@@ -35,10 +35,11 @@ here).
 
 - **Desert Night is available as a chat wallpaper.** The rights-confirmed
   user-provided cactus/agave pattern keeps its deep-black base while the icon
-  strokes are selectively dimmed. CSS color blending preserves luminance,
-  subtly tinting only the artwork forest/coral/violet with the active agent;
-  None and
-  the original light line-art wallpaper remain available in Settings.
+  strokes are selectively dimmed, including a further 20% reduction after live
+  review. CSS color blending preserves luminance and subtly tints only the
+  artwork forest/coral/violet with the active agent. Incoming bubbles now use a
+  stronger tinted surface/border, while solid outgoing bubbles force white text;
+  None and the original light line-art wallpaper remain available in Settings.
 - **Pull-to-refresh works across mobile workspace pages.** Pulling down from a
   page pane's top refreshes its route; Suppliers and Plant Search additionally
   rerun the active client query while preserving its term and filters.

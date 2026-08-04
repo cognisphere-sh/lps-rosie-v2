@@ -408,16 +408,20 @@ Agave Blue remain optional choices. Wallpaper choices are None, the original
 light **Desert line art** SVG at `public/desert-plants-chat.svg`, and the dense
 black **Desert Night** cactus/agave pattern at
 `public/desert-night-chat.webp` (a rights-confirmed user-provided image,
-optimized from JPEG to WebP with only the visible icon strokes dimmed).
-Desert Night uses a 58%-strength CSS `color` blend with the active agent accent:
+optimized from JPEG to WebP with the visible icon strokes dimmed an additional
+20% from the prior treatment while black pixels remain untouched). Desert Night
+uses a 58%-strength CSS `color` blend with the active agent accent:
 image luminance is preserved, so black stays black while Daisy, Rosie and Nova
 subtly tint only the dimmed artwork forest, coral and violet respectively.
 Neither wallpaper is a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also
 apply to the desktop chat panel. The wallpaper field is an id (`none`,
-`line-art`, or `desert-night`); legacy boolean `true` migrates to `line-art`. Chat messages, the composer and the appearance
-preview use Roboto at 16px with a compact 1.35 line height, approximating native
+`line-art`, or `desert-night`); legacy boolean `true` migrates to `line-art`.
+Agent/incoming bubbles use an 18% accent-tinted card surface with a 28%
+accent-tinted border, separating them from black wallpaper; outgoing bubbles
+stay solid accent with explicit white text. Chat messages, the composer and the
+appearance preview use Roboto at 16px with a compact 1.35 line height, approximating native
 Telegram typography while leaving the rest of the app on Inter.
 
 ## Notes vs Communications

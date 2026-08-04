@@ -46,7 +46,7 @@ export function ChatAppearanceSettings() {
               className="flex min-h-[230px] flex-col justify-end gap-2 p-4"
               style={chatWallpaperStyle(appearance.wallpaper)}
             >
-              <div className="font-chat max-w-[82%] self-start rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2 text-[16px] leading-[1.35]">
+              <div className="font-chat max-w-[82%] self-start rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2 text-[16px] leading-[1.35]">
                 The agaves are looking sharp today.
               </div>
               <div className="font-chat max-w-[82%] self-end rounded-[12px_12px_4px_12px] bg-primary px-3 py-2 text-[16px] leading-[1.35] text-primary-foreground">

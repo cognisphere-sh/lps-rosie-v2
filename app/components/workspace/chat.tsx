@@ -159,7 +159,7 @@ function VoicePlayer({ src, mine }: { src: string; mine: boolean }) {
     <div
       className={cn(
         'flex w-[232px] max-w-full items-center gap-2.5 rounded-full px-2.5 py-2',
-        mine ? 'bg-primary text-primary-foreground' : 'border border-lps-hair bg-lps-bubble text-foreground',
+        mine ? 'bg-primary text-primary-foreground' : 'border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
       )}
     >
       <audio
@@ -633,7 +633,7 @@ function Transcript({
                 'px-3 py-2.5 text-[16px] leading-[1.35]',
                 m.role === 'user'
                   ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
-                  : 'rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble text-foreground',
+                  : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
               )}
             >
               <Markdown text={m.text} />
@@ -647,7 +647,7 @@ function Transcript({
 
       {pending && (
         <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
-          <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
             <span className="flex gap-1">
               {[0, 1, 2].map((i) => (
                 <span

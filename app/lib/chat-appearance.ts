@@ -92,9 +92,11 @@ export function chatThemeStyle(theme: ChatThemeId): CSSProperties {
   const accent = CHAT_THEMES.find((item) => item.id === theme)?.accent ?? CHAT_THEMES[0].accent
   return {
     '--primary': accent,
+    '--primary-foreground': '#fff',
     '--ring': accent,
     '--secondary': `color-mix(in srgb, ${accent} 16%, var(--card))`,
     '--secondary-foreground': `color-mix(in srgb, ${accent} 82%, var(--foreground))`,
-    '--lps-bubble': `color-mix(in srgb, ${accent} 9%, var(--card))`,
+    '--lps-bubble': `color-mix(in srgb, ${accent} 18%, var(--card))`,
+    '--chat-bubble-border': `color-mix(in srgb, ${accent} 28%, var(--border))`,
   } as CSSProperties
 }
