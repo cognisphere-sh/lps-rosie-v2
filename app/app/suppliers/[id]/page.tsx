@@ -118,6 +118,13 @@ export default function SupplierProfilePage() {
   const [commsChannel, setCommsChannel] = useState('email')
   const [savingComms, setSavingComms] = useState(false)
 
+  useEffect(() => {
+    const requested = new URL(window.location.href).searchParams.get('tab')
+    if (requested === 'notes' || requested === 'comms' || requested === 'inventory' || requested === 'files') {
+      setTab(requested)
+    }
+  }, [])
+
   const profileDirty = useMemo(
     () =>
       profileEditing &&

@@ -217,10 +217,10 @@ parameters, and are saved as a JSON array under
 
 Both the suppliers table's "Inventory sources" cell and the plants table's
 "Source" cell link to the underlying file. Desktop supplier rows stay a uniform
-48px regardless of source count: the cell shows the first/current file plus a
-compact `+N` control, whose popover contains every existing source link in a
-scrollable list. This is presentation-only; the API payload and source records
-remain unchanged. The cell tooltip also lists every filename.
+48px regardless of source count: the cell shows only `N files`. Clicking the
+count opens that supplier's existing Files tab via `?tab=files`, where names,
+dates and historical documents already belong. This is presentation-only; the
+API payload, source records and ingestion remain unchanged.
 
 `suppliers.website` is stored as a bare domain (`bluemountainnsy.com`), so
 `websiteHref()` prefixes `https://` when linking.

@@ -234,7 +234,13 @@ export default function SuppliersPage() {
                               ? formatDate(row.values[col.key] as string | null)
                               : row.values[col.key] ?? null
                           }
-                          onOpen={col.kind === 'link' ? () => router.push(`/suppliers/${row.id}`) : undefined}
+                          onOpen={
+                            col.kind === 'link'
+                              ? () => router.push(`/suppliers/${row.id}`)
+                              : col.kind === 'list'
+                                ? () => router.push(`/suppliers/${row.id}?tab=files`)
+                                : undefined
+                          }
                           onSave={col.edit ? (next) => saveCell(row, col, next) : undefined}
                         />
                       </td>
