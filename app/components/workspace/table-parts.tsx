@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -527,19 +526,42 @@ export function Cell({
   }
 
   if (col.kind === 'list') {
-    // The master table only answers whether source history exists. Full names,
-    // dates and links already belong to the supplier profile's Files tab.
+    // Sources arrive newest-first. Keep the current file directly accessible,
+    // then deep-link any additional history to the supplier's existing Files tab.
     const items = links ?? (Array.isArray(value) ? value.map((l) => ({ label: l, path: '' })) : [])
-    if (items.length === 0) return <span className="px-1.5 text-[11.5px] italic text-lps-dim">none</span>
-    return (
-      <Link
-        href={`/suppliers/${rowId}?tab=files`}
-        title={`Open all ${items.length} availability files`}
-        className="flex h-7 items-center gap-1.5 rounded-lg px-1.5 text-[11.5px] font-semibold text-primary hover:bg-secondary"
+    const latest = items[0]
+    const more = Math.max(0, items.length - 1)
+    if (!latest) return <span className="px-1.5 text-[11.5px] italic text-lps-dim">none</span>
+    const current = latest.path ? (
+      <a
+        href={fileHref(latest.path)}
+        target="_blank"
+        rel="noreferrer"
+        title={`Open latest: ${latest.label}`}
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-[11.5px] font-semibold text-primary hover:underline"
       >
         <FileIcon size={11} className="flex-none" />
-        {items.length} {items.length === 1 ? 'file' : 'files'}
-      </Link>
+        <span className="truncate">{latest.label}</span>
+      </a>
+    ) : (
+      <span title={latest.label} className="flex min-w-0 flex-1 items-center gap-1.5 text-[11.5px] font-semibold text-primary">
+        <FileIcon size={11} className="flex-none" />
+        <span className="truncate">{latest.label}</span>
+      </span>
+    )
+    return (
+      <div className="flex h-7 min-w-0 items-center gap-1 px-1.5">
+        {current}
+        {more > 0 && (
+          <a
+            href={`/suppliers/${rowId}?tab=files`}
+            title={`Open ${more} older ${more === 1 ? 'file' : 'files'}`}
+            className="flex h-6 flex-none items-center rounded-full border border-border bg-muted px-2 text-[10.5px] font-semibold text-foreground hover:bg-secondary"
+          >
+            +{more}
+          </a>
+        )}
+      </div>
     )
   }
 

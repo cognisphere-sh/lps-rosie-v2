@@ -19,10 +19,10 @@ here).
 
 ### Changed
 
-- **Desktop supplier rows are uniform height.** Inventory sources now show only
-  `N files`; clicking the count deep-links to that supplier's existing Files tab.
-  Varying source counts no longer enlarge rows, and no API, source-record or
-  ingestion behavior changes.
+- **Desktop supplier rows are uniform height.** Inventory sources show the
+  newest filename as a direct link plus `+N` when older files exist; `+N`
+  deep-links to that supplier's Files tab. Source counts no longer enlarge rows,
+  and no API, source-record or ingestion behavior changes.
 
 ## 2026-08-03
 
