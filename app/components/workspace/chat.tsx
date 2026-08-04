@@ -944,7 +944,11 @@ export function AgentChat({
         const wasFull = saved.width >= window.innerWidth - 340
         const restored = wasFull ? fullDesktopChatWidth() : clampDesktopChatWidth(saved.width)
         setWidth(restored)
-        if (wasFull || restored >= fullDesktopChatWidth() - 8) onDesktopFull?.()
+        // `useIsMobile()` begins false until its media-query effect runs. Check
+        // the real viewport before restoring desktop-only Shell state, or a
+        // saved Full width can zero out the mobile workspace during hydration.
+        const desktopViewport = window.matchMedia('(min-width: 900px)').matches
+        if (desktopViewport && (wasFull || restored >= fullDesktopChatWidth() - 8)) onDesktopFull?.()
       }
     } catch {
       setOpen(window.innerWidth >= 1180)

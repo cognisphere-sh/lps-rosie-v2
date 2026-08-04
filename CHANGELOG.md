@@ -27,7 +27,9 @@ here).
 - **Desktop Full chat uses the full canvas.** Selecting Full hides both the
   navigation and workspace; a centered edge handle reveals or hides a 240px
   supplier/search peek pane on demand. Restored Full state keeps that layout,
-  while 50%/30%, resizing or hiding chat exits it.
+  while 50%/30%, resizing or hiding chat exits it. Desktop Full restoration is
+  blocked/reset at the mobile breakpoint so it cannot zero-width Supplier or
+  Plant Search during hydration.
 - **Missing inventory prices retain their meaning.** The approved nullable-price
   migration stores an omitted supplier price as `NULL`; a follow-up cleanup
   converts all 28,998 historical zero-price placeholders to `NULL`. The app

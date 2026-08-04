@@ -171,6 +171,15 @@ export function Shell({
   }, [])
 
   useEffect(() => {
+    // Desktop Full is a layout mode, never a mobile state. This also repairs a
+    // stale Full flag if the breakpoint changes after hydration or rotation.
+    if (isMobile) {
+      setDesktopChatFull(false)
+      setDesktopPeekOpen(false)
+    }
+  }, [isMobile])
+
+  useEffect(() => {
     // Android standalone PWAs can report 100dvh as the full physical display,
     // including system bars outside the usable visual viewport. When its
     // keyboard pans to a focused field, visualViewport.offsetTop is non-zero;

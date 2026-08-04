@@ -81,7 +81,9 @@ already identify the page:
   left navigation and workspace so chat uses the complete width. A centered
   pull handle on chat's left edge reveals/hides a 240px supplier/search peek
   pane without restoring the menu. Saved Full state restores the same layout;
-  choosing 50%/30%, hiding chat, or manually resizing exits Full.
+  choosing 50%/30%, hiding chat, or manually resizing exits Full. Full state is
+  desktop-only and is explicitly cleared at the mobile breakpoint, including
+  during initial media-query hydration and device rotation.
 - **Mobile** (<900px, the design's own breakpoint): the left rail is replaced by
   a five-item bottom bar. One **Agents** tab replaces the old permanent
   Daisy/Rosie/Nova tabs and opens a channel list for the same existing agent
