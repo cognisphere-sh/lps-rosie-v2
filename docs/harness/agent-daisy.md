@@ -134,6 +134,9 @@ and when; the summaries below are one line each.
 - `0012_search_inventory_nulls_last.sql` — nullable-price follow-up. Replaces
   `search_inventory` without changing its signature/search behavior so optional
   server-side sorts keep missing values last in both directions.
+- `0013_legacy_zero_prices_to_null.sql` — approved 2026-08-04. One-time cleanup
+  converting all historical `unit_price = 0` placeholders to `NULL`; future
+  numeric zero remains reserved for a supplier-explicit printed zero.
 
 ## Skills
 

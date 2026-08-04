@@ -8,6 +8,12 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0013_legacy_zero_prices_to_null.sql`
+Applied 2026-08-04 via Daisy's guarded Supabase runner with explicit Bhoumik
+approval. `UPDATE 28998`: all historical `unit_price = 0` rows became `NULL`.
+Post-check: zero = 0, null = 28,998, positive = 178,615. No positive prices
+changed. Future numeric zero remains valid only when explicitly printed.
+
 ## `0012_search_inventory_nulls_last.sql`
 Applied 2026-08-04 via Daisy's guarded Supabase runner after Bhoumik applied
 0011. Replaces `search_inventory` without changing its signature or matching;

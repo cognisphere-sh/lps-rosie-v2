@@ -122,11 +122,11 @@ availability files.
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
 Price semantics are intentionally strict: `NULL` means no price was printed or
-provided, while a numeric value is the supplier's printed price. Legacy zero
-rows are not reinterpreted automatically; they require source-level review to
-distinguish genuine printed zeroes from historical missing-price placeholders.
-`inventory_enriched`, `rate_charts`, and `search_inventory` pass `unit_price`
-through unchanged, including `NULL`.
+provided, while a numeric value is the supplier's printed price. On 2026-08-04,
+all 28,998 legacy zero-price placeholders were migrated to `NULL` with explicit
+approval. Future numeric zeroes are valid only when the supplier explicitly
+prints zero. `inventory_enriched`, `rate_charts`, and `search_inventory` pass
+`unit_price` through unchanged, including `NULL`.
 
 There is deliberately **no** common-names column — alternative names live in
 `plant_other_names` and are derived at read time. There is also no `category`
