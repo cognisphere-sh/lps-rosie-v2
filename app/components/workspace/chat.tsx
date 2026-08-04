@@ -6,7 +6,7 @@ import {
 } from 'react'
 import { ArrowDown, ArrowUp, Mic, Pause, Paperclip, Play, RefreshCw, Send, Trash2, X } from 'lucide-react'
 
-import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
+import { CheckIcon, ChevronLeft, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
 import {
   chatThemeForAgent, chatThemeStyle, chatWallpaperStyle,
@@ -889,13 +889,15 @@ function Composer({
  * agent tab can toggle the sheet without a redundant close button.
  */
 export function AgentChat({
-  isMobile, mobileOpen, mobileAgentId, appearance,
+  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack,
 }: {
   isMobile: boolean
   mobileOpen: boolean
-  /** Mobile only: which agent the tab bar picked — the sheet has no rail. */
+  /** Mobile only: which agent the Agents list picked — the sheet has no rail. */
   mobileAgentId?: string
   appearance: ChatAppearance
+  /** Returns the mobile conversation to the Agents channel list. */
+  onMobileBack?: () => void
 }) {
   const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
@@ -965,6 +967,16 @@ export function AgentChat({
       'flex flex-none items-center gap-2.5 border-b border-border',
       big ? 'px-3 py-2' : 'px-4 py-3',
     )}>
+      {big && onMobileBack && (
+        <button
+          type="button"
+          onClick={onMobileBack}
+          aria-label="Back to Agents"
+          className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground hover:bg-muted"
+        >
+          <ChevronLeft size={18} />
+        </button>
+      )}
       <Image
         src={agent.avatar}
         alt=""

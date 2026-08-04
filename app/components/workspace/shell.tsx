@@ -143,6 +143,7 @@ export function Shell({
   const user = useSessionUser()
   const [navOpen, setNavOpen] = useState(true)
   const [userMenu, setUserMenu] = useState(false)
+  const [mobileAgentsOpen, setMobileAgentsOpen] = useState(false)
   const [mobileChat, setMobileChat] = useState(false)
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
@@ -267,6 +268,7 @@ export function Shell({
   // arrives, and behind the sheet that reads as the tap having done nothing.
   const leaveMoreMenu = () => {
     setMoreMenu(false)
+    setMobileAgentsOpen(false)
     setMobileChat(false)
   }
 
@@ -288,7 +290,7 @@ export function Shell({
         >
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}
-        {!(isMobile && (mobileChat || hideHeaderOnMobile)) && (
+        {!(isMobile && (mobileAgentsOpen || mobileChat || hideHeaderOnMobile)) && (
           <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
             <div className="flex min-w-0 flex-1 items-baseline gap-3">
               <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
@@ -417,7 +419,7 @@ export function Shell({
             <div
               className="relative flex min-h-0 flex-1 flex-col"
               onTouchStart={(e) => {
-                if (!isMobile || mobileChat || keyboardOpen || pageRefreshing || e.touches.length !== 1) return
+                if (!isMobile || mobileAgentsOpen || mobileChat || keyboardOpen || pageRefreshing || e.touches.length !== 1) return
                 const scroller = nearestVerticalScroller(e.target, e.currentTarget)
                 if (scroller && scroller.scrollTop > 0) return
                 pagePullStart.current = {
@@ -486,14 +488,62 @@ export function Shell({
                 </div>
               )}
 
-              {/* The chat sheet overlays the content inside this wrapper, so
-                  the tab bar below stays visible while it is open. */}
+              {/* Agents is a mobile channel list, not a new route or transport.
+                  Each row opens the same existing agent conversation. */}
+              {isMobile && mobileAgentsOpen && (
+                <div className="absolute inset-0 z-[69] flex flex-col bg-background">
+                  <div className="flex flex-none items-center border-b border-border bg-card px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="m-0 text-[18px] font-bold text-foreground">Agents</h2>
+                      <p className="m-0 text-[11.5px] text-muted-foreground">Your AI team</p>
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {AGENTS.map((agent) => (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        disabled={agent.upcoming}
+                        onClick={() => {
+                          setMobileAgent(agent.id)
+                          setMobileAgentsOpen(false)
+                          setMobileChat(true)
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-3 text-left hover:bg-muted',
+                          agent.upcoming ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
+                        )}
+                      >
+                        <Image src={agent.avatar} alt="" width={44} height={44} className="size-11 flex-none rounded-full object-cover" />
+                        <div className="min-w-0 flex-1 border-b border-lps-hair pb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[14px] font-bold text-foreground">{agent.name}</span>
+                            <span className="text-[11px] text-muted-foreground">{agent.role}</span>
+                            <span className={cn('ml-auto text-[10.5px] font-semibold', agent.upcoming ? 'text-muted-foreground' : 'text-primary')}>
+                              {agent.upcoming ? 'Coming soon' : 'Online'}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-[12px] text-muted-foreground">{agent.intro}</p>
+                        </div>
+                        {!agent.upcoming && <ChevronRight size={15} className="flex-none text-lps-dim" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* The conversation overlays the channel list/page, while the
+                  global Agents tab stays visible below it. */}
               {isMobile && (
                 <AgentChat
                   isMobile
                   mobileOpen={mobileChat}
                   mobileAgentId={mobileAgent}
                   appearance={chatAppearance}
+                  onMobileBack={() => {
+                    setMobileChat(false)
+                    setMobileAgentsOpen(true)
+                  }}
                 />
               )}
 
@@ -577,31 +627,23 @@ export function Shell({
                     <button key={id} type="button" disabled aria-label={label} className={klass}>{inner}</button>
                   )
                 })}
-                {AGENTS.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    disabled={a.upcoming}
-                    onClick={() => {
-                      // Same agent again toggles the sheet; another agent switches it.
-                      if (mobileChat && mobileAgent === a.id) {
-                        setMobileChat(false)
-                      } else {
-                        setMobileAgent(a.id)
-                        setMobileChat(true)
-                      }
-                    }}
-                    aria-label={a.upcoming ? `${a.name} — coming soon` : a.name}
-                    className={cn(
-                      'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                      mobileChat && mobileAgent === a.id ? 'text-primary' : 'text-muted-foreground',
-                      a.upcoming ? 'cursor-not-allowed opacity-45' : 'cursor-pointer',
-                    )}
-                  >
-                    <Image src={a.avatar} alt="" width={18} height={18} className="size-[18px] rounded-full object-cover" />
-                    <span className="text-[10.5px] font-semibold">{a.name}</span>
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreMenu(false)
+                    setMobileChat(false)
+                    setMobileAgentsOpen((open) => !open || mobileChat)
+                  }}
+                  aria-label="Agents"
+                  aria-expanded={mobileAgentsOpen || mobileChat}
+                  className={cn(
+                    'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                    mobileAgentsOpen || mobileChat || page === 'agents' ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                >
+                  <span className="flex size-[18px] items-center justify-center"><AgentsIcon /></span>
+                  <span className="text-[10.5px] font-semibold">Agents</span>
+                </button>
                 <button
                   type="button"
                   data-more-menu

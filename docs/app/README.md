@@ -55,7 +55,7 @@ fidelity", start here rather than reverting one of these by accident:
 | Higher-contrast dark-mode muted text and table chrome | The mock's small labels, empty states, controls and dividers were difficult to distinguish on typical displays. |
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
 | `Job Requests` rendered disabled | Job Requests remains out of scope. Settings is now a real responsive route containing Chat appearance. |
-| Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the rail and mobile tab, and refused by the chat proxy. |
+| Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the desktop rail and mobile Agents list, and refused by the chat proxy. |
 | No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
 | A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
 | Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
@@ -64,7 +64,7 @@ fidelity", start here rather than reverting one of these by accident:
 | **Communications** tab added; **Notes** edits in place; supplier profile fields require explicit edit mode | The schema has two distinct note columns, and tap-anywhere field editing is unsafe on touch screens. Profile changes are staged and saved together. See below. |
 | Profile inventory is paginated | The mock had a fixed list; real suppliers carry thousands of rows. |
 | Column reorder is direction-aware | The mock's algorithm makes an adjacent rightward drag a no-op. See *Column layout*. |
-| Source/website cells are links; source lists scroll | The mock rendered them as plain text. |
+| Source/website cells are links; supplier sources show latest + history count | The mock rendered them as plain text. |
 
 ## Shell and responsive behaviour
 
@@ -79,21 +79,20 @@ already identify the page:
   with the page title + subtitle, and the agent chat on the right — a resizable
   docked panel, or a 46px rail when hidden.
 - **Mobile** (<900px, the design's own breakpoint): the left rail is replaced by
-  a bottom tab bar (which carries a tab per agent — tapping a chattable agent
-  opens the chat sheet on that agent, tapping it again closes it, and upcoming
-  agents are disabled), and both list pages swap their tables for card
-  lists. The chat sheet overlays the page content only — it is rendered inside
-  the main column's relative wrapper, above the tab bar, so navigation stays
-  visible and usable while chatting. Its compact agent identity/status row
-  keeps avatar, name, short role and live status centered on one line and
-  replaces the underlying page header while open instead of stacking a second
-  header. There is no redundant close icon: tapping the highlighted active-agent
-  tab again closes the sheet, while another agent tab switches chats. The bar
-  ends in a **⋯ More** menu carrying
-  what the desktop rail keeps at the bottom — Settings, the app theme
-  toggle, Know your Agents, **Install app**, and the signed-in user with log
-  out. All seven tabs
-  share the available width, so More stays visible without horizontal scrolling.
+  a five-item bottom bar. One **Agents** tab replaces the old permanent
+  Daisy/Rosie/Nova tabs and opens a channel list for the same existing agent
+  conversations; chattable rows open the current chat sheet, Rosie remains
+  disabled as Coming soon, and the conversation's Back control returns to the
+  Agents list. This is navigation-only — transport, routing, threads, models and
+  APIs are unchanged. Both data-list pages swap their tables for cards. The
+  chat sheet overlays page content inside the main column, above the tab bar, so
+  global navigation remains visible while chatting. Its compact identity/status
+  row keeps avatar, name, short role and live status on one line and replaces
+  the underlying page header rather than stacking a second header. The bar ends
+  in a **⋯ More** menu carrying what the desktop rail keeps at the bottom —
+  Settings, the app theme toggle, Know your Agents, **Install app**, and the
+  signed-in user with log out. All five tabs share the available width, so More
+  stays visible without horizontal scrolling.
   The fixed Shell height follows `window.visualViewport.height` (with
   `window.innerHeight` as its ceiling), keeping the tab bar above Android PWA
   system chrome even when standalone mode misreports `100dvh`; it also follows

@@ -19,6 +19,10 @@ here).
 
 ### Changed
 
+- **Mobile agent navigation is consolidated.** One **Agents** bottom tab now
+  opens Daisy, Rosie and Nova as channels; selecting an active agent opens the
+  same existing conversation and Back returns to Agents. This is UI-only — no
+  chat transport, routing, thread, model or API behavior changed.
 - **Desktop supplier rows are uniform height.** Inventory sources show the
   newest filename as a direct link plus `+N` when older files exist; `+N`
   deep-links to that supplier's Files tab. Source counts no longer enlarge rows,
