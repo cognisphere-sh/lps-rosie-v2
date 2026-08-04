@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Inventory rows expose source ingestion time.** Plant rows now derive
+  **Ingested** from their active source timestamp, and supplier list/profile
+  views show the newest active-source **Last ingestion**. Manual/source-less
+  rows remain blank; ingestion time is explicitly not the source's effective
+  availability date.
 - **Desktop Full chat coordinates the surrounding workspace.** Selecting Full
   now collapses the left navigation automatically while preserving a narrow
   supplier-name/search peek pane; restored Full state keeps the same layout.

@@ -78,6 +78,7 @@ function toSupplierRow(
       phone: s.phone,
       website: s.website,
       inventory_sources: sources.map((f) => f.label),
+      last_ingestion_date: sources[0]?.ingestedAt ?? null,
       item_count: extras.itemCount ?? null,
       city: s.city,
       state: s.state,
@@ -89,8 +90,11 @@ function toSupplierRow(
   }
 }
 
-function toPlantRow(r: InventoryRecord, sourcePath?: string | null): PlantRow {
-  const path = sourcePath ?? r.source ?? null
+function toPlantRow(
+  r: InventoryRecord,
+  sourceDetails?: { path: string; ingestedAt: string | null } | null,
+): PlantRow {
+  const path = sourceDetails?.path ?? r.source ?? null
   return {
     id: r.id,
     supplierId: r.supplier_id,
@@ -106,6 +110,7 @@ function toPlantRow(r: InventoryRecord, sourcePath?: string | null): PlantRow {
       cal: r.caliper,
       notes: r.notes,
       source: path ? fileLabel(path) : null,
+      ingestion_date: sourceDetails?.ingestedAt ?? null,
       updated: r.updated_at,
     },
   }
@@ -140,30 +145,32 @@ function fileLabel(path: string): string {
   }
 }
 
-/** `inventory_sources.file_path` for a set of source ids. */
-async function pathsBySourceId(ids: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>()
+/** Source provenance for a set of source ids, including active-only ingestion time. */
+async function detailsBySourceId(
+  ids: string[],
+): Promise<Map<string, { path: string; ingestedAt: string | null }>> {
+  const map = new Map<string, { path: string; ingestedAt: string | null }>()
   if (!ids.length) return map
   const { data, error } = await supabase
     .from('inventory_sources')
-    .select('id, file_path')
+    .select('id, file_path, created_at, is_active')
     .in('id', ids)
   if (error) throw new Error(`inventory_sources: ${error.message}`)
-  for (const row of (data ?? []) as { id: string; file_path: string }[]) {
-    map.set(row.id, row.file_path)
+  for (const row of (data ?? []) as { id: string; file_path: string; created_at: string; is_active: boolean }[]) {
+    map.set(row.id, { path: row.file_path, ingestedAt: row.is_active ? row.created_at : null })
   }
   return map
 }
 
 /**
- * `inventory_enriched` carries `source_id` but not the file path, so browse
- * results need a second lookup to render the Source column as a link. The
- * search RPC already returns `source`, so it skips this.
+ * Both the search RPC and `inventory_enriched` carry `source_id`, but neither
+ * exposes the source ingestion timestamp. Resolve it once per result batch;
+ * manual/source-less rows deliberately remain blank.
  */
-async function withSourcePaths(records: InventoryRecord[]): Promise<PlantRow[]> {
+async function withSourceDetails(records: InventoryRecord[]): Promise<PlantRow[]> {
   const ids = [...new Set(records.map((r) => r.source_id).filter((v): v is string => !!v))]
-  const paths = await pathsBySourceId(ids)
-  return records.map((r) => toPlantRow(r, r.source_id ? paths.get(r.source_id) ?? null : null))
+  const details = await detailsBySourceId(ids)
+  return records.map((r) => toPlantRow(r, r.source_id ? details.get(r.source_id) ?? null : null))
 }
 
 /** Active source files per supplier, for the "Inventory sources" column. */
@@ -171,18 +178,25 @@ async function sourcesBySupplier(ids: number[]): Promise<Map<number, SourceLink[
   const map = new Map<number, SourceLink[]>()
   if (!ids.length) return map
 
-  const { data, error } = await supabase
-    .from('inventory_sources')
-    .select('supplier_id, file_path')
-    .in('supplier_id', ids)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
+  // PostgREST caps one response at 1,000 rows; a supplier page can collectively
+  // exceed that, so page until every active source is represented.
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('inventory_sources')
+      .select('supplier_id, file_path, created_at')
+      .in('supplier_id', ids)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .range(from, from + 999)
 
-  if (error) throw new Error(`inventory_sources: ${error.message}`)
-  for (const row of (data ?? []) as { supplier_id: number; file_path: string }[]) {
-    const list = map.get(row.supplier_id) ?? []
-    list.push({ label: fileLabel(row.file_path), path: row.file_path })
-    map.set(row.supplier_id, list)
+    if (error) throw new Error(`inventory_sources: ${error.message}`)
+    const rows = (data ?? []) as { supplier_id: number; file_path: string; created_at: string }[]
+    for (const row of rows) {
+      const list = map.get(row.supplier_id) ?? []
+      list.push({ label: fileLabel(row.file_path), path: row.file_path, ingestedAt: row.created_at })
+      map.set(row.supplier_id, list)
+    }
+    if (rows.length < 1000) break
   }
   return map
 }
@@ -237,11 +251,9 @@ async function inventorySearch(term: string): Promise<InventoryRecord[]> {
 export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
   const term = search.trim()
   let records: InventoryRecord[]
-  let fromSearchRpc = false
 
   if (term) {
     records = await inventorySearch(term)
-    fromSearchRpc = true
 
     // The alias graph resolves a whole common name (`Live oak`) but cannot
     // combine that species alias with a cultivar term (`Boardwalk`). Only when
@@ -304,7 +316,7 @@ export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
   const [{ data: sups, error: supErr }, sources, plantRows] = await Promise.all([
     supabase.from('suppliers').select('*').in('id', supplierIds),
     sourcesBySupplier(supplierIds),
-    fromSearchRpc ? Promise.resolve(records.map((r) => toPlantRow(r))) : withSourcePaths(records),
+    withSourceDetails(records),
   ])
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
 
@@ -395,7 +407,7 @@ export async function getSupplierPlants(
     if (error) throw new Error(`search_inventory: ${error.message}`)
     const records = (data ?? []) as InventoryRecord[]
     return {
-      plants: records.slice(0, PROFILE_PAGE_SIZE).map((r) => toPlantRow(r)),
+      plants: await withSourceDetails(records.slice(0, PROFILE_PAGE_SIZE)),
       hasMore: records.length > PROFILE_PAGE_SIZE,
     }
   }
@@ -410,7 +422,7 @@ export async function getSupplierPlants(
   if (error) throw new Error(`inventory_enriched: ${error.message}`)
   const records = (data ?? []) as InventoryRecord[]
   return {
-    plants: await withSourcePaths(records.slice(0, PROFILE_PAGE_SIZE)),
+    plants: await withSourceDetails(records.slice(0, PROFILE_PAGE_SIZE)),
     hasMore: records.length > PROFILE_PAGE_SIZE,
   }
 }

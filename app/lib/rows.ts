@@ -12,10 +12,11 @@ export interface SupplierRef {
   address: string | null
 }
 
-/** One ingested source file: display name plus the raw `file_path` to sign. */
+/** One active ingested source file and its immutable ingestion timestamp. */
 export interface SourceLink {
   label: string
   path: string
+  ingestedAt: string
 }
 
 export interface SupplierRow {

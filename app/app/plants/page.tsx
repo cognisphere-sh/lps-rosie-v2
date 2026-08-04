@@ -360,7 +360,7 @@ export default function PlantSearchPage() {
   const detailText = (g: PlantGroup, col: ColumnDef) => {
     const v = g.supplier.values[col.key]
     if (col.key === 'city') return [v, g.supplier.values.state].filter(Boolean).join(', ')
-    if (col.key === 'updated' || col.key === 'created_at') return formatDate(v as string | null)
+    if (col.key === 'updated' || col.key === 'created_at' || col.key === 'ingestion_date') return formatDate(v as string | null)
     if (col.money) return money(v)
     if (col.num) return num(v)
     return Array.isArray(v) ? v.join(', ') : v == null ? '' : String(v)
@@ -533,7 +533,8 @@ export default function PlantSearchPage() {
                             </div>
                           )}
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-                            {p.values.updated && <span>Updated {formatDate(String(p.values.updated))}</span>}
+                            {p.values.ingestion_date && <span>Ingested {formatDate(String(p.values.ingestion_date))}</span>}
+                            {p.values.updated && <span>Row updated {formatDate(String(p.values.updated))}</span>}
                             {p.sourcePath && (
                               <a
                                 href={fileHref(p.sourcePath)}

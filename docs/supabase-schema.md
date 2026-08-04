@@ -146,7 +146,14 @@ Provenance: one row per ingested pricing / availability file or URL, per supplie
 | `file_path` | text | no | Either an object key in the `lps` bucket or a full `http(s)://` URL |
 | `notes` | text | yes | Where/how it was sourced |
 | `is_active` | boolean | no, default true | A `replace`-mode upload retires the supplier's other sources |
-| `created_at` | timestamptz | no, default `now()` | A supplier's latest availability date = max(`created_at`) of its active sources |
+| `created_at` | timestamptz | no, default `now()` | Immutable LPS ingestion timestamp; not the source's printed/effective availability date |
+
+The app derives an inventory row's `ingestion_date` by joining its `source_id`
+to an **active** source's `created_at`; manual/source-less rows remain blank. A
+supplier's `last_ingestion_date` is max(`created_at`) across its active sources
+only (Bhoumik decision, 2026-08-04). Neither value is duplicated into the
+`inventory` or `suppliers` tables. Source/effective date is a separate future
+domain field and must not be inferred from a filename.
 
 ### `plant_other_names`
 

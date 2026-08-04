@@ -222,8 +222,16 @@ Both the suppliers table's "Inventory sources" cell and the plants table's
 48px regardless of source count. Because sources arrive newest-first, the cell
 shows the latest filename as a direct signed-file link; when history exists, a
 compact `+N` beside it deep-links to the supplier's existing Files tab via
-`?tab=files`. This is presentation-only; the API payload, source records and
-ingestion remain unchanged.
+`?tab=files`.
+
+Every plant API/UI row derives **Ingested** from its active source's immutable
+`inventory_sources.created_at`; manual/source-less rows and rows tied only to an
+inactive source show blank. Supplier **Last ingestion** is the maximum timestamp
+across that supplier's active sources. Search-RPC and `inventory_enriched` rows
+already carry `source_id`, so `lib/queries.ts` resolves timestamps in one batched
+source lookup rather than duplicating them into `inventory`. This timestamp is
+when LPS ingested the source, **not** the source's printed/effective availability
+date; the latter must be modeled separately rather than inferred from filenames.
 
 `suppliers.website` is stored as a bare domain (`bluemountainnsy.com`), so
 `websiteHref()` prefixes `https://` when linking.

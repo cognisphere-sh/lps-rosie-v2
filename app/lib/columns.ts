@@ -41,6 +41,7 @@ export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'phone', label: 'Phone', width: 145, edit: true, writes: { table: 'suppliers', column: 'phone' } },
   { key: 'website', label: 'Website', width: 190, kind: 'url', filter: 'none' },
   { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
+  { key: 'last_ingestion_date', label: 'Last ingestion', width: 138, filter: 'none' },
   { key: 'item_count', label: '# Items', width: 96, align: 'right', filter: 'range' },
   { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'city' } },
   { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
@@ -66,6 +67,7 @@ export const MASTER_COLS: ColumnDef[] = [
   { key: 'poc_phone', label: 'PoC phone', width: 145 },
   { key: 'website', label: 'Website', width: 190, kind: 'url', filter: 'none' },
   { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
+  { key: 'last_ingestion_date', label: 'Last ingestion', width: 138, filter: 'none' },
   { key: 'cheapest', label: 'Lowest price', width: 120, align: 'right', filter: 'range', money: true },
   { key: 'in_stock', label: 'In stock', width: 108, align: 'right', filter: 'range', num: true },
   { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },
@@ -87,6 +89,7 @@ export const PLANT_COLS: ColumnDef[] = [
   { key: 'cal', label: 'Caliper', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'caliper' } },
   { key: 'notes', label: 'Notes', width: 190, edit: true, writes: { table: 'inventory', column: 'notes' } },
   { key: 'source', label: 'Source', width: 180, kind: 'file', filter: 'none' },
+  { key: 'ingestion_date', label: 'Ingested', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 130, filter: 'none' },
 ]
 export const PLANT_HIDDEN = ['notes', 'cal']

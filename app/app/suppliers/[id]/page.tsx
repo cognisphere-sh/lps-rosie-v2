@@ -35,7 +35,8 @@ const FIELDS: { key: string; label: string; column?: string }[] = [
   { key: 'city', label: 'City', column: 'city' },
   { key: 'state', label: 'State', column: 'state' },
   { key: 'item_count', label: 'Active items' },
-  { key: 'updated', label: 'Last updated' },
+  { key: 'last_ingestion_date', label: 'Last inventory ingestion' },
+  { key: 'updated', label: 'Profile last updated' },
 ]
 
 /** Profile fields are inert until the whole card enters deliberate edit mode. */
@@ -363,7 +364,7 @@ export default function SupplierProfilePage() {
 
   const fieldValue = (key: string) => {
     const v = values[key]
-    if (key === 'updated' || key === 'created_at') return formatDate(v as string | null)
+    if (key === 'updated' || key === 'created_at' || key === 'last_ingestion_date') return formatDate(v as string | null)
     if (key === 'item_count') return v == null ? '—' : num(v)
     return Array.isArray(v) ? v.join(', ') : v == null || v === '' ? '—' : String(v)
   }
@@ -733,6 +734,9 @@ export default function SupplierProfilePage() {
                         )}
                         <div className="mt-1 text-[11.5px] text-muted-foreground">
                           {String(p.values.size ?? '')}
+                        </div>
+                        <div className="mt-0.5 text-[10.5px] text-lps-dim">
+                          Ingested {formatDate(p.values.ingestion_date as string | null) || '—'}
                         </div>
                       </div>
                       <div className="flex-none text-right">

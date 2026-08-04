@@ -168,6 +168,9 @@ export default function SuppliersPage() {
                   </span>
                 )}
               </div>
+              <div className="text-[11px] text-muted-foreground">
+                Last ingested {formatDate(row.values.last_ingestion_date as string | null) || '—'}
+              </div>
               <span className="text-[12.5px] font-semibold text-primary">Open supplier →</span>
             </button>
           ))}
@@ -230,7 +233,7 @@ export default function SuppliersPage() {
                           rowId={row.id}
                           links={col.kind === 'list' ? row.sourceLinks : undefined}
                           value={
-                            col.key === 'created_at' || col.key === 'updated'
+                            col.key === 'created_at' || col.key === 'updated' || col.key === 'last_ingestion_date'
                               ? formatDate(row.values[col.key] as string | null)
                               : row.values[col.key] ?? null
                           }

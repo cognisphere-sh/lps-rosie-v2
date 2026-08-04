@@ -103,8 +103,8 @@ export function PlantRowLine({
             rowId={row.id}
             href={col.key === 'source' ? row.sourcePath : undefined}
             value={
-              col.key === 'updated'
-                ? formatDate(row.values.updated as string | null)
+              col.key === 'updated' || col.key === 'ingestion_date'
+                ? formatDate(row.values[col.key] as string | null)
                 : row.values[col.key] ?? null
             }
             onSave={col.edit ? (next) => onEdit(col, next) : undefined}
