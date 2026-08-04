@@ -216,14 +216,11 @@ parameters, and are saved as a JSON array under
 ## Source files
 
 Both the suppliers table's "Inventory sources" cell and the plants table's
-"Source" cell link to the underlying file. The cell scrolls rather than
-stretching the row when a supplier has many sources — Blue Mountain Nursery has
-38, and one supplier has 275.
-
-> Each item in that list needs `shrink-0`. Flex children shrink by default, so
-> without it 38 rows are squashed to ~2px each to fit the cell's max-height: the
-> content disappears *and* never overflows, so no scrollbar appears either.
-> Don't remove it.
+"Source" cell link to the underlying file. Desktop supplier rows stay a uniform
+48px regardless of source count: the cell shows the first/current file plus a
+compact `+N` control, whose popover contains every existing source link in a
+scrollable list. This is presentation-only; the API payload and source records
+remain unchanged. The cell tooltip also lists every filename.
 
 `suppliers.website` is stored as a bare domain (`bluemountainnsy.com`), so
 `websiteHref()` prefixes `https://` when linking.

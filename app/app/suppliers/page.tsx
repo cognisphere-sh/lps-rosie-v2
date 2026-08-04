@@ -218,7 +218,7 @@ export default function SuppliersPage() {
               </thead>
               <tbody>
                 {visibleRows.map((row) => (
-                  <tr key={row.id} className="lps-row bg-card transition-colors hover:bg-muted">
+                  <tr key={row.id} className="lps-row h-[48px] bg-card transition-colors hover:bg-muted">
                     {cfg.visible.map((col) => (
                       <td
                         key={col.key}

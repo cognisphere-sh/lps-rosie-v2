@@ -15,6 +15,15 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-04
+
+### Changed
+
+- **Desktop supplier rows are uniform height.** Inventory sources now show one
+  current filename plus a `+N` popover containing every linked file, so varying
+  source counts no longer enlarge rows. This is frontend-only; APIs, source
+  records and ingestion are unchanged.
+
 ## 2026-08-03
 
 ### Added

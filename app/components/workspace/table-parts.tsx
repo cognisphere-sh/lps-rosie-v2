@@ -414,7 +414,9 @@ export function Cell({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const text = Array.isArray(value) ? value.join(', ') : value == null ? '' : String(value)
   const display = col.money ? money(value) : col.num ? num(value) : text
@@ -422,6 +424,15 @@ export function Cell({
   useEffect(() => {
     if (editing) inputRef.current?.focus()
   }, [editing])
+
+  useEffect(() => {
+    if (!listOpen) return
+    const close = (event: MouseEvent) => {
+      if (!listRef.current?.contains(event.target as Node)) setListOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [listOpen])
 
   const commit = async () => {
     if (busy) return
@@ -526,43 +537,63 @@ export function Cell({
   }
 
   if (col.kind === 'list') {
-    // A supplier can have dozens of source files; the cell scrolls rather than
-    // stretching the row to fit them.
-    //
-    // `shrink-0` on each item is load-bearing: flex children default to
-    // shrinking, so a supplier with 38 sources had them squashed to ~2px each to
-    // fit max-height — the content vanished *and* never overflowed, so no
-    // scrollbar appeared either. They must keep their height and overflow.
+    // Variable source counts must not change table-row height. Keep one current
+    // file in the cell and move the complete, still-linked list into a popover.
     const items = links ?? (Array.isArray(value) ? value.map((l) => ({ label: l, path: '' })) : [])
+    const first = items[0]
+    const more = Math.max(0, items.length - 1)
+    const fileRow = (file: { label: string; path: string }, i: number, compact = false) =>
+      file.path ? (
+        <a
+          key={i}
+          href={fileHref(file.path)}
+          target="_blank"
+          rel="noreferrer"
+          title={file.label}
+          className={cn(
+            'flex min-w-0 items-center gap-[5px] text-primary hover:underline',
+            compact ? 'h-7 px-2 text-[11.5px]' : 'h-5 flex-1 text-[11.5px]',
+          )}
+        >
+          <FileIcon size={11} className="flex-none" />
+          <span className="truncate">{file.label}</span>
+        </a>
+      ) : (
+        <span
+          key={i}
+          title={file.label}
+          className={cn(
+            'flex min-w-0 items-center gap-[5px] text-primary',
+            compact ? 'h-7 px-2 text-[11.5px]' : 'h-5 flex-1 text-[11.5px]',
+          )}
+        >
+          <FileIcon size={11} className="flex-none" />
+          <span className="truncate">{file.label}</span>
+        </span>
+      )
+
     return (
-      <div
-        className="flex max-h-[76px] flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 py-0.5"
-        title={items.map((f) => f.label).join('\n')}
-      >
-        {items.length === 0 && <span className="text-[11.5px] italic text-lps-dim">none</span>}
-        {items.map((file, i) =>
-          file.path ? (
-            <a
-              key={i}
-              href={fileHref(file.path)}
-              target="_blank"
-              rel="noreferrer"
-              title={file.label}
-              className="flex h-4 shrink-0 items-center gap-[5px] text-[11.5px] text-primary hover:underline"
-            >
-              <FileIcon size={11} className="flex-none" />
-              <span className="truncate">{file.label}</span>
-            </a>
-          ) : (
-            <span
-              key={i}
-              title={file.label}
-              className="flex h-4 shrink-0 items-center gap-[5px] text-[11.5px] text-primary"
-            >
-              <FileIcon size={11} className="flex-none" />
-              <span className="truncate">{file.label}</span>
-            </span>
-          ),
+      <div ref={listRef} className="relative flex h-7 min-w-0 items-center gap-1 px-1.5" title={items.map((f) => f.label).join('\n')}>
+        {!first && <span className="text-[11.5px] italic text-lps-dim">none</span>}
+        {first && fileRow(first, 0)}
+        {more > 0 && (
+          <button
+            type="button"
+            onClick={() => setListOpen((open) => !open)}
+            aria-expanded={listOpen}
+            title={`Show all ${items.length} availability files`}
+            className="flex h-6 flex-none cursor-pointer items-center rounded-full border border-border bg-muted px-2 text-[10.5px] font-semibold text-foreground hover:bg-secondary"
+          >
+            +{more}
+          </button>
+        )}
+        {listOpen && (
+          <div className="lps-pop absolute left-1.5 top-[calc(100%+5px)] z-[96] max-h-[250px] w-[280px] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+            <div className="border-b border-lps-hair px-2 pb-1.5 pt-1 text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              {items.length} availability files
+            </div>
+            {items.map((file, i) => fileRow(file, i, true))}
+          </div>
         )}
       </div>
     )
