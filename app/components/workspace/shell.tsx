@@ -142,6 +142,8 @@ export function Shell({
   const { dark, toggle } = useTheme()
   const user = useSessionUser()
   const [navOpen, setNavOpen] = useState(true)
+  const [desktopChatFull, setDesktopChatFull] = useState(false)
+  const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
   const [mobileAgentsOpen, setMobileAgentsOpen] = useState(false)
   const [mobileChat, setMobileChat] = useState(false)
@@ -304,7 +306,7 @@ export function Shell({
 
         <div className="flex min-h-0 flex-1">
           {/* Desktop nav rail */}
-          {!isMobile && (
+          {!isMobile && !desktopChatFull && (
             <nav
               className="flex flex-none flex-col gap-0.5 border-r border-border bg-card"
               style={{ width: navOpen ? 196 : 56, padding: navOpen ? '12px 10px' : '12px 8px' }}
@@ -414,8 +416,14 @@ export function Shell({
             </nav>
           )}
 
-          {/* Main column */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Main workspace: Full chat hides it until the center-edge pull
+              handle reveals a narrow supplier/search peek pane. */}
+          <div
+            className={cn(
+              'flex min-h-0 min-w-0 flex-col overflow-hidden',
+              !desktopChatFull ? 'flex-1' : desktopPeekOpen ? 'w-[240px] flex-none' : 'w-0 flex-none',
+            )}
+          >
             <div
               className="relative flex min-h-0 flex-1 flex-col"
               onTouchStart={(e) => {
@@ -670,7 +678,18 @@ export function Shell({
               isMobile={false}
               mobileOpen={mobileChat}
               appearance={chatAppearance}
-              onDesktopFull={() => setNavOpen(false)}
+              desktopFull={desktopChatFull}
+              desktopPeekOpen={desktopPeekOpen}
+              onDesktopFull={() => {
+                setNavOpen(false)
+                setDesktopPeekOpen(false)
+                setDesktopChatFull(true)
+              }}
+              onDesktopExitFull={() => {
+                setDesktopChatFull(false)
+                setDesktopPeekOpen(false)
+              }}
+              onDesktopPeekToggle={() => setDesktopPeekOpen((open) => !open)}
             />
           )}
         </div>

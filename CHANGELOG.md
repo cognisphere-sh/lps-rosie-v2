@@ -24,9 +24,10 @@ here).
   views show the newest active-source **Last ingestion**. Manual/source-less
   rows remain blank; ingestion time is explicitly not the source's effective
   availability date.
-- **Desktop Full chat coordinates the surrounding workspace.** Selecting Full
-  now collapses the left navigation automatically while preserving a narrow
-  supplier-name/search peek pane; restored Full state keeps the same layout.
+- **Desktop Full chat uses the full canvas.** Selecting Full hides both the
+  navigation and workspace; a centered edge handle reveals or hides a 240px
+  supplier/search peek pane on demand. Restored Full state keeps that layout,
+  while 50%/30%, resizing or hiding chat exits it.
 - **Missing inventory prices retain their meaning.** The approved nullable-price
   migration stores an omitted supplier price as `NULL`; a follow-up cleanup
   converts all 28,998 historical zero-price placeholders to `NULL`. The app

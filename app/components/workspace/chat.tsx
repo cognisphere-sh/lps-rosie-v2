@@ -29,16 +29,14 @@ const POLL_MS = 2000
 const MIN_W = 280
 const STORE = 'lps.chat.v1'
 
-const COLLAPSED_NAV_W = 56
 const WORKSPACE_PEEK_W = 240
 
-/** Full chat still leaves one supplier-name/search column visible. */
-function maxDesktopChatWidth() {
-  return Math.max(MIN_W, window.innerWidth - COLLAPSED_NAV_W - WORKSPACE_PEEK_W)
+function fullDesktopChatWidth(peekOpen = false) {
+  return Math.max(MIN_W, window.innerWidth - (peekOpen ? WORKSPACE_PEEK_W : 0))
 }
 
 function clampDesktopChatWidth(width: number) {
-  return Math.min(Math.max(width, MIN_W), maxDesktopChatWidth())
+  return Math.min(Math.max(width, MIN_W), fullDesktopChatWidth())
 }
 
 // ------------------------------------------------------------------ markdown
@@ -901,7 +899,9 @@ function Composer({
  * agent tab can toggle the sheet without a redundant close button.
  */
 export function AgentChat({
-  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack, onDesktopFull,
+  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack,
+  desktopFull = false, desktopPeekOpen = false,
+  onDesktopFull, onDesktopExitFull, onDesktopPeekToggle,
 }: {
   isMobile: boolean
   mobileOpen: boolean
@@ -910,8 +910,12 @@ export function AgentChat({
   appearance: ChatAppearance
   /** Returns the mobile conversation to the Agents channel list. */
   onMobileBack?: () => void
-  /** Coordinates Full chat with the Shell's collapsible desktop navigation. */
+  desktopFull?: boolean
+  desktopPeekOpen?: boolean
+  /** Coordinates Full chat with the Shell's desktop workspace. */
   onDesktopFull?: () => void
+  onDesktopExitFull?: () => void
+  onDesktopPeekToggle?: () => void
 }) {
   const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
@@ -934,9 +938,13 @@ export function AgentChat({
       const saved = raw ? (JSON.parse(raw) as { open?: boolean; width?: number }) : null
       setOpen(saved?.open ?? window.innerWidth >= 1180)
       if (saved?.width) {
-        const restored = clampDesktopChatWidth(saved.width)
+        // Migrate the previous Full preset (viewport minus rail + 240px peek)
+        // into the new true-Full layout instead of restoring it as an arbitrary
+        // wide panel.
+        const wasFull = saved.width >= window.innerWidth - 340
+        const restored = wasFull ? fullDesktopChatWidth() : clampDesktopChatWidth(saved.width)
         setWidth(restored)
-        if (restored >= maxDesktopChatWidth() - 8) onDesktopFull?.()
+        if (wasFull || restored >= fullDesktopChatWidth() - 8) onDesktopFull?.()
       }
     } catch {
       setOpen(window.innerWidth >= 1180)
@@ -957,6 +965,11 @@ export function AgentChat({
   }, [isMobile])
 
   useEffect(() => {
+    if (isMobile || !desktopFull) return
+    setWidth(fullDesktopChatWidth(desktopPeekOpen))
+  }, [desktopFull, desktopPeekOpen, isMobile])
+
+  useEffect(() => {
     if (!menu) return
     const close = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-chat-menu]')) setMenu(false)
@@ -975,6 +988,7 @@ export function AgentChat({
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault()
+    onDesktopExitFull?.()
     const startX = e.clientX
     const startW = width
     const move = (ev: MouseEvent) => setWidth(clampDesktopChatWidth(startW + (startX - ev.clientX)))
@@ -1095,6 +1109,17 @@ export function AgentChat({
       className="relative flex min-h-0 flex-none flex-col border-l border-border bg-card"
       style={{ width, ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)) }}
     >
+      {desktopFull && onDesktopPeekToggle && (
+        <button
+          type="button"
+          onClick={onDesktopPeekToggle}
+          title={desktopPeekOpen ? 'Hide supplier search pane' : 'Show supplier search pane'}
+          aria-label={desktopPeekOpen ? 'Hide supplier search pane' : 'Show supplier search pane'}
+          className="absolute left-0 top-1/2 z-30 flex h-14 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-r-xl border border-l-0 border-border bg-card text-primary shadow-[var(--lps-shadow)] hover:bg-muted"
+        >
+          {desktopPeekOpen ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
+        </button>
+      )}
       <div
         onMouseDown={startResize}
         title="Drag to resize"
@@ -1103,7 +1128,7 @@ export function AgentChat({
       {header()}
 
       <div className="flex flex-none items-center gap-1 border-b border-border px-3 py-2">
-        {([['Full', maxDesktopChatWidth], ['50%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.5))], ['30%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.3))]] as const).map(
+        {([['Full', () => fullDesktopChatWidth(desktopPeekOpen)], ['50%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.5))], ['30%', () => clampDesktopChatWidth(Math.round(window.innerWidth * 0.3))]] as const).map(
           ([label, w]) => (
             <SizePill
               key={label}
@@ -1112,6 +1137,7 @@ export function AgentChat({
               target={w}
               onPick={(next) => {
                 if (label === 'Full') onDesktopFull?.()
+                else onDesktopExitFull?.()
                 setWidth(next)
               }}
             />
@@ -1145,7 +1171,10 @@ export function AgentChat({
 
         <button
           type="button"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            onDesktopExitFull?.()
+            setOpen(false)
+          }}
           title="Hide panel"
           aria-label="Hide panel"
           className="flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"

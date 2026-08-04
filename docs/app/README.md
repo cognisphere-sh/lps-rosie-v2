@@ -77,10 +77,11 @@ already identify the page:
 
 - **Desktop** (≥900px): a collapsible left nav rail (196px ↔ 56px), a header
   with the page title + subtitle, and the agent chat on the right — a resizable
-  docked panel, or a 46px rail when hidden. Choosing **Full** automatically
-  collapses the left navigation and gives chat the remaining width while
-  preserving a 240px supplier-name/search peek pane. Saved Full state restores
-  the same coordinated layout; 50% and 30% remain independent presets.
+  docked panel, or a 46px rail when hidden. Choosing **Full** hides both the
+  left navigation and workspace so chat uses the complete width. A centered
+  pull handle on chat's left edge reveals/hides a 240px supplier/search peek
+  pane without restoring the menu. Saved Full state restores the same layout;
+  choosing 50%/30%, hiding chat, or manually resizing exits Full.
 - **Mobile** (<900px, the design's own breakpoint): the left rail is replaced by
   a five-item bottom bar. One **Agents** tab replaces the old permanent
   Daisy/Rosie/Nova tabs and opens a channel list for the same existing agent
