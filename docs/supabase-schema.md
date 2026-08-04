@@ -248,8 +248,9 @@ filtered was dropped 2026-07-31. (`search_suppliers` keeps its own, over
   Oak"). Prefix search resolves through the pgroonga index lexicon, so it
   only works when the planner uses the index (migration
   `040_search_prefix_match`).
-- Ordered by pgroonga relevance desc, **then the whitelisted sort column**, then
-  `updated_at` desc, then `name` asc. Relevance always wins — `sort_column` only
+- Ordered by pgroonga relevance desc, **then the whitelisted sort column** with
+  `NULLS LAST` in either direction, then `updated_at` desc, then `name` asc.
+  Relevance always wins — `sort_column` only
   breaks ties within a score, it does not reorder the result set. With an empty
   `search` the score term is a constant, so it degenerates to `updated_at` desc,
   `name` asc. Alias-only matches score 0 and sort after direct matches.

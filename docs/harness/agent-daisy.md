@@ -127,10 +127,13 @@ and when; the summaries below are one line each.
   directory (generic labels, junk, wrong taxa, cultivar residue); 19,106 → 13,452
   active pairs. Records the rules that were **rejected** for destroying genuine
   names — read it before writing another cleanup.
-- `0011_nullable_inventory_prices.sql` — approved 2026-08-04. Makes
+- `0011_nullable_inventory_prices.sql` — applied 2026-08-04. Makes
   `inventory.unit_price` nullable so missing supplier prices remain `NULL`
   instead of being represented as zero; it deliberately leaves legacy zero rows
   untouched pending source-level review.
+- `0012_search_inventory_nulls_last.sql` — nullable-price follow-up. Replaces
+  `search_inventory` without changing its signature/search behavior so optional
+  server-side sorts keep missing values last in both directions.
 
 ## Skills
 

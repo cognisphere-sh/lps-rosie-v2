@@ -23,7 +23,8 @@ here).
   migration stores an omitted supplier price as `NULL`, leaves legacy zero rows
   untouched, and updates the app so missing prices display as unavailable rather
   than `$0.00`. Blank price edits, range filters and sorting now preserve that
-  distinction.
+  distinction. Client and `search_inventory` sorts keep missing values last in
+  both directions.
 - **Mobile agent navigation is consolidated.** One **Agents** bottom tab now
   opens Daisy, Rosie and Nova as channels; selecting an active agent opens the
   same existing conversation and Back returns to Agents. This is UI-only — no

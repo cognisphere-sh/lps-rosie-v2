@@ -8,6 +8,18 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0012_search_inventory_nulls_last.sql`
+Applied 2026-08-04 via Daisy's guarded Supabase runner after Bhoumik applied
+0011. Replaces `search_inventory` without changing its signature or matching;
+optional server-side sorts now append `NULLS LAST` in either direction. No
+inventory rows changed.
+
+## `0011_nullable_inventory_prices.sql`
+Applied 2026-08-04 by Bhoumik. Drops the `NOT NULL` constraint from
+`inventory.unit_price` and documents that `NULL` means no supplier price was
+provided. It rewrites no data; all 28,998 legacy zero rows were left unchanged
+for source-level review.
+
 ## `0010_purge_inactive_aliases_and_rollback_tables.sql`
 Applied 2026-07-31 as `051` / `052`. Deletes the 78,807 retired alias pairs
 (13,429 active remain, the whole table now) and drops
