@@ -16,9 +16,7 @@ import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { refinePlantGroups } from '@/lib/search-refine'
-import {
-  matchesSizeFilter, parseSizeQuery, sizeChoicesFor, type SizeChoice, type TypedSize,
-} from '@/lib/size-range'
+import { matchesSizeFilter, parseSizeQuery, type TypedSize } from '@/lib/size-range'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
@@ -27,8 +25,10 @@ import { cn } from '@/lib/utils'
 // as the heading, the count, the category badge or the state.
 const PANEL_FIXED = ['name', 'plant_count', 'category', 'state']
 const PLANT_SEARCH_KEY = 'lps.plant-search.query.v1'
-const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v1'
-const RETIRED_PLANT_SIZE_KEY = 'lps.plant-search.size.v1'
+const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v2'
+// Earlier versions stored a normalised size key ("gallon:15") rather than the
+// row's own size text, so their selections mean nothing here.
+const RETIRED_PLANT_SIZE_KEYS = ['lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1']
 
 // Mobile filter sheet. The result-size selector appears beside the search field,
 // so this sheet carries the remaining supplier/location and price filters.
@@ -41,15 +41,15 @@ const MOBILE_FILTERS = [
 
 function ResultSizeControl({
   typed,
-  choices,
+  options,
   selected,
   onSelect,
   onClearTyped,
 }: {
   typed: TypedSize | null
-  choices: SizeChoice[]
+  options: string[]
   selected: string[]
-  onSelect: (keys: string[]) => void
+  onSelect: (sizes: string[]) => void
   onClearTyped: () => void
 }) {
   if (typed) {
@@ -66,22 +66,16 @@ function ResultSizeControl({
     )
   }
 
-  const byLabel = new Map(choices.map((choice) => [choice.label, choice.key]))
-  const labels = choices.map((choice) => choice.label)
-  const selectedLabels = selected
-    .map((key) => choices.find((choice) => choice.key === key)?.label)
-    .filter((label): label is string => !!label)
-
   return (
     <div className="w-full md:w-[170px]">
       <MultiFilter
         allLabel="Size: Any"
-        options={labels}
-        selected={selectedLabels}
+        options={options}
+        selected={selected}
         selectionLabel="Size"
         buttonClassName="h-8 text-[12px] px-2"
         filterPlaceholder="Filter sizes…"
-        onChange={(next) => onSelect(next.map((label) => byLabel.get(label)!).filter(Boolean))}
+        onChange={onSelect}
       />
     </div>
   )
@@ -133,12 +127,10 @@ export default function PlantSearchPage() {
       const stored = JSON.parse(window.localStorage.getItem(PLANT_SIZE_CHOICE_KEY) ?? '[]') as unknown
       savedSizes = Array.isArray(stored) ? stored.filter((value): value is string => typeof value === 'string') : []
     } catch {
-      // The previous single-select version stored one raw key rather than JSON.
-      const stored = window.localStorage.getItem(PLANT_SIZE_CHOICE_KEY)
-      if (stored) savedSizes = [stored]
+      savedSizes = []
     }
     setSelectedSizes(hasUrlQuery ? url.searchParams.getAll('size') : savedSizes)
-    window.localStorage.removeItem(RETIRED_PLANT_SIZE_KEY)
+    for (const key of RETIRED_PLANT_SIZE_KEYS) window.localStorage.removeItem(key)
     setSearchHydrated(true)
 
     const restoreFromHistory = () => {
@@ -273,15 +265,15 @@ export default function PlantSearchPage() {
   )
 
   const allPlants = useMemo(() => refinedGroups.flatMap((g) => g.plants), [refinedGroups])
-  const sizeChoices = useMemo(() => sizeChoicesFor(allPlants), [allPlants])
+  const sizeOptions = useMemo(() => optionsFor(allPlants, 'size'), [allPlants])
   const shownPlants = visibleGroups.reduce((n, g) => n + g.plants.length, 0)
 
   useEffect(() => {
     if (loading || allPlants.length === 0 || selectedSizes.length === 0) return
-    const valid = new Set(sizeChoices.map((choice) => choice.key))
-    const next = selectedSizes.filter((key) => valid.has(key))
+    const valid = new Set(sizeOptions)
+    const next = selectedSizes.filter((size) => valid.has(size))
     if (next.length !== selectedSizes.length) setSelectedSizes(next)
-  }, [allPlants.length, loading, selectedSizes, sizeChoices])
+  }, [allPlants.length, loading, selectedSizes, sizeOptions])
 
   const panelDetailCols = MASTER_COLS.filter(
     (c) => !masterCfg.config.hidden.includes(c.key) && !PANEL_FIXED.includes(c.key),
@@ -323,7 +315,7 @@ export default function PlantSearchPage() {
         !searching && allPlants.length > 0 ? (
           <ResultSizeControl
             typed={parsedSearch.size}
-            choices={sizeChoices}
+            options={sizeOptions}
             selected={selectedSizes}
             onSelect={setSelectedSizes}
             onClearTyped={() => setQuery(parsedSearch.plantQuery)}

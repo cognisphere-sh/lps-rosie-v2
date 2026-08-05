@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict'
 
-import {
-  matchesSizeFilter, parseSizeQuery, sizeChoicesFor, sizeChoicesForValues,
-} from './size-range.ts'
+import { matchesSizeFilter, parseSizeQuery } from './size-range.ts'
 
 assert.deepEqual(parseSizeQuery('15g Agave Americana'), {
   plantQuery: 'Agave Americana',
@@ -18,34 +16,20 @@ assert.deepEqual(parseSizeQuery('24" box live oak'), {
 })
 assert.deepEqual(parseSizeQuery('Agave Americana'), { plantQuery: 'Agave Americana', size: null })
 
-assert.deepEqual(sizeChoicesForValues({ size: '15 G/17"' }), [{ key: 'gallon:15', label: '15 gal' }])
-assert.deepEqual(sizeChoicesForValues({ size: '3/5 G' }), [
-  { key: 'gallon:3', label: '3 gal' },
-  { key: 'gallon:5', label: '5 gal' },
-])
-assert.deepEqual(sizeChoicesForValues({ size: '24" Box' }), [{ key: 'box:24', label: '24" box' }])
-assert.deepEqual(sizeChoicesForValues({ size: '2.5" cal' }), [{ key: 'caliper:2.5', label: '2.5" caliper' }])
-assert.deepEqual(sizeChoicesForValues({ size: '15 G; 1.25"', cal: '1.25"' }), [
-  { key: 'gallon:15', label: '15 gal' },
-  { key: 'caliper:1.25', label: '1.25" caliper' },
-])
-assert.deepEqual(sizeChoicesForValues({ size: '10"' }), [])
-assert.deepEqual(sizeChoicesForValues({ size: '7.00' }), [])
-assert.deepEqual(sizeChoicesForValues({ size: "B&B 7'" }), [])
-
+// A size typed into the natural-language query still matches equivalent unit
+// spellings and listed ranges by value.
 assert.equal(matchesSizeFilter({ size: '15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), true)
 assert.equal(matchesSizeFilter({ size: '25 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), false)
 assert.equal(matchesSizeFilter({ size: '10/15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), true)
-assert.equal(matchesSizeFilter({ size: '15G' }, null, ['gallon:15']), true)
-assert.equal(matchesSizeFilter({ size: '10 G' }, null, ['gallon:15']), false)
-assert.equal(matchesSizeFilter({ size: '5 G' }, null, ['gallon:5', 'gallon:15']), true)
-assert.equal(matchesSizeFilter({ size: '15 G' }, null, ['gallon:5', 'gallon:15']), true)
-assert.equal(matchesSizeFilter({ size: '10 G' }, null, ['gallon:5', 'gallon:15']), false)
-assert.deepEqual(sizeChoicesFor([
-  { values: { size: '15 G' } },
-  { values: { size: '15G' } },
-  { values: { size: '3/5 G' } },
-  { values: { size: '10"' } },
-]).map((choice) => choice.label), ['3 gal', '5 gal', '15 gal'])
+
+// The selector now exposes exact row values rather than inferred commercial
+// buckets. Multiple selections retain OR semantics.
+assert.equal(matchesSizeFilter({ size: '15G' }, null, ['15G']), true)
+assert.equal(matchesSizeFilter({ size: '15G' }, null, ['15 G']), false)
+assert.equal(matchesSizeFilter({ size: '5 G' }, null, ['5 G', '15 G']), true)
+assert.equal(matchesSizeFilter({ size: '15 G' }, null, ['5 G', '15 G']), true)
+assert.equal(matchesSizeFilter({ size: '10 G' }, null, ['5 G', '15 G']), false)
+assert.equal(matchesSizeFilter({ size: null }, null, []), true)
+assert.equal(matchesSizeFilter({ size: null }, null, ['15 G']), false)
 
 console.log('size search checks passed')

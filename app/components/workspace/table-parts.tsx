@@ -204,6 +204,7 @@ export function FilterControl({
   onFilter: (value: ColFilter) => void
 }) {
   const [multiOpen, setMultiOpen] = useState(false)
+  const [needle, setNeedle] = useState('')
   useOutsideClose(multiOpen, () => setMultiOpen(false))
 
   const kind = col.filter ?? 'text'
@@ -245,6 +246,10 @@ export function FilterControl({
     )
   }
 
+  const shown = needle
+    ? options.filter((o) => o.toLowerCase().includes(needle.toLowerCase()))
+    : options
+
   return (
     <div data-menu className="relative">
       <button
@@ -261,10 +266,19 @@ export function FilterControl({
       </button>
       {multiOpen && (
         <div className="lps-pop absolute left-0 top-[calc(100%+5px)] z-[94] max-h-[250px] w-[196px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-          {options.length === 0 && (
-            <div className="px-2 py-1.5 text-[11.5px] text-muted-foreground">No values</div>
+          <input
+            value={needle}
+            onChange={(e) => setNeedle(e.target.value)}
+            placeholder="Search…"
+            aria-label={`Search ${col.label} values`}
+            className="mb-1 h-7 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] font-normal outline-none"
+          />
+          {shown.length === 0 && (
+            <div className="px-2 py-1.5 text-[11.5px] text-muted-foreground">
+              {options.length === 0 ? 'No values' : 'No matches'}
+            </div>
           )}
-          {options.map((o) => {
+          {shown.map((o) => {
             const on = selected.includes(o)
             return (
               <button

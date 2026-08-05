@@ -8,6 +8,51 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0019_standardize_inventory_sizes.sql`
+
+Applied 2026-08-05 via the Supabase MCP in two steps
+(`0019_standardize_inventory_sizes_snapshot`, then `..._rewrite`).
+**38,090 of 209,415 `inventory.size` values rewritten**; distinct values
+5,255 → 4,974 overall and 2,769 → 2,671 among active rows.
+
+The finding behind it: **`public.normalize_size(text)` has existed all along and
+nothing ever called it.** No trigger, no generated column, no default — so the
+SOP's size rule only applied when a parsing agent remembered to hand-apply it,
+and the column drifted. `1G` (8,533 rows) and `1 G` (7,096 rows) were two values
+in the same table; likewise `3G`/`3 G`, `15G`/`15 G`, `45 G / 28"`/`45 G/28"`,
+`024 Inch Box`/`24" Box`. This ran the existing function over the existing rows.
+
+**Syntactic only.** It fixes unit spelling, spacing and leading zeros. It does
+**not** change what the column carries: `6 G; Bush`, `3 G TRUE`, `1 G <24"`,
+`1 G (6ct)` keep their qualifiers, and height/caliper values parked in `size`
+(`5-6'`, `2-2.5"`, `B&B 4-5'`) were left alone. Splitting those out is a
+semantic change needing source review per SOP §5 — **still open**, and the
+reason the app's size filter still lists ~2,671 choices.
+
+**Verified after apply** (all four checks in the `.sql` file): 0 values left
+unnormalized outside the exclusion, 0 sizes nulled, **0 rows lost alphanumeric
+content** (the only permitted losses are unit words collapsing to symbols —
+`GAL`→`G`, `Inch`→`"`, `#`→` G`), 209,415 rows still present, 38,090 changed.
+Pre-flight ran the same content check over all 383 affected distinct values and
+returned zero. `search_inventory('Agave Americana')` still returns 478 rows.
+
+**12 rows deliberately excluded**, all `#N box|bag`: `#` means gallons per the
+SOP, but a box is sized in inches, so `#24 Box` → `24 G Box` may be flat wrong.
+They are `#24 Box NET` (3 rows), `#16 Box CG`, `#100 Bag`, `10-12' #100 Bag
+BBP`, `8-10' #100 Bag BBP`, `9' #42 box 3X BBP`, `3" #30 box BBP`, `3.5" #30 box
+BBP`, `4" #60 box BBP`, `5" #60 box BBP` — one row each. **A human should read
+these against the original source**; there is no way to tell gallons from inches
+from the string alone.
+
+`public.inventory_pre_size_normalization` (id, old_size, snapshot_at) holds the
+38,090 pre-rewrite values. **Drop it once the change has settled.**
+
+The SOP's size rule was expanded in the same change (approved by Bhoumik) from
+one line about unit spelling to a full standard: canonical units, word sizes,
+the `#N box` exception, what must *not* go in `size` (height/width/caliper,
+form and grade codes, pack counts), and a pointer at `normalize_size()` as the
+reference implementation.
+
 ## `0018_supplier_availability_source.sql`
 
 Applied 2026-08-05 via the Supabase MCP, in two steps — recorded in the

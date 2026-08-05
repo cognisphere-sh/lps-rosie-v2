@@ -31,10 +31,11 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification: `suppliers` 910 (904 active), `inventory`
-183,795 (**74,089 active**), `inventory_sources` 1,834, `plant_other_names`
-27,616, `availability_queries` 123, `users` 2, `contacts` 973 across 907
-suppliers — 47 backfilled from the retired `poc_*` columns on 2026-08-05, 29
+Row counts at last verification (2026-08-05): `suppliers` 1,192 (1,186 active),
+`inventory` 209,415 (**69,043 active**), `inventory_sources` 1,980 (765 active),
+`plant_other_names` 13,487 (13,477 active), `availability_queries` 123,
+`users` 2, `contacts` 1,543 (1,534 active) across 1,188 suppliers — 47 backfilled
+from the retired `poc_*` columns on 2026-08-05, 29
 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.
 
@@ -200,7 +201,7 @@ availability files.
 | `source_id` | uuid → `inventory_sources.id` | yes | File/URL this row came from; null for hand-entered rows |
 | `name` | text | no | The whole plant identity: `Name [scientific name, variant]`, e.g. `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`. `Name` is as the source prints it; either bracket part is omitted when the source doesn't give it. **Part of a row's identity** — (name, size) alone is NOT unique |
 | `name_key` | text **generated stored** | — | `normalize_plant_key(name)`; joins to `plant_other_names`. Do not write |
-| `size` | text | yes | Normalized: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`). `#`/`gal` mean gallons |
+| `size` | text | yes | The container/grade sold, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here; ~2,671 legacy active values still violate that. See the SOP's *Size standard* |
 | `unit_price` | numeric(10,2) | yes | USD; lower bound if the source gave a range. `NULL` means the supplier provided no price; never coerce missing to zero |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
 | `height` / `width` / `caliper` | text | yes | As printed in the source |
@@ -317,7 +318,7 @@ build anything new on it.**
 |---|---|---|
 | `normalize_search_text(text)` | text | Search tokenization: lowercase, punctuation → spaces, split letter↔digit boundaries ("1G" → "1 g"). The pgroonga document/query normalizer — the concatenation in `search_inventory` must stay byte-identical to the `inventory_pgroonga_idx` expression or the index is skipped |
 | `normalize_plant_key(text)` | text | Identity key for plant names: lowercase **letters only** ("Live-Oak 2" → "liveoak"). Backs the generated `*_key` columns |
-| `normalize_size(text)` | text | Size-string normalizer |
+| `normalize_size(text)` | text | Size-string normalizer — canonicalizes units/spacing/leading zeros (`"1G"` → `"1 G"`, `"024 Inch Box"` → `"24\" Box"`). **Nothing calls it automatically** (no trigger, no default): ingestion applies it, and migration 0019 applied it to the 38,090 legacy rows that had drifted |
 
 ### Search RPCs
 
@@ -509,7 +510,9 @@ required.
 
 ## Conventions recap
 
-- Sizes: `"15 G"`, `"6'"`, `"24\""`, `"3' cal"`, `"24\" box"`; `#` = gallons.
+- Sizes: `"15 G"`, `"6'"`, `"24\""`, `"3' cal"`, `"24\" box"`; `#` = gallons
+  (but a box is inches). Run values through `normalize_size()`; keep height,
+  caliper, form codes and pack counts out of `size`.
 - Plant `name`: `Name [scientific name, variant]` — the printed name in full,
   plus the scientific name and cultivar/trade name when the source gives them.
   `plant_other_names` holds only other names for the *same plant* (common,

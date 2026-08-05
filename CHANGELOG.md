@@ -63,6 +63,55 @@ here).
 
 ### Changed
 
+- **38,090 legacy `inventory.size` values standardised (migration 0019).** The
+  cause was worth the dig: `normalize_size(text)` has been in the database all
+  along and **nothing ever called it** — no trigger, no generated column, no
+  default — so the SOP's size rule applied only when a parsing agent remembered
+  to hand-apply it. `1G` (8,533 rows) and `1 G` (7,096 rows) were two values in
+  the same table, as were `3G`/`3 G`, `15 G / 17"`/`15 G/17"` and `024 Inch
+  Box`/`24" Box`. Running the existing function over the existing rows took
+  distinct sizes 5,255 → 4,974 (2,769 → 2,671 active), which is what collapsed
+  the duplicate checkboxes in the new size filter.
+  **Syntactic only** — unit spelling, spacing and leading zeros. Qualifiers
+  (`6 G; Bush`, `3 G TRUE`, `1 G <24"`) and height/caliper values parked in
+  `size` (`5-6'`, `2-2.5"`) were left untouched; separating those is a semantic
+  change needing source review, and it is why the filter still lists ~2,671
+  choices. 12 `#N box|bag` rows were excluded because `#` means gallons but a
+  box is sized in inches, so `#24 Box` → `24 G Box` may be flat wrong — they are
+  listed in the migration NOTE for a human to check against the source.
+  Verified: 0 rows lost alphanumeric content, 0 sizes nulled, row count
+  unchanged, search unaffected. `inventory_pre_size_normalization` holds the
+  pre-rewrite values until this settles.
+
+- **Daisy's size rule became a size standard** (SOP §2, approved by Bhoumik).
+  One line about unit spelling grew into: canonical units with a conversion
+  table, `normalize_size()` named as the reference implementation, the `#N box`
+  exception, when a word (`B&B`, `Field Grown`, `Quart`) is a valid size, and an
+  explicit list of what must **not** go in `size` — height/width/caliper, form
+  and grade codes, pack counts, and anything guessed. It also tells her not to
+  bulk-fix legacy rows as a side effect of an ingest.
+
+- **The Plant Search size filter now lists the raw `size` values, not
+  categories.** The selector used to normalize each row into commercial buckets
+  — collapsing `15 G`, `15G` and `15 G/17"` into one `15 gal` choice, splitting
+  a `3–5 G` range into its endpoints, and inferring gallon/box/caliper types
+  with plausibility guards (calipers had to be inch-qualified and ≤ 20 to keep
+  known source noise like `caliper = 215` out). It read as tidy but hid what the
+  rows actually say, and any size the classifier did not recognize was simply
+  unfilterable. It is now a checkbox list of every distinct `size` string in the
+  current matches, matched by exact text, which is what the Size column filter
+  on desktop already did. Stored selections moved to
+  `lps.plant-search.size-choice.v2` because the old keys (`gallon:15`) mean
+  nothing now; the v1 key is cleaned up on load. Size typed *into the query*
+  (`15g Agave Americana`) is unchanged — it still parses the token out of the
+  plant name and matches by value, so it finds a row listed as `15 gal`.
+
+- **Multiselect column filters have a search box.** Their options come from the
+  rows on screen, so Size, City and similar columns list hundreds of values and
+  finding one meant scrolling the whole dropdown. The search narrows the visible
+  list only — selections outside the current search stay selected. Matches the
+  supplier multiselect, which already had one.
+
 - **Contact people moved out of `suppliers.notes`.** All 54 suppliers with notes
   were read by hand; the people written into that prose before `contacts`
   existed are now rows — 29 inserted (47 → 76), 12 existing rows gained the role

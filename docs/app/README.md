@@ -191,7 +191,7 @@ rendering: every query word must occur (or be a word prefix) in the row's own
 name or aliases. If that finds nothing, the broad set is retained so typo/fuzzy
 searches still work. This keeps `Agave Americana` from including every `Tilia`,
 `Ulmus` and `Fraxinus americana`; the same refined rows feed the size selector,
-so tree calipers cannot leak into an Agave menu.
+so sizes belonging to other species cannot leak into an Agave menu.
 
 The alias RPC matches one whole query and cannot natively combine a species
 alias with a separate cultivar term (`Live oak` + `Boardwalk`). If a full
@@ -201,21 +201,19 @@ most selective term. This fallback runs only after zero results, so normal
 searches still make one RPC call; both `Live oak boardwalk` and `Boardwalk live
 oak` can fall back to the 32-row `Boardwalk` set.
 
-When no size is typed, results add one compact **Size: Any** selector populated
-only with conservative commercial categories from the refined matches:
-explicit gallons, explicit boxes and context-confirmed plausible calipers.
-Equivalent gallon spellings collapse (`15 G`, `15G`, `15 G/17"` → `15 gal`),
-and a description range contributes its endpoints (`3–5 G` → 3 gal and 5 gal)
-rather than becoming another menu item. Bare inch measurements, height/width
-specifications, untyped decimals and other grower-description fragments remain
-visible on result rows but never become choices. Calipers require inch/caliper
-context and a plausible value (greater than 0 and at most 20 inches), guarding against known source-column
-noise such as Agave rows with `caliper = 55/80/215`.
+When no size is typed, results add one compact **Size: Any** selector — a
+checkbox-style multiselect (with its own search box) listing **every distinct
+`size` value the refined matches carry, exactly as the supplier wrote it**.
+There is no normalization: `15 G`, `15G` and `15 gal` are three separate
+checkboxes, and a row matches a selection only by exact text. This replaced a
+category scheme that collapsed spellings and inferred gallon/box/caliper
+buckets — it hid what the rows actually say and silently dropped sizes it did
+not recognize.
 
-The selector is a checkbox-style multiselect. Selected categories use OR logic
-(a row matching any selected size remains), are mirrored as repeated URL `size`
-parameters, and are saved as a JSON array under
-`lps.plant-search.size-choice.v1`. Filtering applies to the current
+Selected sizes use OR logic (a row matching any selected size remains), are
+mirrored as repeated URL `size` parameters, and are saved as a JSON array under
+`lps.plant-search.size-choice.v2`. Selections that no longer exist in the
+current matches are dropped once results load. Filtering applies to the current
 `search_inventory` result set (up to 300 rows).
 
 ## Contacts
@@ -359,6 +357,13 @@ per-column filters are deliberately **not** persisted — they describe the
 current question, not the layout. The `plants` config is shared, so a column
 change on Plant search also applies to the profile's Inventory tab, exactly as
 in the design.
+
+`FilterControl` renders one of four widgets per column (`text`, `range`,
+`multiselect`, `none`). The multiselect dropdown opens with a **search box**
+over its values — the option list is built from the rows on screen, so columns
+like Size or City routinely list hundreds of values and scrolling for one is
+hopeless. The search narrows the list only; selections outside the current
+search stay selected.
 
 Two things about the implementation are easy to break:
 
