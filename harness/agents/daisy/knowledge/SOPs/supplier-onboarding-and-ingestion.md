@@ -22,6 +22,13 @@ output — SOP changes require Chris's or Bhoumik's approval.
   in `suppliers.communication_notes` — channel, what, why, thread id. Durable
   facts about the supplier go in `suppliers.notes`; the two are not
   interchangeable (see SCHEMA.md).
+- **People go in `contacts`, not on the supplier row and never in prose.** One
+  row per person, `supplier_id` pointing back. `contacts.notes` describes the
+  *person*; contact history still goes in `suppliers.communication_notes`.
+  Never write a person's name, email or phone into `suppliers.notes` — a
+  2026-08-05 cleanup had to lift 29 of them back out. A **generic inbox**
+  (`sales@`, `orders@`, `avail@`) is the company's contact surface, not a
+  person: that belongs on `suppliers`, not in `contacts`.
 - Path to this SOP.
 - The parent ThreadId (for your notes/temp naming) and the current timestamp.
 
@@ -36,14 +43,40 @@ the same session. Ask early rather than guessing.
 
 ## 0. Onboarding (only when the supplier is new)
 
-- Never guess a duplicate into existence: search `suppliers` first (match on
-  `email`, then `name ILIKE`). If you still can't tell whether this is a new
-  supplier, ask the main agent and stop.
+- Never guess a duplicate into existence: search first. Email addresses live in
+  `contacts`, not on `suppliers`, so match on `contacts.email`, then the
+  sender's domain (`c.email ILIKE '%@<domain>'`), then `suppliers.name ILIKE` —
+  or just call `search_suppliers`, which covers all of it in one query. If you
+  still can't tell whether this is a new supplier, ask the main agent and stop.
 - INSERT the `suppliers` row with whatever you have (`name` is required; add
-  `email`/`poc_name`/`poc_email`/`poc_phone`/`phone`/address parts when
-  present). Set `category` to one of `Wholesaler`/`Grower`/`Nursery` **only
-  if you actually know it — otherwise leave it null; never guess.** Capture
-  the returned `id`.
+  address parts when present). `suppliers` has **no `email` or `phone` column** —
+  the company's own switchboard is a `contacts` row like any other. Set
+  `category` to one of `Wholesaler`/`Grower`/`Nursery` **only if you actually
+  know it — otherwise leave it null; never guess.** Capture the returned `id`.
+- **INSERT a `contacts` row for the supplier's main line** — the general
+  `info@`/`sales@` address and the switchboard number — with
+  `title_department = 'Main line'` and `name` left null. That row is what makes
+  the supplier findable by email next time.
+- **INSERT a `contacts` row for each person you know**, with `supplier_id` set
+  and `name` / `email` / `phone` / `title_department` filled from what the
+  source actually gives — a signature block, a "contact us" page, the sender of
+  the availability email. **Leave `name` null unless the source actually names
+  them** — never infer a name from the address itself. `bobby.green@` is a fair
+  read, but `tynursery.orders@` and `treeoflife.gardencenter@` are not people,
+  and `dwinningham@` cannot yield a first name without inventing one. A contact
+  with only an email or phone is perfectly valid. Flag the one who answers about
+  availability as `is_primary = true`; **at most one active primary per
+  supplier**, so when you promote someone, demote the incumbent first:
+  ```sql
+  UPDATE contacts SET is_primary = false
+  WHERE supplier_id = <id> AND is_active AND is_primary;
+  UPDATE contacts SET is_primary = true WHERE id = <new primary id>;
+  ```
+  Getting the right sales/contact person on file matters — it is how every
+  later availability request reaches a human instead of a switchboard.
+- For an **existing** supplier, check `contacts` before inserting: add the
+  person only if they are genuinely new, correct the existing row if they moved
+  role, and retire (`is_active = false`) whoever has left. Never delete.
 - **Enrich via the browser** (`scripts/agent/agent-browser`): google the
   supplier; find their **website** (store as a bare domain, e.g.
   `acostafarms.com` — the UI prepends `https://`), full **address / city /
@@ -56,6 +89,21 @@ the same session. Ask early rather than guessing.
   subscribe with Daisy's email **`chris.r@localplantsupply.com`** and record
   in your output that you subscribed (the main agent tells Chris). If signup
   needs approval or human steps, note that instead.
+- **Record how their availability reaches us.** Three columns on `suppliers`
+  capture it, and each is filled only from something you actually saw:
+  - `availability_source_type` — `'Email'` when they send the list (a drop
+    landing in the inbox is proof), `'Hosted'` when it lives on a page you
+    fetched. A supplier can be both; record the one this drop came through.
+  - `hosted_availability_url` — the page a hosted list sits on, when there is one.
+  - `availability_update_days` — how often it refreshes, in whole days (7 =
+    weekly), **only when the supplier states it** ("updated every Monday", "new
+    availability weekly", a dated page footer). Never infer it from two drops
+    happening to fall a week apart.
+
+  Leave any of them null when you don't know — null means "not established
+  yet", and a guess sends someone chasing a list that isn't there. For an
+  existing supplier, fill a null column when a drop reveals it; don't overwrite
+  an existing value without evidence it changed.
 - Do the same enrichment/newsletter check for an **existing** supplier whose
   row is missing website/address/coords — don't re-subscribe if their notes
   say it's already done.
@@ -189,7 +237,9 @@ uses it verbatim for the report to Chris, the thread summary, and the daily
 note, so include:
 
 - **Onboarding** (when performed): new `supplier_id`, fields set via browser
-  research, newsletter subscribed (or why not).
+  research — including which of the availability-source columns you set and on
+  what evidence, and which you left null — `contacts` rows added (and which one
+  you made primary), newsletter subscribed (or why not).
 - **Result**: supplier_id, source ids + `file_path`s created, rows inserted,
   rows deactivated, alias pairs added.
 - **Follow-up questions**: anything you need from the main agent to finish

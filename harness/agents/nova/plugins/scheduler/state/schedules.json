@@ -1,3 +1,1 @@
-{
-  "schedules": []
-}
+{"schedules":[{"name":"remind-contextual-ask-2026-09-04","cron":"40 10 4 9 *","text":"One month ago, Bhoumik deferred contextual Ask until the UI was stable. Remind Bhoumik and Chris in Telegram group -1004330045748 that it is time to review whether to implement contextual Ask from Supplier and Plant Search into the same existing agent channel, with visible editable context and explicit send. Do not implement it without renewed approval.","threadId":"main","channelId":"contextual-ask-review","onetime":true}]}

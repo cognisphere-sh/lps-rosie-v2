@@ -8,6 +8,192 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0018_supplier_availability_source.sql`
+
+Applied 2026-08-05 via the Supabase MCP, in two steps — recorded in the
+migration history as `supplier_availability_source_columns` and
+`search_suppliers_availability_source_columns` (no `0018` prefix, unlike
+0014–0017). Adds three nullable columns to `suppliers` describing how a
+supplier's availability reaches us: `availability_source_type`
+(CHECK `Email | Hosted`), `availability_update_days` (CHECK `> 0`) and
+`hosted_availability_url`. Additive — 0 rows rewritten, all 910 start null.
+
+**Null is "not established yet", not "none".** The whole point is to make
+filterable what was previously prose in `notes`, so a blank source type is a
+to-do. For the same reason there is **no constraint tying the URL to a `Hosted`
+source type**: rows are routinely half-filled while someone works out how a
+supplier publishes, and a supplier that both emails a sheet and posts one on a
+portal is a real case.
+
+`search_suppliers` was dropped and recreated to return the three columns and
+accept them as `sort_column` — its return type is fixed, so the app could not
+see them otherwise. Nothing else about the function changed: same matching,
+same ordering, same contact branch. The pgroonga document and
+`suppliers_pgroonga_idx` were **not** rebuilt — an enum, an integer and a URL
+are not text worth matching a query against, and the index expression has to
+stay byte-identical to the function's concatenation.
+
+App-side: the Suppliers table gained the three columns (source type edits
+through a new `select` cell kind, the URL stays a clickable link with a pencil),
+`WRITABLE.suppliers` gained all three, and the supplier profile shows them.
+
+## `0017_drop_fax_and_migration_snapshots.sql`
+
+Applied 2026-08-05, closing out the 0014–0017 contact normalization.
+
+`suppliers.fax` was the last contact field on the table; it is gone, and
+`suppliers` now carries **no way of contacting a supplier at all** — name,
+category, address, coordinates, website, notes, communication_notes only.
+
+The 12 fax numbers were preserved first, into the `notes` of each supplier's
+main-line contact (preferring `title_department = 'Main line'`, then the
+primary, then the oldest row). **Deliberately not `contacts.phone`:** the app
+renders that as a `tel:` link, so a fax number there dials a fax machine.
+Verified 12/12 present after the move.
+
+Nothing in the app, `search_suppliers` or the pgroonga document ever referenced
+`fax`, so no index or function rebuild was needed.
+
+Also dropped, now that the changes have settled:
+`suppliers_notes_pre_contact_extraction` (0015) and `suppliers_contact_pre_move`
+(0016). **The 0014–0017 column drops are no longer reversible from this
+database.** Post-apply: 0 snapshot tables, `search_suppliers` returns 904,
+`search_inventory` unaffected.
+
+## `0016_move_supplier_email_phone_to_contacts.sql`
+
+Applied 2026-08-05, completing what 0014/0015 started. `suppliers.email` and
+`suppliers.phone` moved into `contacts` and **both columns were dropped**.
+`suppliers` now describes the company only; every contact route is a `contacts`
+row. `suppliers.fax` followed in 0017.
+
+One row per supplier is created from the email/phone pair with
+`title_department = 'Main line'`. It takes `is_primary` only when no active
+primary exists, so the named people 0014/0015 established keep precedence over a
+generic `info@`.
+
+**Names are guessed from a hand-curated allowlist, never a pattern.** A
+`first.last` regex matches `tynursery.orders`, `treeoflife.gardencenter` and
+`customerservice.bhf`; a single-first-name regex matches `howdy`, `fieldgrown`
+and `plants`. So both tiers are explicit lists of values actually present here,
+reviewed one by one: 9 full names, 6 first-names-plus-company, ~118 recognisable
+single-token first names. Everything else keeps `name = NULL`. Ambiguous tokens
+were deliberately skipped — `austin` (also a city), `hunter`, `angel`, `cat`,
+`chance`, `moe`, `shorty`, `ikey`, `gay`, and every initial+surname form
+(`dwinningham`, `bstitt`) whose first name cannot be recovered without inventing
+it. **All ~160 guessed rows carry `Name inferred from the email address;
+unverified.` in `contacts.notes`.**
+
+**Result:** contacts 76 → 973 across 907 suppliers; 233 have a name.
+
+**Verified after apply**, against the `suppliers_contact_pre_move` snapshot:
+**0 emails and 0 phones lost**, 0 multi-primary violations, 0 leftover columns.
+`search_suppliers` returns 904 active suppliers, 898 with a primary email, and
+searching a full address (`susan.sheffield@acostafarms.com`) resolves to its
+supplier through the contacts branch.
+
+One trap worth recording: the first pass reported 11 phones missing. Those were
+suppliers whose email already matched a person's contact row — that person had
+their own cell, so the "fill phone where null" update never fired and the
+company's main line would have vanished with the column. They got their own
+nameless `Main line` row. **Anything similar in future: re-run the
+snapshot-vs-live check before dropping, not after.**
+
+`public.suppliers_contact_pre_move` (id, email, phone, snapshot_at) holds the
+pre-move values. **Drop it once the change has settled.**
+
+Knock-on changes: `suppliers_pgroonga_idx` rebuilt without email/phone;
+`search_suppliers` dropped and recreated without the `phone`/`email` return
+columns and sort keys (contact matching already covers those values);
+`app/lib/columns.ts` lost both supplier columns; the profile lost both fields;
+`WRITABLE.suppliers` lost both; and Daisy's supplier-identification query in
+`1-agent.md` plus the SOP's onboarding search now join through `contacts`.
+
+## `0015_extract_contacts_from_notes.sql`
+
+Applied 2026-08-05, straight after 0014. Before `contacts` existed, people found
+in availability emails and on supplier websites had nowhere to go, so they were
+written into `suppliers.notes` as prose. This lifts them out.
+
+All 54 suppliers with non-empty notes were read by hand — 48 active, 6 inactive.
+The 6 inactive ones are duplicate-record tombstones whose notes are pure
+provenance, and were left alone.
+
+The rule, applied uniformly: a **named person** and their email/phone/role
+becomes a `contacts` row, and notes lose only the text that carried that
+person's contact details. Everything else stays — hours, addresses, policies,
+parsing quirks, business history, and generic/role inboxes (`sales@`, `orders@`,
+`avail@`), which are the company's own contact surface and already live on
+`suppliers`.
+
+**Result:** 29 contacts inserted (47 → 76 rows, 49 suppliers), 12 existing rows
+gained the role the notes described, 3 gained a missing email/phone, 20 supplier
+notes trimmed (5 of them to `NULL` because contact details were their whole
+content). It also removed the last reference anywhere in the database to the
+dropped `poc_email` column (supplier 204).
+
+**Verified after apply**, since trimmed prose cannot be regenerated:
+
+- All 44 people named in the original notes resolve to an active contact row.
+- Every email address removed from a note exists on `contacts` or `suppliers` —
+  0 lost.
+- Every phone number removed from a note likewise, compared on digits only —
+  0 lost.
+- 47 primaries, 0 multi-primary violations, 0 remaining `poc_*` references.
+
+`public.suppliers_notes_pre_contact_extraction` (id, notes, snapshot_at) holds
+the pre-trim text for all 54 suppliers. **Drop it once the change has settled.**
+
+Two judgment calls worth knowing:
+
+1. **New rows are `is_primary = false`.** Where a supplier had no contact at all
+   (Tom Dodd, Cox Cactus), nothing was promoted — the notes ranked nobody, and
+   `search_suppliers` falls back to the oldest active row, so the supplier still
+   displays a contact without anyone asserting who *the* POC is on no evidence.
+2. **Supplier 255 now has two Felix Riveros.** The existing `Felix Jr. Rivero`
+   and the notes' `Felix Rivero` carry different office, cell and email. They
+   are kept separate with the ambiguity recorded on the new row rather than
+   merged on a guess.
+
+Six notes that name a person were deliberately left intact, because the sentence
+carries a fact rather than a directory entry: 12 Ran-Pro (what Ken Howard sends,
+and that the farm shut down), 43 Greenstock (routing instruction), 59 Green Land
+(who distributes availability), 297 Davenport (who a list came from), 520 Focal
+Point (how to work with John Shearouse), 914 Hand Tree (forwarding provenance).
+
+## `0014_supplier_contacts.sql`
+
+Applied 2026-08-05 in five steps (`0014a`–`0014e`). The `poc_*` drop is
+irreversible, so the backfill was reconciled against the source columns first:
+**47 rows** inserted — 45 with a name, 41 an email, 37 a phone, 47 primary —
+matching all four source counts exactly, with **0 value mismatches** on a
+row-by-row comparison. Post-apply: 0 `poc_*` columns remain; `search_suppliers`
+returns 904 active suppliers, 42 carrying a primary contact name (the other 3
+named contacts belong to inactive suppliers, correctly filtered out); a contact
+name whose supplier name does not contain it still finds that supplier;
+`search_inventory` is unaffected.
+
+Splits the supplier point of contact out of `suppliers` into `public.contacts`,
+one row per person, so a supplier can have more than one. `poc_name` /
+`poc_email` / `poc_phone` held exactly one and were used by 47 of 910 rows.
+
+Three things worth knowing:
+
+1. **`contacts.name` is nullable.** Two backfilled rows carry only an email or
+   phone (a shared sales inbox). A `NOT NULL` name would have forced inventing
+   one.
+2. **One active primary per supplier**, via the partial unique index
+   `contacts_one_primary_idx (supplier_id) WHERE is_primary AND is_active`.
+   Promotion must **demote the incumbent first**; the reverse order trips the
+   index. Retired contacts keep their flag as history without blocking anyone.
+3. **Contact text left the suppliers search document.** An index expression
+   cannot read another table, so `poc_name` could not simply be re-pointed at
+   `contacts`. Instead `suppliers_pgroonga_idx` drops it, `contacts_pgroonga_idx`
+   covers the contact document, and `search_suppliers` folds matching
+   `supplier_id`s in as a precomputed array — the same shape as the existing
+   trigram fallback, which keeps the suppliers index usable for the main branch.
+   Contact-only matches score 0 and sort after direct matches.
+
 ## `0013_legacy_zero_prices_to_null.sql`
 Applied 2026-08-04 via Daisy's guarded Supabase runner with explicit Bhoumik
 approval. `UPDATE 28998`: all historical `unit_price = 0` rows became `NULL`.

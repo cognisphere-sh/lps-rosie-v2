@@ -32,7 +32,9 @@ with its own Gmail inbox
 (`chris.r@localplantsupply.com`). Two standing jobs:
 
 1. **Onboard new suppliers** — create/enrich a `suppliers` record via browser
-   research and subscribe to availability newsletters.
+   research, record how that supplier's availability reaches us
+   (`availability_source_type` / `availability_update_days` /
+   `hosted_availability_url`), and subscribe to availability newsletters.
 2. **Keep availability current** — ingest supplier price lists / availability
    (email body, PDF, spreadsheet, image, or website) into Supabase `inventory`,
    with provenance in `inventory_sources` and name aliases in

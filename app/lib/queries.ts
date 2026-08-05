@@ -2,6 +2,7 @@ import 'server-only'
 
 import { sourceUrl, supabase } from '@/lib/supabase'
 import type {
+  Contact,
   PlantGroup,
   PlantRow,
   SourceLink,
@@ -20,16 +21,14 @@ interface SupplierRecord {
   city: string | null
   state: string | null
   zip: string | null
-  phone: string | null
-  email: string | null
-  poc_name: string | null
-  poc_email: string | null
-  poc_phone: string | null
   website: string | null
   latitude: number | null
   longitude: number | null
   notes: string | null
   communication_notes: string | null
+  availability_source_type: string | null
+  availability_update_days: number | null
+  hosted_availability_url: string | null
   is_active?: boolean
   created_at: string | null
   updated_at: string | null
@@ -52,9 +51,15 @@ interface InventoryRecord {
   updated_at: string | null
 }
 
+/** "Jane Ruiz [Sales Manager]" — falls back to whatever identifies the person. */
+function contactLabel(c: Contact): string {
+  const who = c.name || c.email || c.phone || 'Unnamed contact'
+  return c.title_department ? `${who} [${c.title_department}]` : who
+}
+
 function toSupplierRow(
   s: SupplierRecord,
-  extras: { sources?: SourceLink[]; itemCount?: number | null } = {},
+  extras: { sources?: SourceLink[]; itemCount?: number | null; contacts?: Contact[] } = {},
 ): SupplierRow {
   const ref: SupplierRef = {
     id: s.id,
@@ -64,21 +69,28 @@ function toSupplierRow(
     address: s.address,
   }
   const sources = extras.sources ?? []
+  // Primary first (see contactsBySupplier), so the head of the list is the
+  // supplier's default point of contact and the tail is everyone else.
+  const contacts = extras.contacts ?? []
+  const [primary, ...others] = contacts
   return {
     id: s.id,
     ref,
     sourceLinks: sources,
+    contacts,
     values: {
       name: s.name,
       category: s.category,
-      poc_name: s.poc_name,
-      poc_email: s.poc_email,
-      poc_phone: s.poc_phone,
-      email: s.email,
-      phone: s.phone,
+      primary_contact_name: primary?.name ?? null,
+      primary_contact_email: primary?.email ?? null,
+      primary_contact_phone: primary?.phone ?? null,
+      other_contacts: others.map(contactLabel),
       website: s.website,
       inventory_sources: sources.map((f) => f.label),
       last_ingestion_date: sources[0]?.ingestedAt ?? null,
+      availability_source_type: s.availability_source_type,
+      availability_update_days: s.availability_update_days,
+      hosted_availability_url: s.hosted_availability_url,
       item_count: extras.itemCount ?? null,
       city: s.city,
       state: s.state,
@@ -201,6 +213,40 @@ async function sourcesBySupplier(ids: number[]): Promise<Map<number, SourceLink[
   return map
 }
 
+/**
+ * Active contacts per supplier, primary first.
+ *
+ * `search_suppliers` already resolves the primary contact into its
+ * `primary_contact_*` columns, but `getSupplier` reads the `suppliers` table
+ * directly and the profile needs the whole list anyway — so every caller goes
+ * through this and the row mapping has one shape to handle.
+ */
+async function contactsBySupplier(ids: number[]): Promise<Map<number, Contact[]>> {
+  const map = new Map<number, Contact[]>()
+  if (!ids.length) return map
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('id, supplier_id, name, email, phone, title_department, notes, is_primary, created_at, updated_at')
+    .in('supplier_id', ids)
+    .eq('is_active', true)
+    .order('is_primary', { ascending: false })
+    .order('id', { ascending: true })
+
+  if (error) throw new Error(`contacts: ${error.message}`)
+  for (const row of (data ?? []) as Contact[]) {
+    const list = map.get(row.supplier_id) ?? []
+    list.push(row)
+    map.set(row.supplier_id, list)
+  }
+  return map
+}
+
+/** One supplier's active contacts, primary first — the profile's Contacts tab. */
+export async function getSupplierContacts(id: number): Promise<Contact[]> {
+  return (await contactsBySupplier([id])).get(id) ?? []
+}
+
 // Active inventory count per supplier. PostgREST has aggregate functions
 // disabled on this project, so this is one indexed COUNT per supplier — ~2s for
 // a page of 50, which is why the suppliers page loads it as a second pass
@@ -228,8 +274,11 @@ export async function listSuppliers(search: string): Promise<SupplierRow[]> {
 
   if (error) throw new Error(`search_suppliers: ${error.message}`)
   const records = (data ?? []) as SupplierRecord[]
-  const sources = await sourcesBySupplier(records.map((r) => r.id))
-  return records.map((r) => toSupplierRow(r, { sources: sources.get(r.id) ?? [] }))
+  const ids = records.map((r) => r.id)
+  const [sources, contacts] = await Promise.all([sourcesBySupplier(ids), contactsBySupplier(ids)])
+  return records.map((r) =>
+    toSupplierRow(r, { sources: sources.get(r.id) ?? [], contacts: contacts.get(r.id) ?? [] }),
+  )
 }
 
 /**
@@ -313,9 +362,10 @@ export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
   const supplierIds = [...new Set(records.map((r) => r.supplier_id).filter((id): id is number => id != null))]
   if (!supplierIds.length) return []
 
-  const [{ data: sups, error: supErr }, sources, plantRows] = await Promise.all([
+  const [{ data: sups, error: supErr }, sources, contacts, plantRows] = await Promise.all([
     supabase.from('suppliers').select('*').in('id', supplierIds),
     sourcesBySupplier(supplierIds),
+    contactsBySupplier(supplierIds),
     withSourceDetails(records),
   ])
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
@@ -331,7 +381,10 @@ export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
     let group = groups.get(plant.supplierId)
     if (!group) {
       group = {
-        supplier: toSupplierRow(record, { sources: sources.get(plant.supplierId) ?? [] }),
+        supplier: toSupplierRow(record, {
+          sources: sources.get(plant.supplierId) ?? [],
+          contacts: contacts.get(plant.supplierId) ?? [],
+        }),
         plants: [],
       }
       groups.set(plant.supplierId, group)
@@ -357,15 +410,17 @@ export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
 }
 
 export async function getSupplier(id: number): Promise<SupplierRow | null> {
-  const [{ data, error }, sources, counts] = await Promise.all([
+  const [{ data, error }, sources, contacts, counts] = await Promise.all([
     supabase.from('suppliers').select('*').eq('id', id).maybeSingle(),
     sourcesBySupplier([id]),
+    contactsBySupplier([id]),
     itemCounts([id]),
   ])
   if (error) throw new Error(`suppliers(${id}): ${error.message}`)
   if (!data) return null
   return toSupplierRow(data as SupplierRecord, {
     sources: sources.get(id) ?? [],
+    contacts: contacts.get(id) ?? [],
     itemCount: counts[id] ?? 0,
   })
 }
@@ -457,14 +512,20 @@ export async function signedSourceUrl(path: string): Promise<string | null> {
 // ---------------------------------------------------------------- mutations
 
 const WRITABLE: Record<string, string[]> = {
+  // No email/phone: those moved to `contacts` in migration 0016 and the
+  // columns are gone. Reaching a supplier is a contacts write now.
   suppliers: [
-    'name', 'poc_name', 'poc_email', 'poc_phone', 'email', 'phone', 'city', 'state',
-    'notes', 'communication_notes',
+    'name', 'city', 'state', 'notes', 'communication_notes',
+    'availability_source_type', 'availability_update_days', 'hosted_availability_url',
   ],
   inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes'],
+  contacts: ['name', 'email', 'phone', 'title_department', 'notes'],
 }
 
-const NUMERIC = new Set(['unit_price', 'quantity'])
+const NUMERIC = new Set(['unit_price', 'quantity', 'availability_update_days'])
+// `availability_update_days` is an integer column, so a fractional value would
+// be rejected by Postgres rather than rounded. Say so here instead.
+const INTEGER = new Set(['availability_update_days'])
 
 /**
  * Update one cell. The table/column pair is checked against a whitelist here,
@@ -500,6 +561,9 @@ export async function updateFields(
     if (value !== null && NUMERIC.has(column)) {
       const n = Number(value)
       if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
+      if (INTEGER.has(column) && !Number.isInteger(n)) {
+        throw new Error(`${column} must be a whole number of days`)
+      }
       value = n
     }
     values[column] = value
@@ -511,9 +575,74 @@ export async function updateFields(
 
 /** Soft delete — the schema's convention is to flip is_active, never DELETE. */
 export async function softDelete(table: string, id: string | number): Promise<void> {
-  if (table !== 'suppliers' && table !== 'inventory') {
+  if (table !== 'suppliers' && table !== 'inventory' && table !== 'contacts') {
     throw new Error(`refusing to delete from ${table}`)
   }
+  // A retired contact keeps its is_primary flag as history, but the partial
+  // unique index only covers active rows, so the supplier is left free to
+  // promote someone else.
   const { error } = await supabase.from(table).update({ is_active: false }).eq('id', id)
   if (error) throw new Error(`${table} delete: ${error.message}`)
+}
+
+/** Add a person to a supplier. The first contact a supplier gets is its primary. */
+export async function createContact(
+  supplierId: number,
+  fields: Record<string, string>,
+): Promise<Contact> {
+  const values: Record<string, string | null> = {}
+  for (const column of WRITABLE.contacts) {
+    const raw = fields[column]
+    if (raw !== undefined) values[column] = raw.trim() || null
+  }
+  if (!values.name && !values.email && !values.phone) {
+    throw new Error('a contact needs at least a name, email or phone')
+  }
+
+  const { count, error: countErr } = await supabase
+    .from('contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('supplier_id', supplierId)
+    .eq('is_active', true)
+  if (countErr) throw new Error(`contacts: ${countErr.message}`)
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .insert({ ...values, supplier_id: supplierId, is_primary: (count ?? 0) === 0 })
+    .select('id, supplier_id, name, email, phone, title_department, notes, is_primary, created_at, updated_at')
+    .single()
+  if (error) throw new Error(`contacts insert: ${error.message}`)
+  return data as Contact
+}
+
+/**
+ * Promote one contact to the supplier's primary.
+ *
+ * `contacts_one_primary_idx` allows a single active primary per supplier, so
+ * the incumbent has to be demoted first — promoting before demoting would trip
+ * the unique index.
+ */
+export async function setPrimaryContact(id: number): Promise<void> {
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('supplier_id')
+    .eq('id', id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw new Error(`contacts(${id}): ${error.message}`)
+  if (!data) throw new Error(`no active contact ${id}`)
+
+  const { error: demoteErr } = await supabase
+    .from('contacts')
+    .update({ is_primary: false })
+    .eq('supplier_id', (data as { supplier_id: number }).supplier_id)
+    .eq('is_active', true)
+    .eq('is_primary', true)
+  if (demoteErr) throw new Error(`contacts demote: ${demoteErr.message}`)
+
+  const { error: promoteErr } = await supabase
+    .from('contacts')
+    .update({ is_primary: true })
+    .eq('id', id)
+  if (promoteErr) throw new Error(`contacts promote: ${promoteErr.message}`)
 }

@@ -11,7 +11,7 @@ restate table or column definitions.
 - The app reads it through `app/lib/queries.ts` with the project's secret key,
   server-side only.
 
-Last verified against the live database on 2026-07-27 by direct catalog
+Last verified against the live database on 2026-08-05 by direct catalog
 introspection. **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -23,6 +23,7 @@ Applied migrations live in `harness/agents/daisy/migrations/`.
 ```
 suppliers 1 ──< inventory_sources 1 ──< inventory >── plant_other_names (by name_key, no FK)
           1 ─────────────────────────< inventory
+          1 ─────────────────────────< contacts
           1 ─────────────────────────< availability_queries
 
 users 1 ──< chat_sessions 1 ──< availability_queries
@@ -30,9 +31,12 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification: `suppliers` 909 (905 active), `inventory`
+Row counts at last verification: `suppliers` 910 (904 active), `inventory`
 183,795 (**74,089 active**), `inventory_sources` 1,834, `plant_other_names`
-27,616, `availability_queries` 123, `users` 2.
+27,616, `availability_queries` 123, `users` 2, `contacts` 973 across 907
+suppliers — 47 backfilled from the retired `poc_*` columns on 2026-08-05, 29
+lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
+`suppliers.phone` when those columns were dropped the same day.
 
 ### Two conventions that apply everywhere
 
@@ -56,12 +60,13 @@ One row per nursery / grower / wholesaler.
 | `name` | text | no | Display name, e.g. "Acosta Farms Nursery, Inc" |
 | `category` | text | yes | **CHECK**: `Wholesaler` \| `Grower` \| `Nursery` \| `Other` |
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
-| `phone` / `email` / `fax` | text | yes | Supplier-level contact |
-| `poc_name` / `poc_email` / `poc_phone` | text | yes | Point-of-contact person (sparsely populated) |
 | `website` | text | yes | Usually a bare domain (`acostafarms.com`) — prepend `https://` when linking |
 | `latitude` / `longitude` | double precision | yes | Google Maps link: `google.com/maps?q=lat,lng` |
 | `notes` | text | yes | **Durable profile facts** — see below |
 | `communication_notes` | text | yes | **Append-only contact log** — see below |
+| `availability_source_type` | text | yes | **CHECK**: `Email` \| `Hosted` — how the availability list reaches us. Null = not established yet |
+| `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
+| `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
 | `is_active` | boolean | no, default true | Soft delete; deactivation cascades (see triggers) |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
@@ -99,6 +104,89 @@ WHERE id = $2;
 
 Live category distribution: Grower 569, Nursery 185, Other 151, Wholesaler 1,
 NULL 3.
+
+#### The three availability columns
+
+Added 2026-08-05 (migration 0018) to make structured what used to be prose in
+`notes` ("sends an XLSX every Monday", "avail is on their site"). All 910 rows
+start null, and **null means nobody has established it yet, not "none"** — an
+empty `availability_source_type` is a to-do, not an assertion that the supplier
+has no availability list.
+
+Nothing constrains `hosted_availability_url` to `availability_source_type =
+'Hosted'` rows. A supplier that both emails a sheet and publishes one is real,
+and a half-filled row is the normal state while someone is still working out
+how a supplier publishes. Don't add a cross-column constraint without checking
+the data first.
+
+These three are **not** in the suppliers search document, so searching "Hosted"
+does not find hosted suppliers — filter or sort on the column instead (the app's
+Suppliers table does; `search_suppliers` accepts all three as `sort_column`).
+
+**No way of contacting a supplier lives on this table.** `poc_name` /
+`poc_email` / `poc_phone` were dropped 2026-08-05 (migration 0014), then `email`
+/ `phone` (0016), then `fax` (0017). All of it is in `contacts` below — the
+supplier's own main line included, as a row with
+`title_department = 'Main line'`. What remains here describes the **company**:
+who it is, where it is, what it sells, what is true about it.
+
+This is why **you cannot look a supplier up by email against this table any
+more.** Match through `contacts.email`, or just use `search_suppliers`, which
+searches contacts as one of its branches.
+
+### `contacts`
+
+One row per person at a supplier — the sales rep, the availability desk, whoever
+answers. Replaced `suppliers.poc_*`, which could only hold one.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | Owning supplier |
+| `name` | text | yes | **Usually null, and that is correct.** Most rows are an inbox nobody named. Don't invent a name to fill it |
+| `email` / `phone` | text | yes | How to reach this contact |
+| `title_department` | text | yes | Free text as the supplier gives it — "Sales Manager", "Availability desk". `'Main line'` marks a row migrated from the old `suppliers.email`/`phone` |
+| `notes` | text | yes | Durable facts about **the contact** (best time to call, which lists they own). Also where a fax number lives — `phone` would render it as a dialable `tel:` link |
+| `is_primary` | boolean | no, default false | The supplier's default contact — see below |
+| `is_active` | boolean | no, default true | Soft delete; supplier deactivation cascades here |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
+
+**At most one active primary per supplier**, enforced by the partial unique
+index `contacts_one_primary_idx (supplier_id) WHERE is_primary AND is_active`.
+Promoting someone therefore means **demote the incumbent first, then promote** —
+the other order trips the index. A retired contact keeps its `is_primary` flag
+as history; because the index only covers active rows, that never blocks the
+current primary.
+
+`notes` here is about the person. Anything that was *said to* them is still an
+appended entry in `suppliers.communication_notes` — the split is the same one
+`suppliers.notes` vs `communication_notes` makes, and it matters for the same
+reason.
+
+There is deliberately no uniqueness on `(supplier_id, email)`: the same person
+can legitimately be listed twice with different roles, and dedupe is a judgment
+call, not a constraint. One such pair exists on purpose — supplier 255 has both
+`Felix Jr. Rivero` and `Felix Rivero` with different office, cell and email,
+flagged in the second row's `notes`. Confirm before merging them.
+
+**Only ~230 of 973 rows have a name, and that is the expected shape.** The table
+holds *contact routes*, not just people: 0016 moved every `suppliers.email` and
+`suppliers.phone` in here, and most of those are an inbox (`info@`, `sales@`)
+with no identifiable owner. A row needs only one of name / email / phone.
+
+Where a name was recoverable from an address it was taken from a **hand-curated
+allowlist of the values actually present**, never a pattern — a `first.last`
+regex matches `tynursery.orders` and `treeoflife.gardencenter`, and a
+first-name regex matches `howdy` and `fieldgrown`. Those ~160 guessed rows each
+carry `Name inferred from the email address; unverified.` in their `notes`, so a
+guess is never mistaken for a confirmed fact. **Don't infer a name from an
+address anywhere else** — leave it null and let someone who knows fill it in.
+
+`suppliers.notes` keeps hours, addresses, policies, parsing quirks and business
+history; 29 people were lifted out of that prose on 2026-08-05 and must not go
+back. Suppliers with contacts but no flagged primary are normal: nobody is
+promoted without evidence of who actually answers, and readers fall back to the
+oldest active row.
 
 ### `inventory`
 
@@ -267,14 +355,38 @@ search_suppliers(search text = '', category_filter text = null, fuzzy_ratio real
                  sort_column text = null, sort_direction text = null)
 ```
 Same pgroonga matching (including the trailing-word prefix match) over name /
-contact / address / notes, and the same ordering rule. Returns active
-suppliers.
+address / notes, and the same ordering rule. Returns active suppliers. It no
+longer returns `phone` or `email` — those columns are gone; the equivalents are
+`primary_contact_phone` / `primary_contact_email` below.
+
+It returns the three availability columns as of migration 0018 — the function
+has a fixed return type, so **any new `suppliers` column has to be added here
+before the app can read it through search.**
+
+Its returned columns include `primary_contact_name`, `primary_contact_email` and
+`primary_contact_phone`, resolved by a `LEFT JOIN LATERAL` over `contacts`
+(active only, `is_primary desc, id asc` — so a supplier with contacts but no
+flagged primary still reports its oldest one). These replaced the `poc_*`
+columns on 2026-08-05.
+
+A supplier also matches **through its contacts**: contact name / email / phone /
+title text is searched separately and folded in as a `supplier_id` list, the
+same way the trigram fallback is. That keeps `suppliers_pgroonga_idx` usable for
+the main branch — an index expression cannot read another table, so contact text
+can never live in the suppliers document. Contact-only matches score 0 and
+therefore sort after direct matches.
+
+**This branch is now the only way to find a supplier by email or phone**, since
+0016 moved both off `suppliers`. It works — searching a full address returns its
+supplier — but it scores 0, so an email search ranks below any name match.
 
 **`sort_column` is whitelisted inside each function; anything else is ignored.**
 
-- `search_suppliers`: `name`, `category`, `poc_name`, `poc_email`, `poc_phone`,
-  `website`, `email`, `phone`, `address`, `city`, `state`, `zip`, `notes`,
-  `created_at`, `updated_at`.
+- `search_suppliers`: `name`, `category`, `primary_contact_name`,
+  `primary_contact_email`, `primary_contact_phone`,
+  `website`, `address`, `city`, `state`, `zip`, `notes`,
+  `availability_source_type`, `availability_update_days`,
+  `hosted_availability_url`, `created_at`, `updated_at`.
 - `search_inventory`: `name`, `other_names`, `size`, `unit_price`,
   `quantity`, `height`, `width`, `caliper`, `notes`, `source`,
   `created_at`, `updated_at`, `supplier_name`, `supplier_category`,
@@ -299,9 +411,9 @@ suppliers.
 
 | Trigger | Table | When | Does |
 |---|---|---|---|
-| `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows and `inventory_sources` |
+| `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows, `inventory_sources` and `contacts` |
 | `trg_dedupe_plant_other_names` | plant_other_names | BEFORE INSERT | Skips normalized duplicates, self-pairs, empty keys |
-| `handle_updated_at` | suppliers, inventory, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
+| `handle_updated_at` | suppliers, inventory, contacts, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
 
 ## Indexes that matter
 
@@ -311,7 +423,16 @@ suppliers.
 - `plant_other_names_pgroonga_idx` — pgroonga over
   `normalize_search_text(name || ' ' || other_name)`. Note it does not cover
   `is_active`, which the search filters on separately.
-- `suppliers_pgroonga_idx` — pgroonga over the supplier document.
+- `suppliers_pgroonga_idx` — pgroonga over the supplier document (name, address,
+  city, state, zip, category, notes). **Must match the concatenation in
+  `search_suppliers` exactly.** Every contact field it used to carry —
+  `poc_name`, then `email` and `phone` — has moved to the contacts index below.
+- `contacts_pgroonga_idx` — pgroonga over
+  `normalize_search_text(name || email || phone || title_department)`. Backs
+  `search_suppliers`'s contact branch, and must stay byte-identical to it.
+- `contacts_one_primary_idx` — partial unique on `(supplier_id) WHERE is_primary
+  AND is_active`. Demote before you promote.
+- `contacts(supplier_id, is_active)`.
 - Btree on the stored keys: `inventory(name_key)`, `plant_other_names(name_key)`,
   `(other_name_key)`, unique `(name_key, other_name_key)`. These exist because
   computing the key per-comparison made the enriched view time out (21s → 119ms).
@@ -339,6 +460,7 @@ This is the single most important operational fact about this database.
 | `users` | **disabled** | Policies exist but are inert |
 | `inventory_sources` | enabled | `authenticated` full access |
 | `plant_other_names` | enabled | `authenticated` full access |
+| `contacts` | enabled | `authenticated` full access |
 | `custom_commands` | enabled | Per-user via `auth.uid()` |
 | `user_memories` | enabled | Per-user via `auth.uid()` |
 
@@ -398,6 +520,12 @@ required.
 - `suppliers.notes` = facts about the supplier; `suppliers.communication_notes`
   = an append-only log of contact with them. Never append contact history to
   `notes`, and never overwrite `communication_notes`.
+- Every contact route goes in `contacts` — people and inboxes alike, one row
+  each, at most one active `is_primary` per supplier. `suppliers` carries no
+  email or phone. `contacts.notes` describes the contact; what was said to them
+  is still an entry in `suppliers.communication_notes`.
+- Never infer a person's name from an email address. `contacts.name` is
+  nullable precisely so you don't have to.
 - Per-supplier quirks live in daisy's
   `workspace/suppliers/[<supplierId>]:<Name>/notes.md` (see
   `workspace/suppliers/index.md` for the name → id map).

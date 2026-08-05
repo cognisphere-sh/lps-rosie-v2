@@ -8,32 +8,37 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
-  MapPinIcon, PencilIcon, PhoneIcon, UploadIcon,
+  MapPinIcon, PencilIcon, PhoneIcon, TrashIcon, UploadIcon,
 } from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { MASTER_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
+import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
-import type { PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
+import type { Contact, PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
-type Tab = 'notes' | 'comms' | 'inventory' | 'files'
+type Tab = 'notes' | 'comms' | 'contacts' | 'inventory' | 'files'
 
 // `column` marks the field as editable in place and names the `suppliers`
 // column it writes to. Derived values (item_count, updated) and `website`
 // aren't editable — matching the design's own column definitions.
-const FIELDS: { key: string; label: string; column?: string }[] = [
-  { key: 'poc_name', label: 'Point of contact', column: 'poc_name' },
-  { key: 'poc_phone', label: 'PoC phone', column: 'poc_phone' },
-  { key: 'poc_email', label: 'PoC email', column: 'poc_email' },
-  { key: 'phone', label: 'Phone', column: 'phone' },
-  { key: 'email', label: 'Email', column: 'email' },
+// No phone or email here: every way of reaching this supplier — the main line
+// included — lives in `contacts` and is managed on the Contacts tab, since a
+// supplier can have several.
+// `options` swaps the text input for a dropdown; blank clears the column.
+const FIELDS: { key: string; label: string; column?: string; options?: string[] }[] = [
   { key: 'website', label: 'Website' },
   { key: 'city', label: 'City', column: 'city' },
   { key: 'state', label: 'State', column: 'state' },
+  {
+    key: 'availability_source_type', label: 'Availability source',
+    column: 'availability_source_type', options: AVAILABILITY_SOURCE_TYPES,
+  },
+  { key: 'availability_update_days', label: 'Update every (days)', column: 'availability_update_days' },
+  { key: 'hosted_availability_url', label: 'Hosted availability', column: 'hosted_availability_url' },
   { key: 'item_count', label: 'Active items' },
   { key: 'last_ingestion_date', label: 'Last inventory ingestion' },
   { key: 'updated', label: 'Profile last updated' },
@@ -46,6 +51,7 @@ function ProfileField({
   value,
   editing,
   href,
+  options,
   onChange,
 }: {
   label: string
@@ -53,12 +59,26 @@ function ProfileField({
   value: string
   editing: boolean
   href?: string
+  /** Present = edit through a dropdown of these values; blank clears. */
+  options?: string[]
   onChange?: (next: string) => void
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">{label}</span>
-      {editing && onChange ? (
+      {editing && onChange && options ? (
+        <select
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
+        >
+          <option value="">—</option>
+          {options.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      ) : editing && onChange ? (
         <Input
           aria-label={label}
           value={value}
@@ -79,6 +99,197 @@ function ProfileField({
         <span title={display} className="truncate text-[13px]">
           {display}
         </span>
+      )}
+    </div>
+  )
+}
+
+// The editable fields of a `contacts` row, in card order. `name` is optional:
+// plenty of real contacts are a shared inbox (`sales@…`) or an address whose
+// owner we can't name, and a guessed name is worse than none. A contact just
+// needs one of name / email / phone.
+const CONTACT_FIELDS: { column: string; label: string; type?: string; optional?: boolean }[] = [
+  { column: 'name', label: 'Name', optional: true },
+  { column: 'title_department', label: 'Title / department', optional: true },
+  { column: 'email', label: 'Email', type: 'email' },
+  { column: 'phone', label: 'Phone', type: 'tel' },
+  { column: 'notes', label: 'Notes', optional: true },
+]
+
+const contactDraftOf = (c: Contact): Record<string, string> =>
+  Object.fromEntries(
+    CONTACT_FIELDS.map((f) => [f.column, (c[f.column as keyof Contact] as string | null) ?? '']),
+  )
+
+/** The add/edit form shared by a new contact and an existing card. */
+function ContactForm({
+  draft,
+  busy,
+  saveLabel,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  draft: Record<string, string>
+  busy: boolean
+  saveLabel: string
+  onChange: (column: string, value: string) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))' }}>
+        {CONTACT_FIELDS.map((f) => (
+          <label key={f.column} className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+              {f.label}
+              {f.optional && <span className="font-normal normal-case tracking-normal"> · optional</span>}
+            </span>
+            <Input
+              type={f.type}
+              value={draft[f.column] ?? ''}
+              onChange={(e) => onChange(f.column, e.target.value)}
+              className="h-8 text-[13px]"
+            />
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={busy} onClick={onSave}>
+          {busy ? 'Saving…' : saveLabel}
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          A name is optional — email or phone alone is enough.
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function ContactCard({
+  contact,
+  editing,
+  draft,
+  busy,
+  onChange,
+  onEdit,
+  onSave,
+  onCancel,
+  onMakePrimary,
+  onRemove,
+}: {
+  contact: Contact
+  editing: boolean
+  draft: Record<string, string>
+  busy: boolean
+  onChange: (column: string, value: string) => void
+  onEdit: () => void
+  onSave: () => void
+  onCancel: () => void
+  onMakePrimary: () => void
+  onRemove: () => void
+}) {
+  const who = contact.name || contact.email || contact.phone || 'Unnamed contact'
+
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-2 rounded-xl border bg-card p-[13px_14px]',
+        contact.is_primary ? 'border-primary' : 'border-border',
+      )}
+    >
+      {editing ? (
+        <ContactForm
+          draft={draft}
+          busy={busy}
+          saveLabel="Save contact"
+          onChange={onChange}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[13.5px] font-bold">{who}</span>
+                {contact.is_primary && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-primary">
+                    Primary
+                  </span>
+                )}
+              </div>
+              {contact.title_department && (
+                <div className="text-[11.5px] text-muted-foreground">{contact.title_department}</div>
+              )}
+            </div>
+            <div className="flex flex-none items-center gap-1">
+              <button
+                type="button"
+                onClick={onEdit}
+                aria-label={`Edit ${who}`}
+                title="Edit contact"
+                className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <PencilIcon size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Remove ${who}`}
+                title="Remove contact"
+                className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-lps-warn-bg hover:text-[#C24C2E]"
+              >
+                <TrashIcon size={13} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {contact.email && (
+              <a
+                href={`mailto:${contact.email}`}
+                className="flex items-center gap-1.5 truncate text-[12.5px] text-primary hover:underline"
+              >
+                <MailIcon size={12} className="flex-none" />
+                <span className="truncate">{contact.email}</span>
+              </a>
+            )}
+            {contact.phone && (
+              <a
+                href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`}
+                className="flex items-center gap-1.5 truncate text-[12.5px] text-primary hover:underline"
+              >
+                <PhoneIcon size={12} className="flex-none" />
+                <span className="truncate">{contact.phone}</span>
+              </a>
+            )}
+            {!contact.email && !contact.phone && (
+              <span className="text-[12px] italic text-lps-dim">No email or phone on file</span>
+            )}
+          </div>
+
+          {contact.notes && (
+            <p className="m-0 whitespace-pre-wrap text-[12px] leading-relaxed text-muted-foreground">
+              {contact.notes}
+            </p>
+          )}
+
+          {!contact.is_primary && (
+            <button
+              type="button"
+              onClick={onMakePrimary}
+              disabled={busy}
+              className="cursor-pointer self-start border-none bg-transparent p-0 text-[11.5px] font-semibold text-primary underline disabled:opacity-50"
+            >
+              Make primary
+            </button>
+          )}
+        </>
       )}
     </div>
   )
@@ -112,6 +323,12 @@ export default function SupplierProfilePage() {
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [deleted, setDeleted] = useState<string[]>([])
 
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [editingContact, setEditingContact] = useState<number | null>(null)
+  const [addingContact, setAddingContact] = useState(false)
+  const [contactDraft, setContactDraft] = useState<Record<string, string>>({})
+  const [savingContact, setSavingContact] = useState(false)
+
   const [noteDraft, setNoteDraft] = useState('')
   const [noteDirty, setNoteDirty] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
@@ -121,7 +338,10 @@ export default function SupplierProfilePage() {
 
   useEffect(() => {
     const requested = new URL(window.location.href).searchParams.get('tab')
-    if (requested === 'notes' || requested === 'comms' || requested === 'inventory' || requested === 'files') {
+    if (
+      requested === 'notes' || requested === 'comms' || requested === 'contacts' ||
+      requested === 'inventory' || requested === 'files'
+    ) {
       setTab(requested)
     }
   }, [])
@@ -162,6 +382,7 @@ export default function SupplierProfilePage() {
         if (!body?.supplier) return
         setSupplier(body.supplier)
         setSources(body.sources ?? [])
+        setContacts(body.supplier.contacts ?? [])
         setNoteDraft((body.supplier.values.notes as string | null) ?? '')
         setNoteDirty(false)
       })
@@ -332,6 +553,84 @@ export default function SupplierProfilePage() {
     toast('Contact logged')
   }
 
+  // Every contact mutation re-reads the list rather than patching state: a
+  // promotion changes `is_primary` on two rows at once and the order is
+  // primary-first, so a local patch would have to reimplement both.
+  const reloadContacts = useCallback(async () => {
+    const res = await fetch(`/api/contacts?supplierId=${id}`)
+    if (!res.ok) return
+    const body = (await res.json()) as { contacts?: Contact[] }
+    setContacts(body.contacts ?? [])
+  }, [id])
+
+  const contactRequest = async (
+    input: RequestInfo,
+    init: RequestInit,
+    okMessage: string,
+    failMessage: string,
+  ): Promise<boolean> => {
+    setSavingContact(true)
+    const res = await fetch(input, {
+      ...init,
+      headers: { 'content-type': 'application/json', ...init.headers },
+    })
+    setSavingContact(false)
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      toast(body.error ?? failMessage)
+      return false
+    }
+    await reloadContacts()
+    toast(okMessage)
+    return true
+  }
+
+  const saveContact = async (contactId: number) => {
+    const ok = await contactRequest(
+      '/api/rows',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ table: 'contacts', id: contactId, changes: contactDraft }),
+      },
+      'Contact updated',
+      'Could not save contact',
+    )
+    if (!ok) return
+    setEditingContact(null)
+    setContactDraft({})
+  }
+
+  const addContact = async () => {
+    const ok = await contactRequest(
+      '/api/contacts',
+      { method: 'POST', body: JSON.stringify({ supplierId: id, fields: contactDraft }) },
+      'Contact added',
+      'Could not add contact',
+    )
+    if (!ok) return
+    setAddingContact(false)
+    setContactDraft({})
+  }
+
+  const makePrimary = (contactId: number) =>
+    contactRequest(
+      '/api/contacts',
+      { method: 'PATCH', body: JSON.stringify({ id: contactId, primary: true }) },
+      'Primary contact updated',
+      'Could not set primary contact',
+    )
+
+  const removeContact = (contact: Contact) => {
+    const who = contact.name || contact.email || contact.phone || 'this contact'
+    if (!window.confirm(`Remove ${who} from this supplier?`)) return
+    void contactRequest(
+      '/api/rows',
+      { method: 'DELETE', body: JSON.stringify({ table: 'contacts', id: contact.id }) },
+      'Contact removed',
+      'Could not remove contact',
+    )
+  }
+
   const visiblePlants = useMemo(
     () =>
       applyFilters(
@@ -374,8 +673,13 @@ export default function SupplierProfilePage() {
       ? `https://www.google.com/maps?q=${supplier.ref.latitude},${supplier.ref.longitude}`
       : null
 
-  const quickPhone = values.phone || values.poc_phone
-  const quickEmail = values.email || values.poc_email
+  // Read from `contacts` state, not the row's primary_contact_* values — those
+  // came with the initial fetch and go stale the moment the Contacts tab
+  // promotes someone else. Fall back through the list so a supplier whose
+  // primary has only an email still offers a call button from another contact.
+  const primaryContact = contacts[0]
+  const quickPhone = primaryContact?.phone || contacts.find((c) => c.phone)?.phone
+  const quickEmail = primaryContact?.email || contacts.find((c) => c.email)?.email
   const detailsSummary = [
     [values.city, values.state].filter(Boolean).join(', '),
     values.item_count == null ? null : `${num(values.item_count)} items`,
@@ -385,6 +689,7 @@ export default function SupplierProfilePage() {
 
   const tabs: [Tab, string][] = [
     ['inventory', `Inventory (${values.item_count == null ? plants.length : num(values.item_count)})`],
+    ['contacts', `Contacts (${contacts.length})`],
     ['comms', `Communications (${commsEntries.length})`],
     ['notes', 'Notes'],
     ['files', `Files (${sources.length})`],
@@ -519,10 +824,11 @@ export default function SupplierProfilePage() {
                     value={f.column ? profileDraft[f.column] ?? '' : ''}
                     editing={profileEditing && !!f.column}
                     href={
-                      f.key === 'website' && values.website
-                        ? websiteHref(String(values.website))
+                      values[f.key] && (f.key === 'website' || f.key === 'hosted_availability_url')
+                        ? websiteHref(String(values[f.key]))
                         : undefined
                     }
+                    options={f.options}
                     onChange={
                       f.column
                         ? (next) => setProfileDraft((current) => ({ ...current, [f.column!]: next }))
@@ -611,6 +917,81 @@ export default function SupplierProfilePage() {
                   Discard changes
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'contacts' && (
+          <div className="flex max-w-[760px] flex-col gap-2.5 p-4">
+            <p className="text-[12px] text-muted-foreground">
+              People at this supplier. The <strong>primary</strong> is the one the supplier tables
+              and Daisy reach for by default — promote whoever actually answers about availability.
+              Notes here describe the <em>person</em>; what was said to them belongs in
+              Communications.
+            </p>
+
+            {addingContact ? (
+              <div className="rounded-xl border border-primary bg-card p-[13px_14px]">
+                <ContactForm
+                  draft={contactDraft}
+                  busy={savingContact}
+                  saveLabel="Add contact"
+                  onChange={(column, value) =>
+                    setContactDraft((current) => ({ ...current, [column]: value }))
+                  }
+                  onSave={() => void addContact()}
+                  onCancel={() => {
+                    setAddingContact(false)
+                    setContactDraft({})
+                  }}
+                />
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => {
+                  setEditingContact(null)
+                  setContactDraft({})
+                  setAddingContact(true)
+                }}
+              >
+                Add contact
+              </Button>
+            )}
+
+            {contacts.length === 0 && !addingContact && (
+              <p className="text-[12.5px] text-muted-foreground">
+                No contacts on file for this supplier yet.
+              </p>
+            )}
+
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
+              {contacts.map((c) => (
+                <ContactCard
+                  key={c.id}
+                  contact={c}
+                  editing={editingContact === c.id}
+                  draft={contactDraft}
+                  busy={savingContact}
+                  onChange={(column, value) =>
+                    setContactDraft((current) => ({ ...current, [column]: value }))
+                  }
+                  onEdit={() => {
+                    setAddingContact(false)
+                    setContactDraft(contactDraftOf(c))
+                    setEditingContact(c.id)
+                  }}
+                  onSave={() => void saveContact(c.id)}
+                  onCancel={() => {
+                    setEditingContact(null)
+                    setContactDraft({})
+                  }}
+                  onMakePrimary={() => void makePrimary(c.id)}
+                  onRemove={() => removeContact(c)}
+                />
+              ))}
             </div>
           </div>
         )}

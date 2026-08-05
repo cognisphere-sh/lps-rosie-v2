@@ -162,9 +162,9 @@ export default function SuppliersPage() {
                     {String(row.values.category)}
                   </Badge>
                 )}
-                {row.values.poc_name && (
+                {row.values.primary_contact_name && (
                   <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                    {String(row.values.poc_name)}
+                    {String(row.values.primary_contact_name)}
                   </span>
                 )}
               </div>

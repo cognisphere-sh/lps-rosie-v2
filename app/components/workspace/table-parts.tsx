@@ -415,42 +415,77 @@ export function Cell({
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
 
   const text = Array.isArray(value) ? value.join(', ') : value == null ? '' : String(value)
   const display = col.money ? money(value) : col.num ? num(value) : text
 
+  // Only one of the two is ever mounted, so the first non-null ref is the editor.
   useEffect(() => {
-    if (editing) inputRef.current?.focus()
+    if (editing) (inputRef.current ?? selectRef.current)?.focus()
   }, [editing])
 
-  const commit = async () => {
+  // A dropdown saves the value it was just given: `draft` is state, so it would
+  // still hold the previous selection at this point in the event.
+  const commit = async (next = draft) => {
     if (busy) return
     setBusy(true)
     try {
-      await onSave?.(draft)
+      await onSave?.(next)
       setEditing(false)
     } finally {
       setBusy(false)
     }
   }
 
+  const startEdit = () => {
+    setDraft(text)
+    setEditing(true)
+  }
+
   if (editing) {
     return (
       <div className="flex items-center gap-[3px] rounded-lg bg-background p-0.5 outline outline-2 -outline-offset-2 outline-primary">
-        <input
-          ref={inputRef}
-          value={draft}
-          disabled={busy}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void commit()
-            if (e.key === 'Escape') setEditing(false)
-          }}
-          className={cn(
-            'min-w-0 flex-1 border-none bg-transparent px-1.5 text-foreground outline-none',
-            small ? 'h-[26px] text-[12px]' : 'h-7 text-[12.5px]',
-          )}
-        />
+        {col.kind === 'select' ? (
+          <select
+            ref={selectRef}
+            value={draft}
+            disabled={busy}
+            aria-label={col.label}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              void commit(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setEditing(false)
+            }}
+            className={cn(
+              'min-w-0 flex-1 cursor-pointer border-none bg-transparent px-1 text-foreground outline-none',
+              small ? 'h-[26px] text-[12px]' : 'h-7 text-[12.5px]',
+            )}
+          >
+            {/* Blank clears the column back to null — "not established yet". */}
+            <option value="">—</option>
+            {(col.options ?? []).map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            ref={inputRef}
+            value={draft}
+            disabled={busy}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void commit()
+              if (e.key === 'Escape') setEditing(false)
+            }}
+            className={cn(
+              'min-w-0 flex-1 border-none bg-transparent px-1.5 text-foreground outline-none',
+              small ? 'h-[26px] text-[12px]' : 'h-7 text-[12.5px]',
+            )}
+          />
+        )}
         <button
           type="button"
           onClick={() => void commit()}
@@ -482,17 +517,47 @@ export function Cell({
   }
 
   if (col.kind === 'url') {
-    if (!text) return <span className="px-1.5 text-[12.5px] italic text-lps-dim">empty</span>
+    // An editable URL keeps its link — clicking the text still opens the page,
+    // so the editor hangs off a pencil rather than the cell itself.
+    const editableUrl = !!col.edit && !!onSave
+    if (!text) {
+      return editableUrl ? (
+        <div
+          onClick={startEdit}
+          className="flex min-h-7 cursor-text items-center justify-between gap-1 px-1.5 py-1"
+        >
+          <span className="text-[12.5px] italic text-lps-dim">empty</span>
+          <span className="lps-pencil inline-flex flex-none text-lps-dim opacity-0 transition-opacity">
+            <PencilIcon size={11} />
+          </span>
+        </div>
+      ) : (
+        <span className="px-1.5 text-[12.5px] italic text-lps-dim">empty</span>
+      )
+    }
     return (
-      <a
-        href={websiteHref(text)}
-        target="_blank"
-        rel="noreferrer"
-        title={text}
-        className="block truncate px-1.5 py-1 text-[12.5px] text-primary hover:underline"
-      >
-        {text}
-      </a>
+      <div className="flex min-w-0 items-center gap-1 px-1.5">
+        <a
+          href={websiteHref(text)}
+          target="_blank"
+          rel="noreferrer"
+          title={text}
+          className="min-w-0 flex-1 truncate py-1 text-[12.5px] text-primary hover:underline"
+        >
+          {text}
+        </a>
+        {editableUrl && (
+          <button
+            type="button"
+            onClick={startEdit}
+            aria-label={`Edit ${col.label}`}
+            title={`Edit ${col.label}`}
+            className="lps-pencil inline-flex flex-none cursor-pointer border-none bg-transparent p-0 text-lps-dim opacity-0 transition-opacity hover:text-foreground"
+          >
+            <PencilIcon size={11} />
+          </button>
+        )}
+      </div>
     )
   }
 
@@ -522,6 +587,29 @@ export function Cell({
       >
         {text}
       </button>
+    )
+  }
+
+  if (col.kind === 'contacts') {
+    // The non-primary people — the primary already has its own three columns.
+    // Show the first, count the rest, and hand the whole cell to the tab that
+    // can actually show them all.
+    const items = Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)]
+    if (!items.length) return <span className="px-1.5 text-[11.5px] italic text-lps-dim">none</span>
+    const more = items.length - 1
+    return (
+      <a
+        href={`/suppliers/${rowId}?tab=contacts`}
+        title={items.join('\n')}
+        className="flex h-7 min-w-0 items-center gap-1 px-1.5 text-[11.5px] font-semibold text-primary hover:underline"
+      >
+        <span className="truncate">{items[0]}</span>
+        {more > 0 && (
+          <span className="flex h-6 flex-none items-center rounded-full border border-border bg-muted px-2 text-[10.5px] font-semibold text-foreground">
+            +{more}
+          </span>
+        )}
+      </a>
     )
   }
 
@@ -568,14 +656,7 @@ export function Cell({
   const editable = !!col.edit && !!onSave
   return (
     <div
-      onClick={
-        editable
-          ? () => {
-              setDraft(text)
-              setEditing(true)
-            }
-          : undefined
-      }
+      onClick={editable ? startEdit : undefined}
       title={text}
       className={cn(
         'flex items-center gap-1 rounded-[7px] px-1.5 py-1',

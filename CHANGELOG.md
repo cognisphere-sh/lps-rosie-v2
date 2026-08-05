@@ -15,6 +15,95 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-05
+
+### Added
+
+- **Suppliers record how their availability reaches us.** Migration 0018 adds
+  three nullable columns to `suppliers` — `availability_source_type`
+  (`Email` | `Hosted`), `availability_update_days` (a whole number of days) and
+  `hosted_availability_url` — and the Suppliers table and supplier profile show
+  and edit all three. This was previously prose in `notes` ("sends an XLSX every
+  Monday"), which nothing could filter or sort on. Null means **not established
+  yet**, not "none", so every one of the 910 rows starts blank, and nothing ties
+  the URL to a `Hosted` source type: half-filled rows are normal while someone
+  works out how a supplier publishes, and suppliers that both email a sheet and
+  post one exist. `search_suppliers` was recreated to return the three columns
+  (its return type is fixed, so the app cannot see a new column otherwise) and
+  to accept them as sort keys; the pgroonga document was deliberately left
+  alone, so searching "Hosted" does not find hosted suppliers — filter the
+  column instead. Editing the source type uses a new `select` cell kind that
+  saves on change, and the hosted URL is the first editable `url` cell: it keeps
+  its link and puts the editor behind a hover pencil.
+  Daisy's onboarding SOP now tells her to fill the three columns during browser
+  enrichment and to report which she set (**approved by Bhoumik, 2026-08-05** —
+  the SOP requires approval to edit). Two rules in that wording matter: the
+  refresh interval is recorded **only when the supplier states it**, never
+  inferred from two drops falling a week apart, and an existing non-null value
+  is never overwritten without evidence it changed.
+- **Supplier contacts are their own table.** `public.contacts` holds one row per
+  person at a supplier (`name`, `email`, `phone`, `title_department`, `notes`,
+  `is_primary`, `is_active`, `supplier_id`), replacing the single
+  `suppliers.poc_name` / `poc_email` / `poc_phone` triple — a supplier can now
+  have as many contacts as it has people. A partial unique index allows one
+  active primary each, so promoting a contact means demoting the incumbent
+  first. The supplier profile gains a **Contacts** tab of cards with edit, add,
+  make-primary and remove; the Suppliers and Plant Search tables swap the three
+  `PoC` columns for **Primary contact / email / phone** (read-only, resolved
+  from the primary) plus an **Other contacts** column listing `Name [Title]` and
+  deep-linking to that tab.
+- **Supplier search reaches through people.** `search_suppliers` returns
+  `primary_contact_*` from a lateral join over `contacts`, and matches a
+  supplier when any of its active contacts matches on name, email, phone or
+  title. Because an index expression cannot read another table, contact text
+  left `suppliers_pgroonga_idx` for a new `contacts_pgroonga_idx`, and matching
+  `supplier_id`s are folded in as a precomputed array — the same shape as the
+  existing trigram fallback, so the main branch still uses its index.
+  Contact-only matches score 0 and sort after direct matches.
+
+### Changed
+
+- **Contact people moved out of `suppliers.notes`.** All 54 suppliers with notes
+  were read by hand; the people written into that prose before `contacts`
+  existed are now rows — 29 inserted (47 → 76), 12 existing rows gained the role
+  the notes described, 3 a missing email or phone. 20 notes were trimmed, 5 of
+  them to empty. Notes keep hours, addresses, policies, parsing quirks and
+  business history. Verified after the fact: every name resolves to a contact
+  row, and **no email or phone was lost**.
+
+- **`contacts` is now the only place a supplier can be reached.**
+  `suppliers.email` and `suppliers.phone` moved in and the columns were dropped,
+  so `suppliers` describes the company and `contacts` holds every route to it —
+  the main line included, as a row with `title_department = 'Main line'`. Where
+  a name was recoverable from an address it came from a hand-curated allowlist
+  of the values actually present, never a pattern, and each of those ~160 rows
+  is stamped `Name inferred from the email address; unverified.` Most contacts
+  have no name at all, which is expected: the add/edit form marks name optional
+  and a contact needs only one of name / email / phone. Contacts 76 → 973 across
+  907 suppliers. Supplier search now finds an address through the contacts
+  branch rather than the supplier document.
+
+### Removed
+
+- **`suppliers.poc_name` / `poc_email` / `poc_phone` are gone.** All 47 rows
+  that used them were reconciled against the new `contacts` table before the
+  drop — matching counts on every field and no value mismatches — so nothing was
+  lost, but the drop is irreversible. Supplier deactivation now cascades to
+  `contacts` alongside `inventory` and `inventory_sources`.
+- **`suppliers.email` and `suppliers.phone` are gone too**, verified against a
+  snapshot as **0 emails and 0 phones lost**. Anything that matched a supplier
+  by `suppliers.email` must now join through `contacts` — Daisy's
+  supplier-identification query and the onboarding SOP were updated to do so,
+  and both tables plus the profile lost their Email/Phone fields.
+- **`suppliers.fax` is gone**, and with it the last contact field on the table —
+  `suppliers` now describes the company and nothing else. The 12 fax numbers
+  moved into their supplier's main-line contact `notes` rather than `phone`,
+  which the app renders as a dialable `tel:` link.
+- **The 0015/0016 rollback snapshots were dropped.** `suppliers_notes_pre_contact_extraction`
+  and `suppliers_contact_pre_move` are gone, so **the 0014–0017 column drops are
+  no longer reversible from the database.** Every one was reconciled against its
+  snapshot before the drop.
+
 ## 2026-08-04
 
 ### Changed

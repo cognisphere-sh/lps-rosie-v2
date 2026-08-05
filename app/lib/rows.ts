@@ -19,12 +19,28 @@ export interface SourceLink {
   ingestedAt: string
 }
 
+/** One active row of `contacts` — a person at the supplier. */
+export interface Contact {
+  id: number
+  supplier_id: number
+  name: string | null
+  email: string | null
+  phone: string | null
+  title_department: string | null
+  notes: string | null
+  is_primary: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
 export interface SupplierRow {
   id: number
   ref: SupplierRef
   values: Record<string, CellValue>
   /** Parallel to values.inventory_sources, carrying the paths to link to. */
   sourceLinks: SourceLink[]
+  /** Active contacts, primary first. Backs the profile's Contacts tab. */
+  contacts: Contact[]
 }
 
 export interface PlantRow {

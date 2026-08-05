@@ -8,9 +8,11 @@
 export type FilterKind = 'text' | 'range' | 'multiselect' | 'none'
 /**
  * `link` = opens the supplier profile; `list` = the scrollable source-file
- * list; `file` = a single source file; `url` = an external web address.
+ * list; `file` = a single source file; `url` = an external web address;
+ * `contacts` = the supplier's non-primary contacts, deep-linking to their tab;
+ * `select` = edits through a dropdown of `options` rather than a free text box.
  */
-export type CellKind = 'plain' | 'link' | 'badge' | 'list' | 'file' | 'url'
+export type CellKind = 'plain' | 'link' | 'badge' | 'list' | 'file' | 'url' | 'contacts' | 'select'
 
 /** `suppliers.website` is usually a bare domain ("acostafarms.com"). */
 export function websiteHref(value: string): string {
@@ -27,21 +29,45 @@ export interface ColumnDef {
   edit?: boolean
   money?: boolean
   num?: boolean
+  /** For kind="select": the values the dropdown offers. Blank always clears. */
+  options?: string[]
   /** Table + column this cell writes to when edited. */
   writes?: { table: 'suppliers' | 'inventory'; column: string }
 }
 
+/** `suppliers.availability_source_type` — how a supplier's list reaches us. */
+export const AVAILABILITY_SOURCE_TYPES = ['Email', 'Hosted']
+
 export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'name', label: 'Name', width: 210, kind: 'link' },
   { key: 'category', label: 'Category', width: 128, kind: 'badge', filter: 'multiselect' },
-  { key: 'poc_name', label: 'PoC name', width: 150, edit: true, writes: { table: 'suppliers', column: 'poc_name' } },
-  { key: 'poc_email', label: 'PoC email', width: 210, edit: true, writes: { table: 'suppliers', column: 'poc_email' } },
-  { key: 'poc_phone', label: 'PoC phone', width: 145, edit: true, writes: { table: 'suppliers', column: 'poc_phone' } },
-  { key: 'email', label: 'Email', width: 200, edit: true, writes: { table: 'suppliers', column: 'email' } },
-  { key: 'phone', label: 'Phone', width: 145, edit: true, writes: { table: 'suppliers', column: 'phone' } },
+  // Contacts live in their own table keyed by contact id, so these are read-only
+  // here — a supplier row has no single contact id to write back to. Editing,
+  // adding and promoting happen on the profile's Contacts tab.
+  { key: 'primary_contact_name', label: 'Primary contact', width: 150 },
+  { key: 'primary_contact_email', label: 'Primary email', width: 210 },
+  { key: 'primary_contact_phone', label: 'Primary phone', width: 145 },
+  { key: 'other_contacts', label: 'Other contacts', width: 190, kind: 'contacts', filter: 'none' },
   { key: 'website', label: 'Website', width: 190, kind: 'url', filter: 'none' },
   { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
   { key: 'last_ingestion_date', label: 'Last ingestion', width: 138, filter: 'none' },
+  // How the supplier's availability reaches us, and how often. All three are
+  // nullable — blank means nobody has established it yet, not "none".
+  {
+    key: 'availability_source_type', label: 'Availability source', width: 150,
+    kind: 'select', options: AVAILABILITY_SOURCE_TYPES, filter: 'multiselect', edit: true,
+    writes: { table: 'suppliers', column: 'availability_source_type' },
+  },
+  {
+    key: 'availability_update_days', label: 'Update every (days)', width: 150,
+    align: 'right', num: true, filter: 'range', edit: true,
+    writes: { table: 'suppliers', column: 'availability_update_days' },
+  },
+  {
+    key: 'hosted_availability_url', label: 'Hosted availability', width: 210,
+    kind: 'url', filter: 'none', edit: true,
+    writes: { table: 'suppliers', column: 'hosted_availability_url' },
+  },
   { key: 'item_count', label: '# Items', width: 96, align: 'right', filter: 'range' },
   { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'city' } },
   { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
@@ -53,7 +79,7 @@ export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'created_at', label: 'Created at', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },
 ]
-export const SUPPLIER_HIDDEN = ['email', 'phone', 'created_at', 'notes', 'communication_notes']
+export const SUPPLIER_HIDDEN = ['created_at', 'notes', 'communication_notes']
 
 // Plant search — master rows are suppliers with a plant count.
 export const MASTER_COLS: ColumnDef[] = [
@@ -62,9 +88,10 @@ export const MASTER_COLS: ColumnDef[] = [
   { key: 'category', label: 'Category', width: 128, kind: 'badge', filter: 'multiselect' },
   { key: 'state', label: 'State', width: 96, filter: 'multiselect' },
   { key: 'city', label: 'City', width: 150, filter: 'multiselect' },
-  { key: 'poc_name', label: 'PoC name', width: 150 },
-  { key: 'poc_email', label: 'PoC email', width: 210 },
-  { key: 'poc_phone', label: 'PoC phone', width: 145 },
+  { key: 'primary_contact_name', label: 'Primary contact', width: 150 },
+  { key: 'primary_contact_email', label: 'Primary email', width: 210 },
+  { key: 'primary_contact_phone', label: 'Primary phone', width: 145 },
+  { key: 'other_contacts', label: 'Other contacts', width: 190, kind: 'contacts', filter: 'none' },
   { key: 'website', label: 'Website', width: 190, kind: 'url', filter: 'none' },
   { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
   { key: 'last_ingestion_date', label: 'Last ingestion', width: 138, filter: 'none' },
@@ -73,7 +100,8 @@ export const MASTER_COLS: ColumnDef[] = [
   { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },
 ]
 export const MASTER_VISIBLE = [
-  'name', 'plant_count', 'category', 'poc_name', 'poc_phone', 'poc_email', 'city', 'state', 'updated',
+  'name', 'plant_count', 'category', 'primary_contact_name', 'primary_contact_phone',
+  'primary_contact_email', 'city', 'state', 'updated',
 ]
 export const MASTER_HIDDEN = MASTER_COLS.map((c) => c.key).filter((k) => !MASTER_VISIBLE.includes(k))
 

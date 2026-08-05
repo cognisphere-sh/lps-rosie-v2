@@ -129,7 +129,7 @@ is enabled in the desktop rail and through mobile More.
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile; the redundant generic Shell title is hidden there. |
-| `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Communications / Notes / Files, with all four tabs on one line. Desktop keeps details expanded, its back link visible and its pencil in the header. |
+| `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / Communications / Notes / Files. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens in the search query, an available-size selector populated from the current plant matches, a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline — with the same compact result-size selector and a collapsible **Filters** card (supplier, supplier category, state, city, price). |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
@@ -218,6 +218,47 @@ parameters, and are saved as a JSON array under
 `lps.plant-search.size-choice.v1`. Filtering applies to the current
 `search_inventory` result set (up to 300 rows).
 
+## Contacts
+
+**Every way of reaching a supplier lives in `contacts`** — people and inboxes
+alike, including the company's own main line. `suppliers` no longer has an
+`email` or `phone` column, so neither table nor profile shows one, and the
+profile's quick call/email buttons resolve through the contact list (primary
+first, then the first contact that has a number or address).
+
+Most contacts have **no name**, which is normal — see the schema doc. The
+add/edit form marks name optional and a contact needs only one of name / email /
+phone; cards fall back to the email, then the phone, for their heading.
+
+**In the tables** — Suppliers and the Plant Search master rows carry
+**Primary contact**, **Primary email**, **Primary phone** and **Other
+contacts**. The first three are the supplier's `is_primary` contact and are
+**read-only here**: a supplier row has no single contact id to write back to, so
+there is nothing safe for an inline edit to target. "Other contacts" lists
+everyone else as `Name [Title]`, showing the first with a `+N` counter, and the
+whole cell deep-links to `?tab=contacts`.
+
+`lib/queries.ts` fetches contacts in one batched `contactsBySupplier()` lookup
+ordered `is_primary desc, id asc`, then splits head from tail — so a supplier
+with contacts but no flagged primary still shows its oldest one rather than a
+blank. `search_suppliers` resolves the same three `primary_contact_*` columns
+server-side for anything querying the RPC directly.
+
+**On the profile** — a **Contacts** tab renders one card per contact: name,
+title/department, `mailto:`/`tel:` links, notes, and a **Primary** badge. Cards
+support edit in place, **Make primary**, and remove (soft delete). Adding uses
+the same form. Because promotion flips `is_primary` on two rows at once, every
+mutation re-reads the list from `/api/contacts` instead of patching local state.
+The profile's quick call/email actions fall back to the primary contact when the
+supplier has no switchboard `phone`/`email`, and read from that live list so a
+promotion is reflected immediately.
+
+Field edits and removal go through the generic `/api/rows` handler, which
+whitelists `contacts` like any other table. `/api/contacts` covers only what
+isn't a plain column write: creating a contact under a supplier, and promotion —
+which must **demote the incumbent before promoting**, or it trips the partial
+unique index that allows one active primary per supplier.
+
 ## Source files
 
 Both the suppliers table's "Inventory sources" cell and the plants table's
@@ -268,7 +309,8 @@ The supplier profile's Inventory tab still supports row delete as a **soft delet
 
 Editing happens in two places: table cells, and the **supplier profile's detail
 card**. Profile values are inert by default: a deliberate pencil-icon edit
-button (accessible label: **Edit supplier**) exposes `poc_*`, `phone`, `email`, `city` and `state`; changes remain local
+button (accessible label: **Edit supplier**) exposes `city`, `state` and the
+three availability fields below; changes remain local
 until one **Save changes** action writes only changed fields in one database
 update. **Cancel** confirms before discarding a dirty draft, and reload/close
 triggers the browser's unsaved-change warning. `website`, `Active items` and
@@ -285,6 +327,28 @@ both directions, and active min/max filters exclude missing values.
 
 Deleting is genuinely destructive in effect: a soft-deleted row disappears from
 `search_inventory` and from what the agents see.
+
+## Availability source
+
+Three Suppliers columns record how a supplier's availability reaches us, all
+editable in the table and on the profile:
+
+| Column | Cell | Notes |
+|---|---|---|
+| **Availability source** | `select` | `Email` or `Hosted`, from `AVAILABILITY_SOURCE_TYPES` in `lib/columns.ts`. Multiselect filter |
+| **Update every (days)** | number | Whole days (7 = weekly). Range filter; rejected server-side if fractional, since the column is an integer |
+| **Hosted availability** | `url` | The page a hosted list lives on. Opens through `websiteHref()`, so a bare domain still links |
+
+**Blank is a to-do, not a fact.** Every supplier starts null, and null means
+nobody has established how that supplier publishes — the dropdown's leading
+blank option clears back to it.
+
+`kind: 'select'` was added to `Cell` for this: it renders a dropdown of
+`col.options` in edit mode and **saves on change**, passing the new value to
+`commit()` directly because `draft` state has not updated yet at that point in
+the event. The hosted URL is the one editable `url` cell — clicking the text
+must still open the page, so its editor hangs off a pencil button that appears
+on row hover rather than off the cell.
 
 ## Column layout
 
