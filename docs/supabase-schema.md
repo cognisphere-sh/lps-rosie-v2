@@ -31,10 +31,10 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification (2026-08-05): `suppliers` 1,192 (1,186 active),
-`inventory` 209,415 (**69,043 active**), `inventory_sources` 1,980 (765 active),
+Row counts at last verification (2026-08-05): `suppliers` 1,382 (1,376 active),
+`inventory` 210,270 (**69,042 active**), `inventory_sources` 1,984 (757 active),
 `plant_other_names` 13,487 (13,477 active), `availability_queries` 123,
-`users` 2, `contacts` 1,543 (1,534 active) across 1,188 suppliers — 47 backfilled
+`users` 2, `contacts` 1,789 (1,780 active) across 1,378 suppliers — 47 backfilled
 from the retired `poc_*` columns on 2026-08-05, 29
 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.
@@ -126,8 +126,9 @@ Suppliers table does; `search_suppliers` accepts all three as `sort_column`).
 
 **No way of contacting a supplier lives on this table.** `poc_name` /
 `poc_email` / `poc_phone` were dropped 2026-08-05 (migration 0014), then `email`
-/ `phone` (0016), then `fax` (0017). All of it is in `contacts` below — the
-supplier's own main line included, as a row with
+/ `phone` (0016), then `fax` (0017). Email and phone live in `contacts` below;
+**fax numbers are not stored** (Bhoumik, 2026-08-05). The supplier's own main
+line is represented as a contact row with
 `title_department = 'Main line'`. What remains here describes the **company**:
 who it is, where it is, what it sells, what is true about it.
 
@@ -147,7 +148,7 @@ answers. Replaced `suppliers.poc_*`, which could only hold one.
 | `name` | text | yes | **Usually null, and that is correct.** Most rows are an inbox nobody named. Don't invent a name to fill it |
 | `email` / `phone` | text | yes | How to reach this contact |
 | `title_department` | text | yes | Free text as the supplier gives it — "Sales Manager", "Availability desk". `'Main line'` marks a row migrated from the old `suppliers.email`/`phone` |
-| `notes` | text | yes | Durable facts about **the contact** (best time to call, which lists they own). Also where a fax number lives — `phone` would render it as a dialable `tel:` link |
+| `notes` | text | yes | Durable facts about **the contact** (best time to call, which lists they own). **Do not store fax numbers here or anywhere else in supplier/contact data.** |
 | `is_primary` | boolean | no, default false | The supplier's default contact — see below |
 | `is_active` | boolean | no, default true | Soft delete; supplier deactivation cascades here |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
