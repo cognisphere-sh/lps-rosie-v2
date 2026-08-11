@@ -11,7 +11,7 @@ restate table or column definitions.
 - The app reads it through `app/lib/queries.ts` with the project's secret key,
   server-side only.
 
-Last verified against the live database on 2026-08-05 by direct catalog
+Last verified against the live database on 2026-08-11 by direct catalog
 introspection. **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -31,10 +31,10 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification (2026-08-05): `suppliers` 1,382 (1,376 active),
-`inventory` 210,270 (**69,042 active**), `inventory_sources` 1,984 (757 active),
-`plant_other_names` 13,487 (13,477 active), `availability_queries` 123,
-`users` 2, `contacts` 1,789 (1,780 active) across 1,378 suppliers — 47 backfilled
+Row counts at last verification (2026-08-11): `suppliers` 1,383 (1,376 active),
+`inventory` 232,837 (**69,540 active**), `inventory_sources` 2,065 (759 active),
+`plant_other_names` 13,499 (13,428 active), `availability_queries` 124,
+`users` 2, `contacts` 1,823 (1,813 active) across 1,379 suppliers — 47 backfilled
 from the retired `poc_*` columns on 2026-08-05, 29
 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.

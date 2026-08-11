@@ -8,13 +8,21 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0024_inventory_dimension_std_backfill.sql`
+
+Applied 2026-08-11 after 0023, with Bhoumik's approval. Backfilled standardized numeric values for **94,297 inventory rows** (26,096 active / 68,201 inactive), deriving only from the corresponding displayed human-readable field: `height_std` 75,357 rows (21,081 active), `width_std` 40,537 (9,385 active), `caliper_std` 22,589 (6,674 active). Height is feet; width/caliper are inches; ranges use the lower bound; explicit conversions retain float8 precision. Null remains unknown/ambiguous.
+
+The exact guarded input is `migrations/artifacts/0024_inventory_dimension_std_backfill.csv.gz` (SHA-256 `ee3e35c0252e67cebcf527ac153c307b21b26d2eed730df070a9d4d57c3a5c6b`). It uses `\N` for SQL null and preserves one genuine empty string. No size/height/width/caliper string, timestamp, identity, source, price, quantity or activation flag changed.
+
+A first rejected artifact rounded conversions and used hidden `size` evidence; it was aborted before commit. The database became temporarily unavailable while PostgreSQL rolled back, then live zero counts/digests proved no partial write. The corrected direct-field-only apply used deterministic guarded chunks. One 2,000-row chunk timed out and rolled back; later a guard caught the CSV null/empty ambiguity and rolled back that chunk. Smaller continuations preserved the empty string and completed safely. Final QA: inventory 232,837 / 69,540 active / 163,297 inactive; nonpositive standards 0; outside-standard digest `2ce8e7a2e2e9764bc7ede1f723128c82`; outside-all-target digest `8920860c8376c6c477ee70c631cd911e`; supplier/source digests unchanged; direct-display and explicit-unit precision regressions passed.
+
 ## `0023_numeric_inventory_dimensions.sql`
 
 Applied 2026-08-11 by Nova after the guarded 0022 string cleanup. Adds nullable `double precision` `inventory.height_std` (feet), `width_std` (inches), and `caliper_std` (inches). Human-readable `height` / `width` / `caliper` remain unchanged and continue to power display/evidence. Ranges use Bhoumik's approved conservative lower number; ambiguous values stay `NULL`.
 
 `inventory_enriched`, the backwards-compatible `rate_charts` view and `search_inventory` append all three fields. Both views explicitly retain `security_invoker=true`. `search_inventory` was replaced in one transaction—one unambiguous PostgREST signature—with six nullable inclusive bounds applied before rank/limit and numeric sorting for the three displayed dimensions. Three partial `(supplier_id, *_std)` btrees cover active non-null supplier-page ranges without changing the text-search indexes.
 
-The app sends bounds to PostgreSQL before the 300-row global cap and 100-row supplier pagination, displays the original strings, exposes unit-labelled min/max controls on desktop/mobile, validates API bounds, and clears a companion standard on an unpaired manual string edit. Migration 0024 performs the separately guarded numeric backfill.
+The app sends bounds to PostgreSQL before the 300-row global cap and 100-row supplier pagination, displays the original strings, exposes unit-labelled min/max controls on desktop/mobile, validates API bounds, and clears a companion standard on an unpaired manual string edit. Migration 0024 performs the separately guarded numeric backfill described above.
 
 ## `0022_inventory_size_structure_cleanup.sql`
 

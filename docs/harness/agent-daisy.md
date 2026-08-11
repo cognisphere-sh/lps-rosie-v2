@@ -147,7 +147,12 @@ and when; the summaries below are one line each.
   Nova. Adds standardized numeric feet/inch companions, view/RPC contracts,
   pre-pagination range bounds and partial supplier/dimension indexes; Daisy's
   SOP requires future ingests to write the preserved source string and reviewed
-  numeric companion together. The guarded 0024 data migration backfills them.
+  numeric companion together.
+- `0024_inventory_dimension_std_backfill.sql` — approved/applied 2026-08-11.
+  Guarded direct-field-only backfill: 94,297 rows gained at least one numeric
+  standard (height feet; width/caliper inches) without changing any human
+  string or other inventory field; exact values live in the checksummed
+  compressed artifact under `migrations/artifacts/`.
 
 ## Skills
 
