@@ -8,6 +8,15 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0020_enable_rls_size_snapshot.sql`
+
+Applied 2026-08-11 via the Supabase MCP. One statement: enable RLS on
+`inventory_pre_size_normalization`, the 0019 rollback snapshot. It was created
+after `0011_enable_rls.sql` swept the schema, so it was the one table PostgREST
+still served to `anon` (the dashboard's `rls_disabled_in_public` error). No
+policies added — only `postgres`/`service_role` (BYPASSRLS) ever read it, and
+it is still slated to be **dropped once the size change has settled**.
+
 ## `0019_standardize_inventory_sizes.sql`
 
 Applied 2026-08-05 via the Supabase MCP in two steps

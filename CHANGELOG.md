@@ -15,6 +15,17 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-11
+
+### Security
+
+- **RLS enabled on `inventory_pre_size_normalization`** (migration
+  `harness/agents/daisy/migrations/0020_enable_rls_size_snapshot.sql`). The
+  0019 rollback snapshot was created after the 0011 RLS sweep, so it was the
+  one table PostgREST still served to `anon` — flagged by the dashboard's
+  `rls_disabled_in_public` linter. No policies: only `postgres`/`service_role`
+  read it, and it is still slated to be dropped once the size change settles.
+
 ## 2026-08-05
 
 ### Added
