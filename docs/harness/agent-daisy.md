@@ -139,6 +139,9 @@ and when; the summaries below are one line each.
 - `0013_legacy_zero_prices_to_null.sql` — approved 2026-08-04. One-time cleanup
   converting all historical `unit_price = 0` placeholders to `NULL`; future
   numeric zero remains reserved for a supplier-explicit printed zero.
+- `0021_retire_abelia_cultivar_aliases.sql` — approved/applied 2026-08-11.
+  Retires 15 audited sibling-cultivar/bare-hub Abelia edges while preserving
+  legitimate Glossy Abelia species/common mappings; no inventory changed.
 - `0022_inventory_size_structure_cleanup.sql` — approved/applied 2026-08-11.
   Guarded 2,309-row cleanup moving explicit dimensions out of `inventory.size`
   into the existing human-readable height/width/caliper fields without touching

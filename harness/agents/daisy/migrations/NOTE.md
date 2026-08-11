@@ -36,6 +36,10 @@ Post-apply: inventory remains 232,837 total / 69,540 active / 163,297 inactive; 
 
 The approved numeric standard columns (`height_std` feet, `width_std` / `caliper_std` inches) are a separate follow-up: Nova deploys schema/RPC/app migration 0023, then Daisy applies a distinct guarded 0024 backfill. No numeric values were written by 0022.
 
+## `0021_retire_abelia_cultivar_aliases.sql`
+
+Applied 2026-08-11 with Bhoumik's explicit approval after the focal Francis Mason audit. Retired exactly 15 unsafe bare-species/adjective alias edges that linked sibling Abelia cultivars while preserving four verified `Abelia × grandiflora` / `Glossy Abelia` same-plant mappings. No inventory changed. `Abelia Francis Mason` fell 37 rows / 15 suppliers → 10 / 9; Florida 3 G became exactly Joe's Nursery Francis Mason rather than Francis Mason plus false Rose Creek; generic `Abelia` remained 188 rows / 31 suppliers.
+
 ## `0020_enable_rls_size_snapshot.sql`
 
 Applied 2026-08-11 via the Supabase MCP. One statement: enable RLS on
