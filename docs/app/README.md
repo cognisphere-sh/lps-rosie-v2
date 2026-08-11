@@ -566,9 +566,12 @@ session, so the status code alone is not the answer. If the harness is
 unreachable the check **fails closed**.
 
 `lib/supabase.ts` is `server-only`, so importing it from a client component is a
-build error rather than a leaked credential. RLS is **disabled** on `suppliers`
-and `inventory`, so there is no anon-key path safe for a browser — hence no
-`NEXT_PUBLIC_` Supabase variable anywhere.
+build error rather than a leaked credential. It holds the secret key
+(`service_role`), which bypasses the RLS enabled across the database on
+2026-08-05 — so this app's queries were unaffected by that change. RLS is not a
+licence to move queries into the browser: `anon` is denied every table, so there
+is still no anon-key path worth exposing — hence no `NEXT_PUBLIC_` Supabase
+variable anywhere. See [`../supabase-schema.md`](../supabase-schema.md).
 
 **Who is signed in.** The nav rail reads the current user from
 `/api/auth/me` (`useSessionUser` in `shell.tsx`) and derives the avatar

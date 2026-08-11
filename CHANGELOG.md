@@ -131,6 +131,21 @@ here).
   and a contact needs only one of name / email / phone. Contacts 76 → 973 across
   907 suppliers. Supplier search now finds an address through the contacts
   branch rather than the supplier document.
+- **The old `lps-rosie` app's public supplier form moved onto the service-role
+  key** (that app lives outside this repo, at
+  `projects/local_plant_supply/lps-rosie`). `/availability/[id]`, its three API
+  routes and `/api/upload` are reachable without a login — suppliers open them
+  from an emailed link — so they ran as `anon` and would have broken. They now
+  use a new `lib/supabase/service.ts` client; the unguessable `friendly_id` in
+  the URL remains the capability token, as before. Logged-in paths still use
+  the anon-key + cookie client so per-user policies keep applying.
+
+  One deliberate regression: that page's Realtime subscription on
+  `availability_queries` subscribes as `anon` from the browser and now receives
+  no events. It was redundant cross-tab sync — every edit, voice note and form
+  upload already returns the updated rows in its own response — so the form
+  itself is unaffected. Restoring it would mean giving `anon` read access to
+  every availability query, which is the hole this change closed.
 
 ### Removed
 
@@ -152,6 +167,31 @@ here).
   and `suppliers_contact_pre_move` are gone, so **the 0014–0017 column drops are
   no longer reversible from the database.** Every one was reconciled against its
   snapshot before the drop.
+
+### Security
+
+- **Row level security is on for every table.** `suppliers`, `inventory`,
+  `chat_sessions`, `users` and `availability_queries` were running with RLS
+  *disabled* — four of them already carried policies, which were therefore
+  inert. Since `anon` holds table grants across `public`, the publishable key
+  was in practice a full read-write handle on the whole database, `users`
+  (which stores Gmail OAuth tokens) included. Migration
+  `harness/agents/daisy/migrations/0011_enable_rls.sql` enables RLS on all
+  five and gives `availability_queries` the `authenticated` full-access policy
+  it never had. Verified against the live REST API: `anon` now returns `[]`
+  for every table and both views.
+
+  Nothing in this repo had to change to keep working — agents connect as
+  `postgres` and the app uses the secret key, both of which hold `BYPASSRLS`.
+  Both were re-verified after the migration (daisy's `query` bin, the search
+  RPCs, and `inventory_enriched` over REST).
+
+- **`inventory_enriched` and `rate_charts` are now `security_invoker`.** Both
+  views are owned by `postgres`, so with Postgres's default they ran with the
+  owner's `BYPASSRLS` rights and would have served `anon` the entire catalogue
+  regardless of RLS on `inventory` — enabling RLS without this would have been
+  security theatre. Any future `CREATE OR REPLACE VIEW` over these tables must
+  set the option again; it is not inherited.
 
 ## 2026-08-04
 

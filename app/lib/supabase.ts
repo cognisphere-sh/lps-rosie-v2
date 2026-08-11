@@ -6,10 +6,11 @@ import { createClient } from '@supabase/supabase-js'
 // never be imported into a client component — the `server-only` import above
 // turns that mistake into a build error rather than a leaked credential.
 //
-// The secret key bypasses RLS, which this app depends on: RLS is currently
-// DISABLED on `suppliers` and `inventory` (see docs/supabase-schema.md), so
-// there is no anon-key read path that would be safe to expose to the browser.
-// Every read below therefore happens in a server component.
+// The secret key is `service_role`, which bypasses RLS — that is why enabling
+// RLS across the database (2026-08-05) left this app untouched. `anon` is now
+// denied every table (see docs/supabase-schema.md), so there is still no
+// anon-key read path worth exposing to the browser. Every read below therefore
+// happens in a server component.
 
 const url = process.env.SUPABASE_URL
 const secretKey = process.env.SUPABASE_SECRET_KEY

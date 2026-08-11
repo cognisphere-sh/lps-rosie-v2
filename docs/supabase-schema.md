@@ -448,28 +448,51 @@ supplier — but it scores 0, so an email search ranks below any name match.
 
 ---
 
-## Security: RLS is OFF on the main tables
+## Security: RLS is ON for every table
 
-This is the single most important operational fact about this database.
+Enabled 2026-08-05 by `harness/agents/daisy/migrations/0011_enable_rls.sql`.
+Before that, RLS was disabled on the five tables marked below and the `anon`
+key was a full read-write handle on the whole database, `users` (which stores
+Gmail OAuth tokens) included.
 
-| Table | RLS | Note |
+| Table | RLS | Policy |
 |---|---|---|
-| `suppliers` | **disabled** | Policies exist but are **inert** |
-| `inventory` | **disabled** | Policies exist but are **inert** |
-| `availability_queries` | **disabled** | No policies |
-| `chat_sessions` | **disabled** | Policies exist but are inert |
-| `users` | **disabled** | Policies exist but are inert |
+| `suppliers` | enabled | `authenticated` full access |
+| `inventory` | enabled | `authenticated` full access |
+| `availability_queries` | enabled | `authenticated` full access (added 2026-08-05) |
+| `chat_sessions` | enabled | Per-user via `auth.uid()` |
+| `users` | enabled | Per-user via `auth.uid()` |
 | `inventory_sources` | enabled | `authenticated` full access |
 | `plant_other_names` | enabled | `authenticated` full access |
 | `contacts` | enabled | `authenticated` full access |
 | `custom_commands` | enabled | Per-user via `auth.uid()` |
 | `user_memories` | enabled | Per-user via `auth.uid()` |
 
-Because RLS is disabled on `suppliers` and `inventory`, **there is no anon-key
-read path that is safe to expose to a browser** — an anon key would read the
-whole catalogue. The app therefore queries only from server components using the
-secret key, and gates every page behind the harness session (`app/proxy.ts`).
-Do not add a `NEXT_PUBLIC_` Supabase key.
+**`anon` now reaches no application table at all** — verified against the live
+REST API, every table and both views return `[]`.
+
+Who bypasses RLS, and why nothing broke:
+
+- **Agents** connect via `scripts/agent/supabase/query` as the `postgres` role,
+  which holds `BYPASSRLS`. They see and write everything, exactly as before.
+- **This app** queries server-side with the secret key (`service_role`, also
+  `BYPASSRLS`). Unchanged — see `app/lib/supabase.ts`.
+- **`authenticated`** (the old `lps-rosie` app's logged-in users) keeps full
+  access to the catalogue and per-user access to its own chat/user rows.
+
+> ### The views must stay `security_invoker`
+>
+> `inventory_enriched` and `rate_charts` are owned by `postgres`, which has
+> `BYPASSRLS`. A Postgres view runs with its **owner's** rights unless it is
+> declared `security_invoker = true`, so with the default setting these two
+> would have handed `anon` the entire catalogue straight back and enabling RLS
+> on `inventory` would have achieved nothing. The migration sets the flag on
+> both. **Any view recreated over these tables must set it too** — `CREATE OR
+> REPLACE VIEW` does not carry the option over on its own.
+
+Enabling RLS did **not** loosen the rule about browser keys: the app still
+queries only from server components and gates every page behind the harness
+session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
 
 ---
 
