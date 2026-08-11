@@ -8,6 +8,26 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0023_numeric_inventory_dimensions.sql`
+
+Applied 2026-08-11 by Nova after the guarded 0022 string cleanup. Adds nullable `double precision` `inventory.height_std` (feet), `width_std` (inches), and `caliper_std` (inches). Human-readable `height` / `width` / `caliper` remain unchanged and continue to power display/evidence. Ranges use Bhoumik's approved conservative lower number; ambiguous values stay `NULL`.
+
+`inventory_enriched`, the backwards-compatible `rate_charts` view and `search_inventory` append all three fields. Both views explicitly retain `security_invoker=true`. `search_inventory` was replaced in one transaction—one unambiguous PostgREST signature—with six nullable inclusive bounds applied before rank/limit and numeric sorting for the three displayed dimensions. Three partial `(supplier_id, *_std)` btrees cover active non-null supplier-page ranges without changing the text-search indexes.
+
+The app sends bounds to PostgreSQL before the 300-row global cap and 100-row supplier pagination, displays the original strings, exposes unit-labelled min/max controls on desktop/mobile, validates API bounds, and clears a companion standard on an unpaired manual string edit. Migration 0024 performs the separately guarded numeric backfill.
+
+## `0022_inventory_size_structure_cleanup.sql`
+
+Applied 2026-08-11 through Daisy's guarded Postgres runner with Bhoumik's explicit approval. It audited all 232,837 inventory rows and moved only explicit, evidence-backed dimensions out of `inventory.size` into the existing human-readable `height`, `width`, and `caliper` fields.
+
+**2,309 rows updated: 491 active / 1,818 inactive.** Every changed row had `size` cleaned; 33 `height`, 154 `width`, and 788 `caliper` values were filled. Populated structured fields were retained when semantically identical; 1,660 conflicts (usually a complete range in size versus an existing lower-bound scalar) were held byte-for-byte. 567 explicit dimension-only values became NULL size; no commercial container/root-ball size was nulled. All 5,603 inch box/pot/bag/basket rows were retained unchanged. No row was inserted, deleted, merged, activated, or retired.
+
+The update ran in one transaction guarded on every ID and all four before-values, expected active/inactive counts, the complete inventory digest outside the four target fields, supplier/source digests, and per-supplier inventory counts. `session_replication_role=replica` was transaction-local so the generic timestamp trigger did not alter `updated_at`; only the four approved columns could move.
+
+Post-apply: inventory remains 232,837 total / 69,540 active / 163,297 inactive; outside-target digest remains `8920860c8376c6c477ee70c631cd911e`; suppliers remain 1,383 and sources 2,065 / 759 active with identical digests. The deterministic contamination scanner reports **0 safely classifiable labeled dimensions left in size**. Duplicate groups changed 9,739 → 9,748 (excess rows 14,490 → 14,509) solely because identity facets converged; no rows were merged. Representative gallon, box, B&B, dimension-only and mixed-row searches all passed. Full evidence and exact rollback live under `workspace/threads/main/size-structure-cleanup/`.
+
+The approved numeric standard columns (`height_std` feet, `width_std` / `caliper_std` inches) are a separate follow-up: Nova deploys schema/RPC/app migration 0023, then Daisy applies a distinct guarded 0024 backfill. No numeric values were written by 0022.
+
 ## `0020_enable_rls_size_snapshot.sql`
 
 Applied 2026-08-11 via the Supabase MCP. One statement: enable RLS on

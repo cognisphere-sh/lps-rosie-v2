@@ -1,5 +1,6 @@
 import 'server-only'
 
+import type { DimensionRanges } from '@/lib/dimension-ranges'
 import { sourceUrl, supabase } from '@/lib/supabase'
 import type {
   Contact,
@@ -47,6 +48,9 @@ interface InventoryRecord {
   height: string | null
   width: string | null
   caliper: string | null
+  height_std: number | null
+  width_std: number | null
+  caliper_std: number | null
   source?: string | null
   updated_at: string | null
 }
@@ -120,6 +124,9 @@ function toPlantRow(
       h: r.height,
       w: r.width,
       cal: r.caliper,
+      h_std: r.height_std,
+      w_std: r.width_std,
+      cal_std: r.caliper_std,
       notes: r.notes,
       source: path ? fileLabel(path) : null,
       ingestion_date: sourceDetails?.ingestedAt ?? null,
@@ -289,20 +296,32 @@ export async function listSuppliers(search: string): Promise<SupplierRow[]> {
  * active rows and blows the statement timeout — see docs/supabase-schema.md),
  * so an empty search browses `inventory_enriched` instead.
  */
-async function inventorySearch(term: string): Promise<InventoryRecord[]> {
+const dimensionRpcArgs = (ranges: DimensionRanges) => ({
+  height_min: ranges.heightMin ?? null,
+  height_max: ranges.heightMax ?? null,
+  width_min: ranges.widthMin ?? null,
+  width_max: ranges.widthMax ?? null,
+  caliper_min: ranges.caliperMin ?? null,
+  caliper_max: ranges.caliperMax ?? null,
+})
+
+async function inventorySearch(term: string, ranges: DimensionRanges): Promise<InventoryRecord[]> {
   const { data, error } = await supabase
-    .rpc('search_inventory', { search: term })
+    .rpc('search_inventory', { search: term, ...dimensionRpcArgs(ranges) })
     .range(0, 299)
   if (error) throw new Error(`search_inventory: ${error.message}`)
   return (data ?? []) as InventoryRecord[]
 }
 
-export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
+export async function searchPlantGroups(
+  search: string,
+  ranges: DimensionRanges = {},
+): Promise<PlantGroup[]> {
   const term = search.trim()
   let records: InventoryRecord[]
 
   if (term) {
-    records = await inventorySearch(term)
+    records = await inventorySearch(term, ranges)
 
     // The alias graph resolves a whole common name (`Live oak`) but cannot
     // combine that species alias with a cultivar term (`Boardwalk`). Only when
@@ -313,7 +332,7 @@ export async function searchPlantGroups(search: string): Promise<PlantGroup[]> {
         .filter((word) => word.length >= 3)
       if (words.length > 1) {
         const candidates = await Promise.all(
-          words.map(async (word) => ({ word, records: await inventorySearch(word) })),
+          words.map(async (word) => ({ word, records: await inventorySearch(word, ranges) })),
         )
         const best = candidates
           .filter((candidate) => candidate.records.length > 0)
@@ -450,6 +469,7 @@ export async function getSupplierPlants(
   id: number,
   search: string,
   page = 1,
+  ranges: DimensionRanges = {},
 ): Promise<{ plants: PlantRow[]; hasMore: boolean }> {
   const term = search.trim()
   const from = (page - 1) * PROFILE_PAGE_SIZE
@@ -457,7 +477,7 @@ export async function getSupplierPlants(
 
   if (term) {
     const { data, error } = await supabase
-      .rpc('search_inventory', { search: term, supplier_ids: [id] })
+      .rpc('search_inventory', { search: term, supplier_ids: [id], ...dimensionRpcArgs(ranges) })
       .range(from, to)
     if (error) throw new Error(`search_inventory: ${error.message}`)
     const records = (data ?? []) as InventoryRecord[]
@@ -467,13 +487,19 @@ export async function getSupplierPlants(
     }
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('inventory_enriched')
     .select('*')
     .eq('supplier_id', id)
     .eq('is_active', true)
     .order('updated_at', { ascending: false })
-    .range(from, to)
+  if (ranges.heightMin != null) query = query.gte('height_std', ranges.heightMin)
+  if (ranges.heightMax != null) query = query.lte('height_std', ranges.heightMax)
+  if (ranges.widthMin != null) query = query.gte('width_std', ranges.widthMin)
+  if (ranges.widthMax != null) query = query.lte('width_std', ranges.widthMax)
+  if (ranges.caliperMin != null) query = query.gte('caliper_std', ranges.caliperMin)
+  if (ranges.caliperMax != null) query = query.lte('caliper_std', ranges.caliperMax)
+  const { data, error } = await query.range(from, to)
   if (error) throw new Error(`inventory_enriched: ${error.message}`)
   const records = (data ?? []) as InventoryRecord[]
   return {
@@ -567,6 +593,11 @@ export async function updateFields(
       value = n
     }
     values[column] = value
+    // The standardized value is derived evidence, not a guess. A manual source-
+    // string edit invalidates it until ingestion/review supplies a paired value.
+    if (table === 'inventory' && column === 'height') values.height_std = null
+    if (table === 'inventory' && column === 'width') values.width_std = null
+    if (table === 'inventory' && column === 'caliper') values.caliper_std = null
   }
 
   const { error } = await supabase.from(table).update(values).eq('id', id)

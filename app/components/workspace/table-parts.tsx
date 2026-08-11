@@ -233,9 +233,13 @@ export function FilterControl({
         {(['min', 'max'] as const).map((bound) => (
           <input
             key={bound}
+            type="number"
+            min="0"
+            step="any"
             value={range[bound] ?? ''}
             onChange={(e) => onFilter({ ...range, [bound]: e.target.value })}
-            placeholder={bound === 'min' ? 'Min' : 'Max'}
+            placeholder={`${bound === 'min' ? 'Min' : 'Max'}${col.filterUnit ? ` ${col.filterUnit}` : ''}`}
+            aria-label={`${col.label} ${bound === 'min' ? 'minimum' : 'maximum'}${col.filterUnit ? ` in ${col.filterUnit}` : ''}`}
             className={cn(
               'w-full min-w-0 rounded-[7px] border border-input bg-background px-1.5 font-normal text-foreground outline-none',
               small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',

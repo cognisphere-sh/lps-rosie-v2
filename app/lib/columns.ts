@@ -25,6 +25,10 @@ export interface ColumnDef {
   width: number
   kind?: CellKind
   filter?: FilterKind
+  /** Optional numeric row value used to filter/sort a human-readable column. */
+  filterValueKey?: string
+  /** Unit shown in numeric range controls. */
+  filterUnit?: string
   align?: 'left' | 'right'
   edit?: boolean
   money?: boolean
@@ -112,9 +116,18 @@ export const PLANT_COLS: ColumnDef[] = [
   { key: 'size', label: 'Size', width: 104, filter: 'multiselect' },
   { key: 'price', label: 'Price', width: 100, align: 'right', edit: true, filter: 'range', money: true, writes: { table: 'inventory', column: 'unit_price' } },
   { key: 'qty', label: 'Quantity', width: 104, align: 'right', edit: true, filter: 'range', num: true, writes: { table: 'inventory', column: 'quantity' } },
-  { key: 'h', label: 'Height', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'height' } },
-  { key: 'w', label: 'Width', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'width' } },
-  { key: 'cal', label: 'Caliper', width: 92, edit: true, filter: 'none', writes: { table: 'inventory', column: 'caliper' } },
+  {
+    key: 'h', label: 'Height', width: 112, edit: true, filter: 'range',
+    filterValueKey: 'h_std', filterUnit: 'ft', writes: { table: 'inventory', column: 'height' },
+  },
+  {
+    key: 'w', label: 'Width', width: 112, edit: true, filter: 'range',
+    filterValueKey: 'w_std', filterUnit: 'in', writes: { table: 'inventory', column: 'width' },
+  },
+  {
+    key: 'cal', label: 'Caliper', width: 112, edit: true, filter: 'range',
+    filterValueKey: 'cal_std', filterUnit: 'in', writes: { table: 'inventory', column: 'caliper' },
+  },
   { key: 'notes', label: 'Notes', width: 190, edit: true, writes: { table: 'inventory', column: 'notes' } },
   { key: 'source', label: 'Source', width: 180, kind: 'file', filter: 'none' },
   { key: 'ingestion_date', label: 'Ingested', width: 130, filter: 'none' },

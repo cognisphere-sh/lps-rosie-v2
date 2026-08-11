@@ -129,7 +129,7 @@ is enabled in the desktop rail and through mobile More.
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile; the redundant generic Shell title is hidden there. |
-| `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / Communications / Notes / Files. Desktop keeps details expanded, its back link visible and its pencil in the header. |
+| `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / Communications / Notes / Files. Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, and searchable multiselects for supplier type, city and state in the search toolbar. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
@@ -138,7 +138,7 @@ is enabled in the desktop rail and through mobile More.
 |---|---|
 | `GET /api/suppliers?q=` | `search_suppliers` RPC + source file names. `?counts=1&ids=` is the "# Items" second pass. |
 | `GET /api/suppliers/:id` | One supplier + its active sources. |
-| `GET /api/plants?q=` | Plant search grouped by supplier. `?supplierId=&page=` for one supplier's paged list. |
+| `GET /api/plants?q=` | Plant search grouped by supplier. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before the 300-row search cap. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
@@ -217,8 +217,18 @@ not recognize.
 Selected sizes use OR logic (a row matching any selected size remains), are
 mirrored as repeated URL `size` parameters, and are saved as a JSON array under
 `lps.plant-search.size-choice.v2`. Selections that no longer exist in the
-current matches are dropped once results load. Filtering applies to the current
-`search_inventory` result set (up to 300 rows).
+current matches are dropped once results load. Size filtering applies to the
+current `search_inventory` result set (up to 300 rows).
+
+Height, width and caliper retain the supplier's human-readable strings for
+cells/cards and editing, while hidden numeric row values power range filters:
+height is standardized in feet; width and caliper in inches. The header controls
+show their units and accept inclusive min/max decimal bounds. These six bounds
+are validated by `/api/plants` and passed into `search_inventory` before its
+300-row cap; supplier-profile bounds likewise run before 100-row pagination.
+Null standardized values mean unknown/ambiguous and do not satisfy an active
+range. Editing a human-readable dimension clears its numeric companion rather
+than leaving a stale filter value; ingestion/review must repopulate the pair.
 
 ## Contacts
 

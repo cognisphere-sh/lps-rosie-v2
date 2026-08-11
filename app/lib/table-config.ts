@@ -15,6 +15,12 @@ export type ColFilter = string | string[] | { min?: string; max?: string }
 export type ColFilters = Record<string, ColFilter>
 
 const STORAGE_KEY = 'lps.tables.v1'
+const FILTER_VALUE_KEYS = new Map(
+  Object.values(TABLE_COLS)
+    .flat()
+    .filter((column) => column.filterValueKey)
+    .map((column) => [column.key, column.filterValueKey!] as const),
+)
 
 function defaults(table: TableId): TableConfig {
   return { order: TABLE_COLS[table].map((c) => c.key), hidden: [...DEFAULT_HIDDEN[table]], widths: {} }
@@ -163,7 +169,7 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
 ): T[] {
   let out = rows.filter((row) =>
     Object.entries(filters).every(([key, filter]) => {
-      const raw = row.values[key]
+      const raw = row.values[FILTER_VALUE_KEYS.get(key) ?? key]
       const text = Array.isArray(raw) ? raw.join(', ') : raw == null ? '' : String(raw)
 
       if (typeof filter === 'string') return text.toLowerCase().includes(filter.toLowerCase())
@@ -174,8 +180,10 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
       if (raw == null || raw === '') return !filter.min && !filter.max
       const n = Number(raw)
       if (!Number.isFinite(n)) return false
-      if (filter.min && n < Number(filter.min)) return false
-      if (filter.max && n > Number(filter.max)) return false
+      const min = filter.min ? Number(filter.min) : null
+      const max = filter.max ? Number(filter.max) : null
+      if (min !== null && Number.isFinite(min) && n < min) return false
+      if (max !== null && Number.isFinite(max) && n > max) return false
       return true
     }),
   )
@@ -183,8 +191,9 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
   if (sort) {
     const dir = sort.direction === 'desc' ? -1 : 1
     out = [...out].sort((a, b) => {
-      const av = a.values[sort.column]
-      const bv = b.values[sort.column]
+      const valueKey = FILTER_VALUE_KEYS.get(sort.column) ?? sort.column
+      const av = a.values[valueKey]
+      const bv = b.values[valueKey]
       // Missing values stay at the end in both directions; descending price
       // must not promote unpriced inventory above real supplier prices.
       const aMissing = av == null || av === ''

@@ -205,7 +205,9 @@ availability files.
 | `size` | text | yes | The container/grade sold, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here; ~2,671 legacy active values still violate that. See the SOP's *Size standard* |
 | `unit_price` | numeric(10,2) | yes | USD; lower bound if the source gave a range. `NULL` means the supplier provided no price; never coerce missing to zero |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
-| `height` / `width` / `caliper` | text | yes | As printed in the source |
+| `height` / `width` / `caliper` | text | yes | Human-readable measurement as printed in the source; preserved for display/evidence |
+| `height_std` | double precision | yes | Standardized height in **feet**; lower bound for a range; `NULL` when unknown/ambiguous |
+| `width_std` / `caliper_std` | double precision | yes | Standardized width/caliper in **inches**; lower bound for a range; `NULL` when unknown/ambiguous |
 | `notes` | text | yes | Per-row qualifier ("limited", "B&B only") |
 | `image_url` | text | yes | Optional product image |
 | `is_active` | boolean | no, default true | Soft delete |
@@ -217,6 +219,15 @@ all 28,998 legacy zero-price placeholders were migrated to `NULL` with explicit
 approval. Future numeric zeroes are valid only when the supplier explicitly
 prints zero. `inventory_enriched`, `rate_charts`, and `search_inventory` pass
 `unit_price` through unchanged, including `NULL`.
+
+Dimension semantics follow the same evidence rule: the source strings are never
+replaced by numeric projections. A range stores its approved conservative lower
+number in `*_std`; explicit height inches convert to feet, explicit
+width/caliper feet convert to inches, and exact mixed/fractional values retain
+full precision. Inequalities, conflicting/combined units, malformed or guessed
+measurements remain `NULL`. Active range filters exclude `NULL`. Editing a
+human-readable dimension without a reviewed paired standard clears its
+companion so stale numeric evidence cannot survive.
 
 There is deliberately **no** common-names column — alternative names live in
 `plant_other_names` and are derived at read time. There is also no `category`
@@ -325,11 +336,17 @@ build anything new on it.**
 
 ```
 search_inventory(search text = '', supplier_ids bigint[] = null,
-                 fuzzy_ratio real = 0.34, sort_column text = null, sort_direction text = null)
+                 fuzzy_ratio real = 0.34, sort_column text = null, sort_direction text = null,
+                 height_min float8 = null, height_max float8 = null,
+                 width_min float8 = null, width_max float8 = null,
+                 caliper_min float8 = null, caliper_max float8 = null)
 ```
 Returns the inventory columns plus `other_names`, `source` (=
 `inventory_sources.file_path`), `supplier_name`, `supplier_category`,
-`supplier_state`, `supplier_city`. There is no `category_filter` — the column it
+`supplier_state`, `supplier_city`, `height_std`, `width_std`, and `caliper_std`.
+The six optional dimension bounds are inclusive and run in PostgreSQL before
+ranking/result caps or supplier pagination; active bounds exclude null standards.
+There is no `category_filter` — the column it
 filtered was dropped 2026-07-31. (`search_suppliers` keeps its own, over
 `suppliers.category`.)
 
@@ -392,7 +409,8 @@ supplier — but it scores 0, so an email search ranks below any name match.
 - `search_inventory`: `name`, `other_names`, `size`, `unit_price`,
   `quantity`, `height`, `width`, `caliper`, `notes`, `source`,
   `created_at`, `updated_at`, `supplier_name`, `supplier_category`,
-  `supplier_state`, `supplier_city`.
+  `supplier_state`, `supplier_city`. Sorting the human-readable `height`,
+  `width` or `caliper` output uses its numeric `*_std` companion with nulls last.
 
 > ### ⚠️ Do not call `search_inventory` with an empty `search`
 >
@@ -422,6 +440,10 @@ supplier — but it scores 0, so an email search ranks below any name match.
 - `inventory_pgroonga_idx` — pgroonga, `TokenDelimit`, over the normalized
   document expression. **Must match `search_inventory`'s concatenation exactly.**
 - `inventory_trgm_idx` — gin/`pg_trgm` over the same expression (fuzzy fallback).
+- `inventory_supplier_height_std_idx`, `inventory_supplier_width_std_idx`,
+  `inventory_supplier_caliper_std_idx` — partial btrees on
+  `(supplier_id, *_std)` for active, non-null rows; support supplier-page range
+  filtering without adding numeric values to the text-search document.
 - `plant_other_names_pgroonga_idx` — pgroonga over
   `normalize_search_text(name || ' ' || other_name)`. Note it does not cover
   `is_active`, which the search filters on separately.

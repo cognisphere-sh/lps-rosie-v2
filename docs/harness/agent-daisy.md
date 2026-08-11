@@ -139,6 +139,15 @@ and when; the summaries below are one line each.
 - `0013_legacy_zero_prices_to_null.sql` — approved 2026-08-04. One-time cleanup
   converting all historical `unit_price = 0` placeholders to `NULL`; future
   numeric zero remains reserved for a supplier-explicit printed zero.
+- `0022_inventory_size_structure_cleanup.sql` — approved/applied 2026-08-11.
+  Guarded 2,309-row cleanup moving explicit dimensions out of `inventory.size`
+  into the existing human-readable height/width/caliper fields without touching
+  containers, conflicts, provenance, timestamps or inventory identity.
+- `0023_numeric_inventory_dimensions.sql` — approved/applied 2026-08-11 by
+  Nova. Adds standardized numeric feet/inch companions, view/RPC contracts,
+  pre-pagination range bounds and partial supplier/dimension indexes; Daisy's
+  SOP requires future ingests to write the preserved source string and reviewed
+  numeric companion together. The guarded 0024 data migration backfills them.
 
 ## Skills
 

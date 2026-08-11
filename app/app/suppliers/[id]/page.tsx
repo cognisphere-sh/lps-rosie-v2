@@ -13,7 +13,9 @@ import {
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
+import { FilterControl } from '@/components/workspace/table-parts'
+import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, PLANT_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
+import { dimensionFilterQuery } from '@/lib/dimension-ranges'
 import { formatDate, money, num } from '@/lib/format'
 import type { Contact, PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
@@ -21,6 +23,11 @@ import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
 type Tab = 'notes' | 'comms' | 'contacts' | 'inventory' | 'files'
+const DIMENSION_FILTERS = [
+  { key: 'h', label: 'Height (ft)' },
+  { key: 'w', label: 'Width (in)' },
+  { key: 'cal', label: 'Caliper (in)' },
+] as const
 
 // `column` marks the field as editable in place and names the `suppliers`
 // column it writes to. Derived values (item_count, updated) and `website`
@@ -313,11 +320,13 @@ export default function SupplierProfilePage() {
 
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounced(query)
+  const dimensionQuery = dimensionFilterQuery(plantCfg.filters)
+  const debouncedDimensionQuery = useDebounced(dimensionQuery)
   const [plants, setPlants] = useState<PlantRow[]>([])
   const [loadingPlants, setLoadingPlants] = useState(true)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
-  const searchingPlants = loadingPlants || query !== debouncedQuery
+  const searchingPlants = loadingPlants || query !== debouncedQuery || dimensionQuery !== debouncedDimensionQuery
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
@@ -390,13 +399,14 @@ export default function SupplierProfilePage() {
   }, [id])
 
   // A new search starts again at page 1.
-  useEffect(() => setPage(1), [debouncedQuery])
+  useEffect(() => setPage(1), [debouncedDimensionQuery, debouncedQuery])
 
   useEffect(() => {
     if (!Number.isInteger(id)) return
     let cancelled = false
     setLoadingPlants(true)
-    fetch(`/api/plants?supplierId=${id}&page=${page}&q=${encodeURIComponent(debouncedQuery)}`)
+    const dimensionSuffix = debouncedDimensionQuery ? `&${debouncedDimensionQuery}` : ''
+    fetch(`/api/plants?supplierId=${id}&page=${page}&q=${encodeURIComponent(debouncedQuery)}${dimensionSuffix}`)
       .then((r) => r.json())
       .then((body: { plants?: PlantRow[]; hasMore?: boolean }) => {
         if (cancelled) return
@@ -408,7 +418,7 @@ export default function SupplierProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [id, debouncedQuery, page])
+  }, [id, debouncedDimensionQuery, debouncedQuery, page])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -424,7 +434,18 @@ export default function SupplierProfilePage() {
         return
       }
       setPlants((prev) =>
-        prev.map((p) => (p.id === row.id ? { ...p, values: { ...p.values, [col.key]: next || null } } : p)),
+        prev.map((p) =>
+          p.id === row.id
+            ? {
+                ...p,
+                values: {
+                  ...p.values,
+                  [col.key]: next || null,
+                  ...(col.filterValueKey ? { [col.filterValueKey]: null } : {}),
+                },
+              }
+            : p,
+        ),
       )
       toast(`${col.label} updated`)
     },
@@ -1076,10 +1097,33 @@ export default function SupplierProfilePage() {
                   className="h-9"
                 />
               </div>
+              {isMobile && (
+                <div className="grid w-full grid-cols-3 gap-2">
+                  {DIMENSION_FILTERS.map(({ key, label }) => {
+                    const col = PLANT_COLS.find((candidate) => candidate.key === key)!
+                    return (
+                      <div key={key} className="flex min-w-0 flex-col gap-1">
+                        <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+                          {label}
+                        </span>
+                        <FilterControl
+                          col={col}
+                          value={plantCfg.filters[key]}
+                          options={[]}
+                          small
+                          onFilter={(value) => plantCfg.setColFilter(key, value)}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               <span className="text-[12px] text-muted-foreground">
                 {searchingPlants
                   ? 'Searching…'
-                  : `${visiblePlants.length} shown · page ${page} of ${values.item_count == null ? '?' : Math.max(1, Math.ceil(Number(values.item_count) / 100))}`}
+                  : `${visiblePlants.length} shown · ${query.trim() || Object.keys(plantCfg.filters).length > 0
+                    ? `filtered page ${page}`
+                    : `page ${page} of ${values.item_count == null ? '?' : Math.max(1, Math.ceil(Number(values.item_count) / 100))}`}`}
               </span>
               <div className="ml-auto flex items-center gap-1.5">
                 <Button

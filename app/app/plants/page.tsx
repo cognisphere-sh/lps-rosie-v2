@@ -13,6 +13,7 @@ import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, FilterControl, MultiFilter, badgeFor, fileHref } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
+import { dimensionFilterQuery } from '@/lib/dimension-ranges'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { refinePlantGroups } from '@/lib/search-refine'
@@ -34,6 +35,9 @@ const RETIRED_PLANT_SIZE_KEYS = ['lps.plant-search.size.v1', 'lps.plant-search.s
 // search field, so this sheet carries the remaining plant-level filters.
 const MOBILE_FILTERS = [
   { key: 'price', label: 'Price', master: false },
+  { key: 'h', label: 'Height (ft)', master: false },
+  { key: 'w', label: 'Width (in)', master: false },
+  { key: 'cal', label: 'Caliper (in)', master: false },
 ] as const
 
 function ResultSizeControl({
@@ -88,6 +92,8 @@ export default function PlantSearchPage() {
   const [query, setQuery] = useState('')
   const [searchHydrated, setSearchHydrated] = useState(false)
   const debouncedQuery = useDebounced(query)
+  const dimensionQuery = dimensionFilterQuery(plantCfg.filters)
+  const debouncedDimensionQuery = useDebounced(dimensionQuery)
   const parsedSearch = useMemo(() => parseSizeQuery(query), [query])
   const debouncedSearch = useMemo(() => parseSizeQuery(debouncedQuery), [debouncedQuery])
   const [groups, setGroups] = useState<PlantGroup[]>([])
@@ -96,7 +102,9 @@ export default function PlantSearchPage() {
   const hasQuery = query.trim().length > 0
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
-  const searching = searchHydrated && hasQuery && (loading || query !== debouncedQuery)
+  const searching = searchHydrated && hasQuery && (
+    loading || query !== debouncedQuery || dimensionQuery !== debouncedDimensionQuery
+  )
   const [panelW, setPanelW] = useState(292)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
@@ -174,7 +182,8 @@ export default function PlantSearchPage() {
 
     let cancelled = false
     setLoading(true)
-    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}`)
+    const dimensionSuffix = debouncedDimensionQuery ? `&${debouncedDimensionQuery}` : ''
+    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}${dimensionSuffix}`)
       .then((r) => r.json())
       .then((body: { groups?: PlantGroup[] }) => {
         if (cancelled) return
@@ -185,7 +194,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch.plantQuery, refreshNonce, searchHydrated])
+  }, [debouncedDimensionQuery, debouncedSearch.plantQuery, refreshNonce, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -204,7 +213,16 @@ export default function PlantSearchPage() {
         prev.map((g) => ({
           ...g,
           plants: g.plants.map((p) =>
-            p.id === row.id ? { ...p, values: { ...p.values, [col.key]: next || null } } : p,
+            p.id === row.id
+              ? {
+                  ...p,
+                  values: {
+                    ...p.values,
+                    [col.key]: next || null,
+                    ...(col.filterValueKey ? { [col.filterValueKey]: null } : {}),
+                  },
+                }
+              : p,
           ),
         })),
       )
