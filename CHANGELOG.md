@@ -17,6 +17,10 @@ here).
 
 ## 2026-08-11
 
+### Changed
+
+- **Supplier geography/type filters are now searchable multiselects in both list-page toolbars.** Plant Search and Suppliers expose Supplier type, City and State beside the natural search field; multiple selections use OR within one field while type/city/state combine with each other and the text query. The controls share the existing column-filter state rather than creating a second filtering path, work in the wrapped mobile toolbar, and Clear all resets them with the other page filters. Plant Search keeps supplier-name and price in its mobile filter sheet without duplicating the three new toolbar controls.
+
 ### Security
 
 - **RLS enabled on `inventory_pre_size_normalization`** (migration

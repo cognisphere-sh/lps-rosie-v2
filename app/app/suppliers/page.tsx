@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EyeOffIcon } from '@/components/workspace/icons'
 import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { Cell, ColumnHead, ColumnPicker, badgeFor } from '@/components/workspace/table-parts'
+import { Cell, ColumnHead, ColumnPicker, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { Badge } from '@/components/ui/badge'
 import { SUPPLIER_COLS, type ColumnDef } from '@/lib/columns'
@@ -30,8 +30,6 @@ export default function SuppliersPage() {
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
   const searching = loading || query !== debouncedQuery
-  const [cat, setCat] = useState('all')
-  const [region, setRegion] = useState('all')
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
   const [refreshNonce, setRefreshNonce] = useState(0)
 
@@ -99,30 +97,61 @@ export default function SuppliersPage() {
     [toast],
   )
 
-  const visibleRows = useMemo(() => {
-    let out = rows.filter((r) => !hiddenRows.includes(r.id))
-    if (cat !== 'all') out = out.filter((r) => r.values.category === cat)
-    if (region !== 'all') out = out.filter((r) => r.values.state === region)
-    return applyFilters(out, cfg.filters, cfg.sort)
-  }, [rows, hiddenRows, cat, region, cfg.filters, cfg.sort])
+  const visibleRows = useMemo(
+    () => applyFilters(rows.filter((r) => !hiddenRows.includes(r.id)), cfg.filters, cfg.sort),
+    [rows, hiddenRows, cfg.filters, cfg.sort],
+  )
 
-  const hasFilters =
-    Object.keys(cfg.filters).length > 0 || !!query || cat !== 'all' || region !== 'all'
+  const categoryFilter = Array.isArray(cfg.filters.category) ? cfg.filters.category : []
+  const cityFilter = Array.isArray(cfg.filters.city) ? cfg.filters.city : []
+  const stateFilter = Array.isArray(cfg.filters.state) ? cfg.filters.state : []
+  const hasFilters = Object.keys(cfg.filters).length > 0 || !!query
 
   const toolbar = (
     <Toolbar
-      placeholder="Search name, PoC, email, city…"
+      placeholder="Search name, contact, email, city…"
       query={query}
       onQuery={setQuery}
-      chips={[
-        { label: 'Category', value: cat, options: optionsFor(rows, 'category'), onChange: setCat, allLabel: 'All categories' },
-        { label: 'State', value: region, options: optionsFor(rows, 'state'), onChange: setRegion, allLabel: 'All states' },
-      ]}
+      controls={
+        <>
+          <div className="w-[calc(50%-4px)] md:w-[160px]">
+            <MultiFilter
+              allLabel="All supplier types"
+              selectionLabel="Type"
+              options={optionsFor(rows, 'category')}
+              selected={categoryFilter}
+              onChange={(next) => cfg.setColFilter('category', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter supplier types…"
+            />
+          </div>
+          <div className="w-[calc(50%-4px)] md:w-[160px]">
+            <MultiFilter
+              allLabel="All cities"
+              selectionLabel="City"
+              options={optionsFor(rows, 'city')}
+              selected={cityFilter}
+              onChange={(next) => cfg.setColFilter('city', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter cities…"
+            />
+          </div>
+          <div className="w-[calc(50%-4px)] md:w-[140px]">
+            <MultiFilter
+              allLabel="All states"
+              selectionLabel="State"
+              options={optionsFor(rows, 'state')}
+              selected={stateFilter}
+              onChange={(next) => cfg.setColFilter('state', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter states…"
+            />
+          </div>
+        </>
+      }
       hasFilters={hasFilters}
       onClear={() => {
         setQuery('')
-        setCat('all')
-        setRegion('all')
         cfg.clearFilters()
       }}
       summary={searching ? 'Searching…' : `Showing ${visibleRows.length} of ${rows.length} suppliers`}

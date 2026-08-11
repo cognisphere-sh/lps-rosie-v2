@@ -30,12 +30,9 @@ const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v2'
 // row's own size text, so their selections mean nothing here.
 const RETIRED_PLANT_SIZE_KEYS = ['lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1']
 
-// Mobile filter sheet. The result-size selector appears beside the search field,
-// so this sheet carries the remaining supplier/location and price filters.
+// Mobile filter sheet. Size and supplier/location filters appear beside the
+// search field, so this sheet carries the remaining plant-level filters.
 const MOBILE_FILTERS = [
-  { key: 'category', label: 'Supplier category', master: true },
-  { key: 'state', label: 'State', master: true },
-  { key: 'city', label: 'City', master: true },
   { key: 'price', label: 'Price', master: false },
 ] as const
 
@@ -57,7 +54,7 @@ function ResultSizeControl({
       <button
         type="button"
         onClick={onClearTyped}
-        className="inline-flex h-8 w-full items-center justify-between gap-2 rounded-[7px] border border-primary bg-secondary px-2.5 text-[12px] font-semibold text-primary md:w-auto"
+        className="inline-flex h-8 w-[calc(50%-4px)] items-center justify-between gap-2 rounded-[7px] border border-primary bg-secondary px-2.5 text-[12px] font-semibold text-primary md:w-auto"
         title="Remove size from search"
       >
         <span>Size: {typed.label}</span>
@@ -67,7 +64,7 @@ function ResultSizeControl({
   }
 
   return (
-    <div className="w-full md:w-[170px]">
+    <div className="w-[calc(50%-4px)] md:w-[170px]">
       <MultiFilter
         allLabel="Size: Any"
         options={options}
@@ -294,6 +291,10 @@ export default function PlantSearchPage() {
     document.addEventListener('mouseup', up)
   }
 
+  const supplierRows = refinedGroups.map((group) => group.supplier)
+  const categoryFilter = Array.isArray(masterCfg.filters.category) ? masterCfg.filters.category : []
+  const cityFilter = Array.isArray(masterCfg.filters.city) ? masterCfg.filters.city : []
+  const stateFilter = Array.isArray(masterCfg.filters.state) ? masterCfg.filters.state : []
   const activeFilterCount =
     (supplierPick.length > 0 ? 1 : 0) +
     (parsedSearch.size || selectedSizes.length > 0 ? 1 : 0) +
@@ -313,13 +314,48 @@ export default function PlantSearchPage() {
       }}
       controls={
         !searching && allPlants.length > 0 ? (
-          <ResultSizeControl
-            typed={parsedSearch.size}
-            options={sizeOptions}
-            selected={selectedSizes}
-            onSelect={setSelectedSizes}
-            onClearTyped={() => setQuery(parsedSearch.plantQuery)}
-          />
+          <>
+            <ResultSizeControl
+              typed={parsedSearch.size}
+              options={sizeOptions}
+              selected={selectedSizes}
+              onSelect={setSelectedSizes}
+              onClearTyped={() => setQuery(parsedSearch.plantQuery)}
+            />
+            <div className="w-[calc(50%-4px)] md:w-[160px]">
+              <MultiFilter
+                allLabel="All supplier types"
+                selectionLabel="Type"
+                options={optionsFor(supplierRows, 'category')}
+                selected={categoryFilter}
+                onChange={(next) => masterCfg.setColFilter('category', next)}
+                buttonClassName="h-8 px-2 text-[12px]"
+                filterPlaceholder="Filter supplier types…"
+              />
+            </div>
+            <div className="w-[calc(50%-4px)] md:w-[160px]">
+              <MultiFilter
+                allLabel="All cities"
+                selectionLabel="City"
+                options={optionsFor(supplierRows, 'city')}
+                selected={cityFilter}
+                onChange={(next) => masterCfg.setColFilter('city', next)}
+                buttonClassName="h-8 px-2 text-[12px]"
+                filterPlaceholder="Filter cities…"
+              />
+            </div>
+            <div className="w-[calc(50%-4px)] md:w-[140px]">
+              <MultiFilter
+                allLabel="All states"
+                selectionLabel="State"
+                options={optionsFor(supplierRows, 'state')}
+                selected={stateFilter}
+                onChange={(next) => masterCfg.setColFilter('state', next)}
+                buttonClassName="h-8 px-2 text-[12px]"
+                filterPlaceholder="Filter states…"
+              />
+            </div>
+          </>
         ) : undefined
       }
       hasFilters={hasFilters}

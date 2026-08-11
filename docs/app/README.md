@@ -128,9 +128,9 @@ is enabled in the desktop rail and through mobile More.
 |---|---|---|
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
-| `/suppliers` | client | Master table: column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile; the redundant generic Shell title is hidden there. |
+| `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile; the redundant generic Shell title is hidden there. |
 | `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / Communications / Notes / Files. Desktop keeps details expanded, its back link visible and its pencil in the header. |
-| `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens in the search query, an available-size selector populated from the current plant matches, a supplier multiselect in the panel head and view-only row hiding. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline — with the same compact result-size selector and a collapsible **Filters** card (supplier, supplier category, state, city, price). |
+| `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, and searchable multiselects for supplier type, city and state in the search toolbar; a supplier-name multiselect remains in the panel head. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 
@@ -155,6 +155,10 @@ Every search box is **debounced** (`lib/use-debounced.ts`, 300ms) before it hits
 `search_suppliers` / `search_inventory` — the pgroonga RPCs are far too
 expensive to fire per keystroke. In-flight responses are discarded if a newer
 query has started, so a slow early request can't overwrite a later result.
+Both list-page toolbars also expose searchable OR-within-field multiselects for
+supplier type, city and state; fields combine with AND. They filter the rows in
+the current server result set and share state with the corresponding table or
+mobile filters, so clearing either surface clears the same constraint.
 
 While a search is ongoing, the results area dims under an animated sprouting-
 seedlings loader (`components/workspace/search-loader.tsx`; keyframes in
