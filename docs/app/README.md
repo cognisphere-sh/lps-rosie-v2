@@ -229,6 +229,14 @@ are validated by `/api/plants` and passed into `search_inventory` before its
 Null standardized values mean unknown/ambiguous and do not satisfy an active
 range. Editing a human-readable dimension clears its numeric companion rather
 than leaving a stale filter value; ingestion/review must repopulate the pair.
+On mobile, price and dimension controls use a compact disclosure inside the
+primary toolbar rather than a second results-summary filter card.
+
+Mobile search results arrive as a collapsed supplier shortlist showing name,
+type, location and match count. The chevron expands only that supplier's
+inventory rows, so users can drill into interesting suppliers without scrolling
+through every match by default. The underlined supplier name still opens the
+full supplier profile rather than expanding the card.
 
 ## Contacts
 

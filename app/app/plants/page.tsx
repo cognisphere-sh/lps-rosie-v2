@@ -31,8 +31,8 @@ const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v2'
 // row's own size text, so their selections mean nothing here.
 const RETIRED_PLANT_SIZE_KEYS = ['lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1']
 
-// Mobile filter sheet. Size and supplier/location filters appear beside the
-// search field, so this sheet carries the remaining plant-level filters.
+// Size and supplier/location filters appear beside the search field. These
+// remaining numeric filters use a compact disclosure in that same toolbar.
 const MOBILE_FILTERS = [
   { key: 'price', label: 'Price', master: false },
   { key: 'h', label: 'Height (ft)', master: false },
@@ -187,7 +187,11 @@ export default function PlantSearchPage() {
       .then((r) => r.json())
       .then((body: { groups?: PlantGroup[] }) => {
         if (cancelled) return
-        setGroups(body.groups ?? [])
+        const nextGroups = body.groups ?? []
+        setGroups(nextGroups)
+        // New mobile result sets start as a supplier shortlist. People can
+        // expand only the suppliers whose inventory they want to inspect.
+        setCollapsed(nextGroups.map((group) => group.supplier.id))
         setLoading(false)
       })
       .catch(() => !cancelled && setLoading(false))
@@ -318,6 +322,7 @@ export default function PlantSearchPage() {
     (parsedSearch.size || selectedSizes.length > 0 ? 1 : 0) +
     Object.keys(plantCfg.filters).length +
     Object.keys(masterCfg.filters).length
+  const advancedFilterCount = MOBILE_FILTERS.filter(({ key }) => plantCfg.filters[key] != null).length
 
   const hasFilters = !!query || activeFilterCount > 0
 
@@ -372,6 +377,42 @@ export default function PlantSearchPage() {
               filterPlaceholder="Filter states…"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((value) => !value)}
+            aria-expanded={filtersOpen}
+            className="flex h-8 w-full items-center justify-between rounded-[7px] border border-border bg-background px-2.5 text-left text-[12px] md:hidden"
+          >
+            <span>Price &amp; dimensions</span>
+            <span className="flex items-center gap-1.5">
+              {advancedFilterCount > 0 && (
+                <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-secondary-foreground">
+                  {advancedFilterCount}
+                </span>
+              )}
+              <ChevronDown size={14} className={cn(filtersOpen && 'rotate-180')} />
+            </span>
+          </button>
+          {filtersOpen && (
+            <div className="grid w-full grid-cols-2 gap-3 rounded-xl border border-border bg-background p-3 md:hidden">
+              {MOBILE_FILTERS.map(({ key, label }) => {
+                const col = PLANT_COLS.find((candidate) => candidate.key === key)!
+                return (
+                  <div key={key} className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                      {label}
+                    </span>
+                    <FilterControl
+                      col={col}
+                      value={plantCfg.filters[key]}
+                      options={optionsFor(allPlants, key)}
+                      onFilter={(value) => plantCfg.setColFilter(key, value)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </>
       }
       hasFilters={hasFilters}
@@ -421,66 +462,11 @@ export default function PlantSearchPage() {
         </div>
       ) : isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5">
-          {/* Mobile has no column heads, so the filters they carry live here. */}
-          <div className="shrink-0 rounded-xl border border-border bg-card">
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className="flex w-full items-center gap-2 p-3 text-left text-[13px] font-semibold"
-            >
-              <span>Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
-                  {activeFilterCount}
-                </span>
-              )}
-              <span className="ml-auto text-[12px] font-normal text-muted-foreground">
-                {shownPlants} of {allPlants.length} plants
-              </span>
-            </button>
-            {filtersOpen && (
-              <div className="flex flex-col gap-3 border-t border-lps-hair p-3">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-                    Supplier
-                  </span>
-                  <MultiFilter
-                    allLabel="All suppliers"
-                    options={supplierNames}
-                    selected={supplierPick}
-                    onChange={setSupplierPick}
-                  />
-                </div>
-                {MOBILE_FILTERS.map(({ key, label, master }) => {
-                  const cfg = master ? masterCfg : plantCfg
-                  const col = (master ? MASTER_COLS : PLANT_COLS).find((c) => c.key === key)!
-                  return (
-                    <div key={label} className="flex flex-col gap-1">
-                      <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-                        {label}
-                      </span>
-                      <FilterControl
-                        col={col}
-                        value={cfg.filters[key]}
-                        options={
-                          master
-                            ? optionsFor(groups.map((g) => g.supplier), key)
-                            : optionsFor(allPlants, key)
-                        }
-                        onFilter={(v) => cfg.setColFilter(key, v)}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
           {visibleGroups.map((g) => {
             const open = !collapsed.includes(g.supplier.id)
             return (
             <div key={g.supplier.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-              <div className="flex items-start gap-2 border-b border-lps-hair bg-lps-tint p-3">
+              <div className={cn('flex items-start gap-2 bg-lps-tint p-3', open && 'border-b border-lps-hair')}>
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
                   <div className="flex items-center gap-2">
                     <button
