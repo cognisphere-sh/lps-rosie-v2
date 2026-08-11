@@ -313,50 +313,48 @@ export default function PlantSearchPage() {
         setQuery(next)
       }}
       controls={
-        !searching && allPlants.length > 0 ? (
-          <>
-            <ResultSizeControl
-              typed={parsedSearch.size}
-              options={sizeOptions}
-              selected={selectedSizes}
-              onSelect={setSelectedSizes}
-              onClearTyped={() => setQuery(parsedSearch.plantQuery)}
+        <>
+          <ResultSizeControl
+            typed={parsedSearch.size}
+            options={sizeOptions}
+            selected={selectedSizes}
+            onSelect={setSelectedSizes}
+            onClearTyped={() => setQuery(parsedSearch.plantQuery)}
+          />
+          <div className="w-[calc(50%-4px)] md:w-[160px]">
+            <MultiFilter
+              allLabel="All supplier types"
+              selectionLabel="Type"
+              options={optionsFor(supplierRows, 'category')}
+              selected={categoryFilter}
+              onChange={(next) => masterCfg.setColFilter('category', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter supplier types…"
             />
-            <div className="w-[calc(50%-4px)] md:w-[160px]">
-              <MultiFilter
-                allLabel="All supplier types"
-                selectionLabel="Type"
-                options={optionsFor(supplierRows, 'category')}
-                selected={categoryFilter}
-                onChange={(next) => masterCfg.setColFilter('category', next)}
-                buttonClassName="h-8 px-2 text-[12px]"
-                filterPlaceholder="Filter supplier types…"
-              />
-            </div>
-            <div className="w-[calc(50%-4px)] md:w-[160px]">
-              <MultiFilter
-                allLabel="All cities"
-                selectionLabel="City"
-                options={optionsFor(supplierRows, 'city')}
-                selected={cityFilter}
-                onChange={(next) => masterCfg.setColFilter('city', next)}
-                buttonClassName="h-8 px-2 text-[12px]"
-                filterPlaceholder="Filter cities…"
-              />
-            </div>
-            <div className="w-[calc(50%-4px)] md:w-[140px]">
-              <MultiFilter
-                allLabel="All states"
-                selectionLabel="State"
-                options={optionsFor(supplierRows, 'state')}
-                selected={stateFilter}
-                onChange={(next) => masterCfg.setColFilter('state', next)}
-                buttonClassName="h-8 px-2 text-[12px]"
-                filterPlaceholder="Filter states…"
-              />
-            </div>
-          </>
-        ) : undefined
+          </div>
+          <div className="w-[calc(50%-4px)] md:w-[160px]">
+            <MultiFilter
+              allLabel="All cities"
+              selectionLabel="City"
+              options={optionsFor(supplierRows, 'city')}
+              selected={cityFilter}
+              onChange={(next) => masterCfg.setColFilter('city', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter cities…"
+            />
+          </div>
+          <div className="w-[calc(50%-4px)] md:w-[140px]">
+            <MultiFilter
+              allLabel="All states"
+              selectionLabel="State"
+              options={optionsFor(supplierRows, 'state')}
+              selected={stateFilter}
+              onChange={(next) => masterCfg.setColFilter('state', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter states…"
+            />
+          </div>
+        </>
       }
       hasFilters={hasFilters}
       onClear={() => {
