@@ -195,9 +195,12 @@ word in its candidate set and requires that distinguishing intent in the row's
 own identity or a directly attached reviewed alias. Matching remains bounded
 fuzzy/prefix tolerant and word-order independent: `Crape Myrtle Muskogee` and
 `Muskogee Crape Myrtle` resolve identically, while generic `Crape Myrtle` stays
-broad. Alias search/display follows only the two endpoints of a direct reviewed
-edge—never siblings reached through a shared bare-species hub. The browser no
-longer performs a second alias-based refinement that could re-admit siblings.
+broad. The intent predicate combines bounded fuzzy matching with explicit
+normalized word-prefix matching in either word order. Alias search/display
+follows only the two endpoints of a direct reviewed edge—never siblings reached
+through a shared bare-species hub. The browser performs neither a second
+alias-based refinement nor a zero-result split-word fallback: an unknown
+cultivar remains empty rather than broadening to the generic plant.
 
 The alias RPC matches one whole query and cannot natively combine a species
 alias with a separate cultivar term (`Live oak` + `Boardwalk`). If a full

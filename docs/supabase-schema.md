@@ -268,7 +268,8 @@ types **another name the same plant is known by** — a genuine common name, the
 botanical/scientific name, an accepted synonym, an abbreviation, or a spelling
 variant. `other_name` must **never** carry a cultivar, selection, variant, trade
 name or patent code; those identify one selection rather than the plant, and
-linking them makes every sibling cultivar match every other one. The cultivar is
+linking one to a species/common name makes every generic row of that species
+answer a search for the specific selection. The cultivar is
 already searchable inside `inventory.name`.
 
 | Column | Type | Null | Notes |
@@ -284,11 +285,13 @@ pair are the same pair. A BEFORE INSERT trigger silently drops duplicates,
 self-pairs and empty-keyed rows, so writers can blind-insert without conflict
 handling.
 
-**13,429 pairs, all active** — the 2026-07-31 cleanup and quality audit retired
-78,807 and they were then deleted outright. An alias must name the *same plant*
-— never a cultivar, never a generic category label ("Oak", "Grass"), never a
-size/grade code. Search hops between siblings, so one bad pair pollutes a whole
-neighbourhood; the ingestion SOP's rule is "when in doubt, insert nothing".
+**13,700 pairs, 13,563 active** (as of 2026-08-12) — the 2026-07-31 cleanup and
+quality audit retired 78,807 (then deleted outright); the focal audits behind
+migrations 0021 (Abelia) and 0025 (Crape Myrtle) soft-retired later leaks. An
+alias must name the *same plant* — never a cultivar, never a generic category
+label ("Oak", "Grass"), never a size/grade code. Search no longer hops between
+siblings (migration 0026), but a bad pair still equates two different plants in
+both directions; the ingestion SOP's rule is "when in doubt, insert nothing".
 Before adding any cleanup rule, read the REJECTED RULES section of
 `harness/agents/daisy/migrations/0008_alias_quality_audit.sql`.
 
@@ -305,10 +308,10 @@ Before adding any cleanup rule, read the REJECTED RULES section of
 ### `inventory_enriched`
 
 Every `inventory` column plus derived `other_names` (text, comma-separated,
-alphabetical, deduped on key). A row's other names are every name connected to
-its `name_key` through an **active** pair in `plant_other_names` — aliases of it,
-canonical names it is an alias of, and sibling aliases through those — minus
-itself.
+alphabetical, deduped on key), displayed as **Also known as**. A row sees only
+the opposite endpoint of an **active pair directly incident to its own
+`name_key`**—aliases of it or the canonical name when it is the alias—minus
+itself. Shared-hub sibling aliases are never inferred.
 
 Read through this view whenever you display inventory; **write to `inventory`
 directly**. PostgREST embedding works through it
@@ -357,7 +360,7 @@ filtered was dropped 2026-07-31. (`search_suppliers` keeps its own, over
   `other_names` use direct edge endpoints only; `other_names` is displayed as
   **Also known as** and no reverse-hub sibling traversal is allowed.
 - For a multi-word query, the least-common candidate-set word is treated as its
-  distinguishing identity intent and must fuzzy/prefix-match the row's own name
+  distinguishing identity intent and must bounded-fuzzy/explicit-prefix-match the row's own name
   or a direct reviewed alias. This is word-order independent, keeps generic
   common-name searches broad, and prevents sibling cultivars from satisfying an
   explicit cultivar query through generic words alone.

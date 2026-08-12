@@ -163,6 +163,9 @@ and when; the summaries below are one line each.
   Removes reverse-hub sibling traversal from RPC/view aliases and enforces a
   bounded distinguishing token for multi-word cultivar intent without changing
   the RPC signature; the app displays direct aliases as **Also known as**.
+- `0027_cultivar_prefix_intent.sql` — approved/applied 2026-08-12.
+  Uses an explicit word-prefix predicate alongside bounded fuzzy intent, and
+  pairs with removal of the app's unsafe zero-result split-word fallback.
 
 ## Skills
 

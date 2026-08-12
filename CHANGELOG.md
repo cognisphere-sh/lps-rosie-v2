@@ -15,6 +15,12 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-12
+
+### Changed
+
+- **Ingestion SOP and schema doc now describe the post-0026 alias semantics.** Both still claimed search "hops between siblings" through the alias graph — the exact behavior migration 0026 removed. They now state that search and *Also known as* use only pairs directly incident to a row's identity, cite the 0021/0025 focal retirements as the standing cautionary record, and the schema doc's `plant_other_names` counts reflect the live directory (13,700 pairs / 13,563 active) instead of the pre-0021 "all active" snapshot.
+
 ## 2026-08-11
 
 ### Changed
@@ -25,7 +31,7 @@ here).
 
 ### Fixed
 
-- **Cultivar-specific Plant Search no longer admits sibling cultivars through shared species hubs or generic fuzzy words.** After the approved 66-edge Crape Myrtle cleanup, migration 0026 removes reverse-hub sibling traversal from `search_inventory` and `inventory_enriched`, returns only direct reviewed aliases, and requires the least-common distinguishing token for multi-word identity searches with bounded typo/prefix tolerance independent of word order. `Crape Myrtle Muskogee` and its reverse fell from 442 rows / 30 suppliers / 344 wrong identities to 98 / 20 / zero; generic Crape Myrtle remains broad. The UI now says **Also known as**, and the browser no longer re-refines backend results through alias text. Abelia Francis Mason, Japanese Holly Compacta, Clusia Small Leaf, typo, dimension-bound, desktop and mobile regressions pass.
+- **Cultivar-specific Plant Search no longer admits sibling cultivars through shared species hubs or generic fuzzy words.** After the approved 66-edge Crape Myrtle cleanup, migration 0026 removes reverse-hub sibling traversal from `search_inventory` and `inventory_enriched`, returns only direct reviewed aliases, and requires the least-common distinguishing token for multi-word identity searches with bounded typo/prefix tolerance independent of word order. `Crape Myrtle Muskogee` and its reverse fell from 442 rows / 30 suppliers / 344 wrong identities to 98 / 20 / zero; generic Crape Myrtle remains broad. The UI now says **Also known as**, and the browser no longer re-refines backend results through alias text. Follow-up migration 0027 applies explicit selected-word prefix matching in both intent selection and the final gate; the server also no longer splits an empty specific query into generic one-word searches, so invented cultivars fail closed. Abelia Francis Mason, Japanese Holly Compacta, Clusia Small Leaf, typo/prefix, dimension-bound, desktop and mobile regressions pass.
 - **Francis Mason no longer inherits sibling Abelia cultivars through unsafe bare-species hubs.** With Bhoumik's approval, migration 0021 retired 15 audited Abelia alias edges while preserving four legitimate `Abelia × grandiflora` / Glossy Abelia mappings. Florida + 3 G now returns exactly Joe's Nursery Francis Mason instead of also returning Rose Creek; generic Abelia stays broad. No inventory changed.
 
 ### Security
