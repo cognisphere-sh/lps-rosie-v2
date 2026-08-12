@@ -190,12 +190,14 @@ alias matching cannot silently ignore the size token. Explicit gallon spellings
 (`15 G`, `15G`, `15 gallon`) and explicit box notation are normalized; the
 supplier's original size text remains unchanged.
 
-For multi-word identities, the broad fuzzy/alias RPC result is refined before
-rendering: every query word must occur (or be a word prefix) in the row's own
-name or aliases. If that finds nothing, the broad set is retained so typo/fuzzy
-searches still work. This keeps `Agave Americana` from including every `Tilia`,
-`Ulmus` and `Fraxinus americana`; the same refined rows feed the size selector,
-so sizes belonging to other species cannot leak into an Agave menu.
+For multi-word identities, `search_inventory` identifies the least-common query
+word in its candidate set and requires that distinguishing intent in the row's
+own identity or a directly attached reviewed alias. Matching remains bounded
+fuzzy/prefix tolerant and word-order independent: `Crape Myrtle Muskogee` and
+`Muskogee Crape Myrtle` resolve identically, while generic `Crape Myrtle` stays
+broad. Alias search/display follows only the two endpoints of a direct reviewed
+edge—never siblings reached through a shared bare-species hub. The browser no
+longer performs a second alias-based refinement that could re-admit siblings.
 
 The alias RPC matches one whole query and cannot natively combine a species
 alias with a separate cultivar term (`Live oak` + `Boardwalk`). If a full
@@ -207,7 +209,7 @@ oak` can fall back to the 32-row `Boardwalk` set.
 
 When no size is typed, results add one compact **Size: Any** selector — a
 checkbox-style multiselect (with its own search box) listing **every distinct
-`size` value the refined matches carry, exactly as the supplier wrote it**.
+`size` value the exact backend matches carry, exactly as the supplier wrote it**.
 There is no normalization: `15 G`, `15G` and `15 gal` are three separate
 checkboxes, and a row matches a selection only by exact text. This replaced a
 category scheme that collapsed spellings and inferred gallon/box/caliper

@@ -16,7 +16,6 @@ import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { dimensionFilterQuery } from '@/lib/dimension-ranges'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
-import { refinePlantGroups } from '@/lib/search-refine'
 import { matchesSizeFilter, parseSizeQuery, type TypedSize } from '@/lib/size-range'
 import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
@@ -235,13 +234,10 @@ export default function PlantSearchPage() {
     [toast],
   )
 
-  // The RPC casts a deliberately broad fuzzy/alias net. Multi-word identities
-  // prefer rows containing every requested word, so `Agave Americana` does not
-  // inherit every tree and shrub whose epithet happens to be `americana`.
-  const refinedGroups = useMemo(
-    () => refinePlantGroups(groups, parsedSearch.plantQuery),
-    [groups, parsedSearch.plantQuery],
-  )
+  // Exact multi-word identity intent is enforced in search_inventory before
+  // these groups arrive. Do not re-expand or reinterpret its direct aliases in
+  // the browser: that used to let sibling cultivars back into the result set.
+  const refinedGroups = groups
 
   // Plant-level column filters apply across every supplier; a supplier whose
   // plants all filter out drops off the page entirely.
@@ -552,7 +548,7 @@ export default function PlantSearchPage() {
                         <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[11.5px]">
                           {p.values.other && (
                             <div>
-                              <span className="font-semibold text-lps-dim">Other names: </span>
+                              <span className="font-semibold text-lps-dim">Also known as: </span>
                               <span className="text-muted-foreground">{String(p.values.other)}</span>
                             </div>
                           )}

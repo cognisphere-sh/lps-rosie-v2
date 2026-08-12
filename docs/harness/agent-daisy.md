@@ -156,6 +156,13 @@ and when; the summaries below are one line each.
   standard (height feet; width/caliper inches) without changing any human
   string or other inventory field; exact values live in the checksummed
   compressed artifact under `migrations/artifacts/`.
+- `0025_retire_crape_myrtle_cultivar_aliases.sql` — approved/applied 2026-08-12.
+  Retires 66 audited Crape Myrtle sibling-cultivar/form edges while preserving
+  the safe `Lagerstroemia indica` / `Crepe Myrtle` common-name edge.
+- `0026_exact_plant_identity_search.sql` — approved/applied 2026-08-12.
+  Removes reverse-hub sibling traversal from RPC/view aliases and enforces a
+  bounded distinguishing token for multi-word cultivar intent without changing
+  the RPC signature; the app displays direct aliases as **Also known as**.
 
 ## Skills
 

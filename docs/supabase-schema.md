@@ -11,7 +11,7 @@ restate table or column definitions.
 - The app reads it through `app/lib/queries.ts` with the project's secret key,
   server-side only.
 
-Last verified against the live database on 2026-08-11 by direct catalog
+Last verified against the live database on 2026-08-12 by direct catalog
 introspection. **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -31,10 +31,10 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification (2026-08-11): `suppliers` 1,383 (1,376 active),
-`inventory` 232,837 (**69,540 active**), `inventory_sources` 2,065 (759 active),
-`plant_other_names` 13,499 (13,428 active), `availability_queries` 124,
-`users` 2, `contacts` 1,823 (1,813 active) across 1,379 suppliers — 47 backfilled
+Row counts at last verification (2026-08-12): `suppliers` 1,383 (1,376 active),
+`inventory` 235,976 (**62,523 active**), `inventory_sources` 2,079 (751 active),
+`plant_other_names` 13,700 (13,563 active), `availability_queries` 125,
+`users` 2, `contacts` 1,831 (1,821 active) across 1,379 suppliers — 47 backfilled
 from the retired `poc_*` columns on 2026-08-05, 29
 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.
@@ -259,7 +259,9 @@ domain field and must not be inferred from a filename.
 ### `plant_other_names`
 
 Mapping rows connecting a plant name to one alternative name. Powers
-bidirectional name search and the derived "Other Names" column.
+bidirectional name search and the derived **Also known as** value. Read-time
+search/display uses only aliases directly incident to an inventory identity;
+it never walks through a shared canonical hub to sibling alternatives.
 
 An alias exists for exactly one reason: so a search finds the row when the user
 types **another name the same plant is known by** — a genuine common name, the
@@ -351,8 +353,14 @@ filtered was dropped 2026-07-31. (`search_suppliers` keeps its own, over
 `suppliers.category`.)
 
 - Active rows only; optional supplier filter.
-- Only **active** `plant_other_names` pairs participate in matching and in the
-  derived `other_names`.
+- Only **active** `plant_other_names` pairs participate. Search and returned
+  `other_names` use direct edge endpoints only; `other_names` is displayed as
+  **Also known as** and no reverse-hub sibling traversal is allowed.
+- For a multi-word query, the least-common candidate-set word is treated as its
+  distinguishing identity intent and must fuzzy/prefix-match the row's own name
+  or a direct reviewed alias. This is word-order independent, keeps generic
+  common-name searches broad, and prevents sibling cultivars from satisfying an
+  explicit cultivar query through generic words alone.
 - A row matches if its **document** (name, size, height,
   width, caliper, notes — normalized) matches the pgroonga query
   (typo-tolerant, and the query's trailing word is also **prefix-matched** when

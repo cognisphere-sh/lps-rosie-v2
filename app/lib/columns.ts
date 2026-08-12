@@ -112,7 +112,7 @@ export const MASTER_HIDDEN = MASTER_COLS.map((c) => c.key).filter((k) => !MASTER
 // Plant sub-table (the second table on Plant search, and the profile's Inventory tab).
 export const PLANT_COLS: ColumnDef[] = [
   { key: 'name', label: 'Plant', width: 200, edit: true, writes: { table: 'inventory', column: 'name' } },
-  { key: 'other', label: 'Other names', width: 190 },
+  { key: 'other', label: 'Also known as', width: 190 },
   { key: 'size', label: 'Size', width: 104, filter: 'multiselect' },
   { key: 'price', label: 'Price', width: 100, align: 'right', edit: true, filter: 'range', money: true, writes: { table: 'inventory', column: 'unit_price' } },
   { key: 'qty', label: 'Quantity', width: 104, align: 'right', edit: true, filter: 'range', num: true, writes: { table: 'inventory', column: 'quantity' } },

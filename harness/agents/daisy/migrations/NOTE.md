@@ -8,6 +8,18 @@
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
+## `0026_exact_plant_identity_search.sql`
+
+Applied 2026-08-12 as Bhoumik-approved option B after the exact 0025 Crape alias cleanup. The existing `search_inventory` signature is unchanged. Both the RPC and `inventory_enriched` now derive aliases only from reviewed edges directly incident to the row's exact identity; the reverse-hub sibling UNIONs are removed. Multi-word searches choose the least-common query word in the candidate set as distinguishing identity intent and require it in the row's exact name or direct alias with bounded 0.20 fuzzy/prefix tolerance, independent of word order. One-word/generic searches stay broad. The app labels the derived value **Also known as** and no longer runs a second browser alias refinement.
+
+Post-0025 → post-0026: `Crape Myrtle Muskogee` and reversed 442 rows / 30 suppliers / 344 non-Muskogee identities → **98 / 20 / zero**, with identical ID digest `de144abdde245210941c2141d7688a79`. Truncated typo `Muskog` returns 95 / 19 with identical word-order digest. Generic `Crape Myrtle` remains broad at 548 / 35 and retains 87 Muskogee, 107 Natchez, four Tonto and all five bare `Lagerstroemia indica` rows; bare indica displays only direct alias `Crepe Myrtle`. Regression fixtures: Francis Mason Abelia 10 / 9 both orders, Japanese Holly Compacta 4 / 2, Clusia Small Leaf 39 / 9. Combined server dimension bounds returned 76 rows with zero violations. RPC signature count remains one and `inventory_enriched` remains `security_invoker=true`. This migration changes only view/function definitions; no table row changed.
+
+## `0025_retire_crape_myrtle_cultivar_aliases.sql`
+
+Applied 2026-08-12 with Bhoumik's explicit approval (Telegram message 671) after a read-only Crape Myrtle/Muskogee focal audit. Soft-retired exactly **66 active unsafe alias rows**: 59 cultivar/selection/trade/color/form names attached to the bare `Lagerstroemia indica` hub, five Muskogee cultivar identity aliases, and two malformed generic/form bridges. Preserved safe ID **13059**, `Lagerstroemia indica` ↔ `Crepe Myrtle`, and every alias outside the exact reviewed set.
+
+The guarded transaction returned 66 exact IDs (`updated_id_digest=0c9ec61bd06c675747a9921d52fd4b82`). Target alias-state digest changed `653d2dc8aac47e05424079e563b6bc39` → `bf2d87b6846cb1d43ce89a1d8f5cca00`; all 66 targets are inactive and ID 13059 remains active. Just-before → after live RPC: generic `Crape Myrtle` 610/40 → 592 rows/37 suppliers and remains broad (95 Muskogee, 115 Natchez, 4 Tonto, 1 directly connected bare indica row); `Crape Myrtle Muskogee` 486/38 → 442/30 and both word orders now share the same result digest, but 344 non-Muskogee rows remain from backend fuzzy/sibling behavior assigned separately to Nova. No inventory row changed: total 235,976, active 62,523, max updated timestamp and complete inventory-state digest `1b2f0959522394a8febd11274c266425` are byte-identical before/after. Exact rollback and regression artifacts live under `workspace/threads/main/crape-myrtle-alias-audit/`.
+
 ## `0024_inventory_dimension_std_backfill.sql`
 
 Applied 2026-08-11 after 0023, with Bhoumik's approval. Backfilled standardized numeric values for **94,297 inventory rows** (26,096 active / 68,201 inactive), deriving only from the corresponding displayed human-readable field: `height_std` 75,357 rows (21,081 active), `width_std` 40,537 (9,385 active), `caliper_std` 22,589 (6,674 active). Height is feet; width/caliper are inches; ranges use the lower bound; explicit conversions retain float8 precision. Null remains unknown/ambiguous.
