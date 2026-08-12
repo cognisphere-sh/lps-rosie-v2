@@ -145,10 +145,14 @@ One logical row per **plant × size offering**. Normalize every line:
   by**. Insert `(inventory.name, other_name)` pairs, where `other_name` is a
   genuine common name, the botanical/scientific name, an accepted synonym, an
   abbreviation, or a spelling variant.
-  **Quality bar — an alias is a liability, not a freebie.** Search follows this
-  graph *and* hops between siblings: if hub `H` has aliases `A` and `B`, someone
-  searching `A` gets rows named `B`. One bad pair pollutes a whole neighbourhood,
-  which is why a 2026-07-31 audit had to retire most of the directory. **When in
+  **Quality bar — an alias is a liability, not a freebie.** Since migration
+  0026 (2026-08-12), search and the displayed *Also known as* use only pairs
+  **directly incident** to a row's own identity — search no longer hops through
+  a shared hub to sibling names. A bad pair still wrongly equates two plants in
+  both directions, and cleanups keep having to retire them: a 2026-07-31 audit
+  retired most of the directory, and the focal audits behind migrations 0021
+  (Abelia, 15 edges) and 0025 (Crape Myrtle, 66 edges) retired hub/cultivar
+  pairs that were causing false positives in cultivar searches. **When in
   doubt, insert nothing** — a missing alias costs one search; a wrong one
   corrupts many. Before inserting, every pair must pass all of these:
 
