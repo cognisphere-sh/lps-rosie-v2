@@ -15,6 +15,87 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-13
+
+### Fixed
+
+- **"Soft leaf yucca" no longer returns Spanish Dagger.** Chris asked for
+  Softleaf Yucca pricing at Austin Plant Supply and got a 15 G *Yucca gloriosa*
+  at $101 alongside the correct rows. One false alias was responsible: id 44255,
+  `Yucca gloriosa ↔ Yucca, Soft Leaf`. It was verified as the sole admission
+  path — the Yucca gloriosa document matches neither
+  `pgroonga_condition('soft leaf yucca', 0.34)` nor the `<%` trigram predicate
+  (word_similarity 0.375), and of the ten active edges incident to
+  `yuccagloriosa` only 44255 matches the query. Unfiltered it put **9 wrong rows
+  across 4 suppliers** into a 20-row result. Approved migration 0028 retires it
+  with 15 more Yucca edges of the class 0021 and 0025 already covered — a
+  cultivar, selection or form name sitting in `other_name` against a bare
+  species. Two of those searches were 100% wrong: `yucca jewel` returned 9 rows
+  of plain *Yucca gloriosa* and `yucca rancho blue` 14 rows of plain *Yucca
+  rostrata*, though no inventory row of either selection exists. After: `soft
+  leaf yucca` 20 rows / 10 suppliers → 11 / 7, every one a genuine soft-leaf
+  yucca; `yucca jewel` and `yucca rancho blue` → 0; controls `adams needle`,
+  `red yucca`, `spanish dagger`, `yucca pendula` and `yucca recurvifolia`
+  unchanged. Searching a bare species no longer reaches its cultivar rows
+  through an alias — the same tradeoff 0021 and 0025 made deliberately, and the
+  cultivar rows still match their own printed names. No inventory row changed.
+
+- **The whole alias directory was audited; 4,654 false pairs retired (migration
+  0029).** Chris's yucca bug was one bad edge, so the same defect classes were
+  swept corpus-wide. Twenty reviewers covered all 13,553 active pairs against a
+  rubric built around a **buyer's test** — "if someone ordered one and received
+  the other, would that be a wrong shipment?" — because the previous audit had
+  reviewed the yucca pair and cleared it by reasoning from taxonomy. Thirteen
+  adversarial verifiers then tried to refute every flag, defaulting to *keep*
+  when torn, since a wrongly retired alias breaks a real search silently while a
+  wrongly kept one stays visible. Of 4,993 flags, 264 (5.3%) were refuted and 75
+  low-confidence entries held back, leaving 4,654 retired: 3,981 cultivar-link,
+  275 data-not-name, 194 generic-category and **204 wrong-taxon** — the last more
+  than double the 96 the previous full-corpus pass found, and the class that
+  produced the original complaint (`Abies alba ↔ White Fir`, which is
+  *A. concolor*; `Acer truncatum ↔ Norway Maple`; `Araucaria bidwillii ↔ Monkey
+  Puzzle`). Active pairs 13,553 → 8,899. The refutation pass rescued genuine
+  trade names that would have broken searches — `Artemisia stelleriana ↔ Dusty
+  Miller`, `Agave weberi ↔ Blue Weber Agave`, `Arecaceae ↔ Palms`, and the whole
+  name-plus-grade class (`River Birch Multi Trunk`, `Chilean Mesquite standard`).
+  Regression across 20 searches: rescued pairs and untouched hubs unchanged,
+  wrong-taxon removals landed (`norway maple` 16→13 rows / 2→1 supplier,
+  `monkey puzzle` 9→6), `red yucca` 57→54 as three generic *Hesperaloe funifera*
+  rows stopped arriving through retired `RED YUCCA LITTLE GIANT` cultivar-links.
+  Bare-hub counts barely moved (`acer palmatum` unchanged despite 75 retired
+  edges, `rosa` −13 rows despite 187) because those rows match their own printed
+  names — the aliases were redundant for finding them and load-bearing only for
+  the false cross-matches. Coverage was proven, not assumed: each flag was mapped
+  back to its position in the canonical ordering and checked against its
+  reviewer's window. That check caught a real defect — concurrent agents sharing
+  one scratchpad corrupted each other's cached tool results, so three windows
+  collided and two (~1,356 pairs) went unreviewed while the row total still
+  summed to 13,553. Those were re-run against explicit boundary ids. Evidence in
+  `workspace/threads/main/alias-audit-complete-20260813/`. No inventory changed.
+
+### Changed
+
+- **The ingestion SOP now tests evidence instead of botanical knowledge.**
+  Every alias guardrail was previously a knowledge test — "never two different
+  species" only helps someone who knows soft-leaf yucca is *Yucca recurvifolia*,
+  and knowledge tests fail silently. 44255 was created by pairing a supplier's
+  printed label (`Yucca, Soft Leaf`) with a botanical name the writer chose,
+  when that same source printed the right one on the row itself. §2 now requires
+  **both sides of a pair to be printed in the source being ingested**, quotable
+  from one line, never supplied from the writer's own knowledge, the web, or
+  another supplier's list; adds "never two line items from the same list", since
+  a supplier does not price one plant twice under two names; and settles
+  taxonomic disputes with **the trade wins** — names sold as different products
+  are different plants. §5 QA gains a mechanical alias check: search both sides
+  of every new pair, retire it if either returns an identity that is not the
+  plant just ingested, and report the source line that attests it.
+  The schema doc records what the table cannot tell you (no `created_at`,
+  `source_id` or confidence, so an audited edge looks like a fresh guess) and
+  two holes in the dedupe trigger: it dedupes only one orientation, so a
+  mirrored pair inserts cleanly — 168 mirrored rows exist and one retired pair
+  already has an active mirror — and the 2026-07-31 cleanup deleted its retired
+  pairs rather than keeping them as tombstones.
+
 ## 2026-08-12
 
 ### Changed

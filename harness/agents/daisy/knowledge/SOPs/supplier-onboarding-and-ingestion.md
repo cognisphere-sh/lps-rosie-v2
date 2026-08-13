@@ -145,6 +145,16 @@ One logical row per **plant × size offering**. Normalize every line:
   by**. Insert `(inventory.name, other_name)` pairs, where `other_name` is a
   genuine common name, the botanical/scientific name, an accepted synonym, an
   abbreviation, or a spelling variant.
+  **Both sides must be printed in the source you are ingesting, for the same
+  offering** — the botanical name beside the common name, a synonym in the same
+  cell, a spelling variant of that line. **Never supply the other side from your
+  own knowledge, from the web, or from another supplier's list.** If the source
+  prints one name, insert nothing; the identity is already searchable through
+  `inventory.name`. This is not a style preference: alias 44255
+  (`Yucca gloriosa` ↔ `Yucca, Soft Leaf`, retired by migration 0028) was created
+  exactly that way and put nine wrong rows across four suppliers into Chris's
+  "soft leaf yucca" search. Soft-leaf yucca is *Yucca recurvifolia*; the source
+  that printed the label printed that botanical name too, right there on the row.
   **Quality bar — an alias is a liability, not a freebie.** Since migration
   0026 (2026-08-12), search and the displayed *Also known as* use only pairs
   **directly incident** to a row's own identity — search no longer hops through
@@ -156,11 +166,23 @@ One logical row per **plant × size offering**. Normalize every line:
   doubt, insert nothing** — a missing alias costs one search; a wrong one
   corrupts many. Before inserting, every pair must pass all of these:
 
+  - **Attested by this source, on this line.** You can quote the line that
+    prints both names. A botanical name you know but the source doesn't print
+    belongs in `inventory.name`'s bracket (see *Name* above), where it is
+    already searchable — not in a pair. **A pair you cannot quote a line for
+    does not ship.**
+  - **Never two line items from the same list.** If both names appear as
+    separate offerings in this drop — or in any drop from this supplier — they
+    are two products, not two names for one. A supplier does not price the same
+    plant twice under different names in one availability sheet. Check before
+    inserting; this is what 44255 got wrong.
   - **Same plant, not a relative.** Both sides must name the *same* plant. Never
     a species ↔ one of its cultivars, never sibling cultivars, and never two
     different species — `Cercis canadensis` ↔ `Cercis mexicana` is wrong, they
     are different plants. Genuine renames are fine (`Sedum spectabile` ↔
-    `Hylotelephium spectabile`).
+    `Hylotelephium spectabile`). Where taxonomies disagree, **the trade wins**:
+    if the two names are sold as different products they are different plants,
+    however a botanist would classify them.
   - **No cultivar, selection, variant, trade name or patent code in
     `other_name`** — not `'Forest Pansy'`, `Merlot Redbud`, `PP21929`,
     `Kaleidoscope™`. Those identify one selection. They are already searchable
@@ -278,6 +300,12 @@ Treat extraction and writing as untrusted until the new version passes source-to
 - **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
 - **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
 - **Validate normalization:** no malformed names/sizes, no zero price presented as free, no guessed missing values, no unsafe cultivar/species alias edges, and no source dimensions left only in notes when they can be mapped unambiguously to structured fields. For every populated human-readable dimension, verify its `*_std` companion uses the approved unit/lower-bound rule or is deliberately `NULL` with an ambiguity reason; never publish a stale standard value after changing its source string.
+- **Verify every alias pair you wrote — mechanically, not by eye.** For each new
+  pair run `search_inventory('<other_name>')` and `search_inventory('<the row's
+  name>')` and list the identities each returns. If either returns an identity
+  that is not the plant you just ingested, the pair is wrong: retire it before
+  committing. Report every pair with the verbatim source line that attests both
+  sides. "It looked like a synonym" is not evidence and does not pass.
 - **Compare versions:** inspect unexpected row-count swings, price/quantity/spec changes, new/removed plants, duplicate inflation, and source activation/retirement. Spot-check several important searches after activation to confirm exact identities rank correctly without sibling-cultivar leakage.
 - **Record QA evidence in the output contract:** converter used, source/output counts, pages/sections checked, risky-row count and result, exceptions retained, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 

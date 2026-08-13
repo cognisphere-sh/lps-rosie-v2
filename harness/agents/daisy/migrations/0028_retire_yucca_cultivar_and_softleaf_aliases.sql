@@ -1,0 +1,99 @@
+-- 0028: retire the false Yucca soft-leaf equivalence and the Yucca
+-- sibling-cultivar aliases around it.
+-- Applied 2026-08-13 with explicit Bhoumik approval after a read-only focal audit.
+--
+-- Reported by Chris (webchat message 77, 2026-08-12 21:27 CDT): "How much are
+-- soft leaf yucca at Austin plant supply" returned a 15 G *Yucca gloriosa* at
+-- $101 beside the correct Softleaf Yucca rows. Yucca gloriosa is Spanish
+-- Dagger; the soft-leaf yucca of the trade is Yucca recurvifolia / pendula.
+-- Some treatments sink recurvifolia into gloriosa var. tristis, which is very
+-- likely why the 2026-08-13 global alias audit reviewed id 44255 and passed it.
+-- In the trade they are different products - Everde Growers lists both as
+-- separate line items, and its soft-leaf row prints its own botanical name
+-- (`Yucca, Soft Leaf [Yucca Recurvifolia]`) - so the equivalence must go.
+--
+-- 44255 was verified as the SOLE admission path for the reported false
+-- positive: the Yucca gloriosa document matches neither
+-- pgroonga_condition('soft leaf yucca', 0.34) nor the `<%` trigram predicate
+-- (word_similarity 0.375). Of the ten active edges incident to `yuccagloriosa`,
+-- only 44255 matches the query. Unfiltered, that one edge put 9 wrong rows
+-- across 4 suppliers (Grow Wild Greenery 5, T-Y Nursery 2, Austin Plant Supply
+-- 1, Purtis Creek Farms 1) into a 20-row result.
+--
+-- The rest of the set is the same class 0021 (Abelia) and 0025 (Crape Myrtle)
+-- retired: a cultivar, selection or form name sitting in `other_name` against a
+-- bare species, which makes every generic row of that species answer a search
+-- for the one selection. Two of these searches are currently 100% wrong:
+-- `yucca jewel` returns 9 rows / 1 identity, all plain Yucca gloriosa, and
+-- `yucca rancho blue` returns 14 rows / 1 identity, all plain Yucca rostrata -
+-- no inventory row of either selection exists.
+--
+-- Every id below is retired on a bright-line SOP rule (wrong species, or a
+-- cultivar/selection/trade name in `other_name`), not a taxonomic judgement
+-- call. Ambiguous neighbours are deliberately left active - see DEFERRED.
+--
+--   wrong species (the reported bug)
+--     44255  Yucca gloriosa            <-> Yucca, Soft Leaf
+--   cultivar / selection / trade name on a bare species
+--     25236  Yucca filamentosa         <-> BRIGHT EDGE
+--     25237  Yucca filamentosa         <-> Bright Edge Yucca
+--     25246  YUCCA FILAMENTOSA         <-> YUCCA BRIGHT EDGE
+--     25247  Yucca filamentosa         <-> Yucca Color Guard
+--     25248  Yucca filamentosa         <-> Yucca Magenta Magic
+--     25249  Yucca filamentosa         <-> Yucca Silver Anniversary
+--     25329  Yucca schidigera          <-> Yucca Silver Anniversary
+--     25335  Yucca thompsoniana        <-> Yucca Silver Anniversary
+--     25317  Yucca rostrata            <-> Yucca Blue Sentry
+--     25318  Yucca rostrata            <-> Yucca Rancho Blue
+--     25273  Yucca gloriosa            <-> Yucca Jewel
+--     25270  Yucca gloriosa            <-> Variegated Spanish Dagger
+--     25275  Yucca gloriosa            <-> YUCCA SPANISH DAGGER VARIEGATED
+--     25301  Yucca recurvifolia        <-> Variegated Soft Leaf Yucca
+--   truncated fragment, not a name (almost certainly "Yucca Color Guard" cut
+--   short, which would link pendula to a filamentosa cultivar)
+--     25292  Yucca pendula             <-> Yucca Color
+--
+-- 25249 / 25329 are two of the eleven pairs migration 0008 left for a human:
+-- "Yucca Silver Anniversary" is attached to three different species, so at most
+-- one attachment can be right. All three go, because a selection name may not
+-- sit in `other_name` whichever species owns it.
+--
+-- PRESERVED - same plant on both sides, or a genuine common name:
+--   28777  Yucca Filamentosa Color Guard <-> Yucca, Color Guard Adam'S Needle
+--   25305  Yucca recurvifolia (pendula) variegated <-> Variegated Soft Leaf Yucca
+--   25290  Yucca pendula          <-> Soft Leaf Yucca
+--   25296  Yucca Pendula Softleaf <-> Soft-Leaf Yucca
+--   25300  Yucca recurvifolia     <-> Soft Leaf Yucca
+--   25289  Yucca pallida          <-> Pale Leaf Yucca
+--   10040/10043/10044/26657  Hesperaloe parviflora <-> Red Yucca family
+--     ("Red Yucca" is the universal trade common name for Hesperaloe, not a
+--      Yucca claim - retiring it would break a real search)
+--
+-- DEFERRED - needs a taxonomic call, deliberately NOT retired here:
+--   "Giant Yucca" / "YUCCA GIANT" fan-out across Yucca gloriosa (25266, 25272),
+--     Yucca decipiens (25216) and Hesperaloe funifera (41424, 41422)
+--   25299  Yucca recurvifolia <-> Soft Leaf (bare fragment; the global audit
+--     marked it HOLD, and both endpoints are inventory-inert)
+--   25243  Yucca filamentosa <-> Varigated Yucca (form descriptor)
+--   25255/25256  Yucca Filamentosa Color Guard/ Bright Edge <-> ...
+--     (two-cultivar combined identity; 1 row, 1 supplier)
+--
+-- Applied update returned exactly 16 rows. No inventory row was changed.
+UPDATE public.plant_other_names
+SET is_active = false
+WHERE is_active
+  AND id IN (44255,
+             25236, 25237, 25246, 25247, 25248, 25249,
+             25329, 25335, 25317, 25318,
+             25273, 25270, 25275, 25301,
+             25292);
+
+-- Exact contingency rollback only if separately approved:
+-- UPDATE public.plant_other_names
+-- SET is_active = true
+-- WHERE NOT is_active
+--   AND id IN (44255,
+--              25236, 25237, 25246, 25247, 25248, 25249,
+--              25329, 25335, 25317, 25318,
+--              25273, 25270, 25275, 25301,
+--              25292);

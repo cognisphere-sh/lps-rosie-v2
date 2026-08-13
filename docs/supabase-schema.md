@@ -285,21 +285,47 @@ pair are the same pair. A BEFORE INSERT trigger silently drops duplicates,
 self-pairs and empty-keyed rows, so writers can blind-insert without conflict
 handling.
 
-**13,700 pairs, 13,563 active** (as of 2026-08-12) — the 2026-07-31 cleanup and
+**13,706 pairs, 8,899 active** (as of 2026-08-13) — the 2026-07-31 cleanup and
 quality audit retired 78,807 (then deleted outright); the focal audits behind
-migrations 0021 (Abelia) and 0025 (Crape Myrtle) soft-retired later leaks. An
-alias must name the *same plant* — never a cultivar, never a generic category
-label ("Oak", "Grass"), never a size/grade code. Search no longer hops between
-siblings (migration 0026), but a bad pair still equates two different plants in
-both directions; the ingestion SOP's rule is "when in doubt, insert nothing".
-Before adding any cleanup rule, read the REJECTED RULES section of
+migrations 0021 (Abelia), 0025 (Crape Myrtle) and 0028 (Yucca) soft-retired
+later leaks; and migration 0029's full-corpus audit retired 4,654 more, taking
+active pairs from 13,553 to 8,899. An alias must name the *same plant* — never a
+cultivar, never a generic category label ("Oak", "Grass"), never a size/grade
+code. Search no longer hops between siblings (migration 0026), but a bad pair
+still equates two different plants in both directions; the ingestion SOP's rule
+is "when in doubt, insert nothing". Before adding any cleanup rule, read the
+REJECTED RULES section of
 `harness/agents/daisy/migrations/0008_alias_quality_audit.sql`.
 
-> The dedupe trigger rejects a duplicate `(name_key, other_name_key)` **whether
-> or not the existing row is active**. While retired rows existed they doubled as
-> a blocklist; now that they are deleted, nothing at the database level stops a
-> bad alias being re-inserted. Keeping the directory clean is the ingestion
-> SOP's job.
+The 0029 audit reviewed all 13,553 active pairs and flagged 4,993 (36.8%); an
+adversarial pass then refuted 264 of those (5.3%) and 75 low-confidence entries
+were held back. Its evidence — per-pair classification, the refutation verdicts,
+and the kept/held-back sets — is in
+`harness/agents/daisy/workspace/threads/main/alias-audit-complete-20260813/`.
+The largest contaminated hubs were bare `Rosa` (187 edges), `Acer palmatum` (75),
+`Hydrangea macrophylla` (45), `Loropetalum chinense` (44) and `Prunus persica`
+(43). Retiring a species↔cultivar edge deliberately stops a bare-species search
+reaching its cultivar rows; those rows still match their own printed names, which
+is why the bare-hub result counts barely moved.
+
+A pair is only as good as the evidence behind it, and the table records none:
+there is **no `created_at`, no `source_id` and no confidence column**, so an
+audited edge is indistinguishable from a fresh guess and neither can be traced
+back to the drop that wrote it — migration 0028's culprit had to be attributed
+by reading id ordering. The SOP compensates by requiring both sides of a new
+pair to be **printed in the source being ingested**, never supplied from the
+writer's own knowledge.
+
+> **Two holes in the dedupe trigger.** It rejects a duplicate
+> `(name_key, other_name_key)` whether or not the existing row is active — but
+> only in that one orientation. The mirrored pair `(other_name_key, name_key)`
+> inserts cleanly, and because search treats both endpoints symmetrically,
+> retiring an edge does not stop it coming back reversed: **168 mirrored rows
+> exist today**, and retired pair 128072 (`Japanese Yew ↔ Taxus cuspidata`)
+> already has an active mirror in 23384. Separately, the 2026-07-31 cleanup
+> *deleted* the pairs it retired instead of keeping them as tombstones, so those
+> can be re-inserted outright. Nothing at the database level stops a bad alias
+> coming back; keeping the directory clean is the ingestion SOP's job.
 
 ---
 
