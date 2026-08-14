@@ -41,11 +41,13 @@ here).
   database**, so it is a property of the table rather than of one caller: a
   hand-written `UPDATE inventory_sources SET is_active = false` in SQL now
   retires the file's rows too. The app is left counting the rows for its toast
-  and flipping the file. Measured before applying, 1,340 of 2,079 sources were
-  already inactive and **zero** active inventory rows pointed at an inactive
-  source, so the trigger enforces an invariant the data already satisfied and
-  rewrote nothing. It fires one way only — reactivating a source does not
-  restore its rows, because nothing records which of them the trigger retired.
+  and flipping the file. The original pre-wipe design audit found 1,340 of 2,079
+  sources already inactive and **zero** active inventory rows pointing at an
+  inactive source. The live apply happened after the catalogue reset, with 10
+  active sources and the same zero-row invariant; it created only the function
+  and trigger and rewrote no data. A rollback-only fixture verified the cascade.
+  It fires one way only — reactivating a source does not restore its rows,
+  because nothing records which of them the trigger retired.
 
 ### Changed
 

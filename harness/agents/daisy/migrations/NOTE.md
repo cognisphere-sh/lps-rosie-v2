@@ -10,6 +10,22 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0048_cascade_source_deactivation.sql`
+
+Applied 2026-08-14 after a runtime audit found that the app and schema docs
+already depended on the trigger but the live database did not contain it.
+Preflight after the catalogue wipe/rebuild had begun found 10 active sources and
+zero active inventory rows pointing at an inactive source, so apply created only
+the function and trigger and rewrote no data.
+
+Post-apply catalog introspection found exactly one enabled
+`trg_cascade_source_deactivation` and one
+`cascade_source_deactivation()` function. A rollback-only fixture verified that
+a true→false source update retires its active inventory, reactivation does not
+restore it, rollback removes the fixture completely, and the live invariant
+remains clean. The source-deactivation freeze imposed during the audit was then
+safe to lift.
+
 ## `0047_size_as_ranking_group.sql`
 
 Applied 2026-08-14 in two steps (`search_size_as_ranking_group`, then

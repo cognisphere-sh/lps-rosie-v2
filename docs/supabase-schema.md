@@ -13,9 +13,9 @@ restate table or column definitions.
 
 Last verified against the live database on 2026-08-12 by direct catalog
 introspection; the contact/location tables were re-verified on 2026-08-14 after
-migrations 0033–0034, and the plant identity / alias half on 2026-08-14 after
-migration 0040. **If you find a discrepancy, fix this file in the same
-change.**
+migrations 0033–0034, the plant identity / alias half on 2026-08-14 after
+migration 0040, and the source-deactivation invariant on 2026-08-14 after
+migration 0048. **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
 
