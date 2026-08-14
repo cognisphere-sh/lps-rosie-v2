@@ -36,10 +36,18 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification (2026-08-12; suppliers and contacts re-counted
-2026-08-14): `suppliers` 1,383 (1,375 active), `inventory` 235,976 (**62,523
-active**), `inventory_sources` 2,079 (751 active), `plant_aliases` 0 (the
-directory is re-ingested from scratch — see below),
+> **The catalogue was reset on 2026-08-14 and is being rebuilt.** `inventory`,
+> `inventory_sources` and `plant_aliases` were **deleted outright** — not
+> soft-deleted — at Bhoumik's request, then re-ingestion began. The wipe removed
+> 238,748 inventory rows, 2,113 sources and 127 aliases; suppliers, contacts and
+> their links were untouched. A row-for-row copy of all three tables is in the
+> `backup_20260814` schema (73 MB, not exposed to PostgREST); restoring means
+> `insert … select` in the order sources → inventory → aliases, which is the
+> order their foreign keys require. Live catalogue counts are intentionally not
+> pinned here while the rebuild is changing them.
+
+Row counts at last stable verification (2026-08-12; suppliers and contacts
+re-counted 2026-08-14): `suppliers` 1,383 (1,375 active),
 `availability_queries` 125, `users` 2, `contacts` 1,844
 (**1,813 active** — 20 retired by the 0036 merge, one by the 0038 cascade),
 `supplier_contacts` 1,843 links (1,831
@@ -330,7 +338,7 @@ availability files.
 | `height_std` | double precision | yes | Standardized height in **feet**; lower bound for a range; `NULL` when unknown/ambiguous |
 | `width_std` / `caliper_std` | double precision | yes | Standardized width/caliper in **inches**; lower bound for a range; `NULL` when unknown/ambiguous |
 | `notes` | text | yes | **Supplier-stated** notes for this offering, from the availability data: their verbatim row description, dated availability status, lead time, per-row qualifiers ("limited", "B&B only"). Not our commentary |
-| `internal_notes` | text | yes | **Ours.** Parse caveats, why a combined size was split, that a quantity is the supplier's shared/tentative count, pricing unavailable/on request, QA exceptions. Appended, not clobbered. Added 2026-08-14 (migration 0039) |
+| `internal_notes` | text | yes | **Ours.** Parse caveats, why a combined size was split, that a quantity is the supplier's shared/tentative count, QA exceptions. Never what the row already answers (a missing price or quantity, `updated_at`, when the drop was ingested). Appended, not clobbered. Added 2026-08-14 (migration 0039) |
 | `image_url` | text | yes | Optional product image |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
@@ -378,7 +386,9 @@ no bucket for (`Quart`, `10" Hanging Basket`, `Six Pack`). `NULL` means no
 container is known. The full mapping rules live in the `supplier-onboarding-and-ingestion` skill's *Size standard*,
 and the app's ordering of the vocabulary is `app/lib/size-std.ts`.
 
-**State after the 0031/0032 backfills (2026-08-13, active rows only):** 54,815
+**State after the 0031/0032 backfills (2026-08-13, active rows only — describes
+the catalogue that was deleted on 2026-08-14, kept as the standard's measured
+baseline):** 54,815
 of 62,572 rows carry a `size_std` across 66 buckets — `1G` 8,986, `3G` 7,445,
 `15G` 5,099, `5G` 4,358, `Trays` 3,814, `other` 3,326, `B&B` 3,224, `4" Pot`
 1,483 — and roughly 1,300 distinct printed size strings collapse onto them. The
@@ -409,6 +419,14 @@ apart means a later reader can tell "the supplier says 2-week lead time" from
 "we copied this quantity across two sizes because the sheet shared it". Neither
 is a substitute for `workspace/suppliers/[<id>]:<Name>/notes.md`, which is the
 agent's own working memory about the *supplier*, not about a row.
+
+`internal_notes` only earns a line when a later reader could not get the same
+fact from the row. Observations the row already answers — a missing price or
+quantity (`unit_price` / `quantity` is `NULL`), when it was last touched
+(`updated_at`), when the drop landed or which file it came from (`source_id`,
+`inventory_sources.created_at`), a restatement of the size or the name — are
+not written at all. The `supplier-onboarding-and-ingestion` skill (v3.5.0) states
+the rule and QA-checks it before an ingest commits.
 
 Both are carried by `inventory_enriched` **and** by `search_inventory`. 0039
 left `internal_notes` out of the RPC to avoid dropping and recreating it, and
@@ -504,19 +522,17 @@ has stopped listing keeps its older `source_id` and its older derived
 retired automatically — dropping an offering for good is a deliberate act.
 
 **Deactivating a source is that deliberate act, and it cascades** (2026-08-14,
-migration 0048). `trg_cascade_source_deactivation` retires every `inventory` row
-whose `source_id` is the file being retired, so a direct
-`UPDATE inventory_sources SET is_active = false` is as safe as the app's Files
-tab button — there is no way to leave live rows pointing at a dead source, which
-would mean blank `Ingested` dates and rows that browsing lists but
-`search_inventory` refuses to return. Because `source_id` names the most recent
-drop containing a row, an offering a later drop re-listed belongs to that later
-source and survives.
+migration 0048). `trg_cascade_source_deactivation` retires every active
+`inventory` row whose `source_id` is the file being retired, so direct SQL and
+the app's Files tab preserve the same invariant: no live row points at an
+inactive source. Because a row moves to the newest source that lists it, an
+offering re-listed by a later drop survives retirement of the older source.
 
-The cascade runs **one way**. Reactivating a source does not restore its rows:
-nothing records which of them the trigger retired versus which were already
-retired for their own reasons, so undoing a mistaken retirement is a manual,
-considered `update`.
+The cascade is **one way**. Reactivating a source does not restore its rows,
+because the database does not record which rows the trigger retired versus
+which were already inactive. Undoing a mistaken retirement is a manual,
+considered inventory update. Live catalog introspection and a rollback-only
+fixture verified the trigger after apply.
 
 The app derives an inventory row's `ingestion_date` by joining its `source_id`
 to an **active** source's `created_at`; manual/source-less rows remain blank. A
@@ -528,9 +544,11 @@ domain field and must not be inferred from a filename.
 ### `plant_aliases`
 
 Typed name equivalences. A row says **"these two strings name the same
-thing"**; `alias_type` says what kind of thing, and that is what decides which
-column of `inventory` the pair can ever reach. Added 2026-08-14 by migration
-0040, replacing `plant_other_names`.
+thing"**; `alias_type` records whether that assertion is about a plant or a
+cultivar/selection and controls where the pair attaches for **Also known as**
+display. Since migration 0045 it does **not** constrain search: both types
+expand a matching query span identically. Added 2026-08-14 by migration 0040,
+replacing `plant_other_names`.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -544,19 +562,21 @@ column of `inventory` the pair can ever reach. Added 2026-08-14 by migration
 | `is_active` | boolean | no, default true | Soft delete. Inactive pairs power neither search nor display **and block re-insertion** |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
 
-| `alias_type` | The two sides are | Compared against | Example |
+| `alias_type` | The two sides are | **Also known as** display attachment | Example |
 |---|---|---|---|
-| `plant` | two names for the same **plant** | `inventory.common_name_key`, `botanical_name_key` (and `name_key`) | `Live Oak` ↔ `Quercus virginiana`, `Crape Myrtle` ↔ `Crepe Myrtle` |
-| `cultivar` | two names for the same **selection** | `inventory.cultivar_keys` **only**, by overlap | a variety name ↔ its trade name |
+| `plant` | two names for the same **plant** | Rows incident through `name_key`, `common_name_key` or `botanical_name_key` | `Live Oak` ↔ `Quercus virginiana`, `Crape Myrtle` ↔ `Crepe Myrtle` |
+| `cultivar` | two names for the same **selection** | Rows incident through `cultivar_keys` | a variety name ↔ its trade name |
 
-**The typing is the substance, not bookkeeping.** A `cultivar` edge is never
-compared to a column a generic row fills, so it physically cannot make every
-row of a species answer a search for one of its selections. That single failure
-mode is what migrations 0006, 0007, 0021, 0025, 0028 and 0029 each existed to
-clean up after — 0029 alone retired 4,654 pairs — and it is now closed
-structurally rather than by a quality bar alone. The corollary is that a
-cultivar/trade-name pair is finally *expressible*: the old table's blanket ban
-on them is gone, and mis-typing one as `plant` throws the guarantee away.
+**Typing is semantic and display metadata, not a search safety boundary.**
+`search_inventory` partitions the query into spans and substitutes the opposite
+endpoint of every active incident edge without filtering `alias_type`. A
+`cultivar` and a `plant` edge therefore expand search identically. A bad
+species↔cultivar pair can make a cultivar query reach the generic species and
+its sibling selections regardless of how the edge is typed. The direct,
+reviewed exact-equivalence evidence bar is the protection; never infer an edge
+from botanical knowledge. `alias_type` remains required because it records what
+the source asserts and keeps **Also known as** attached to the correct identity
+part.
 
 An alias still exists for exactly one reason: so a search finds the row when the
 user types another name the same thing is known by. **Both sides must be printed
@@ -782,7 +802,7 @@ result by the caller (0045).
 | Trigger | Table | When | Does |
 |---|---|---|---|
 | `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows, `inventory_sources` and `supplier_contacts` links — plus any contact left with no active link at all |
-| `trg_cascade_source_deactivation` | inventory_sources | AFTER UPDATE OF `is_active`, true→false | Deactivates every `inventory` row whose `source_id` is that file. One way: reactivating the source does not restore them |
+| `trg_cascade_source_deactivation` | inventory_sources | AFTER UPDATE OF `is_active`, true→false | Deactivates every active `inventory` row whose `source_id` is that file. One way: reactivating the source does not restore them |
 | `trg_inventory_derive_identity` | inventory | BEFORE INSERT OR UPDATE | Trims the three name parts, composes `name` from them, derives `common_name_key` / `botanical_name_key` and the `cultivar_keys` array |
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `handle_updated_at` | suppliers, supplier_groups, supplier_contacts, inventory, contacts, plant_aliases, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
@@ -804,15 +824,19 @@ result by the caller (0045).
 - `inventory_supplier_size_std_idx` — the same shape for `size_std`, backing the
   app's size facet. `size_std` is deliberately **not** in the pgroonga document:
   the raw `size` already carries every spelling a search could type.
-- `plant_aliases_pgroonga_idx` — pgroonga over
-  `normalize_search_text(name || ' ' || other_name)`. Note it does not cover
-  `is_active` or `alias_type`, which the search filters on separately.
+- `plant_aliases_name_key_idx` / `plant_aliases_other_key_idx` — btrees used to
+  find the opposite endpoint when a normalized query span names an alias, and
+  by **Also known as** attachment. Query expansion filters `is_active` but not
+  `alias_type`; display attachment filters both. The older
+  `plant_aliases_pgroonga_idx` remains present but the current 0046 search body
+  resolves normalized endpoint keys rather than querying that expression.
 - `inventory_common_name_key_idx`, `inventory_botanical_name_key_idx` — partial
   btrees on the two scalar part keys where they are non-null, and
   `inventory_cultivar_keys_idx`, a GIN index over the `cultivar_keys` array.
-  Together they back the alias branches. The parts are deliberately
-  **not** in the pgroonga document: `name` is composed of all three, so every
-  part token is already in it.
+  They support identity-key review and direct lookups; since 0045 they do not
+  constrain alias-expanded search. The parts are deliberately **not** in the
+  pgroonga search document separately: derived `name` already composes all
+  three.
 - `suppliers_pgroonga_idx` — pgroonga over the supplier document (name, address,
   city, state, zip, category, notes). **Must match the concatenation in
   `search_suppliers` exactly.** Every contact field it used to carry —
