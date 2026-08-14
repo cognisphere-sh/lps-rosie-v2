@@ -286,6 +286,21 @@ function ContactCard({
             </p>
           )}
 
+          {contact.also_at.length > 0 && (
+            <p className="m-0 text-[11.5px] leading-relaxed text-muted-foreground">
+              Also covers{' '}
+              {contact.also_at.map((l, i) => (
+                <span key={l.supplier_id}>
+                  {i > 0 && ', '}
+                  <a href={`/suppliers/${l.supplier_id}?tab=contacts`} className="text-primary hover:underline">
+                    {l.supplier_name}
+                  </a>
+                </span>
+              ))}
+              . Edits here change them there too.
+            </p>
+          )}
+
           {!contact.is_primary && (
             <button
               type="button"
@@ -636,17 +651,22 @@ export default function SupplierProfilePage() {
   const makePrimary = (contactId: number) =>
     contactRequest(
       '/api/contacts',
-      { method: 'PATCH', body: JSON.stringify({ id: contactId, primary: true }) },
+      { method: 'PATCH', body: JSON.stringify({ id: contactId, supplierId: id, primary: true }) },
       'Primary contact updated',
       'Could not set primary contact',
     )
 
+  // Removal takes the contact off *this* supplier. Where they also cover other
+  // locations, say so — the rest of their links are untouched.
   const removeContact = (contact: Contact) => {
     const who = contact.name || contact.email || contact.phone || 'this contact'
-    if (!window.confirm(`Remove ${who} from this supplier?`)) return
+    const elsewhere = contact.also_at.length
+      ? ` They stay on ${contact.also_at.length} other location${contact.also_at.length > 1 ? 's' : ''}.`
+      : ''
+    if (!window.confirm(`Remove ${who} from this supplier?${elsewhere}`)) return
     void contactRequest(
-      '/api/rows',
-      { method: 'DELETE', body: JSON.stringify({ table: 'contacts', id: contact.id }) },
+      '/api/contacts',
+      { method: 'DELETE', body: JSON.stringify({ id: contact.id, supplierId: id }) },
       'Contact removed',
       'Could not remove contact',
     )

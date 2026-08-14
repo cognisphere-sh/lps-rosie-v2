@@ -4,6 +4,7 @@ import type { DimensionRanges } from '@/lib/dimension-ranges'
 import { sourceUrl, supabase } from '@/lib/supabase'
 import type {
   Contact,
+  ContactLink,
   PlantGroup,
   PlantRow,
   SourceLink,
@@ -13,6 +14,7 @@ import type {
 } from '@/lib/rows'
 
 export const PAGE_SIZE = 50
+export const PLANT_PAGE_SIZE = 300
 
 interface SupplierRecord {
   id: number
@@ -40,6 +42,7 @@ interface InventoryRecord {
   name: string
   other_names: string | null
   size: string | null
+  size_std: string | null
   unit_price: number | null
   quantity: number | null
   supplier_id: number | null
@@ -119,6 +122,7 @@ function toPlantRow(
       name: r.name,
       other: r.other_names ?? null,
       size: r.size,
+      size_std: r.size_std,
       price: r.unit_price,
       qty: r.quantity,
       h: r.height,
@@ -220,8 +224,20 @@ async function sourcesBySupplier(ids: number[]): Promise<Map<number, SourceLink[
   return map
 }
 
+/** The contact half of a `supplier_contacts` row, as PostgREST embeds it. */
+type LinkedContact = {
+  supplier_id: number
+  is_primary: boolean
+  contacts: Omit<Contact, 'supplier_id' | 'is_primary' | 'also_at'> | null
+}
+
 /**
  * Active contacts per supplier, primary first.
+ *
+ * Contacts are many-to-many with suppliers (migration 0034): one rep covers
+ * several locations of the same company, so the supplier and the primary flag
+ * live on the `supplier_contacts` link, not on the person. A contact shows up
+ * here only when both the link and the person are active.
  *
  * `search_suppliers` already resolves the primary contact into its
  * `primary_contact_*` columns, but `getSupplier` reads the `suppliers` table
@@ -233,18 +249,59 @@ async function contactsBySupplier(ids: number[]): Promise<Map<number, Contact[]>
   if (!ids.length) return map
 
   const { data, error } = await supabase
-    .from('contacts')
-    .select('id, supplier_id, name, email, phone, title_department, notes, is_primary, created_at, updated_at')
+    .from('supplier_contacts')
+    .select(
+      'supplier_id, is_primary, contacts!inner(id, name, email, phone, title_department, notes, created_at, updated_at, is_active)',
+    )
     .in('supplier_id', ids)
     .eq('is_active', true)
+    .eq('contacts.is_active', true)
     .order('is_primary', { ascending: false })
-    .order('id', { ascending: true })
+    .order('contact_id', { ascending: true })
 
-  if (error) throw new Error(`contacts: ${error.message}`)
-  for (const row of (data ?? []) as Contact[]) {
-    const list = map.get(row.supplier_id) ?? []
-    list.push(row)
-    map.set(row.supplier_id, list)
+  if (error) throw new Error(`supplier_contacts: ${error.message}`)
+  const links = (data ?? []) as unknown as LinkedContact[]
+  const alsoAt = await otherLocationsOf(links.map((l) => l.contacts?.id ?? 0))
+
+  for (const link of links) {
+    if (!link.contacts) continue
+    const list = map.get(link.supplier_id) ?? []
+    list.push({
+      ...link.contacts,
+      supplier_id: link.supplier_id,
+      is_primary: link.is_primary,
+      also_at: (alsoAt.get(link.contacts.id) ?? []).filter(
+        (l) => l.supplier_id !== link.supplier_id,
+      ),
+    })
+    map.set(link.supplier_id, list)
+  }
+  return map
+}
+
+/**
+ * Every active location each of these contacts covers.
+ *
+ * The profile has to say so: the card edits the person, not the link, so
+ * changing a phone number there changes it at every location that shares them.
+ */
+async function otherLocationsOf(contactIds: number[]): Promise<Map<number, ContactLink[]>> {
+  const map = new Map<number, ContactLink[]>()
+  if (!contactIds.length) return map
+
+  const { data, error } = await supabase
+    .from('supplier_contacts')
+    .select('contact_id, supplier_id, suppliers!inner(name, is_active)')
+    .in('contact_id', contactIds)
+    .eq('is_active', true)
+    .eq('suppliers.is_active', true)
+
+  if (error) throw new Error(`supplier_contacts locations: ${error.message}`)
+  type Row = { contact_id: number; supplier_id: number; suppliers: { name: string } | null }
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const list = map.get(row.contact_id) ?? []
+    list.push({ supplier_id: row.supplier_id, supplier_name: row.suppliers?.name ?? '' })
+    map.set(row.contact_id, list)
   }
   return map
 }
@@ -274,18 +331,31 @@ export async function itemCounts(ids: number[]): Promise<Record<number, number>>
   return Object.fromEntries(pairs)
 }
 
-export async function listSuppliers(search: string): Promise<SupplierRow[]> {
-  const { data, error } = await supabase
-    .rpc('search_suppliers', { search })
-    .range(0, PAGE_SIZE - 1)
+/**
+ * One page of suppliers, plus how many the search matched in total.
+ *
+ * `count: 'exact'` asks PostgREST for the size of the whole RPC result, not the
+ * page — the header says "of 1,234", so a page-length total would be a lie.
+ */
+export async function listSuppliers(
+  search: string,
+  page = 1,
+): Promise<{ rows: SupplierRow[]; total: number }> {
+  const from = (page - 1) * PAGE_SIZE
+  const { data, error, count } = await supabase
+    .rpc('search_suppliers', { search }, { count: 'exact' })
+    .range(from, from + PAGE_SIZE - 1)
 
   if (error) throw new Error(`search_suppliers: ${error.message}`)
   const records = (data ?? []) as SupplierRecord[]
   const ids = records.map((r) => r.id)
   const [sources, contacts] = await Promise.all([sourcesBySupplier(ids), contactsBySupplier(ids)])
-  return records.map((r) =>
-    toSupplierRow(r, { sources: sources.get(r.id) ?? [], contacts: contacts.get(r.id) ?? [] }),
-  )
+  return {
+    rows: records.map((r) =>
+      toSupplierRow(r, { sources: sources.get(r.id) ?? [], contacts: contacts.get(r.id) ?? [] }),
+    ),
+    total: count ?? records.length,
+  }
 }
 
 /**
@@ -305,26 +375,35 @@ const dimensionRpcArgs = (ranges: DimensionRanges) => ({
   caliper_max: ranges.caliperMax ?? null,
 })
 
-async function inventorySearch(term: string, ranges: DimensionRanges): Promise<InventoryRecord[]> {
-  const { data, error } = await supabase
-    .rpc('search_inventory', { search: term, ...dimensionRpcArgs(ranges) })
-    .range(0, 299)
+async function inventorySearch(
+  term: string,
+  ranges: DimensionRanges,
+  page: number,
+): Promise<{ records: InventoryRecord[]; total: number }> {
+  const from = (page - 1) * PLANT_PAGE_SIZE
+  const { data, error, count } = await supabase
+    .rpc('search_inventory', { search: term, ...dimensionRpcArgs(ranges) }, { count: 'exact' })
+    .range(from, from + PLANT_PAGE_SIZE - 1)
   if (error) throw new Error(`search_inventory: ${error.message}`)
-  return (data ?? []) as InventoryRecord[]
+  const records = (data ?? []) as InventoryRecord[]
+  return { records, total: count ?? records.length }
 }
 
 export async function searchPlantGroups(
   search: string,
   ranges: DimensionRanges = {},
-): Promise<PlantGroup[]> {
+  page = 1,
+): Promise<{ groups: PlantGroup[]; total: number }> {
   const term = search.trim()
   let records: InventoryRecord[]
+  // Matches across the whole search, not just this page — the header counts it.
+  let total: number
 
   if (term) {
     // The RPC owns full-query identity semantics. An empty specific query must
     // stay empty: splitting it into individual words here can turn an unknown
     // cultivar into a broad generic result and defeat the backend safety gate.
-    records = await inventorySearch(term, ranges)
+    ;({ records, total } = await inventorySearch(term, ranges, page))
   } else {
     // Browsing with no search term. Ordering the whole catalogue by updated_at
     // returns rows from only the one or two suppliers ingested most recently,
@@ -361,10 +440,13 @@ export async function searchPlantGroups(
       }),
     )
     records = perSupplier.flat()
+    // The browse branch reads a capped sample per supplier rather than a page of
+    // one ordered result set, so what it fetched is all there is to count.
+    total = records.length
   }
 
   const supplierIds = [...new Set(records.map((r) => r.supplier_id).filter((id): id is number => id != null))]
-  if (!supplierIds.length) return []
+  if (!supplierIds.length) return { groups: [], total }
 
   const [{ data: sups, error: supErr }, sources, contacts, plantRows] = await Promise.all([
     supabase.from('suppliers').select('*').in('id', supplierIds),
@@ -410,7 +492,7 @@ export async function searchPlantGroups(
     )
   }
 
-  return [...groups.values()]
+  return { groups: [...groups.values()], total }
 }
 
 export async function getSupplier(id: number): Promise<SupplierRow | null> {
@@ -530,6 +612,9 @@ const WRITABLE: Record<string, string[]> = {
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
   ],
   inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes'],
+  // The person, not the link: editing these changes the contact at every
+  // location they cover. `is_primary` lives on `supplier_contacts` and is set
+  // through `setPrimaryContact`.
   contacts: ['name', 'email', 'phone', 'title_department', 'notes'],
 }
 
@@ -591,17 +676,30 @@ export async function updateFields(
 
 /** Soft delete — the schema's convention is to flip is_active, never DELETE. */
 export async function softDelete(table: string, id: string | number): Promise<void> {
-  if (table !== 'suppliers' && table !== 'inventory' && table !== 'contacts') {
+  // Not `contacts`: a contact can cover several locations, so removing one from
+  // a supplier retires that link, not the person — see `unlinkContact`.
+  if (table !== 'suppliers' && table !== 'inventory') {
     throw new Error(`refusing to delete from ${table}`)
   }
-  // A retired contact keeps its is_primary flag as history, but the partial
-  // unique index only covers active rows, so the supplier is left free to
-  // promote someone else.
   const { error } = await supabase.from(table).update({ is_active: false }).eq('id', id)
   if (error) throw new Error(`${table} delete: ${error.message}`)
 }
 
-/** Add a person to a supplier. The first contact a supplier gets is its primary. */
+/** Active `supplier_contacts` links for one supplier. */
+async function activeLinkCount(supplierId: number): Promise<number> {
+  const { count, error } = await supabase
+    .from('supplier_contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('supplier_id', supplierId)
+    .eq('is_active', true)
+  if (error) throw new Error(`supplier_contacts: ${error.message}`)
+  return count ?? 0
+}
+
+/**
+ * Add a person to a supplier: the contact row, then the link that puts them at
+ * this location. The first contact a supplier gets is its primary.
+ */
 export async function createContact(
   supplierId: number,
   fields: Record<string, string>,
@@ -615,50 +713,79 @@ export async function createContact(
     throw new Error('a contact needs at least a name, email or phone')
   }
 
-  const { count, error: countErr } = await supabase
-    .from('contacts')
-    .select('id', { count: 'exact', head: true })
-    .eq('supplier_id', supplierId)
-    .eq('is_active', true)
-  if (countErr) throw new Error(`contacts: ${countErr.message}`)
+  const isPrimary = (await activeLinkCount(supplierId)) === 0
 
   const { data, error } = await supabase
     .from('contacts')
-    .insert({ ...values, supplier_id: supplierId, is_primary: (count ?? 0) === 0 })
-    .select('id, supplier_id, name, email, phone, title_department, notes, is_primary, created_at, updated_at')
+    .insert(values)
+    .select('id, name, email, phone, title_department, notes, created_at, updated_at')
     .single()
   if (error) throw new Error(`contacts insert: ${error.message}`)
-  return data as Contact
+
+  const contact = data as Omit<Contact, 'supplier_id' | 'is_primary' | 'also_at'>
+  const { error: linkErr } = await supabase
+    .from('supplier_contacts')
+    .insert({ supplier_id: supplierId, contact_id: contact.id, is_primary: isPrimary })
+  if (linkErr) throw new Error(`supplier_contacts insert: ${linkErr.message}`)
+
+  return { ...contact, supplier_id: supplierId, is_primary: isPrimary, also_at: [] }
 }
 
 /**
  * Promote one contact to the supplier's primary.
  *
- * `contacts_one_primary_idx` allows a single active primary per supplier, so
- * the incumbent has to be demoted first — promoting before demoting would trip
- * the unique index.
+ * `supplier_contacts_one_primary_idx` allows a single active primary per
+ * supplier, so the incumbent has to be demoted first — promoting before
+ * demoting would trip the unique index. The flag is per location: the same
+ * person can be primary at one of a company's nurseries and not at another.
  */
-export async function setPrimaryContact(id: number): Promise<void> {
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('supplier_id')
-    .eq('id', id)
-    .eq('is_active', true)
-    .maybeSingle()
-  if (error) throw new Error(`contacts(${id}): ${error.message}`)
-  if (!data) throw new Error(`no active contact ${id}`)
-
+export async function setPrimaryContact(supplierId: number, contactId: number): Promise<void> {
   const { error: demoteErr } = await supabase
-    .from('contacts')
+    .from('supplier_contacts')
     .update({ is_primary: false })
-    .eq('supplier_id', (data as { supplier_id: number }).supplier_id)
+    .eq('supplier_id', supplierId)
     .eq('is_active', true)
     .eq('is_primary', true)
-  if (demoteErr) throw new Error(`contacts demote: ${demoteErr.message}`)
+  if (demoteErr) throw new Error(`supplier_contacts demote: ${demoteErr.message}`)
 
-  const { error: promoteErr } = await supabase
-    .from('contacts')
+  const { data, error } = await supabase
+    .from('supplier_contacts')
     .update({ is_primary: true })
-    .eq('id', id)
-  if (promoteErr) throw new Error(`contacts promote: ${promoteErr.message}`)
+    .eq('supplier_id', supplierId)
+    .eq('contact_id', contactId)
+    .eq('is_active', true)
+    .select('id')
+  if (error) throw new Error(`supplier_contacts promote: ${error.message}`)
+  if (!data?.length) throw new Error(`contact ${contactId} is not active at supplier ${supplierId}`)
+}
+
+/**
+ * Remove a contact from one supplier — the link goes inactive, the person does
+ * not. Someone who covers three of a company's farms keeps answering for the
+ * other two; only their last link retires the contact itself.
+ */
+export async function unlinkContact(supplierId: number, contactId: number): Promise<void> {
+  const { data, error } = await supabase
+    .from('supplier_contacts')
+    .update({ is_active: false })
+    .eq('supplier_id', supplierId)
+    .eq('contact_id', contactId)
+    .eq('is_active', true)
+    .select('id')
+  if (error) throw new Error(`supplier_contacts unlink: ${error.message}`)
+  if (!data?.length) throw new Error(`contact ${contactId} is not active at supplier ${supplierId}`)
+
+  const { count, error: countErr } = await supabase
+    .from('supplier_contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('contact_id', contactId)
+    .eq('is_active', true)
+  if (countErr) throw new Error(`supplier_contacts: ${countErr.message}`)
+  if ((count ?? 0) > 0) return
+
+  const { error: retireErr } = await supabase
+    .from('contacts')
+    .update({ is_active: false })
+    .eq('id', contactId)
+  if (retireErr) throw new Error(`contacts delete: ${retireErr.message}`)
 }

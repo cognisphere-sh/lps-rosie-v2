@@ -19,7 +19,21 @@ export interface SourceLink {
   ingestedAt: string
 }
 
-/** One active row of `contacts` — a person at the supplier. */
+/** Another location the same contact covers — one row of `supplier_contacts`. */
+export interface ContactLink {
+  supplier_id: number
+  supplier_name: string
+}
+
+/**
+ * One active contact, as seen from one supplier.
+ *
+ * A contact is a person or inbox in its own right and can cover several
+ * locations of a multi-location company, so `supplier_id` and `is_primary` are
+ * not properties of the person — they come from the `supplier_contacts` link
+ * this row was read through. Editing the fields below changes the contact
+ * everywhere; `also_at` says where else that is.
+ */
 export interface Contact {
   id: number
   supplier_id: number
@@ -29,6 +43,7 @@ export interface Contact {
   title_department: string | null
   notes: string | null
   is_primary: boolean
+  also_at: ContactLink[]
   created_at: string | null
   updated_at: string | null
 }

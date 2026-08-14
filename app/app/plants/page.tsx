@@ -25,10 +25,13 @@ import { cn } from '@/lib/utils'
 // as the heading, the count, the category badge or the state.
 const PANEL_FIXED = ['name', 'plant_count', 'category', 'state']
 const PLANT_SEARCH_KEY = 'lps.plant-search.query.v1'
-const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v2'
-// Earlier versions stored a normalised size key ("gallon:15") rather than the
-// row's own size text, so their selections mean nothing here.
-const RETIRED_PLANT_SIZE_KEYS = ['lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1']
+const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v3'
+// Earlier versions stored a normalised size key ("gallon:15"), then the row's
+// own size text ("15 G"). The selector now holds standardized buckets ("15G"),
+// so neither of those means anything here.
+const RETIRED_PLANT_SIZE_KEYS = [
+  'lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1', 'lps.plant-search.size-choice.v2',
+]
 
 // Size and supplier/location filters appear beside the search field. These
 // remaining numeric filters use a compact disclosure in that same toolbar.
@@ -96,6 +99,9 @@ export default function PlantSearchPage() {
   const parsedSearch = useMemo(() => parseSizeQuery(query), [query])
   const debouncedSearch = useMemo(() => parseSizeQuery(debouncedQuery), [debouncedQuery])
   const [groups, setGroups] = useState<PlantGroup[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(false)
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const hasQuery = query.trim().length > 0
@@ -171,10 +177,15 @@ export default function PlantSearchPage() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
   }, [hasQuery, parsedSearch.size, query, searchHydrated, selectedSizes])
 
+  // A new question, or a new dimension bound, starts again at page 1.
+  useEffect(() => setPage(1), [debouncedDimensionQuery, debouncedSearch.plantQuery])
+
   useEffect(() => {
     if (!searchHydrated) return
     if (!debouncedSearch.plantQuery) {
       setGroups([])
+      setTotal(0)
+      setPageCount(1)
       setLoading(false)
       return
     }
@@ -182,12 +193,14 @@ export default function PlantSearchPage() {
     let cancelled = false
     setLoading(true)
     const dimensionSuffix = debouncedDimensionQuery ? `&${debouncedDimensionQuery}` : ''
-    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}${dimensionSuffix}`)
+    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}&page=${page}${dimensionSuffix}`)
       .then((r) => r.json())
-      .then((body: { groups?: PlantGroup[] }) => {
+      .then((body: { groups?: PlantGroup[]; total?: number; pageCount?: number }) => {
         if (cancelled) return
         const nextGroups = body.groups ?? []
         setGroups(nextGroups)
+        setTotal(body.total ?? 0)
+        setPageCount(body.pageCount ?? 1)
         // New mobile result sets start as a supplier shortlist. People can
         // expand only the suppliers whose inventory they want to inspect.
         setCollapsed(nextGroups.map((group) => group.supplier.id))
@@ -197,7 +210,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedDimensionQuery, debouncedSearch.plantQuery, refreshNonce, searchHydrated])
+  }, [debouncedDimensionQuery, debouncedSearch.plantQuery, page, refreshNonce, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -423,9 +436,10 @@ export default function PlantSearchPage() {
         searching
           ? 'Searching…'
           : hasQuery
-            ? `${visibleGroups.length} suppliers · ${shownPlants} of ${allPlants.length} plants`
+            ? `${visibleGroups.length} suppliers · Showing ${shownPlants} of ${total.toLocaleString('en-US')} plants`
             : 'Search by plant name'
       }
+      pagination={hasQuery ? { page, pageCount, onPage: setPage, busy: searching } : undefined}
     />
   )
 

@@ -166,6 +166,29 @@ and when; the summaries below are one line each.
 - `0027_cultivar_prefix_intent.sql` — approved/applied 2026-08-12.
   Uses an explicit word-prefix predicate alongside bounded fuzzy intent, and
   pairs with removal of the app's unsafe zero-result split-word fallback.
+- `0033_supplier_locations.sql` — approved/applied 2026-08-14. Adds
+  `supplier_groups` + `suppliers.group_id` so a multi-location company's
+  locations are enumerable instead of guessed from names; each location stays
+  its own `suppliers` row. 16 groups seeded over 57 rows, no row merged.
+- `0034_contact_supplier_links.sql` — approved/applied 2026-08-14. Moves the
+  contact ↔ supplier relationship (and `is_primary`) onto a `supplier_contacts`
+  link table so one contact can be the PoC for several nurseries. 1,843 links
+  backfilled one-to-one; nothing merged.
+- `0036_merge_duplicate_contacts.sql` — approved/applied 2026-08-14. Merges the
+  duplicates 0034 left behind: 33 contact rows into 13, every link kept, matched
+  on email **and** phone with no conflicting field. Shared inboxes with
+  per-location phones were deliberately not merged.
+- `0037_fix_newton_spring_and_ycnursery_contacts.sql` — approved/applied
+  2026-08-14. Newton Nurseries Spring gets its own `Main line` contact instead
+  of reading `info@rileyfuzzelfarm.com`, the inbox of the company Newton
+  acquired in 2023 and since closed; the phone was already correct. Also strips
+  a leading colon from one stored phone number.
+- `0038_retire_riley_fuzzel_farm.sql` — approved/applied 2026-08-14. Retires
+  supplier 963, which is Newton Nurseries Spring (1320) under its
+  pre-acquisition name; no inventory, sources or queries were attached. 1320
+  takes the site's current address.
+
+`migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
 ## Skills
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { DEFAULT_HIDDEN, TABLE_COLS, type ColumnDef, type TableId } from '@/lib/columns'
+import { compareSizeStd } from '@/lib/size-std'
 
 export interface TableConfig {
   order: string[]
@@ -200,21 +201,31 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
       const bMissing = bv == null || bv === ''
       if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
+      // Sizes order by their standard, not alphabetically — otherwise 100G
+      // sorts between 10G and 15G.
+      if (valueKey === 'size_std') return compareSizeStd(String(av), String(bv)) * dir
       return String(av).localeCompare(String(bv)) * dir
     })
   }
   return out
 }
 
-/** Distinct values for a multiselect column's option list. */
+/**
+ * Distinct values for a multiselect column's option list.
+ *
+ * A column that filters on a companion value (Size offers the standardized
+ * `size_std` buckets, not the supplier's own size text) lists that companion,
+ * so the options line up with what `applyFilters` compares against.
+ */
 export function optionsFor<T extends { values: Record<string, unknown> }>(
   rows: T[],
   key: string,
 ): string[] {
+  const valueKey = FILTER_VALUE_KEYS.get(key) ?? key
   const seen = new Set<string>()
   for (const row of rows) {
-    const raw = row.values[key]
+    const raw = row.values[valueKey]
     if (raw != null && raw !== '') seen.add(String(raw))
   }
-  return [...seen].sort((a, b) => a.localeCompare(b))
+  return [...seen].sort(valueKey === 'size_std' ? compareSizeStd : (a, b) => a.localeCompare(b))
 }

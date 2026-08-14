@@ -26,6 +26,9 @@ export default function SuppliersPage() {
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounced(query)
   const [rows, setRows] = useState<SupplierRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(true)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
@@ -39,23 +42,28 @@ export default function SuppliersPage() {
     return () => window.removeEventListener('lps:refresh', refresh)
   }, [])
 
+  // A new search starts again at page 1.
+  useEffect(() => setPage(1), [debouncedQuery])
+
   // Debounced search → search_suppliers RPC. Stale responses are dropped so a
   // slow early query can't overwrite the results of a later one.
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetch(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}`)
+    fetch(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}`)
       .then((r) => r.json())
-      .then((body: { rows?: SupplierRow[] }) => {
+      .then((body: { rows?: SupplierRow[]; total?: number; pageCount?: number }) => {
         if (cancelled) return
         setRows(body.rows ?? [])
+        setTotal(body.total ?? 0)
+        setPageCount(body.pageCount ?? 1)
         setLoading(false)
       })
       .catch(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, refreshNonce])
+  }, [debouncedQuery, page, refreshNonce])
 
   // Second pass: "# Items" needs one COUNT per supplier, so it arrives after
   // the table has already rendered rather than holding it up.
@@ -154,7 +162,12 @@ export default function SuppliersPage() {
         setQuery('')
         cfg.clearFilters()
       }}
-      summary={searching ? 'Searching…' : `Showing ${visibleRows.length} of ${rows.length} suppliers`}
+      summary={
+        searching
+          ? 'Searching…'
+          : `Showing ${visibleRows.length} of ${total.toLocaleString('en-US')} suppliers`
+      }
+      pagination={{ page, pageCount, onPage: setPage, busy: searching }}
     />
   )
 

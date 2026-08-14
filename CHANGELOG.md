@@ -15,9 +15,245 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
-## 2026-08-13
+## 2026-08-14
+
+### Added
+
+- **Multi-location suppliers are a first-class shape** (migration 0033). A
+  nursery that grows or sells at several sites was already several `suppliers`
+  rows — Everde has five, Moon Valley seventeen — but nothing tied them
+  together, so "every Everde location" was a guess from names that don't parse:
+  `Everde Growers`, `Everde Growers - Glen Flora Farm`, `EVERDE GROWERS -
+  BUNNELL`, Newton with no dash at all, Calloway's with an em dash. A
+  `supplier_groups` row now names the company and `suppliers.group_id` points at
+  it; each location stays its own row, because stock, prices and pickup are per
+  site. `group_id IS NULL` means one location, not "unknown".
+
+  16 groups seeded over 57 supplier rows, identified by hand from a shared brand
+  name **and** a shared website domain. Nothing was merged or retired. Families
+  that matched only one half of that test — Hawkins TX/SC, New Life NJ/MI,
+  Groundworks TX/FL, a possible fourth Tree of Life site — and three same-city
+  sets that look like duplicates rather than locations (Acosta, R. Plants, Old
+  Courthouse) are listed at the bottom of `0033_supplier_locations.sql` for
+  Chris to confirm. A wrong group is not cosmetic: it fans a supplier's
+  availability out to a nursery that never offered it.
+
+  Daisy's ingestion SOP gained §0.1 for it: **a drop that names a location is
+  written to that location alone; a drop that names none is written to every
+  location in the group**, each with its own `inventory_sources` row and its own
+  version swap, and per-location row counts in the report. Naming a location the
+  group doesn't have onboards it as a new row in the same group. Anything
+  ambiguous stops and asks rather than guessing which farm claims the stock.
+
+- **One contact can be the point of contact for several nurseries** (migration
+  0034). `contacts.supplier_id` said a person belongs to exactly one — wrong at
+  a multi-location company, where one inside-sales rep quotes across every farm.
+  It forced a duplicate contact row per location, five "same" people who drift
+  apart as one of them gets a new number, and made "who else does she cover?"
+  unanswerable. `contacts` now describes the person or inbox; the tie to a
+  supplier is a `supplier_contacts` row, and `is_primary` moved onto it too
+  because the rep who answers at Bunnell need not be the one at Canal Point.
+
+  1,843 links backfilled one per existing contact, then **migration 0036 merged
+  the duplicates that column had forced — 33 rows into 13**, every link kept.
+  Jim Ord is one contact with six nurseries instead of six contacts; Ken Howard
+  one with five; Jana Dean one across both Klepac sites. 20 rows retired, each
+  noting where it went, and one link deleted where a contact had been entered
+  twice at the same supplier.
+
+  The match was email **and** phone, with no field of one contradicting the
+  other. **Email alone would have been wrong**: `info@calloways.com` is three
+  rows with three phone numbers and two different store managers, and the phone
+  lives on the contact rather than the link, so merging on the shared inbox
+  would have deleted working numbers. Twelve such groups were left alone and are
+  listed at the bottom of `0036_merge_duplicate_contacts.sql`. Verified after
+  apply: no link lost, no supplier left with two primaries, no name, title or
+  note dropped — and reversible from the `contacts_merge_map` /
+  `contacts_pre_merge` / `supplier_contacts_pre_merge` snapshots.
+
+  There are now two levels of `is_active` and they say different things: the
+  person left the company (`contacts`) versus they stopped covering this
+  location (`supplier_contacts`). Removing a contact from a supplier in the app
+  retires the link, not the person — their other locations are untouched — and
+  the card says "Also covers X, Y. Edits here change them there too", because
+  the edit form writes the shared person. Deactivating a supplier cascades to
+  its links and retires a contact only when it was their last one.
+
+  The SOP's §0.3 now says to **link, don't duplicate**: look for the person
+  across the whole group before inserting, work out how many locations they
+  cover from what the source actually says — a signature reading "Inside Sales —
+  all farms" is every location, "Yard Manager, Bunnell" is one — and link only
+  what is attested.
+
+- **Suppliers and Plant search page through their full result set, and say how
+  big it is.** Both headers ended at the first server page — Suppliers read the
+  first 50 matches of `search_suppliers` and Plant search the first 300 rows of
+  `search_inventory` — and their summaries counted only what had been fetched,
+  so "Showing 50 of 50 suppliers" was really "of 1,376" and there was no way to
+  see the 51st. Each toolbar now carries Previous / Next with `Page N of M`, and
+  the summary reads `Showing 42 of 1,376 suppliers` — the total is the whole
+  match count from PostgREST's `count: 'exact'`, not the page. It costs nothing:
+  both RPCs are `plpgsql` and already materialize their full result before the
+  page is sliced off (measured: 229ms with the count, 221ms without).
+
+  The page number resets to 1 whenever the question changes — a new search term
+  on either page, or a new dimension bound on Plant search — so a page 7 can
+  never outlive the result set it belonged to. The count left of it is still the
+  count *shown*, so client-side filters (supplier type, city, state, size, the
+  numeric ranges) visibly shrink it while the total stays put. Those filters,
+  and Plant search's supplier grouping, keep applying to the current page only.
+
+### Changed
+
+- **One plant, one name on the plants page.** `Thuja occidentalis 'Smaragd'`,
+  `Thuja occidentalis [Smaragd]` and `Thuja occidentalis ['Smaragd']` were
+  three rows-groups in the UI for one plant, because the cultivar delimiter
+  drifted between suppliers and between ingests. Migration 0035 rewrites the
+  quoted forms into the SOP's bracket form across **2,965 names / 7,691 active
+  rows**, collapsing **1,013 duplicate display identities** (distinct active
+  names 26,491 → 25,478). Active rows only; retired history keeps its printed
+  text.
+
+  Search is provably untouched: `normalize_plant_key()` strips non-alpha
+  characters and `normalize_search_text()` maps punctuation to a space, so
+  every affected row already shared one identity key *and* one search token
+  stream with its twins — verified 0 key changes and 0 token-stream changes
+  after apply. That is also why no `plant_other_names` edge moved, which is the
+  thing that went wrong when 0005 last rewrote names and 0007 had to retire
+  48,269 alias pairs behind it.
+
+  **The bracket contents are not backfilled.** The SOP fills
+  `Name [scientific name, variant]` from what the source printed, so the
+  missing scientific and common names cannot be recovered with SQL — 0005 tried
+  deriving them from the alias graph and abandoned it as too unreliable. That
+  work is a per-supplier re-parse of the 491 stashed sources under SOP §5, and
+  remains open. 642 names / 1,386 rows that still carry a quoted cultivar were
+  also left alone on purpose: they mix in form/grade words, dash-separated
+  trade names (`Acer palmatum 'Wolff' - Emperor 1®`), foot marks and internal
+  apostrophes, and each needs a judgment a regex cannot make. Full list and
+  rationale in `harness/agents/daisy/migrations/NOTE.md`.
 
 ### Fixed
+
+- **Newton Nurseries Spring was routing to a closed company's inbox**
+  (migration 0037). The 0036 merge flagged this as "a Newton location carrying
+  another farm's contact details"; checking it before changing anything showed
+  that read was half wrong, and the wrong half mattered. **Newton acquired Riley
+  Fuzzel in 2023** — the site trades as "Riley Fuzzel - Newton Nurseries" at 630
+  Riley Fuzzel Rd — so the phone `281-355-5495` is genuinely that yard's and is
+  unchanged. The *email* was the problem: `info@rileyfuzzelfarm.com` is the
+  acquired company's own inbox, now listed as closed, so availability requests
+  for the Spring yard were reaching the previous owner. The location now has its
+  own `Main line` contact with the verified phone and **no email** —
+  `spring-sales@newnurseries.com` would match its three siblings on file, but no
+  readable source prints it and the SOP forbids inventing a contact value. The
+  old row keeps serving Riley Fuzzel Farm, unchanged.
+
+- **Riley Fuzzel Farm retired — it was Newton Nurseries Spring under its old
+  name** (migration 0038). The two supplier rows sat at the same street address
+  because Newton acquired Riley Fuzzel in 2023; both were created by the same
+  2026-08-05 backfill from different angles, and neither had ever been contacted
+  or ingested from. 963 is soft-deleted with a note pointing at 1320, and
+  **nothing was lost**: no inventory, sources, availability queries or notes were
+  attached to it.
+
+  1320 takes the address it should have had — Newton relocated the Spring yard
+  to 21121 N Fwy Service Rd, Spring TX 77388, keeping the same phone. Because the
+  retirement note names Riley Fuzzel and `suppliers.notes` is in the search
+  document, searching "riley fuzzel" now returns exactly one row: Newton
+  Nurseries Spring, at the current address. Coordinates stay null rather than
+  inherit the retired row's, which point at the old site.
+
+  This was also the first production run of 0034's rewritten deactivation
+  cascade, and it did the new thing correctly: retiring the supplier retired its
+  contact link and then the contact itself, because that was its last location.
+
+- **A phone number stored with a leading colon.** Lynn Agee's row at YC Nursery
+  - Prosper held `:214-213-0962`. The delimiter is stripped; the digits are left
+  as printed, because that row and its sibling differ in the last digit
+  (…0961 vs …0962) and only the source can say whether that is two lines or a
+  typo.
+
+## 2026-08-13
+
+### Added
+
+- **`inventory.size_std` — one checkbox per real container, instead of one per
+  spelling.** The size facet listed raw `size` text, so `15 G`, `15G`, `15 gal`,
+  `15 G/17"` and a 17" pot were five separate boxes out of 1,722 distinct active
+  values, and picking "15 gallon" meant ticking whichever spellings you happened
+  to spot. Migration 0030 adds `size_std` beside `size`, exactly as `height_std`
+  sits beside `height`: `size` stays the supplier's printed evidence and is what
+  the table cell shows, `size_std` is the one bucket the row belongs to and is
+  what the filter selects on. Vocabulary approved by Bhoumik: `<N>G`,
+  `<N>" Box`, `Bare Root`, `Liners`, `Plug`, `Trays`, `Field Grown`,
+  `Grow Bags`, `Root Pruned`, `other`. The gallon and box families are **open
+  sets** — the CHECK constraint tests the shape, not a fixed list — so a
+  supplier who starts selling 12G needs no migration, and the number is always
+  the one the source printed rather than a rounded neighbour. `inventory_enriched`
+  and `search_inventory` both carry the column (the RPC had to be dropped and
+  recreated for the return type; grants restored, `security_invoker` preserved
+  on the view), and `inventory_supplier_size_std_idx` backs the facet. `size_std`
+  is deliberately **not** in the pgroonga document — raw `size` already carries
+  every spelling a search could type.
+- **The size filter offers the standard, in the standard's order.** Word grades
+  first, then gallons and boxes ascending **by number** (`2G`, `15G`, `100G` —
+  not alphabetically), then the remaining word grades, then `other` last;
+  sorting the Size column follows the same order. `app/lib/size-std.ts` holds
+  the rule with a self-check (`node lib/size-std.check.mjs`). Stored selections
+  moved to `lps.plant-search.size-choice.v3` and the two earlier keys are
+  deleted on load, since raw-text selections mean nothing against buckets.
+
+- **`B&B` and `<N>" Pot` buckets** (migration 0032, same day). The 0031 backfill
+  left 8,589 rows in `other`, and its two biggest occupants were real containers
+  a buyer would filter on: balled-and-burlapped stock (3,224 rows, 219 distinct
+  spellings) and bare pot diameters with no gallon equivalent (2,122 rows, 52
+  diameters). `B&B` joins the word grades — the burlapped ball *is* the
+  container. `<N>" Pot` is a third open numbered family beside `<N>G` and
+  `<N>" Box`; the three don't overlap, and which one a bare diameter joins is a
+  judgment about the row: a diameter with a gallon equivalent stays a gallon
+  (17" is `15G`), one that is really a box becomes `<N>" Box` even unlabelled
+  (desert growers print a bare `36"`), and the rest are pots. A diameter
+  attached to merchandise — Austin Plant Supply prices planters, bowls and hand
+  tools the same way — stays `other`. **`other` fell 8,589 → 3,326**, now 5.3%
+  of mapped rows and mostly quarts, six-packs and hanging baskets; buckets 52 →
+  66. The filter orders pots before gallons, so the list runs smallest container
+  to largest, and `B&B` sits with the field-dug grades.
+- **Heights and calipers lifted out of B&B strings.** `B&B; 3-4' HT`,
+  `4 - 5'; B&B` and `30 - 36"; B&B` printed the plant's size next to the
+  container; those measurements moved into `height`/`caliper` with their
+  `*_std`, **added only where the column was empty** and never substituted, so
+  2,557 B&B rows now answer the height filter. 13 pairs were held back —
+  topiary standards printing both a stem height and a head size, and sheared
+  globes whose diameter is arguably width. Unlike 0031 the `size` text stays
+  put, since these rows do have a real container in it.
+
+### Changed
+
+- **Every active row is bucketed, and 6,705 misfiled measurements left `size`.**
+  Migration 0031 backfilled all 62,572 active rows: 54,821 carry a `size_std`
+  across 52 buckets (`1G` 8,986, `other` 8,589, `3G` 7,445, `15G` 5,099, `5G`
+  4,358, `Trays` 3,814), and the 7,751 with no container are `NULL` in both
+  columns. 1,336 distinct printed size strings now collapse onto those 52
+  checkboxes. Retired history rows are untouched by design (Bhoumik decision).
+  The mapping came from 12 subagents classifying all 2,783 active
+  `(supplier_id, size)` pairs against one shared ruleset — **the pair, not the
+  string, is the unit**, because `2.5"` is a caliper at supplier 100 (Quercus,
+  Magnolia, caliper column already holding 2.5) and a pot at supplier 73
+  (Begonia, Narcissus). Verified afterwards: no active row has a `size` without
+  a `size_std`, no `size_std` is stranded on a row whose size was lifted, and no
+  supplier/size pair is split across two buckets.
+- **`size` no longer holds heights and calipers.** 6,705 rows had a measurement
+  the SOP has banned from `size` since 2026-08-05 — `5-6'`, `3/4'`, `30/36"`,
+  `2.5"` on a shade tree — moved into `height`/`caliper` with the paired
+  `*_std` in feet/inches, and both `size` and `size_std` cleared. The move is
+  deliberately conservative: it fires into an empty column, one holding the same
+  text, or one holding the range's own lower bound (`height = '4'` beside
+  `size = '4/5'''` is one measurement, and the fuller range wins the text while
+  `height_std` keeps the lower bound). A column holding a genuinely **different**
+  value is left completely alone and only gets `size_std = 'other'` — a 4" pot on
+  a 6"-tall Carex keeps both facts. 47 pairs whose reading was uncertain were
+  likewise left in place rather than guessed.
 
 - **"Soft leaf yucca" no longer returns Spanish Dagger.** Chris asked for
   Softleaf Yucca pricing at Austin Plant Supply and got a 15 G *Yucca gloriosa*

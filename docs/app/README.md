@@ -128,17 +128,17 @@ is enabled in the desktop rail and through mobile More.
 |---|---|---|
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
-| `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, and view-only row hiding. Cards on mobile; the redundant generic Shell title is hidden there. |
+| `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, view-only row hiding, and header pagination through the whole match set 50 at a time. Cards on mobile; the redundant generic Shell title is hidden there. |
 | `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / Communications / Notes / Files. Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
-| `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, and searchable multiselects for supplier type, city and state in the search toolbar. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
+| `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, searchable multiselects for supplier type, city and state in the search toolbar, and header pagination through the whole match set 300 plants at a time. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 
 | API route | Purpose |
 |---|---|
-| `GET /api/suppliers?q=` | `search_suppliers` RPC + source file names. `?counts=1&ids=` is the "# Items" second pass. |
+| `GET /api/suppliers?q=&page=` | `search_suppliers` RPC + source file names, 50 per page, with the match `total` and `pageCount`. `?counts=1&ids=` is the "# Items" second pass. |
 | `GET /api/suppliers/:id` | One supplier + its active sources. |
-| `GET /api/plants?q=` | Plant search grouped by supplier. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before the 300-row search cap. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges. |
+| `GET /api/plants?q=&page=` | Plant search grouped by supplier, 300 rows per page, with the match `total` and `pageCount`. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before that page is sliced. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
@@ -211,26 +211,43 @@ searches still make one RPC call; both `Live oak boardwalk` and `Boardwalk live
 oak` can fall back to the 32-row `Boardwalk` set.
 
 When no size is typed, results add one compact **Size: Any** selector — a
-checkbox-style multiselect (with its own search box) listing **every distinct
-`size` value the exact backend matches carry, exactly as the supplier wrote it**.
-There is no normalization: `15 G`, `15G` and `15 gal` are three separate
-checkboxes, and a row matches a selection only by exact text. This replaced a
-category scheme that collapsed spellings and inferred gallon/box/caliper
-buckets — it hid what the rows actually say and silently dropped sizes it did
-not recognize.
+checkbox-style multiselect (with its own search box) listing the **standardized
+containers** (`inventory.size_std`) the matched rows carry: `15G`, `24" Box`,
+`Trays`, `Field Grown`, `other`. One checkbox per real container, so `15 G`,
+`15G`, `15 gal` and a 17" pot all answer the same box. The **Size column still
+shows the supplier's own text** — the standard selects, the printed value is
+what you read.
+
+Options appear in the standard's own order (`lib/size-std.ts`), smallest
+container to largest: the word grades `Bare Root`, `Liners`, `Plug`, `Trays`;
+then pots, gallons and boxes each ascending **by number, not alphabetically** —
+`4" Pot` before `8" Pot`, `2G` before `15G` before `100G`; then the field-dug
+grades `B&B`, `Field Grown`, `Grow Bags`, `Root Pruned`; then `other` last.
+Sorting the Size column follows the same order. All three numbered families are
+open sets, so a bucket the database has never seen before needs no app change.
+
+The earlier scheme listed raw `size` text, which made every spelling its own
+checkbox (2,783 supplier/size variants across the catalogue); the one before
+that inferred gallon/box/caliper categories and silently dropped what it did not
+recognize. The standard keeps the first version's honesty — nothing is dropped,
+and an unbucketable container says `other` rather than being forced into a
+neighbour — with one checkbox per container.
 
 Selected sizes use OR logic (a row matching any selected size remains), are
 mirrored as repeated URL `size` parameters, and are saved as a JSON array under
-`lps.plant-search.size-choice.v2`. Selections that no longer exist in the
-current matches are dropped once results load. Size filtering applies to the
-current `search_inventory` result set (up to 300 rows).
+`lps.plant-search.size-choice.v3`. The two earlier keys are deleted on load —
+their stored raw-text selections mean nothing against the buckets. Selections
+that no longer exist in the current matches are dropped once results load. Size
+filtering applies to the current page of the `search_inventory` result set (300
+rows), so a bucket that only exists further into the matches appears when you
+page to it.
 
 Height, width and caliper retain the supplier's human-readable strings for
 cells/cards and editing, while hidden numeric row values power range filters:
 height is standardized in feet; width and caliper in inches. The header controls
 show their units and accept inclusive min/max decimal bounds. These six bounds
 are validated by `/api/plants` and passed into `search_inventory` before its
-300-row cap; supplier-profile bounds likewise run before 100-row pagination.
+300-row page; supplier-profile bounds likewise run before 100-row pagination.
 Null standardized values mean unknown/ambiguous and do not satisfy an active
 range. Editing a human-readable dimension clears its numeric companion rather
 than leaving a stale filter value; ingestion/review must repopulate the pair.
@@ -245,11 +262,12 @@ full supplier profile rather than expanding the card.
 
 ## Contacts
 
-**Every way of reaching a supplier lives in `contacts`** — people and inboxes
-alike, including the company's own main line. `suppliers` no longer has an
-`email` or `phone` column, so neither table nor profile shows one, and the
-profile's quick call/email buttons resolve through the contact list (primary
-first, then the first contact that has a number or address).
+**Every way of reaching a supplier lives in `contacts`**, joined to the supplier
+through `supplier_contacts` — people and inboxes alike, including the company's
+own main line. `suppliers` no longer has an `email` or `phone` column, so neither
+table nor profile shows one, and the profile's quick call/email buttons resolve
+through the contact list (primary first, then the first contact that has a
+number or address).
 
 Most contacts have **no name**, which is normal — see the schema doc. The
 add/edit form marks name optional and a contact needs only one of name / email /
@@ -263,26 +281,45 @@ there is nothing safe for an inline edit to target. "Other contacts" lists
 everyone else as `Name [Title]`, showing the first with a `+N` counter, and the
 whole cell deep-links to `?tab=contacts`.
 
+### One contact, several suppliers
+
+A contact is a person or inbox in its own right and can cover **several
+locations** of a multi-location company (schema doc, `supplier_contacts`). The
+supplier and the primary flag come from the link, not the person, so:
+
+- `lib/queries.ts` reads `supplier_contacts` and embeds `contacts`, keeping the
+  supplier and `is_primary` on the flattened `Contact` object the UI already
+  expected. A contact shows up only when **both** the link and the person are
+  active.
+- A second lookup fills `also_at` — every other active location the same contact
+  covers. The profile card prints it as "Also covers X, Y. Edits here change
+  them there too", because the card edits the shared person.
+- **Remove takes the contact off this supplier only.** It retires the link;
+  the person is retired as well only when it was their last one.
+
 `lib/queries.ts` fetches contacts in one batched `contactsBySupplier()` lookup
-ordered `is_primary desc, id asc`, then splits head from tail — so a supplier
-with contacts but no flagged primary still shows its oldest one rather than a
-blank. `search_suppliers` resolves the same three `primary_contact_*` columns
-server-side for anything querying the RPC directly.
+ordered `is_primary desc, contact_id asc`, then splits head from tail — so a
+supplier with contacts but no flagged primary still shows its oldest one rather
+than a blank. `search_suppliers` resolves the same three `primary_contact_*`
+columns server-side for anything querying the RPC directly.
 
 **On the profile** — a **Contacts** tab renders one card per contact: name,
-title/department, `mailto:`/`tel:` links, notes, and a **Primary** badge. Cards
-support edit in place, **Make primary**, and remove (soft delete). Adding uses
-the same form. Because promotion flips `is_primary` on two rows at once, every
-mutation re-reads the list from `/api/contacts` instead of patching local state.
-The profile's quick call/email actions fall back to the primary contact when the
-supplier has no switchboard `phone`/`email`, and read from that live list so a
-promotion is reflected immediately.
+title/department, `mailto:`/`tel:` links, notes, shared-location line, and a
+**Primary** badge. Cards support edit in place, **Make primary**, and remove.
+Adding uses the same form. Because promotion flips `is_primary` on two links at
+once, every mutation re-reads the list from `/api/contacts` instead of patching
+local state. The profile's quick call/email actions fall back to the primary
+contact when the supplier has no switchboard `phone`/`email`, and read from that
+live list so a promotion is reflected immediately.
 
-Field edits and removal go through the generic `/api/rows` handler, which
-whitelists `contacts` like any other table. `/api/contacts` covers only what
-isn't a plain column write: creating a contact under a supplier, and promotion —
-which must **demote the incumbent before promoting**, or it trips the partial
-unique index that allows one active primary per supplier.
+Field edits go through the generic `/api/rows` handler, which whitelists
+`contacts` like any other table — those write the **person**, everywhere.
+`/api/contacts` covers everything that is about the link: creating a contact
+under a supplier, promotion — which must **demote the incumbent before
+promoting**, or it trips the partial unique index that allows one active primary
+per supplier — and removal, which needs the supplier as well as the contact.
+`softDelete()` deliberately refuses `contacts`: there is no supplier-free way to
+"delete" someone who works for three of them.
 
 ## Source files
 
@@ -549,11 +586,34 @@ a supplier, so app-entered and agent-entered history read as one log.
 Both columns are hidden by default in the suppliers table (long free text would
 blow up the row height) and available from the column picker.
 
+## Paging the list pages
+
+Suppliers and Plant search page through their search server-side — `PAGE_SIZE`
+(50 suppliers) and `PLANT_PAGE_SIZE` (300 plant rows) in `lib/queries.ts`. Both
+RPC calls ask PostgREST for `count: 'exact'`, so the response carries how many
+rows the *search* matched alongside the page it returned; the route divides that
+total by its page size and hands the browser a `pageCount`, keeping the divisor
+on the server. The counts are free in practice — both functions are `plpgsql`
+and materialize their whole result before the range is applied.
+
+The `Toolbar` renders the control (`pagination` prop: `page`, `pageCount`,
+`onPage`, `busy`) and hides it while everything fits on one page. Its summary is
+`Showing <rows on screen> of <total>` — the left number is what survived the
+client-side filters, the right one is the whole match set, so filtering visibly
+moves one and not the other.
+
+Each page holds a page number that resets to 1 when the question changes: the
+debounced query on either page, plus the dimension bounds on Plant search. Every
+client-side concern — column filters, the toolbar multiselects, size selection,
+hidden rows, and Plant search's grouping by supplier — still applies to the
+current page alone, so a supplier group's match count is its count *on this
+page*.
+
 ## Paging the profile's inventory
 
 A supplier can carry thousands of rows (Austin Plant Supply has 1,467), so the
 profile's Inventory tab pages through them 100 at a time rather than capping the
-list. `getSupplierPlants` fetches `PAGE_SIZE + 1` and reports `hasMore` from the
+list. `getSupplierPlants` fetches `PROFILE_PAGE_SIZE + 1` and reports `hasMore` from the
 extra row, so there is no second count query; the page count in the header comes
 from the supplier's own `item_count`.
 
@@ -703,6 +763,10 @@ lib/
   queries.ts       every database read, the whitelisted writes, file signing
   table-config.ts  column layout state + localStorage persistence + reorder()
   table-config.check.mjs  self-check for reorder()
+  size-std.ts      the size_std vocabulary and the order the filter offers it in
+  size-std.check.mjs      self-check for that order
+  size-range.ts    size typed into the query + the size_std filter predicate
+  dimension-ranges.ts     height/width/caliper range params
   use-debounced.ts search-box debounce
   format.ts        money / number / date formatting
   supabase.ts      server-only client
@@ -721,8 +785,11 @@ proxy.ts           session gate
 
 `pnpm dev`, `pnpm build`, `pnpm start`, `pnpm typecheck`.
 
-There is one standalone check, run directly rather than through a test runner:
+There are standalone checks, run directly rather than through a test runner:
 
 ```sh
-node lib/table-config.check.mjs   # column reordering
+node lib/table-config.check.mjs     # column reordering
+node lib/size-std.check.mjs         # size_std ordering
+node lib/size-range.check.mjs       # typed size + size filter matching
+node lib/dimension-ranges.check.mjs # height/width/caliper range params
 ```

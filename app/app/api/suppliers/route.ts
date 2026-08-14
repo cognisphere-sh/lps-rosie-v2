@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { itemCounts, listSuppliers } from '@/lib/queries'
+import { PAGE_SIZE, itemCounts, listSuppliers } from '@/lib/queries'
 
 // Debounced search from the client lands here. proxy.ts has already verified
 // the harness session, so anything reaching this handler is signed in.
@@ -18,8 +18,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ counts: await itemCounts(ids) })
   }
 
+  const rawPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10)
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1
+
   try {
-    return NextResponse.json({ rows: await listSuppliers(search) })
+    // The page size lives on the server, so the page count is computed here
+    // rather than handing the browser a divisor it would have to duplicate.
+    const { rows, total } = await listSuppliers(search, page)
+    return NextResponse.json({ rows, total, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

@@ -12,7 +12,9 @@ restate table or column definitions.
   server-side only.
 
 Last verified against the live database on 2026-08-12 by direct catalog
-introspection. **If you find a discrepancy, fix this file in the same change.**
+introspection; the contact/location tables were re-verified on 2026-08-14 after
+migrations 0033–0034. **If you find a discrepancy, fix this file in the same
+change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
 
@@ -21,9 +23,11 @@ Applied migrations live in `harness/agents/daisy/migrations/`.
 ## Shape
 
 ```
+supplier_groups 1 ──< suppliers            (a company's locations; group_id nullable)
+
 suppliers 1 ──< inventory_sources 1 ──< inventory >── plant_other_names (by name_key, no FK)
           1 ─────────────────────────< inventory
-          1 ─────────────────────────< contacts
+          1 ─────────────────────────< supplier_contacts >───────────── 1 contacts
           1 ─────────────────────────< availability_queries
 
 users 1 ──< chat_sessions 1 ──< availability_queries
@@ -31,13 +35,19 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-Row counts at last verification (2026-08-12): `suppliers` 1,383 (1,376 active),
-`inventory` 235,976 (**62,523 active**), `inventory_sources` 2,079 (751 active),
-`plant_other_names` 13,700 (13,563 active), `availability_queries` 125,
-`users` 2, `contacts` 1,831 (1,821 active) across 1,379 suppliers — 47 backfilled
-from the retired `poc_*` columns on 2026-08-05, 29
-lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
+Row counts at last verification (2026-08-12; suppliers and contacts re-counted
+2026-08-14): `suppliers` 1,383 (1,375 active), `inventory` 235,976 (**62,523
+active**), `inventory_sources` 2,079 (751 active), `plant_other_names` 13,700
+(13,563 active), `availability_queries` 125, `users` 2, `contacts` 1,844
+(**1,813 active** — 20 retired by the 0036 merge, one by the 0038 cascade),
+`supplier_contacts` 1,843 links (1,831
+active) — 47 contacts backfilled from the retired `poc_*` columns on 2026-08-05,
+29 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.
+`supplier_groups` 16, covering 57 supplier rows.
+
+Links now outnumber active contacts, which is the point: 13 contacts hold 2–6
+locations each.
 
 ### Two conventions that apply everywhere
 
@@ -53,12 +63,14 @@ lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 
 ### `suppliers`
 
-One row per nursery / grower / wholesaler.
+One row per nursery / grower / wholesaler — and, for a company that operates at
+several sites, **one row per location** (see `supplier_groups` below).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint identity | no | PK |
 | `name` | text | no | Display name, e.g. "Acosta Farms Nursery, Inc" |
+| `group_id` | bigint → `supplier_groups.id` | yes | The multi-location company this location belongs to. **NULL = single site**, not "unknown" |
 | `category` | text | yes | **CHECK**: `Wholesaler` \| `Grower` \| `Nursery` \| `Other` |
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
 | `website` | text | yes | Usually a bare domain (`acostafarms.com`) — prepend `https://` when linking |
@@ -136,40 +148,139 @@ This is why **you cannot look a supplier up by email against this table any
 more.** Match through `contacts.email`, or just use `search_suppliers`, which
 searches contacts as one of its branches.
 
+### `supplier_groups`
+
+One row per **multi-location company**. Added 2026-08-14 (migration 0033).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `name` | text | no | The company, without the location suffix — "Everde Growers" |
+| `website` | text | yes | Bare domain, the same convention as `suppliers.website` |
+| `notes` | text | yes | Durable facts about the company as a whole |
+| `is_active` | boolean | no, default true | Soft delete |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
+
+**Each location stays its own `suppliers` row.** That is what `inventory`,
+`inventory_sources` and the contact links hang off, and it is what a buyer
+picks: stock, prices and pickup are per site. The group only names the company
+those rows belong to, so the set of a company's locations is a query rather than
+a guess:
+
+```sql
+SELECT id, name, city, state FROM suppliers
+WHERE group_id = (SELECT group_id FROM suppliers WHERE id = <any location>)
+  AND is_active ORDER BY id;
+```
+
+That set is not recoverable from names. Everde alone spans `Everde Growers`
+(the unsuffixed Houston row), `Everde Growers - Glen Flora Farm` and
+`EVERDE GROWERS - BUNNELL`; Newton uses no dash (`Newton Nurseries Katy`) and
+Calloway's uses an em dash. **`group_id IS NULL` means one location** — the
+single-site majority — not "nobody has checked".
+
+The 16 groups seeded by 0033 were identified by hand from a shared brand name
+**and** a shared website domain. Families that matched only one of the two are
+listed at the bottom of `0033_supplier_locations.sql` for someone to confirm,
+along with three sets of same-city rows that look like duplicates wanting a
+merge rather than locations. Adding a group is a judgment call: a wrong one
+fans a supplier's availability out to a nursery that never offered it (see the
+ingestion SOP, §2a).
+
 ### `contacts`
 
-One row per person at a supplier — the sales rep, the availability desk, whoever
+One row per person or inbox — the sales rep, the availability desk, whoever
 answers. Replaced `suppliers.poc_*`, which could only hold one.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint identity | no | PK |
-| `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | Owning supplier |
 | `name` | text | yes | **Usually null, and that is correct.** Most rows are an inbox nobody named. Don't invent a name to fill it |
 | `email` / `phone` | text | yes | How to reach this contact |
 | `title_department` | text | yes | Free text as the supplier gives it — "Sales Manager", "Availability desk". `'Main line'` marks a row migrated from the old `suppliers.email`/`phone` |
 | `notes` | text | yes | Durable facts about **the contact** (best time to call, which lists they own). **Do not store fax numbers here or anywhere else in supplier/contact data.** |
-| `is_primary` | boolean | no, default false | The supplier's default contact — see below |
-| `is_active` | boolean | no, default true | Soft delete; supplier deactivation cascades here |
+| `is_active` | boolean | no, default true | Soft delete — the person is gone. Not the same as ending one link |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
 
-**At most one active primary per supplier**, enforced by the partial unique
-index `contacts_one_primary_idx (supplier_id) WHERE is_primary AND is_active`.
-Promoting someone therefore means **demote the incumbent first, then promote** —
-the other order trips the index. A retired contact keeps its `is_primary` flag
-as history; because the index only covers active rows, that never blocks the
-current primary.
+**There is no `supplier_id` and no `is_primary` here.** Both moved to
+`supplier_contacts` on 2026-08-14 (migration 0034): one rep covers several
+locations of the same company, so neither the supplier nor "is this the one who
+answers" is a property of the person. A row in this table is a person or an
+inbox and nothing more. Editing it changes them at **every** location they
+cover.
+
+### `supplier_contacts`
+
+Which contacts cover which locations. One row per (supplier, contact) pair.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | The location |
+| `contact_id` | bigint → `contacts.id` ON DELETE CASCADE | no | The person or inbox |
+| `is_primary` | boolean | no, default false | This **location's** default contact — see below |
+| `is_active` | boolean | no, default true | They no longer cover this location; they may still cover others |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
+
+Unique on `(supplier_id, contact_id)` — link someone twice and the insert is
+rejected, so re-linking is an UPDATE back to `is_active = true`, not a second row.
+
+**Two levels of `is_active`, and they say different things:**
+
+| | means | set it when |
+|---|---|---|
+| `contacts.is_active = false` | the person is gone | they left the company entirely |
+| `supplier_contacts.is_active = false` | they stopped covering this location | their territory changed |
+
+A contact is visible for a supplier only when **both** are true. Deactivating a
+supplier cascades to its links, and retires the contact itself only if that was
+their last active link.
+
+**At most one active primary per location**, enforced by the partial unique
+index `supplier_contacts_one_primary_idx (supplier_id) WHERE is_primary AND
+is_active`. Promoting someone therefore means **demote the incumbent first,
+then promote** — the other order trips the index. The flag is per link: the same
+person can be primary at one of a company's nurseries and not at another. A
+retired link keeps its `is_primary` flag as history; because the index only
+covers active rows, that never blocks the current primary.
+
+Reading a supplier's contacts means joining, not selecting:
+
+```sql
+SELECT c.*, sc.is_primary
+FROM supplier_contacts sc
+JOIN contacts c ON c.id = sc.contact_id AND c.is_active
+WHERE sc.supplier_id = <id> AND sc.is_active
+ORDER BY sc.is_primary DESC, c.id;
+```
 
 `notes` here is about the person. Anything that was *said to* them is still an
 appended entry in `suppliers.communication_notes` — the split is the same one
 `suppliers.notes` vs `communication_notes` makes, and it matters for the same
 reason.
 
-There is deliberately no uniqueness on `(supplier_id, email)`: the same person
-can legitimately be listed twice with different roles, and dedupe is a judgment
-call, not a constraint. One such pair exists on purpose — supplier 255 has both
+There is deliberately no uniqueness on `email`: the same person can legitimately
+be listed twice with different roles, and dedupe is a judgment call, not a
+constraint. One such pair exists on purpose — supplier 255 has both
 `Felix Jr. Rivero` and `Felix Rivero` with different office, cell and email,
 flagged in the second row's `notes`. Confirm before merging them.
+
+0034 backfilled exactly one link per pre-existing contact and merged nothing;
+migration 0036 then merged the unambiguous duplicates the old `supplier_id`
+column had forced — **33 rows into 13**, so Jim Ord is one contact with six
+links rather than six contacts. The rule was narrow on purpose: same normalized
+email **and** same normalized phone, with no field of one contradicting the
+other. `'Main line'` counts as provenance, not a title, so it never blocks a
+merge and yields to a real title.
+
+**Matching on email alone is wrong**, and that is the trap to remember here. A
+shared company inbox is not a duplicate person: `info@calloways.com` sits on
+three rows with three phone numbers and two different named managers. Since the
+phone lives on the contact and not on the link, merging those would delete two
+working numbers. Twelve such groups were left alone — they are listed at the
+bottom of `0036_merge_duplicate_contacts.sql`, and `contacts_merge_map` plus
+the `contacts_pre_merge` / `supplier_contacts_pre_merge` snapshots make every
+merge that did happen reversible.
 
 **Only ~230 of 973 rows have a name, and that is the expected shape.** The table
 holds *contact routes*, not just people: 0016 moved every `suppliers.email` and
@@ -186,9 +297,9 @@ address anywhere else** — leave it null and let someone who knows fill it in.
 
 `suppliers.notes` keeps hours, addresses, policies, parsing quirks and business
 history; 29 people were lifted out of that prose on 2026-08-05 and must not go
-back. Suppliers with contacts but no flagged primary are normal: nobody is
+back. Locations with contacts but no flagged primary are normal: nobody is
 promoted without evidence of who actually answers, and readers fall back to the
-oldest active row.
+oldest active link.
 
 ### `inventory`
 
@@ -202,7 +313,8 @@ availability files.
 | `source_id` | uuid → `inventory_sources.id` | yes | File/URL this row came from; null for hand-entered rows |
 | `name` | text | no | The whole plant identity: `Name [scientific name, variant]`, e.g. `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`. `Name` is as the source prints it; either bracket part is omitted when the source doesn't give it. **Part of a row's identity** — (name, size) alone is NOT unique |
 | `name_key` | text **generated stored** | — | `normalize_plant_key(name)`; joins to `plant_other_names`. Do not write |
-| `size` | text | yes | The container/grade sold, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here; ~2,671 legacy active values still violate that. See the SOP's *Size standard* |
+| `size` | text | yes | The container/grade sold **as the supplier printed it**, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here. See the SOP's *Size standard* |
+| `size_std` | text | yes | Standardized container for `size` — see below. **CHECK**: `<N>" Pot` \| `<N>G` \| `<N>" Box` \| `Bare Root` \| `Liners` \| `Plug` \| `Trays` \| `B&B` \| `Field Grown` \| `Grow Bags` \| `Root Pruned` \| `other`. `NULL` when `size` is |
 | `unit_price` | numeric(10,2) | yes | USD; lower bound if the source gave a range. `NULL` means the supplier provided no price; never coerce missing to zero |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
 | `height` / `width` / `caliper` | text | yes | Human-readable measurement as printed in the source; preserved for display/evidence |
@@ -219,6 +331,55 @@ all 28,998 legacy zero-price placeholders were migrated to `NULL` with explicit
 approval. Future numeric zeroes are valid only when the supplier explicitly
 prints zero. `inventory_enriched`, `rate_charts`, and `search_inventory` pass
 `unit_price` through unchanged, including `NULL`.
+
+#### `size` vs `size_std`
+
+`size` is evidence — the string the supplier printed, kept verbatim (after unit
+canonicalization) because it is what the table cell shows and what search reads.
+`size_std`, added 2026-08-13 by migration 0030, is the **one bucket** that
+container belongs to, and is what the app's size filter selects on. The pair
+works exactly like `height`/`height_std`.
+
+The pot, gallon and box families are **open sets** — the constraint checks the
+shape (`<N>" Pot`, `<N>G`, `<N>" Box`), not a fixed list — so a supplier who
+starts selling 12G needs no migration. The number is the one the source printed;
+nothing is rounded to a neighbouring size.
+
+The three numbered families do not overlap, and which one a bare diameter joins
+is a judgment about the row, not the string:
+
+- A compound drops its pot-diameter half (`15 G/17"` → `15G`), and a bare
+  diameter that **has** a gallon equivalent maps onto it (a 17" pot is also
+  `15G`; 6"→`1G`, 10"→`3G`, 12"→`5G`, 14"→`7G`, 20"→`20G`, 21"→`25G`, 28"→`45G`,
+  30"→`60G`, 32"→`65G`, 36"→`100G`, 42"→`150G`, 48"→`200G`, 60"→`300G`). One
+  checkbox therefore covers every spelling of a 15-gallon container.
+- A diameter with **no** gallon equivalent is `<N>" Pot` — `4" Pot`, `8" Pot`,
+  `3.5" Pot`. This is the annual/perennial/tropical end of the catalogue.
+- A bare diameter that is really a **box** is `<N>" Box`, even unlabelled: desert
+  growers print `36"` for a 36-inch box, and the plant names and the supplier's
+  other rows are what distinguish it from a pot.
+
+`B&B` is its own bucket — balled-and-burlapped field-dug stock, where the burlap
+*is* the container. Measurements printed alongside it (`B&B; 3-4' HT`) are the
+plant's size, not a second container.
+
+`other` is a real answer, not a failure: it means a container the standard has
+no bucket for (`Quart`, `10" Hanging Basket`, `Six Pack`). `NULL` means no
+container is known. The full mapping rules live in the ingestion SOP's *Size standard*,
+and the app's ordering of the vocabulary is `app/lib/size-std.ts`.
+
+**State after the 0031/0032 backfills (2026-08-13, active rows only):** 54,815
+of 62,572 rows carry a `size_std` across 66 buckets — `1G` 8,986, `3G` 7,445,
+`15G` 5,099, `5G` 4,358, `Trays` 3,814, `other` 3,326, `B&B` 3,224, `4" Pot`
+1,483 — and roughly 1,300 distinct printed size strings collapse onto them. The
+remaining 7,757 rows are `NULL` in both columns. `other` is down to 5.3% of the
+mapped rows and is now mostly quarts, six-packs, hanging baskets and decorative
+pottery. **Retired rows were deliberately not backfilled**, so `size_std IS
+NULL` on an inactive row means "never mapped", not "no container". The same
+migration moved 6,705 misfiled height/width/caliper values out of `size` into
+their own columns with paired `*_std`; where the dimension column already held a
+genuinely different value the row was left intact and only bucketed `other`, so
+a 4" pot on a 6"-tall grass still records both facts.
 
 Dimension semantics follow the same evidence rule: the source strings are never
 replaced by numeric projections. A range stores its approved conservative lower
@@ -374,7 +535,8 @@ search_inventory(search text = '', supplier_ids bigint[] = null,
 ```
 Returns the inventory columns plus `other_names`, `source` (=
 `inventory_sources.file_path`), `supplier_name`, `supplier_category`,
-`supplier_state`, `supplier_city`, `height_std`, `width_std`, and `caliper_std`.
+`supplier_state`, `supplier_city`, `size_std`, `height_std`, `width_std`, and
+`caliper_std`.
 The six optional dimension bounds are inclusive and run in PostgreSQL before
 ranking/result caps or supplier pagination; active bounds exclude null standards.
 There is no `category_filter` — the column it
@@ -420,14 +582,19 @@ has a fixed return type, so **any new `suppliers` column has to be added here
 before the app can read it through search.**
 
 Its returned columns include `primary_contact_name`, `primary_contact_email` and
-`primary_contact_phone`, resolved by a `LEFT JOIN LATERAL` over `contacts`
-(active only, `is_primary desc, id asc` — so a supplier with contacts but no
-flagged primary still reports its oldest one). These replaced the `poc_*`
-columns on 2026-08-05.
+`primary_contact_phone`, resolved by a `LEFT JOIN LATERAL` over
+`supplier_contacts` joined to `contacts` (both active, `sc.is_primary desc,
+c.id asc` — so a supplier with contacts but no flagged primary still reports its
+oldest one). These replaced the `poc_*` columns on 2026-08-05; 0034 moved the
+join onto the link table.
+
+It does **not** return `group_id` — the return type is fixed, so a
+multi-location column would have to be added here before search could carry it.
 
 A supplier also matches **through its contacts**: contact name / email / phone /
 title text is searched separately and folded in as a `supplier_id` list, the
-same way the trigram fallback is. That keeps `suppliers_pgroonga_idx` usable for
+same way the trigram fallback is. Since 0034 that list comes from the links, so
+a contact who covers four farms lights up all four. That keeps `suppliers_pgroonga_idx` usable for
 the main branch — an index expression cannot read another table, so contact text
 can never live in the suppliers document. Contact-only matches score 0 and
 therefore sort after direct matches.
@@ -443,7 +610,7 @@ supplier — but it scores 0, so an email search ranks below any name match.
   `website`, `address`, `city`, `state`, `zip`, `notes`,
   `availability_source_type`, `availability_update_days`,
   `hosted_availability_url`, `created_at`, `updated_at`.
-- `search_inventory`: `name`, `other_names`, `size`, `unit_price`,
+- `search_inventory`: `name`, `other_names`, `size`, `size_std`, `unit_price`,
   `quantity`, `height`, `width`, `caliper`, `notes`, `source`,
   `created_at`, `updated_at`, `supplier_name`, `supplier_category`,
   `supplier_state`, `supplier_city`. Sorting the human-readable `height`,
@@ -468,9 +635,9 @@ supplier — but it scores 0, so an email search ranks below any name match.
 
 | Trigger | Table | When | Does |
 |---|---|---|---|
-| `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows, `inventory_sources` and `contacts` |
+| `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows, `inventory_sources` and `supplier_contacts` links — plus any contact left with no active link at all |
 | `trg_dedupe_plant_other_names` | plant_other_names | BEFORE INSERT | Skips normalized duplicates, self-pairs, empty keys |
-| `handle_updated_at` | suppliers, inventory, contacts, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
+| `handle_updated_at` | suppliers, supplier_groups, supplier_contacts, inventory, contacts, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
 
 ## Indexes that matter
 
@@ -481,6 +648,9 @@ supplier — but it scores 0, so an email search ranks below any name match.
   `inventory_supplier_caliper_std_idx` — partial btrees on
   `(supplier_id, *_std)` for active, non-null rows; support supplier-page range
   filtering without adding numeric values to the text-search document.
+- `inventory_supplier_size_std_idx` — the same shape for `size_std`, backing the
+  app's size facet. `size_std` is deliberately **not** in the pgroonga document:
+  the raw `size` already carries every spelling a search could type.
 - `plant_other_names_pgroonga_idx` — pgroonga over
   `normalize_search_text(name || ' ' || other_name)`. Note it does not cover
   `is_active`, which the search filters on separately.
@@ -491,9 +661,13 @@ supplier — but it scores 0, so an email search ranks below any name match.
 - `contacts_pgroonga_idx` — pgroonga over
   `normalize_search_text(name || email || phone || title_department)`. Backs
   `search_suppliers`'s contact branch, and must stay byte-identical to it.
-- `contacts_one_primary_idx` — partial unique on `(supplier_id) WHERE is_primary
-  AND is_active`. Demote before you promote.
-- `contacts(supplier_id, is_active)`.
+- `supplier_contacts_one_primary_idx` — partial unique on `(supplier_id) WHERE
+  is_primary AND is_active`. Demote before you promote. (Was
+  `contacts_one_primary_idx` until 0034.)
+- `supplier_contacts(supplier_id, is_active)` — a location's contacts;
+  `supplier_contacts(contact_id, is_active)` — a contact's locations, which is
+  the direction the profile's "also covers" line reads.
+- `suppliers(group_id) WHERE group_id IS NOT NULL` — a company's locations.
 - Btree on the stored keys: `inventory(name_key)`, `plant_other_names(name_key)`,
   `(other_name_key)`, unique `(name_key, other_name_key)`. These exist because
   computing the key per-comparison made the enriched view time out (21s → 119ms).
@@ -525,6 +699,8 @@ Gmail OAuth tokens) included.
 | `inventory_sources` | enabled | `authenticated` full access |
 | `plant_other_names` | enabled | `authenticated` full access |
 | `contacts` | enabled | `authenticated` full access |
+| `supplier_contacts` | enabled | `authenticated` full access (added 2026-08-14) |
+| `supplier_groups` | enabled | `authenticated` full access (added 2026-08-14) |
 | `custom_commands` | enabled | Per-user via `auth.uid()` |
 | `user_memories` | enabled | Per-user via `auth.uid()` |
 
@@ -595,7 +771,9 @@ required.
 
 - Sizes: `"15 G"`, `"6'"`, `"24\""`, `"3' cal"`, `"24\" box"`; `#` = gallons
   (but a box is inches). Run values through `normalize_size()`; keep height,
-  caliper, form codes and pack counts out of `size`.
+  caliper, form codes and pack counts out of `size`. Write `size_std` alongside
+  it — `<N>G`, `<N>" Box`, a word grade, or `other`; never both a size and a
+  measurement in `size`.
 - Plant `name`: `Name [scientific name, variant]` — the printed name in full,
   plus the scientific name and cultivar/trade name when the source gives them.
   `plant_other_names` holds only other names for the *same plant* (common,
@@ -607,9 +785,13 @@ required.
   = an append-only log of contact with them. Never append contact history to
   `notes`, and never overwrite `communication_notes`.
 - Every contact route goes in `contacts` — people and inboxes alike, one row
-  each, at most one active `is_primary` per supplier. `suppliers` carries no
-  email or phone. `contacts.notes` describes the contact; what was said to them
-  is still an entry in `suppliers.communication_notes`.
+  each — and a `supplier_contacts` link per location they cover, at most one
+  active `is_primary` per location. `suppliers` carries no email or phone.
+  `contacts.notes` describes the contact; what was said to them is still an
+  entry in `suppliers.communication_notes`.
+- A multi-location company is one `suppliers` row per site, tied together by
+  `supplier_groups`. Availability naming no location goes to **every** location
+  in the group; availability naming one goes to that row alone.
 - Never infer a person's name from an email address. `contacts.name` is
   nullable precisely so you don't have to.
 - Per-supplier quirks live in daisy's

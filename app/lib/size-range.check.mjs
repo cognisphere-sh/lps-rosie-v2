@@ -22,14 +22,17 @@ assert.equal(matchesSizeFilter({ size: '15 G' }, { unit: 'gallon', value: 15, la
 assert.equal(matchesSizeFilter({ size: '25 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), false)
 assert.equal(matchesSizeFilter({ size: '10/15 G' }, { unit: 'gallon', value: 15, label: '15 gal' }, []), true)
 
-// The selector now exposes exact row values rather than inferred commercial
-// buckets. Multiple selections retain OR semantics.
-assert.equal(matchesSizeFilter({ size: '15G' }, null, ['15G']), true)
-assert.equal(matchesSizeFilter({ size: '15G' }, null, ['15 G']), false)
-assert.equal(matchesSizeFilter({ size: '5 G' }, null, ['5 G', '15 G']), true)
-assert.equal(matchesSizeFilter({ size: '15 G' }, null, ['5 G', '15 G']), true)
-assert.equal(matchesSizeFilter({ size: '10 G' }, null, ['5 G', '15 G']), false)
-assert.equal(matchesSizeFilter({ size: null }, null, []), true)
-assert.equal(matchesSizeFilter({ size: null }, null, ['15 G']), false)
+// The selector offers standardized buckets, so every spelling of a 15-gallon
+// container answers one checkbox. Multiple selections retain OR semantics.
+assert.equal(matchesSizeFilter({ size: '15 G', size_std: '15G' }, null, ['15G']), true)
+assert.equal(matchesSizeFilter({ size: '15 G/17"', size_std: '15G' }, null, ['15G']), true)
+assert.equal(matchesSizeFilter({ size: '15 G', size_std: '15G' }, null, ['15 G']), false)
+assert.equal(matchesSizeFilter({ size: '5 G', size_std: '5G' }, null, ['5G', '15G']), true)
+assert.equal(matchesSizeFilter({ size: '10 G', size_std: '10G' }, null, ['5G', '15G']), false)
+assert.equal(matchesSizeFilter({ size: 'B&B', size_std: 'other' }, null, ['other']), true)
+assert.equal(matchesSizeFilter({ size: null, size_std: null }, null, []), true)
+// A row with no standard yet is not silently swept into a bucket.
+assert.equal(matchesSizeFilter({ size: '15 G', size_std: null }, null, ['15G']), false)
+assert.equal(matchesSizeFilter({ size: null, size_std: null }, null, ['15G']), false)
 
 console.log('size search checks passed')

@@ -49,14 +49,17 @@ At the **end of every relevant task**, append a brief entry to `workspace/daily_
 
 Run this loop for every availability drop, without being asked step by step. **You coordinate; a task thread executes the onboarding + ingestion SOP** (§Task threads below). Do **not** send a per-ingestion update to Chris/Bhoumik for routine successful work; include it in the next daily summary. Message immediately only for a blocker, needed input/approval, failure/data risk, or a genuinely noteworthy result (§Asking Chris & Bhoumik).
 
-1. **Identify the supplier.** From the email `From`/domain, or the name Chris gives you. Email addresses live in `contacts`, not on `suppliers` — join through it:
+1. **Identify the supplier.** From the email `From`/domain, or the name Chris gives you. Email addresses live in `contacts`, which is linked to suppliers through `supplier_contacts` (a contact can cover several locations) — join through both:
    ```sql
-   SELECT s.id, s.name, c.email
+   SELECT s.id, s.name, s.group_id, c.email
    FROM suppliers s
-   LEFT JOIN contacts c ON c.supplier_id = s.id AND c.is_active
+   JOIN supplier_contacts sc ON sc.supplier_id = s.id AND sc.is_active
+   JOIN contacts c ON c.id = sc.contact_id AND c.is_active
    WHERE lower(c.email) = lower('<from>') OR s.name ILIKE '<name>';
    ```
    If that finds nothing, widen to the sender's **domain** (`c.email ILIKE '%@<domain>'`) — a supplier often mails from a person's address that isn't on file yet, and their colleague's is.
+
+   **Several rows back for one company is normal, not a duplicate.** A multi-location nursery is one `suppliers` row per site, sharing a `group_id` — Everde has five, Moon Valley seventeen. Pass every match and the `group_id` to the task thread; the SOP (§0.1) decides whether the drop belongs to one location or all of them. Never pick one of them yourself, and never merge them.
 2. **Onboard + ingest via a task thread.** Everything else — onboarding a new supplier (INSERT, browser enrichment, availability-newsletter subscription), source conversion, parsing, normalization, uploads, and all `inventory` / `inventory_sources` / `plant_other_names` writes — is the SOP at **`knowledge/SOPs/supplier-onboarding-and-ingestion.md`**. You don't run it and you don't need to read it — just pass its path. Spawn a task thread (§Task threads in the base prompt: message yourself on `<ThreadId>-<task-slug>` via `scripts/agent-msg/send`) whose brief contains everything it needs:
    - the supplier: existing `supplier_id` + name, or (if new) everything you know about them from step 1 — if you can't even confidently determine the supplier name, **ask Chris** before dispatching, don't guess a duplicate into existence,
    - all source material (attachment paths, website URL, image paths, relevant email body text),
@@ -115,5 +118,5 @@ Only when Chris or Bhoumik explicitly requests a supplier reply, first prepare a
 - Supabase rows are the durable record — keep them accurate and date-stamped. Scratch/notes go in `workspace/`, not into supplier/inventory rows.
 - **Log every supplier contact to `suppliers.communication_notes`, in the same task** — one appended, timestamped entry per contact, with channel, what, why, and the thread/message id (§Supabase). Inbound counts too. Keep it distinct from `suppliers.notes`, which holds what is *true about* the supplier (quirks, preferences, price-list format) and is edited in place; `communication_notes` holds what was *said to* them and only ever grows.
 - **Intermediate files aren't records.** pdftoppm images, markitdown output, parse chunks → write to `/tmp` or delete after use. Only durable assets (a supplier's source price-list PDF, plant photos worth keeping) go to the `lps` storage bucket — source files referenced from `inventory_sources.file_path`, photos from `inventory.image_url`.
-- One supplier per `suppliers` row; don't merge two growers. When in doubt about a supplier, a price, or a category — **ask Chris.**
-- A missing printed price can legitimately mean **price upon request** or volume/quantity pricing, not a zero-dollar item. Preserve the offering, record that pricing is unavailable/on request in its notes, and surface it appropriately. Supplier contact people are critical: capture and maintain them as rows in the `contacts` table (`name`, `email`, `phone`, `title_department`, `supplier_id`), and flag the one who actually answers about availability with `is_primary = true` — at most one active primary per supplier.
+- One supplier per `suppliers` row; don't merge two growers. A multi-location company is **one row per location**, tied together by `suppliers.group_id` → `supplier_groups` — those are not duplicates and must not be merged either. When in doubt about a supplier, a price, or a category — **ask Chris.**
+- A missing printed price can legitimately mean **price upon request** or volume/quantity pricing, not a zero-dollar item. Preserve the offering, record that pricing is unavailable/on request in its notes, and surface it appropriately. Supplier contact people are critical: capture and maintain them as rows in the `contacts` table (`name`, `email`, `phone`, `title_department`) plus a `supplier_contacts` link per location they cover — one person can be the PoC for several nurseries, so link rather than duplicate them — and flag the one who actually answers about availability with `is_primary = true` on that link; at most one active primary per location.

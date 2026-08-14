@@ -113,7 +113,9 @@ export const MASTER_HIDDEN = MASTER_COLS.map((c) => c.key).filter((k) => !MASTER
 export const PLANT_COLS: ColumnDef[] = [
   { key: 'name', label: 'Plant', width: 200, edit: true, writes: { table: 'inventory', column: 'name' } },
   { key: 'other', label: 'Also known as', width: 190 },
-  { key: 'size', label: 'Size', width: 104, filter: 'multiselect' },
+  // The cell shows the supplier's own size text; the filter selects on the
+  // standardized bucket beside it (lib/size-std.ts).
+  { key: 'size', label: 'Size', width: 104, filter: 'multiselect', filterValueKey: 'size_std' },
   { key: 'price', label: 'Price', width: 100, align: 'right', edit: true, filter: 'range', money: true, writes: { table: 'inventory', column: 'unit_price' } },
   { key: 'qty', label: 'Quantity', width: 104, align: 'right', edit: true, filter: 'range', num: true, writes: { table: 'inventory', column: 'quantity' } },
   {

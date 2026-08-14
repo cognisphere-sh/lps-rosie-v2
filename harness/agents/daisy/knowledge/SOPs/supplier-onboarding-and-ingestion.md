@@ -23,12 +23,13 @@ output — SOP changes require Chris's or Bhoumik's approval.
   facts about the supplier go in `suppliers.notes`; the two are not
   interchangeable (see SCHEMA.md).
 - **People go in `contacts`, not on the supplier row and never in prose.** One
-  row per person, `supplier_id` pointing back. `contacts.notes` describes the
-  *person*; contact history still goes in `suppliers.communication_notes`.
-  Never write a person's name, email or phone into `suppliers.notes` — a
-  2026-08-05 cleanup had to lift 29 of them back out. A **generic inbox**
-  (`sales@`, `orders@`, `avail@`) is the company's contact surface, not a
-  person: that belongs on `suppliers`, not in `contacts`.
+  row per person, plus a `supplier_contacts` link for **each location they
+  cover** (§0a). `contacts.notes` describes the *person*; contact history still
+  goes in `suppliers.communication_notes`. Never write a person's name, email or
+  phone into `suppliers.notes` — a 2026-08-05 cleanup had to lift 29 of them
+  back out. A **generic inbox** (`sales@`, `orders@`, `avail@`) is a contact row
+  like any other, but it is the company's switchboard, not a person: leave its
+  `name` null and mark it `title_department = 'Main line'`.
 - Path to this SOP.
 - The parent ThreadId (for your notes/temp naming) and the current timestamp.
 
@@ -41,42 +42,98 @@ drop belongs to, a credential/password is needed, the source is unreadable —
 contract) and stop at a safe point. You will be re-invoked with answers in
 the same session. Ask early rather than guessing.
 
-## 0. Onboarding (only when the supplier is new)
+## 0. Locations, onboarding and contacts
+
+### 0.1 Which location(s) is this drop for?
+
+**A company that grows or sells at several sites is several `suppliers` rows —
+one per location.** Everde, Moon Valley, Newton and thirteen others are already
+stored that way. The rows are tied together by `suppliers.group_id` →
+`supplier_groups`; a single-site supplier has `group_id` NULL. Read the
+`supplier_groups` / `supplier_contacts` sections of SCHEMA.md before you write
+anything here.
+
+**Do this before parsing, because it decides where every row goes.**
+
+1. **Is this supplier part of a group?** One query, from whatever supplier id
+   you were handed:
+
+   ```sql
+   SELECT s.id, s.name, s.city, s.state
+   FROM suppliers s
+   WHERE s.group_id = (SELECT group_id FROM suppliers WHERE id = <supplier_id>)
+     AND s.group_id IS NOT NULL AND s.is_active
+   ORDER BY s.id;
+   ```
+
+   No rows → single location, nothing in this section applies. Carry on at §0.2.
+
+2. **Does the drop name a location?** Look for it in the sheet header, a tab or
+   page per farm, a "Ship from" / "Grown at" / "Farm" column, the branch in the
+   sender's signature, or the email body. Then:
+
+   - **A location is named → write only that location's supplier row.** Match it
+     to a row in the group by city/farm name. If the drop names a location the
+     group doesn't have, it is a **new location**: onboard it as a new supplier
+     (§0.2) with the same `group_id`, and say so in your output.
+   - **Different locations for different sections/tabs/rows → split the drop**
+     and treat each section as its own set of rows for its own location.
+   - **No location named anywhere → write one entry per location in the group.**
+     Every active location gets the full set of rows, its own
+     `inventory_sources` row (§3) and its own version swap (§4). This is what a
+     company-wide availability list means: any of their sites can supply it.
+
+3. **Never guess a location from the sender's address or the file name.** If the
+   drop is ambiguous — a location name that matches no row, two plausible
+   matches, a sheet that looks per-farm but isn't labelled — **ask the main
+   agent** and stop. A row written to the wrong farm claims stock at a nursery
+   that never offered it, and nothing downstream can tell.
+
+4. **Suspect an unrecorded group?** If a supplier's list, signature or website
+   shows sites the database doesn't have as rows, don't create a group yourself
+   — report it under *Flags needing Chris* with the evidence. A wrong group
+   multiplies wrong data by the number of locations in it.
+
+### 0.2 Onboarding (only when the supplier is new)
 
 - Never guess a duplicate into existence: search first. Email addresses live in
   `contacts`, not on `suppliers`, so match on `contacts.email`, then the
   sender's domain (`c.email ILIKE '%@<domain>'`), then `suppliers.name ILIKE` —
   or just call `search_suppliers`, which covers all of it in one query. If you
   still can't tell whether this is a new supplier, ask the main agent and stop.
+  **Several hits for one company can be its locations, not duplicates** — check
+  `group_id` before concluding anything (§0.1).
 - INSERT the `suppliers` row with whatever you have (`name` is required; add
   address parts when present). `suppliers` has **no `email` or `phone` column** —
   the company's own switchboard is a `contacts` row like any other. Set
   `category` to one of `Wholesaler`/`Grower`/`Nursery` **only if you actually
   know it — otherwise leave it null; never guess.** Capture the returned `id`.
+  If this is a **new location of a company already in the database**, set
+  `group_id` to that company's group and name the row for the site
+  (`<Company> - <City or farm name>`). If it is a new company that turns out to
+  run several sites, report it — creating a `supplier_groups` row is Chris's
+  call (§0.1 step 4), not something to do mid-ingest.
 - **INSERT a `contacts` row for the supplier's main line** — the general
   `info@`/`sales@` address and the switchboard number — with
   `title_department = 'Main line'` and `name` left null. That row is what makes
   the supplier findable by email next time.
-- **INSERT a `contacts` row for each person you know**, with `supplier_id` set
-  and `name` / `email` / `phone` / `title_department` filled from what the
-  source actually gives — a signature block, a "contact us" page, the sender of
-  the availability email. **Leave `name` null unless the source actually names
-  them** — never infer a name from the address itself. `bobby.green@` is a fair
-  read, but `tynursery.orders@` and `treeoflife.gardencenter@` are not people,
-  and `dwinningham@` cannot yield a first name without inventing one. A contact
-  with only an email or phone is perfectly valid. Flag the one who answers about
-  availability as `is_primary = true`; **at most one active primary per
-  supplier**, so when you promote someone, demote the incumbent first:
-  ```sql
-  UPDATE contacts SET is_primary = false
-  WHERE supplier_id = <id> AND is_active AND is_primary;
-  UPDATE contacts SET is_primary = true WHERE id = <new primary id>;
-  ```
-  Getting the right sales/contact person on file matters — it is how every
-  later availability request reaches a human instead of a switchboard.
-- For an **existing** supplier, check `contacts` before inserting: add the
-  person only if they are genuinely new, correct the existing row if they moved
-  role, and retire (`is_active = false`) whoever has left. Never delete.
+- **INSERT a `contacts` row for each person you know**, with `name` / `email` /
+  `phone` / `title_department` filled from what the source actually gives — a
+  signature block, a "contact us" page, the sender of the availability email.
+  **Leave `name` null unless the source actually names them** — never infer a
+  name from the address itself. `bobby.green@` is a fair read, but
+  `tynursery.orders@` and `treeoflife.gardencenter@` are not people, and
+  `dwinningham@` cannot yield a first name without inventing one. A contact
+  with only an email or phone is perfectly valid.
+- **Then link them (§0.3).** `contacts` has **no `supplier_id`**: the tie to a
+  supplier is a `supplier_contacts` row, and a contact with no link is invisible
+  to every reader. Getting the right sales/contact person on file, on the right
+  locations, matters — it is how every later availability request reaches a human
+  instead of a switchboard.
+- For an **existing** supplier, check its linked contacts before inserting: add
+  the person only if they are genuinely new, correct the existing row if they
+  moved role, and retire whoever has left. Never delete.
+
 - **Enrich via the browser** (`scripts/agent/agent-browser`): google the
   supplier; find their **website** (store as a bare domain, e.g.
   `acostafarms.com` — the UI prepends `https://`), full **address / city /
@@ -108,6 +165,62 @@ the same session. Ask early rather than guessing.
   row is missing website/address/coords — don't re-subscribe if their notes
   say it's already done.
 
+### 0.3 Linking contacts — one person, however many locations
+
+**A contact can be the point of contact for several nurseries.** That is the
+normal shape at a multi-location company: one inside-sales rep quotes across
+every farm, while a yard manager answers for one site only.
+
+- **Link, don't duplicate.** Before inserting a person, look for them across the
+  whole group — the same email at a sister location is the same person:
+  ```sql
+  SELECT c.id, c.name, c.email, c.phone, sc.supplier_id, sc.is_primary
+  FROM contacts c
+  JOIN supplier_contacts sc ON sc.contact_id = c.id AND sc.is_active
+  WHERE c.is_active
+    AND sc.supplier_id IN (<every location in the group>)
+    AND (lower(c.email) = lower('<email>') OR c.phone = '<phone>');
+  ```
+  Found → add a link, don't insert a second contact row. Not found → insert the
+  contact, then link it. If you find two *existing* rows that are plainly the
+  same route — same email **and** same phone — report them under *Learnings*;
+  merging them is migration work (0036 did the first pass), not something to do
+  mid-ingest. **A shared inbox is not a duplicate person:** two rows on
+  `info@…` with different phone numbers are two locations or two people, and
+  merging them would delete a working number.
+- **Work out how many locations they cover, from what the source says.** Their
+  signature, title or the sheet header is the evidence: "Inside Sales — all
+  farms" or a company-wide availability list is every location in the group;
+  "Yard Manager, Bunnell" or a farm-specific sheet is that one. **When the source
+  only shows them at one location, link only that one** — coverage is a fact to
+  read, not to assume. Note the evidence in `contacts.notes`.
+  ```sql
+  INSERT INTO contacts (name, email, phone, title_department, notes)
+  VALUES (...) RETURNING id;
+
+  INSERT INTO supplier_contacts (supplier_id, contact_id, is_primary)
+  SELECT s.id, <contact id>, false
+  FROM suppliers s WHERE s.id = ANY(ARRAY[<the locations they cover>]);
+  ```
+  `(supplier_id, contact_id)` is unique, so re-linking someone is
+  `UPDATE supplier_contacts SET is_active = true WHERE …`, never a second row.
+- **`is_primary` is per location.** Flag the one who answers about availability
+  *at that location*; **at most one active primary per location**, so promote by
+  demoting the incumbent first:
+  ```sql
+  UPDATE supplier_contacts SET is_primary = false
+  WHERE supplier_id = <id> AND is_active AND is_primary;
+  UPDATE supplier_contacts SET is_primary = true
+  WHERE supplier_id = <id> AND contact_id = <new primary> AND is_active;
+  ```
+- **Retiring is two different acts.** Someone who stopped covering one farm but
+  still covers others: `UPDATE supplier_contacts SET is_active = false WHERE
+  supplier_id = <id> AND contact_id = <id>`. Someone who left the company:
+  retire every link **and** set `contacts.is_active = false`. Never delete.
+- **Editing a contact row changes them everywhere.** A new phone number is right
+  to write once. Something true only at one site — "handles the Bunnell pickup
+  window" — belongs in that supplier's `notes`, not on the shared person.
+
 ## 1. Acquire and convert the source
 
 - **Text-based PDFs:** use `scripts/agent/markitdown <file>` as the primary extractor and inspect its Markdown tables/continuation lines before parsing. Do not default to `pdftotext` or write an ad hoc custom PDF parser merely because fixed-width text looks usable. If MarkItDown leaves wrapped/ambiguous rows, preserve the extracted evidence and resolve it with visual row-level review rather than a heuristic that can silently cross or drop cells.
@@ -120,9 +233,12 @@ the same session. Ask early rather than guessing.
 
 One logical row per **plant × size offering**. Normalize every line:
 
-- **Size** (`inventory.size`) — see **Size standard** below. Get this right at
-  parse time: `size` is a filter facet in the app, so every spelling variant you
-  invent becomes its own checkbox next to the real one.
+- **Size** (`inventory.size` **and** `inventory.size_std`) — see **Size
+  standard** below. Write both, always, in the same INSERT: `size` is the
+  container as the supplier printed it, `size_std` is the one standardized
+  bucket it belongs to. The app's size filter is built from `size_std`, so a row
+  you leave unmapped is invisible to every size checkbox — and `size` still has
+  to be clean, because it is what the table cell shows and what search reads.
 - **Name** (`inventory.name`): one column carries the whole identity, written as
   **`Name [scientific name, variant, cultivar]`**.
   - `Name` is the plant name **as the source prints it**, in full — including any
@@ -258,11 +374,76 @@ null.
   container. Null means "the source didn't say", which is a fact; a wrong size
   is a wrong offering.
 
-**4. Legacy rows still violate 3.** ~2,671 distinct active values remain,
-including qualifier-carrying ones (`6 G; Bush`, `3 G TRUE`, `1 G <24"`). Do
-**not** bulk-fix them as a side effect of an ingest — that is a separate job
-against the original sources. Follow this standard for the rows you write, and
-report anything egregious you notice under *Learnings*.
+**4. Legacy rows still violate 3.** Qualifier-carrying values (`6 G; Bush`,
+`3 G TRUE`, `1 G <24"`) remain. Do **not** bulk-fix them as a side effect of an
+ingest — that is a separate job against the original sources. Follow this
+standard for the rows you write, and report anything egregious you notice under
+*Learnings*. The 2026-08-13 `size_std` backfill (migration 0030) moved the
+whole-value height/width/caliper misfits out of `size` into their own columns;
+what is left is mostly container-plus-qualifier compounds.
+
+### The standard bucket — `size_std`
+
+`size` keeps the supplier's own spelling. `size_std` says which **one**
+container that is, so the app can offer a single checkbox per real size instead
+of one per spelling. Write it for every row that has a `size`.
+
+**The vocabulary.** The database enforces the shape, not a fixed list:
+
+| Bucket | Shape | Notes |
+| --- | --- | --- |
+| Pots | `<N>" Pot` | `4" Pot`, `8" Pot`, `3.5" Pot`. **Open set.** Only for diameters with no gallon equivalent — see rule 3 |
+| Gallons | `<N>G` | `1G`, `15G`, `2G`, `35G`, `2.5G`. **Open set** — write the number the source printed. Never round to a "nicer" size |
+| Boxes | `<N>" Box` | `24" Box`, `108" Box`. **Open set.** Always inches; `9' box` → `108" Box` |
+| Word grades | `Bare Root`, `Liners`, `Plug`, `Trays`, `B&B`, `Field Grown`, `Grow Bags`, `Root Pruned` | exactly these strings |
+| Catch-all | `other` | a real container the standard has no bucket for |
+
+Anything else is rejected by `inventory_size_std_check`.
+
+**Mapping, first rule that matches wins:**
+
+1. **Says "box"** → `<N>" Box` from the box's inch number. `45 G/24" BOX` →
+   `24" Box`: the box is the trade unit, the gallon figure is its volume.
+   `Boxed` with no number is not a box → `other`.
+2. **Has a gallon quantity** → `<N>G`. The pot-diameter half of a compound is
+   dropped (`15 G/17"` → `15G`, `45 G/28"` → `45G`) and qualifiers are ignored
+   (`6 G; Bush` → `6G`). Two different gallon sizes in one value (`3 G/5 G`) is
+   a parse miss — split it into two rows per the *combined sizes* rule above,
+   each with its own bucket.
+3. **Names a burlapped root ball** — `B&B`, `BB`, `balled and burlapped` →
+   `B&B`. The burlap *is* the container, so a height or caliper printed with it
+   (`B&B; 3-4' HT`, `4 - 5'; B&B`) is the plant's size: bucket `B&B` and put the
+   measurement in `height`/`caliper` with its `*_std`. A genuinely different
+   container named alongside still wins by its own priority (`15 G B&B` → `15G`,
+   `24" Box B&B` → `24" Box`).
+4. **A bare diameter in inches** is one of three things, and the plant names
+   decide which:
+   - it **has a gallon equivalent** → that gallon, which is the pairing the
+     trade prints: 6"→`1G`, 10"→`3G`, 12"→`5G`, 14"→`7G`, 17"→`15G`, 20"→`20G`,
+     21"→`25G`, 28"→`45G`, 30"→`60G`, 32"→`65G`, 36"→`100G`, 42"→`150G`,
+     48"→`200G`, 60"→`300G`;
+   - it is an **unlabelled box** → `<N>" Box`. Desert and palm growers print a
+     bare `24"`/`36"`/`48"` meaning a box; the supplier's other boxed rows and
+     large specimen plant names give it away. Never write `36" Pot` for a boxed
+     tree;
+   - otherwise it is a **pot** → `<N>" Pot` (`4" Pot`, `8" Pot`, `3.5" Pot`).
+     This is the annual / perennial / tropical end of the catalogue.
+
+   A diameter attached to **merchandise** rather than a plant — the row names a
+   planter, bowl, basket or tool — is `other`, never a pot.
+5. **Word grades** map case- and plural-insensitively: `BR`/`bareroot` →
+   `Bare Root`; `LNR`/`Rooted Liner` → `Liners`; anything naming a plug →
+   `Plug`; cell trays and flats identified by a cell count or tray code
+   (`128`, `1801`, `40 CEL`, `Flat`) → `Trays`; `FG`/`In Ground` →
+   `Field Grown`; `Fabric Bag` → `Grow Bags`; `RP` → `Root Pruned`.
+6. **Everything else that is still a container** → `other`. `Quart`,
+   `Six Pack`, `10" Hanging Basket`, `Specimen` all land here. **`other` is a
+   correct answer, not a failure** — it means "a real container the standard has
+   no bucket for". Never invent a nearby bucket to avoid it.
+
+`size_std` is `NULL` only when `size` is `NULL`. If the source printed no
+container, both stay `NULL` — that is a fact, and §3's *anything you had to
+guess* rule still holds.
 
 ## 3. Stash the source and create provenance
 
@@ -272,6 +453,11 @@ report anything egregious you notice under *Learnings*.
   INSERT INTO inventory_sources (supplier_id, file_path, notes)
   VALUES (<supplier_id>, '<object key or URL>', '<where/how sourced>') RETURNING id;
   ```
+- **One per file × location.** `inventory_sources.supplier_id` is a single
+  location, so a drop that §0.1 fanned out to several gets a row per location
+  pointing at the **same** `file_path` — upload the file once. Keep the ids per
+  location; §4's retirement is per location and mixing them up retires the wrong
+  farm's rows. Say in `notes` that the file is the group's shared list.
 - `file_path` is the bucket **object key** (e.g. `suppliers/<slug>/rate-cards/<file>`, no scheme — the app signs it on demand) or a full `http(s)://` URL. Never store a signed URL.
 
 ## 4. Write to `inventory` as a new version
@@ -290,6 +476,13 @@ Each ingestion *supersedes* the supplier's current availability — never edit r
   WHERE supplier_id = <id> AND is_active AND id <> ALL(ARRAY[<new source ids>]::uuid[]);
   ```
 - A brand-new supplier's first ingest is just plain inserts (nothing to carry or retire).
+- **Multi-location: run this whole section once per location** §0.1 resolved,
+  each with its own `source_id`s. The parsed rows are identical; `supplier_id`,
+  `source_id`, the carried-forward `notes` and the retirement are not — a
+  location's old version is superseded only by its own new one, and a supplier
+  in the group that this drop was not for keeps the availability it already had.
+  Record the per-location row counts separately in your output; one total hides
+  a location that silently got nothing.
 
 ## 5. Post-ingestion QA — required before commit/retirement
 
@@ -300,12 +493,44 @@ Treat extraction and writing as untrusted until the new version passes source-to
 - **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
 - **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
 - **Validate normalization:** no malformed names/sizes, no zero price presented as free, no guessed missing values, no unsafe cultivar/species alias edges, and no source dimensions left only in notes when they can be mapped unambiguously to structured fields. For every populated human-readable dimension, verify its `*_std` companion uses the approved unit/lower-bound rule or is deliberately `NULL` with an ambiguity reason; never publish a stale standard value after changing its source string.
+- **Every row with a `size` has a `size_std`**, and it is one the standard
+  allows. Run it and expect zero rows:
+  ```sql
+  SELECT size, count(*) FROM inventory
+  WHERE source_id = ANY(ARRAY[<new source ids>]::uuid[])
+    AND size IS NOT NULL AND size_std IS NULL
+  GROUP BY size;
+  ```
+  Then list `SELECT size_std, count(*) … GROUP BY size_std` for the drop and read
+  it: a bucket you did not expect from this supplier's sheet (a stray `100G` in a
+  perennial list, everything collapsing to `other`) is a parse miss, not a
+  quirk. A `size` that turned out to be a height/width/caliper belongs in that
+  column with its `*_std`, leaving both `size` and `size_std` `NULL`.
 - **Verify every alias pair you wrote — mechanically, not by eye.** For each new
   pair run `search_inventory('<other_name>')` and `search_inventory('<the row's
   name>')` and list the identities each returns. If either returns an identity
   that is not the plant you just ingested, the pair is wrong: retire it before
   committing. Report every pair with the verbatim source line that attests both
   sides. "It looked like a synonym" is not evidence and does not pass.
+- **Check the locations, when §0.1 fanned the drop out.** Every location in the
+  group got the same offering count and its own source id; no location was
+  skipped; no location outside the group was written. Expect one row per
+  location, with equal counts:
+  ```sql
+  SELECT supplier_id, count(*) FROM inventory
+  WHERE source_id = ANY(ARRAY[<all new source ids>]::uuid[])
+  GROUP BY supplier_id ORDER BY supplier_id;
+  ```
+  If the drop **named** a location, the opposite check applies: exactly one
+  `supplier_id`, and it is the one named.
+- **Check the contact links you wrote.** Each new contact has at least one
+  active link, no person was duplicated at a sister location that already had
+  them, and every location has at most one active primary:
+  ```sql
+  SELECT supplier_id, count(*) FROM supplier_contacts
+  WHERE is_active AND is_primary AND supplier_id = ANY(ARRAY[<locations>])
+  GROUP BY supplier_id HAVING count(*) > 1;   -- expect zero rows
+  ```
 - **Compare versions:** inspect unexpected row-count swings, price/quantity/spec changes, new/removed plants, duplicate inflation, and source activation/retirement. Spot-check several important searches after activation to confirm exact identities rank correctly without sibling-cultivar leakage.
 - **Record QA evidence in the output contract:** converter used, source/output counts, pages/sections checked, risky-row count and result, exceptions retained, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
@@ -328,12 +553,19 @@ Return a **compact structured report** (not a transcript). The main agent
 uses it verbatim for the report to Chris, the thread summary, and the daily
 note, so include:
 
-- **Onboarding** (when performed): new `supplier_id`, fields set via browser
-  research — including which of the availability-source columns you set and on
-  what evidence, and which you left null — `contacts` rows added (and which one
-  you made primary), newsletter subscribed (or why not).
+- **Onboarding** (when performed): new `supplier_id`, its `group_id` when the
+  row is a location of a known company, fields set via browser research —
+  including which of the availability-source columns you set and on what
+  evidence, and which you left null — `contacts` rows added and the
+  `supplier_contacts` links you made (which locations each covers, on what
+  evidence, and which one you made primary where), newsletter subscribed (or why
+  not).
+- **Locations**: which location(s) this drop was written to and why — the name
+  the source gave, or "no location named → all N in the group". Say which
+  locations you did **not** write to.
 - **Result**: supplier_id, source ids + `file_path`s created, rows inserted,
-  rows deactivated, alias pairs added.
+  rows deactivated, alias pairs added — **per location** when the drop fanned
+  out, not as one total.
 - **Follow-up questions**: anything you need from the main agent to finish
   (missing/ambiguous inputs, credentials, a decision). If you stopped early
   because of one, say exactly where you stopped and what remains.
