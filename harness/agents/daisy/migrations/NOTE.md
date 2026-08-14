@@ -10,6 +10,391 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0046_bm25_search.sql`
+
+Applied 2026-08-14 in four steps (`search_ngram_index`, `search_word_index`,
+`search_inventory_bm25`, `drop_superseded_search_indexes`), at Bhoumik's
+request. A rewrite of what search *is*: match names / size / notes, tolerate
+typos, match partially at either end, expand through aliases, and **rank by
+overlap with rare terms weighted heavily**. Filtering and sorting happen after.
+
+**Three mechanisms became one ranking.** The identity-intent gate is gone — it
+was a hard filter that picked the rarest query word and excluded every row not
+matching it, which is what IDF does natively without discarding anything. The
+pg_trgm fallback and `inventory_trgm_idx` are gone — substring matching on a
+bigram index is what that branch was approximating. `inventory_pgroonga_idx` is
+gone: superseded, and its document carried height/width/caliper, which are
+filter columns rather than search text.
+
+**Two indexes over one expression**, because one tokenizer cannot do both jobs:
+`inventory_search_ngram_idx` (`TokenBigramSplitSymbolAlphaDigit`) for exact and
+**substring** matching, and `inventory_search_word_idx` (`TokenDelimit`) to give
+fuzzy a whole-word lexicon. This was measured, not assumed: the substitution
+typo `mvskogee` returns **0** rows through the ngram index and **188** through
+the word index, because edit distance over a bigram lexicon is meaningless.
+Substring alone only catches truncations. `pgroonga_condition(..., index_name)`
+tells them apart.
+
+**Scoring.** The query is partitioned into groups, longest span first (≤ 6
+words) so `live oak` is one concept; a span naming an alias carries the other
+side of each edge as an alternative, and a group matching on any alternative
+contributes its weight once. `idf = ln(1 + (N − df + 0.5)/(df + 0.5))` per
+group; `relevance = Σ idf(matched groups)`. Term frequency is deliberately
+**binary** — BM25 with k1 → 0 — because repetition in a plant name carries no
+information, which is also why there is no `avgdl` or length normalization to
+keep fresh.
+
+`crape myrtle muskogee` splits into two groups (`crape myrtle` is one, an alias
+names it) and lands in three clean tiers: **10.38** both groups (178 rows),
+**5.82** the rare group alone (10 rows, including the typo'd source row
+`CrapeM Muskogee`), **4.55** the generic group alone (567 rows).
+
+> ⚠ **Result sets are much larger, and that is the design.** Retrieval is OR, so
+> every generic Crape Myrtle appears, ranked last. `Crape Myrtle Muskogee`
+> returns **755** where the gated version returned 116; `Live Oak` returns
+> **1,792** against 302. The first page is better and the tail is longer. To get
+> the old tightness back, put a floor on `relevance` (require the highest-IDF
+> group to match) rather than reinstating the gate.
+
+Also gone: the empty-search footgun. An empty query returns zero rows
+immediately instead of walking the catalogue, so the standing "never call it
+with an empty search" warning has been removed from the schema doc.
+
+**Verified against live data** (N = 63,788 active): partial post `Mexican
+Sycamor` and typo `Mexican Sycamoer` both top out at `SYCAMORE, TRINITY MEXICAN
+— PLATANUS MEXICANA TRINITY`; partial pre `ycamore` returns 78 rows topped by
+`SYCAMORE, BLOODGOOD LONDON PLANE`; `Muskogeee` returns 204 topped by
+`Crape Myrtle - 'Muskogee'`; `Paperbark Maple` and `Acer griseum` return the
+same 66 rows topped by `Paperbark Maple - Acer griseum`; empty search 0 rows;
+filters compose (`size_std='15G'` 150 rows, `supplier_id=32` 280). Timing 269 ms
+for a three-group query returning 755 rows.
+
+## `0045_alias_query_expansion_no_params.sql`
+
+Applied 2026-08-14 as `alias_query_expansion_no_params`, at Bhoumik's request.
+Two changes, both narrowing what the function is responsible for.
+
+**The filter and sort parameters are gone.** The signature is now
+`search_inventory(search text, fuzzy_ratio real)`. `supplier_ids`, the six
+dimension bounds, `sort_column` and `sort_direction` all left — every one is now
+applied by the caller as SQL over the result. The function answers one question:
+which rows match, and how relevant each is. The `format()`/`EXECUTE` wrapper
+went with `sort_column`, so the body is a plain `RETURN QUERY` now.
+
+Cost, recorded: `supplier_ids` used to prune `raw` before the intent gate
+counted over it, so a supplier-scoped search examined one supplier's rows. It
+now searches the catalogue and is filtered after. The trigram pass already
+scanned everything regardless, so what grew is `raw`, not a new table scan.
+Verified working: `search_inventory('Crape Myrtle') where supplier_id = 32`
+returns 280 rows from that one supplier.
+
+**Aliases expand the query instead of matching columns.** An alias used to
+contribute its endpoints as identity keys, compared with `=`/`&&` against
+`name_key` / `common_name_key` / `botanical_name_key` / `cultivar_keys`. Now the
+other side is substituted into the pgroonga query itself. The query is
+partitioned greedily, longest span first (≤ 6 words); each matched span becomes
+one OR-group and the groups stay AND-ed:
+
+```
+live oak boardwalk  ->  ((live oak) OR (quercus virginiana)) boardwalk
+```
+
+AND-ing the groups is what keeps an expanded query from being broader than the
+typed one, and it handles several aliases without a combinatorial blow-up — two
+substituted spans give one `(a OR a') (b OR b')`, not four variants. With an
+empty alias directory the expansion reassembles the original query exactly.
+
+**The gain is ranking.** An alias-reached row now matches the *text* branch, so
+pgroonga scores it; under the key mechanism every alias-only match scored
+exactly 0 and sorted below every direct hit. Measured on the real
+`Paperbark Maple` ↔ `Acer griseum` edge: 61 rows returned, **48 of them with no
+"paperbark" anywhere in the name**, scoring 2 and 4.
+
+That matters more than it sounds, because relevance here is coarse. Groonga's
+default scorer counts term occurrences — it is **not BM25**. Over 491 rows for
+`crape myrtle muskogee`: six distinct scores (0, 3, 4, 6, 8, 10) with **404 at
+zero**, 387 of those admitted by the trigram pass, which contributes recall only
+and never a score. For most result sets the effective order is
+`updated_at desc, name asc`, so moving a whole class of matches off zero is a
+real change to what surfaces first.
+
+> ⚠ **What this gives up.** `alias_type` no longer constrains matching. It could
+> only ever do so by naming a column to compare against, and no column
+> comparison remains — a `cultivar` edge and a `plant` edge expand the query
+> identically. The structural guarantee 0040 introduced is gone; the ingestion
+> SOP's quality bar is again the only defence.
+>
+> Demonstrated in a rolled-back transaction, on the exact shape 0025 retired 66
+> of: a species ↔ cultivar edge turns `search_inventory('Zzzmuskogee')` into a
+> search for the whole species — it returns the bare species row **and** the
+> sibling `Zzznatchez`, where under 0044's key matching it returned only
+> `Zzzmuskogee`. Such a query is one word, so the identity-intent gate does not
+> run to catch it. `alias_type` is kept: it documents what a pair asserts and
+> still separates the two kinds in *Also known as*.
+
+Unchanged and deliberately so: the `qkey` branch (a whole query collapsing to a
+row's identity key, which is how "LIVEOAK" finds "Live Oak") is not an alias
+mechanism; the trigram recall pass; and the identity-intent gate.
+
+**Fixtures after apply:** `Abelia Francis Mason` 10/9, `Japanese Holly Compacta`
+4/2, `Clusia Small Leaf` 17/4, `Mexican Sycamor` 21/7 — all unchanged.
+`Crape Myrtle` 570/35, `Crape Myrtle Muskogee` 116/28 and `Live Oak` 302/36 have
+moved with the ongoing ingest, not with this migration.
+
+## `0044_search_inventory_cultivar_keys_out.sql`
+
+Applied 2026-08-14 as `search_inventory_cultivar_keys_out`, at Bhoumik's
+request. Adds `cultivar_keys text[]` to the RETURNS TABLE (30 columns); the body
+only gains the projection. DROP + CREATE with grants restored, since a
+return-type change cannot go through CREATE OR REPLACE.
+
+**Why.** The app moved every column filter off the browser and onto SQL applied
+over the RPC result. Filtering a page the server already truncated answers a
+different question from the one asked, and the numbers proved it: `Crape Myrtle`
+matches 570 rows, 105 of them `15G`, but only **73** land in the 300-row first
+page — so 32 were unreachable by ticking the size box, and the header's
+"showing 73 of 570" was wrong twice over.
+
+Every other filterable value was already projected (`size_std`, `unit_price`,
+`quantity`, the three `*_std` dimensions, `supplier_category`/`_city`/`_state`).
+The cultivar was the exception: the column holds a comma-separated residual
+(`Wolff, Emperor 1`), so selecting one name needs the normalized array matched
+with `&&`. The alternatives were an exact whole-cell match (wrong for multi-name
+rows) or a substring `ilike` (`Wolff` matches inside `Wolffii`).
+
+The six dimension parameters are **kept but no longer sent by the app** — the
+bounds are outer filters now like everything else. Verified equivalent before
+switching, on three fixtures: `Crape Myrtle` h≥8 254/17 both ways, `Live Oak`
+h≥10 180/21, `Japanese Holly Compacta` cal≥1 0/0. They are not identical *by
+construction* — a parameter prunes inside `raw`, which is what the intent gate
+counts over, so pruning could in principle change which word the gate picks —
+but they agree on every fixture measured. Leave the parameters in place for
+callers that want the early pruning.
+
+## `0043_dash_delimited_plant_name.sql`
+
+Applied 2026-08-14 as `dash_delimited_plant_name`, at Bhoumik's request.
+`compose_plant_name()` only — one function, no table, view, index or row.
+
+The derived `inventory.name` joins its non-empty parts with **` - `** instead of
+wrapping the tail in brackets:
+
+```
+before   Forest Pansy Redbud [Cercis canadensis, Forest Pansy]
+after    Forest Pansy Redbud - Cercis canadensis - Forest Pansy
+```
+
+**One separator between every part**, not a dash replacing the bracket around a
+still-comma-separated tail. The comma stopped being available as a part
+separator when 0041 made `cultivar_variety_trade_name` itself comma-separated:
+`Acer palmatum - Wolff, Emperor 1` has to mean "botanical `Acer palmatum`,
+cultivar column `Wolff, Emperor 1`", and would be unreadable if commas divided
+the parts too. The dash is **spaced**, which distinguishes it from the hyphens
+inside real names (`KN30-8`, `Li'l Bang`), and it is how the trade prints it —
+`Crape Myrtle - 'Muskogee'` is the case 0035 called out as needing this.
+
+**Safe by construction, not by audit.** `normalize_plant_key()` keeps letters
+only, so the identity key is byte-identical between the two forms.
+`normalize_search_text()` maps all punctuation to spaces, so the two differ
+**only in whitespace-run length** — the normalized strings are not equal, but
+their token arrays are (`'forest pansy redbud   cercis…'` vs
+`'forest pansy redbud  cercis…'`), and `TokenDelimit` ignores run length. 0035
+measured the same thing across 924 rows. No search result can move; the pgroonga
+document and index need no rebuild.
+
+**No row rewritten.** Every existing row still has NULL parts, so its `name` is
+untouched legacy text the trigger leaves alone; the 7,691 rows 0035 rewrote to
+brackets keep them until the re-ingest.
+
+Verified after apply: all four shapes compose correctly, NULL for three NULLs,
+`normalize_plant_key` equal across forms, token arrays equal.
+
+## `0042_alias_query_term_expansion.sql`
+
+Applied 2026-08-14 as `alias_query_term_expansion`, at Bhoumik's request.
+**Aliases now enrich the query.** `search_inventory` only — no table, view or
+index touched, `RETURNS TABLE` unchanged, so `CREATE OR REPLACE`.
+
+The alias branch used to select an edge only when the **whole query** matched
+that edge's text, and pgroonga's `&@~` is **AND** across tokens. Measured on the
+live database rather than assumed:
+
+```
+document = 'zzzoak  quercus zzztestensis  zzzboardwalk  15 g'
+  &@~ pgroonga_condition('zzzoak zzzbwalk')      -> false
+  &@~ pgroonga_condition('zzzoak zzzboardwalk')  -> true
+```
+
+So `Live Oak Boardwalk` could never reach the `Live Oak` ↔ `Quercus virginiana`
+edge: no single edge's document contains both terms. **The cases that appeared
+to work were the pg_trgm fallback firing by luck** —
+`'quercus zzztestensis zzzbwalk' <% document` is true while
+`'zzzoak zzzbwalk' <% document` is false, which is why the identical query
+worked through a plant's botanical name and returned nothing through its common
+name.
+
+The branch now also selects an edge when **any contiguous run of query words**
+collapses to one of its endpoint keys, capped at 6-word spans. Spans rather than
+single words because alias names are routinely two words — neither `live` nor
+`oak` alone keys to `liveoak`. **Purely additive:** the whole-query fuzzy,
+prefix and `qkey` conditions are untouched and still OR'd in.
+
+**Why this does not reopen the 0006/0007/0021/0025/0028/0029 wound**, all three
+predating this change: admission is exact key *equality*, not text, so a span
+that merely looks like part of a name matches nothing; the alias types stay
+separate, so a `cultivar` edge still cannot reach a generic row of its species;
+and the identity-intent gate still runs after admission, so an invented cultivar
+still returns nothing.
+
+**Verified** in a rolled-back transaction: `Zzzoak Zzzbwalk` (common name +
+cultivar alias), which returned nothing before, now returns exactly the cultivar
+row; the botanical form still works; the trade name in the same column resolves;
+`Zzzoak Zzznotacultivar` still returns **nothing**; and the species query still
+returns both the cultivar row and the bare species row. Live fixtures byte-equal
+to the 0041 measurements: `Abelia Francis Mason` 10/9, `Japanese Holly Compacta`
+4/2, `Crape Myrtle Muskogee` 100/20, `Crape Myrtle` 532/30, `Live Oak` 295/35,
+`Mexican Sycamor` 21/7, `Clusia Small Leaf` 17/4.
+
+Those counts are a **point-in-time** comparison, not a stable baseline: the
+catalogue is live and daisy keeps ingesting into it (active rows 62,572 at 0035
+→ 62,921 an hour after 0043), so `Crape Myrtle Muskogee` already reads 102.
+Re-derive both sides in one sitting before treating any movement as a
+regression.
+
+**Not observable on live data yet** — `plant_aliases` is empty until the
+re-ingest, so the new branch contributes nothing to those fixtures by
+construction. That is why they are unchanged, and it is not evidence the change
+works; the synthetic transaction is.
+
+## `0041_multi_name_cultivar_keys.sql`
+
+Applied 2026-08-14 as `multi_name_cultivar_keys`, at Bhoumik's request, hours
+after 0040 and correcting it.
+
+0040 assumed `cultivar_variety_trade_name` held **one** name — the cultivar —
+with any other name for the same selection carried as a `cultivar` alias edge.
+Bhoumik's rule is different and simpler to parse against a source: **the column
+captures everything in the printed name that the common and botanical name
+don't**, minus size / form / grade. `Acer palmatum 'Wolff' - Emperor 1®`
+therefore stores both selection names.
+
+That broke 0040's key, and quietly:
+`normalize_plant_key('Wolff, Emperor 1')` = `wolffemperor`, which equals neither
+`wolff` nor `emperor`. Every exact-match path 0040 built on `cultivar_key` — the
+typed alias branch and `plant_alias_names` — would have silently stopped
+matching the moment a row named two things, leaving only the fuzzy document
+branch: the fail-open behaviour 0026/0027 removed.
+
+**`inventory.cultivar_key text` → `inventory.cultivar_keys text[]`**, one
+normalized key per name, with matching moved from `=` to array overlap (`&&`).
+It stays **exact per name** — no substring test, no fuzzy fallback — and a row
+naming two selections is found by either. GIN index
+`inventory_cultivar_keys_idx`; the scalar btree is gone.
+
+The column's *format* is the SOP's business, not the database's: names are
+comma-separated, the separator the bracket and `other_names` already use, so the
+cell reads as prose. The trigger is deliberately more forgiving than the SOP and
+also splits on `;` and `|`, so an ingest reaching for a different separator
+costs a wrong-looking cell rather than a row that silently stops matching its own
+aliases. It does **not** split on `-` or `/`: `KN30-8` is one cultivar code, and
+`Globe/Spiral` is a form the SOP keeps out of the column entirely.
+
+`plant_alias_names`'s fourth parameter becomes `text[]`, so the function was
+dropped and recreated and `inventory_enriched` with it (both had to go before
+the column could be dropped — the first apply attempt failed on exactly that
+dependency). `search_inventory` needed no return-type change, so it went through
+`CREATE OR REPLACE`.
+
+**Verified** in a rolled-back transaction: `Wolff, Emperor 1` derives
+`{emperor, wolff}` and composes to `… [Acer zzztestensis, Wolff, Emperor 1]`;
+`Alpha; Beta | Gamma` derives all three; searching either name returns the row;
+a `cultivar` edge from a second supplier's single name reaches it, and the bare
+species row beside it is returned by **none** of the cultivar queries. Fixtures
+unchanged from 0040.
+
+## `0040_typed_plant_identity.sql`
+
+Applied 2026-08-14 as `typed_plant_identity`, at Bhoumik's request, in one
+transaction. The plant identity is now three columns and the alias directory is
+typed.
+
+**`inventory` gains `common_name`, `botanical_name` and
+`cultivar_variety_trade_name`**, each carrying only what the availability source
+prints, plus a derived key for each. `inventory.name` becomes the composition —
+`Forest Pansy Redbud [Cercis canadensis, Forest Pansy]` — written by
+`trg_inventory_derive_identity` from `compose_plant_name()`. **That is
+byte-for-byte the format the ingestion SOP already required**, so no existing
+row moved, the pgroonga document is unchanged and `inventory_pgroonga_idx` was
+not rebuilt: `name` contains every token of every part, which is exactly why the
+index did not need to grow.
+
+The three part keys are trigger-maintained rather than `GENERATED ... STORED`
+**on purpose**: a stored generated column forces a full rewrite of a 236k-row
+table, which would also rebuild the pgroonga and trgm indexes inside the
+migration's transaction. Plain columns plus the trigger that was needed for
+`name` anyway made the whole migration metadata-only.
+
+**`plant_other_names` is dropped; `plant_aliases` replaces it, typed.** A
+`plant` edge (common ↔ botanical, synonym, spelling variant) is matched against
+a row's `common_name_key` / `botanical_name_key`; a `cultivar` edge (cultivar ↔
+variety ↔ trade name) against its `cultivar_key` **only**. A cultivar edge is
+therefore never compared to a column a generic row fills, so it cannot make
+every row of a species answer a search for one selection — the single failure
+mode 0006, 0007, 0021, 0025, 0028 and 0029 each existed to clean up after, now
+closed structurally instead of by a quality bar. The corollary: cultivar and
+trade-name pairs are finally *expressible*, and the old blanket ban on them in
+the SOP is gone.
+
+Two long-standing holes closed with it. Pairs now carry `source_id` and
+`source_line`, so an audited edge is distinguishable from a fresh guess and
+traceable to the drop that wrote it — 0028's culprit had to be attributed by
+reading id ordering. And `dedupe_plant_aliases()` rejects the **mirrored**
+orientation as well as the direct one, which is what let 168 retired pairs come
+back reversed in the old table; because it ignores `is_active`, a retired pair
+is a genuine blocklist again (the property 0010 lost by deleting rather than
+tombstoning).
+
+`plant_alias_names()` is one implementation of the "Also known as" value, shared
+by `inventory_enriched` and `search_inventory` so they cannot drift. It also
+**drops any alias already spelled inside the row's own `name`** — since `name`
+is the composition of the three parts, its key contains all three part keys, so
+such an alias would only repeat the Plant column.
+
+`search_inventory` was dropped and recreated (a `RETURNS TABLE` change cannot go
+through `CREATE OR REPLACE`), gaining the three parts and — since the drop was
+unavoidable anyway — `internal_notes`, which 0039 had deliberately left out and
+the app had been hydrating with an extra keyed read per page. 29 return columns,
+one PostgREST signature, grants restored, sort whitelist extended with the three
+name columns. Same signature, same ordering, same dimension bounds.
+
+**No backfill, by instruction.** All 235,976 existing rows keep their `name` and
+have NULL in all three parts; the 13,700 alias pairs went with the table.
+Bhoumik is dropping the catalogue and re-ingesting it. Deriving the parts from
+the existing `name` was not attempted — 0005 tried exactly that from the alias
+graph and abandoned it, and the SOP requires each part to be what the source
+printed.
+
+**Verified after apply:** one RPC signature; `inventory_enriched` 28 columns and
+`security_invoker = true`; 237,509 inventory rows, 0 with any part set;
+`compose_plant_name` round-trips all four SOP shapes and returns NULL for three
+NULLs. In a rolled-back transaction: a row written from parts composed to
+`Zzztest Redbud [Cercis zzztestensis, Forest Zzz]` with all three keys derived;
+duplicate and mirrored alias inserts were both silently skipped (2 rows from 4
+inserts); the cultivar edge attached to the cultivar row and **not** to the
+plain species row beside it; searching the trade name returned only the cultivar
+row; and an alias equal to a name already inside the composed identity was
+suppressed from *Also known as*. Live fixtures against real data:
+`Abelia Francis Mason` 10 rows / 9 suppliers and `Japanese Holly Compacta` 4 / 2,
+both matching the 0021/0026/0035 baselines; `Mexican Sycamor` still prefix-
+matches at 21 / 7. `Crape Myrtle` moved 548/35 → 532/30 and
+`Crape Myrtle Muskogee` 102/21 → 100/20 — that is the retired alias directory,
+which is expected and temporary.
+
+**Rollback:** the structural half is reversible by restoring 0030's
+`search_inventory` and 0039's `inventory_enriched` and dropping the new
+columns/table. `plant_other_names` was dropped **without a snapshot**, by
+instruction; its rows are not recoverable from this database.
+
 ## `0039_inventory_internal_notes.sql`
 
 Applied 2026-08-14 as `inventory_internal_notes`, at Bhoumik's request. Adds

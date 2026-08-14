@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding-and-ingestion
-description: Onboard a supplier and ingest one availability drop (price list, availability sheet, website catalog, or photo) into Supabase end-to-end — every database write in the ingestion path belongs to this skill. Covers resolving which location each row belongs to when one source carries several locations of a group, onboarding a new suppliers row with browser enrichment and newsletter signup, contacts/supplier_contacts linking and is_primary rules, source conversion (markitdown/pdftoppm), parsing and normalization of name/size/size_std/price/dimensions, notes vs internal_notes, the plant_other_names alias quality bar, provenance in inventory_sources, updating existing inventory rows in place and inserting only genuinely new ones (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a new supplier, or fixing/reviewing inventory rows written by an ingest. (v2.0.0)
+description: Onboard a supplier and ingest one availability drop (price list, availability sheet, website catalog, or photo) into Supabase end-to-end — every database write in the ingestion path belongs to this skill. Covers resolving which location each row belongs to when one source carries several locations of a group, onboarding a new suppliers row with browser enrichment and newsletter signup, contacts/supplier_contacts linking and is_primary rules, source conversion (markitdown/pdftoppm), parsing and normalization into the three name columns (common_name/botanical_name/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the typed plant_aliases quality bar (plant vs cultivar edges), provenance in inventory_sources, updating existing inventory rows in place and inserting only genuinely new ones (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a new supplier, or fixing/reviewing inventory rows written by an ingest. (v3.3.0)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "3.3.0"
 ---
 
 # Supplier onboarding & availability ingestion
@@ -12,7 +12,7 @@ Onboard a supplier and ingest one availability drop (price list, availability
 sheet, website catalog, or photo) into Supabase. This procedure is normally run
 by a **task thread** dispatched from the `availability-drop-intake` skill, and it
 owns **every database write in the ingestion path** — onboarding, contacts,
-parsing, and all `inventory` / `inventory_sources` / `plant_other_names` rows.
+parsing, and all `inventory` / `inventory_sources` / `plant_aliases` rows.
 
 **Where the boundary is.** The main agent coordinates: it identifies the
 supplier, briefs you, digests your report, and labels the email. It never writes
@@ -33,7 +33,7 @@ skill (§2)** — the supplier the main agent resolved, the source material, the
 ThreadId, and the current timestamp. Read the brief rather than re-deriving any
 of it. Two things to read before you write anything:
 
-- **`knowledge/SCHEMA.md`** — before any query.
+- **`knowledge/files/SCHEMA.md`** — before any query.
 - **`workspace/suppliers/[<supplierId>]:<Name>/notes.md`** if it exists — this
   supplier's known quirks and parsing tricks. Apply them.
 
@@ -269,70 +269,129 @@ One logical row per **plant × size offering**. Normalize every line:
   bucket it belongs to. The app's size filter is built from `size_std`, so a row
   you leave unmapped is invisible to every size checkbox — and `size` still has
   to be clean, because it is what the table cell shows and what search reads.
-- **Name** (`inventory.name`): one column carries the whole identity, written as
-  **`Name [scientific name, variant, cultivar]`**.
-  - `Name` is the plant name **as the source prints it**, in full — including any
-    cultivar, selection, form, or trade name that is part of that printed name.
-    Don't invent a name the source doesn't give, and don't strip anything it does.
-  - Append the bracket when the source also gives a **scientific/botanical name**
-    and/or a **variant / cultivar / trade name**, in that order: both →
-    `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`; scientific name only →
-    `Eastern Redbud [Cercis canadensis]`; variant only →
-    `Forest Pansy Redbud [Forest Pansy]`. Neither → no bracket at all.
-  - There is **no `variety` column** — the variant lives in the bracket. Size is
-    still its own column and never goes in the name.
-  - Put the **common name first** whenever the source prints one, even if it also
-    prints the botanical name: `Redbud, Forest Pansy [Cercis canadensis, Forest
-    Pansy]`, not `Cercis canadensis [Forest Pansy]`. The name is the only place a
-    printed common name is kept, so dropping it loses it permanently — it cannot
-    be recovered later without reparsing the source.
-- **Aliases** (`plant_other_names`): an alias exists for exactly one reason — so a
-  search finds the row when the user types **another name the same plant is known
-  by**. Insert `(inventory.name, other_name)` pairs, where `other_name` is a
-  genuine common name, the botanical/scientific name, an accepted synonym, an
-  abbreviation, or a spelling variant.
+- **Name — three columns, one per thing the source prints.** Since migration
+  0040 the identity is split, and you write the parts, never the whole:
+
+  | Column | Holds | Example |
+  |---|---|---|
+  | `common_name` | the common name as printed | `Forest Pansy Redbud` |
+  | `botanical_name` | the botanical / scientific name as printed | `Cercis canadensis` |
+  | `cultivar_variety_trade_name` | **everything else in the printed name** — cultivar, variety, selection, trade name — as printed | `Forest Pansy` |
+
+  - **`inventory.name` is derived. Never write it.** A database trigger joins
+    the parts it has with **` - `**, in the order common, botanical, cultivar —
+    `Forest Pansy Redbud - Cercis canadensis - Forest Pansy` — omitting each
+    part the source didn't give: common + botanical → `Eastern Redbud - Cercis
+    canadensis`; common + cultivar → `Forest Pansy Redbud - Forest Pansy`;
+    botanical + cultivar and no common name → `Acer palmatum - Bloodgood`.
+    Anything you put in `name` on a row that has parts is silently overwritten.
+    The dash is **spaced**, which is what tells it apart from the hyphen inside
+    a name like `KN30-8`; and the separator is a dash rather than a comma
+    because the cultivar column is itself comma-separated. `name_key`, `common_name_key`,
+    `botanical_name_key` and `cultivar_keys` are derived too — never write those
+    either.
+  - **Each column carries only what the source explicitly prints for that
+    offering.** This is the whole point of the split. Don't move a botanical
+    name you happen to know into `botanical_name`, don't split a printed common
+    name into a cultivar you inferred, and don't promote a trade name to a
+    cultivar because you recognise it. A part the source doesn't print is
+    **NULL**, and NULL is a fact.
+  - **Keep the common name.** If the source prints one, it goes in
+    `common_name` even when the botanical name is printed too. Nothing else
+    records it; dropping it loses it until someone reparses the source.
+  - **`cultivar_variety_trade_name` takes everything else in the printed name.**
+    It is the residual: whatever the source's plant name carries that the common
+    and botanical name don't. Cultivar, variety, selection, trade name — all of
+    it, because sources do not distinguish them reliably and guessing which is
+    which loses information. **Comma-separate them** when a row prints more than
+    one:
+
+    | Source prints | `common_name` | `botanical_name` | `cultivar_variety_trade_name` | derived `name` |
+    |---|---|---|---|---|
+    | `Acer palmatum 'Wolff' - Emperor 1®` | — | `Acer palmatum` | `Wolff, Emperor 1®` | `Acer palmatum - Wolff, Emperor 1®` |
+    | `Forest Pansy Redbud (Cercis canadensis 'Forest Pansy')` | `Forest Pansy Redbud` | `Cercis canadensis` | `Forest Pansy` | `Forest Pansy Redbud - Cercis canadensis - Forest Pansy` |
+    | `Crape Myrtle - 'Muskogee'` | `Crape Myrtle` | — | `Muskogee` | `Crape Myrtle - Muskogee` |
+
+    The comma matters: the database splits on it to build `cultivar_keys`, one
+    identity key per name, and that is what a `cultivar` alias edge and the
+    app's Cultivar filter match against. Run two names together with a dash and
+    they key as one string that matches neither — the row silently stops
+    answering searches for either name. (`;` and `|` are tolerated; `-` and `/`
+    are **not** split, because `KN30-8` is one cultivar code.)
+  - **What never goes in it**, however the source prints it inline: size and
+    container, height / width / caliper, form and grade codes (`STD`, `Bush`,
+    `Multi-Trunk`, `Clump`, `Globe`, `Low Graft`, `Spec`), pack counts. Those
+    have their own columns, or belong in the row's `notes`. `Buxus x 'Green
+    Mountain' Globe` is cultivar `Green Mountain` with `Globe` noted, not
+    `Green Mountain Globe`; `Prunus serrulata 'Kwanzan' 4' Graft` is cultivar
+    `Kwanzan`, height `4'`, `Graft` noted.
+- **Aliases** (`plant_aliases`): an alias exists for exactly one reason — so a
+  search finds the row when the user types **another name for the same thing**.
+  The table is **typed**, and the type decides what the pair can ever match:
+
+  | `alias_type` | The two sides are | Compared against | Examples |
+  |---|---|---|---|
+  | `plant` | two names for the same **plant** | `common_name` / `botanical_name` | `Live Oak` ↔ `Quercus virginiana`, `Crape Myrtle` ↔ `Crepe Myrtle`, `Sedum spectabile` ↔ `Hylotelephium spectabile` |
+  | `cultivar` | two names for the same **selection** | `cultivar_variety_trade_name` | `Wolff` ↔ `Emperor 1`, a variety name ↔ its trade name |
+
+  **The type documents what a pair asserts. It no longer protects you.** Until
+  migration 0045 a `cultivar` edge was only ever compared to the cultivar
+  column, so it could not make a generic row of a species answer a search for
+  one selection. Aliases now **expand the query** instead of matching columns,
+  and an expanded query has no column to be restricted to — so a `plant` edge
+  and a `cultivar` edge behave identically at match time.
+  
+  **That makes the quality bar below the only thing standing between a bad pair
+  and a bad result**, exactly as it was before 0040. A pair joining a species to
+  one of its cultivars turns a search for that cultivar into a search for the
+  whole species, returning every sibling selection — the failure migrations
+  0006, 0007, 0021, 0025, 0028 and 0029 each existed to clean up, and it is one
+  word long so the multi-word safety gate never runs. Set `alias_type` correctly
+  anyway: it records what you meant, and it is what separates the two kinds in
+  the *Also known as* display.
+
+  ```sql
+  INSERT INTO plant_aliases (alias_type, name, other_name, source_id, source_line)
+  VALUES ('plant', 'Live Oak', 'Quercus virginiana', '<this drop''s source id>',
+          'LIVE OAK (Quercus virginiana)  15G  $48.00');
+  ```
+
   **Both sides must be printed in the source you are ingesting, for the same
   offering** — the botanical name beside the common name, a synonym in the same
   cell, a spelling variant of that line. **Never supply the other side from your
   own knowledge, from the web, or from another supplier's list.** If the source
   prints one name, insert nothing; the identity is already searchable through
-  `inventory.name`. This is not a style preference: alias 44255
+  its own columns. This is not a style preference: alias 44255
   (`Yucca gloriosa` ↔ `Yucca, Soft Leaf`, retired by migration 0028) was created
   exactly that way and put nine wrong rows across four suppliers into Chris's
   "soft leaf yucca" search. Soft-leaf yucca is *Yucca recurvifolia*; the source
   that printed the label printed that botanical name too, right there on the row.
-  **Quality bar — an alias is a liability, not a freebie.** Since migration
-  0026 (2026-08-12), search and the displayed *Also known as* use only pairs
-  **directly incident** to a row's own identity — search no longer hops through
-  a shared hub to sibling names. A bad pair still wrongly equates two plants in
-  both directions, and cleanups keep having to retire them: a 2026-07-31 audit
-  retired most of the directory, and the focal audits behind migrations 0021
-  (Abelia, 15 edges) and 0025 (Crape Myrtle, 66 edges) retired hub/cultivar
-  pairs that were causing false positives in cultivar searches. **When in
-  doubt, insert nothing** — a missing alias costs one search; a wrong one
-  corrupts many. Before inserting, every pair must pass all of these:
 
-  - **Attested by this source, on this line.** You can quote the line that
-    prints both names. A botanical name you know but the source doesn't print
-    belongs in `inventory.name`'s bracket (see *Name* above), where it is
-    already searchable — not in a pair. **A pair you cannot quote a line for
-    does not ship.**
+  **Quality bar — an alias is a liability, not a freebie.** Search and the
+  displayed *Also known as* use only pairs **directly incident** to a row's own
+  identity keys; there is no hopping through a shared hub to sibling names. A bad
+  pair still wrongly equates two things in both directions. **When in doubt,
+  insert nothing** — a missing alias costs one search; a wrong one corrupts many.
+  Before inserting, every pair must pass all of these:
+
+  - **Attested by this source, on this line, and recorded.** You can quote the
+    line that prints both names, and you **put that line in `source_line`** with
+    the drop's `source_id`. A botanical name you know but the source doesn't
+    print belongs nowhere — not in `botanical_name`, not in a pair. **A pair you
+    cannot quote a line for does not ship.**
   - **Never two line items from the same list.** If both names appear as
     separate offerings in this drop — or in any drop from this supplier — they
     are two products, not two names for one. A supplier does not price the same
     plant twice under different names in one availability sheet. Check before
     inserting; this is what 44255 got wrong.
-  - **Same plant, not a relative.** Both sides must name the *same* plant. Never
-    a species ↔ one of its cultivars, never sibling cultivars, and never two
-    different species — `Cercis canadensis` ↔ `Cercis mexicana` is wrong, they
-    are different plants. Genuine renames are fine (`Sedum spectabile` ↔
-    `Hylotelephium spectabile`). Where taxonomies disagree, **the trade wins**:
-    if the two names are sold as different products they are different plants,
+  - **Same thing, not a relative.** Both sides must name the *same* plant (or
+    the same selection, for a `cultivar` edge). Never a species ↔ one of its
+    cultivars **in a `plant` pair** — that is what the `cultivar` type is for —
+    never sibling cultivars, and never two different species:
+    `Cercis canadensis` ↔ `Cercis mexicana` is wrong, they are different plants.
+    Genuine renames are fine. Where taxonomies disagree, **the trade wins**: if
+    the two names are sold as different products they are different plants,
     however a botanist would classify them.
-  - **No cultivar, selection, variant, trade name or patent code in
-    `other_name`** — not `'Forest Pansy'`, `Merlot Redbud`, `PP21929`,
-    `Kaleidoscope™`. Those identify one selection. They are already searchable
-    inside `inventory.name`, so the alias adds nothing and costs cross-matches.
   - **Nothing generic.** A label that fits many plants — `Oak`, `Grass`, `Maple`,
     `Redbud`, `Perennial`, `Native`, `Shade Tree` — is a category, not a name.
     Text search already finds a name containing "Maple"; an alias only wires
@@ -341,12 +400,16 @@ One logical row per **plant × size offering**. Normalize every line:
   - **A name, not data.** Never a size, grade, container or form code (`15 G`,
     `B&B`, `M/S`, `STD`, `Clump`), a price, a quantity, a SKU, a zone or shipping
     note, or a truncated fragment of a longer name.
-  - **Not redundant.** Skip it if it differs from `inventory.name` only by
-    punctuation, casing, spacing, or a size/form suffix — those already match.
+  - **Not redundant.** Skip it if it differs from the column it would match only
+    by punctuation, casing or spacing — those already match. A name already
+    spelled inside the row's composed `name` is not shown under *Also known as*
+    at all, so a pair that only restates the identity buys nothing.
 
-  New pairs are `is_active = true` (the default). Inactive pairs are historical
-  and power neither search nor display; **never reactivate one** to "restore" a
-  name, and never re-add a pair a cleanup retired.
+  New pairs are `is_active = true` (the default). A BEFORE INSERT trigger
+  silently drops duplicates, self-pairs, empty keys **and mirrored pairs**, so
+  blind-insert without conflict handling. Inactive pairs are historical: they
+  power neither search nor display, they block re-insertion of the same pair in
+  either orientation, and you **never reactivate one** to "restore" a name.
 - **Price**: `unit_price` is nullable; use the lower bound if the source gives a range. Store `NULL` when the supplier provides no price, and preserve a numeric zero only when the source explicitly prints zero. Never coerce a missing/blank price to `0`, and never silently reinterpret legacy zero rows without source-level review. Missing price does not make an inventory row invalid or free. Record "price on request / not printed" in `internal_notes` (it is your reading of the source, not something the supplier wrote). Stock counts go in `quantity`.
 - **Combined sizes with one shared quantity**: create one inventory row for each printed size (for example, a `3 G/5 G` offer becomes separate `3 G` and `5 G` rows). Copy the source's shared quantity to both rows; quantities are tentative sourcing signals. State in each row's dated `internal_notes` that the quantity is the supplier's shared/tentative count across the combined sizes and that you split the offering, so reviewers do not add the copied values together as guaranteed stock. (Approved by Bhoumik, 2026-07-31.)
 - **Two note columns, and they are not interchangeable.** Every row can carry
@@ -534,19 +597,20 @@ skills/agent/supplier-onboarding-and-ingestion/scripts/match-candidates \
   --supplier <supplier_id> --entries /tmp/<thread>-parsed.json
 ```
 
-Feed it your parsed offerings as a JSON array — `name` required, plus `size`,
-`unit_price`, `quantity`, `height`, `width`, `caliper` when you have them, so the
-output puts your entry and its candidates side by side. For a multi-location drop
-run it **once per `supplier_id`** in the §0.1 mapping, with only that location's
+Feed it your parsed offerings as a JSON array — the **three name parts** from §2
+(`common_name`, `botanical_name`, `cultivar`), plus `size`, `unit_price`,
+`quantity`, `height`, `width`, `caliper` when you have them, so the output puts
+your entry and its candidates side by side. For a multi-location drop run it
+**once per `supplier_id`** in the §0.1 mapping, with only that location's
 entries. `--help` documents the rest; the defaults are the ones to use.
 
 For each entry it returns up to five of that supplier's **active** rows plus the
 single best **retired** one, ranked by trigram similarity on the plant identity
 with a size-agreement bonus, showing only the columns that distinguish one
-offering from another — `id`, `name`, `size`/`size_std`, `unit_price`,
-`quantity`, `height`/`width`/`caliper`, `is_active`, and `dupes` (how many
-identical rows collapsed into that line). Notes are deliberately not fetched:
-they are long and they never tell two offerings apart.
+offering from another — `id`, `name`, `cultivar`, `size`/`size_std`,
+`unit_price`, `quantity`, `height`/`width`/`caliper`, `is_active`, and `dupes`
+(how many identical rows collapsed into that line). Notes are deliberately not
+fetched: they are long and they never tell two offerings apart.
 
 **The `SUGGEST` line is a sort aid, not a decision.** It buckets by score alone
 and knows nothing about the plant. You decide, per entry:
@@ -563,7 +627,10 @@ Two things that decide most of the judgement calls:
 
 - **A high score is not identity.** `Abies concolor [Blue Select]` and
   `Abies concolor [Candicans]` are different plants that score close together;
-  sibling cultivars are the classic trap. Read the name, don't read the number.
+  sibling cultivars are the classic trap. When both your entry and the candidate
+  name a cultivar and they disagree, the line is marked **`CULTIVAR MISMATCH`**
+  and is excluded from the suggestion — but the mark only fires when *both* sides
+  name one. Read the name, don't read the number.
 - **No candidates does not mean new.** If the supplier prints the botanical name
   where they used to print the common one (or the reverse), similarity on the
   identity key finds nothing. Before inserting, check with
@@ -592,14 +659,18 @@ drop has one, and `is_active = true`. Notes follow §2's split:
 `updated_at` is maintained by trigger; don't write it.
 
 **3. Insert a genuinely new offering** with the normalized fields from §2,
-stamping `supplier_id` and `source_id`. `id` defaults to `gen_random_uuid()`;
-**never write `name_key`** — it's a generated column, and never match plant names
-with `=` on raw text (join on `name_key` / `normalize_plant_key()`).
+stamping `supplier_id` and `source_id`. `id` defaults to `gen_random_uuid()`.
+Write `common_name` / `botanical_name` / `cultivar_variety_trade_name`;
+**never write `name` or any `*_key` column** — the trigger derives all of them,
+and a value you put there is overwritten. Never match plant names with `=` on
+raw text (compare `name_key` / `common_name_key` / `botanical_name_key`, test
+`cultivar_keys` with `&&` or `= any`, or wrap the text in
+`normalize_plant_key()`).
 
-**4. Insert only approved active alias pairs into `plant_other_names`** as
-defined in §2: scientific names and true synonyms/spelling variants, never
-cultivar/selection/trade-name aliases. A BEFORE INSERT trigger silently drops
-duplicates and self-pairs, so blind-insert without conflict handling; new valid
+**4. Insert only approved active alias pairs into `plant_aliases`** as defined
+in §2, each with its `alias_type`, its `source_id` and the `source_line` that
+attests it. A BEFORE INSERT trigger silently drops duplicates, self-pairs, empty
+keys and mirrored pairs, so blind-insert without conflict handling; new valid
 pairs use `is_active = true` (default).
 
 **Do not run a retirement pass.** No `UPDATE inventory SET is_active = false` and
@@ -642,12 +713,43 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   perennial list, everything collapsing to `other`) is a parse miss, not a
   quirk. A `size` that turned out to be a height/width/caliper belongs in that
   column with its `*_std`, leaving both `size` and `size_std` `NULL`.
+- **Check the name split.** Every row this drop wrote has the parts the source
+  printed and nothing else, and its derived `name` reads the way §2 says. Expect
+  zero rows from each of these:
+  ```sql
+  -- a part that is neither NULL nor real text, or an identity with no name at all
+  SELECT id, common_name, botanical_name, cultivar_variety_trade_name, name
+  FROM inventory
+  WHERE source_id = ANY(ARRAY[<new source ids>]::uuid[])
+    AND coalesce(common_name, botanical_name, cultivar_variety_trade_name) IS NULL;
+
+  -- a part that still carries a bracket, a quote or a size: a parse miss
+  SELECT id, common_name, botanical_name, cultivar_variety_trade_name
+  FROM inventory
+  WHERE source_id = ANY(ARRAY[<new source ids>]::uuid[])
+    AND (common_name ~ '[\[\]'']' OR botanical_name ~ '[\[\]'']'
+      OR cultivar_variety_trade_name ~ '[\[\]'']');
+
+  -- two selection names run together instead of comma-separated: the row would
+  -- key as one string and match neither name
+  SELECT id, cultivar_variety_trade_name, cultivar_keys
+  FROM inventory
+  WHERE source_id = ANY(ARRAY[<new source ids>]::uuid[])
+    AND cultivar_variety_trade_name ~ '\s[-/]\s'
+    AND cardinality(cultivar_keys) = 1;
+  ```
+  Then read a sample of `name` values back: a botanical name in `common_name`,
+  or a cultivar left inside `common_name` instead of its own column, is invisible
+  to these queries and visible immediately to a reader.
 - **Verify every alias pair you wrote — mechanically, not by eye.** For each new
   pair run `search_inventory('<other_name>')` and `search_inventory('<the row's
   name>')` and list the identities each returns. If either returns an identity
   that is not the plant you just ingested, the pair is wrong: retire it before
-  committing. Report every pair with the verbatim source line that attests both
-  sides. "It looked like a synonym" is not evidence and does not pass.
+  committing. A `cultivar` pair that returns rows of the same species **without**
+  that cultivar means it was typed as `plant` by mistake — check `alias_type`
+  first. Report every pair with the verbatim source line that attests both sides;
+  it must also be stored in `plant_aliases.source_line`. "It looked like a
+  synonym" is not evidence and does not pass.
 - **Check the row → location mapping from §0.1.** Every row this drop touched now
   carries one of the new source ids, so group by supplier and compare against
   what §0.1 said should happen:

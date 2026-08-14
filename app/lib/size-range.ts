@@ -71,23 +71,21 @@ export function parseSizeQuery(query: string): { plantQuery: string; size: Typed
 }
 
 /**
- * A size typed into the query still matches by value against the supplier's own
- * size text, so `15g` finds a row listed as `15 gal` or `10/15 G` — a range the
- * single standard bucket cannot express.
+ * A size typed into the query matches by value against the supplier's own size
+ * text, so `15g` finds a row listed as `15 gal` or `10/15 G` — a *range*, which
+ * the single standard bucket cannot express. That is why this one stays in the
+ * browser while every other filter moved to SQL: there is no column to compare
+ * against, only the printed string to parse.
  *
- * The size *filter* selects on `size_std` instead: one checkbox per standardized
- * container (see lib/size-std.ts), not one per spelling variant. A row with no
- * standard yet matches no selection.
+ * The size *checkbox* filter is a different thing and now runs server-side, as
+ * `size_std in (…)` over the search result — one value per standardized
+ * container (see lib/size-std.ts), not one per spelling variant.
  */
 export function matchesSizeFilter(
   values: Record<string, unknown>,
   typed: TypedSize | null,
-  selectedSizes: string[],
 ): boolean {
-  if (typed) {
-    const listed = explicitBounds(String(values.size ?? ''), typed.unit)
-    return !!listed && listed.min <= typed.value && listed.max >= typed.value
-  }
-  if (selectedSizes.length === 0) return true
-  return selectedSizes.includes(String(values.size_std ?? ''))
+  if (!typed) return true
+  const listed = explicitBounds(String(values.size ?? ''), typed.unit)
+  return !!listed && listed.min <= typed.value && listed.max >= typed.value
 }

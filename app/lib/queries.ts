@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { DimensionRanges } from '@/lib/dimension-ranges'
+import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import { sourceUrl, supabase } from '@/lib/supabase'
 import type {
   Contact,
@@ -39,7 +39,12 @@ interface SupplierRecord {
 
 interface InventoryRecord {
   id: string
+  /** Derived by the database from the three parts below — never written here. */
   name: string
+  common_name: string | null
+  botanical_name: string | null
+  cultivar_variety_trade_name: string | null
+  cultivar_keys: string[] | null
   other_names: string | null
   size: string | null
   size_std: string | null
@@ -121,6 +126,9 @@ function toPlantRow(
     sourcePath: path,
     values: {
       name: r.name,
+      common_name: r.common_name,
+      botanical_name: r.botanical_name,
+      cultivar: r.cultivar_variety_trade_name,
       other: r.other_names ?? null,
       size: r.size,
       size_std: r.size_std,
@@ -342,11 +350,13 @@ export async function itemCounts(ids: number[]): Promise<Record<number, number>>
 export async function listSuppliers(
   search: string,
   page = 1,
+  filters: ServerFilter[] = [],
 ): Promise<{ rows: SupplierRow[]; total: number }> {
   const from = (page - 1) * PAGE_SIZE
-  const { data, error, count } = await supabase
-    .rpc('search_suppliers', { search }, { count: 'exact' })
-    .range(from, from + PAGE_SIZE - 1)
+  const { data, error, count } = await applyServerFilters(
+    supabase.rpc('search_suppliers', { search }, { count: 'exact' }),
+    filters,
+  ).range(from, from + PAGE_SIZE - 1)
 
   if (error) throw new Error(`search_suppliers: ${error.message}`)
   const records = (data ?? []) as SupplierRecord[]
@@ -368,51 +378,112 @@ export async function listSuppliers(
  * active rows and blows the statement timeout — see docs/supabase-schema.md),
  * so an empty search browses `inventory_enriched` instead.
  */
-const dimensionRpcArgs = (ranges: DimensionRanges) => ({
-  height_min: ranges.heightMin ?? null,
-  height_max: ranges.heightMax ?? null,
-  width_min: ranges.widthMin ?? null,
-  width_max: ranges.widthMax ?? null,
-  caliper_min: ranges.caliperMin ?? null,
-  caliper_max: ranges.caliperMax ?? null,
-})
-
 /**
- * `search_inventory` has a fixed `RETURNS TABLE` and deliberately does not carry
- * `internal_notes` — migration 0039 added the column to `inventory` and to
- * `inventory_enriched`, but left the search projection alone rather than
- * dropping and recreating the function. The `inventory_enriched` reads below
- * already return it, so fill it in on the two RPC paths and the column reads the
- * same wherever the rows came from. One extra keyed read per page.
+ * One page of the search, with every column filter applied as SQL over the
+ * RPC's result set.
+ *
+ * The filters go on *outside* the function, which is what makes the page and
+ * the `count` agree with each other: PostgREST applies them before its own
+ * `range()`, so "showing 73 of 570" can no longer mean "73 of the 300 rows we
+ * happened to fetch". See lib/server-filters.ts.
  */
-async function hydrateInternalNotes(records: InventoryRecord[]): Promise<InventoryRecord[]> {
-  if (!records.length) return records
-  const { data, error } = await supabase
-    .from('inventory')
-    .select('id, internal_notes')
-    .in('id', records.map((r) => r.id))
-  if (error) throw new Error(`inventory.internal_notes: ${error.message}`)
-  const byId = new Map((data ?? []).map((r) => [r.id as string, r.internal_notes as string | null]))
-  return records.map((r) => ({ ...r, internal_notes: byId.get(r.id) ?? null }))
-}
-
 async function inventorySearch(
   term: string,
-  ranges: DimensionRanges,
+  filters: ServerFilter[],
   page: number,
 ): Promise<{ records: InventoryRecord[]; total: number }> {
   const from = (page - 1) * PLANT_PAGE_SIZE
-  const { data, error, count } = await supabase
-    .rpc('search_inventory', { search: term, ...dimensionRpcArgs(ranges) }, { count: 'exact' })
+  // Ordering is stated explicitly rather than relying on the function's own
+  // ORDER BY surviving PostgREST's outer query. `relevance` is IDF-weighted
+  // term coverage; the tie-breakers match what the function does internally.
+  const { data, error, count } = await applyServerFilters(
+    supabase.rpc('search_inventory', { search: term }, { count: 'exact' }),
+    filters,
+  )
+    .order('relevance', { ascending: false })
+    .order('updated_at', { ascending: false })
     .range(from, from + PLANT_PAGE_SIZE - 1)
   if (error) throw new Error(`search_inventory: ${error.message}`)
-  const records = await hydrateInternalNotes((data ?? []) as InventoryRecord[])
+  const records = (data ?? []) as InventoryRecord[]
   return { records, total: count ?? records.length }
+}
+
+/**
+ * The values each multiselect offers, for one search.
+ *
+ * Deliberately computed from the search *without* the column filters: options
+ * derived from already-filtered rows would collapse to whatever is selected, so
+ * picking one size would make every other size disappear from the list. Keyed
+ * on the search term alone, so it is fetched once per query rather than on
+ * every filter change.
+ */
+export async function plantFacets(
+  search: string,
+  supplierId?: number,
+): Promise<Record<string, string[]>> {
+  const term = search.trim()
+  // A supplier's own tab browses rather than searches, so with no query its
+  // facets come from that supplier's inventory instead of from a match set.
+  if (!term) return supplierId ? inventoryFacets(supplierId) : {}
+  let facetQuery = supabase
+    .rpc('search_inventory', { search: term })
+    .select('size_std, cultivar_variety_trade_name, supplier_category, supplier_city, supplier_state')
+  if (supplierId != null) facetQuery = facetQuery.eq('supplier_id', supplierId)
+  const { data, error } = await facetQuery
+    // ponytail: a facet on a match set larger than this is truncated. Raise it
+    // or move to a distinct-values RPC if a real query ever exceeds it.
+    .limit(20000)
+  if (error) throw new Error(`search_inventory facets: ${error.message}`)
+
+  const facets: Record<string, Set<string>> = {
+    size: new Set(), cultivar: new Set(), category: new Set(), city: new Set(), state: new Set(),
+  }
+  type FacetRow = {
+    size_std: string | null
+    cultivar_variety_trade_name: string | null
+    supplier_category: string | null
+    supplier_city: string | null
+    supplier_state: string | null
+  }
+  for (const row of (data ?? []) as FacetRow[]) {
+    if (row.size_std) facets.size.add(row.size_std)
+    if (row.supplier_category) facets.category.add(row.supplier_category)
+    if (row.supplier_city) facets.city.add(row.supplier_city)
+    if (row.supplier_state) facets.state.add(row.supplier_state)
+    // The cultivar cell is a comma-separated residual, so the dropdown offers
+    // the individual names — the same grain the `cultivar_keys` filter matches.
+    for (const part of (row.cultivar_variety_trade_name ?? '').split(/[,;|]/)) {
+      const name = part.trim()
+      if (name) facets.cultivar.add(name)
+    }
+  }
+  return Object.fromEntries(Object.entries(facets).map(([k, v]) => [k, [...v]]))
+}
+
+/** Facets for one supplier's whole active inventory — the no-search case. */
+async function inventoryFacets(supplierId: number): Promise<Record<string, string[]>> {
+  const { data, error } = await supabase
+    .from('inventory_enriched')
+    .select('size_std, cultivar_variety_trade_name')
+    .eq('supplier_id', supplierId)
+    .eq('is_active', true)
+    .limit(20000)
+  if (error) throw new Error(`inventory_enriched facets: ${error.message}`)
+  const size = new Set<string>()
+  const cultivar = new Set<string>()
+  for (const row of (data ?? []) as { size_std: string | null; cultivar_variety_trade_name: string | null }[]) {
+    if (row.size_std) size.add(row.size_std)
+    for (const part of (row.cultivar_variety_trade_name ?? '').split(/[,;|]/)) {
+      const name = part.trim()
+      if (name) cultivar.add(name)
+    }
+  }
+  return { size: [...size], cultivar: [...cultivar] }
 }
 
 export async function searchPlantGroups(
   search: string,
-  ranges: DimensionRanges = {},
+  filters: ServerFilter[] = [],
   page = 1,
 ): Promise<{ groups: PlantGroup[]; total: number }> {
   const term = search.trim()
@@ -424,7 +495,7 @@ export async function searchPlantGroups(
     // The RPC owns full-query identity semantics. An empty specific query must
     // stay empty: splitting it into individual words here can turn an unknown
     // cultivar into a broad generic result and defeat the backend safety gate.
-    ;({ records, total } = await inventorySearch(term, ranges, page))
+    ;({ records, total } = await inventorySearch(term, filters, page))
   } else {
     // Browsing with no search term. Ordering the whole catalogue by updated_at
     // returns rows from only the one or two suppliers ingested most recently,
@@ -449,11 +520,14 @@ export async function searchPlantGroups(
     // of the groups empty.
     const perSupplier = await Promise.all(
       recentSuppliers.map(async (supplierId) => {
-        const { data, error } = await supabase
-          .from('inventory_enriched')
-          .select('*')
-          .eq('is_active', true)
-          .eq('supplier_id', supplierId)
+        const { data, error } = await applyServerFilters(
+          supabase
+            .from('inventory_enriched')
+            .select('*')
+            .eq('is_active', true)
+            .eq('supplier_id', supplierId),
+          filters,
+        )
           .order('updated_at', { ascending: false })
           .range(0, 29)
         if (error) throw new Error(`inventory_enriched: ${error.message}`)
@@ -516,6 +590,26 @@ export async function searchPlantGroups(
   return { groups: [...groups.values()], total }
 }
 
+/** Option lists for the suppliers table, unnarrowed by its own filters. */
+export async function supplierFacets(search: string): Promise<Record<string, string[]>> {
+  const { data, error } = await supabase
+    .rpc('search_suppliers', { search })
+    .select('category, city, state, availability_source_type')
+    .limit(20000)
+  if (error) throw new Error(`search_suppliers facets: ${error.message}`)
+
+  const facets: Record<string, Set<string>> = {
+    category: new Set(), city: new Set(), state: new Set(), availability_source_type: new Set(),
+  }
+  for (const row of (data ?? []) as Record<string, string | null>[]) {
+    for (const key of Object.keys(facets)) {
+      const value = row[key]
+      if (value) facets[key].add(value)
+    }
+  }
+  return Object.fromEntries(Object.entries(facets).map(([k, v]) => [k, [...v]]))
+}
+
 export async function getSupplier(id: number): Promise<SupplierRow | null> {
   const [{ data, error }, sources, contacts, counts] = await Promise.all([
     supabase.from('suppliers').select('*').eq('id', id).maybeSingle(),
@@ -557,37 +651,40 @@ export async function getSupplierPlants(
   id: number,
   search: string,
   page = 1,
-  ranges: DimensionRanges = {},
+  filters: ServerFilter[] = [],
 ): Promise<{ plants: PlantRow[]; hasMore: boolean }> {
   const term = search.trim()
   const from = (page - 1) * PROFILE_PAGE_SIZE
   const to = from + PROFILE_PAGE_SIZE
 
   if (term) {
-    const { data, error } = await supabase
-      .rpc('search_inventory', { search: term, supplier_ids: [id], ...dimensionRpcArgs(ranges) })
+    // `supplier_ids` left the RPC with the other filter parameters (migration
+    // 0045) — scoping to one supplier is the same outer filter as any other.
+    const { data, error } = await applyServerFilters(
+      supabase.rpc('search_inventory', { search: term }).eq('supplier_id', id),
+      filters,
+    )
+      .order('relevance', { ascending: false })
+      .order('updated_at', { ascending: false })
       .range(from, to)
     if (error) throw new Error(`search_inventory: ${error.message}`)
-    const records = await hydrateInternalNotes((data ?? []) as InventoryRecord[])
+    const records = (data ?? []) as InventoryRecord[]
     return {
       plants: await withSourceDetails(records.slice(0, PROFILE_PAGE_SIZE)),
       hasMore: records.length > PROFILE_PAGE_SIZE,
     }
   }
 
-  let query = supabase
-    .from('inventory_enriched')
-    .select('*')
-    .eq('supplier_id', id)
-    .eq('is_active', true)
+  const { data, error } = await applyServerFilters(
+    supabase
+      .from('inventory_enriched')
+      .select('*')
+      .eq('supplier_id', id)
+      .eq('is_active', true),
+    filters,
+  )
     .order('updated_at', { ascending: false })
-  if (ranges.heightMin != null) query = query.gte('height_std', ranges.heightMin)
-  if (ranges.heightMax != null) query = query.lte('height_std', ranges.heightMax)
-  if (ranges.widthMin != null) query = query.gte('width_std', ranges.widthMin)
-  if (ranges.widthMax != null) query = query.lte('width_std', ranges.widthMax)
-  if (ranges.caliperMin != null) query = query.gte('caliper_std', ranges.caliperMin)
-  if (ranges.caliperMax != null) query = query.lte('caliper_std', ranges.caliperMax)
-  const { data, error } = await query.range(from, to)
+    .range(from, to)
   if (error) throw new Error(`inventory_enriched: ${error.message}`)
   const records = (data ?? []) as InventoryRecord[]
   return {
@@ -632,9 +729,15 @@ const WRITABLE: Record<string, string[]> = {
     'name', 'city', 'state', 'notes', 'communication_notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
   ],
+  // No `name`: it is derived by the database from the three name parts
+  // (migration 0040), so writing it here would be silently overwritten by
+  // `trg_inventory_derive_identity`. Edit the part, not the composition.
   // `notes` is the supplier's own text about the offering; `internal_notes` is
   // ours (migration 0039). Both are editable, neither is a substitute.
-  inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes', 'internal_notes'],
+  inventory: [
+    'common_name', 'botanical_name', 'cultivar_variety_trade_name',
+    'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes', 'internal_notes',
+  ],
   // The person, not the link: editing these changes the contact at every
   // location they cover. `is_primary` lives on `supplier_contacts` and is set
   // through `setPrimaryContact`.

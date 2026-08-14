@@ -19,6 +19,165 @@ here).
 
 ### Changed
 
+- **Upgraded `cognisphere-harness` 0.8.17 → 0.8.18 and migrated both agents'
+  on-disk notes to the new layout.** The 0.8.18 base prompt reorders itself
+  around the agent's actual reading path, drops the `# Guidelines` grab-bag,
+  and — the part that needed migrating — moves where notes, knowledge and
+  memory live. Per agent:
+  - `workspace/memory/*.md` became a single grep-able `knowledge/memory.md`,
+    one section per memory (`name` / `lastUpdated` / `description`, separated by
+    `-----$-----$-----$-----`). Daisy's four files became nine sections, split
+    so each standing rule greps independently; nova's one became one.
+  - Reference docs moved from `knowledge/` to `knowledge/files/`, indexed by a
+    new `knowledge/index.md`. Daisy's `SCHEMA.md` symlink was re-pointed one
+    level deeper and still resolves to `docs/supabase-schema.md`; every
+    `knowledge/SCHEMA.md` / `knowledge/gmail-labels.md` reference in
+    `1-agent.md`, `1.1-supabase.md` and three skills was updated to match.
+  - `workspace/taskThreads/<ThreadId>/tasks.md` was folded into the parent's
+    `workspace/threads/<ThreadId>/notes.md` under `## Tasks` (108 files for
+    daisy, 1 for nova) and the directory removed.
+  - Each thread's `summary.md` was folded into `notes.md` under `## Context`
+    and deleted (336 daisy threads); loose files in a thread dir moved to
+    `files/`, and a subdirectory whose name exactly matches a known task slug
+    moved to `tasks/<slug>/`.
+  - `workspace/index.md` was rebuilt into the new shape — 457 thread entries
+    preserved and de-duplicated, dead `summary.md` paths rewritten, and the two
+    stale `## Memory` sections dropped in favour of `knowledge/`.
+
+  Skills whose only change was a reference path were bumped:
+  `availability-drop-intake` 2.0.1 → 2.0.2 (it also now files results into
+  `notes.md` rather than the removed `summary.md`), `plant-and-supplier-search`
+  1.1.0 → 1.1.1, `supplier-onboarding-and-ingestion` 3.0.0 → 3.0.1.
+
+  Note that `harness/agents/*/workspace/` is gitignored, so the notes half of
+  this migration is not visible in the diff.
+
+- **Column filters run in SQL now, not in the browser** (migration
+  `0044_search_inventory_cultivar_keys_out`, plus `app/lib/server-filters.ts`).
+  Filtering happened after the server had already paginated, so it could only
+  narrow the page in hand. Measured on `Crape Myrtle`: 570 matches, 105 of them
+  `15G`, but only **73** in the 300-row first page — 32 were unreachable by
+  ticking the size box, and the header's "Showing 73 of 570" was wrong twice
+  over. Every filter (size, cultivar, price, quantity, the three dimensions,
+  supplier type/city/state, the text columns) is now applied by PostgREST as an
+  outer query over the RPC result, *before* its own pagination, so the page and
+  the count describe the same set.
+
+  Adding a filter is a line in a spec rather than a migration, since the RPC
+  already projects the columns; `cultivar_keys` was added to the projection
+  because the cultivar cell is a comma-separated residual and selecting one name
+  needs the normalized array. Option lists moved to a separate facet call keyed
+  on the search term — otherwise picking one value would remove every other
+  value from its own dropdown. The six dimension parameters are kept on the
+  function but no longer sent, after verifying the two forms agree on three
+  fixtures. Sorting, `# Items`, and a size typed into the query stay client-side,
+  each for a stated reason.
+
+- **The composed plant name is dash-delimited** (migration
+  `0043_dash_delimited_plant_name`). `Forest Pansy Redbud - Cercis canadensis -
+  Forest Pansy`, not `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]` —
+  one ` - ` between every part, in the order common, botanical, cultivar. The
+  comma stopped being usable as a part separator when the cultivar column became
+  comma-separated, and a spaced dash is what distinguishes the separator from
+  the hyphen inside a name like `KN30-8`. Display only: the bracket and dash
+  forms share one identity key and one token array, so no search result moves
+  and no index was rebuilt. Ingestion skill v3.2.0.
+
+- **Search rewritten: ranked, not gated** (migration `0046_bm25_search`). It now
+  matches **names, size and notes**, is **typo tolerant**, matches **partially at
+  both ends** (`sycamor` *and* `ycamor` find `sycamore`), expands query terms
+  through aliases, and ranks by **IDF-weighted term coverage** — overlap, with
+  rare terms weighted heavily. Filtering and sorting run over the ranked result.
+
+  This replaced three mechanisms with one. The identity-intent gate is gone: it
+  hard-excluded every row not matching the rarest query word, which is what IDF
+  does natively without discarding anything. The pg_trgm fallback is gone —
+  substring matching is what it approximated. Two pgroonga indexes now cover one
+  document expression, a bigram one for substring and a whole-word one for
+  fuzzy, because edit distance over a bigram lexicon is meaningless (measured:
+  the typo `mvskogee` returns 0 rows through the bigram index and 188 through
+  the word index).
+
+  `Crape Myrtle Muskogee` now ranks in three clean tiers — 10.38 for rows
+  matching both groups, 5.82 for the rare word alone, 4.55 for generic crape
+  myrtles. **Result sets are much larger and that is deliberate**: retrieval is
+  OR, so it returns 755 rows where the gated version returned 116, with the
+  weakly-matched tail ranked last. Empty searches now return nothing instantly,
+  retiring the long-standing "never call it with an empty search" footgun.
+
+- **Aliases now enrich the search query, and the cultivar column takes every
+  selection name** (migrations `0041_multi_name_cultivar_keys`,
+  `0042_alias_query_term_expansion`). Two corrections to the change below, made
+  the same day.
+
+  `cultivar_variety_trade_name` captures **everything the printed name carries
+  that the common and botanical name don't** — cultivar, variety, selection and
+  trade name, comma-separated — not just the cultivar. Sources don't reliably
+  distinguish them and guessing which is which loses information. Its key
+  therefore became the array `cultivar_keys`, one per name, matched by overlap:
+  without that, `Wolff, Emperor 1` keyed as `wolffemperor`, matched neither
+  name, and the row would have silently stopped answering searches for either.
+  The comma is load-bearing and the ingestion SOP now QAs for it. The app's
+  Cultivar filter follows — it lists one option per name, not one per
+  combination.
+
+  **Aliases were not enriching the query at all.** The alias branch selected an
+  edge only when the *whole* query matched that edge's text, and pgroonga's
+  `&@~` is AND across tokens — measured, not assumed. So `Live Oak Boardwalk`
+  could never reach the `Live Oak` ↔ `Quercus virginiana` edge, and the cases
+  that appeared to work were the pg_trgm fallback firing on string similarity,
+  which is why the same query worked through a plant's botanical name and
+  returned nothing through its common name. An edge is now reached by **any
+  contiguous run of query words**. The change is additive, admission is still
+  exact key equality, and the identity-intent gate still runs after it, so an
+  invented cultivar still returns nothing. Not observable on live data until the
+  re-ingest — `plant_aliases` is empty — so the live fixtures are unchanged by
+  construction; the behaviour is verified against synthetic rows. Ingestion
+  skill v3.1.0, `plant-and-supplier-search` v1.2.0.
+
+- **A plant's identity is three columns now, and the alias table is typed**
+  (migration `0040_typed_plant_identity`). `inventory` gains `common_name`,
+  `botanical_name` and `cultivar_variety_trade_name`, each holding **only what
+  the availability source explicitly prints**, and `inventory.name` becomes the
+  composition of them — `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`
+  — written by trigger. That is byte-for-byte the format the ingestion SOP
+  already required, so no existing row moved and the search index was not
+  rebuilt; what changed is that the parts are separately readable, filterable
+  and aliasable instead of having to be re-parsed out of a bracket. `name` and
+  all four `*_key` columns are now derived and must never be written.
+
+  `plant_other_names` is replaced by **`plant_aliases`**, where every pair
+  declares what kind of thing its two sides name: a `plant` edge (`Live Oak` ↔
+  `Quercus virginiana`) is matched against a row's common/botanical name, a
+  `cultivar` edge (a variety name ↔ its trade name) against its cultivar column
+  **only**. That is the point of the change — a cultivar edge is never compared
+  to a column a generic row fills, so it cannot make every row of a species
+  answer a search for one of its selections. Six migrations (0006, 0007, 0021,
+  0025, 0028, 0029) existed to clean up exactly that; it is now closed by the
+  schema rather than by a quality bar, and cultivar/trade-name pairs become
+  expressible for the first time. Pairs also carry their evidence (`source_id`,
+  `source_line`), and the dedupe trigger now rejects mirrored orientations —
+  168 retired pairs had come back reversed in the old table.
+
+  `search_inventory` was dropped and recreated with the three parts in its
+  return type, and — since the drop was unavoidable — with `internal_notes`,
+  which 0039 had left out and the app had been hydrating with an extra read per
+  page. **No backfill:** all 235,976 existing rows have NULL parts and the
+  13,700 alias pairs went with their table, at Bhoumik's instruction, ahead of a
+  full re-ingest. Fixtures `Abelia Francis Mason` (10 rows / 9 suppliers) and
+  `Japanese Holly Compacta` (4 / 2) are unchanged; `Crape Myrtle` moved 548/35 →
+  532/30, which is the retired alias directory and is temporary.
+
+  App-side: the plants table's **Plant** column shows the composed identity and
+  is now read-only, with **Cultivar** visible beside it (multi-select filter,
+  both in the column header and as a **Cultivar: Any** dropdown in the Plant
+  search toolbar) and common/botanical name available through the column picker.
+  **Also known as** no longer repeats a name already spelled inside the Plant
+  value. Ingestion skill v3.0.0, `plant-and-supplier-search` v1.1.0,
+  `availability-drop-intake` v2.0.1; `match-candidates` reads the parts and
+  marks a candidate whose cultivar contradicts the entry's as
+  `CULTIVAR MISMATCH`.
+
 - **An ingest now refreshes availability instead of replacing it** (ingestion
   skill v2.0.0). Every drop used to insert a fresh copy of the supplier's whole
   catalogue and then flip the previous rows `is_active = false`. It now finds the

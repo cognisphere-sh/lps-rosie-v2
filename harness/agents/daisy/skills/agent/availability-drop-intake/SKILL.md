@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which supplier a drop came from (sender address, domain or name) and passing the whole multi-location group along, the dispatch contract for the task-thread brief that runs the supplier-onboarding-and-ingestion skill, answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.0.0)
+description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which supplier a drop came from (sender address, domain or name) and passing the whole multi-location group along, the dispatch contract for the task-thread brief that runs the supplier-onboarding-and-ingestion skill, answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.0.2)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "2.0.2"
 ---
 
 # Availability drop intake
@@ -13,7 +13,7 @@ Run this loop for every availability drop, without being asked step by step.
 **Where the boundary is.** This skill is coordination only. You identify the
 supplier, brief a task thread, digest what comes back, and label the email. **You
 never write to `suppliers`, `contacts`, `inventory`, `inventory_sources` or
-`plant_other_names` from here** — every one of those writes, plus all parsing,
+`plant_aliases` from here** — every one of those writes, plus all parsing,
 normalization and location mapping, belongs to the
 `supplier-onboarding-and-ingestion` skill, which the task thread runs. If you are
 about to write a row, you are in the wrong skill; if the task thread is about to
@@ -69,7 +69,7 @@ points back at it rather than restating it. The brief carries:
   branch or ship-from location, because that is what the mapping turns on,
 - **the skill to follow, by name and current version** from `<available_skills>`
   — e.g. "Follow the `supplier-onboarding-and-ingestion` skill (v2.0.0)" — plus
-  the path to `knowledge/SCHEMA.md` and to the supplier's
+  the path to `knowledge/files/SCHEMA.md` and to the supplier's
   `workspace/suppliers/[<id>]:<Name>/notes.md` if present, to read first,
 - the ThreadId and the current timestamp.
 
@@ -102,7 +102,8 @@ each part:
 - **Errors, learnings, suggested skill changes** — into the daily note. Skill
   changes are never applied without Chris's or Bhoumik's approval.
 - **Supplier quirks** — into `workspace/suppliers/[<id>]:<Name>/notes.md`.
-- **Result summary and decisions** — into the thread's `summary.md`.
+- **Result summary and decisions** — into the thread's `notes.md`: the outcome
+  and row counts under `## Context`, the reasoning under `## Decisions`.
 - **Suggested status label** — §5.
 
 Routine successful ingests wait for the daily Telegram summary.
@@ -121,7 +122,7 @@ After processing an email drop, apply two Gmail labels to the thread via the
 | `Daisy/Escalated` | needs human review — unsure, or fits none of the above |
 
 Gmail nests labels by the `/` separator. Known label IDs are in
-`knowledge/gmail-labels.md`; look them up live if that file is stale, and create
+`knowledge/files/gmail-labels.md`; look them up live if that file is stale, and create
 any missing label first:
 
 ```

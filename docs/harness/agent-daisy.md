@@ -38,11 +38,12 @@ with its own Gmail inbox
 2. **Keep availability current** — ingest supplier price lists / availability
    (email body, PDF, spreadsheet, image, or website) into Supabase `inventory`,
    with provenance in `inventory_sources` and name aliases in
-   `plant_other_names`.
+   `plant_aliases`.
 
 Availability arrives via supplier emails (the **gws** plugin wakes it) or
-ad-hoc admin requests. Everything persists in **Supabase**; `workspace/` is its
-notes/memory.
+ad-hoc admin requests. Everything persists in **Supabase**; `workspace/` holds
+its per-thread notes and daily notes, and `knowledge/` its cross-thread
+reference docs and memory.
 
 ## Plugins
 
@@ -71,15 +72,26 @@ notes/memory.
 
 ## Knowledge (`knowledge/`)
 
-- `SCHEMA.md` — **a symlink to [`docs/supabase-schema.md`](../supabase-schema.md)**,
+`index.md` indexes the reference docs, which live under `files/` (harness
+0.8.18 moved them there from the `knowledge/` root):
+
+- `files/SCHEMA.md` — **a symlink to [`docs/supabase-schema.md`](../supabase-schema.md)**,
   the single source of truth for the Supabase schema shared by every agent and
   the web app. Daisy reads and corrects it through the symlink; it must never be
   replaced with a copy.
-- `suppliers.md` — pointer stub: per-supplier notes now live under
+- `files/suppliers.md` — pointer stub: per-supplier notes now live under
   `workspace/suppliers/[<id>]:<Name>/notes.md` (see `workspace/suppliers/index.md`).
-- `gmail-labels.md` — Gmail label ID taxonomy (e.g. `Daisy` = `Label_12`) with a
+- `files/gmail-labels.md` — Gmail label ID taxonomy (e.g. `Daisy` = `Label_12`) with a
   live-lookup command if stale, plus the `gws`-binary-location gotcha. Reference
   IDs only — *which* label to apply is the `availability-drop-intake` skill.
+
+`knowledge/memory.md` is Daisy's cross-thread memory — one grep-able file of
+sections separated by `-----$-----$-----$-----`, each with `name`,
+`lastUpdated` and `description`. It replaced `workspace/memory/*.md` in harness
+0.8.18 and holds the standing supplier-email approval policy, the outbound
+identity/signature rules, GWS thread-routing rules, the notification threshold,
+processing-efficiency and geographic-search rules, the daily-note concurrent
+write safeguard, and two historical harness-upgrade validation records.
 
 `knowledge/SOPs/` is gone: procedures are skills as of harness 0.8.12 (below).
 
@@ -196,6 +208,60 @@ and when; the summaries below are one line each.
   exceptions). Column comments lock the split; `inventory_enriched` gains the
   column, `search_inventory` deliberately does not. Additive, no backfill —
   pre-0039 `notes` content was not reclassified.
+- `0040_typed_plant_identity.sql` — approved/applied 2026-08-14. Splits the
+  plant identity into `common_name` / `botanical_name` /
+  `cultivar_variety_trade_name`, each holding only what the source printed, and
+  makes `inventory.name` trigger-composed from them (bracketed then; dash-delimited since 0043) —
+  the format the SOP already required, so no existing row and no search index
+  moved. Replaces `plant_other_names` with **typed** `plant_aliases`: a `plant`
+  edge is matched against a row's common/botanical name, a `cultivar` edge
+  against its cultivar column alone, which structurally closes the failure mode
+  0006/0007/0021/0025/0028/0029 each cleaned up after. Pairs now carry
+  `source_id` + `source_line`, and the dedupe trigger rejects mirrored
+  orientations. `search_inventory` recreated with the three parts and
+  `internal_notes` in its return type. No backfill, by instruction — the
+  catalogue is being dropped and re-ingested.
+- `0041_multi_name_cultivar_keys.sql` — approved/applied 2026-08-14, correcting
+  0040 the same day. `cultivar_variety_trade_name` captures **everything the
+  printed name carries that the common and botanical name don't**, not just the
+  cultivar, so its key becomes the array `cultivar_keys` — one per
+  comma-separated name — and alias matching moves from `=` to overlap. Without
+  it a row naming two selections keyed as one string and silently matched
+  neither.
+- `0042_alias_query_term_expansion.sql` — approved/applied 2026-08-14. An alias
+  edge is now reached by **any contiguous run of query words**, not only by the
+  whole query. pgroonga's `&@~` is AND across tokens, so `Live Oak Boardwalk`
+  could never reach the `Live Oak` ↔ `Quercus virginiana` edge; the cases that
+  appeared to work were the pg_trgm fallback firing on string similarity.
+  Additive — every prior condition is still OR'd in — and admission is still
+  exact key equality behind the unchanged identity-intent gate.
+- `0043_dash_delimited_plant_name.sql` — approved/applied 2026-08-14. The
+  derived `inventory.name` joins its three parts with ` - ` instead of wrapping
+  the tail in brackets. One separator between every part: the comma stopped
+  being available when 0041 made the cultivar column comma-separated. Function
+  only, no row rewritten; bracket and dash forms share an identity key and a
+  token array, so no search result moves.
+- `0044_search_inventory_cultivar_keys_out.sql` — approved/applied 2026-08-14.
+  Adds `cultivar_keys` to the RPC's projection so the app can filter the
+  cultivar in SQL over the result. Part of moving every column filter off the
+  browser: filtering the page the server already truncated made 32 of 105
+  matching `15G` rows unreachable on a `Crape Myrtle` search.
+- `0045_alias_query_expansion_no_params.sql` — approved/applied 2026-08-14.
+  Strips every filter and sort parameter from `search_inventory` (now just
+  `search`, `fuzzy_ratio`) and switches aliases from key matching to **query
+  expansion**: `live oak boardwalk` becomes
+  `((live oak) OR (quercus virginiana)) boardwalk`. Alias-reached rows now score
+  instead of ranking at a structural 0. **Trade-off:** `alias_type` no longer
+  constrains matching, so a bad species↔cultivar pair again fans a cultivar
+  search out across the species — the SOP quality bar is the only defence.
+- `0046_bm25_search.sql` — approved/applied 2026-08-14. Rewrites search:
+  matches names/size/notes, typo tolerant, **partial at both ends** (`ycamor`
+  finds `sycamore`), alias-expanded, and ranked by **IDF-weighted term
+  coverage** instead of gated. Two pgroonga indexes over one expression — bigram
+  for substring, word for fuzzy — because fuzzy is meaningless on a bigram
+  lexicon (`mvskogee`: 0 rows vs 188). Drops the identity-intent gate, the
+  pg_trgm fallback and two superseded indexes. **Result sets are much larger by
+  design** (OR retrieval, ranked tail).
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
@@ -204,22 +270,24 @@ and when; the summaries below are one line each.
 Daisy's procedural memory. `system_prompts/1-agent.md` names the situation that
 triggers each one and otherwise carries identity/persona/behaviour only.
 
-- **supplier-onboarding-and-ingestion** (v2.0.0) — the end-to-end procedure a
+- **supplier-onboarding-and-ingestion** (v3.3.0) — the end-to-end procedure a
   task thread runs to onboard a supplier and ingest one availability drop, and
   the owner of **every database write in the ingestion path**: mapping each
   availability row to its location within a `supplier_groups` group, browser
   enrichment and newsletter signup, `contacts`/`supplier_contacts` linking,
-  source conversion, parsing and normalization (name, the size standard and
-  `size_std` buckets, price, dimensions, `notes` vs `internal_notes`), the alias
-  quality bar, provenance, updating `inventory` rows in place, post-ingestion QA,
+  source conversion, parsing and normalization (the three name parts with
+  `name` derived, the size standard and `size_std` buckets, price, dimensions,
+  `notes` vs `internal_notes`), the typed `plant_aliases` quality bar,
+  provenance, updating `inventory` rows in place, post-ingestion QA,
   and the canonical report contract. Ships
   `scripts/match-candidates` — for each parsed entry it returns the closest five
   **active** rows for that supplier plus the best **retired** one, ranked by
   trigram similarity on the plant identity with a size-agreement bonus, over a
-  narrow column set. Rows are matched by reading those candidates, **not** by an
+  narrow column set, marking any candidate whose cultivar contradicts the
+  entry's as `CULTIVAR MISMATCH` and excluding it from the suggestion. Rows are matched by reading those candidates, **not** by an
   exact `(supplier_id, name_key, size)` key, because a respelled or re-sized name
   is invisible to a key and an update-in-place ingest would duplicate it.
-- **availability-drop-intake** (v2.0.0) — the coordinator loop, and **no database
+- **availability-drop-intake** (v2.0.2) — the coordinator loop, and **no database
   writes at all**: identify the supplier from sender/domain/name and pass the
   whole group along, dispatch the task thread against the canonical brief
   contract, answer its follow-ups, digest its report, apply the Gmail status
@@ -228,8 +296,9 @@ triggers each one and otherwise carries identity/persona/behaviour only.
 The two are deliberately mutually exclusive: intake coordinates and talks to
 humans, ingestion writes rows and talks to no one. Each points at the other for
 the shared contracts (the brief, the report) rather than restating them.
-- **plant-and-supplier-search** (v1.0.0) — `search_inventory` /
-  `search_suppliers` usage, filter relaxation, key-column rules, answer shape.
+- **plant-and-supplier-search** (v1.4.0) — `search_inventory` /
+  `search_suppliers` usage, the split plant identity and typed alias edges,
+  filter relaxation, key-column rules, answer shape.
 - **supplier-communication-log** (v1.0.0) — appending to
   `suppliers.communication_notes`, and which of `communication_notes` / `notes` /
   workspace `notes.md` a fact belongs in.

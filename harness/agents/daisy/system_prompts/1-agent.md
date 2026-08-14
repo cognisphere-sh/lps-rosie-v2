@@ -20,7 +20,7 @@ in the system. Your two standing jobs:
    availability newsletter if they have one.
 2. **Keep availability data current** — ingest supplier price lists /
    availability and write them into `inventory` in Supabase, with provenance in
-   `inventory_sources` and plant-name aliases in `plant_other_names`.
+   `inventory_sources` and plant-name aliases in `plant_aliases`.
 
 Beyond the standing loop, Chris and Bhoumik may hand you **ad-hoc tasks** —
 onboard a new supplier, search for a supplier's details, look up a plant or
@@ -57,9 +57,9 @@ apply it only once approved — then bump the version per `create-skill`.
 Your chat context gets compacted — don't rely on it. **Supabase is the system of
 record; `workspace/` is your memory.**
 
-- **Read `knowledge/SCHEMA.md` before writing any query.** It documents the exact
+- **Read `knowledge/files/SCHEMA.md` before writing any query.** It documents the exact
   tables/columns you write (`suppliers`, `inventory`, `inventory_sources`,
-  `plant_other_names`) plus the views, search RPCs, and triggers around them.
+  `plant_aliases`) plus the views, search RPCs, and triggers around them.
   Keep it accurate.
 - **Write learnings down immediately, in the right place.** A supplier's own
   quirks, price-list format, or a parsing trick for their files →
@@ -73,8 +73,10 @@ record; `workspace/` is your memory.**
 # Thread and supplier directories
 
 Per-thread files live in `workspace/threads/<ThreadId>/` — the **bare ThreadId**
-as the directory name, never the email subject. Keep the thread's `summary.md`
-(outcome, decisions, row counts) there, and map the human-readable subject to the
+as the directory name, never the email subject. Keep the thread's `notes.md`
+there in the standard sections (outcome and row counts under `## Context`,
+reasoning under `## Decisions` — see **Notes** in the base prompt), put files
+belonging to the thread in `files/`, and map the human-readable subject to the
 ThreadId with a one-liner in `workspace/index.md` (`` `Subject[ThreadId]` — … ``).
 
 Per-supplier info lives in `workspace/suppliers/[<supplierId>]:<Name>/` —
@@ -156,7 +158,7 @@ rule delivers to the single thread `main`:
 
 # Conventions
 
-Table/column definitions live in `knowledge/SCHEMA.md`; data-normalization
+Table/column definitions live in `knowledge/files/SCHEMA.md`; data-normalization
 conventions (sizes, botanical names, aliases, key columns, how rows are written)
 live in the `supplier-onboarding-and-ingestion` skill. Consult both when you
 touch `inventory` rows yourself — spot-checks, single-row fixes, ad-hoc db

@@ -12,12 +12,12 @@ import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/searc
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { ColumnPicker, FilterControl, MultiFilter, badgeFor, fileHref } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
-import { MASTER_COLS, PLANT_COLS, type ColumnDef } from '@/lib/columns'
-import { dimensionFilterQuery } from '@/lib/dimension-ranges'
+import { MASTER_COLS, PLANT_COLS, plantEditPatch, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
+import { MASTER_FILTERS, PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { matchesSizeFilter, parseSizeQuery, type TypedSize } from '@/lib/size-range'
-import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
+import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
@@ -94,8 +94,6 @@ export default function PlantSearchPage() {
   const [query, setQuery] = useState('')
   const [searchHydrated, setSearchHydrated] = useState(false)
   const debouncedQuery = useDebounced(query)
-  const dimensionQuery = dimensionFilterQuery(plantCfg.filters)
-  const debouncedDimensionQuery = useDebounced(dimensionQuery)
   const parsedSearch = useMemo(() => parseSizeQuery(query), [query])
   const debouncedSearch = useMemo(() => parseSizeQuery(debouncedQuery), [debouncedQuery])
   const [groups, setGroups] = useState<PlantGroup[]>([])
@@ -104,11 +102,31 @@ export default function PlantSearchPage() {
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(false)
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
+  const [facets, setFacets] = useState<Record<string, string[]>>({})
   const hasQuery = query.trim().length > 0
+
+  // Every column filter is applied as SQL over the search result, so the whole
+  // filter state travels to the server as one stable string. Stable matters:
+  // it is a `useEffect` dependency, so an unchanged filter set must serialize
+  // identically or the page would refetch on every render.
+  //
+  // The Size selector lives in its own state (it is persisted to the URL) but
+  // is the same `size` filter as far as the server is concerned.
+  const serverFilterQuery = useMemo(
+    () =>
+      [
+        filterQuery('plant', PLANT_FILTERS, { ...plantCfg.filters, size: selectedSizes }),
+        filterQuery('master', MASTER_FILTERS, masterCfg.filters),
+      ]
+        .filter(Boolean)
+        .join('&'),
+    [plantCfg.filters, masterCfg.filters, selectedSizes],
+  )
+  const debouncedFilterQuery = useDebounced(serverFilterQuery)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
   const searching = searchHydrated && hasQuery && (
-    loading || query !== debouncedQuery || dimensionQuery !== debouncedDimensionQuery
+    loading || query !== debouncedQuery || serverFilterQuery !== debouncedFilterQuery
   )
   const [panelW, setPanelW] = useState(292)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
@@ -177,8 +195,30 @@ export default function PlantSearchPage() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
   }, [hasQuery, parsedSearch.size, query, searchHydrated, selectedSizes])
 
-  // A new question, or a new dimension bound, starts again at page 1.
-  useEffect(() => setPage(1), [debouncedDimensionQuery, debouncedSearch.plantQuery])
+  // A new question, or a new filter, starts again at page 1 — page 4 of the
+  // old result set means nothing once the set changes.
+  useEffect(() => setPage(1), [debouncedFilterQuery, debouncedSearch.plantQuery])
+
+  // The values each dropdown offers, for this search and deliberately *not*
+  // narrowed by the active filters: options derived from filtered rows would
+  // collapse to whatever is already selected. Keyed on the search term only,
+  // so changing a filter never refetches them.
+  useEffect(() => {
+    if (!searchHydrated || !debouncedSearch.plantQuery) {
+      setFacets({})
+      return
+    }
+    let cancelled = false
+    fetch(`/api/plants?facets=1&q=${encodeURIComponent(debouncedSearch.plantQuery)}`)
+      .then((r) => r.json())
+      .then((body: { facets?: Record<string, string[]> }) => {
+        if (!cancelled) setFacets(body.facets ?? {})
+      })
+      .catch(() => !cancelled && setFacets({}))
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedSearch.plantQuery, refreshNonce, searchHydrated])
 
   useEffect(() => {
     if (!searchHydrated) return
@@ -192,8 +232,8 @@ export default function PlantSearchPage() {
 
     let cancelled = false
     setLoading(true)
-    const dimensionSuffix = debouncedDimensionQuery ? `&${debouncedDimensionQuery}` : ''
-    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}&page=${page}${dimensionSuffix}`)
+    const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
+    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}&page=${page}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { groups?: PlantGroup[]; total?: number; pageCount?: number }) => {
         if (cancelled) return
@@ -210,7 +250,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedDimensionQuery, debouncedSearch.plantQuery, page, refreshNonce, searchHydrated])
+  }, [debouncedFilterQuery, debouncedSearch.plantQuery, page, refreshNonce, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -232,11 +272,7 @@ export default function PlantSearchPage() {
             p.id === row.id
               ? {
                   ...p,
-                  values: {
-                    ...p.values,
-                    [col.key]: next || null,
-                    ...(col.filterValueKey ? { [col.filterValueKey]: null } : {}),
-                  },
+                  values: { ...p.values, ...plantEditPatch(p.values, col, next) },
                 }
               : p,
           ),
@@ -254,13 +290,16 @@ export default function PlantSearchPage() {
 
   // Plant-level column filters apply across every supplier; a supplier whose
   // plants all filter out drops off the page entirely.
+  // Column filters ran in SQL before this page was fetched, so nothing here
+  // re-applies them. What is left is genuinely view-local: sorting, rows the
+  // user hid, the supplier shortlist, and the size *typed into the query* —
+  // that last one matches by value against the supplier's printed size text
+  // ("15g" finds a row listed as "10/15 G"), a range the standard bucket
+  // cannot express and the server therefore cannot filter on.
   const visibleGroups = useMemo(() => {
     const masterRows = refinedGroups.map((g) => g.supplier)
-    const keptSuppliers = new Set(
-      applyFilters(masterRows, masterCfg.filters, masterCfg.sort).map((r) => r.id),
-    )
     const ordered = masterCfg.sort
-      ? applyFilters(masterRows, masterCfg.filters, masterCfg.sort).map(
+      ? applyFilters(masterRows, {}, masterCfg.sort).map(
           (r) => refinedGroups.find((g) => g.supplier.id === r.id)!,
         )
       : refinedGroups
@@ -268,7 +307,6 @@ export default function PlantSearchPage() {
     return ordered
       .filter(
         (g) =>
-          keptSuppliers.has(g.supplier.id) &&
           !hiddenSuppliers.includes(g.supplier.id) &&
           (supplierPick.length === 0 || supplierPick.includes(String(g.supplier.values.name ?? ''))),
       )
@@ -276,16 +314,14 @@ export default function PlantSearchPage() {
         ...g,
         plants: applyFilters(
           g.plants.filter(
-            (p) =>
-              !hiddenPlants.includes(p.id) &&
-              matchesSizeFilter(p.values, parsedSearch.size, selectedSizes),
+            (p) => !hiddenPlants.includes(p.id) && matchesSizeFilter(p.values, parsedSearch.size),
           ),
-          plantCfg.filters,
+          {},
           plantCfg.sort,
         ),
       }))
       .filter((g) => g.plants.length > 0)
-  }, [refinedGroups, masterCfg.filters, masterCfg.sort, plantCfg.filters, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, selectedSizes, supplierPick])
+  }, [refinedGroups, masterCfg.sort, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, supplierPick])
 
   const supplierNames = useMemo(
     () => [...new Set(refinedGroups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
@@ -293,15 +329,23 @@ export default function PlantSearchPage() {
   )
 
   const allPlants = useMemo(() => refinedGroups.flatMap((g) => g.plants), [refinedGroups])
-  const sizeOptions = useMemo(() => optionsFor(allPlants, 'size'), [allPlants])
   const shownPlants = visibleGroups.reduce((n, g) => n + g.plants.length, 0)
 
+  // Options come from the facet call, which sees the whole match set rather
+  // than this page of it — so ticking one value never removes the others.
+  const optionList = useCallback(
+    (key: string) => [...(facets[key] ?? [])].sort(compareOptions(key)),
+    [facets],
+  )
+  const sizeOptions = useMemo(() => optionList('size'), [optionList])
+
+  // A size that this search cannot offer is a leftover from the previous one.
   useEffect(() => {
-    if (loading || allPlants.length === 0 || selectedSizes.length === 0) return
+    if (loading || sizeOptions.length === 0 || selectedSizes.length === 0) return
     const valid = new Set(sizeOptions)
     const next = selectedSizes.filter((size) => valid.has(size))
     if (next.length !== selectedSizes.length) setSelectedSizes(next)
-  }, [allPlants.length, loading, selectedSizes, sizeOptions])
+  }, [loading, selectedSizes, sizeOptions])
 
   const panelDetailCols = MASTER_COLS.filter(
     (c) => !masterCfg.config.hidden.includes(c.key) && !PANEL_FIXED.includes(c.key),
@@ -323,6 +367,10 @@ export default function PlantSearchPage() {
   }
 
   const supplierRows = refinedGroups.map((group) => group.supplier)
+  // Cultivar is a plant-level column, so the toolbar dropdown and the column
+  // header's own filter are the same piece of state — set one, both show it.
+  const cultivarOptions = useMemo(() => optionList('cultivar'), [optionList])
+  const cultivarFilter = Array.isArray(plantCfg.filters.cultivar) ? plantCfg.filters.cultivar : []
   const categoryFilter = Array.isArray(masterCfg.filters.category) ? masterCfg.filters.category : []
   const cityFilter = Array.isArray(masterCfg.filters.city) ? masterCfg.filters.city : []
   const stateFilter = Array.isArray(masterCfg.filters.state) ? masterCfg.filters.state : []
@@ -353,11 +401,22 @@ export default function PlantSearchPage() {
             onSelect={setSelectedSizes}
             onClearTyped={() => setQuery(parsedSearch.plantQuery)}
           />
+          <div className="w-[calc(50%-4px)] md:w-[170px]">
+            <MultiFilter
+              allLabel="Cultivar: Any"
+              selectionLabel="Cultivar"
+              options={cultivarOptions}
+              selected={cultivarFilter}
+              onChange={(next) => plantCfg.setColFilter('cultivar', next)}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter cultivars…"
+            />
+          </div>
           <div className="w-[calc(50%-4px)] md:w-[160px]">
             <MultiFilter
               allLabel="All supplier types"
               selectionLabel="Type"
-              options={optionsFor(supplierRows, 'category')}
+              options={optionList('category')}
               selected={categoryFilter}
               onChange={(next) => masterCfg.setColFilter('category', next)}
               buttonClassName="h-8 px-2 text-[12px]"
@@ -368,7 +427,7 @@ export default function PlantSearchPage() {
             <MultiFilter
               allLabel="All cities"
               selectionLabel="City"
-              options={optionsFor(supplierRows, 'city')}
+              options={optionList('city')}
               selected={cityFilter}
               onChange={(next) => masterCfg.setColFilter('city', next)}
               buttonClassName="h-8 px-2 text-[12px]"
@@ -379,7 +438,7 @@ export default function PlantSearchPage() {
             <MultiFilter
               allLabel="All states"
               selectionLabel="State"
-              options={optionsFor(supplierRows, 'state')}
+              options={optionList('state')}
               selected={stateFilter}
               onChange={(next) => masterCfg.setColFilter('state', next)}
               buttonClassName="h-8 px-2 text-[12px]"
@@ -414,7 +473,7 @@ export default function PlantSearchPage() {
                     <FilterControl
                       col={col}
                       value={plantCfg.filters[key]}
-                      options={optionsFor(allPlants, key)}
+                      options={[]}
                       onFilter={(value) => plantCfg.setColFilter(key, value)}
                     />
                   </div>
@@ -637,7 +696,7 @@ export default function PlantSearchPage() {
                     className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-lps-edge"
                   />
                 </div>
-                <PlantHeaderRow cfg={plantCfg} options={(key) => optionsFor(allPlants, key)} />
+                <PlantHeaderRow cfg={plantCfg} options={optionList} />
               </div>
 
               {visibleGroups.map((g) => {

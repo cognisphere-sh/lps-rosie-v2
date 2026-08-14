@@ -1,5 +1,151 @@
 # supplier-onboarding-and-ingestion — changelog
 
+## 3.3.0
+
+2026-08-14, with migration 0045. **The alias quality bar is load-bearing again.**
+
+Aliases now expand the search query rather than matching identity columns, and
+an expanded query has no column to be restricted to — so `alias_type` no longer
+constrains what a pair can reach. 3.0.0 said getting the type right meant "a
+whole class of past damage cannot happen"; that is no longer true, and §2 says
+so plainly instead.
+
+Nothing about how you *write* a pair changes: same evidence rule, same bar, same
+`alias_type` on every insert (it still records what the pair asserts and still
+drives the *Also known as* split). What changes is the stake. A pair joining a
+species to one of its cultivars now turns a search for that cultivar into a
+search for the whole species — measured, not predicted — and because such a
+query is one word the multi-word safety gate never runs to catch it. §5's alias
+verification is the check that catches it before it ships.
+
+## 3.2.0
+
+Bhoumik's call, 2026-08-14, with migration 0043. Display format only — no column,
+no matching, no row changes.
+
+- **`inventory.name` joins its parts with ` - ` instead of bracketing the tail**
+  (§2, *Name*). `Forest Pansy Redbud - Cercis canadensis - Forest Pansy`, not
+  `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`. One separator between
+  every part, because the comma is no longer available as a part separator —
+  since 3.1.0 the cultivar column is itself comma-separated, so
+  `Acer palmatum - Wolff, Emperor 1` has to read as "botanical, then a
+  two-name cultivar column". The dash is spaced, which is what distinguishes it
+  from the hyphen inside `KN30-8`, and it is how the trade prints it.
+
+  Still derived, still never written by hand. Safe by construction:
+  `normalize_plant_key()` keeps letters only and `normalize_search_text()` maps
+  punctuation to spaces, so the bracket and dash forms share one identity key and
+  one token array.
+
+## 3.1.0
+
+Bhoumik's correction to 3.0.0, 2026-08-14, with migrations 0041 and 0042.
+
+- **`cultivar_variety_trade_name` is the residual, not just the cultivar** (§2,
+  *Name*). It captures **everything in the printed name that the common and
+  botanical name don't** — cultivar, variety, selection, trade name — because
+  sources don't reliably distinguish them and guessing which is which loses
+  information. 3.0.0 said to store the cultivar and carry the trade name only as
+  an alias edge; that was wrong. `Acer palmatum 'Wolff' - Emperor 1®` now stores
+  `Wolff, Emperor 1®`.
+
+  **Comma-separate multiple names**, and the comma is load-bearing: migration
+  0041 replaced the scalar `cultivar_key` with `cultivar_keys text[]`, split on
+  the comma, so each name gets its own identity key. Run two names together with
+  a dash and they key as one string matching neither, and the row silently stops
+  answering searches for either — §5 gains a query that catches exactly that.
+  (`;` and `|` are tolerated by the trigger; `-` and `/` are deliberately not
+  split, because `KN30-8` is one cultivar code.)
+
+- **An explicit exclusion list** (§2, *Name*). Size, container, height / width /
+  caliper, form and grade codes (`STD`, `Bush`, `Multi-Trunk`, `Clump`, `Globe`,
+  `Low Graft`, `Spec`) and pack counts never enter the column however the source
+  prints them inline — with the worked cases the 0035 residual note flagged:
+  `Buxus x 'Green Mountain' Globe` is cultivar `Green Mountain` with `Globe`
+  noted, not `Green Mountain Globe`.
+
+- **Aliases now enrich the query** (migration 0042, no SOP change needed). The
+  alias branch used to require the *whole* query to match one edge's text, and
+  pgroonga's `&@~` is AND across tokens — so `Live Oak Boardwalk` could never
+  reach the `Live Oak` ↔ `Quercus virginiana` edge. It now also matches any
+  contiguous run of query words against an edge's endpoint key. This makes the
+  alias directory an ingest writes actually pay off on multi-word searches;
+  before it, a species alias plus a cultivar term only worked when the pg_trgm
+  fallback happened to fire on string similarity.
+
+- **`scripts/match-candidates`** compares cultivars as sets: an entry and a
+  candidate mismatch when both name at least one selection and they share none.
+  Multi-name rows made the old scalar `<>` test wrong in both directions.
+
+## 3.0.1
+
+2026-08-14, harness 0.8.18 upgrade. Path-only change: the schema doc is now
+read from `knowledge/files/SCHEMA.md`. No behaviour change.
+
+## 3.0.0
+
+Approved by Bhoumik, 2026-08-14, alongside migration 0040. Incompatible: the
+columns an ingest writes for a plant's identity have changed, and so has the
+table its aliases go in.
+
+- **The name is three columns now, and `inventory.name` is derived** (§2,
+  *Name*, rewritten). An ingest writes `common_name`, `botanical_name` and
+  `cultivar_variety_trade_name` — each carrying **only what the source
+  explicitly prints for that offering** — and a database trigger composes
+  `name` as `Common [Botanical, Cultivar]`. That is byte-for-byte the format
+  2.0.0 asked writers to assemble by hand, so nothing about the printed result
+  moved; what moved is who assembles it. **Writing `name` on a row that has
+  parts is silently overwritten**, and `name_key` / `common_name_key` /
+  `botanical_name_key` / `cultivar_key` are derived too. §4 step 3 says so at
+  the point of insert.
+
+  Cultivar, variety and trade name deliberately share one column: sources do
+  not distinguish them reliably, and a row that prints both a cultivar and a
+  trade name (`Acer palmatum 'Wolff' - Emperor 1®`) records the cultivar in the
+  column and the pair as a `cultivar` alias, rather than inventing a second
+  column to hold half of it.
+
+- **Aliases move to `plant_aliases`, and they are typed** (§2, *Aliases*,
+  rewritten). `plant_other_names` is gone. Every pair now declares an
+  `alias_type`: `plant` (two names for the same plant — common ↔ botanical,
+  synonym, spelling variant) is compared against a row's common/botanical name,
+  and `cultivar` (two names for the same selection) is compared against its
+  cultivar column **only**.
+
+  This is the substantive change, not bookkeeping. A `cultivar` edge cannot
+  reach a generic row of the same species, because it is never compared to a
+  column that a generic row fills — which is precisely the failure that
+  migrations 0006, 0007, 0021, 0025, 0028 and 0029 each existed to clean up
+  after. The old rule "no cultivar, selection, variant, trade name or patent
+  code in `other_name`" is therefore **gone**: those pairs are now expressible,
+  and valuable, as long as they are typed `cultivar`. Every other bar (attested
+  on this line, never two line items from the same list, same thing not a
+  relative, nothing generic, a name not data, not redundant) still holds, and
+  mis-typing a cultivar pair as `plant` throws the guarantee away.
+
+  Pairs now carry their evidence: **`source_id` and `source_line` are written
+  with every insert**, so an audited edge is distinguishable from a fresh guess
+  and traceable to the drop that wrote it. The old table recorded neither, which
+  is why 0029 had to attribute a bad edge by reading id ordering. The dedupe
+  trigger also rejects the **mirrored** orientation, closing the hole that let
+  168 retired pairs come back reversed.
+
+- **`scripts/match-candidates` reads the parts.** Entries take `common_name` /
+  `botanical_name` / `cultivar`; a pre-0040 entry with only a whole `name` still
+  works and is matched exactly as before. Candidates now show their `cultivar`,
+  and a candidate whose cultivar contradicts the entry's is marked
+  **`CULTIVAR MISMATCH`** and can never be suggested as an update — sibling
+  selections score almost identically on the identity as a whole, which 2.0.0
+  could only warn about in prose. The mark fires only when *both* sides name a
+  cultivar; one side naming one and the other not is still a judgement call.
+
+- **§5 gains a name-split check**: no row left with all three parts NULL, no
+  part still carrying a bracket, a quote or a size, and a read-back of composed
+  `name` values (a botanical name filed as the common name is invisible to a
+  query and obvious to a reader). The alias check gains the `alias_type`
+  diagnosis: a `cultivar` pair returning rows of the species without that
+  cultivar was typed `plant` by mistake.
+
 ## 2.0.0
 
 Approved by Bhoumik, 2026-08-14. Three changes, one of which is incompatible

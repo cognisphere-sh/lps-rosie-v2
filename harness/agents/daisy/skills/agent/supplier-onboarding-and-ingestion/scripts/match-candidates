@@ -16,11 +16,17 @@ Usage
   match-candidates --supplier <id> [--entries <file>] [options]
 
 Entries arrive as a JSON array on stdin (or from --entries). One object per
-parsed offering; `name` is required, everything else optional and echoed back so
-you can compare without a second lookup:
+parsed offering. Give it the **three name parts** you parsed under §2 —
+`common_name`, `botanical_name`, `cultivar` (the cultivar/variety/trade name).
+Everything else is optional and echoed back so you can compare without a second
+lookup:
 
-  [{"name": "Live Oak [Quercus virginiana]", "size": "15 G",
-    "unit_price": 48.00, "quantity": 120, "height": "6-8'"}, ...]
+  [{"common_name": "Live Oak", "botanical_name": "Quercus virginiana",
+    "size": "15 G", "unit_price": 48.00, "quantity": 120, "height": "6-8'"}, ...]
+
+A pre-0040 entry that carries only a composed `name` still works: it is matched
+whole, exactly as before. Give the parts when you have them — they are what
+makes the cultivar check below possible.
 
 Options
   --supplier <id>     supplier_id to search within (required)
@@ -33,9 +39,17 @@ Options
                       default includes inactive rows, so a plant the supplier
                       dropped and brought back is found rather than duplicated
 
-Columns returned per candidate are deliberately narrow — id, name, size,
-size_std, price, quantity, the three dimensions, is_active. Notes are excluded:
-they are long, and they are not what tells two offerings apart.
+Columns returned per candidate are deliberately narrow — id, name, cultivar,
+size, size_std, price, quantity, the three dimensions, is_active. Notes are
+excluded: they are long, and they are not what tells two offerings apart.
+
+The cultivar is called out separately because sibling selections are the classic
+trap: `Abies concolor [Blue Select]` and `Abies concolor [Candicans]` score
+almost identically on the identity as a whole. Cultivars are compared as **sets**
+— a row can name a cultivar and a trade name — so a candidate is marked
+`CULTIVAR MISMATCH`, and excluded from the suggestion, when both sides name at
+least one selection and they **share none**. `Wolff, Emperor 1` against `Wolff`
+is a match; against `Candicans` it is not.
 
 Exit codes: 0 ok, 1 bad usage/input, 2 the query script failed.
 """
@@ -49,7 +63,7 @@ import csv
 import io
 
 COLUMNS = [
-    "id", "name", "size", "size_std", "unit_price",
+    "id", "name", "cultivar", "size", "size_std", "unit_price",
     "quantity", "height", "width", "caliper", "is_active",
 ]
 
@@ -78,17 +92,29 @@ def build_sql(supplier_id: int, entries, limit: int, min_sim: float,
     sel_cols = ",\n       ".join(f"r.{c}" for c in COLUMNS)
     return f"""
 WITH sup AS MATERIALIZED (
-  SELECT i.id, i.name, i.name_key, i.size, i.size_std, i.unit_price,
+  SELECT i.id, i.name, i.name_key,
+         i.cultivar_variety_trade_name AS cultivar, i.cultivar_keys,
+         i.size, i.size_std, i.unit_price,
          i.quantity, i.height, i.width, i.caliper, i.is_active
   FROM inventory i
   WHERE i.supplier_id = {supplier_id} {active_filter}
 ),
 keys AS MATERIALIZED (SELECT DISTINCT name_key FROM sup),
+-- The entry's identity is the composition of whatever parts it gave, so a
+-- parts-only entry and a pre-0040 whole-name entry key the same way.
 e AS MATERIALIZED (
-  SELECT (x.value->>'idx')::int          AS idx,
-         x.value->>'name'                AS nm,
-         x.value->>'size'                AS sz,
-         normalize_plant_key(x.value->>'name') AS nk
+  SELECT (x.value->>'idx')::int AS idx,
+         x.value->>'size'       AS sz,
+         normalize_plant_key(
+           coalesce(x.value->>'name',
+                    compose_plant_name(x.value->>'common_name',
+                                       x.value->>'botanical_name',
+                                       x.value->>'cultivar'))) AS nk,
+         (SELECT coalesce(array_agg(k), '{{}}')
+            FROM (SELECT nullif(normalize_plant_key(part), '') AS k
+                    FROM regexp_split_to_table(
+                           coalesce(x.value->>'cultivar', ''), '\\s*[,;|]\\s*') AS part) z
+           WHERE k IS NOT NULL)                                 AS ck
   FROM jsonb_array_elements($json${payload}$json$::jsonb) AS x(value)
 ),
 km AS MATERIALIZED (
@@ -96,9 +122,14 @@ km AS MATERIALIZED (
   FROM e CROSS JOIN keys k
   WHERE similarity(k.name_key, e.nk) > {min_sim}
 ),
+-- Two selections of one species are two plants, so a named cultivar that
+-- disagrees is a hard fact about the candidate, not a scoring nudge. It is
+-- reported per candidate and blocks the UPDATE suggestion outright.
 cand AS (
   SELECT km.idx,
          {cand_cols},
+         (cardinality(e.ck) > 0 AND cardinality(coalesce(s.cultivar_keys, '{{}}')) > 0
+            AND NOT (s.cultivar_keys && e.ck))             AS cultivar_mismatch,
          round((0.75 * km.sim
               + 0.25 * (CASE WHEN s.size IS NOT DISTINCT FROM e.sz
                              THEN 1 ELSE 0 END))::numeric, 4) AS score
@@ -111,13 +142,16 @@ cand AS (
 -- and hide the row you actually want. `dupes` is how many rows collapsed, and
 -- `id` is the one to act on — the active one, newest first.
 grouped AS (
-  SELECT idx, name, size, size_std, unit_price, quantity, height, width, caliper,
+  SELECT idx, name, cultivar, size, size_std, unit_price, quantity,
+         height, width, caliper,
          max(score)                                        AS score,
          bool_or(is_active)                                AS is_active,
+         bool_or(cultivar_mismatch)                        AS cultivar_mismatch,
          count(*)                                          AS dupes,
          (array_agg(id ORDER BY is_active DESC, id))[1]    AS id
   FROM cand
-  GROUP BY idx, name, size, size_std, unit_price, quantity, height, width, caliper
+  GROUP BY idx, name, cultivar, size, size_std, unit_price, quantity,
+           height, width, caliper
 ),
 -- Rank active and inactive separately. Retired history badly outnumbers live
 -- rows on established suppliers (supplier 32: 34.9k rows, 5.4k active), so a
@@ -129,7 +163,7 @@ ranked AS (
          ) AS rn
   FROM grouped
 )
-SELECT r.idx, r.rn, r.score, r.dupes,
+SELECT r.idx, r.rn, r.score, r.dupes, r.cultivar_mismatch,
        {sel_cols}
 FROM ranked r
 WHERE (r.is_active AND r.rn <= {limit}) OR (NOT r.is_active AND r.rn <= 1)
@@ -149,15 +183,29 @@ def is_true(v) -> bool:
     return str(v).lower() in ("t", "true", "1")
 
 
+def entry_label(e) -> str:
+    """What to print for an entry — the same shape inventory.name is composed in."""
+    if e.get("name"):
+        return e["name"]
+    parts = [e.get("common_name"), e.get("botanical_name"), e.get("cultivar")]
+    return " - ".join(p for p in parts if p)
+
+
 def suggest(cands, hi: float, lo: float):
     """A sort aid, not a decision. §4 of the skill is what actually decides."""
-    live = [c for c in cands if is_true(c["is_active"])]
-    dead = [c for c in cands if not is_true(c["is_active"])]
+    # A candidate whose cultivar contradicts the entry's is a different plant,
+    # so it cannot be what this offering already is. It stays in the printed
+    # list — seeing the sibling is useful — but it never drives the suggestion.
+    usable = [c for c in cands if not is_true(c["cultivar_mismatch"])]
+    live = [c for c in usable if is_true(c["is_active"])]
+    dead = [c for c in usable if not is_true(c["is_active"])]
 
     if not live:
         if dead and float(dead[0]["score"]) >= hi:
             return "reactivate", (f'only match is a retired row at '
                                   f'{float(dead[0]["score"]):.2f}')
+        if len(usable) < len(cands):
+            return "insert", "every close candidate names a different cultivar"
         return "insert", "no active candidate above the similarity floor"
 
     top = float(live[0]["score"])
@@ -195,8 +243,12 @@ def main() -> None:
     if not isinstance(entries, list) or not entries:
         sys.exit("match-candidates: entries must be a non-empty JSON array")
     for i, e in enumerate(entries):
-        if not isinstance(e, dict) or not e.get("name"):
-            sys.exit(f"match-candidates: entry {i} has no 'name'")
+        if not isinstance(e, dict) or not (
+            e.get("name") or e.get("common_name") or e.get("botanical_name")
+            or e.get("cultivar")
+        ):
+            sys.exit(f"match-candidates: entry {i} has no name — give it "
+                     "common_name / botanical_name / cultivar, or a whole 'name'")
         e["idx"] = i
 
     query_bin = find_query_script()
@@ -226,11 +278,13 @@ def main() -> None:
     for res in results:
         counts[res["suggest"]] = counts.get(res["suggest"], 0) + 1
         e = res["entry"]
-        print(f'[{res["idx"]}] {e["name"]}  size={e.get("size")}  '
+        print(f'[{res["idx"]}] {entry_label(e)}  size={e.get("size")}  '
               f'price={e.get("unit_price")}  qty={e.get("quantity")}')
         print(f'      SUGGEST {res["suggest"].upper()} — {res["why"]}')
         for c in res["candidates"]:
             flag = "" if is_true(c["is_active"]) else "  INACTIVE"
+            if is_true(c["cultivar_mismatch"]):
+                flag += "  CULTIVAR MISMATCH"
             dupes = f'  x{c["dupes"]}' if int(c["dupes"]) > 1 else ""
             print(f'      {c["score"]}  {c["id"]}  {c["name"]}  | {c["size"]} '
                   f'({c["size_std"]})  ${c["unit_price"]}  qty={c["quantity"]}  '

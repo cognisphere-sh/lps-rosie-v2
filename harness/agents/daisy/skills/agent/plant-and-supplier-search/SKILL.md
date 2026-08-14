@@ -1,14 +1,14 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule, how to relax filters and reword terms when there are no results, the key-column rules for any fallback query (never write generated *_key columns, never match names with = on raw text), and the shape of a good answer. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", "look up <plant/supplier>", or any price/availability question against the database. (v1.0.0)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name with name derived) and how typed plant_aliases edges reach it, how to relax filters and reword terms when there are no results, the key-column rules for any fallback query (never write derived name/key columns, never match names with = on raw text), and the shape of a good answer. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", "look up <plant/supplier>", or any price/availability question against the database. (v1.4.0)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.4.0"
 ---
 
 # Looking up a plant or supplier
 
-Read `knowledge/SCHEMA.md` before writing any query.
+Read `knowledge/files/SCHEMA.md` before writing any query.
 
 ## 1. Search with the RPC, not a hand-written query
 
@@ -17,9 +17,54 @@ suppliers. They handle other/common names via the alias graph, partial matching
 and typos — a `LIKE` query does not. Set the filters (`supplier_ids`, sort) from
 what was actually asked.
 
-**Never call `search_inventory` with an empty `search`.** With nothing to rank it
-walks every active row and blows the statement timeout. To *list* rather than
-*search*, select from `inventory_enriched` with an `ORDER BY` and a `LIMIT`.
+An empty `search` returns **nothing** — there is nothing to rank. To *list*
+rather than *search*, select from `inventory_enriched` with an `ORDER BY` and a
+`LIMIT`.
+
+### How it matches and ranks
+
+It searches **names, size and notes**. It is typo tolerant, matches **partially
+at both ends** (`sycamor` and `ycamor` both find `sycamore`), and expands your
+terms through `plant_aliases` first — so the common and botanical name return
+the same rows.
+
+Results are **ranked, not filtered**: `relevance` is the sum of the rarity
+weight of each query term the row matched, so rare terms dominate. Two things
+follow, and both matter when you read a result set:
+
+- **The top of the list is the answer; the tail is weak.** A search returns
+  everything matching *any* term. `Crape Myrtle Muskogee` returns ~755 rows, but
+  only the top ~178 match both parts — read `relevance` (or just the first
+  screen), don't report the row count as "how many we have".
+- **A cultivar that nobody carries no longer comes back empty.** It returns the
+  generic plant, ranked below anything matching the cultivar. Check `relevance`
+  and the returned `cultivar_variety_trade_name` before telling someone a
+  supplier has the selection they asked for.
+
+### What a plant's identity is made of
+
+A row carries the common name, the botanical name and the
+cultivar/variety/trade name in **three separate columns**, each holding only
+what the source printed; `inventory.name` is the composition of them — the
+non-empty parts joined by ` - `. So `search_inventory` finds a row by any of
+the three, and the returned `common_name` / `botanical_name` /
+`cultivar_variety_trade_name` tell you which part actually matched — worth
+saying out loud when the asker searched a cultivar and got the species.
+
+**Aliases expand the query.** Any contiguous run of query words that names an
+alias is replaced by itself OR the other side of that edge, and the groups stay
+AND-ed: `Live Oak Boardwalk` searches
+`((live oak) OR (quercus virginiana)) boardwalk`. So a plant found under either
+name comes back either way, and — unlike the older mechanism — an alias-reached
+row is scored like any other text match rather than ranking last.
+
+The **Also known as** value lists only alias names that are not already spelled
+inside the row's own name.
+
+One thing to know when a result looks too broad: the alias type does **not**
+restrict what a pair can reach any more. If a search for a cultivar returns the
+whole species, suspect a bad alias pair joining the two, and report it — that is
+a data problem, not a search bug.
 
 ## 2. If nothing comes back, widen before concluding
 
@@ -29,13 +74,21 @@ Relax the filters and adjust the terms before saying there's no match:
 - botanical name ↔ common name,
 - fewer filters (all suppliers rather than one).
 
+Nothing coming back at all is now rare — the search returns anything matching
+any term. If a cultivar search returns rows but none of them actually name that
+cultivar, that is the answer: nobody on file carries it, and what you are seeing
+is the generic plant ranked below it.
+
 ## 3. Fall back to a custom query only when the RPC can't express the question
 
 Two rules always hold:
 
-- **Never write generated `*_key` columns.**
-- **Never match plant names with `=` on raw text** — join or compare on
-  `name_key`, or wrap the text in `normalize_plant_key(<text>)`.
+- **Never write a derived column** — `inventory.name` and every `*_key`
+  (`name_key`, `common_name_key`, `botanical_name_key`, `cultivar_keys`) are
+  maintained by the database. Write the three name parts instead.
+- **Never match plant names with `=` on raw text** — compare on `name_key`,
+  `common_name_key` or `botanical_name_key`, test `cultivar_keys` (an array)
+  with `&&` or `= any`, or wrap the text in `normalize_plant_key(<text>)`.
 
 ## 4. Answering
 

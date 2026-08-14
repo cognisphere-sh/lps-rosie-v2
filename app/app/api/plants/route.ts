@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
 
-import { parseDimensionRanges } from '@/lib/dimension-ranges'
-import { PLANT_PAGE_SIZE, getSupplierPlants, searchPlantGroups } from '@/lib/queries'
+import { PLANT_PAGE_SIZE, getSupplierPlants, plantFacets, searchPlantGroups } from '@/lib/queries'
+import { MASTER_FILTERS, PLANT_FILTERS, parseFilters } from '@/lib/server-filters'
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const search = url.searchParams.get('q') ?? ''
   const supplierId = url.searchParams.get('supplierId')
-  let ranges: ReturnType<typeof parseDimensionRanges>
+
+  // Column filters are applied as SQL over the search result, so they arrive
+  // here rather than being applied to whatever page the browser holds.
+  let filters
   try {
-    ranges = parseDimensionRanges(url.searchParams)
+    filters = [
+      ...parseFilters('plant', PLANT_FILTERS, url.searchParams),
+      ...parseFilters('master', MASTER_FILTERS, url.searchParams),
+    ]
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 })
   }
@@ -18,17 +24,27 @@ export async function GET(req: Request) {
   const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1
 
   try {
+    // The option lists each multiselect offers, for this search and *without*
+    // the column filters — otherwise picking one value would remove every
+    // other value from its own dropdown. Fetched on its own so it can be
+    // cached against the search term while filters change freely.
+    if (url.searchParams.get('facets') === '1') {
+      const scope = supplierId ? Number.parseInt(supplierId, 10) : undefined
+      return NextResponse.json({
+        facets: await plantFacets(search, Number.isInteger(scope) ? scope : undefined),
+      })
+    }
     if (supplierId) {
       const id = Number.parseInt(supplierId, 10)
       if (!Number.isInteger(id)) {
         return NextResponse.json({ error: 'bad supplierId' }, { status: 400 })
       }
-      return NextResponse.json(await getSupplierPlants(id, search, page, ranges))
+      return NextResponse.json(await getSupplierPlants(id, search, page, filters))
     }
     if (!search.trim()) return NextResponse.json({ groups: [], total: 0, pageCount: 1 })
     // The page size lives on the server, so the page count is computed here
     // rather than handing the browser a divisor it would have to duplicate.
-    const { groups, total } = await searchPlantGroups(search, ranges, page)
+    const { groups, total } = await searchPlantGroups(search, filters, page)
     return NextResponse.json({ groups, total, pageCount: Math.max(1, Math.ceil(total / PLANT_PAGE_SIZE)) })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

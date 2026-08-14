@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { DEFAULT_HIDDEN, TABLE_COLS, type ColumnDef, type TableId } from '@/lib/columns'
+import { DEFAULT_HIDDEN, TABLE_COLS, splitMultiValue, type ColumnDef, type TableId } from '@/lib/columns'
 import { compareSizeStd } from '@/lib/size-std'
 
 export interface TableConfig {
@@ -21,6 +21,10 @@ const FILTER_VALUE_KEYS = new Map(
     .flat()
     .filter((column) => column.filterValueKey)
     .map((column) => [column.key, column.filterValueKey!] as const),
+)
+/** Column keys whose cell holds a comma-separated list — see ColumnDef.multiValue. */
+const MULTI_VALUE_KEYS = new Set(
+  Object.values(TABLE_COLS).flat().filter((column) => column.multiValue).map((column) => column.key),
 )
 
 function defaults(table: TableId): TableConfig {
@@ -174,7 +178,13 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
       const text = Array.isArray(raw) ? raw.join(', ') : raw == null ? '' : String(raw)
 
       if (typeof filter === 'string') return text.toLowerCase().includes(filter.toLowerCase())
-      if (Array.isArray(filter)) return filter.length === 0 || filter.includes(text)
+      if (Array.isArray(filter)) {
+        if (filter.length === 0) return true
+        // A multi-value cell matches on any one of its names, so selecting
+        // "Emperor 1" keeps a row whose cultivar reads "Wolff, Emperor 1".
+        if (MULTI_VALUE_KEYS.has(key)) return splitMultiValue(raw).some((v) => filter.includes(v))
+        return filter.includes(text)
+      }
 
       // Missing numeric values are not zero. Keep them when no range is active,
       // but exclude them from any min/max query.
@@ -217,15 +227,29 @@ export function applyFilters<T extends { values: Record<string, unknown> }>(
  * `size_std` buckets, not the supplier's own size text) lists that companion,
  * so the options line up with what `applyFilters` compares against.
  */
+/**
+ * Sort one multiselect's options.
+ *
+ * Sizes order by their standard rather than alphabetically — otherwise 100G
+ * sorts between 10G and 15G.
+ */
+export function compareOptions(key: string): (a: string, b: string) => number {
+  const valueKey = FILTER_VALUE_KEYS.get(key) ?? key
+  return valueKey === 'size_std' ? compareSizeStd : (a, b) => a.localeCompare(b)
+}
+
 export function optionsFor<T extends { values: Record<string, unknown> }>(
   rows: T[],
   key: string,
 ): string[] {
   const valueKey = FILTER_VALUE_KEYS.get(key) ?? key
+  const multiValue = MULTI_VALUE_KEYS.has(key)
   const seen = new Set<string>()
   for (const row of rows) {
     const raw = row.values[valueKey]
-    if (raw != null && raw !== '') seen.add(String(raw))
+    if (raw == null || raw === '') continue
+    if (multiValue) for (const part of splitMultiValue(raw)) seen.add(part)
+    else seen.add(String(raw))
   }
   return [...seen].sort(valueKey === 'size_std' ? compareSizeStd : (a, b) => a.localeCompare(b))
 }

@@ -35,7 +35,7 @@ Comparison:
 | `maxConcurrentSlots` | 5 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
 | Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram, **webchat** (+ core: agent-messaging) |
-| Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels | — |
+| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, gmail-labels; `memory.md` | `memory.md` only |
 | Migrations | 0001 (applied, superseded) | — |
 | Skills | 6 LPS procedures + create-skill | cognisphere-upgrade, create-plugin, create-skill |
 
@@ -48,15 +48,18 @@ daisy and nova through the [`webchat`](plugin-webchat.md) plugin. See
 
 [`docs/supabase-schema.md`](../supabase-schema.md) is the single source of truth
 for the Supabase schema, for agents and the app alike.
-`harness/agents/daisy/knowledge/SCHEMA.md` is a **symlink** to it, so daisy's
-existing cwd-relative `knowledge/SCHEMA.md` references keep working and edits
-through the symlink land in the shared file.
+`harness/agents/daisy/knowledge/files/SCHEMA.md` is a **symlink** to it, so
+daisy's cwd-relative `knowledge/files/SCHEMA.md` references resolve to the
+shared file and edits through the symlink land there.
 
 Give any new agent that needs database access the same symlink — never a copy:
 
 ```sh
-ln -s ../../../../docs/supabase-schema.md harness/agents/<agent>/knowledge/SCHEMA.md
+ln -s ../../../../../docs/supabase-schema.md harness/agents/<agent>/knowledge/files/SCHEMA.md
 ```
+
+(Reference docs moved from `knowledge/` to `knowledge/files/` in harness
+0.8.18, which is why the relative path climbs one extra level.)
 
 ### Shared across all agents
 

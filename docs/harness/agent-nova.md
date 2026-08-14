@@ -80,4 +80,7 @@ inside the home (e.g. Claude Code) can use them too.
 
 ## Knowledge / migrations
 
-None.
+No migrations. `knowledge/` carries only the harness 0.8.18 scaffold —
+`index.md` with an empty `files/`, and `memory.md` holding one section
+(`telegram-contacts`: the `-1004330045748` group is Nova's channel to Bhoumik
+and Chris), migrated from the old `workspace/memory/`.

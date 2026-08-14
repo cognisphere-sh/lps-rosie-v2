@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { SUPPLIER_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
 import type { SupplierRow } from '@/lib/rows'
-import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
+import { SUPPLIER_FILTERS, clientOnlyFilters, filterQuery } from '@/lib/server-filters'
+import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 
 const ACTIONS_W = 16 + 26
@@ -35,6 +36,7 @@ export default function SuppliersPage() {
   const searching = loading || query !== debouncedQuery
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
   const [refreshNonce, setRefreshNonce] = useState(0)
+  const [facets, setFacets] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     const refresh = () => setRefreshNonce((value) => value + 1)
@@ -42,15 +44,39 @@ export default function SuppliersPage() {
     return () => window.removeEventListener('lps:refresh', refresh)
   }, [])
 
-  // A new search starts again at page 1.
-  useEffect(() => setPage(1), [debouncedQuery])
+  // Column filters run as SQL over the RPC result, so they travel with the
+  // request rather than being applied to whichever page came back.
+  const serverFilterQuery = useMemo(
+    () => filterQuery('supplier', SUPPLIER_FILTERS, cfg.filters),
+    [cfg.filters],
+  )
+  const debouncedFilterQuery = useDebounced(serverFilterQuery)
+
+  // A new search or filter starts again at page 1.
+  useEffect(() => setPage(1), [debouncedQuery, debouncedFilterQuery])
+
+  // Option lists for this search, deliberately not narrowed by the active
+  // filters — otherwise picking one city would remove the rest from the list.
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/suppliers?facets=1&q=${encodeURIComponent(debouncedQuery)}`)
+      .then((r) => r.json())
+      .then((body: { facets?: Record<string, string[]> }) => {
+        if (!cancelled) setFacets(body.facets ?? {})
+      })
+      .catch(() => !cancelled && setFacets({}))
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedQuery, refreshNonce])
 
   // Debounced search → search_suppliers RPC. Stale responses are dropped so a
   // slow early query can't overwrite the results of a later one.
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetch(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}`)
+    const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
+    fetch(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { rows?: SupplierRow[]; total?: number; pageCount?: number }) => {
         if (cancelled) return
@@ -63,7 +89,7 @@ export default function SuppliersPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, page, refreshNonce])
+  }, [debouncedQuery, debouncedFilterQuery, page, refreshNonce])
 
   // Second pass: "# Items" needs one COUNT per supplier, so it arrives after
   // the table has already rendered rather than holding it up.
@@ -105,9 +131,22 @@ export default function SuppliersPage() {
     [toast],
   )
 
+  // Everything except `# Items` was filtered in SQL before this page arrived;
+  // that one is a per-supplier COUNT from a second pass, so it has no column to
+  // filter on and stays here.
   const visibleRows = useMemo(
-    () => applyFilters(rows.filter((r) => !hiddenRows.includes(r.id)), cfg.filters, cfg.sort),
+    () =>
+      applyFilters(
+        rows.filter((r) => !hiddenRows.includes(r.id)),
+        clientOnlyFilters(cfg.filters, SUPPLIER_FILTERS),
+        cfg.sort,
+      ),
     [rows, hiddenRows, cfg.filters, cfg.sort],
+  )
+
+  const optionList = useCallback(
+    (key: string) => [...(facets[key] ?? [])].sort(compareOptions(key)),
+    [facets],
   )
 
   const categoryFilter = Array.isArray(cfg.filters.category) ? cfg.filters.category : []
@@ -126,7 +165,7 @@ export default function SuppliersPage() {
             <MultiFilter
               allLabel="All supplier types"
               selectionLabel="Type"
-              options={optionsFor(rows, 'category')}
+              options={optionList('category')}
               selected={categoryFilter}
               onChange={(next) => cfg.setColFilter('category', next)}
               buttonClassName="h-8 px-2 text-[12px]"
@@ -137,7 +176,7 @@ export default function SuppliersPage() {
             <MultiFilter
               allLabel="All cities"
               selectionLabel="City"
-              options={optionsFor(rows, 'city')}
+              options={optionList('city')}
               selected={cityFilter}
               onChange={(next) => cfg.setColFilter('city', next)}
               buttonClassName="h-8 px-2 text-[12px]"
@@ -148,7 +187,7 @@ export default function SuppliersPage() {
             <MultiFilter
               allLabel="All states"
               selectionLabel="State"
-              options={optionsFor(rows, 'state')}
+              options={optionList('state')}
               selected={stateFilter}
               onChange={(next) => cfg.setColFilter('state', next)}
               buttonClassName="h-8 px-2 text-[12px]"
@@ -240,7 +279,7 @@ export default function SuppliersPage() {
                         width={cfg.widthOf(col)}
                         sort={cfg.sort}
                         filters={cfg.filters}
-                        options={optionsFor(rows, col.key)}
+                        options={optionList(col.key)}
                         onSort={() => cfg.cycleSort(col.key)}
                         onFilter={(v) => cfg.setColFilter(col.key, v)}
                         onResize={(w) => cfg.resizeColumn(col.key, w)}

@@ -1,5 +1,19 @@
 # availability-drop-intake — changelog
 
+## 2.0.2
+
+2026-08-14, harness 0.8.18 upgrade. Path-only change: reference docs moved to
+`knowledge/files/`, so the brief now names `knowledge/files/SCHEMA.md` and the
+label IDs live at `knowledge/files/gmail-labels.md`. §4 now files the result
+summary into the thread's `notes.md` (`## Context` / `## Decisions`) instead of
+the removed `summary.md`. No change to what this skill does or does not write.
+
+## 2.0.1
+
+2026-08-14, following migration 0040. The alias table named in the boundary
+rule is now `plant_aliases` — `plant_other_names` no longer exists. No change
+to what this skill does or does not write.
+
 ## 2.0.0
 
 Approved by Bhoumik, 2026-08-14. Split cleanly from

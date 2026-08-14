@@ -130,7 +130,7 @@ is enabled in the desktop rail and through mobile More.
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, view-only row hiding, and header pagination through the whole match set 50 at a time. Cards on mobile; the redundant generic Shell title is hidden there. |
 | `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / Communications / Notes / Files. Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
-| `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, searchable multiselects for supplier type, city and state in the search toolbar, and header pagination through the whole match set 300 plants at a time. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
+| `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, searchable multiselects for cultivar, supplier type, city and state in the search toolbar, and header pagination through the whole match set 300 plants at a time. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 
@@ -171,8 +171,8 @@ set per search flavour (`PLANT_SEARCH_LABELS` for the two plant searches,
 `SUPPLIER_SEARCH_LABELS` for the suppliers list), both defined in
 `search-loader.tsx`.
 
-`search_inventory` **cannot be called with an empty search** (it walks all ~74k
-active rows and exceeds the statement timeout — see the schema doc). Plant
+`search_inventory` returns nothing for an empty search (it has nothing to rank),
+so browsing reads `inventory_enriched` directly. Plant
 Search therefore shows a clean prompt and makes no inventory request until a
 term is entered; the API also returns an empty group list for a blank `q`.
 
@@ -190,25 +190,65 @@ alias matching cannot silently ignore the size token. Explicit gallon spellings
 (`15 G`, `15G`, `15 gallon`) and explicit box notation are normalized; the
 supplier's original size text remains unchanged.
 
-For multi-word identities, `search_inventory` identifies the least-common query
-word in its candidate set and requires that distinguishing intent in the row's
-own identity or a directly attached reviewed alias. Matching remains bounded
-fuzzy/prefix tolerant and word-order independent: `Crape Myrtle Muskogee` and
-`Muskogee Crape Myrtle` resolve identically, while generic `Crape Myrtle` stays
-broad. The intent predicate combines bounded fuzzy matching with explicit
-normalized word-prefix matching in either word order. Alias search/display
-follows only the two endpoints of a direct reviewed edge—never siblings reached
-through a shared bare-species hub. The browser performs neither a second
-alias-based refinement nor a zero-result split-word fallback: an unknown
-cultivar remains empty rather than broadening to the generic plant.
+### How results are ranked
 
-The alias RPC matches one whole query and cannot natively combine a species
-alias with a separate cultivar term (`Live oak` + `Boardwalk`). If a full
-multi-word query returns zero, the server searches its unique words (three or
-more characters) in parallel and uses the smallest non-empty result set — the
-most selective term. This fallback runs only after zero results, so normal
-searches still make one RPC call; both `Live oak boardwalk` and `Boardwalk live
-oak` can fall back to the 32-row `Boardwalk` set.
+`search_inventory` matches **names, size and notes** and ranks by
+**IDF-weighted term coverage**: the query is split into groups (longest span
+first, so `live oak` is one concept), each group is weighted by how rare it is
+in the catalogue, and a row's `relevance` is the sum over the groups it matched.
+Rare terms therefore dominate — searching `Crape Myrtle Muskogee` puts the
+Muskogee rows on top (10.38) above rows matching only the rare word (5.82) and
+the 567 generic crape myrtles (4.55).
+
+Matching is **typo tolerant** (`Mexican Sycamoer` finds the same top row as the
+correct spelling) and **partial at both ends** (`sycamor` *and* `ycamor` find
+`sycamore`). Query terms are **expanded through aliases** before any of this, so
+`Paperbark Maple` and `Acer griseum` return the same 66 rows.
+
+Retrieval is OR across groups, so result sets are long and the tail is weakly
+matched — that is deliberate, and why ranking rather than a filter decides what
+you see first. The app pages 300 at a time in relevance order, and orders
+explicitly on the returned `relevance` column rather than relying on the
+function's own `ORDER BY` surviving PostgREST's outer query.
+
+### The plant identity is three columns
+
+Since migration 0040 a row carries `common_name`, `botanical_name` and
+`cultivar_variety_trade_name` separately, each holding only what the supplier's
+source printed, and `inventory.name` is composed by the database as the
+non-empty parts joined by ` - ` (`Forest Pansy Redbud - Cercis canadensis -
+Forest Pansy`). The **Plant** column shows that composition and
+is **read-only**; the three parts are the editable columns, and `WRITABLE.inventory`
+in `lib/queries.ts` deliberately no longer lists `name` — a write there would be
+overwritten by the database trigger. Common name and botanical name are in
+`PLANT_HIDDEN` (the Plant column already shows both), **Cultivar** is visible.
+
+`cultivar_variety_trade_name` is the residual — everything the printed name
+carries that the other two don't — so one cell can name a cultivar *and* a trade
+name, comma-separated. The Cultivar column is therefore `multiValue`: its
+multiselect offers **one option per name** rather than one per combination, and
+a row matches if any of its names is selected, mirroring the database's
+`cultivar_keys` array match.
+
+Aliases live in `plant_aliases`. Any contiguous run of query words that names
+an edge is expanded with the other side of it before matching, so
+`Live oak Boardwalk` resolves through the `Live Oak` ↔ `Quercus virginiana`
+edge. `alias_type` records what a pair asserts and drives the *Also known as*
+split, but it no longer restricts what a pair can reach. **Also known as** lists only alias names that are not already spelled
+inside the row's own Plant value — the database drops the rest, so the column
+never repeats what is beside it.
+
+Editing a part has to move the read-only Plant column with it, or the table
+shows an identity the database no longer holds until the next fetch, so
+`plantEditPatch()` in `lib/columns.ts` recomposes it optimistically. It is a
+mirror of the database's `compose_plant_name()` and the **database stays
+authoritative** — the value is replaced by the real one on the next load. Both
+save paths (Plant search and the profile's Inventory tab) go through it.
+
+Beside it sits a **Cultivar: Any** selector, the same checkbox multiselect over
+the individual cultivar and trade names the matched rows carry. It writes the `plants` table's own
+`cultivar` column filter, so the toolbar control and the column header's filter
+are one piece of state — set either and both show it.
 
 When no size is typed, results add one compact **Size: Any** selector — a
 checkbox-style multiselect (with its own search box) listing the **standardized
@@ -599,12 +639,46 @@ rule — see [the schema doc](../supabase-schema.md#notes-vs-internal_notes):
 Both are editable in the plants table and both are in `PLANT_HIDDEN`, so the
 column picker opts into them.
 
-`search_inventory` returns `notes` only: its `RETURNS TABLE` is fixed and 0039
-deliberately did not drop and recreate the function. So `hydrateInternalNotes()`
-in `lib/queries.ts` fills the column in for the two RPC-backed paths — one keyed
-read of `inventory` per page — while the `inventory_enriched` reads already carry
-it. **If the RPC ever gains the column, delete the hydration** rather than
-keeping both.
+Both read paths carry the column directly. 0039 left `internal_notes` out of
+`search_inventory` to avoid dropping and recreating the function, and the app
+filled it in with a per-page keyed read (`hydrateInternalNotes`); migration 0040
+had to recreate the function anyway, so the column went into its `RETURNS TABLE`
+and that hydration was deleted.
+
+## Where a filter runs
+
+**Every column filter is SQL, applied over the search result.** `lib/server-filters.ts`
+holds one spec per table mapping a filter key to the column it selects on, plus
+`filterQuery()` (state → a stable query string), `parseFilters()` (validates it
+back, ignoring any key not in the spec so this cannot become a
+filter-by-any-column oracle) and `applyServerFilters()` (applies it to a
+PostgREST builder).
+
+PostgREST puts those filters in an outer query over the RPC's result set,
+*before* its own `range()`, so a filtered page and its `count: 'exact'` describe
+the same set. That is the whole point. Filtering in the browser could only ever
+narrow the page already fetched: measured on `Crape Myrtle`, 570 rows match and
+105 are `15G`, but only **73** are in the 300-row first page — 32 were
+unreachable by ticking the box, and "Showing 73 of 570" was wrong twice over.
+
+Adding a filter is now a line in the spec, not a migration, because the RPC
+already projects the columns. Two consequences worth knowing:
+
+- **Option lists come from a separate facet call**, keyed on the search term
+  alone (`?facets=1`). They have to: options derived from already-filtered rows
+  would collapse to whatever is selected, so picking one size would remove every
+  other size from its own dropdown. Because the key is the search term, changing
+  a filter never refetches them.
+- **Three things stay in the browser, each for a reason.** Sorting, because it
+  is view-local and the RPC's relevance ordering must stay primary. `# Items` on
+  the Suppliers table, because it is a per-supplier COUNT from a second pass and
+  not a column `search_suppliers` returns. And a size *typed into the query*
+  (`15g`), because it matches by value against the supplier's printed size text
+  — `15g` finds a row listed as `10/15 G` — which is a range no single
+  standardized bucket can express, so there is no column to compare against.
+
+`applyFilters()` in `lib/table-config.ts` therefore now runs with an empty
+filter set on the plant tables; it is still what applies the sort.
 
 ## Paging the list pages
 

@@ -5,6 +5,8 @@
 // are real, writable columns on their table carry it — derived values
 // (other_names, source, item_count, the aggregates) never do.
 
+import type { CellValue } from '@/lib/rows'
+
 export type FilterKind = 'text' | 'range' | 'multiselect' | 'none'
 /**
  * `link` = opens the supplier profile; `list` = the scrollable source-file
@@ -27,6 +29,14 @@ export interface ColumnDef {
   filter?: FilterKind
   /** Optional numeric row value used to filter/sort a human-readable column. */
   filterValueKey?: string
+  /**
+   * The cell holds several comma-separated values (a row's cultivar column can
+   * name a cultivar *and* a trade name). The multiselect then offers one option
+   * per name rather than one per combination, and a row matches if **any** of
+   * its names is selected — the same shape the database's `cultivar_keys`
+   * array match has.
+   */
+  multiValue?: boolean
   /** Unit shown in numeric range controls. */
   filterUnit?: string
   align?: 'left' | 'right'
@@ -111,7 +121,21 @@ export const MASTER_HIDDEN = MASTER_COLS.map((c) => c.key).filter((k) => !MASTER
 
 // Plant sub-table (the second table on Plant search, and the profile's Inventory tab).
 export const PLANT_COLS: ColumnDef[] = [
-  { key: 'name', label: 'Plant', width: 200, edit: true, writes: { table: 'inventory', column: 'name' } },
+  // The whole identity: "Common name [botanical name, cultivar]". The database
+  // derives it from the three part columns below (migration 0040), so it is
+  // read-only here — edit a part and this recomposes.
+  { key: 'name', label: 'Plant', width: 220 },
+  { key: 'common_name', label: 'Common name', width: 170, edit: true, writes: { table: 'inventory', column: 'common_name' } },
+  { key: 'botanical_name', label: 'Botanical name', width: 180, edit: true, writes: { table: 'inventory', column: 'botanical_name' } },
+  // Cultivar, variety and trade name share one column; the header filter is a
+  // multi-select over the cultivars present in the current result set.
+  {
+    key: 'cultivar', label: 'Cultivar', width: 170, filter: 'multiselect',
+    multiValue: true, edit: true,
+    writes: { table: 'inventory', column: 'cultivar_variety_trade_name' },
+  },
+  // Only names that are *not* already spelled inside the Plant column — the
+  // database drops the rest (`plant_alias_names`), so this never repeats it.
   { key: 'other', label: 'Also known as', width: 190 },
   // The cell shows the supplier's own size text; the filter selects on the
   // standardized bucket beside it (lib/size-std.ts).
@@ -139,7 +163,49 @@ export const PLANT_COLS: ColumnDef[] = [
   { key: 'ingestion_date', label: 'Ingested', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 130, filter: 'none' },
 ]
-export const PLANT_HIDDEN = ['notes', 'internal_notes', 'cal']
+// Common and botanical name are hidden by default, not absent: the Plant column
+// already shows both inside the composed identity, so showing them again costs
+// 350px for no new information. Unhide either to edit it.
+export const PLANT_HIDDEN = ['common_name', 'botanical_name', 'notes', 'internal_notes', 'cal']
+
+/**
+ * The patch an inline plant edit applies to the row on screen.
+ *
+ * Editing a name part has to move the read-only Plant column with it, or the
+ * table shows an identity the database no longer holds until the next fetch.
+ * This mirrors `compose_plant_name()` (migrations 0040/0043) — the database stays
+ * authoritative; this is the optimistic copy, replaced by the real value on the
+ * next load.
+ */
+const NAME_PARTS = ['common_name', 'botanical_name', 'cultivar'] as const
+
+/** The individual names in a cell that holds a comma-separated list. */
+export function splitMultiValue(raw: unknown): string[] {
+  return String(raw ?? '')
+    .split(/[,;|]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+export function plantEditPatch(
+  values: Record<string, CellValue>,
+  col: ColumnDef,
+  next: string,
+): Record<string, CellValue> {
+  const patch: Record<string, CellValue> = {
+    [col.key]: next || null,
+    // A hand-edited source string invalidates its standardized companion until
+    // ingestion or review supplies a reviewed pair.
+    ...(col.filterValueKey ? { [col.filterValueKey]: null } : {}),
+  }
+  if (!(NAME_PARTS as readonly string[]).includes(col.key)) return patch
+
+  const parts = NAME_PARTS.map((key) =>
+    String((key === col.key ? patch[key] : values[key]) ?? '').trim(),
+  ).filter(Boolean)
+  patch.name = parts.length ? parts.join(' - ') : values.name
+  return patch
+}
 
 export type TableId = 'suppliers' | 'plantMaster' | 'plants'
 

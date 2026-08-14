@@ -14,11 +14,11 @@ import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspac
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { FilterControl } from '@/components/workspace/table-parts'
-import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, PLANT_COLS, websiteHref, type ColumnDef } from '@/lib/columns'
-import { dimensionFilterQuery } from '@/lib/dimension-ranges'
+import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, PLANT_COLS, plantEditPatch, websiteHref, type ColumnDef } from '@/lib/columns'
+import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { formatDate, money, num } from '@/lib/format'
 import type { Contact, PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
-import { applyFilters, optionsFor, useTableConfig } from '@/lib/table-config'
+import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
@@ -335,13 +335,19 @@ export default function SupplierProfilePage() {
 
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebounced(query)
-  const dimensionQuery = dimensionFilterQuery(plantCfg.filters)
-  const debouncedDimensionQuery = useDebounced(dimensionQuery)
+  // Column filters are applied as SQL over the result, so the whole filter
+  // state travels with the request instead of narrowing the page in place.
+  const serverFilterQuery = useMemo(
+    () => filterQuery('plant', PLANT_FILTERS, plantCfg.filters),
+    [plantCfg.filters],
+  )
+  const debouncedFilterQuery = useDebounced(serverFilterQuery)
   const [plants, setPlants] = useState<PlantRow[]>([])
+  const [facets, setFacets] = useState<Record<string, string[]>>({})
   const [loadingPlants, setLoadingPlants] = useState(true)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
-  const searchingPlants = loadingPlants || query !== debouncedQuery || dimensionQuery !== debouncedDimensionQuery
+  const searchingPlants = loadingPlants || query !== debouncedQuery || serverFilterQuery !== debouncedFilterQuery
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
@@ -414,14 +420,29 @@ export default function SupplierProfilePage() {
   }, [id])
 
   // A new search starts again at page 1.
-  useEffect(() => setPage(1), [debouncedDimensionQuery, debouncedQuery])
+  useEffect(() => setPage(1), [debouncedFilterQuery, debouncedQuery])
+
+  // Option lists for this tab, unnarrowed by the active filters. Keyed on the
+  // search term only, so changing a filter never refetches them.
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/plants?facets=1&supplierId=${id}&q=${encodeURIComponent(debouncedQuery)}`)
+      .then((r) => r.json())
+      .then((body: { facets?: Record<string, string[]> }) => {
+        if (!cancelled) setFacets(body.facets ?? {})
+      })
+      .catch(() => !cancelled && setFacets({}))
+    return () => {
+      cancelled = true
+    }
+  }, [id, debouncedQuery])
 
   useEffect(() => {
     if (!Number.isInteger(id)) return
     let cancelled = false
     setLoadingPlants(true)
-    const dimensionSuffix = debouncedDimensionQuery ? `&${debouncedDimensionQuery}` : ''
-    fetch(`/api/plants?supplierId=${id}&page=${page}&q=${encodeURIComponent(debouncedQuery)}${dimensionSuffix}`)
+    const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
+    fetch(`/api/plants?supplierId=${id}&page=${page}&q=${encodeURIComponent(debouncedQuery)}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { plants?: PlantRow[]; hasMore?: boolean }) => {
         if (cancelled) return
@@ -433,7 +454,7 @@ export default function SupplierProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [id, debouncedDimensionQuery, debouncedQuery, page])
+  }, [id, debouncedFilterQuery, debouncedQuery, page])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -453,11 +474,7 @@ export default function SupplierProfilePage() {
           p.id === row.id
             ? {
                 ...p,
-                values: {
-                  ...p.values,
-                  [col.key]: next || null,
-                  ...(col.filterValueKey ? { [col.filterValueKey]: null } : {}),
-                },
+                values: { ...p.values, ...plantEditPatch(p.values, col, next) },
               }
             : p,
         ),
@@ -672,14 +689,21 @@ export default function SupplierProfilePage() {
     )
   }
 
+  // Filtering already happened in SQL; what is left here is view-local —
+  // sorting, rows the user hid, and rows deleted in this session.
   const visiblePlants = useMemo(
     () =>
       applyFilters(
         plants.filter((p) => !hiddenPlants.includes(p.id) && !deleted.includes(p.id)),
-        plantCfg.filters,
+        {},
         plantCfg.sort,
       ),
-    [plants, hiddenPlants, deleted, plantCfg.filters, plantCfg.sort],
+    [plants, hiddenPlants, deleted, plantCfg.sort],
+  )
+
+  const optionList = useCallback(
+    (key: string) => [...(facets[key] ?? [])].sort(compareOptions(key)),
+    [facets],
   )
 
   if (notFound) {
@@ -1199,7 +1223,7 @@ export default function SupplierProfilePage() {
                 <div className="relative min-h-0 flex-1 overflow-auto">
                   <div style={{ width: plantsWidth(plantCfg, true), minWidth: '100%' }}>
                     <div className="sticky top-0 z-30 flex items-stretch border-b border-border">
-                      <PlantHeaderRow cfg={plantCfg} options={(key) => optionsFor(plants, key)} showDelete />
+                      <PlantHeaderRow cfg={plantCfg} options={optionList} showDelete />
                     </div>
                     {visiblePlants.map((p) => (
                       <PlantRowLine
