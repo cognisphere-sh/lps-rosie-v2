@@ -143,7 +143,7 @@ is enabled in the desktop rail and through mobile More.
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
-| `DELETE /api/rows` | Soft delete (`is_active = false`). |
+| `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
 
 Pages are client components that fetch from these routes — the workspace is
 interaction-heavy (column layout, filters, editing), so there is one data path
@@ -384,6 +384,18 @@ already carry `source_id`, so `lib/queries.ts` resolves timestamps in one batche
 source lookup rather than duplicating them into `inventory`. This timestamp is
 when LPS ingested the source, **not** the source's printed/effective availability
 date; the latter must be modeled separately rather than inferred from filenames.
+
+The profile's **Files tab** lists a supplier's active sources and can retire one:
+**Deactivate** confirms, then flips `is_active` on the file, which retires every
+inventory row still attributed to it (`DELETE /api/rows` with
+`table: 'inventory_sources'` → `deactivateSource`). The cascade itself is a
+database trigger, not app code — `source_id` is a row's provenance, so a file
+retired on its own would leave live rows with a blank **Ingested** date that
+`search_inventory` also refuses to return. The app only counts the rows first,
+so the toast can report how many went, and rows a later drop re-listed point at
+that later source and are untouched. The Inventory tab refetches afterwards
+rather than going on displaying what was just retired. Uploads still happen
+through Daisy, not here.
 
 `suppliers.website` is stored as a bare domain (`bluemountainnsy.com`), so
 `websiteHref()` prefixes `https://` when linking.

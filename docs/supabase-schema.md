@@ -492,7 +492,7 @@ Provenance: one row per ingested pricing / availability file or URL, per supplie
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
 | `file_path` | text | no | Either an object key in the `lps` bucket or a full `http(s)://` URL |
 | `notes` | text | yes | Where/how it was sourced |
-| `is_active` | boolean | no, default true | Soft delete. **Ingestion no longer retires a supplier's previous sources** (2026-08-14) — live `inventory` rows still point at them, so retiring one would orphan its provenance |
+| `is_active` | boolean | no, default true | Soft delete. **Ingestion no longer retires a supplier's previous sources** (2026-08-14) — live `inventory` rows still point at them, so retiring one would orphan its provenance. Retiring one deliberately (the app's Files tab) takes those rows with it, see below |
 | `created_at` | timestamptz | no, default `now()` | Immutable LPS ingestion timestamp; not the source's printed/effective availability date |
 
 Since 2026-08-14 an ingest **updates** the rows it finds again and inserts the
@@ -502,6 +502,21 @@ contained it**, which makes it the staleness signal: an offering the supplier
 has stopped listing keeps its older `source_id` and its older derived
 `ingestion_date` while everything they still sell moves forward. Nothing is
 retired automatically — dropping an offering for good is a deliberate act.
+
+**Deactivating a source is that deliberate act, and it cascades** (2026-08-14,
+migration 0048). `trg_cascade_source_deactivation` retires every `inventory` row
+whose `source_id` is the file being retired, so a direct
+`UPDATE inventory_sources SET is_active = false` is as safe as the app's Files
+tab button — there is no way to leave live rows pointing at a dead source, which
+would mean blank `Ingested` dates and rows that browsing lists but
+`search_inventory` refuses to return. Because `source_id` names the most recent
+drop containing a row, an offering a later drop re-listed belongs to that later
+source and survives.
+
+The cascade runs **one way**. Reactivating a source does not restore its rows:
+nothing records which of them the trigger retired versus which were already
+retired for their own reasons, so undoing a mistaken retirement is a manual,
+considered `update`.
 
 The app derives an inventory row's `ingestion_date` by joining its `source_id`
 to an **active** source's `created_at`; manual/source-less rows remain blank. A
@@ -767,6 +782,7 @@ result by the caller (0045).
 | Trigger | Table | When | Does |
 |---|---|---|---|
 | `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows, `inventory_sources` and `supplier_contacts` links — plus any contact left with no active link at all |
+| `trg_cascade_source_deactivation` | inventory_sources | AFTER UPDATE OF `is_active`, true→false | Deactivates every `inventory` row whose `source_id` is that file. One way: reactivating the source does not restore them |
 | `trg_inventory_derive_identity` | inventory | BEFORE INSERT OR UPDATE | Trims the three name parts, composes `name` from them, derives `common_name_key` / `botanical_name_key` and the `cultivar_keys` array |
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `handle_updated_at` | suppliers, supplier_groups, supplier_contacts, inventory, contacts, plant_aliases, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |

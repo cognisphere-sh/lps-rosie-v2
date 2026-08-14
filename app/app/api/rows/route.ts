@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { softDelete, updateCell, updateFields } from '@/lib/queries'
+import { deactivateSource, softDelete, updateCell, updateFields } from '@/lib/queries'
 
 /** One inline edit, or a staged set of fields written atomically. */
 export async function PATCH(req: Request) {
@@ -34,6 +34,11 @@ export async function DELETE(req: Request) {
     const body = (await req.json()) as { table?: string; id?: string | number }
     if (!body.table || body.id == null) {
       return NextResponse.json({ error: 'table and id are required' }, { status: 400 })
+    }
+    // A file carries its inventory rows with it, so it reports how many it took.
+    if (body.table === 'inventory_sources') {
+      const retired = await deactivateSource(String(body.id))
+      return NextResponse.json({ ok: true, retired })
     }
     await softDelete(body.table, body.id)
     return NextResponse.json({ ok: true })

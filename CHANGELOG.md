@@ -17,6 +17,36 @@ here).
 
 ## 2026-08-14
 
+### Added
+
+- **A supplier's Files tab can deactivate an ingested file, and the deactivation
+  takes that file's plants with it.** `inventory_sources.is_active` has always
+  existed, but nothing outside SQL could flip it — `softDelete` whitelists
+  `suppliers` and `inventory` only, and every file rendered with a fixed
+  **Active** badge. Each file now carries a **Deactivate** action that confirms,
+  retires the inventory rows still pointing at the file, then retires the file,
+  and reports the count (`deactivateSource` in `app/lib/queries.ts`, reached
+  through `DELETE /api/rows` with `table: 'inventory_sources'`).
+
+  The cascade is the whole design decision. Retiring the file alone leaves its
+  rows live but sourceless — blank **Ingested** in the app, and invisible to
+  `search_inventory`, which skips rows whose source is inactive, while browsing
+  still lists them. Since `source_id` points at the most recent drop that
+  contained a row, the cascade unwinds exactly what this file is still the
+  provenance for; anything a later drop re-listed belongs to that later source
+  and stays. This is the manual counterpart to the same-day change that stopped
+  *ingestion* from retiring previous sources: automatic retirement orphaned rows,
+  deliberate retirement no longer can.
+- **Migration `0048_cascade_source_deactivation.sql` puts that cascade in the
+  database**, so it is a property of the table rather than of one caller: a
+  hand-written `UPDATE inventory_sources SET is_active = false` in SQL now
+  retires the file's rows too. The app is left counting the rows for its toast
+  and flipping the file. Measured before applying, 1,340 of 2,079 sources were
+  already inactive and **zero** active inventory rows pointed at an inactive
+  source, so the trigger enforces an invariant the data already satisfied and
+  rewrote nothing. It fires one way only — reactivating a source does not
+  restore its rows, because nothing records which of them the trigger retired.
+
 ### Changed
 
 - **`supplier-onboarding-and-ingestion` 3.3.0 → 3.4.0: `search_inventory` is now

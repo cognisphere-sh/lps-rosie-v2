@@ -800,10 +800,40 @@ export async function updateFields(
   if (error) throw new Error(`${table} update: ${error.message}`)
 }
 
+/**
+ * Retire one ingested file. Its inventory rows go with it.
+ *
+ * The cascade belongs to the database — `trg_cascade_source_deactivation`
+ * (migration 0048) retires every row whose `source_id` is this file, so a
+ * hand-written UPDATE cannot leave live rows pointing at a dead source. All
+ * this does is flip the file and report what the trigger is about to take.
+ *
+ * The count is read first for that reason: afterwards those rows are inactive
+ * and indistinguishable from ones retired for their own reasons earlier.
+ */
+export async function deactivateSource(id: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('inventory')
+    .select('id', { count: 'exact', head: true })
+    .eq('source_id', id)
+    .eq('is_active', true)
+  if (error) throw new Error(`inventory count (source ${id}): ${error.message}`)
+
+  const { error: sourceError } = await supabase
+    .from('inventory_sources')
+    .update({ is_active: false })
+    .eq('id', id)
+  if (sourceError) throw new Error(`inventory_sources delete: ${sourceError.message}`)
+
+  return count ?? 0
+}
+
 /** Soft delete — the schema's convention is to flip is_active, never DELETE. */
 export async function softDelete(table: string, id: string | number): Promise<void> {
   // Not `contacts`: a contact can cover several locations, so removing one from
-  // a supplier retires that link, not the person — see `unlinkContact`.
+  // a supplier retires that link, not the person — see `unlinkContact`. Not
+  // `inventory_sources` either: retiring a file has to take its rows with it —
+  // see `deactivateSource`.
   if (table !== 'suppliers' && table !== 'inventory') {
     throw new Error(`refusing to delete from ${table}`)
   }

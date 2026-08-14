@@ -353,6 +353,11 @@ export default function SupplierProfilePage() {
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [deleted, setDeleted] = useState<string[]>([])
 
+  // Bumped when a file is retired, so the Inventory tab refetches instead of
+  // going on showing rows that deactivation just took with it.
+  const [plantsVersion, setPlantsVersion] = useState(0)
+  const [removingSource, setRemovingSource] = useState<string | null>(null)
+
   const [contacts, setContacts] = useState<Contact[]>([])
   const [editingContact, setEditingContact] = useState<number | null>(null)
   const [addingContact, setAddingContact] = useState(false)
@@ -454,7 +459,7 @@ export default function SupplierProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [id, debouncedFilterQuery, debouncedQuery, page])
+  }, [id, debouncedFilterQuery, debouncedQuery, page, plantsVersion])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -500,6 +505,33 @@ export default function SupplierProfilePage() {
     },
     [toast],
   )
+
+  // Retiring a file retires the plants still attributed to it — the database
+  // cascades, the file is their provenance, and leaving them behind would only
+  // orphan them. The count comes back from the server because only it knows how
+  // many rows still point at this drop rather than a later one.
+  const removeSource = async (file: SupplierSource) => {
+    const name = file.file_path.split('/').pop() || 'this file'
+    if (!window.confirm(`Deactivate ${name}? Every plant still attributed to it is deactivated too.`)) {
+      return
+    }
+    setRemovingSource(file.id)
+    const res = await fetch('/api/rows', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ table: 'inventory_sources', id: file.id }),
+    })
+    setRemovingSource(null)
+    const body = (await res.json().catch(() => ({}))) as { error?: string; retired?: number }
+    if (!res.ok) {
+      toast(body.error ?? 'Could not deactivate file')
+      return
+    }
+    const retired = body.retired ?? 0
+    setSources((prev) => prev.filter((s) => s.id !== file.id))
+    setPlantsVersion((v) => v + 1)
+    toast(`File deactivated · ${retired} plant${retired === 1 ? '' : 's'} retired`)
+  }
 
   const startProfileEdit = () => {
     if (!supplier) return
@@ -1261,27 +1293,39 @@ export default function SupplierProfilePage() {
               <p className="text-[12.5px] text-muted-foreground">No price lists ingested yet.</p>
             )}
             {sources.map((f) => (
-              <a
+              <div
                 key={f.id}
-                href={f.url}
-                target="_blank"
-                rel="noreferrer"
                 className="flex items-center gap-3 rounded-xl border border-border bg-card p-[12px_14px] hover:border-primary"
               >
-                <span className="inline-flex size-8 flex-none items-center justify-center rounded-[9px] bg-secondary text-secondary-foreground">
-                  <FileIcon size={15} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-semibold">{f.file_path.split('/').pop()}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Ingested {formatDate(f.created_at)}
-                    {f.notes ? ` · ${f.notes}` : ''}
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-w-0 flex-1 items-center gap-3"
+                >
+                  <span className="inline-flex size-8 flex-none items-center justify-center rounded-[9px] bg-secondary text-secondary-foreground">
+                    <FileIcon size={15} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold">{f.file_path.split('/').pop()}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Ingested {formatDate(f.created_at)}
+                      {f.notes ? ` · ${f.notes}` : ''}
+                    </div>
                   </div>
-                </div>
+                </a>
                 <span className="whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-secondary-foreground">
                   Active
                 </span>
-              </a>
+                <button
+                  type="button"
+                  onClick={() => void removeSource(f)}
+                  disabled={removingSource === f.id}
+                  className="cursor-pointer whitespace-nowrap border-none bg-transparent p-0 text-[11.5px] font-semibold text-destructive underline disabled:opacity-50"
+                >
+                  {removingSource === f.id ? 'Deactivating…' : 'Deactivate'}
+                </button>
+              </div>
             ))}
           </div>
         )}
