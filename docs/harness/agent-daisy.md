@@ -275,7 +275,7 @@ and when; the summaries below are one line each.
 Daisy's procedural memory. `system_prompts/1-agent.md` names the situation that
 triggers each one and otherwise carries identity/persona/behaviour only.
 
-- **supplier-onboarding-and-ingestion** (v3.3.0) — the end-to-end procedure a
+- **supplier-onboarding-and-ingestion** (v3.4.0) — the end-to-end procedure a
   task thread runs to onboard a supplier and ingest one availability drop, and
   the owner of **every database write in the ingestion path**: mapping each
   availability row to its location within a `supplier_groups` group, browser
@@ -291,7 +291,10 @@ triggers each one and otherwise carries identity/persona/behaviour only.
   narrow column set, marking any candidate whose cultivar contradicts the
   entry's as `CULTIVAR MISMATCH` and excluding it from the suggestion. Rows are matched by reading those candidates, **not** by an
   exact `(supplier_id, name_key, size)` key, because a respelled or re-sized name
-  is invisible to a key and an update-in-place ingest would duplicate it.
+  is invisible to a key and an update-in-place ingest would duplicate it. Since
+  v3.4.0 no entry is inserted until `search_inventory` — scoped to that location
+  in the outer query, since the RPC takes no supplier filter — also comes back
+  empty, which catches the renames trigram similarity misses.
 - **availability-drop-intake** (v2.0.2) — the coordinator loop, and **no database
   writes at all**: identify the supplier from sender/domain/name and pass the
   whole group along, dispatch the task thread against the canonical brief

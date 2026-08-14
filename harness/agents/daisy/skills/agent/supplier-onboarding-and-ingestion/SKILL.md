@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding-and-ingestion
-description: Onboard a supplier and ingest one availability drop (price list, availability sheet, website catalog, or photo) into Supabase end-to-end — every database write in the ingestion path belongs to this skill. Covers resolving which location each row belongs to when one source carries several locations of a group, onboarding a new suppliers row with browser enrichment and newsletter signup, contacts/supplier_contacts linking and is_primary rules, source conversion (markitdown/pdftoppm), parsing and normalization into the three name columns (common_name/botanical_name/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the typed plant_aliases quality bar (plant vs cultivar edges), provenance in inventory_sources, updating existing inventory rows in place and inserting only genuinely new ones (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a new supplier, or fixing/reviewing inventory rows written by an ingest. (v3.3.0)
+description: Onboard a supplier and ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every database write in the ingestion path belongs to this skill. Covers which location each row belongs to when one source covers several in a group, onboarding a new suppliers row with browser enrichment and newsletter signup, contacts/supplier_contacts linking and is_primary, source conversion (markitdown/pdftoppm), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the typed plant_aliases quality bar (plant vs cultivar edges), provenance in inventory_sources, updating existing rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a new supplier, or fixing/reviewing inventory rows written by an ingest. (v3.4.0)
 metadata:
   author: lps
-  version: "3.3.0"
+  version: "3.4.0"
 ---
 
 # Supplier onboarding & availability ingestion
@@ -618,7 +618,7 @@ and knows nothing about the plant. You decide, per entry:
 | What you see | Do |
 |---|---|
 | One clear match — same plant, same container, price/quantity moved as a new drop would | **Update it** (step 2) |
-| Best candidates are all a *different* plant, a different container, or nothing came back | **Insert** (step 3) |
+| Best candidates are all a *different* plant, a different container, or nothing came back | **Insert** — but only after the `search_inventory` check below comes back empty too (step 3) |
 | The only good match is `INACTIVE` | **Reactivate and update it** — the supplier dropped this plant and brought it back; never insert a second copy |
 | Two or more candidates are equally plausible **and materially different** (different price or printed name) | **Touch none of them.** Report the plant, size and candidate ids under *Flags needing Chris* |
 | Several candidates are the *same* offering — same printed name and price, differing only by `dupes` or a stale quantity | **Update the top one, leave the rest**, and list them under *Duplicates found* |
@@ -631,11 +631,31 @@ Two things that decide most of the judgement calls:
   name a cultivar and they disagree, the line is marked **`CULTIVAR MISMATCH`**
   and is excluded from the suggestion — but the mark only fires when *both* sides
   name one. Read the name, don't read the number.
-- **No candidates does not mean new.** If the supplier prints the botanical name
-  where they used to print the common one (or the reverse), similarity on the
-  identity key finds nothing. Before inserting, check with
-  `search_inventory('<the other name>')` filtered to this supplier — the
-  `plant-and-supplier-search` skill covers it.
+- **No candidates does not mean new — ask `search_inventory` before every
+  insert.** `match-candidates` ranks by trigram similarity on the identity key,
+  so it comes back empty when the supplier prints the botanical name where they
+  used to print the common one (or the reverse), or renames the plant outright.
+  The RPC is typo tolerant, matches partially at both ends, and expands the
+  query through `plant_aliases`, so it finds what similarity misses. **No entry
+  is inserted until it has been searched.** The RPC takes **no supplier filter**
+  — search first, then scope to this location in the outer query:
+
+  ```sql
+  SELECT id, name, cultivar_variety_trade_name, size, size_std, unit_price,
+         quantity, is_active, relevance
+  FROM search_inventory('<the entry as the source prints it>')
+  WHERE supplier_id = ANY(ARRAY[<this location's supplier_id>])
+  ORDER BY relevance DESC LIMIT 10;
+  ```
+
+  Run it once per name form the entry gives you — the common name **and** the
+  botanical name, since either may be what the row was written under. A hit that
+  is the same plant in the same container is an **update** (step 2), however low
+  `match-candidates` scored it; feed the id back into the table above. Results
+  are ranked, not filtered, so read `relevance` and the returned name parts
+  before concluding: a weak tail of unrelated rows is normal, and a species
+  returned for a cultivar search is not the selection you parsed. The
+  `plant-and-supplier-search` skill covers reading a result set.
 
 **Expect the duplicate row of that table on established suppliers.** As of
 2026-08-14, 5,714 `(supplier_id, name_key, size, height, width, caliper)` groups
@@ -658,7 +678,8 @@ drop has one, and `is_active = true`. Notes follow §2's split:
 
 `updated_at` is maintained by trigger; don't write it.
 
-**3. Insert a genuinely new offering** with the normalized fields from §2,
+**3. Insert a genuinely new offering** — one whose `search_inventory` check in
+step 1 returned nothing for this supplier — with the normalized fields from §2,
 stamping `supplier_id` and `source_id`. `id` defaults to `gen_random_uuid()`.
 Write `common_name` / `botanical_name` / `cultivar_variety_trade_name`;
 **never write `name` or any `*_key` column** — the trigger derives all of them,
@@ -695,7 +716,7 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
 
 - **Re-open the original source with the approved primary converter** and compare it to the staged/database output — not only to an intermediate CSV made by the same extraction logic.
 - **Reconcile counts:** source offering count versus rows **updated + inserted**, totals by page/section, priced/unpriced rows, quantities, photos, and distinct source ids. The two numbers should account for every source offering between them. Explain every exclusion, deduplication, split combined size, and ambiguous multi-match you skipped; a matching grand total alone is insufficient.
-- **Sanity-check the update/insert split.** A repeat drop from an established supplier should be mostly updates with a few inserts. **Mostly inserts means you took `match-candidates` at face value on entries you should have looked at** — a supplier who respelled or re-sized their list produces exactly that shape — and you have just duplicated the catalogue. Stop and investigate before committing: re-run `match-candidates` on a handful of the inserted entries and read the candidates you passed over.
+- **Sanity-check the update/insert split.** A repeat drop from an established supplier should be mostly updates with a few inserts. **Mostly inserts means you took `match-candidates` at face value on entries you should have looked at** — a supplier who respelled or re-sized their list produces exactly that shape — and you have just duplicated the catalogue. Stop and investigate before committing: re-run `match-candidates` on a handful of the inserted entries, read the candidates you passed over, and re-run the §4 step 1 `search_inventory` check scoped to this supplier — an insert that search would have matched is a duplicate you just created.
 - **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
 - **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
 - **Check the note split:** nothing you concluded ended up in `notes`, no supplier text ended up in `internal_notes`, and no row's `internal_notes` was clobbered by this drop.

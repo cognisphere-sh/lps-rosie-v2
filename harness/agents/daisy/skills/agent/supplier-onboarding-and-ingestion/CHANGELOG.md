@@ -1,5 +1,32 @@
 # supplier-onboarding-and-ingestion — changelog
 
+## 3.4.0
+
+Bhoumik's call, 2026-08-14. **`search_inventory` is now a required gate before
+any insert**, not a fallback for when `match-candidates` came back empty (§4
+step 1).
+
+`match-candidates` ranks by trigram similarity on the identity key, so it misses
+a plant the supplier renamed, respelled across name forms, or now prints
+botanically where it used to print the common name — exactly the entries an
+update-in-place ingest then duplicates. The RPC is typo tolerant, matches
+partially at both ends and expands the query through `plant_aliases`, so it
+catches what similarity cannot.
+
+- §4 step 1 spells out the call: `search_inventory` takes **no supplier
+  filter**, so search first and scope with `WHERE supplier_id = …` in the outer
+  query, once per name form the entry gives you. A hit in the same container is
+  an update however low `match-candidates` scored it.
+- The decision table's *insert* row and step 3 both now say an insert is an
+  offering the search check cleared.
+- §5's update/insert sanity check re-runs the same search on a sample of the
+  inserted entries.
+
+Also trimmed the frontmatter description back under the 1024-character limit pi
+enforces — it covers the same ground, but 3.3.0's was 1,054 characters and the
+new clause would have pushed it to 1,152, where truncation eats the trailing
+`(vX.Y.Z)` that tells a running agent to re-read the skill.
+
 ## 3.3.0
 
 2026-08-14, with migration 0045. **The alias quality bar is load-bearing again.**

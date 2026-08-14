@@ -19,6 +19,15 @@ here).
 
 ### Changed
 
+- **`supplier-onboarding-and-ingestion` 3.3.0 → 3.4.0: `search_inventory` is now
+  a required gate before any insert** (§4 step 1), not a fallback for when
+  `match-candidates` came back empty. Trigram similarity on the identity key
+  misses a plant the supplier renamed or now prints botanically where it used to
+  print the common name — precisely the entries an update-in-place ingest then
+  duplicates. The skill spells out the call shape: the RPC takes no supplier
+  filter, so search first and scope with `WHERE supplier_id = …` in the outer
+  query, once per name form the entry gives. §5's update/insert sanity check
+  re-runs it on a sample of the inserted entries.
 - **Upgraded `cognisphere-harness` 0.8.17 → 0.8.18 and migrated both agents'
   on-disk notes to the new layout.** The 0.8.18 base prompt reorders itself
   around the agent's actual reading path, drops the `# Guidelines` grab-bag,
