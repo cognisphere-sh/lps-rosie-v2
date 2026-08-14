@@ -63,15 +63,17 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
 
 `scripts/agent/` (shared toolset) + `scripts/scheduler/scheduler-cli` +
 `scripts/telegram/telegram-cli` + `scripts/webchat/webchat-cli`. Extensions:
-the three shared ones.
+the four shared ones.
 
 ## Skills (`skills/agent/`)
 
-- **cognisphere-upgrade** (v1.0.0) — drives the two-phase harness version
+- **cognisphere-upgrade** (v1.2.0) — drives the two-phase harness version
   upgrade (bump the dependency, migrate the data dir per the CHANGELOG).
 - **create-plugin** (v1.1.0) — scaffolds a new user-space plugin in
   `harness/plugins/<id>/` and enables it on an agent; ships a `template/`
   (minimal `hello` interval plugin).
+- **create-skill** (v1.1.0) — authors or updates a versioned agent skill, and
+  migrates a procedure out of a prompt file or `knowledge/` into one.
 
 These skills are mirrored at the app-home `.claude/skills/` so coding agents run
 inside the home (e.g. Claude Code) can use them too.

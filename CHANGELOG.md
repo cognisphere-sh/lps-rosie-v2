@@ -17,6 +17,136 @@ here).
 
 ## 2026-08-14
 
+### Changed
+
+- **An ingest now refreshes availability instead of replacing it** (ingestion
+  skill v2.0.0). Every drop used to insert a fresh copy of the supplier's whole
+  catalogue and then flip the previous rows `is_active = false`. It now finds the
+  row each parsed offering already has and **updates** it, **inserts** only what
+  is genuinely new, and **reactivates** rather than duplicates a plant the
+  supplier has brought back. **Nothing is retired** —
+  not `inventory` rows, not `inventory_sources`. An offering the supplier stopped
+  listing keeps `is_active = true` and its older `source_id`, and that is now the
+  staleness signal: "when did we last see this" is answered by the row's source,
+  not by a flag. Taking an offering out of circulation became a deliberate,
+  separately approved act, so a discontinued item is reported under *Flags
+  needing Chris* rather than flipped mid-ingest.
+
+- **Rows are matched by looking, not by key** — new
+  `scripts/match-candidates` in the ingestion skill. Matching on
+  `(supplier_id, name_key, size)` looks decisive and isn't: a supplier who
+  respells a name, re-punctuates it, adds a cultivar, changes container, or
+  switches between the botanical and common name makes an existing offering
+  invisible to the key, and an update-in-place ingest then duplicates it. The
+  script instead returns, per parsed entry, up to five of that supplier's
+  **active** rows plus the single best **retired** one, ranked by trigram
+  similarity on the plant identity with a size-agreement bonus, over a
+  deliberately narrow column set — id, name, size/size_std, price, quantity,
+  dimensions, is_active, and how many identical rows collapsed into each line.
+  Notes are not fetched: they are long and never tell two offerings apart. The
+  agent reads the candidates and decides update / insert / reactivate / flag;
+  the script's `SUGGEST` column buckets by score alone and says so.
+
+  Two details came out of testing it against live data. Retired history badly
+  outnumbers live rows on established suppliers — supplier 32 carries 34.9k rows
+  of which 5.4k are active — and a single ranking let dead clones take all five
+  slots, so active and inactive are ranked separately. And identical rows are
+  collapsed to one line with a count, because otherwise five copies of the same
+  retired row crowd out the one you need. Measured cost: ~4.8s for 200 entries
+  against the largest supplier.
+
+  Two consequences of update-in-place worth knowing. A bad parse now
+  **overwrites** good data instead of sitting beside it, so QA got stricter,
+  including a new check for the characteristic failure of this model — a repeat
+  drop that reports mostly *inserts* means candidates were taken at face value
+  and the catalogue has just been duplicated. And the identity of a row is **not
+  unique today**: a count run while
+  writing this found 5,714 `(supplier_id, name_key, size, height, width,
+  caliper)` keys across 77 suppliers matching more than one active row — roughly
+  13,500 rows, about two-thirds of them carrying the same price *and* the same
+  printed name, which is what the old replace-and-retire model left behind when a
+  retirement pass missed. So the skill splits the multi-match case: same price and
+  name means duplicates (update the one with the newest source, leave the rest,
+  list them under a new *Duplicates found* report line), while differing price or
+  name means two real offerings the key can't tell apart (touch nothing, flag for
+  Chris). **That backlog is worth a cleanup migration** — under the no-retirement
+  rule an ingest will never resolve it on its own.
+
+- **`inventory.notes` and `inventory.internal_notes` are now separate columns**
+  (migration 0039). `notes` is evidence — what the supplier printed or said about
+  the offering, dated. `internal_notes` is commentary — why a combined size was
+  split, that a quantity is the supplier's shared/tentative count, that no price
+  was printed, parse caveats, QA exceptions. On an update `notes` is replaced
+  with the current drop's text and `internal_notes` is appended to, so a later
+  reader can tell "the supplier says two weeks" from "we guessed two weeks".
+  `inventory_enriched` carries both. `search_inventory` deliberately still
+  returns only `notes` — changing its fixed `RETURNS TABLE` means dropping and
+  recreating the most load-bearing function in the app, which this change didn't
+  warrant — so the app fills `internal_notes` in for the two RPC-backed paths
+  with one keyed read per page and the column reads the same however the rows
+  were fetched. **The plants table now has an editable "Internal notes" column**
+  (hidden by default, like Notes). Rows written before today hold a mix of both
+  kinds in `notes` and were not reclassified.
+
+- **One availability file is not one supplier** (ingestion skill §0.1, rewritten).
+  A multi-location group's single sheet routinely covers several farms, so the
+  unit of mapping is the availability **row**, not the file: each parsed offering
+  gets its own `supplier_id`, and one drop can legitimately write to five
+  suppliers. Precedence is most-specific-wins — a per-row "Ship from" column beats
+  a section heading, which beats the file header — and only when the file names no
+  location *anywhere* does every active location in the group get its own copy of
+  every offering (Everde's five farms × 900 offerings = 4,500 rows, each with its
+  own source row and its own upsert pass). Ambiguity is never resolved by falling
+  back to "all locations"; it stops and asks.
+
+- **`availability-drop-intake` and `supplier-onboarding-and-ingestion` are now
+  mutually exclusive** (both v2.0.0). They had drifted into restating each other:
+  supplier identification appeared in both, and each enumerated the other's half
+  of the handoff. Intake now coordinates and talks to humans and **writes no
+  database row**; ingestion **owns every write** and talks to no one, routing
+  anything a human must answer through its report. The two shared contracts are
+  single-sourced — the brief is canonical in intake §2 and the report is canonical
+  at the end of the ingestion skill, each pointing at the other instead of
+  repeating it. Ingestion's leftover supplier search became a
+  confirm-don't-re-derive check on the main agent's lookup.
+
+- **cognisphere-harness 0.8.11 → 0.8.17, and Daisy's SOP became six skills.**
+  0.8.12 made *skills* the home for procedural memory: a `1-*.md` prompt file is
+  deployment-owned and carries identity, persona and behaviour only, and every
+  step-by-step procedure lives in `skills/agent/<slug>/` with a version in its
+  description, a `CHANGELOG.md`, and its own scripts/artifacts. So
+  `knowledge/SOPs/supplier-onboarding-and-ingestion.md` is now the
+  **`supplier-onboarding-and-ingestion`** skill (v1.0.0, content unchanged), and
+  the procedures that had accreted in `1-agent.md` and `1.1-supabase.md` came out
+  as **`availability-drop-intake`** (the coordinator loop: identify the supplier,
+  brief the task thread, digest its report, label the email),
+  **`plant-and-supplier-search`**, **`supplier-communication-log`**,
+  **`supplier-email-reply`** and **`share-file-with-user`**. `1-agent.md` is
+  roughly half its former size and now names the *situation* that triggers each
+  skill instead of restating its steps; the standing rules that are behaviour,
+  not procedure — never email a supplier unbidden, never write generated `*_key`
+  columns, one row per location — stayed put. `knowledge/gmail-labels.md` keeps
+  the label IDs (reference facts) and lost the apply-a-label steps.
+  **Changing any of these skills still needs Chris's or Bhoumik's approval**,
+  followed by a version bump; the approval rule moved with the content.
+
+  The rest of the window: both agents' `0-base_prompt.md` reseeded (skills, the
+  system-prompt ownership contract, per-call context checkpoints, one daily-note
+  entry per thread per day, and 0.8.17's rule that task-thread delegation is
+  aggressive by default); `context-meta.ts` rewritten and a new
+  `skill-update-notice.ts` extension added, which tells a long-running agent when
+  a skill it read has since changed; the shipped `create-skill` skill installed
+  in both agents; and nova's persona file renamed `1-dev-agent.md` → `1-agent.md`.
+
+- **App-specific deploy logic moved to `scripts/app/`.** 0.8.12 made the deploy
+  scripts harness-owned and refreshed on upgrade, with deployment-owned hooks
+  sourced at fixed points. The two local edits this home carried — passing
+  `SUPABASE_URL`/`SUPABASE_SECRET_KEY` into `app/.env.local` from
+  `scripts/server.sh`, and documenting those keys in the root `config.example` —
+  are now `scripts/app/secrets.sh` and `scripts/app/config.example`. Behaviour is
+  unchanged; the next upgrade no longer needs a hand-merge. Fresh-clone setup is
+  `cp config.example config && cat scripts/app/config.example >> config`.
+
 ### Added
 
 - **Multi-location suppliers are a first-class shape** (migration 0033). A

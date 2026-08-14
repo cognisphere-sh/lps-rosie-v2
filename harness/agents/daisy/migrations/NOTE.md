@@ -10,6 +10,30 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0039_inventory_internal_notes.sql`
+
+Applied 2026-08-14 as `inventory_internal_notes`, at Bhoumik's request. Adds
+`inventory.internal_notes` (nullable text) and splits the two kinds of note that
+had been sharing `inventory.notes`:
+
+- **`notes`** — what the *supplier* said about this offering in the availability
+  data: their row description, dated availability status, lead time, "limited".
+- **`internal_notes`** — what *we* said: parse caveats, why a combined size was
+  split, that a quantity is the supplier's shared/tentative count, pricing
+  unavailable/on request, QA exceptions.
+
+Column comments on both lock the split. `inventory_enriched` is replaced to
+append `internal_notes` at the end, keeping its documented "every inventory
+column" contract true. `search_inventory` is deliberately unchanged — internal
+notes are not search output, and changing its fixed `RETURNS TABLE` would mean
+dropping and recreating the app's most load-bearing function. The web app
+surfaces the column instead by hydrating it for the two RPC-backed read paths
+(`hydrateInternalNotes` in `app/lib/queries.ts`).
+
+Additive only: no backfill, no rewrite, no rows touched. **Existing `notes`
+content is a mix of both kinds and was not reclassified** — the split applies to
+what is written from now on.
+
 ## `0035_inventory_name_cultivar_delimiter.sql`
 
 Applied 2026-08-14 with Bhoumik's approval. Drafted as 0033, so its DDL step

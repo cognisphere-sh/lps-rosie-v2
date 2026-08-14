@@ -1,0 +1,6 @@
+# ---- Supabase: the app reads suppliers + inventory straight from Postgres ----
+# Written into app/.env.local by scripts/app/secrets.sh. The secret key bypasses
+# RLS and is only ever used server-side (app/lib/supabase.ts is `server-only`),
+# so it must never be given a NEXT_PUBLIC_ prefix.
+SUPABASE_URL=            # https://<project-ref>.supabase.co
+SUPABASE_SECRET_KEY=     # sb_secret_... (Project settings → API keys)

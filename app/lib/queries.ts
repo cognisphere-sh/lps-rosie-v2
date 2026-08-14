@@ -48,6 +48,7 @@ interface InventoryRecord {
   supplier_id: number | null
   source_id?: string | null
   notes: string | null
+  internal_notes: string | null
   height: string | null
   width: string | null
   caliper: string | null
@@ -132,6 +133,7 @@ function toPlantRow(
       w_std: r.width_std,
       cal_std: r.caliper_std,
       notes: r.notes,
+      internal_notes: r.internal_notes ?? null,
       source: path ? fileLabel(path) : null,
       ingestion_date: sourceDetails?.ingestedAt ?? null,
       updated: r.updated_at,
@@ -375,6 +377,25 @@ const dimensionRpcArgs = (ranges: DimensionRanges) => ({
   caliper_max: ranges.caliperMax ?? null,
 })
 
+/**
+ * `search_inventory` has a fixed `RETURNS TABLE` and deliberately does not carry
+ * `internal_notes` — migration 0039 added the column to `inventory` and to
+ * `inventory_enriched`, but left the search projection alone rather than
+ * dropping and recreating the function. The `inventory_enriched` reads below
+ * already return it, so fill it in on the two RPC paths and the column reads the
+ * same wherever the rows came from. One extra keyed read per page.
+ */
+async function hydrateInternalNotes(records: InventoryRecord[]): Promise<InventoryRecord[]> {
+  if (!records.length) return records
+  const { data, error } = await supabase
+    .from('inventory')
+    .select('id, internal_notes')
+    .in('id', records.map((r) => r.id))
+  if (error) throw new Error(`inventory.internal_notes: ${error.message}`)
+  const byId = new Map((data ?? []).map((r) => [r.id as string, r.internal_notes as string | null]))
+  return records.map((r) => ({ ...r, internal_notes: byId.get(r.id) ?? null }))
+}
+
 async function inventorySearch(
   term: string,
   ranges: DimensionRanges,
@@ -385,7 +406,7 @@ async function inventorySearch(
     .rpc('search_inventory', { search: term, ...dimensionRpcArgs(ranges) }, { count: 'exact' })
     .range(from, from + PLANT_PAGE_SIZE - 1)
   if (error) throw new Error(`search_inventory: ${error.message}`)
-  const records = (data ?? []) as InventoryRecord[]
+  const records = await hydrateInternalNotes((data ?? []) as InventoryRecord[])
   return { records, total: count ?? records.length }
 }
 
@@ -547,7 +568,7 @@ export async function getSupplierPlants(
       .rpc('search_inventory', { search: term, supplier_ids: [id], ...dimensionRpcArgs(ranges) })
       .range(from, to)
     if (error) throw new Error(`search_inventory: ${error.message}`)
-    const records = (data ?? []) as InventoryRecord[]
+    const records = await hydrateInternalNotes((data ?? []) as InventoryRecord[])
     return {
       plants: await withSourceDetails(records.slice(0, PROFILE_PAGE_SIZE)),
       hasMore: records.length > PROFILE_PAGE_SIZE,
@@ -611,7 +632,9 @@ const WRITABLE: Record<string, string[]> = {
     'name', 'city', 'state', 'notes', 'communication_notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
   ],
-  inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes'],
+  // `notes` is the supplier's own text about the offering; `internal_notes` is
+  // ours (migration 0039). Both are editable, neither is a substitute.
+  inventory: ['name', 'unit_price', 'quantity', 'height', 'width', 'caliper', 'notes', 'internal_notes'],
   // The person, not the link: editing these changes the contact at every
   // location they cover. `is_primary` lives on `supplier_contacts` and is set
   // through `setPrimaryContact`.

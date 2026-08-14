@@ -45,7 +45,8 @@ Let's Encrypt** for HTTPS.
 
 1. **DNS** — point two A records at the server's public IP: one for the app
    (`$DOMAIN`) and one for the console (`$CONSOLE_DOMAIN`).
-2. **Config** — `cp config.example config`, then edit domains, email, and ports.
+2. **Config** — `cp config.example config && cat scripts/app/config.example >> config`,
+   then edit domains, email, ports and the Supabase keys.
 3. **Run setup** (once, as root):
 
    ```sh
@@ -71,7 +72,8 @@ Cert auto-renewal is handled by certbot's own systemd timer.
 
 | File                       | Purpose                                              |
 |----------------------------|------------------------------------------------------|
-| `config.example`           | Template for deploy params; copy to `config` (gitignored). |
+| `config.example`           | Template for deploy params (harness-owned); copy to `config` (gitignored). |
+| `scripts/app/`             | **Deployment-owned deploy hooks** — `config.example` documents this app's extra `config` keys; `secrets.sh` writes the Supabase pair into `app/.env.local`. See `scripts/app/README.md`. |
 | `scripts/setup-server.sh`  | One-time provision: deps, build, units, nginx, HTTPS. |
 | `scripts/server.sh`        | Start/stop/restart/status/logs/secrets/dev for both services. |
 | `scripts/build.sh`         | Install deps + build the app (run by server.sh).     |

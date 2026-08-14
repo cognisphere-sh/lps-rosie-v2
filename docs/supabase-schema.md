@@ -185,7 +185,7 @@ listed at the bottom of `0033_supplier_locations.sql` for someone to confirm,
 along with three sets of same-city rows that look like duplicates wanting a
 merge rather than locations. Adding a group is a judgment call: a wrong one
 fans a supplier's availability out to a nursery that never offered it (see the
-ingestion SOP, §2a).
+ingestion skill, §2a).
 
 ### `contacts`
 
@@ -313,14 +313,15 @@ availability files.
 | `source_id` | uuid → `inventory_sources.id` | yes | File/URL this row came from; null for hand-entered rows |
 | `name` | text | no | The whole plant identity: `Name [scientific name, variant]`, e.g. `Forest Pansy Redbud [Cercis canadensis, Forest Pansy]`. `Name` is as the source prints it; either bracket part is omitted when the source doesn't give it. **Part of a row's identity** — (name, size) alone is NOT unique |
 | `name_key` | text **generated stored** | — | `normalize_plant_key(name)`; joins to `plant_other_names`. Do not write |
-| `size` | text | yes | The container/grade sold **as the supplier printed it**, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here. See the SOP's *Size standard* |
+| `size` | text | yes | The container/grade sold **as the supplier printed it**, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here. See the `supplier-onboarding-and-ingestion` skill's *Size standard* |
 | `size_std` | text | yes | Standardized container for `size` — see below. **CHECK**: `<N>" Pot` \| `<N>G` \| `<N>" Box` \| `Bare Root` \| `Liners` \| `Plug` \| `Trays` \| `B&B` \| `Field Grown` \| `Grow Bags` \| `Root Pruned` \| `other`. `NULL` when `size` is |
 | `unit_price` | numeric(10,2) | yes | USD; lower bound if the source gave a range. `NULL` means the supplier provided no price; never coerce missing to zero |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
 | `height` / `width` / `caliper` | text | yes | Human-readable measurement as printed in the source; preserved for display/evidence |
 | `height_std` | double precision | yes | Standardized height in **feet**; lower bound for a range; `NULL` when unknown/ambiguous |
 | `width_std` / `caliper_std` | double precision | yes | Standardized width/caliper in **inches**; lower bound for a range; `NULL` when unknown/ambiguous |
-| `notes` | text | yes | Per-row qualifier ("limited", "B&B only") |
+| `notes` | text | yes | **Supplier-stated** notes for this offering, from the availability data: their verbatim row description, dated availability status, lead time, per-row qualifiers ("limited", "B&B only"). Not our commentary |
+| `internal_notes` | text | yes | **Ours.** Parse caveats, why a combined size was split, that a quantity is the supplier's shared/tentative count, pricing unavailable/on request, QA exceptions. Appended, not clobbered. Added 2026-08-14 (migration 0039) |
 | `image_url` | text | yes | Optional product image |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
@@ -365,7 +366,7 @@ plant's size, not a second container.
 
 `other` is a real answer, not a failure: it means a container the standard has
 no bucket for (`Quart`, `10" Hanging Basket`, `Six Pack`). `NULL` means no
-container is known. The full mapping rules live in the ingestion SOP's *Size standard*,
+container is known. The full mapping rules live in the `supplier-onboarding-and-ingestion` skill's *Size standard*,
 and the app's ordering of the vocabulary is `app/lib/size-std.ts`.
 
 **State after the 0031/0032 backfills (2026-08-13, active rows only):** 54,815
@@ -390,6 +391,29 @@ measurements remain `NULL`. Active range filters exclude `NULL`. Editing a
 human-readable dimension without a reviewed paired standard clears its
 companion so stale numeric evidence cannot survive.
 
+#### `notes` vs `internal_notes`
+
+Split by migration 0039 (2026-08-14). `notes` is evidence — what the supplier
+printed or said about the offering, dated. `internal_notes` is commentary — what
+we concluded, split, guessed at, or flagged while ingesting it. Keeping them
+apart means a later reader can tell "the supplier says 2-week lead time" from
+"we copied this quantity across two sizes because the sheet shared it". Neither
+is a substitute for `workspace/suppliers/[<id>]:<Name>/notes.md`, which is the
+agent's own working memory about the *supplier*, not about a row.
+
+`inventory_enriched` carries both. **`search_inventory` returns `notes` only** —
+its `RETURNS TABLE` is fixed and 0039 deliberately left it alone rather than
+dropping and recreating the function. The app therefore hydrates
+`internal_notes` for its two RPC-backed paths (`hydrateInternalNotes` in
+`app/lib/queries.ts`, one keyed read per page) so the plants table's editable
+**Internal notes** column reads the same whether the rows came from the search
+RPC or from `inventory_enriched`. **If the RPC ever gains the column, delete
+that hydration** rather than leaving both.
+
+Rows written before 0039 have a mix of both kinds in `notes`; they were
+deliberately not reclassified, so the split describes what is written from now
+on.
+
 There is deliberately **no** common-names column — alternative names live in
 `plant_other_names` and are derived at read time. There is also no `category`
 column (the source's own grouping is not tracked) and no `variety` column — the
@@ -407,8 +431,16 @@ Provenance: one row per ingested pricing / availability file or URL, per supplie
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
 | `file_path` | text | no | Either an object key in the `lps` bucket or a full `http(s)://` URL |
 | `notes` | text | yes | Where/how it was sourced |
-| `is_active` | boolean | no, default true | A `replace`-mode upload retires the supplier's other sources |
+| `is_active` | boolean | no, default true | Soft delete. **Ingestion no longer retires a supplier's previous sources** (2026-08-14) — live `inventory` rows still point at them, so retiring one would orphan its provenance |
 | `created_at` | timestamptz | no, default `now()` | Immutable LPS ingestion timestamp; not the source's printed/effective availability date |
+
+Since 2026-08-14 an ingest **updates** the rows it finds again and inserts the
+ones it doesn't, instead of inserting a whole new version and retiring the old
+one. A row's `source_id` therefore points at the **most recent drop that
+contained it**, which makes it the staleness signal: an offering the supplier
+has stopped listing keeps its older `source_id` and its older derived
+`ingestion_date` while everything they still sell moves forward. Nothing is
+retired automatically — dropping an offering for good is a deliberate act.
 
 The app derives an inventory row's `ingestion_date` by joining its `source_id`
 to an **active** source's `created_at`; manual/source-less rows remain blank. A
@@ -453,7 +485,7 @@ later leaks; and migration 0029's full-corpus audit retired 4,654 more, taking
 active pairs from 13,553 to 8,899. An alias must name the *same plant* — never a
 cultivar, never a generic category label ("Oak", "Grass"), never a size/grade
 code. Search no longer hops between siblings (migration 0026), but a bad pair
-still equates two different plants in both directions; the ingestion SOP's rule
+still equates two different plants in both directions; the ingestion skill's rule
 is "when in doubt, insert nothing". Before adding any cleanup rule, read the
 REJECTED RULES section of
 `harness/agents/daisy/migrations/0008_alias_quality_audit.sql`.
@@ -473,7 +505,7 @@ A pair is only as good as the evidence behind it, and the table records none:
 there is **no `created_at`, no `source_id` and no confidence column**, so an
 audited edge is indistinguishable from a fresh guess and neither can be traced
 back to the drop that wrote it — migration 0028's culprit had to be attributed
-by reading id ordering. The SOP compensates by requiring both sides of a new
+by reading id ordering. The ingestion skill compensates by requiring both sides of a new
 pair to be **printed in the source being ingested**, never supplied from the
 writer's own knowledge.
 
@@ -486,7 +518,7 @@ writer's own knowledge.
 > already has an active mirror in 23384. Separately, the 2026-07-31 cleanup
 > *deleted* the pairs it retired instead of keeping them as tombstones, so those
 > can be re-inserted outright. Nothing at the database level stops a bad alias
-> coming back; keeping the directory clean is the ingestion SOP's job.
+> coming back; keeping the directory clean is the ingestion skill's job.
 
 ---
 

@@ -78,10 +78,10 @@ notes/memory.
 - `suppliers.md` — pointer stub: per-supplier notes now live under
   `workspace/suppliers/[<id>]:<Name>/notes.md` (see `workspace/suppliers/index.md`).
 - `gmail-labels.md` — Gmail label ID taxonomy (e.g. `Daisy` = `Label_12`) with a
-  live-lookup command if stale.
-- `SOPs/supplier-onboarding-and-ingestion.md` — end-to-end SOP a task thread
-  follows to onboard a supplier and ingest one availability drop (parse + DB
-  writes), with an output contract.
+  live-lookup command if stale, plus the `gws`-binary-location gotcha. Reference
+  IDs only — *which* label to apply is the `availability-drop-intake` skill.
+
+`knowledge/SOPs/` is gone: procedures are skills as of harness 0.8.12 (below).
 
 ## Scripts & extensions
 
@@ -97,7 +97,7 @@ notes/memory.
 - `scripts/scheduler/scheduler-cli`, `scripts/telegram/telegram-cli`,
   `scripts/webchat/webchat-cli`.
 
-Extensions: the three shared ones.
+Extensions: the four shared ones.
 
 ## Migrations (`migrations/`)
 
@@ -149,8 +149,8 @@ and when; the summaries below are one line each.
 - `0023_numeric_inventory_dimensions.sql` — approved/applied 2026-08-11 by
   Nova. Adds standardized numeric feet/inch companions, view/RPC contracts,
   pre-pagination range bounds and partial supplier/dimension indexes; Daisy's
-  SOP requires future ingests to write the preserved source string and reviewed
-  numeric companion together.
+  ingestion skill requires future ingests to write the preserved source string
+  and reviewed numeric companion together.
 - `0024_inventory_dimension_std_backfill.sql` — approved/applied 2026-08-11.
   Guarded direct-field-only backfill: 94,297 rows gained at least one numeric
   standard (height feet; width/caliper inches) without changing any human
@@ -188,8 +188,56 @@ and when; the summaries below are one line each.
   pre-acquisition name; no inventory, sources or queries were attached. 1320
   takes the site's current address.
 
+- `0039_inventory_internal_notes.sql` — approved/applied 2026-08-14. Adds
+  `inventory.internal_notes` and splits the two kinds of note that had shared
+  `inventory.notes`: `notes` is what the **supplier** said about an offering
+  (dated status, lead time, their row description), `internal_notes` is what
+  **we** concluded (split sizes, tentative quantities, parse caveats, QA
+  exceptions). Column comments lock the split; `inventory_enriched` gains the
+  column, `search_inventory` deliberately does not. Additive, no backfill —
+  pre-0039 `notes` content was not reclassified.
+
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
-## Skills
+## Skills (`skills/agent/`)
 
-None.
+Daisy's procedural memory. `system_prompts/1-agent.md` names the situation that
+triggers each one and otherwise carries identity/persona/behaviour only.
+
+- **supplier-onboarding-and-ingestion** (v2.0.0) — the end-to-end procedure a
+  task thread runs to onboard a supplier and ingest one availability drop, and
+  the owner of **every database write in the ingestion path**: mapping each
+  availability row to its location within a `supplier_groups` group, browser
+  enrichment and newsletter signup, `contacts`/`supplier_contacts` linking,
+  source conversion, parsing and normalization (name, the size standard and
+  `size_std` buckets, price, dimensions, `notes` vs `internal_notes`), the alias
+  quality bar, provenance, updating `inventory` rows in place, post-ingestion QA,
+  and the canonical report contract. Ships
+  `scripts/match-candidates` — for each parsed entry it returns the closest five
+  **active** rows for that supplier plus the best **retired** one, ranked by
+  trigram similarity on the plant identity with a size-agreement bonus, over a
+  narrow column set. Rows are matched by reading those candidates, **not** by an
+  exact `(supplier_id, name_key, size)` key, because a respelled or re-sized name
+  is invisible to a key and an update-in-place ingest would duplicate it.
+- **availability-drop-intake** (v2.0.0) — the coordinator loop, and **no database
+  writes at all**: identify the supplier from sender/domain/name and pass the
+  whole group along, dispatch the task thread against the canonical brief
+  contract, answer its follow-ups, digest its report, apply the Gmail status
+  labels.
+
+The two are deliberately mutually exclusive: intake coordinates and talks to
+humans, ingestion writes rows and talks to no one. Each points at the other for
+the shared contracts (the brief, the report) rather than restating them.
+- **plant-and-supplier-search** (v1.0.0) — `search_inventory` /
+  `search_suppliers` usage, filter relaxation, key-column rules, answer shape.
+- **supplier-communication-log** (v1.0.0) — appending to
+  `suppliers.communication_notes`, and which of `communication_notes` / `notes` /
+  workspace `notes.md` a fact belongs in.
+- **supplier-email-reply** (v1.0.0) — the never-reply-unbidden rule, the
+  draft-and-approve step, sending as Chris in the existing Gmail thread, and the
+  main-thread redirect.
+- **share-file-with-user** (v1.0.0) — upload to `lps` under
+  `daisy_shared/YYYY-MM-DD/`, then share a pre-signed URL only.
+- **create-skill** (v1.1.0) — shipped with the harness; how to author or bump one
+  of the above. **Changes to any LPS skill need Chris's or Bhoumik's approval**
+  first, then a version bump.

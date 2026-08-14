@@ -35,9 +35,9 @@ Comparison:
 | `maxConcurrentSlots` | 5 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
 | Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram, **webchat** (+ core: agent-messaging) |
-| Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels, SOP | — |
+| Knowledge dir | SCHEMA (symlink), suppliers, gmail-labels | — |
 | Migrations | 0001 (applied, superseded) | — |
-| Skills | — | cognisphere-upgrade, create-plugin |
+| Skills | 6 LPS procedures + create-skill | cognisphere-upgrade, create-plugin, create-skill |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
@@ -67,10 +67,13 @@ These are byte-identical in every agent dir:
   per-command with `set +u`); `harness-bridge.ts` reports each user-message
   session entry id back to the harness in real time so the parent can link a
   queued event to its place in the session JSONL; `context-meta.ts` (seeded in
-  harness 0.8.6, reworked through 0.8.10) tracks per-step context growth and
-  emits it as standalone `CheckpointTokens` checkpoint messages
-  (`customType: "context-meta.checkpoint"`) after each response, and injects
-  live `Model`/`ContextUsage` telemetry into each LLM call.
+  harness 0.8.6, rewritten in 0.8.15) emits one indexed `Checkpoint` /
+  `CheckpointTokens` message before **every** LLM call, after that call's inputs
+  are in place, and injects live `Model`/`ContextUsage` telemetry into each call;
+  `skill-update-notice.ts` (new in 0.8.15, semantics revised in 0.8.16) records
+  the frontmatter version of every `SKILL.md` the agent reads and injects a
+  one-time `SystemMessage` notice when that file's version later differs —
+  upgrades and reverts alike.
 - **`scripts/agent/` toolset**: `agent-browser` (browser CLI), `ddgs` (web
   metasearch), `markitdown` (file/URL → markdown), `session-reader` (paginated
   session-transcript reader). (The `subagent` wrapper and `sub-agent-prompt.md`
@@ -79,8 +82,12 @@ These are byte-identical in every agent dir:
 - **Bootstrap** (`bootstrap/bootstrap.sh` + `requirements.txt`): provisions the
   Python `.venv` (`ddgs`, `markitdown`) and npm globals on every start.
 - **Base system prompts**: `0-base_prompt.md` (identity, tools, workspace,
-  threads, task threads), `0.1-agent-directory.md` (roster), then the
-  per-agent `1-*.md` persona.
+  skills, threads, task threads), `0.1-agent-directory.md` (roster), then the
+  per-agent `1-*.md` persona. Since harness 0.8.12 the ownership split is a
+  contract: `0-*` is harness-owned (replaced by the seed on every upgrade),
+  `plugin-<id>.md` is plugin-owned (reseeded on every agent start), and `1-*.md`
+  is deployment-owned — identity, persona and behaviour only, no procedures.
+  Step-by-step procedures live in `skills/agent/<slug>/` instead.
 
 ## Plugins
 

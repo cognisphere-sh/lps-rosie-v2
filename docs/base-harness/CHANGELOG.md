@@ -18,6 +18,244 @@ the harness directory, and applies it after user approval. See
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.17]
+
+### Changed
+
+- **Base prompt: aggressive task-thread delegation is now a rule.** The
+  Task threads section opens with "You must delegate aggressively" and a
+  "should a task thread do this?" default-yes framing, and the Guidelines
+  checklist gained a matching bullet (bulk reads, broad searches, research,
+  and self-contained multi-step work belong in task threads).
+- **Web UI fixes.** Tool-call card arguments no longer overflow the card
+  (long unbroken tokens now wrap), and empty thinking segments are no
+  longer rendered as collapsible blocks.
+
+### Breaking changes
+
+- `0-base_prompt.md`'s Task threads and Guidelines sections now mandate
+  aggressive delegation to task threads. Replace each fork's copy with the
+  new seed (harness-owned).   [affects: agents/*/system_prompts/0-base_prompt.md]
+
+## [0.8.16]
+
+### Changed
+
+- **Skill-update notices now fire on every unseen version change, reverts
+  included.** 0.8.15's dedupe was keyed per (skill, new version), so a
+  revert back to the version the agent had originally read stayed silent
+  (1.2 → 1.3 → 1.2 sent only the 1.3 notice), leaving the agent believing
+  the withdrawn version was current. `skill-update-notice.ts` now tracks a
+  single "aware" version per skill — the later of the agent's own
+  read/edit/write and the last notice sent — and fires whenever the file's
+  current version differs from it, upgrades and reverts alike. Sending a
+  notice marks that version as seen, so nothing re-fires while the file
+  stays put. 0.8.15 sessions replay into the new model unchanged (read +
+  sent entries replay chronologically, latest wins). The notice text now
+  reads "changed after you last read it or were notified".
+- The base prompt's `SystemMessage` bullet and the shipped
+  `docs/base-harness/skills.md` describe the new upgrade-and-revert
+  semantics (upgrade refreshes the doc wholesale).
+
+### Breaking changes
+
+- `skill-update-notice.ts` notification semantics changed (fires on any
+  unseen version change, reverts included) — replace each fork's copy with
+  the shipped version.   [affects: agents/*/extensions/skill-update-notice.ts]
+- `0-base_prompt.md`'s `SystemMessage` bullet was reworded for the new
+  semantics. Replace each fork's copy with the new seed
+  (harness-owned).   [affects: agents/*/system_prompts/0-base_prompt.md]
+
+## [0.8.15]
+
+### Changed
+
+- **Skill-update notices close the prompt-vs-read recency gap.**
+  `<available_skills>` is rebuilt at every spawn, so it always advertises
+  the current skill version — but it sits at position 0 of the context,
+  before any `SKILL.md` read in history; agents reasoned by context order,
+  trusted the (later) read, and concluded the prompt was stale instead of
+  re-reading the updated skill. Two-part fix: the base prompt's Skills
+  section now explains the recency inversion (the prompt is regenerated
+  per spawn, so on a mismatch the *file* changed after the read) and what
+  to do (act per the skill's `CHANGELOG.md`, or re-read `SKILL.md`); and a
+  new seeded pi extension `skill-update-notice.ts` records the frontmatter
+  version of every `SKILL.md` the agent reads (or edits/writes) as custom
+  session entries, and when the file's current version no longer matches,
+  injects a one-time-per-(skill, version) standalone `<harness-metadata>`
+  notice — `SystemMessage: Skill "<name>" changed after you last read it
+  (vX -> vY)` plus the newest changelog entry — checked at
+  `before_agent_start` (spawn-gap bumps, lands before the batch's first
+  LLM call) and each `turn_start` (mid-run bumps, next steer seam). State
+  replays from session entries, so the once-per-version dedupe survives
+  the fresh-pi-per-batch process model. The base prompt's Message metadata
+  section documents the new `SystemMessage` field: a notice from the
+  harness itself, to be acted on as platform instructions.
+- **context-meta checkpoints are now indexed and pre-call.** One
+  standalone checkpoint message before *every* LLM call, after all of that
+  call's inputs are in place: `Checkpoint: <n>` (monotonic per-call
+  counter, seeded across process respawns from session replay) +
+  `CheckpointTokens: +<delta>` (context growth since the previous
+  checkpoint: the previous response, provider-reported and exact, plus the
+  new input after it — tool results / incoming message — estimated at
+  chars/4 and ~1200 tokens per image). Every checkpoint re-anchors on
+  provider-reported usage, so estimation error is bounded to one step and
+  spans sum accurately. Checkpoints are emitted only when the next call is
+  provably imminent (`before_agent_start` return for a run's first call;
+  the last expected toolResult's `message_end` as a steer mid-run), which
+  deletes the old deferred/`agent_settled` flush machinery and its
+  empty-LLM-loop hazard. `CheckpointTokens: reset` now marks any
+  unknowable delta (compaction, unknown fill). The ephemeral per-call
+  `Model`/`ContextUsage` injection is unchanged.
+- **Daily notes: one entry per thread per day.** The base prompt's
+  end-of-task daily-note rule now says to extend the day's existing entry
+  for the ThreadId instead of appending a second one.
+- Shipped `docs/base-harness/skills.md` documents the recency rule and the
+  skill-update notice mechanism (upgrade refreshes it wholesale).
+
+### Breaking changes
+
+- New seeded agent extension `skill-update-notice.ts` — copy the shipped
+  file into each existing agent's `extensions/` dir.   [affects: agents/*/extensions/skill-update-notice.ts]
+- `context-meta.ts` was rewritten (per-call indexed checkpoints) — replace
+  each fork's copy with the shipped version.   [affects: agents/*/extensions/context-meta.ts]
+- `0-base_prompt.md` gained the skills recency guidance, the
+  `SystemMessage` metadata field, the rewritten Checkpoint-messages
+  bullet, and the one-entry-per-thread daily-notes rule. Replace each
+  fork's copy with the new seed (harness-owned).   [affects: agents/*/system_prompts/0-base_prompt.md]
+
+## [0.8.14]
+
+### Changed
+
+- **End-of-task daily-note summaries** — the base prompt's Guidelines now
+  require agents to append a brief summary to
+  `workspace/daily_notes/YYYY-MM-DD.md` at the end of each task, tagged with
+  the ThreadId: a few sentences covering the situation, the task, what was
+  done, the result, and any learnings — brief prose, no headed sections.
+
+### Breaking changes
+
+- `0-base_prompt.md` Guidelines gained the end-of-task daily-notes summary
+  rule   [affects: agents/*/system_prompts/0-base_prompt.md]
+
+## [0.8.13]
+
+### Changed
+
+- **`create-skill` installed in every agent** — `agent new` now installs the
+  shipped `create-skill` skill into every agent's own `skills/agent/` dir
+  (previously dev-agent only; the dev agent still gets the full set). The
+  base prompt's "Maintaining skills" section now states the rule explicitly:
+  every piece of procedural memory must land as a skill — create a new one
+  or update an existing one — following the installed `create-skill` skill.
+- **Skill description spec** — a skill's description must carry four parts:
+  summary, what's included (the procedures/topics/scripts/artifacts covered,
+  so an agent can spot a partially relevant skill), when to use it, and the
+  version; `metadata` carries `author` + `version`. Taught in the base
+  prompt, the shipped `docs/base-harness/skills.md`, and `create-skill`
+  (bumped to v1.1.0).
+
+### Breaking changes
+
+- `0-base_prompt.md`'s "Maintaining skills" section was rewritten: procedural
+  memory must always land as a new or updated skill (via the installed
+  `create-skill` skill), and skill descriptions must carry summary +
+  what's-included + when-to-use + version. Replace each fork's copy with the
+  new base file (harness-owned).   [affects: agents/*/system_prompts/0-base_prompt.md]
+- Every agent now carries the `create-skill` skill. Copy the shipped
+  `create-skill` skill directory into each existing agent's
+  `skills/agent/create-skill/`.   [affects: agents/*/skills/agent/create-skill/**]
+
+## [0.8.12]
+
+### Changed
+
+- **Deployment-owned deploy hooks (`scripts/app/`)** — the scaffolded deploy
+  scripts are harness-owned and refreshed on upgrade, so app-specific deploy
+  logic no longer gets edited into them. Each script now sources an optional
+  deployment-owned hook: `server.sh` `gen_secrets` → `scripts/app/secrets.sh`
+  (after the stock secrets), `server.sh` → `scripts/app/server.sh` (after every
+  stock action except `harness`/`dev`/`logs`, same positional args — app
+  lifecycle work), `setup-server.sh` → `scripts/app/setup-server.sh`
+  (end, as root), `aws/setup.sh` → `scripts/app/aws-setup.sh` and
+  `contabo/setup.sh` → `scripts/app/contabo-setup.sh` (end of provisioning).
+  Hooks are sourced with the deploy `config` + the caller's resolved vars in
+  scope. Extra deploy params go in the deployment-owned root `config`,
+  documented in a deployment-owned `scripts/app/config.example` (the root
+  `config.example` stays harness-owned). Only `scripts/app/README.md` (the
+  contract) ships with the template. `cognisphere-upgrade` bumped to v1.2.0
+  to teach the scaffold refresh this ownership split.
+
+- **pi upgraded to 0.84.1** (`@earendil-works/pi-ai` +
+  `@earendil-works/pi-coding-agent`, from 0.81.1). No harness code
+  changes were required: the RPC event contract the harness consumes
+  (`agent_start`, `agent_end`, `message_start`, extension `setStatus`
+  reports), the session JSONL format (`CURRENT_SESSION_VERSION` still
+  3), the `pi --mode rpc` flag set, and the `ExtensionAPI` /
+  `ModelRuntime` surfaces the harness uses are all unchanged or
+  additive. pi 0.84.0's `message_update` breaking change (deltas only,
+  no cumulative `message`) does not affect us — the harness never reads
+  `message_update`. `ModelRuntime.reloadConfig()` was removed upstream;
+  the harness never called it.
+- `core/models-catalog.ts`: refreshed the mirrored `KnownProvider` union
+  to pi-ai 0.84.1 (adds `baseten`, `qwen-token-plan-individual`, and the
+  `ant-ling` / `radius` / `nvidia` / `zai-coding-cn` / `qwen-token-plan`
+  / `qwen-token-plan-cn` ids that had drifted in since 0.81.1). Catalog
+  entries themselves are unchanged — new providers stay unlisted in the
+  Models page until an entry is added.
+- **System-prompt file ownership is now an explicit contract**, taught in
+  the base prompt (new "System prompts" section) and documented in
+  `docs/server.md` §3 and the shipped `docs/base-harness/README.md`:
+  `0-*` files are harness-owned (replaced by the seed on upgrade;
+  `0.1-agent-directory.md` excepted), `plugin-<id>.md` is plugin-owned
+  (reseeded on every agent start — edits are clobbered), and `1-agent.md`
+  is deployment-owned: identity/persona/behaviour only. Any deliberate
+  override of a harness- or plugin-owned prompt file must be documented in
+  the home's `docs/harness/`; undocumented divergence is drift.
+- **Skills are the agent's procedural memory, and are versioned.** The base
+  prompt's new "Skills" section tells agents to keep every step-by-step
+  procedure (SOP, runbook) as a skill — never inlined in prompt files,
+  `knowledge/`, or workspace notes — with the version stated in the skill's
+  description (the only metadata pi injects into the prompt) and in
+  `SKILL.md`'s `metadata.version`, plus a per-skill `CHANGELOG.md`. Skills
+  are self-contained — helper scripts in the skill's `scripts/`, supporting
+  files in `artifacts/`, referenced by skill-relative paths. Agents
+  re-read a skill whose advertised version differs from the copy they last
+  read, so version bumps propagate procedure changes to long-running
+  agents, and task-thread briefs name the skill (and version) to follow
+  instead of restating its steps. Shipped skills (`cognisphere-upgrade` v1.1.0, `create-plugin`
+  v1.1.0) follow the convention; the `cognisphere-upgrade` skill now also
+  migrates procedural content out of prompts/SOPs into versioned skills
+  when an upgrade window touches an agent's prompts.
+- **New shipped skill `create-skill` (v1.0.0)** — the authoring/updating
+  procedure for versioned agent skills: scaffold `SKILL.md` + per-skill
+  `CHANGELOG.md` + `scripts/`/`artifacts/`, semver bump rules, SOP
+  migration, and pi's frontmatter constraints. Installed like the other
+  cognisphere skills — into the home's `.claude/skills/` + `.agents/skills/`
+  by `init`, and into the developer agent's own `skills/agent/` — so the
+  dev agent carries the skill-authoring procedure as a skill itself.
+  Existing homes pick it up via the upgrade's scaffold refresh; existing
+  dev agents by copying it into `agents/nova/skills/agent/create-skill/`.
+- `cognisphere agent new` seeds a starter `system_prompts/1-agent.md`
+  (persona skeleton) so every agent dir carries the same prompt layout.
+
+### Breaking changes
+
+- The developer-agent persona file was renamed for layout consistency:
+  `system_prompts/1-dev-agent.md` → `system_prompts/1-agent.md`. Rename the
+  fork's file (contents unchanged).   [affects: agents/nova/system_prompts/*]
+- `0-base_prompt.md` gained the "Skills" and "System prompts" sections and
+  moved procedures out of `knowledge/SOPs/`. Replace each fork's copy with
+  the new seed (local edits in a `0-*` file move to `1-agent.md`).   [affects: agents/*/system_prompts/0-base_prompt.md]
+- Procedural memory must live in versioned skills: for every agent, re-read
+  its `system_prompts/*.md` and `knowledge/` (incl. `knowledge/SOPs/`) and
+  migrate each step-by-step procedure into
+  `skills/agent/<slug>/SKILL.md` (version in description +
+  `metadata.version`, per-skill `CHANGELOG.md`, helper scripts in the
+  skill's `scripts/`, supporting files in `artifacts/`), updating
+  `1-agent.md` to reference the skill instead of restating it.   [affects: agents/*]
+
 ## [0.8.11]
 
 ### Changed

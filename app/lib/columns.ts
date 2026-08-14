@@ -130,12 +130,16 @@ export const PLANT_COLS: ColumnDef[] = [
     key: 'cal', label: 'Caliper', width: 112, edit: true, filter: 'range',
     filterValueKey: 'cal_std', filterUnit: 'in', writes: { table: 'inventory', column: 'caliper' },
   },
+  // `notes` = what the supplier said about the offering (their row description,
+  // dated availability, lead time). `internal_notes` = what we said about it
+  // (split sizes, tentative quantities, parse caveats). Split by migration 0039.
   { key: 'notes', label: 'Notes', width: 190, edit: true, writes: { table: 'inventory', column: 'notes' } },
+  { key: 'internal_notes', label: 'Internal notes', width: 190, edit: true, writes: { table: 'inventory', column: 'internal_notes' } },
   { key: 'source', label: 'Source', width: 180, kind: 'file', filter: 'none' },
   { key: 'ingestion_date', label: 'Ingested', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 130, filter: 'none' },
 ]
-export const PLANT_HIDDEN = ['notes', 'cal']
+export const PLANT_HIDDEN = ['notes', 'internal_notes', 'cal']
 
 export type TableId = 'suppliers' | 'plantMaster' | 'plants'
 

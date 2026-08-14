@@ -34,7 +34,6 @@ gen_secrets() {
   ROOT="$ROOT" APP_USER="$APP_USER" APP_PASS="${APP_PASS:-}" \
   DOMAIN="${DOMAIN:-}" APP_PORT="$APP_PORT" HARNESS_PORT="$HARNESS_PORT" \
   HAS_APP="$HAS_APP" \
-  SUPABASE_URL="${SUPABASE_URL:-}" SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-}" \
   node <<'NODE'
 const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
 const E = process.env;
@@ -48,10 +47,7 @@ if (E.HAS_APP === "true") {
   write600(path.join(E.ROOT, "app/.env.local"),
     "# Generated from ../config by scripts/server.sh — do not hand-edit.\n" +
     `HARNESS_USER=${user}\nHARNESS_PASS=${pass}\nDOMAIN=${E.DOMAIN}\nPORT=${E.APP_PORT}\n` +
-    `HARNESS_URL=http://127.0.0.1:${E.HARNESS_PORT}\n` +
-    // The app reads suppliers/inventory straight from Supabase; the secret key
-    // stays server-side (no NEXT_PUBLIC_ prefix) because it bypasses RLS.
-    `SUPABASE_URL=${E.SUPABASE_URL}\nSUPABASE_SECRET_KEY=${E.SUPABASE_SECRET_KEY}\n`);
+    `HARNESS_URL=http://127.0.0.1:${E.HARNESS_PORT}\n`);
 }
 console.error(`>> operator login: ${user} / ${pass}`);
 NODE
@@ -59,6 +55,14 @@ NODE
     echo ">> wrote harness/.secrets/users.json + app/.env.local from config"
   else
     echo ">> wrote harness/.secrets/users.json from config"
+  fi
+  # Deployment hook: app-specific secrets/config materialization lives in the
+  # deployment-owned scripts/app/secrets.sh (see scripts/app/README.md), never
+  # in this file. Sourced, so it sees ROOT/NAME/HAS_APP + everything in config;
+  # the resolved operator login is in harness/.secrets/users.json.
+  if [[ -f "$ROOT/scripts/app/secrets.sh" ]]; then
+    echo ">> deployment hook: scripts/app/secrets.sh"
+    source "$ROOT/scripts/app/secrets.sh"
   fi
 }
 
@@ -120,3 +124,14 @@ case "${1:-}" in
     ;;
   *) echo "usage: $0 {start|stop|restart [app|harness]|status|logs|build|harness|dev|secrets}"; exit 1 ;;
 esac
+
+# Deployment hook: app-specific lifecycle work (migrations on restart, extra
+# services to bounce, …) lives in the deployment-owned scripts/app/server.sh
+# (see scripts/app/README.md), never in this file. Sourced after the stock
+# action with the same positional args ($1 command, $2 target) and vars
+# (ROOT/NAME/UNITS/HAS_APP/…) in scope — case on "$1" for per-command work.
+# Not reached by the foreground/exec commands (harness, dev, logs).
+if [[ -f "$ROOT/scripts/app/server.sh" ]]; then
+  echo ">> deployment hook: scripts/app/server.sh $*"
+  source "$ROOT/scripts/app/server.sh"
+fi

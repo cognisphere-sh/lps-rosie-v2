@@ -1,62 +1,76 @@
-# SOP: Supplier onboarding & availability ingestion
+---
+name: supplier-onboarding-and-ingestion
+description: Onboard a supplier and ingest one availability drop (price list, availability sheet, website catalog, or photo) into Supabase end-to-end — every database write in the ingestion path belongs to this skill. Covers resolving which location each row belongs to when one source carries several locations of a group, onboarding a new suppliers row with browser enrichment and newsletter signup, contacts/supplier_contacts linking and is_primary rules, source conversion (markitdown/pdftoppm), parsing and normalization of name/size/size_std/price/dimensions, notes vs internal_notes, the plant_other_names alias quality bar, provenance in inventory_sources, updating existing inventory rows in place and inserting only genuinely new ones (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a new supplier, or fixing/reviewing inventory rows written by an ingest. (v2.0.0)
+metadata:
+  author: lps
+  version: "2.0.0"
+---
 
-Standard operating procedure for onboarding a supplier and ingesting one
-availability drop (price list, availability sheet, website catalog, or photo)
-into Supabase. This SOP is executed by a **sub-agent**; the main agent hands
-you the inputs and expects the output contract at the bottom. Follow it
-end-to-end — you do the onboarding (when needed), the parsing, **and** the
-database writes.
+# Supplier onboarding & availability ingestion
 
-**Do not edit this SOP.** If you find something wrong, missing, or
-inefficient in it, put the suggested change in the *Learnings* part of your
-output — SOP changes require Chris's or Bhoumik's approval.
+Onboard a supplier and ingest one availability drop (price list, availability
+sheet, website catalog, or photo) into Supabase. This procedure is normally run
+by a **task thread** dispatched from the `availability-drop-intake` skill, and it
+owns **every database write in the ingestion path** — onboarding, contacts,
+parsing, and all `inventory` / `inventory_sources` / `plant_other_names` rows.
 
-## Inputs you receive from the main agent
+**Where the boundary is.** The main agent coordinates: it identifies the
+supplier, briefs you, digests your report, and labels the email. It never writes
+a row. You write every row and never talk to Chris, Telegram or the supplier
+directly — anything you need from a human goes in your report and the main agent
+relays it. If you find yourself deciding *whether* to reply to someone, you are
+in the wrong skill.
 
-- The supplier: either an existing `supplier_id` + name, or (for a new
-  supplier) whatever is known — name, email, sender, address fragments.
-- Source material: attachment paths, a website URL, an image path, and/or the email body text.
-- Path to `knowledge/SCHEMA.md` — **read it before writing any query.**
-- Any contact with the supplier during onboarding or ingestion (requesting a
-  list, chasing a reply, confirming a price) gets an appended, timestamped entry
-  in `suppliers.communication_notes` — channel, what, why, thread id. Durable
-  facts about the supplier go in `suppliers.notes`; the two are not
-  interchangeable (see SCHEMA.md).
-- **People go in `contacts`, not on the supplier row and never in prose.** One
-  row per person, plus a `supplier_contacts` link for **each location they
-  cover** (§0a). `contacts.notes` describes the *person*; contact history still
-  goes in `suppliers.communication_notes`. Never write a person's name, email or
-  phone into `suppliers.notes` — a 2026-08-05 cleanup had to lift 29 of them
-  back out. A **generic inbox** (`sales@`, `orders@`, `avail@`) is a contact row
-  like any other, but it is the company's switchboard, not a person: leave its
-  `name` null and mark it `title_department = 'Main line'`.
-- Path to this SOP.
-- The parent ThreadId (for your notes/temp naming) and the current timestamp.
+**Don't change this skill on your own.** If you find something wrong, missing,
+or inefficient in it, put the suggested change in the *Learnings* part of your
+report — changes here require Chris's or Bhoumik's approval, and then a version
+bump per the `create-skill` skill.
 
-Also read `workspace/suppliers/[<supplierId>]:<Name>/notes.md` if it exists —
-it records this supplier's known quirks and parsing tricks. Apply them.
+## Your inputs
 
-**If any input is missing or ambiguous** — you can't tell which supplier the
-drop belongs to, a credential/password is needed, the source is unreadable —
-**ask the main agent**: put your question(s) in your output (see the output
-contract) and stop at a safe point. You will be re-invoked with answers in
-the same session. Ask early rather than guessing.
+Your brief follows the **dispatch contract in the `availability-drop-intake`
+skill (§2)** — the supplier the main agent resolved, the source material, the
+ThreadId, and the current timestamp. Read the brief rather than re-deriving any
+of it. Two things to read before you write anything:
+
+- **`knowledge/SCHEMA.md`** — before any query.
+- **`workspace/suppliers/[<supplierId>]:<Name>/notes.md`** if it exists — this
+  supplier's known quirks and parsing tricks. Apply them.
+
+**If any input is missing or ambiguous** — you can't tell which supplier or
+location the drop belongs to, a credential is needed, the source is unreadable —
+**ask the main agent**: put your question(s) in the *Follow-up questions* part of
+your report and stop at a safe point. You will be re-invoked with answers in the
+same session. Ask early rather than guessing.
+
+**Two rules that hold for every write below.** Any contact with the supplier
+during onboarding or ingestion gets a timestamped entry in
+`suppliers.communication_notes` — follow the `supplier-communication-log` skill.
+And **people go in `contacts`, never on the supplier row and never in prose**:
+one row per person plus a `supplier_contacts` link per location they cover
+(§0.3); `contacts.notes` describes the *person*. Never write a name, email or
+phone into `suppliers.notes` — a 2026-08-05 cleanup had to lift 29 of them back
+out. A **generic inbox** (`sales@`, `orders@`, `avail@`) is a contact row like
+any other, but it is the company's switchboard, not a person: leave its `name`
+null and mark it `title_department = 'Main line'`.
 
 ## 0. Locations, onboarding and contacts
 
-### 0.1 Which location(s) is this drop for?
+### 0.1 Which location does each row belong to?
 
-**A company that grows or sells at several sites is several `suppliers` rows —
-one per location.** Everde, Moon Valley, Newton and thirteen others are already
-stored that way. The rows are tied together by `suppliers.group_id` →
-`supplier_groups`; a single-site supplier has `group_id` NULL. Read the
-`supplier_groups` / `supplier_contacts` sections of SCHEMA.md before you write
-anything here.
+**One source file is not one supplier.** A company that grows or sells at
+several sites is several `suppliers` rows — one per location — tied together by
+`suppliers.group_id` → `supplier_groups`; a single-site supplier has `group_id`
+NULL. Everde, Moon Valley, Newton and thirteen others are stored that way, and
+they send **one availability file covering several of their farms**. So the unit
+of mapping is the **availability row**, not the file: every parsed offering gets
+its own `supplier_id`, and one drop can legitimately write to five suppliers.
 
-**Do this before parsing, because it decides where every row goes.**
+Read the `supplier_groups` / `supplier_contacts` sections of SCHEMA.md, then do
+this **before parsing** — it decides where every row goes.
 
 1. **Is this supplier part of a group?** One query, from whatever supplier id
-   you were handed:
+   the brief gave you:
 
    ```sql
    SELECT s.id, s.name, s.city, s.state
@@ -66,43 +80,59 @@ anything here.
    ORDER BY s.id;
    ```
 
-   No rows → single location, nothing in this section applies. Carry on at §0.2.
+   No rows → single location, every offering maps to that one `supplier_id`.
+   Carry on at §0.2.
 
-2. **Does the drop name a location?** Look for it in the sheet header, a tab or
-   page per farm, a "Ship from" / "Grown at" / "Farm" column, the branch in the
-   sender's signature, or the email body. Then:
+2. **Where does the file say a location?** Look in the sheet header, a tab or
+   page per farm, a "Ship from" / "Grown at" / "Farm" column, a section heading,
+   the branch in the sender's signature, or the email body. Take the **most
+   specific** statement that covers a given row — a per-row column beats a
+   section heading, a section heading beats the file header:
 
-   - **A location is named → write only that location's supplier row.** Match it
-     to a row in the group by city/farm name. If the drop names a location the
-     group doesn't have, it is a **new location**: onboard it as a new supplier
-     (§0.2) with the same `group_id`, and say so in your output.
-   - **Different locations for different sections/tabs/rows → split the drop**
-     and treat each section as its own set of rows for its own location.
-   - **No location named anywhere → write one entry per location in the group.**
-     Every active location gets the full set of rows, its own
-     `inventory_sources` row (§3) and its own version swap (§4). This is what a
-     company-wide availability list means: any of their sites can supply it.
+   - **Per-row or per-column location** → map each row to the location named on
+     it. Rows in the same file going to different `supplier_id`s is the normal
+     shape here, not an error.
+   - **Per-section / per-tab / per-page location** → treat each section as its
+     own set of rows for its own location.
+   - **One location for the whole file** → every offering maps to that location,
+     and to no other.
+   - **No location named anywhere → every active location in the group gets its
+     own copy of every offering.** Everde with five active locations means the
+     same 900 offerings written five times, 4,500 rows, each with its own
+     `supplier_id`, its own `inventory_sources` row (§3) and its own upsert pass
+     (§4). That is what a company-wide availability list means: any of their
+     sites can supply it.
+
+   A location named in the file that the group doesn't have is a **new
+   location**: onboard it as a new supplier (§0.2) with the same `group_id`, and
+   say so in your report.
 
 3. **Never guess a location from the sender's address or the file name.** If the
-   drop is ambiguous — a location name that matches no row, two plausible
-   matches, a sheet that looks per-farm but isn't labelled — **ask the main
-   agent** and stop. A row written to the wrong farm claims stock at a nursery
-   that never offered it, and nothing downstream can tell.
+   mapping is ambiguous — a location name that matches no row, two plausible
+   matches, a sheet that looks per-farm but isn't labelled, some rows labelled
+   and some not — **ask the main agent** and stop. Don't fall back to "all
+   locations" to resolve an ambiguity; that is a different claim from "the file
+   named none". A row written to the wrong farm claims stock at a nursery that
+   never offered it, and nothing downstream can tell.
 
 4. **Suspect an unrecorded group?** If a supplier's list, signature or website
    shows sites the database doesn't have as rows, don't create a group yourself
    — report it under *Flags needing Chris* with the evidence. A wrong group
    multiplies wrong data by the number of locations in it.
 
+Carry the resulting **row → `supplier_id` mapping** through §2 and §4; §5 checks
+it. Report the per-location counts separately — one total hides a location that
+silently got nothing.
+
 ### 0.2 Onboarding (only when the supplier is new)
 
-- Never guess a duplicate into existence: search first. Email addresses live in
-  `contacts`, not on `suppliers`, so match on `contacts.email`, then the
-  sender's domain (`c.email ILIKE '%@<domain>'`), then `suppliers.name ILIKE` —
-  or just call `search_suppliers`, which covers all of it in one query. If you
-  still can't tell whether this is a new supplier, ask the main agent and stop.
-  **Several hits for one company can be its locations, not duplicates** — check
-  `group_id` before concluding anything (§0.1).
+- **Confirm before you insert — don't re-run the search.** The main agent already
+  looked this supplier up (`availability-drop-intake` §1); your job is the second
+  pair of eyes on a brief that says "new". One call to `search_suppliers` with
+  the name and the sender's domain is enough. A hit means **stop and report it**
+  rather than creating a duplicate — and remember that several hits for one
+  company are usually its locations, not duplicates (§0.1). If it is genuinely
+  new, carry on.
 - INSERT the `suppliers` row with whatever you have (`name` is required; add
   address parts when present). `suppliers` has **no `email` or `phone` column** —
   the company's own switchboard is a `contacts` row like any other. Set
@@ -144,7 +174,7 @@ anything here.
   look for an availability / price-list newsletter signup (footer form,
   "join our mailing list", Mailchimp/Constant Contact embed). If found,
   subscribe with Daisy's email **`chris.r@localplantsupply.com`** and record
-  in your output that you subscribed (the main agent tells Chris). If signup
+  in your report that you subscribed (the main agent tells Chris). If signup
   needs approval or human steps, note that instead.
 - **Record how their availability reaches us.** Three columns on `suppliers`
   capture it, and each is filled only from something you actually saw:
@@ -317,8 +347,25 @@ One logical row per **plant × size offering**. Normalize every line:
   New pairs are `is_active = true` (the default). Inactive pairs are historical
   and power neither search nor display; **never reactivate one** to "restore" a
   name, and never re-add a pair a cleanup retired.
-- **Price**: `unit_price` is nullable; use the lower bound if the source gives a range. Store `NULL` when the supplier provides no price, and preserve a numeric zero only when the source explicitly prints zero. Never coerce a missing/blank price to `0`, and never silently reinterpret legacy zero rows without source-level review. Missing price does not make an inventory row invalid or free. Stock counts go in `quantity`.
-- **Combined sizes with one shared quantity**: create one inventory row for each printed size (for example, a `3 G/5 G` offer becomes separate `3 G` and `5 G` rows). Copy the source's shared quantity to both rows; quantities are tentative sourcing signals. State in each row's dated `notes` that the quantity is the supplier's shared/tentative count across the combined sizes, so reviewers do not add the copied values together as guaranteed stock. (Approved by Bhoumik, 2026-07-31.)
+- **Price**: `unit_price` is nullable; use the lower bound if the source gives a range. Store `NULL` when the supplier provides no price, and preserve a numeric zero only when the source explicitly prints zero. Never coerce a missing/blank price to `0`, and never silently reinterpret legacy zero rows without source-level review. Missing price does not make an inventory row invalid or free. Record "price on request / not printed" in `internal_notes` (it is your reading of the source, not something the supplier wrote). Stock counts go in `quantity`.
+- **Combined sizes with one shared quantity**: create one inventory row for each printed size (for example, a `3 G/5 G` offer becomes separate `3 G` and `5 G` rows). Copy the source's shared quantity to both rows; quantities are tentative sourcing signals. State in each row's dated `internal_notes` that the quantity is the supplier's shared/tentative count across the combined sizes and that you split the offering, so reviewers do not add the copied values together as guaranteed stock. (Approved by Bhoumik, 2026-07-31.)
+- **Two note columns, and they are not interchangeable.** Every row can carry
+  both; keep each one's content in its own column.
+  - **`notes` — what the supplier said.** Their verbatim row description,
+    availability status, lead time, per-row qualifier ("limited", "coming soon",
+    "B&B only"). Date it: `Available as of 2026-07-01. Lead time 2 wks.` This is
+    evidence, so it is written from the source and nothing else.
+  - **`internal_notes` — what you concluded.** Why you split a combined size,
+    that a quantity is the supplier's shared/tentative count, that no price was
+    printed, a parse caveat, a QA exception, anything a later reader would
+    otherwise have to re-derive from the file. Date these too, and **append**
+    rather than clobber on a later drop.
+
+  A reviewer must be able to tell "the supplier says two weeks" from "we guessed
+  two weeks". Putting your reasoning in `notes` destroys that, and putting the
+  supplier's words in `internal_notes` hides the evidence. Rows written before
+  2026-08-14 have a mix of both in `notes` — leave them; the split applies to
+  what you write from now on.
 - **Dimensions — write the source string and numeric standard together.** Preserve `height` / `width` / `caliper` as printed. Also write `height_std` in feet and `width_std` / `caliper_std` in inches when the measurement is unambiguous. For a range, use its **lower number** (`10-12 ft` → `height_std = 10`; `2.5-2.75 in` → `caliper_std = 2.5`) while preserving the full range string. Convert explicit inches in height ÷ 12, explicit feet in width/caliper × 12, and exact mixed feet+inches by addition. Fractions/decimals are allowed. Leave the standard value `NULL` for inequalities, conflicting units, combined/multiple dimensions, malformed/nonpositive/descending values or anything requiring a guess. A manual source-string edit clears the companion standard value until reviewed; never leave a stale numeric value. The source's own grouping (e.g. `Shade Trees`) is **not** stored — there is no `category` column on `inventory`.
 - To check "does the system already know this plant?", call the `search_inventory` RPC — typo-tolerant, follows the alias graph.
 
@@ -367,7 +414,8 @@ null.
   height grade and no container, `size` is null and `height` carries it.
 - **Form, grade and condition codes** — `STD`, `TRUE`, `NS`, `CG`, `Bush`,
   `Multi-Trunk`, `Specimen`, `Clump`. These describe the plant, not its
-  container. Put them in the row's dated `notes`.
+  container. They are the supplier's own words about the plant, so they go in
+  the row's dated `notes`.
 - **Counts and pack quantities** — `(6ct)`, `18 Plants`, `12ct`. The count goes
   in `quantity`; the tray/flat itself is the size (`1801`, `128`, `10" Pot`).
 - **Anything you had to guess.** Leave `size` null rather than invent a
@@ -454,44 +502,132 @@ guess* rule still holds.
   VALUES (<supplier_id>, '<object key or URL>', '<where/how sourced>') RETURNING id;
   ```
 - **One per file × location.** `inventory_sources.supplier_id` is a single
-  location, so a drop that §0.1 fanned out to several gets a row per location
+  location, so a drop that §0.1 mapped to several gets a row per location
   pointing at the **same** `file_path` — upload the file once. Keep the ids per
-  location; §4's retirement is per location and mixing them up retires the wrong
-  farm's rows. Say in `notes` that the file is the group's shared list.
+  location; §4 stamps each row with its own location's source id, and mixing
+  them up attributes one farm's stock to another. Say in `notes` that the file is
+  the group's shared list.
+- **Never retire a supplier's previous sources.** Live `inventory` rows still
+  point at them, and an inactive source blanks the app's derived
+  `ingestion_date` for every row that references it.
 - `file_path` is the bucket **object key** (e.g. `suppliers/<slug>/rate-cards/<file>`, no scheme — the app signs it on demand) or a full `http(s)://` URL. Never store a signed URL.
 
-## 4. Write to `inventory` as a new version
+## 4. Write to `inventory` — update what exists, insert what doesn't
 
-Each ingestion *supersedes* the supplier's current availability — never edit rows in place:
+An ingest **refreshes** a supplier's availability; it does not replace it.
+**Nothing is retired.** For each parsed offering, find the row it already has and
+update it; insert only when there is no such row. An offering the supplier has
+stopped listing simply isn't touched — it keeps `is_active = true` and its older
+`source_id`. That is the staleness signal: "when did we last see this row" is
+answered by its `source_id`, not by a flag.
 
-- **Insert one `inventory` row per offering**, stamping `supplier_id` and `source_id`, with the normalized fields from §2. `id` defaults to `gen_random_uuid()`; **never write `name_key`** — it's a generated column, and never match plant names with `=` on raw text (join on `name_key` / `normalize_plant_key()`).
-- **Insert only approved active alias pairs into `plant_other_names`** as defined in §2: scientific names and true synonyms/spelling variants, never cultivar/selection/trade-name aliases. A BEFORE INSERT trigger silently drops duplicates and self-pairs, so blind-insert without conflict handling; new valid pairs use `is_active = true` (default).
-- **Carry forward `notes`** (availability status + seller notes) from the matching old active row — match on `(supplier_id, name_key, size)`. Don't lose prior status.
-- **Then retire the old version** (soft delete — `DELETE` is blocked anyway):
-  ```sql
-  UPDATE inventory SET is_active = false
-  WHERE supplier_id = <id> AND is_active
-    AND (source_id IS NULL OR source_id <> ALL(ARRAY[<new source ids>]::uuid[]));
-  UPDATE inventory_sources SET is_active = false
-  WHERE supplier_id = <id> AND is_active AND id <> ALL(ARRAY[<new source ids>]::uuid[]);
-  ```
-- A brand-new supplier's first ingest is just plain inserts (nothing to carry or retire).
-- **Multi-location: run this whole section once per location** §0.1 resolved,
-  each with its own `source_id`s. The parsed rows are identical; `supplier_id`,
-  `source_id`, the carried-forward `notes` and the retirement are not — a
-  location's old version is superseded only by its own new one, and a supplier
-  in the group that this drop was not for keeps the availability it already had.
-  Record the per-location row counts separately in your output; one total hides
-  a location that silently got nothing.
+**1. Pull the nearest existing rows, then decide — never match on a key.**
 
-## 5. Post-ingestion QA — required before commit/retirement
+An exact key (`name_key` + `size`) looks decisive and isn't. Suppliers respell,
+re-punctuate, add a cultivar, move a plant between containers, and switch between
+the botanical and common name between drops. Every one of those makes an existing
+offering look brand new to a key, and the ingest silently duplicates it. So the
+procedure is: **retrieve the closest candidates, look at them, and decide.**
 
-Treat extraction and writing as untrusted until the new version passes source-to-database QA. Run these checks **before committing the transaction or retiring the old active version whenever possible**; if a material check fails, roll back/leave the old version active and report the exception instead of publishing partially verified data.
+```bash
+skills/agent/supplier-onboarding-and-ingestion/scripts/match-candidates \
+  --supplier <supplier_id> --entries /tmp/<thread>-parsed.json
+```
+
+Feed it your parsed offerings as a JSON array — `name` required, plus `size`,
+`unit_price`, `quantity`, `height`, `width`, `caliper` when you have them, so the
+output puts your entry and its candidates side by side. For a multi-location drop
+run it **once per `supplier_id`** in the §0.1 mapping, with only that location's
+entries. `--help` documents the rest; the defaults are the ones to use.
+
+For each entry it returns up to five of that supplier's **active** rows plus the
+single best **retired** one, ranked by trigram similarity on the plant identity
+with a size-agreement bonus, showing only the columns that distinguish one
+offering from another — `id`, `name`, `size`/`size_std`, `unit_price`,
+`quantity`, `height`/`width`/`caliper`, `is_active`, and `dupes` (how many
+identical rows collapsed into that line). Notes are deliberately not fetched:
+they are long and they never tell two offerings apart.
+
+**The `SUGGEST` line is a sort aid, not a decision.** It buckets by score alone
+and knows nothing about the plant. You decide, per entry:
+
+| What you see | Do |
+|---|---|
+| One clear match — same plant, same container, price/quantity moved as a new drop would | **Update it** (step 2) |
+| Best candidates are all a *different* plant, a different container, or nothing came back | **Insert** (step 3) |
+| The only good match is `INACTIVE` | **Reactivate and update it** — the supplier dropped this plant and brought it back; never insert a second copy |
+| Two or more candidates are equally plausible **and materially different** (different price or printed name) | **Touch none of them.** Report the plant, size and candidate ids under *Flags needing Chris* |
+| Several candidates are the *same* offering — same printed name and price, differing only by `dupes` or a stale quantity | **Update the top one, leave the rest**, and list them under *Duplicates found* |
+
+Two things that decide most of the judgement calls:
+
+- **A high score is not identity.** `Abies concolor [Blue Select]` and
+  `Abies concolor [Candicans]` are different plants that score close together;
+  sibling cultivars are the classic trap. Read the name, don't read the number.
+- **No candidates does not mean new.** If the supplier prints the botanical name
+  where they used to print the common one (or the reverse), similarity on the
+  identity key finds nothing. Before inserting, check with
+  `search_inventory('<the other name>')` filtered to this supplier — the
+  `plant-and-supplier-search` skill covers it.
+
+**Expect the duplicate row of that table on established suppliers.** As of
+2026-08-14, 5,714 `(supplier_id, name_key, size, height, width, caliper)` groups
+across 77 suppliers cover more than one active row — about 13,500 rows, roughly
+two-thirds of them same-price duplicates left behind by the old
+replace-and-retire model. That is a cleanup backlog, not a parse failure, and no
+ingest resolves it: update one, report the rest.
+
+**2. Update the matched row** with this drop's values: `source_id` = the new
+source id **for that row's location**, `unit_price`, `quantity`, `size`,
+`size_std`, `height`/`width`/`caliper` and their `*_std`, `image_url` if the
+drop has one, and `is_active = true`. Notes follow §2's split:
+
+- **`notes` is replaced** with this drop's supplier text, dated. The row now
+  describes the current offering, and the previous drop's file is still in
+  storage as evidence. If this drop says nothing about the row, leave `notes` as
+  it is rather than blanking it.
+- **`internal_notes` is appended to**, never clobbered — your earlier caveats
+  about this row are still true.
+
+`updated_at` is maintained by trigger; don't write it.
+
+**3. Insert a genuinely new offering** with the normalized fields from §2,
+stamping `supplier_id` and `source_id`. `id` defaults to `gen_random_uuid()`;
+**never write `name_key`** — it's a generated column, and never match plant names
+with `=` on raw text (join on `name_key` / `normalize_plant_key()`).
+
+**4. Insert only approved active alias pairs into `plant_other_names`** as
+defined in §2: scientific names and true synonyms/spelling variants, never
+cultivar/selection/trade-name aliases. A BEFORE INSERT trigger silently drops
+duplicates and self-pairs, so blind-insert without conflict handling; new valid
+pairs use `is_active = true` (default).
+
+**Do not run a retirement pass.** No `UPDATE inventory SET is_active = false` and
+no `UPDATE inventory_sources SET is_active = false` as part of an ingest.
+Retiring an offering is a deliberate, separately approved act — if a supplier
+tells you an item is discontinued, record that in `notes` and raise it under
+*Flags needing Chris* rather than flipping the flag mid-ingest.
+
+**A brand-new supplier's first ingest** finds nothing to match, so it is all
+inserts.
+
+**Multi-location: run steps 1–4 once per `supplier_id`** in the §0.1 mapping,
+each with its own source id. The parsed values are the same; the `supplier_id`,
+the `source_id` and the row each one matches are not — a location is refreshed
+only by its own rows, and a location this drop didn't cover keeps everything it
+had. Record the per-location counts separately in your report; one total hides a
+location that silently got nothing.
+
+## 5. Post-ingestion QA — required before commit
+
+Treat extraction and writing as untrusted until the drop passes source-to-database QA. Run these checks **before committing the transaction whenever possible**; if a material check fails, roll back and report the exception instead of publishing partially verified data. Because §4 updates rows in place, a bad parse now overwrites good data rather than sitting alongside it — QA matters more under this model, not less.
 
 - **Re-open the original source with the approved primary converter** and compare it to the staged/database output — not only to an intermediate CSV made by the same extraction logic.
-- **Reconcile counts:** source offering count versus inserted count, totals by page/section, active rows, priced/unpriced rows, quantities, photos, and distinct source ids. Explain every exclusion, deduplication, split combined size, and retained legacy row; a matching grand total alone is insufficient.
+- **Reconcile counts:** source offering count versus rows **updated + inserted**, totals by page/section, priced/unpriced rows, quantities, photos, and distinct source ids. The two numbers should account for every source offering between them. Explain every exclusion, deduplication, split combined size, and ambiguous multi-match you skipped; a matching grand total alone is insufficient.
+- **Sanity-check the update/insert split.** A repeat drop from an established supplier should be mostly updates with a few inserts. **Mostly inserts means you took `match-candidates` at face value on entries you should have looked at** — a supplier who respelled or re-sized their list produces exactly that shape — and you have just duplicated the catalogue. Stop and investigate before committing: re-run `match-candidates` on a handful of the inserted entries and read the candidates you passed over.
 - **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
 - **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
+- **Check the note split:** nothing you concluded ended up in `notes`, no supplier text ended up in `internal_notes`, and no row's `internal_notes` was clobbered by this drop.
 - **Validate normalization:** no malformed names/sizes, no zero price presented as free, no guessed missing values, no unsafe cultivar/species alias edges, and no source dimensions left only in notes when they can be mapped unambiguously to structured fields. For every populated human-readable dimension, verify its `*_std` companion uses the approved unit/lower-bound rule or is deliberately `NULL` with an ambiguity reason; never publish a stale standard value after changing its source string.
 - **Every row with a `size` has a `size_std`**, and it is one the standard
   allows. Run it and expect zero rows:
@@ -512,17 +648,21 @@ Treat extraction and writing as untrusted until the new version passes source-to
   that is not the plant you just ingested, the pair is wrong: retire it before
   committing. Report every pair with the verbatim source line that attests both
   sides. "It looked like a synonym" is not evidence and does not pass.
-- **Check the locations, when §0.1 fanned the drop out.** Every location in the
-  group got the same offering count and its own source id; no location was
-  skipped; no location outside the group was written. Expect one row per
-  location, with equal counts:
+- **Check the row → location mapping from §0.1.** Every row this drop touched now
+  carries one of the new source ids, so group by supplier and compare against
+  what §0.1 said should happen:
   ```sql
   SELECT supplier_id, count(*) FROM inventory
   WHERE source_id = ANY(ARRAY[<all new source ids>]::uuid[])
   GROUP BY supplier_id ORDER BY supplier_id;
   ```
-  If the drop **named** a location, the opposite check applies: exactly one
-  `supplier_id`, and it is the one named.
+  - **No location named in the file** → one group per active location, all with
+    **equal counts**, none skipped, none outside the group.
+  - **The file named locations per row/section** → the per-supplier counts match
+    the counts you parsed for each of those locations, and no location the file
+    never mentioned appears at all.
+  - **One location named for the whole file** → exactly one `supplier_id`, and it
+    is the one named.
 - **Check the contact links you wrote.** Each new contact has at least one
   active link, no person was duplicated at a sister location that already had
   them, and every location has at most one active primary:
@@ -531,27 +671,34 @@ Treat extraction and writing as untrusted until the new version passes source-to
   WHERE is_active AND is_primary AND supplier_id = ANY(ARRAY[<locations>])
   GROUP BY supplier_id HAVING count(*) > 1;   -- expect zero rows
   ```
-- **Compare versions:** inspect unexpected row-count swings, price/quantity/spec changes, new/removed plants, duplicate inflation, and source activation/retirement. Spot-check several important searches after activation to confirm exact identities rank correctly without sibling-cultivar leakage.
-- **Record QA evidence in the output contract:** converter used, source/output counts, pages/sections checked, risky-row count and result, exceptions retained, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
+- **Compare against what was there before:** inspect price/quantity/spec changes on the rows you updated, plants that are new to this supplier, and duplicate inflation. Spot-check several important searches afterwards to confirm exact identities rank correctly without sibling-cultivar leakage.
+- **Record QA evidence in the report contract:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
 ## Recording availability status
 
-`inventory.notes` is the free field for per-row qualifiers and **last-known
-availability** — always with a date, e.g. `Available as of 2026-07-01. Lead
-time 2 wks.` Append, don't replace, so a stale status stays obvious by its
-date. If the supplier says an item is out or discontinued, record that in
-`notes` and/or flip the row `is_active = false`. Stock counts go in `quantity`.
+`inventory.notes` carries the supplier's per-row qualifiers and their
+**last-known availability** — always with a date, e.g. `Available as of
+2026-07-01. Lead time 2 wks.` §4 replaces it with the current drop's text, so
+the date on it is the date of the drop it came from; a row nobody refreshed keeps
+its older dated status, which is the point. Stock counts go in `quantity`, and
+your own reading of the row goes in `internal_notes`.
+
+If the supplier says an item is **out or discontinued**, record that in `notes`
+and raise it under *Flags needing Chris*. **Don't flip `is_active = false`
+yourself** — retiring an offering is a deliberate act outside an ingest (§4).
 
 ## Timestamps
 
 ISO 8601, America/Chicago. "Now" is the timestamp the main agent gives you.
 `updated_at` is maintained by trigger on UPDATE.
 
-## Output contract — what you return to the main agent
+## Report contract — what you return to the main agent
 
-Return a **compact structured report** (not a transcript). The main agent
-uses it verbatim for the report to Chris, the thread summary, and the daily
-note, so include:
+This is the **canonical definition** of the report; the
+`availability-drop-intake` skill (§4) says what the main agent does with each
+part. Return a **compact structured report**, not a transcript — the main agent
+uses it for the thread summary, the daily note, and anything Chris needs to see,
+and it cannot read your transcript. Include:
 
 - **Onboarding** (when performed): new `supplier_id`, its `group_id` when the
   row is a location of a known company, fields set via browser research —
@@ -560,12 +707,18 @@ note, so include:
   `supplier_contacts` links you made (which locations each covers, on what
   evidence, and which one you made primary where), newsletter subscribed (or why
   not).
-- **Locations**: which location(s) this drop was written to and why — the name
-  the source gave, or "no location named → all N in the group". Say which
-  locations you did **not** write to.
-- **Result**: supplier_id, source ids + `file_path`s created, rows inserted,
-  rows deactivated, alias pairs added — **per location** when the drop fanned
-  out, not as one total.
+- **Locations**: which location(s) this drop was written to and how the mapping
+  was decided — the name the source gave per row/section, the one name it gave
+  for the whole file, or "no location named → all N in the group". Say which
+  locations in the group you did **not** write to.
+- **Result**, **per location** when the drop covered several, never as one total:
+  supplier_id, source ids + `file_path`s created, **rows updated**, **rows
+  inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs
+  added. Nothing was retired — if you believe something should be, it goes under
+  *Flags needing Chris* instead.
+- **Duplicates found**: keys where several active rows carried the same price and
+  printed name (§4 step 1). Give the plant, size and row ids, and say which one
+  you updated. These are a cleanup backlog, not something to fix mid-ingest.
 - **Follow-up questions**: anything you need from the main agent to finish
   (missing/ambiguous inputs, credentials, a decision). If you stopped early
   because of one, say exactly where you stopped and what remains.
@@ -573,7 +726,7 @@ note, so include:
   didn't map, suspected duplicates/typos in the source.
 - **Errors/issues faced** and how you resolved them.
 - **Learnings**: supplier quirks or parsing tricks not yet in the supplier's
-  `notes.md`; anything incorrect/redundant found in SCHEMA.md, this SOP, or
-  other docs; **suggested SOP/script/database changes** (you never apply SOP
-  changes — they go to the daily summary for Chris's/Bhoumik's approval).
+  `notes.md`; anything incorrect/redundant found in SCHEMA.md, this skill, or
+  other docs; **suggested skill/script/database changes** (you never change this
+  skill — they go to the daily summary for Chris's/Bhoumik's approval).
 - **Suggested status label**: `Catalogued` / `Failed` / `Not Availability` / `Escalated`.

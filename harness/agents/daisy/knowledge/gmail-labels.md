@@ -1,5 +1,8 @@
 # Gmail label IDs (Daisy's gws label taxonomy)
 
+Reference IDs only — *which* label to apply and how is the
+`availability-drop-intake` skill.
+
 Look these up live with `gws gmail users labels list --params '{"userId":"me"}'`
 if this file goes stale — but as of 2026-07-07 these are the IDs:
 
@@ -12,13 +15,6 @@ if this file goes stale — but as of 2026-07-07 these are the IDs:
 Still need to create (create on first use, same pattern as `Daisy/Catalogued`):
 - `Daisy/Failed`
 - `Daisy/Escalated`
-
-## Applying labels to a thread
-
-```
-gws gmail users threads modify --params '{"userId":"me","id":"<threadId>"}' \
-  --json '{"addLabelIds":["Label_12","<statusLabelId>"]}'
-```
 
 ## Gotcha: `gws` binary location
 

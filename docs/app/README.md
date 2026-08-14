@@ -586,6 +586,26 @@ a supplier, so app-entered and agent-entered history read as one log.
 Both columns are hidden by default in the suppliers table (long free text would
 blow up the row height) and available from the column picker.
 
+### The same split on inventory rows
+
+`inventory` has its own pair, added by migration 0039 and following the same
+rule — see [the schema doc](../supabase-schema.md#notes-vs-internal_notes):
+
+| Column | Holds |
+|---|---|
+| **Notes** (`inventory.notes`) | What the **supplier** said about the offering — their row description, dated availability status, lead time, "limited". |
+| **Internal notes** (`inventory.internal_notes`) | What **we** said — why a combined size was split, that a quantity is the supplier's shared/tentative count, parse caveats, QA exceptions. |
+
+Both are editable in the plants table and both are in `PLANT_HIDDEN`, so the
+column picker opts into them.
+
+`search_inventory` returns `notes` only: its `RETURNS TABLE` is fixed and 0039
+deliberately did not drop and recreate the function. So `hydrateInternalNotes()`
+in `lib/queries.ts` fills the column in for the two RPC-backed paths — one keyed
+read of `inventory` per page — while the `inventory_enriched` reads already carry
+it. **If the RPC ever gains the column, delete the hydration** rather than
+keeping both.
+
 ## Paging the list pages
 
 Suppliers and Plant search page through their search server-side — `PAGE_SIZE`
