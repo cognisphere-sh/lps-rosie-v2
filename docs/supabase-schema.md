@@ -658,7 +658,8 @@ substitution or a transposition.
 #### How it ranks
 
 1. The query is normalized and partitioned into **groups**, longest span first
-   (≤ 6 words), so `live oak` is one concept rather than two words.
+   (≤ 6 words), so `live oak` is one concept rather than two words. A span
+   shaped like a **size** becomes one *phrase* group — see below.
 2. A span that names an alias carries the other side of every edge it touches as
    an **alternative**. A group matches if any alternative does, and contributes
    its weight **once** — an alias can never double-count.
@@ -673,6 +674,20 @@ Term frequency is deliberately **binary** — BM25 with k1 → 0. Repetition in 
 plant name carries no information: a row whose notes say "maple" five times is
 not a better answer than one named "Maple". That is also why there is no
 `avgdl` and no length normalization to keep fresh.
+
+**A typed size ranks, it does not filter.** `15g` normalizes to the two tokens
+`15` and `g`, which are near-useless on their own — `g` is in 63% of active rows
+and `15` matches any 15 anywhere, so `15g Live Oak` once returned 42,099 rows
+with 5 G, 45 G and 200 G all tied against 15 G. A size span is therefore taken
+as a single phrase group (`"15 g"`, df 5,220 rather than 11,722), which carries
+a real weight. Phrase groups match on a **token boundary** and skip the fuzzy
+path — a typo in a number is meaningless — so ` 15 g ` accepts `15 G` and
+`15 G/17"` and rejects `115 G` and `150 G`. Their alternatives are the spellings
+a *document* can hold, not the ones a user types: the only gallon spelling in
+the corpus is `g` and `24" Box` normalizes to `24 box`, so a gallon span expands
+to `N g`/`N gal`/`N gallon`/`N gallons` and a box span to
+`N box`/`N inch box`/`N in box`. `15g Live Oak` now returns 6,935 rows, every
+top row a 15 G live oak, with the 1,728 other sizes kept and ranked below.
 
 Worked example, `crape myrtle muskogee` (`crape myrtle` is one group because an
 alias names it):

@@ -205,6 +205,12 @@ correct spelling) and **partial at both ends** (`sycamor` *and* `ycamor` find
 `sycamore`). Query terms are **expanded through aliases** before any of this, so
 `Paperbark Maple` and `Acer griseum` return the same 66 rows.
 
+**A size typed into the query ranks rather than filters.** `15g Live Oak` puts
+15 G live oaks on top and keeps every other size below them; all of `15g`,
+`15 gal` and `15 gallon` behave identically, as does `24 inch box`. The browser
+does nothing for this — there is no longer a size chip, no `parseSizeQuery`, and
+no client-side size test. Filtering by size is still the Size multiselect's job.
+
 Retrieval is OR across groups, so result sets are long and the tail is weakly
 matched — that is deliberate, and why ranking rather than a filter decides what
 you see first. The app pages 300 at a time in relevance order, and orders
@@ -859,8 +865,7 @@ lib/
   table-config.check.mjs  self-check for reorder()
   size-std.ts      the size_std vocabulary and the order the filter offers it in
   size-std.check.mjs      self-check for that order
-  size-range.ts    size typed into the query + the size_std filter predicate
-  dimension-ranges.ts     height/width/caliper range params
+  server-filters.ts       the filter spec: state -> query string -> SQL
   use-debounced.ts search-box debounce
   format.ts        money / number / date formatting
   supabase.ts      server-only client
@@ -884,6 +889,4 @@ There are standalone checks, run directly rather than through a test runner:
 ```sh
 node lib/table-config.check.mjs     # column reordering
 node lib/size-std.check.mjs         # size_std ordering
-node lib/size-range.check.mjs       # typed size + size filter matching
-node lib/dimension-ranges.check.mjs # height/width/caliper range params
 ```

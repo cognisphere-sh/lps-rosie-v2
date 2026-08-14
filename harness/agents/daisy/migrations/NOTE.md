@@ -10,6 +10,51 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0047_size_as_ranking_group.sql`
+
+Applied 2026-08-14 in two steps (`search_size_as_ranking_group`, then
+`search_size_group_unit_variants`), at Bhoumik's request. Function body only.
+
+**A size typed into the query now ranks rather than filters.** `15g Live Oak`
+puts 15 G live oaks on top without removing any other size from the result.
+
+It needed code because "the size column is already searched" does not survive
+contact with the tokenizer. `normalize_search_text` splits letter↔digit, so
+`15g` becomes `15` and `g` — close to the two least selective terms in the
+corpus: `g` is in **39,923 of 63,788** active rows (63%) and `15` in 11,722,
+matching any 15 anywhere. Measured before the change, `15g Live Oak` returned
+**42,099** rows against 1,792 for `Live Oak`, and gave no ranking signal at all:
+5 G, 45 G, 30 G, 200 G and 95 G all tied at 10.49 with 15 G no higher.
+
+The greedy partitioner gains one rule: a span shaped like a size becomes a
+single **phrase** group. `"15 g"` has df 5,220 rather than 11,722, so it carries
+a real IDF weight. Two details make it correct:
+
+- Phrase groups match on a **token boundary** and skip the fuzzy path — a typo
+  in a number is meaningless. ` 15 g ` accepts `15 G` and `15 G/17"`, rejects
+  `115 G` and `150 G`.
+- Their alternatives are the spellings a **document** can hold, not the ones a
+  user types. Sizes are stored canonically: the only gallon spelling anywhere in
+  the corpus is `g`, and `24" Box` normalizes to `24 box`. So a gallon span
+  expands to `N g`/`N gal`/`N gallon`/`N gallons` and a box span to
+  `N box`/`N inch box`/`N in box`. Without that, `15 gal` and `24 inch box`
+  matched nothing — the first version of this migration shipped with exactly
+  that gap and the second step fixed it.
+
+**Measured after:** `15g Live Oak`, `15 gal live oak` and `15 gallon live oak`
+are identical — 6,935 rows, every top row a 15 G live oak. **1,728 of those
+6,935 are not 15 G**: kept, ranked below, which is the point. Score ladder
+10.83 ×11 · 8.32 ×296 · 6.98 ×50 · 6.34 ×77 · 4.48 ×403 · 3.84 ×1012 ·
+2.50 ×5082. `24 inch box` 170 rows topped by `24" Box`; `Live Oak` unchanged at
+1,792; `Crape Myrtle Muskogee` unchanged at 755.
+
+App side: this retired the client-side special case entirely — `lib/size-range.ts`
+(`parseSizeQuery` / `matchesSizeFilter` / `explicitBounds`) and the removable
+"Size: 15 gal" chip are gone, and the query goes to the server whole. That also
+closed the last instance of the filter-after-pagination fault, since the chip
+only ever filtered the 300 rows the browser held. The Size multiselect is
+untouched: filtering by size is still its job.
+
 ## `0046_bm25_search.sql`
 
 Applied 2026-08-14 in four steps (`search_ngram_index`, `search_word_index`,

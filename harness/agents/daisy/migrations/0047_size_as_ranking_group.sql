@@ -1,0 +1,55 @@
+-- 0047_size_as_ranking_group.sql
+-- Applied 2026-08-14 via the Supabase MCP at Bhoumik's request, in two steps
+-- (`search_size_as_ranking_group`, then `search_size_group_unit_variants`).
+-- Function body only — no table, index or row touched.
+--
+-- A size typed into the query now RANKS rather than filters. `15g Live Oak`
+-- puts 15 G live oaks on top without removing any other size from the result.
+--
+-- WHY IT NEEDED CODE AT ALL
+-- `size` is in the search document, so the obvious expectation is that a typed
+-- size already works. It does not, because `normalize_search_text` splits
+-- letter↔digit: `15g` becomes the two tokens `15` and `g`, which are close to
+-- the least selective terms in the corpus —
+--     token `g`   appears in 39,923 of 63,788 active rows (63%)
+--     token `15`  appears in 11,722 (18%), matching any 15 anywhere
+-- Measured before this change, `15g Live Oak` returned **42,099** rows against
+-- 1,792 for `Live Oak`, and gave no ranking signal at all: 5 G, 45 G, 30 G,
+-- 200 G and 95 G rows all tied at 10.49 with 15 G no higher than any of them.
+--
+-- WHAT CHANGED
+-- The greedy partitioner gains one rule: a span shaped like a size becomes a
+-- single **phrase** group instead of separate word groups. `"15 g"` has df
+-- 5,220 rather than 11,722, so it carries a real IDF weight and a row that has
+-- it outranks one that does not.
+--
+-- Two details that make it correct:
+--   * Phrase groups match on a **token boundary**, not raw substring, and skip
+--     the fuzzy path — a typo in a number is meaningless. So ` 15 g ` accepts
+--     `15 G` and `15 G/17"` and correctly rejects `115 G` and `150 G`.
+--   * The alternatives are the spellings a **document** can contain, not the
+--     ones a user types. Sizes are stored canonically: the only gallon spelling
+--     anywhere in the corpus is `g`, and `24" Box` normalizes to `24 box`. So a
+--     gallon span expands to `N g` / `N gal` / `N gallon` / `N gallons` and a
+--     box span to `N box` / `N inch box` / `N in box`, OR-ed within the group.
+--     Without that, `15 gal` and `24 inch box` matched nothing.
+--
+-- RESULT (measured):
+--   `15g Live Oak`, `15 gal live oak`, `15 gallon live oak` — identical, 6,935
+--   rows, every top row a 15 G live oak. Down from 42,099, and 1,728 of the
+--   6,935 are NOT 15 G: they are kept and ranked below, which is the point.
+--   Score ladder: 10.83 ×11 · 8.32 ×296 · 6.98 ×50 · 6.34 ×77 · 4.48 ×403 ·
+--   3.84 ×1012 · 2.50 ×5082.
+--   `24 inch box` -> 170 rows, top `24" Box`. `Live Oak` (no size) unchanged at
+--   1,792. Fixture `Crape Myrtle Muskogee` unchanged at 755.
+--
+-- APP SIDE: this retires the client-side special case entirely.
+-- `lib/size-range.ts` (parseSizeQuery / matchesSizeFilter / explicitBounds) and
+-- the removable "Size: 15 gal" chip are gone. The query now goes to the server
+-- whole. That also closes the last instance of the filter-after-pagination
+-- fault: the chip filtered only the 300 rows the browser held.
+--
+-- The Size multiselect is untouched — filtering by size is still its job.
+--
+-- The applied body is in the Supabase migration history; `pg_get_functiondef`
+-- is authoritative. Only the size-span block differs from 0046.

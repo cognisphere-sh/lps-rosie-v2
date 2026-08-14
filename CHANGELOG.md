@@ -83,6 +83,24 @@ here).
   forms share one identity key and one token array, so no search result moves
   and no index was rebuilt. Ingestion skill v3.2.0.
 
+- **A size typed into the search now ranks instead of filtering** (migration
+  `0047_size_as_ranking_group`). `15g Live Oak` puts 15 G live oaks on top and
+  keeps every other size below them rather than removing them; `15 gal`,
+  `15 gallon` and `24 inch box` all behave the same way.
+
+  This needed code because the tokenizer splits `15g` into `15` and `g`, which
+  are close to the two least selective terms in the catalogue — `g` is in 63% of
+  active rows — so the query used to return 42,099 rows with 5 G, 45 G and 200 G
+  tied against 15 G. A size span is now one phrase group with a real weight, so
+  it returns 6,935 rows with every top row a 15 G live oak and the 1,728 other
+  sizes ranked below.
+
+  The client-side special case is gone with it: no more `parseSizeQuery`, no
+  `matchesSizeFilter`, no removable "Size: 15 gal" chip, and the query reaches
+  the server whole. That closed the last filter-after-pagination fault, since
+  the chip only ever filtered the 300 rows the browser held. The Size
+  multiselect is unchanged — filtering by size is still its job.
+
 - **Search rewritten: ranked, not gated** (migration `0046_bm25_search`). It now
   matches **names, size and notes**, is **typo tolerant**, matches **partially at
   both ends** (`sycamor` *and* `ycamor` find `sycamore`), expands query terms

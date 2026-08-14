@@ -262,6 +262,11 @@ and when; the summaries below are one line each.
   lexicon (`mvskogee`: 0 rows vs 188). Drops the identity-intent gate, the
   pg_trgm fallback and two superseded indexes. **Result sets are much larger by
   design** (OR retrieval, ranked tail).
+- `0047_size_as_ranking_group.sql` — approved/applied 2026-08-14. A size typed
+  into a query becomes one phrase group, so `15g Live Oak` **ranks** 15 G first
+  instead of filtering — and instead of contributing the two least selective
+  tokens in the corpus (`g` is in 63% of rows; the query used to return 42,099
+  rows with no size signal). Retires the app's client-side size chip.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 

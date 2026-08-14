@@ -16,7 +16,6 @@ import { MASTER_COLS, PLANT_COLS, plantEditPatch, type ColumnDef } from '@/lib/c
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { MASTER_FILTERS, PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
-import { matchesSizeFilter, parseSizeQuery, type TypedSize } from '@/lib/size-range'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
@@ -43,32 +42,14 @@ const MOBILE_FILTERS = [
 ] as const
 
 function ResultSizeControl({
-  typed,
   options,
   selected,
   onSelect,
-  onClearTyped,
 }: {
-  typed: TypedSize | null
   options: string[]
   selected: string[]
   onSelect: (sizes: string[]) => void
-  onClearTyped: () => void
 }) {
-  if (typed) {
-    return (
-      <button
-        type="button"
-        onClick={onClearTyped}
-        className="inline-flex h-8 w-[calc(50%-4px)] items-center justify-between gap-2 rounded-[7px] border border-primary bg-secondary px-2.5 text-[12px] font-semibold text-primary md:w-auto"
-        title="Remove size from search"
-      >
-        <span>Size: {typed.label}</span>
-        <span aria-hidden="true" className="text-[16px] leading-none">×</span>
-      </button>
-    )
-  }
-
   return (
     <div className="w-[calc(50%-4px)] md:w-[170px]">
       <MultiFilter
@@ -94,8 +75,6 @@ export default function PlantSearchPage() {
   const [query, setQuery] = useState('')
   const [searchHydrated, setSearchHydrated] = useState(false)
   const debouncedQuery = useDebounced(query)
-  const parsedSearch = useMemo(() => parseSizeQuery(query), [query])
-  const debouncedSearch = useMemo(() => parseSizeQuery(debouncedQuery), [debouncedQuery])
   const [groups, setGroups] = useState<PlantGroup[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -183,7 +162,7 @@ export default function PlantSearchPage() {
       window.localStorage.removeItem(PLANT_SEARCH_KEY)
     }
     url.searchParams.delete('size')
-    if (selectedSizes.length > 0 && !parsedSearch.size) {
+    if (selectedSizes.length > 0) {
       for (const key of selectedSizes) url.searchParams.append('size', key)
       window.localStorage.setItem(PLANT_SIZE_CHOICE_KEY, JSON.stringify(selectedSizes))
     } else {
@@ -193,23 +172,23 @@ export default function PlantSearchPage() {
     url.searchParams.delete('size_min')
     url.searchParams.delete('size_max')
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
-  }, [hasQuery, parsedSearch.size, query, searchHydrated, selectedSizes])
+  }, [hasQuery, query, searchHydrated, selectedSizes])
 
   // A new question, or a new filter, starts again at page 1 — page 4 of the
   // old result set means nothing once the set changes.
-  useEffect(() => setPage(1), [debouncedFilterQuery, debouncedSearch.plantQuery])
+  useEffect(() => setPage(1), [debouncedFilterQuery, debouncedQuery])
 
   // The values each dropdown offers, for this search and deliberately *not*
   // narrowed by the active filters: options derived from filtered rows would
   // collapse to whatever is already selected. Keyed on the search term only,
   // so changing a filter never refetches them.
   useEffect(() => {
-    if (!searchHydrated || !debouncedSearch.plantQuery) {
+    if (!searchHydrated || !debouncedQuery) {
       setFacets({})
       return
     }
     let cancelled = false
-    fetch(`/api/plants?facets=1&q=${encodeURIComponent(debouncedSearch.plantQuery)}`)
+    fetch(`/api/plants?facets=1&q=${encodeURIComponent(debouncedQuery)}`)
       .then((r) => r.json())
       .then((body: { facets?: Record<string, string[]> }) => {
         if (!cancelled) setFacets(body.facets ?? {})
@@ -218,11 +197,11 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedSearch.plantQuery, refreshNonce, searchHydrated])
+  }, [debouncedQuery, refreshNonce, searchHydrated])
 
   useEffect(() => {
     if (!searchHydrated) return
-    if (!debouncedSearch.plantQuery) {
+    if (!debouncedQuery) {
       setGroups([])
       setTotal(0)
       setPageCount(1)
@@ -233,7 +212,7 @@ export default function PlantSearchPage() {
     let cancelled = false
     setLoading(true)
     const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
-    fetch(`/api/plants?q=${encodeURIComponent(debouncedSearch.plantQuery)}&page=${page}${filterSuffix}`)
+    fetch(`/api/plants?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { groups?: PlantGroup[]; total?: number; pageCount?: number }) => {
         if (cancelled) return
@@ -250,7 +229,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedFilterQuery, debouncedSearch.plantQuery, page, refreshNonce, searchHydrated])
+  }, [debouncedFilterQuery, debouncedQuery, page, refreshNonce, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -292,10 +271,8 @@ export default function PlantSearchPage() {
   // plants all filter out drops off the page entirely.
   // Column filters ran in SQL before this page was fetched, so nothing here
   // re-applies them. What is left is genuinely view-local: sorting, rows the
-  // user hid, the supplier shortlist, and the size *typed into the query* —
-  // that last one matches by value against the supplier's printed size text
-  // ("15g" finds a row listed as "10/15 G"), a range the standard bucket
-  // cannot express and the server therefore cannot filter on.
+  // user hid, and the supplier shortlist. A size typed into the query is not
+  // handled here either — it is a ranking signal the search itself applies.
   const visibleGroups = useMemo(() => {
     const masterRows = refinedGroups.map((g) => g.supplier)
     const ordered = masterCfg.sort
@@ -314,14 +291,14 @@ export default function PlantSearchPage() {
         ...g,
         plants: applyFilters(
           g.plants.filter(
-            (p) => !hiddenPlants.includes(p.id) && matchesSizeFilter(p.values, parsedSearch.size),
+            (p) => !hiddenPlants.includes(p.id),
           ),
           {},
           plantCfg.sort,
         ),
       }))
       .filter((g) => g.plants.length > 0)
-  }, [refinedGroups, masterCfg.sort, plantCfg.sort, hiddenPlants, hiddenSuppliers, parsedSearch.size, supplierPick])
+  }, [refinedGroups, masterCfg.sort, plantCfg.sort, hiddenPlants, hiddenSuppliers, supplierPick])
 
   const supplierNames = useMemo(
     () => [...new Set(refinedGroups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
@@ -376,7 +353,7 @@ export default function PlantSearchPage() {
   const stateFilter = Array.isArray(masterCfg.filters.state) ? masterCfg.filters.state : []
   const activeFilterCount =
     (supplierPick.length > 0 ? 1 : 0) +
-    (parsedSearch.size || selectedSizes.length > 0 ? 1 : 0) +
+    (selectedSizes.length > 0 ? 1 : 0) +
     Object.keys(plantCfg.filters).length +
     Object.keys(masterCfg.filters).length
   const advancedFilterCount = MOBILE_FILTERS.filter(({ key }) => plantCfg.filters[key] != null).length
@@ -387,19 +364,13 @@ export default function PlantSearchPage() {
     <Toolbar
       placeholder="Search plant name, optionally with size (15g)…"
       query={query}
-      onQuery={(next) => {
-        const nextSearch = parseSizeQuery(next)
-        if (nextSearch.size || nextSearch.plantQuery !== parsedSearch.plantQuery) setSelectedSizes([])
-        setQuery(next)
-      }}
+      onQuery={setQuery}
       controls={
         <>
           <ResultSizeControl
-            typed={parsedSearch.size}
             options={sizeOptions}
             selected={selectedSizes}
             onSelect={setSelectedSizes}
-            onClearTyped={() => setQuery(parsedSearch.plantQuery)}
           />
           <div className="w-[calc(50%-4px)] md:w-[170px]">
             <MultiFilter
