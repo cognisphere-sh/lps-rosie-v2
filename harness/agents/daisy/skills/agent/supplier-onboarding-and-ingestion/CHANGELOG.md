@@ -1,5 +1,11 @@
 # supplier-onboarding-and-ingestion — changelog
 
+## 3.6.2
+
+Reference fix only, no procedural change: the contact-logging rule in *Your
+inputs* now points at the merged `supplier-communications` skill, which replaced
+`supplier-communication-log` and `supplier-email-reply`.
+
 ## 3.6.1
 
 Approved by Bhoumik, 2026-08-15. Three gaps in the multi-location path, all on

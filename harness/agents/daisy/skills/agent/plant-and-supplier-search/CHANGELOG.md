@@ -1,5 +1,15 @@
 # plant-and-supplier-search — changelog
 
+## 1.6.0
+
+2026-08-15 — new §4, *HQ is not stock location*, migrated out of
+`knowledge/memory.md` (the memory file is for episodic facts; procedures are
+skills). A geographic question may not be answered from `suppliers.state` alone:
+check the farm/region evidence on the inventory row too, and state which one the
+answer rests on. Everde — Houston HQ, Bunnell FL farm — is the worked example.
+Applies until inventory location becomes a structured column. *Answering* renumbers
+to §5.
+
 ## 1.5.0
 
 2026-08-15, with migration 0050 — **Also known as** and `alias_type` are gone.

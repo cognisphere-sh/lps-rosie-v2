@@ -13,11 +13,19 @@ Format:
     description: What to remember, why it matters, where it came from, the
       reasoning behind it, and how long it stays relevant.
 
+**What belongs here: episodic events and facts** — what happened, what was
+found, what is true. **Procedural guidance does not.** A rule about *how to do
+something* goes in `system_prompts/1-agent.md` if it holds everywhere, or in the
+skill for the procedure it governs if it only applies there. If you catch
+yourself writing "always…" or "never…" into a memory, it belongs in one of those
+two places instead.
+
 -----$-----$-----$-----
 
 name: telegram-contacts
 lastUpdated: 2026-08-03 00:00:00
 description: Telegram group chat `-1004330045748` is Nova's communication group
   with Bhoumik Shah and Chris. Bhoumik instructed Nova (2026-08-03) to use this
-  group to reach both of them. Standing routing fact — use it for any Telegram
-  message intended for Chris and Bhoumik together.
+  group to reach both of them. The instruction to use it lives in `1-agent.md`
+  (§Telegram communication); what is recorded here is who is in the group and
+  who asked for it.

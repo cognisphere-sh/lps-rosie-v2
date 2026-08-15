@@ -88,10 +88,12 @@ reference docs and memory.
 `knowledge/memory.md` is Daisy's cross-thread memory — one grep-able file of
 sections separated by `-----$-----$-----$-----`, each with `name`,
 `lastUpdated` and `description`. It replaced `workspace/memory/*.md` in harness
-0.8.18 and holds the standing supplier-email approval policy, the outbound
-identity/signature rules, GWS thread-routing rules, the notification threshold,
-processing-efficiency and geographic-search rules, the daily-note concurrent
-write safeguard, and two historical harness-upgrade validation records.
+0.8.18. Since 2026-08-15 it holds **episodic events and facts only**: every
+standing rule that had accumulated in it moved to the place that governs the
+behaviour — `1-agent.md` when it holds everywhere, the relevant skill when it
+governs one procedure (see *Skills* below). One record remains, the 2026-07-22
+harness-upgrade validation. The file's own header states the rule, so a memory
+written later doesn't reintroduce procedure.
 
 `knowledge/SOPs/` is gone: procedures are skills as of harness 0.8.12 (below).
 
@@ -286,10 +288,12 @@ and when; the summaries below are one line each.
 
 ## Skills (`skills/agent/`)
 
-Daisy's procedural memory. `system_prompts/1-agent.md` names the situation that
-triggers each one and otherwise carries identity/persona/behaviour only.
+Daisy's procedural memory. The harness appends the `<available_skills>` block to
+her prompt, so `1-agent.md` no longer lists them — it carries
+identity/persona/behaviour only, and points at skills by name where a rule needs
+one.
 
-- **supplier-onboarding-and-ingestion** (v3.6.1) — the end-to-end procedure a
+- **supplier-onboarding-and-ingestion** (v3.6.2) — the end-to-end procedure a
   task thread runs to onboard a supplier and ingest one availability drop, and
   the owner of **every database write in the ingestion path**: mapping each
   availability row to its location within the company's head branch, browser
@@ -314,7 +318,7 @@ triggers each one and otherwise carries identity/persona/behaviour only.
   v3.4.0 no entry is inserted until `search_inventory` — scoped to that location
   in the outer query, since the RPC takes no supplier filter — also comes back
   empty, which catches the renames trigram similarity misses.
-- **availability-drop-intake** (v2.0.2) — the coordinator loop, and **no database
+- **availability-drop-intake** (v2.0.3) — the coordinator loop, and **no database
   writes at all**: identify the supplier from sender/domain/name and pass the
   whole group along, dispatch the task thread against the canonical brief
   contract, answer its follow-ups, digest its report, apply the Gmail status
@@ -323,17 +327,24 @@ triggers each one and otherwise carries identity/persona/behaviour only.
 The two are deliberately mutually exclusive: intake coordinates and talks to
 humans, ingestion writes rows and talks to no one. Each points at the other for
 the shared contracts (the brief, the report) rather than restating them.
-- **plant-and-supplier-search** (v1.4.0) — `search_inventory` /
-  `search_suppliers` usage, the split plant identity and typed alias edges,
+- **plant-and-supplier-search** (v1.6.0) — `search_inventory` /
+  `search_suppliers` usage, the split plant identity and untyped alias edges,
+  listing straight from `inventory` (0050 dropped `inventory_enriched`),
   filter relaxation, key-column rules, answer shape.
-- **supplier-communication-log** (v1.0.0) — appending to
-  `suppliers.communication_notes`, and which of `communication_notes` / `notes` /
-  workspace `notes.md` a fact belongs in.
-- **supplier-email-reply** (v1.0.0) — the never-reply-unbidden rule, the
-  draft-and-approve step, sending as Chris in the existing Gmail thread, and the
-  main-thread redirect.
-- **share-file-with-user** (v1.0.0) — upload to `lps` under
-  `daisy_shared/YYYY-MM-DD/`, then share a pre-signed URL only.
+- **supplier-communications** (v1.1.0) — one skill for talking to a supplier and
+  recording it (merges the former `supplier-communication-log` and
+  `supplier-email-reply`): the never-reply-unbidden rule, the main-thread
+  redirect, the draft-and-approve step, sending as Chris in the existing Gmail
+  thread, the Gmail-thread-scoped `gws` routing rule that brings the reply back
+  (never a sender-wide one — it would swallow their next availability drop),
+  appending to `suppliers.communication_notes`, and which of
+  `communication_notes` / `notes` / workspace `notes.md` a fact belongs in. A
+  routine availability drop is **not** logged as a contact.
 - **create-skill** (v1.1.0) — shipped with the harness; how to author or bump one
   of the above. **Changes to any LPS skill need Chris's or Bhoumik's approval**
   first, then a version bump.
+
+Handing a file to a user is **not** a skill (`share-file-with-user` was retired
+2026-08-15): upload to `lps` under `daisy_shared/YYYY-MM-DD/` and sign the URL,
+both documented in `1.1-supabase.md` next to the scripts themselves, with the
+bucket-is-public caveat stated there and in SCHEMA.md's *Storage buckets*.

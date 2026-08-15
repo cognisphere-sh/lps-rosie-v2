@@ -17,6 +17,97 @@ here).
 
 ## 2026-08-15
 
+### Changed
+
+- **Harness upgraded 0.8.18 → 0.8.20** (`@cognisphere-sh/cognisphere-harness`,
+  both phases; data stamped in `harness/harness.json`). Two breaking changes,
+  both about where guidance lives, and both already satisfied by the day's
+  earlier work here — the shipped `knowledge/memory.md` header is word-for-word
+  what Daisy's had been rewritten to say.
+
+  - `0-base_prompt.md` replaced with the 0.8.20 seed for **daisy and nova**.
+    Neither fork carried a local edit, so this is a clean seed swap. It changes
+    two things: **Memory** is now defined as episodic — facts and events, with
+    global rules going to `1-agent.md` and procedure-scoped rules to the
+    relevant skill — and **`1-*` prompt files become the agent's own to edit**
+    with the relevant admin's approval, instead of every prompt change being
+    routed through `nova`. `0-*` and `plugin-<id>.md` stay platform-owned.
+  - `knowledge/memory.md` gained the shipped "what belongs here" header on both
+    agents (Daisy's already matched). Nova's one memory, `telegram-contacts`,
+    was trimmed to the fact it records — the group id and who asked for it —
+    since the instruction to use that group is already in its `1-agent.md`.
+  - Scaffold refresh (`scripts/`, `config.example`, `docs/base-harness/`,
+    `.claude/skills/`): everything was already byte-identical to the 0.8.20
+    template, so only `docs/base-harness/CHANGELOG.md` moved. No local edit
+    existed to re-apply; `scripts/app/`'s deployment-owned `secrets.sh` and
+    `config.example` were untouched, as intended.
+
+  0.8.19 is additive and needs nothing here: the harness session API gained an
+  optional `?limit=N` tail-read and the **console's** chat pages backwards over
+  it. Our own `app/` chat panel doesn't use it — worth doing if a thread ever
+  grows big enough to make opening it slow, but it isn't today.
+
+- **Daisy's supplier-contact skills merged, and `1-agent.md` trimmed to identity
+  and behaviour.** `supplier-communication-log` and `supplier-email-reply` are
+  replaced by one **`supplier-communications`** skill (v1.0.0) — replying to a
+  supplier and logging that contact were always the same task, and splitting them
+  meant two reads and a cross-reference for one procedure. It also adds a rule
+  that was missing: a routine availability drop is **not** a contact event, so it
+  never gets an entry in `suppliers.communication_notes`; only the correspondence
+  around it does.
+
+  `1-agent.md` drops everything the harness or a skill already supplies: the
+  *Your skills* table (the harness appends `<available_skills>` on every spawn,
+  so the table could only go stale), the *Agent messaging — app rules* section
+  (the agent-messaging plugin prompt and the *Asking Chris & Bhoumik* section
+  carried all three bullets), the restated daily-note mechanics from the base
+  prompt, and the ingestion rules that live in
+  `supplier-onboarding-and-ingestion` (notes vs `internal_notes`, missing prices,
+  contacts/`is_primary`, never-email-unbidden). Behavioural change: Daisy no
+  longer asks about routine gaps in a source — a missing price, an unclear size,
+  a plant that fits no obvious section — she records what the source says, keeps
+  going, and lets it surface in the daily note. Questions are for a drop she
+  can't attribute to a supplier, or a decision that is Chris's.
+
+- **Daisy's `knowledge/memory.md` is episodic-only; its standing rules moved to
+  the prompt or a skill.** Memory had become the place procedure went to hide:
+  seven of its eight sections were "always / never" rules, which meant a rule
+  only fired if Daisy happened to grep the right term — and grep is not how a
+  procedure gets followed. Each one moved to where it actually governs
+  behaviour, and the file's header now states the rule so later writes don't
+  reintroduce it.
+
+  To `1-agent.md` (they hold everywhere): the daily-note concurrent-write
+  safeguard — append with a targeted `edit`, never a whole-file `write`, because
+  the day's file is shared by every thread — the notification threshold
+  (blocker, needed input, failure/data risk, or genuinely noteworthy; nothing
+  per routine ingest), and Chris's cost-discipline rule (detect change cheaply
+  before re-running an expensive ingest). To **`supplier-communications`**
+  (v1.1.0): the `gws` routing rule for supplier correspondence must be keyed on
+  the Gmail thread id — a sender-wide rule silently swallows every later mail
+  from that supplier, including their next availability drop — plus the dates
+  behind the send-as-Chris and 250px-logo rules. To
+  **`plant-and-supplier-search`** (v1.6.0): a geographic question may not be
+  answered from `suppliers.state` alone, since HQ and stock location differ
+  (Everde: Houston HQ, Bunnell FL farm) — check the row's farm/region evidence
+  and say which the answer rests on. Two memories were dropped outright as
+  already-covered duplicates of the `supplier-communications` skill (the
+  supplier-email approval policy and the outbound identity/signature rules).
+  What remains in memory is the 2026-07-22 harness-upgrade validation record.
+
+- **Daisy's `share-file-with-user` skill retired; its one novel claim was
+  wrong.** The skill was two script calls — `upload` then `sign-url` — both
+  already documented in `1.1-supabase.md`, under a path convention
+  (`daisy_shared/YYYY-MM-DD/<filename>`) already documented in SCHEMA.md's
+  *Storage buckets*, ending with a paragraph on durable-vs-intermediate files
+  already in `1-agent.md`. What it added on top was the instruction "never share
+  a publicly accessible URL, always share a pre-signed one", which reads as an
+  access control and is not one: the `lps` bucket is public, so an object key is
+  directly fetchable signed or not — the risk being a file uploaded on the belief
+  that the signature gates it. `1.1-supabase.md`'s `sign-url` section now carries
+  the `daisy_shared/` convention **and** the public-bucket caveat, next to the
+  command it qualifies.
+
 ### Removed
 
 - **"Also known as" and the alias edge type** (Bhoumik's call, migration

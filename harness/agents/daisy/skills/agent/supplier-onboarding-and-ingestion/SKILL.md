@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding-and-ingestion
-description: Onboard a supplier and ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every database write in the ingestion path belongs to this skill. Covers which location each row belongs to when a source covers several locations of one company, onboarding a new suppliers row (browser enrichment, newsletter signup), contacts/supplier_contacts linking and is_primary, conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a supplier, or fixing/reviewing inventory rows from an ingest. (v3.6.1)
+description: Onboard a supplier and ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every database write in the ingestion path belongs to this skill. Covers which location each row belongs to when a source covers several locations of one company, onboarding a new suppliers row (browser enrichment, newsletter signup), contacts/supplier_contacts linking and is_primary, conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a supplier, or fixing/reviewing inventory rows from an ingest. (v3.6.2)
 metadata:
   author: lps
-  version: "3.6.1"
+  version: "3.6.2"
 ---
 
 # Supplier onboarding & availability ingestion
@@ -45,7 +45,7 @@ same session. Ask early rather than guessing.
 
 **Two rules that hold for every write below.** Any contact with the supplier
 during onboarding or ingestion gets a timestamped entry in
-`suppliers.communication_notes` — follow the `supplier-communication-log` skill.
+`suppliers.communication_notes` — follow the `supplier-communications` skill.
 And **people go in `contacts`, never on the supplier row and never in prose**:
 one row per person plus a `supplier_contacts` link per location they cover
 (§0.3); `contacts.notes` describes the *person*. Never write a name, email or

@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule and listing from inventory instead, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name with name derived) and how plant_aliases edges reach it, how to relax filters and reword terms when there are no results, the key-column rules for any fallback query (never write derived name/key columns, never match names with = on raw text), and the shape of a good answer. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", "look up <plant/supplier>", or any price/availability question against the database. (v1.5.0)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule and listing from inventory instead, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name with name derived) and how plant_aliases edges reach it, how to relax filters and reword terms when there are no results, answering a geographic question from farm/region evidence rather than the supplier's HQ state, the key-column rules for any fallback query (never write derived name/key columns, never match names with = on raw text), and the shape of a good answer. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", "look up <plant/supplier>", or any price/availability question against the database. (v1.6.0)
 metadata:
   author: lps
-  version: "1.5.0"
+  version: "1.6.0"
 ---
 
 # Looking up a plant or supplier
@@ -86,7 +86,25 @@ Two rules always hold:
   `common_name_key` or `botanical_name_key`, test `cultivar_keys` (an array)
   with `&&` or `= any`, or wrap the text in `normalize_plant_key(<text>)`.
 
-## 4. Answering
+## 4. "Who has this near me?" — HQ is not stock location
+
+A geographic question must **not** be answered from `suppliers.state` alone. A
+company's headquarters and the site the stock actually sits on differ: Everde is
+headquartered in Houston, while a Francis Mason row of theirs is `FARM=BNL` /
+`REGION=FL` in Bunnell, Florida. Until inventory location is a structured
+column:
+
+- check **both** the supplier's geography and any explicit farm / region /
+  location evidence in the inventory row or its source notes,
+- **say which one your answer rests on** — "their Bunnell, FL farm, per the row"
+  reads differently from "their head office is in Houston",
+- never state or imply that the HQ state is where the plant is.
+
+Sister locations of one company are separate `suppliers` rows sharing a
+`head_branch_id`, so the nearer site may be a different row than the one you
+matched.
+
+## 5. Answering
 
 Reply with a brief summary:
 

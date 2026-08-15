@@ -3,7 +3,9 @@
 Cross-thread reference material — schemas, domain facts, lookup tables,
 long-term documents. Files live in `files/`; one line each below.
 
-`memory.md` holds cross-thread memory — grep it, don't read it whole.
+`memory.md` holds cross-thread memory — **episodic events and facts only** — grep
+it, don't read it whole. A procedural rule belongs in `1-agent.md` (if it holds
+everywhere) or in the skill for that procedure, never here.
 
 ## Files
 
@@ -13,7 +15,6 @@ long-term documents. Files live in `files/`; one line each below.
 
 Procedures are **not** knowledge — they are skills. The onboarding + ingestion
 SOP is the `supplier-onboarding-and-ingestion` skill in `skills/agent/`,
-alongside `availability-drop-intake`, `plant-and-supplier-search`,
-`supplier-communication-log`, `supplier-email-reply` and
-`share-file-with-user`. Read them from `<available_skills>`; changes to any of
+alongside `availability-drop-intake`, `plant-and-supplier-search` and
+`supplier-communications`. Read them from `<available_skills>`; changes to any of
 them require Chris's/Bhoumik's approval, then a version bump.
