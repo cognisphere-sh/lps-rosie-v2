@@ -41,7 +41,6 @@ export async function GET(req: Request) {
       }
       return NextResponse.json(await getSupplierPlants(id, search, page, filters))
     }
-    if (!search.trim()) return NextResponse.json({ groups: [], total: 0, pageCount: 1 })
     // The page size lives on the server, so the page count is computed here
     // rather than handing the browser a divisor it would have to duplicate.
     const { groups, total } = await searchPlantGroups(search, filters, page)

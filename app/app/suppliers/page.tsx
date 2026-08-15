@@ -14,7 +14,7 @@ import { formatDate } from '@/lib/format'
 import type { SupplierRow } from '@/lib/rows'
 import { SUPPLIER_FILTERS, clientOnlyFilters, filterQuery } from '@/lib/server-filters'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
-import { useDebounced } from '@/lib/use-debounced'
+import { useDebouncedSearch } from '@/lib/use-debounced'
 
 const ACTIONS_W = 16 + 26
 
@@ -25,15 +25,11 @@ export default function SuppliersPage() {
   const cfg = useTableConfig('suppliers')
 
   const [query, setQuery] = useState('')
-  const debouncedQuery = useDebounced(query)
   const [rows, setRows] = useState<SupplierRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(true)
-  // The loader covers the debounce window too, so it appears on the first
-  // keystroke rather than 300ms later when the fetch actually fires.
-  const searching = loading || query !== debouncedQuery
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [facets, setFacets] = useState<Record<string, string[]>>({})
@@ -50,10 +46,25 @@ export default function SuppliersPage() {
     () => filterQuery('supplier', SUPPLIER_FILTERS, cfg.filters),
     [cfg.filters],
   )
-  const debouncedFilterQuery = useDebounced(serverFilterQuery)
+  const {
+    query: debouncedQuery, filters: debouncedFilterQuery, settled,
+  } = useDebouncedSearch(query, serverFilterQuery)
+  // The loader covers the debounce window too, so it appears on the first
+  // keystroke rather than 300ms later when the fetch actually fires.
+  const searching = loading || !settled
 
   // A new search or filter starts again at page 1.
-  useEffect(() => setPage(1), [debouncedQuery, debouncedFilterQuery])
+  //
+  // Reset while rendering, not in an effect. An effect commits *after* the
+  // fetch effect below has already run once against the outgoing page number,
+  // so searching from page 3 would cost two requests: one for the stale page,
+  // one for page 1.
+  const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
+  const [pagedFor, setPagedFor] = useState(searchKey)
+  if (pagedFor !== searchKey) {
+    setPagedFor(searchKey)
+    setPage(1)
+  }
 
   // Option lists for this search, deliberately not narrowed by the active
   // filters — otherwise picking one city would remove the rest from the list.

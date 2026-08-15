@@ -19,7 +19,7 @@ import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { formatDate, money, num } from '@/lib/format'
 import type { Contact, PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
-import { useDebounced } from '@/lib/use-debounced'
+import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
 type Tab = 'notes' | 'comms' | 'contacts' | 'inventory' | 'files'
@@ -334,20 +334,21 @@ export default function SupplierProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false)
 
   const [query, setQuery] = useState('')
-  const debouncedQuery = useDebounced(query)
   // Column filters are applied as SQL over the result, so the whole filter
   // state travels with the request instead of narrowing the page in place.
   const serverFilterQuery = useMemo(
     () => filterQuery('plant', PLANT_FILTERS, plantCfg.filters),
     [plantCfg.filters],
   )
-  const debouncedFilterQuery = useDebounced(serverFilterQuery)
+  const {
+    query: debouncedQuery, filters: debouncedFilterQuery, settled,
+  } = useDebouncedSearch(query, serverFilterQuery)
   const [plants, setPlants] = useState<PlantRow[]>([])
   const [facets, setFacets] = useState<Record<string, string[]>>({})
   const [loadingPlants, setLoadingPlants] = useState(true)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
-  const searchingPlants = loadingPlants || query !== debouncedQuery || serverFilterQuery !== debouncedFilterQuery
+  const searchingPlants = loadingPlants || !settled
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
@@ -424,8 +425,16 @@ export default function SupplierProfilePage() {
       .catch(() => setNotFound(true))
   }, [id])
 
-  // A new search starts again at page 1.
-  useEffect(() => setPage(1), [debouncedFilterQuery, debouncedQuery])
+  // A new search starts again at page 1. Reset while rendering, not in an
+  // effect: an effect commits *after* the fetch effect below has already run
+  // once against the outgoing page number, costing a request for a page of the
+  // result set the search just replaced.
+  const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
+  const [pagedFor, setPagedFor] = useState(searchKey)
+  if (pagedFor !== searchKey) {
+    setPagedFor(searchKey)
+    setPage(1)
+  }
 
   // Option lists for this tab, unnarrowed by the active filters. Keyed on the
   // search term only, so changing a filter never refetches them.
@@ -1230,9 +1239,6 @@ export default function SupplierProfilePage() {
                     <div key={p.id} className="flex items-start gap-3 border-b border-lps-hair p-3">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
-                        {p.values.other && (
-                          <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
-                        )}
                         <div className="mt-1 text-[11.5px] text-muted-foreground">
                           {String(p.values.size ?? '')}
                         </div>

@@ -1,5 +1,20 @@
 # plant-and-supplier-search — changelog
 
+## 1.5.0
+
+2026-08-15, with migration 0050 — **Also known as** and `alias_type` are gone.
+
+Listing now selects from `inventory`; `inventory_enriched` no longer exists. The
+view's only contribution over the table was the derived `other_names` column,
+which was NULL for 90% of active rows and could not be indexed, so it and the
+`plant_alias_names()` function behind it were dropped.
+
+Nothing about matching or ranking changed. The query expander never consulted
+`alias_type` — since 0045 it substituted the opposite endpoint of every active
+incident edge regardless of type — so the same rows come back in the same order.
+The *Also known as* paragraph is removed and the note about alias typing not
+restricting reach is restated without reference to a type that no longer exists.
+
 ## 1.4.0
 
 2026-08-14, with migration 0046 — search is now ranked rather than gated, and

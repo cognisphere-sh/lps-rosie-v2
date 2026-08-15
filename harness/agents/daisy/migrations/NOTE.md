@@ -10,6 +10,77 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0050_drop_other_names_and_alias_type.sql`
+
+Applied 2026-08-15 at Bhoumik's request. Drops the **Also known as** column and
+the alias edge type in one pass: `public.inventory_enriched`, the
+`plant_alias_names()` function behind its `other_names` column, that column from
+`search_inventory`'s projection, and `plant_aliases.alias_type`.
+
+`other_names` did not earn its cost. It was NULL for 90% of active rows (28,444
+of 31,560) and could not be indexed — `plant_alias_names()` is `STABLE` and
+reads `plant_aliases`, so a filter on it meant evaluating the function per
+candidate row. It was also the only reason the view existed; every other column
+was a passthrough of `inventory`, so the app's three call sites moved to the
+table with no projection change.
+
+**Retrieval is unchanged.** Verified after apply, not assumed: since 0045 the
+query expander substituted the opposite endpoint of every active incident edge
+without ever reading `alias_type`, so dropping it cannot move a result.
+`search_inventory('Quercus virginiana')` still returns 250 rows of which **85
+are reached only through the alias edge** (their own `name` does not contain the
+botanical name), which is the property that would have broken had expansion
+regressed. `search_inventory('live oak')` returns 243, top relevance 4.865.
+
+What is genuinely lost is the record of which kind of equivalence a source
+asserted, plant-level versus cultivar-level. Accepted explicitly by Bhoumik.
+
+Uniqueness moved from `(alias_type, name_key, other_name_key)` to
+`(name_key, other_name_key)` under the same index name. Checked first: zero
+pairs existed under both types, so no row collided and no dedup was needed. The
+`dedupe_plant_aliases()` trigger lost its `alias_type` leg and still rejects
+both orientations regardless of `is_active`, so a retired pair remains a
+blocklist.
+
+**Verified after apply:** one `search_inventory` signature, 30 output columns;
+`inventory_enriched` and `plant_alias_names` both resolve to NULL;
+`plant_aliases` has no `alias_type` column and all 432 rows intact; app
+typecheck and `next build` clean.
+
+Rollback is 0040/0046-shaped — recreate `plant_alias_names()`, recreate
+`inventory_enriched` with `security_invoker = true`, restore the RPC's
+`other_names` column, re-add `alias_type` — but the per-row type values are not
+recoverable.
+
+## `0049_supplier_head_branch.sql`
+
+Applied 2026-08-15 at Bhoumik's request. Drops `public.supplier_groups` and
+`suppliers.group_id`, and adds `suppliers.head_branch_id` — a self-reference to
+the company's head branch, where a head branch (and every single-site supplier)
+points at itself.
+
+Nothing was lost with the table: all 16 groups had null `notes`, and every
+group `website` duplicated its members' own. The only column with independent
+content was the company `name`, which the head branch row now carries.
+
+Which row is the head was decided per company from the contacts on file, then
+confirmed against each company's published head-office address — the head is
+the **business office**, not the largest farm (Everde's head is supplier 32, a
+Houston office suite; its farms point at it). Six differ from the first member
+0033 listed: Snapper Creek 526 (Ft Pierce HQ, not Homestead), Vickery 1379
+(Dallas HQ), Whitfill 1383 (Southern Ave), Tree Valley 1369 (Tomball), Triangle
+1370 (the Houston business office, not the Groveland farm) and Tree of Life 1368
+(San Juan). ArborGen, Calloway's and Moon Valley have **no head-office row** —
+their heads (110, 119, 91) are stand-ins and are flagged as such in the
+migration file, which lists all 16 with reasons.
+
+Post-apply verification: 1,383 suppliers, **zero** null `head_branch_id`, 16
+heads carrying 41 branches (the same 57 rows 0033 covered), 1,326 single-site
+rows self-heading, and zero chains. A rollback-only probe confirmed the
+`set_head_branch` trigger fills the self-reference on insert, refuses a branch
+pointing at another branch, and refuses demoting a head that still has
+locations.
+
 ## `0048_cascade_source_deactivation.sql`
 
 Applied 2026-08-14 after a runtime audit found that the app and schema docs
@@ -25,6 +96,16 @@ a true→false source update retires its active inventory, reactivation does not
 restore it, rollback removes the fixture completely, and the live invariant
 remains clean. The source-deactivation freeze imposed during the audit was then
 safe to lift.
+
+## `backup_catalogue_before_reingest_20260814` (no numbered file)
+
+Applied 2026-08-14 at Bhoumik's request, immediately before the catalogue was
+deleted for a from-scratch reingest. Creates schema `backup_20260814` holding
+`create table … as select *` copies of `inventory` (238,748), `inventory_sources`
+(2,113) and `plant_aliases` (127); counts were verified equal to the live tables
+before anything was deleted. No numbered migration file — it is a point-in-time
+backup, not a schema change to replay. The delete itself was plain DML and is
+not in the migration history; see `CHANGELOG.md` (2026-08-14).
 
 ## `0047_size_as_ranking_group.sql`
 

@@ -15,7 +15,152 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-15
+
+### Removed
+
+- **"Also known as" and the alias edge type** (Bhoumik's call, migration
+  `0050_drop_other_names_and_alias_type.sql`). The derived `other_names` column
+  is gone from the plants table, the supplier profile and both mobile card
+  layouts, along with its `Also known as` header filter. With it go
+  `inventory_enriched` — whose only contribution over `inventory` was that one
+  column — the `plant_alias_names()` function behind it, and
+  `plant_aliases.alias_type`.
+
+  The column did not earn its cost: NULL for 90% of active rows (28,444 of
+  31,560) and unindexable, because `plant_alias_names()` is `STABLE` and reads a
+  second table, so filtering on it meant evaluating the function per candidate
+  row. `alias_type` fell out as a consequence — 0045 had already stopped search
+  from reading it, leaving the *Also known as* display as its last consumer.
+
+  **Search behaviour is unchanged, and that was verified rather than assumed.**
+  A botanical-name query still returns 250 rows of which 85 are reached *only*
+  through an alias edge, which is the property that would have broken had query
+  expansion regressed. What is lost is the record of which kind of equivalence a
+  source asserted; that is not recoverable. Uniqueness on `plant_aliases` moves
+  to `(name_key, other_name_key)` — no rows collided — and the dedupe trigger
+  still rejects both orientations and still treats a retired pair as a blocklist.
+
+  Daisy's skills move with it: `plant-and-supplier-search` v1.5.0 lists from
+  `inventory`, and `supplier-onboarding-and-ingestion` v3.6.0 drops `alias_type`
+  from its insert template. **An ingest that still writes the column will fail.**
+
+### Changed
+
+- **Daisy's ingestion skill closes three gaps on multi-farm workbooks**
+  (`supplier-onboarding-and-ingestion` v3.6.1, approved by Bhoumik). The
+  location-mapping rules in §0.1 already treated a spreadsheet tab as evidence
+  of which farm a row belongs to, but §1 — how you convert the file — never
+  mentioned sheets, so nothing connected the two. §1 now states that
+  `markitdown` converts every sheet under a `## <tab name>` heading and that the
+  headings must be counted against the workbook's tabs before parsing: a
+  per-farm workbook parsed as its first table alone loses every other farm, and
+  the §5 count check cannot catch it, because a location that was never written
+  to simply doesn't appear in the group-by. It also names three converter
+  behaviours, confirmed against a test workbook rather than assumed — hidden
+  sheets convert with nothing marking them hidden, each sheet's first row
+  becomes its header (so a title row pushes the real headers into row 1 and
+  leaves `Unnamed: 1` where cells were blank or merged), and an empty sheet
+  still emits a degenerate table.
+
+  §0.1 gains the two judgement calls that go with it. A tab carrying no
+  offerings — `Terms`, `Legend`, `Price Key`, an empty or hidden leftover — is
+  not a location however it is named. And a location the database doesn't have
+  must be resolved on city and state, and against the company's own locations
+  page, before it is onboarded: a tab reading `Ft Pierce`, `Bunnell Farm` or a
+  bare farm code is usually a row that already exists, and onboarding a
+  duplicate splits that farm's catalogue across two `supplier_id`s permanently.
+  A near-match is now explicitly the ambiguity case — ask, don't onboard.
+
+- **The plant table's **Plant** column is now labelled **Full Name**.** One
+  label in `PLANT_COLS`, so it renames in both places that table appears — Plant
+  search and the supplier profile's Inventory tab. The column is unchanged
+  otherwise: still the read-only composed identity the database derives from the
+  three name parts.
+
+### Fixed
+
+- **Searching fires one request per intent, not two.** Both search pages (and
+  the supplier profile's Inventory tab) already debounced at 300ms, but on two
+  independent timers — the typed question and the serialized filter state — so a
+  keystroke and a filter click inside the same window settled at different
+  moments and cost a request each. `useDebounced` is now `useDebouncedSearch`,
+  which debounces the pair as one value. The page-number reset moved out of an
+  effect and into render for the same reason: an effect commits *after* the
+  fetch effect has already run once against the page number the new search just
+  invalidated, so searching from page 3 fetched the stale page and then page 1.
+
+- **`/plants` with no search term returns plants again.** The API short-circuited
+  on an empty query (`if (!search.trim()) return … groups: []`), so the default
+  page rendered nothing and the browse branch behind it was unreachable. That
+  branch also sampled 8 suppliers × 30 rows, reported the sample size as the
+  total, and ignored `page` entirely. It is now one filtered, ordered,
+  `count: 'exact'`, paginated read of `inventory`, so the header count and page 2
+  mean what they say — the same contract the search path already had. The trade
+  is the deliberate supplier spread: ordering by `updated_at` surfaces the most
+  recently ingested suppliers first, so page 1 is a shallower set of groups.
+
+### Changed
+
+- **A multi-location company is now a head branch, not a group row**
+  (Bhoumik's call, migration `0049_supplier_head_branch.sql`).
+  `suppliers.head_branch_id` points every supplier at its company's head branch
+  — the row at the company's business office — and **a head branch points at
+  itself**, as does every single-site supplier. The column is therefore never
+  null and never chains, so a company's locations are one predicate:
+  `head_branch_id = (SELECT head_branch_id FROM suppliers WHERE id = <any>)`.
+  A `set_head_branch` trigger fills the self-reference on insert (an identity PK
+  cannot be a column default) and refuses both ways of creating a chain:
+  pointing at a row that is itself a branch, and demoting a head that still has
+  locations. Live after apply: 1,383 suppliers, zero nulls, 16 heads carrying 41
+  branches, 1,326 single-site rows self-heading, zero chains.
+
+  Each head was chosen from the contacts on file — whose row holds the generic
+  company inbox, the switchboard, the company-level people — and then confirmed
+  against the address each company publishes as its head office. **The head is
+  the business office, not the biggest farm**: Everde's head is supplier 32, a
+  Houston office suite, and its four farms point at it. Six differ from the
+  first member migration 0033 happened to list — Snapper Creek (Ft Pierce, not
+  Homestead), Vickery (Dallas), Whitfill (Southern Ave), Tree Valley (Tomball),
+  Triangle (the Houston business office, not the Groveland farm) and Tree of
+  Life RGV (San Juan). ArborGen, Calloway's and Moon Valley have **no
+  head-office row at all** — their heads are stand-ins, flagged in the migration
+  for revisiting if that office is ever onboarded.
+
+### Removed
+
+- **`supplier_groups` is dropped**, along with `suppliers.group_id` and the
+  `suppliers_group_idx` index — superseded by the head branch above. Nothing was
+  lost: all 16 group rows had null `notes`, every group `website` duplicated its
+  members' own, and the company name they carried is the head branch's own name.
+  The seeding data itself is still readable in
+  `0033_supplier_locations.sql`, including the families deliberately left
+  ungrouped, which remain their own heads.
+
 ## 2026-08-14
+
+### Removed
+
+- **The whole catalogue was deleted, to be re-ingested from scratch** (Bhoumik's
+  call): `inventory` 238,748 rows, `inventory_sources` 2,113, `plant_aliases`
+  127 — every row, active or not. `suppliers` (1,383), `contacts` (1,851) and
+  their links were not touched, and neither were the source files in the `lps`
+  storage bucket. `search_inventory`, `inventory_enriched` and `search_suppliers`
+  were checked after the delete and behave normally against the empty tables.
+
+  This was a **hard delete, against the schema's soft-delete convention**, for
+  two reasons. `dedupe_plant_aliases()` rejects a pair that already exists in
+  either orientation *regardless of `is_active`* — deliberately, so retired bad
+  aliases stay dead — so deactivated aliases would have silently blocked the
+  reingest from ever recreating them. And a deactivated `inventory` row is
+  indistinguishable from the 174,909 already inactive, which would have left the
+  table permanently carrying a wipe it could not describe.
+
+  A row-for-row copy of all three tables lives in the **`backup_20260814`**
+  schema (73 MB, outside PostgREST's exposed schemas, verified equal before the
+  delete). Restore is `insert … select` in the order sources → inventory →
+  aliases: `inventory.source_id` and `plant_aliases.source_id` both reference
+  `inventory_sources` without a cascade.
 
 ### Added
 
@@ -51,6 +196,28 @@ here).
 
 ### Changed
 
+- **`supplier-onboarding-and-ingestion` 3.4.0 → 3.5.0: `internal_notes` stops
+  being a log of the obvious** (Bhoumik's call). Ingests were appending
+  observations the row itself already answers — that a price or quantity was
+  missing, when the row was last updated, when the drop was ingested, a
+  restatement of the size or name — none of which survives a reader who can see
+  `unit_price`, `quantity`, `updated_at`, `source_id` and
+  `inventory_sources.created_at`. The skill's *Two note columns* section now
+  names each of those as never-write, and says that a row you concluded nothing
+  about gets no note at all.
+
+  This **reverses the price rule**: §2 previously instructed recording "price on
+  request / not printed" in `internal_notes`, and listed it as an example of the
+  column's content. A `NULL` `unit_price` already carries that; when the
+  *supplier* prints "price on request", it is their text and belongs in `notes`
+  like any other qualifier, where the evidence/commentary split already puts it.
+  §5's QA pass gained a matching check — anything appended that merely restates
+  the row is deleted before the transaction commits. Timely: the catalogue
+  reingest above rewrites every row's notes from scratch, so the rule lands
+  before the volume does. The `notes`/`internal_notes` split, the
+  append-don't-clobber rule and the caveats that do belong there (a split
+  combined size, a shared/tentative quantity, a parse caveat, a QA exception) are
+  unchanged. `docs/supabase-schema.md` and `docs/harness/agent-daisy.md` follow.
 - **`supplier-onboarding-and-ingestion` 3.3.0 → 3.4.0: `search_inventory` is now
   a required gate before any insert** (§4 step 1), not a fallback for when
   `match-candidates` came back empty. Trigram similarity on the identity key

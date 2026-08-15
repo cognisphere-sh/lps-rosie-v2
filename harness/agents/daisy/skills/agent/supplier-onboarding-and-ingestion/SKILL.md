@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding-and-ingestion
-description: Onboard a supplier and ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every database write in the ingestion path belongs to this skill. Covers which location each row belongs to when one source covers several in a group, onboarding a new suppliers row with browser enrichment and newsletter signup, contacts/supplier_contacts linking and is_primary, source conversion (markitdown/pdftoppm), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the typed plant_aliases quality bar (plant vs cultivar edges), provenance in inventory_sources, updating existing rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a new supplier, or fixing/reviewing inventory rows written by an ingest. (v3.4.0)
+description: Onboard a supplier and ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every database write in the ingestion path belongs to this skill. Covers which location each row belongs to when a source covers several locations of one company, onboarding a new suppliers row (browser enrichment, newsletter signup), contacts/supplier_contacts linking and is_primary, conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a supplier, or fixing/reviewing inventory rows from an ingest. (v3.6.1)
 metadata:
   author: lps
-  version: "3.4.0"
+  version: "3.6.1"
 ---
 
 # Supplier onboarding & availability ingestion
@@ -60,28 +60,29 @@ null and mark it `title_department = 'Main line'`.
 
 **One source file is not one supplier.** A company that grows or sells at
 several sites is several `suppliers` rows — one per location — tied together by
-`suppliers.group_id` → `supplier_groups`; a single-site supplier has `group_id`
-NULL. Everde, Moon Valley, Newton and thirteen others are stored that way, and
-they send **one availability file covering several of their farms**. So the unit
-of mapping is the **availability row**, not the file: every parsed offering gets
-its own `supplier_id`, and one drop can legitimately write to five suppliers.
+`suppliers.head_branch_id`, which points at the company's head branch; a head
+branch, and every single-site supplier, points at **itself**. Everde, Moon
+Valley, Newton and thirteen others are stored that way, and they send **one
+availability file covering several of their farms**. So the unit of mapping is
+the **availability row**, not the file: every parsed offering gets its own
+`supplier_id`, and one drop can legitimately write to five suppliers.
 
-Read the `supplier_groups` / `supplier_contacts` sections of SCHEMA.md, then do
+Read the `head_branch_id` / `supplier_contacts` sections of SCHEMA.md, then do
 this **before parsing** — it decides where every row goes.
 
-1. **Is this supplier part of a group?** One query, from whatever supplier id
-   the brief gave you:
+1. **Does this supplier have sister locations?** One query, from whatever
+   supplier id the brief gave you:
 
    ```sql
    SELECT s.id, s.name, s.city, s.state
    FROM suppliers s
-   WHERE s.group_id = (SELECT group_id FROM suppliers WHERE id = <supplier_id>)
-     AND s.group_id IS NOT NULL AND s.is_active
+   WHERE s.head_branch_id = (SELECT head_branch_id FROM suppliers WHERE id = <supplier_id>)
+     AND s.is_active
    ORDER BY s.id;
    ```
 
-   No rows → single location, every offering maps to that one `supplier_id`.
-   Carry on at §0.2.
+   One row back — the supplier itself — → single location, every offering maps
+   to that one `supplier_id`. Carry on at §0.2.
 
 2. **Where does the file say a location?** Look in the sheet header, a tab or
    page per farm, a "Ship from" / "Grown at" / "Farm" column, a section heading,
@@ -93,19 +94,34 @@ this **before parsing** — it decides where every row goes.
      it. Rows in the same file going to different `supplier_id`s is the normal
      shape here, not an error.
    - **Per-section / per-tab / per-page location** → treat each section as its
-     own set of rows for its own location.
+     own set of rows for its own location. A workbook with a tab per farm is
+     the common shape; §1 says how to convert one without losing tabs. A tab
+     carrying no offerings — `Terms`, `Legend`, `Price Key`, an empty or hidden
+     leftover — is **not a location**, whatever it is named: skip it and say
+     which tabs you skipped in your report.
    - **One location for the whole file** → every offering maps to that location,
      and to no other.
-   - **No location named anywhere → every active location in the group gets its
-     own copy of every offering.** Everde with five active locations means the
+   - **No location named anywhere → every active location of that company gets
+     its own copy of every offering.** Everde with five active locations means the
      same 900 offerings written five times, 4,500 rows, each with its own
      `supplier_id`, its own `inventory_sources` row (§3) and its own upsert pass
      (§4). That is what a company-wide availability list means: any of their
      sites can supply it.
 
-   A location named in the file that the group doesn't have is a **new
-   location**: onboard it as a new supplier (§0.2) with the same `group_id`, and
-   say so in your report.
+   **A location you can't find is usually a spelling, not a new farm.** Resolve
+   the name against the sister locations from step 1 before you conclude
+   anything: match on **city and state**, not just the supplier row's name, and
+   read the company's own locations page if it still resolves to nothing. A
+   tab labelled `Ft Pierce`, `Bunnell Farm`, `Loc 3` or a bare farm code is
+   routinely a row you already have. Onboarding a duplicate location splits
+   that farm's catalogue across two `supplier_id`s permanently, and no later
+   ingest can tell the halves apart.
+
+   Only a site that is **genuinely absent** is a new location: onboard it as a
+   new supplier (§0.2) with the same `head_branch_id`, and say so in your
+   report. If it could plausibly be either — a near-match on name, a code you
+   can't tie to a city — it is ambiguous, so step 3 applies: ask, don't
+   onboard.
 
 3. **Never guess a location from the sender's address or the file name.** If the
    mapping is ambiguous — a location name that matches no row, two plausible
@@ -115,10 +131,11 @@ this **before parsing** — it decides where every row goes.
    named none". A row written to the wrong farm claims stock at a nursery that
    never offered it, and nothing downstream can tell.
 
-4. **Suspect an unrecorded group?** If a supplier's list, signature or website
-   shows sites the database doesn't have as rows, don't create a group yourself
-   — report it under *Flags needing Chris* with the evidence. A wrong group
-   multiplies wrong data by the number of locations in it.
+4. **Suspect an unrecorded company?** If a supplier's list, signature or website
+   shows sites the database doesn't have as rows, or shows that two existing
+   rows are one company, don't tie them together yourself — report it under
+   *Flags needing Chris* with the evidence. A wrong head branch multiplies wrong
+   data by the number of locations under it.
 
 Carry the resulting **row → `supplier_id` mapping** through §2 and §4; §5 checks
 it. Report the per-location counts separately — one total hides a location that
@@ -139,10 +156,11 @@ silently got nothing.
   `category` to one of `Wholesaler`/`Grower`/`Nursery` **only if you actually
   know it — otherwise leave it null; never guess.** Capture the returned `id`.
   If this is a **new location of a company already in the database**, set
-  `group_id` to that company's group and name the row for the site
-  (`<Company> - <City or farm name>`). If it is a new company that turns out to
-  run several sites, report it — creating a `supplier_groups` row is Chris's
-  call (§0.1 step 4), not something to do mid-ingest.
+  `head_branch_id` to that company's head branch and name the row for the site
+  (`<Company> - <City or farm name>`). Leave `head_branch_id` alone otherwise —
+  a new supplier is its own head branch by default. If it is a new company that
+  turns out to run several sites, report it — deciding which row is the head
+  branch is Chris's call (§0.1 step 4), not something to do mid-ingest.
 - **INSERT a `contacts` row for the supplier's main line** — the general
   `info@`/`sales@` address and the switchboard number — with
   `title_department = 'Main line'` and `name` left null. That row is what makes
@@ -201,14 +219,15 @@ silently got nothing.
 normal shape at a multi-location company: one inside-sales rep quotes across
 every farm, while a yard manager answers for one site only.
 
-- **Link, don't duplicate.** Before inserting a person, look for them across the
-  whole group — the same email at a sister location is the same person:
+- **Link, don't duplicate.** Before inserting a person, look for them across
+  every location of the company — the same email at a sister location is the
+  same person:
   ```sql
   SELECT c.id, c.name, c.email, c.phone, sc.supplier_id, sc.is_primary
   FROM contacts c
   JOIN supplier_contacts sc ON sc.contact_id = c.id AND sc.is_active
   WHERE c.is_active
-    AND sc.supplier_id IN (<every location in the group>)
+    AND sc.supplier_id IN (<every location of the company>)
     AND (lower(c.email) = lower('<email>') OR c.phone = '<phone>');
   ```
   Found → add a link, don't insert a second contact row. Not found → insert the
@@ -220,7 +239,7 @@ every farm, while a yard manager answers for one site only.
   merging them would delete a working number.
 - **Work out how many locations they cover, from what the source says.** Their
   signature, title or the sheet header is the evidence: "Inside Sales — all
-  farms" or a company-wide availability list is every location in the group;
+  farms" or a company-wide availability list is every location of the company;
   "Yard Manager, Bunnell" or a farm-specific sheet is that one. **When the source
   only shows them at one location, link only that one** — coverage is a fact to
   read, not to assume. Note the evidence in `contacts.notes`.
@@ -256,6 +275,7 @@ every farm, while a yard manager answers for one site only.
 - **Text-based PDFs:** use `scripts/agent/markitdown <file>` as the primary extractor and inspect its Markdown tables/continuation lines before parsing. Do not default to `pdftotext` or write an ad hoc custom PDF parser merely because fixed-width text looks usable. If MarkItDown leaves wrapped/ambiguous rows, preserve the extracted evidence and resolve it with visual row-level review rather than a heuristic that can silently cross or drop cells.
 - **Scanned/image-only PDFs:** `pdftotext` cannot OCR pixels unless the file already contains a hidden text layer. Render with `pdftoppm -png`, then use image reading/OCR/vision with page- and row-level visual checks. `pdftotext -layout` may be used only as a diagnostic/fallback when an actual text layer exists, not as the primary parser for scans.
 - **Other attachments:** use `scripts/agent/markitdown <file>` for xlsx/docx and supported office formats. Avoid one-off custom parsers when the standard converter preserves the source structure; if conversion remains ambiguous, retain raw evidence and flag the affected rows instead of guessing.
+- **Workbooks with several sheets:** `markitdown` converts **every** sheet, in workbook order, writing the tab name as a `## <name>` heading above that sheet's table — so tab names survive conversion, and under §0.1 they are location evidence. Read the whole output and count its `##` headings against the workbook's tabs before you parse: a per-farm workbook parsed as its first table alone silently loses every other farm, and §5's per-supplier count check cannot see the difference because the locations it never wrote to simply don't appear. Three converter behaviours will mislead you if you don't look for them. **Hidden sheets convert like any other**, with nothing in the output marking them hidden — last season's tab is not a location that got this drop. **Each sheet's first row becomes its header**, so a title or logo row above the table pushes the real headers down into the first data row; the tell is a header cell holding the sheet's title, or `Unnamed: 1` where a merged/blank cell was. And **an empty sheet still emits a table**, a degenerate one-cell row rather than nothing. Check the header row of every sheet you parse.
 - If the email **body** contains a URL that may hold the availability (link to a price list / catalog / sheet), open it with `markitdown` or `scripts/agent/agent-browser` — don't treat a bare link as unparseable. If the URL is a downloadable file, download it and check its contents before deciding it's irrelevant.
 - Intermediate files (converted markdown, page images, parse chunks) go to `/tmp` — they are not records.
 
@@ -327,32 +347,28 @@ One logical row per **plant × size offering**. Normalize every line:
     `Kwanzan`, height `4'`, `Graft` noted.
 - **Aliases** (`plant_aliases`): an alias exists for exactly one reason — so a
   search finds the row when the user types **another name for the same thing**.
-  The table is **typed**, and the type decides what the pair can ever match:
+  A pair is a plain undirected edge between two names: `Live Oak` ↔ `Quercus
+  virginiana`, `Crape Myrtle` ↔ `Crepe Myrtle`, `Wolff` ↔ `Emperor 1`.
 
-  | `alias_type` | The two sides are | Compared against | Examples |
-  |---|---|---|---|
-  | `plant` | two names for the same **plant** | `common_name` / `botanical_name` | `Live Oak` ↔ `Quercus virginiana`, `Crape Myrtle` ↔ `Crepe Myrtle`, `Sedum spectabile` ↔ `Hylotelephium spectabile` |
-  | `cultivar` | two names for the same **selection** | `cultivar_variety_trade_name` | `Wolff` ↔ `Emperor 1`, a variety name ↔ its trade name |
-
-  **The type documents what a pair asserts. It no longer protects you.** Until
+  **There is no `alias_type` and no distinction between kinds of pair.** Until
   migration 0045 a `cultivar` edge was only ever compared to the cultivar
   column, so it could not make a generic row of a species answer a search for
   one selection. Aliases now **expand the query** instead of matching columns,
-  and an expanded query has no column to be restricted to — so a `plant` edge
-  and a `cultivar` edge behave identically at match time.
-  
+  and an expanded query has no column to be restricted to, so every edge already
+  behaved identically at match time; 0050 dropped the column that recorded the
+  distinction.
+
   **That makes the quality bar below the only thing standing between a bad pair
   and a bad result**, exactly as it was before 0040. A pair joining a species to
   one of its cultivars turns a search for that cultivar into a search for the
   whole species, returning every sibling selection — the failure migrations
   0006, 0007, 0021, 0025, 0028 and 0029 each existed to clean up, and it is one
-  word long so the multi-word safety gate never runs. Set `alias_type` correctly
-  anyway: it records what you meant, and it is what separates the two kinds in
-  the *Also known as* display.
+  word long so the multi-word safety gate never runs. Nothing downstream will
+  catch it for you.
 
   ```sql
-  INSERT INTO plant_aliases (alias_type, name, other_name, source_id, source_line)
-  VALUES ('plant', 'Live Oak', 'Quercus virginiana', '<this drop''s source id>',
+  INSERT INTO plant_aliases (name, other_name, source_id, source_line)
+  VALUES ('Live Oak', 'Quercus virginiana', '<this drop''s source id>',
           'LIVE OAK (Quercus virginiana)  15G  $48.00');
   ```
 
@@ -367,10 +383,10 @@ One logical row per **plant × size offering**. Normalize every line:
   "soft leaf yucca" search. Soft-leaf yucca is *Yucca recurvifolia*; the source
   that printed the label printed that botanical name too, right there on the row.
 
-  **Quality bar — an alias is a liability, not a freebie.** Search and the
-  displayed *Also known as* use only pairs **directly incident** to a row's own
-  identity keys; there is no hopping through a shared hub to sibling names. A bad
-  pair still wrongly equates two things in both directions. **When in doubt,
+  **Quality bar — an alias is a liability, not a freebie.** Search substitutes
+  only the opposite endpoint of an edge **directly incident** to a query span;
+  there is no hopping through a shared hub to sibling names. A bad pair still
+  wrongly equates two things in both directions. **When in doubt,
   insert nothing** — a missing alias costs one search; a wrong one corrupts many.
   Before inserting, every pair must pass all of these:
 
@@ -402,15 +418,15 @@ One logical row per **plant × size offering**. Normalize every line:
     note, or a truncated fragment of a longer name.
   - **Not redundant.** Skip it if it differs from the column it would match only
     by punctuation, casing or spacing — those already match. A name already
-    spelled inside the row's composed `name` is not shown under *Also known as*
-    at all, so a pair that only restates the identity buys nothing.
+    spelled inside the row's composed `name` is found by searching that name
+    directly, so a pair that only restates the identity buys nothing.
 
   New pairs are `is_active = true` (the default). A BEFORE INSERT trigger
   silently drops duplicates, self-pairs, empty keys **and mirrored pairs**, so
   blind-insert without conflict handling. Inactive pairs are historical: they
   power neither search nor display, they block re-insertion of the same pair in
   either orientation, and you **never reactivate one** to "restore" a name.
-- **Price**: `unit_price` is nullable; use the lower bound if the source gives a range. Store `NULL` when the supplier provides no price, and preserve a numeric zero only when the source explicitly prints zero. Never coerce a missing/blank price to `0`, and never silently reinterpret legacy zero rows without source-level review. Missing price does not make an inventory row invalid or free. Record "price on request / not printed" in `internal_notes` (it is your reading of the source, not something the supplier wrote). Stock counts go in `quantity`.
+- **Price**: `unit_price` is nullable; use the lower bound if the source gives a range. Store `NULL` when the supplier provides no price, and preserve a numeric zero only when the source explicitly prints zero. Never coerce a missing/blank price to `0`, and never silently reinterpret legacy zero rows without source-level review. Missing price does not make an inventory row invalid or free. Don't note the absence in `internal_notes` — a `NULL` `unit_price` already says it; if the supplier themselves printed "price on request", that is their text and belongs in `notes`. Stock counts go in `quantity`.
 - **Combined sizes with one shared quantity**: create one inventory row for each printed size (for example, a `3 G/5 G` offer becomes separate `3 G` and `5 G` rows). Copy the source's shared quantity to both rows; quantities are tentative sourcing signals. State in each row's dated `internal_notes` that the quantity is the supplier's shared/tentative count across the combined sizes and that you split the offering, so reviewers do not add the copied values together as guaranteed stock. (Approved by Bhoumik, 2026-07-31.)
 - **Two note columns, and they are not interchangeable.** Every row can carry
   both; keep each one's content in its own column.
@@ -419,16 +435,29 @@ One logical row per **plant × size offering**. Normalize every line:
     "B&B only"). Date it: `Available as of 2026-07-01. Lead time 2 wks.` This is
     evidence, so it is written from the source and nothing else.
   - **`internal_notes` — what you concluded.** Why you split a combined size,
-    that a quantity is the supplier's shared/tentative count, that no price was
-    printed, a parse caveat, a QA exception, anything a later reader would
-    otherwise have to re-derive from the file. Date these too, and **append**
-    rather than clobber on a later drop.
+    that a quantity is the supplier's shared/tentative count, a parse caveat, a
+    QA exception, anything a later reader would otherwise have to re-derive from
+    the file. Date these too, and **append** rather than clobber on a later drop.
 
   A reviewer must be able to tell "the supplier says two weeks" from "we guessed
   two weeks". Putting your reasoning in `notes` destroys that, and putting the
   supplier's words in `internal_notes` hides the evidence. Rows written before
   2026-08-14 have a mix of both in `notes` — leave them; the split applies to
   what you write from now on.
+
+  **`internal_notes` is not a log of the obvious.** It earns its place only when
+  a later reader could not get the same fact from the row itself. Never write an
+  observation the database already answers:
+
+  - that a price or quantity is missing — `unit_price` / `quantity` is `NULL`,
+  - when the row was last touched — `updated_at`,
+  - when the drop landed or which file it came from — the row's `source_id` and
+    its `inventory_sources.created_at`,
+  - a restatement of `size`, the dimensions, or any part of the plant name.
+
+  A drop that adds nothing but these leaves every row's `internal_notes` longer
+  and no more informative, and buries the caveats that do matter. If you have
+  nothing to conclude about a row, write nothing.
 - **Dimensions — write the source string and numeric standard together.** Preserve `height` / `width` / `caliper` as printed. Also write `height_std` in feet and `width_std` / `caliper_std` in inches when the measurement is unambiguous. For a range, use its **lower number** (`10-12 ft` → `height_std = 10`; `2.5-2.75 in` → `caliper_std = 2.5`) while preserving the full range string. Convert explicit inches in height ÷ 12, explicit feet in width/caliper × 12, and exact mixed feet+inches by addition. Fractions/decimals are allowed. Leave the standard value `NULL` for inequalities, conflicting units, combined/multiple dimensions, malformed/nonpositive/descending values or anything requiring a guess. A manual source-string edit clears the companion standard value until reviewed; never leave a stale numeric value. The source's own grouping (e.g. `Shade Trees`) is **not** stored — there is no `category` column on `inventory`.
 - To check "does the system already know this plant?", call the `search_inventory` RPC — typo-tolerant, follows the alias graph.
 
@@ -569,7 +598,7 @@ guess* rule still holds.
   pointing at the **same** `file_path` — upload the file once. Keep the ids per
   location; §4 stamps each row with its own location's source id, and mixing
   them up attributes one farm's stock to another. Say in `notes` that the file is
-  the group's shared list.
+  the company's shared list.
 - **Never retire a supplier's previous sources.** Live `inventory` rows still
   point at them, and an inactive source blanks the app's derived
   `ingestion_date` for every row that references it.
@@ -689,8 +718,7 @@ raw text (compare `name_key` / `common_name_key` / `botanical_name_key`, test
 `normalize_plant_key()`).
 
 **4. Insert only approved active alias pairs into `plant_aliases`** as defined
-in §2, each with its `alias_type`, its `source_id` and the `source_line` that
-attests it. A BEFORE INSERT trigger silently drops duplicates, self-pairs, empty
+in §2, each with its `source_id` and the `source_line` that attests it. A BEFORE INSERT trigger silently drops duplicates, self-pairs, empty
 keys and mirrored pairs, so blind-insert without conflict handling; new valid
 pairs use `is_active = true` (default).
 
@@ -719,7 +747,7 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
 - **Sanity-check the update/insert split.** A repeat drop from an established supplier should be mostly updates with a few inserts. **Mostly inserts means you took `match-candidates` at face value on entries you should have looked at** — a supplier who respelled or re-sized their list produces exactly that shape — and you have just duplicated the catalogue. Stop and investigate before committing: re-run `match-candidates` on a handful of the inserted entries, read the candidates you passed over, and re-run the §4 step 1 `search_inventory` check scoped to this supplier — an insert that search would have matched is a duplicate you just created.
 - **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
 - **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
-- **Check the note split:** nothing you concluded ended up in `notes`, no supplier text ended up in `internal_notes`, and no row's `internal_notes` was clobbered by this drop.
+- **Check the note split:** nothing you concluded ended up in `notes`, no supplier text ended up in `internal_notes`, and no row's `internal_notes` was clobbered by this drop. Also check that nothing you appended to `internal_notes` merely restates the row — a missing price or quantity, when it was last updated or ingested, the size, the dimensions, the name. Delete those before committing rather than publishing them.
 - **Validate normalization:** no malformed names/sizes, no zero price presented as free, no guessed missing values, no unsafe cultivar/species alias edges, and no source dimensions left only in notes when they can be mapped unambiguously to structured fields. For every populated human-readable dimension, verify its `*_std` companion uses the approved unit/lower-bound rule or is deliberately `NULL` with an ambiguity reason; never publish a stale standard value after changing its source string.
 - **Every row with a `size` has a `size_std`**, and it is one the standard
   allows. Run it and expect zero rows:
@@ -766,9 +794,9 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   pair run `search_inventory('<other_name>')` and `search_inventory('<the row's
   name>')` and list the identities each returns. If either returns an identity
   that is not the plant you just ingested, the pair is wrong: retire it before
-  committing. A `cultivar` pair that returns rows of the same species **without**
-  that cultivar means it was typed as `plant` by mistake — check `alias_type`
-  first. Report every pair with the verbatim source line that attests both sides;
+  committing. A cultivar-level pair that returns rows of the same species
+  **without** that cultivar is the classic bad edge — retiring it is the only
+  fix. Report every pair with the verbatim source line that attests both sides;
   it must also be stored in `plant_aliases.source_line`. "It looked like a
   synonym" is not evidence and does not pass.
 - **Check the row → location mapping from §0.1.** Every row this drop touched now
@@ -780,7 +808,7 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   GROUP BY supplier_id ORDER BY supplier_id;
   ```
   - **No location named in the file** → one group per active location, all with
-    **equal counts**, none skipped, none outside the group.
+    **equal counts**, none skipped, none outside the company.
   - **The file named locations per row/section** → the per-supplier counts match
     the counts you parsed for each of those locations, and no location the file
     never mentioned appears at all.
@@ -823,8 +851,8 @@ part. Return a **compact structured report**, not a transcript — the main agen
 uses it for the thread summary, the daily note, and anything Chris needs to see,
 and it cannot read your transcript. Include:
 
-- **Onboarding** (when performed): new `supplier_id`, its `group_id` when the
-  row is a location of a known company, fields set via browser research —
+- **Onboarding** (when performed): new `supplier_id`, its `head_branch_id` when
+  the row is a location of a known company, fields set via browser research —
   including which of the availability-source columns you set and on what
   evidence, and which you left null — `contacts` rows added and the
   `supplier_contacts` links you made (which locations each covers, on what
@@ -832,8 +860,9 @@ and it cannot read your transcript. Include:
   not).
 - **Locations**: which location(s) this drop was written to and how the mapping
   was decided — the name the source gave per row/section, the one name it gave
-  for the whole file, or "no location named → all N in the group". Say which
-  locations in the group you did **not** write to.
+  for the whole file, or "no location named → all N of the company's". Say which
+  of the company's locations you did **not** write to, and which tabs or
+  sections you skipped as non-locations (§0.1).
 - **Result**, **per location** when the drop covered several, never as one total:
   supplier_id, source ids + `file_path`s created, **rows updated**, **rows
   inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs

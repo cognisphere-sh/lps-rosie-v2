@@ -186,12 +186,16 @@ updates. Four rules apply to everything you do:
   supplier's source price-list PDF, plant photos worth keeping) go to the `lps`
   storage bucket.
 - One supplier per `suppliers` row; don't merge two growers. A multi-location
-  company is **one row per location**, tied together by `suppliers.group_id` →
-  `supplier_groups` — those are not duplicates and must not be merged either.
+  company is **one row per location**, tied together by `suppliers.head_branch_id`
+  pointing at the company's head branch (which points at itself) — those are not
+  duplicates and must not be merged either.
   When in doubt about a supplier, a price, or a category — **ask Chris.**
 - A missing printed price can legitimately mean **price upon request** or
-  volume/quantity pricing, not a zero-dollar item. Preserve the offering, record
-  that pricing is unavailable/on request in its `internal_notes`, and surface it.
+  volume/quantity pricing, not a zero-dollar item. Preserve the offering and
+  surface it — but don't note the absence in `internal_notes`: a `NULL`
+  `unit_price` already says it, and that column is for what only you know, never
+  for what the row itself answers. If the supplier printed "price on request",
+  that is their text and goes in `notes`.
 - **An ingest never retires anything.** It refreshes the rows a supplier still
   lists and adds the ones that are new; an offering they stopped listing keeps
   its row and its older source. Taking an offering out of circulation is a

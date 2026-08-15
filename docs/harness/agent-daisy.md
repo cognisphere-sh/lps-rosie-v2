@@ -267,6 +267,20 @@ and when; the summaries below are one line each.
   instead of filtering — and instead of contributing the two least selective
   tokens in the corpus (`g` is in 63% of rows; the query used to return 42,099
   rows with no size signal). Retires the app's client-side size chip.
+- `0050_drop_other_names_and_alias_type.sql` — approved/applied 2026-08-15.
+  Drops `inventory_enriched`, the `plant_alias_names()` function behind its
+  `other_names` column, that column from `search_inventory`'s projection (now 30
+  columns), and `plant_aliases.alias_type`. **Retrieval is unchanged** — since
+  0045 the query expander never read the type — and this was verified after
+  apply rather than assumed: a botanical-name search still reaches 85 rows whose
+  own name does not contain the term. Uniqueness becomes
+  `(name_key, other_name_key)`; `dedupe_plant_aliases()` loses its type leg.
+- `0049_supplier_head_branch.sql` — approved/applied 2026-08-15. Replaces the
+  `supplier_groups` table with `suppliers.head_branch_id`: every supplier points
+  at its company's head branch, and a head branch — like every single-site
+  supplier — points at itself, so the column is never null and never chains. The
+  16 heads were picked from the contacts on file and confirmed against each
+  company's published head-office address; the table is dropped.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
@@ -275,14 +289,19 @@ and when; the summaries below are one line each.
 Daisy's procedural memory. `system_prompts/1-agent.md` names the situation that
 triggers each one and otherwise carries identity/persona/behaviour only.
 
-- **supplier-onboarding-and-ingestion** (v3.4.0) — the end-to-end procedure a
+- **supplier-onboarding-and-ingestion** (v3.6.1) — the end-to-end procedure a
   task thread runs to onboard a supplier and ingest one availability drop, and
   the owner of **every database write in the ingestion path**: mapping each
-  availability row to its location within a `supplier_groups` group, browser
+  availability row to its location within the company's head branch, browser
   enrichment and newsletter signup, `contacts`/`supplier_contacts` linking,
-  source conversion, parsing and normalization (the three name parts with
+  source conversion (including the tab-per-farm workbook, whose sheet headings
+  are what the location mapping reads), parsing and normalization (the three name parts with
   `name` derived, the size standard and `size_std` buckets, price, dimensions,
-  `notes` vs `internal_notes`), the typed `plant_aliases` quality bar,
+  `notes` vs `internal_notes` — and, since v3.5.0, the bar that keeps
+  observations the row itself answers out of `internal_notes`: a missing price
+  or quantity, when the row was last updated, when the drop was ingested, a
+  restatement of the size or name), the `plant_aliases` quality bar (edges are
+  untyped since v3.6.0, so the bar is the whole of the protection),
   provenance, updating `inventory` rows in place, post-ingestion QA,
   and the canonical report contract. Ships
   `scripts/match-candidates` — for each parsed entry it returns the closest five

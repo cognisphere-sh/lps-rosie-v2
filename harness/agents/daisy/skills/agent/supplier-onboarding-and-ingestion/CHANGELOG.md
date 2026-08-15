@@ -1,5 +1,99 @@
 # supplier-onboarding-and-ingestion — changelog
 
+## 3.6.1
+
+Approved by Bhoumik, 2026-08-15. Three gaps in the multi-location path, all on
+the seam between converting a workbook (§1) and deciding which location a row
+belongs to (§0.1). No change to what this skill writes.
+
+- **§1 gains a multi-sheet workbook bullet.** §0.1 has always treated a tab as
+  location evidence, but §1 said only "use `markitdown` for xlsx" — nothing told
+  the thread that every sheet converts, in workbook order, under a `## <tab
+  name>` heading. A per-farm workbook parsed as its first table alone loses
+  every other farm, and §5's per-supplier count check can't catch it: a location
+  never written to simply doesn't appear in the group-by. The bullet also names
+  three converter behaviours confirmed against a test workbook — hidden sheets
+  convert unmarked, each sheet's first row becomes its header (a title row
+  pushes the real headers into row 1, showing up as `Unnamed: 1` where cells
+  were blank or merged), and an empty sheet still emits a degenerate table.
+- **§0.1's per-tab bullet says which tabs aren't locations.** `Terms`, `Legend`,
+  `Price Key`, an empty or hidden leftover — a tab carrying no offerings is not
+  a location however it is named, and the skipped ones go in the report.
+- **§0.1 resolves a location name before onboarding it.** The "not in the
+  database → new location" branch was unconditional, but a tab reading
+  `Ft Pierce`, `Bunnell Farm`, `Loc 3` or a farm code is usually an existing row
+  under another name. Match on city and state and read the company's locations
+  page first; onboard only a genuinely absent site, and treat a near-match as
+  the ambiguity step 3 already covers. A duplicate location row splits that
+  farm's catalogue across two `supplier_id`s permanently.
+- The report contract's *Locations* bullet gains the skipped tabs, so the new
+  §0.1 instruction has somewhere to land.
+
+## 3.6.0
+
+2026-08-15, with migration 0050 — `plant_aliases.alias_type` is gone. **Stop
+writing it**; the insert template in §2 no longer names it, and an insert that
+still does will now fail.
+
+Nothing about how a pair behaves has changed. 0045 already stopped search from
+consulting the type — an expanded query has no column to be restricted to, so a
+species↔species edge and a cultivar↔trade-name edge reached identically — and
+the only remaining reader was the *Also known as* display, which 0050 also
+removed. Dropping the column deletes the record of which kind a pair asserted;
+it does not change what any pair matches.
+
+The consequence for this skill is that **the quality bar is now the whole of the
+protection**, with nothing downstream that could sort a mistyped pair out later.
+The §2 typing table is replaced by the plain statement that a pair is an
+undirected edge between two names, and the QA step that told you to check
+`alias_type` when a cultivar pair over-reached now says the only fix is to
+retire the pair. Uniqueness is `(name_key, other_name_key)`; the dedupe trigger
+still rejects both orientations and still treats a retired pair as a blocklist.
+
+## 3.5.1
+
+2026-08-15, following migration 0049. `supplier_groups` and `suppliers.group_id`
+are gone; a company's locations now share a `head_branch_id`, and a head branch
+— like every single-site supplier — points at itself.
+
+- §0.1's first query drops the `IS NOT NULL` filter and reads `head_branch_id`.
+  It now always returns at least the supplier itself, so "single location" is
+  **one row back**, not zero.
+- §0.2 sets `head_branch_id` on a new location instead of `group_id`, and says
+  to leave it alone otherwise — a new supplier is its own head branch by
+  default.
+- §0.1 step 4 and the report contract talk about the company and its head
+  branch rather than a group row; deciding which row is the head is still
+  Chris's call, never something to do mid-ingest.
+
+No change to what this skill writes to `inventory`, `inventory_sources` or
+`plant_aliases`.
+
+## 3.5.0
+
+Bhoumik's call, 2026-08-14. **`internal_notes` is no longer a log of the
+obvious** (§2, *Two note columns*).
+
+An ingest was appending observations the row already answers — that a price or
+quantity was missing, when the row was last updated, when the drop was ingested,
+a restatement of the size or name. None of that survives a reader who can see
+`unit_price`, `quantity`, `updated_at`, `source_id` and
+`inventory_sources.created_at`, and it buries the caveats that only the ingest
+knows. The rule is now explicit, with the list of things never to write, and
+"nothing to conclude → write nothing".
+
+- **The price rule reverses**: §2 no longer says to record "price on request /
+  not printed" in `internal_notes`. A `NULL` `unit_price` already says the price
+  is missing; if the *supplier* printed "price on request", that is their text
+  and goes in `notes` like any other supplier qualifier. The same example is
+  gone from the `internal_notes` bullet.
+- **§5 QA** gains the check: nothing appended to `internal_notes` merely
+  restates the row — delete it before committing rather than publishing it.
+
+Unchanged: the notes/internal_notes split itself, the append-don't-clobber rule,
+and the caveats that do belong there (a split combined size, a shared/tentative
+quantity, a parse caveat, a QA exception).
+
 ## 3.4.0
 
 Bhoumik's call, 2026-08-14. **`search_inventory` is now a required gate before

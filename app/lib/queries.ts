@@ -45,7 +45,6 @@ interface InventoryRecord {
   botanical_name: string | null
   cultivar_variety_trade_name: string | null
   cultivar_keys: string[] | null
-  other_names: string | null
   size: string | null
   size_std: string | null
   unit_price: number | null
@@ -129,7 +128,6 @@ function toPlantRow(
       common_name: r.common_name,
       botanical_name: r.botanical_name,
       cultivar: r.cultivar_variety_trade_name,
-      other: r.other_names ?? null,
       size: r.size,
       size_std: r.size_std,
       price: r.unit_price,
@@ -196,7 +194,7 @@ async function detailsBySourceId(
 }
 
 /**
- * Both the search RPC and `inventory_enriched` carry `source_id`, but neither
+ * Both the search RPC and `inventory` carry `source_id`, but neither
  * exposes the source ingestion timestamp. Resolve it once per result batch;
  * manual/source-less rows deliberately remain blank.
  */
@@ -374,9 +372,8 @@ export async function listSuppliers(
  * Plant search, grouped by supplier — the master rows on the Plant search page
  * are the suppliers that matched, with their matching plants underneath.
  *
- * `search_inventory` cannot be called with an empty query (it walks all ~74k
- * active rows and blows the statement timeout — see docs/supabase-schema.md),
- * so an empty search browses `inventory_enriched` instead.
+ * `search_inventory` returns nothing for an empty query — there is nothing to
+ * rank — so an empty search browses `inventory` directly instead.
  */
 /**
  * One page of the search, with every column filter applied as SQL over the
@@ -463,12 +460,12 @@ export async function plantFacets(
 /** Facets for one supplier's whole active inventory — the no-search case. */
 async function inventoryFacets(supplierId: number): Promise<Record<string, string[]>> {
   const { data, error } = await supabase
-    .from('inventory_enriched')
+    .from('inventory')
     .select('size_std, cultivar_variety_trade_name')
     .eq('supplier_id', supplierId)
     .eq('is_active', true)
     .limit(20000)
-  if (error) throw new Error(`inventory_enriched facets: ${error.message}`)
+  if (error) throw new Error(`inventory facets: ${error.message}`)
   const size = new Set<string>()
   const cultivar = new Set<string>()
   for (const row of (data ?? []) as { size_std: string | null; cultivar_variety_trade_name: string | null }[]) {
@@ -497,47 +494,30 @@ export async function searchPlantGroups(
     // cultivar into a broad generic result and defeat the backend safety gate.
     ;({ records, total } = await inventorySearch(term, filters, page))
   } else {
-    // Browsing with no search term. Ordering the whole catalogue by updated_at
-    // returns rows from only the one or two suppliers ingested most recently,
-    // which makes a page grouped *by supplier* look broken. So pick the
-    // suppliers behind the newest availability files first, then read their
-    // plants — the default view is then a real spread of groups.
-    const { data: recent, error: recentErr } = await supabase
-      .from('inventory_sources')
-      .select('supplier_id, created_at')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .range(0, 59)
-    if (recentErr) throw new Error(`inventory_sources: ${recentErr.message}`)
-
-    const recentSuppliers = [
-      ...new Set((recent ?? []).map((r) => (r as { supplier_id: number }).supplier_id)),
-    ].slice(0, 8)
-
-    // One capped read per supplier rather than a single big one: a shared limit
-    // gets eaten by whichever supplier happens to sort first (two suppliers with
-    // 150 rows each would fill a 300-row budget on their own), leaving the rest
-    // of the groups empty.
-    const perSupplier = await Promise.all(
-      recentSuppliers.map(async (supplierId) => {
-        const { data, error } = await applyServerFilters(
-          supabase
-            .from('inventory_enriched')
-            .select('*')
-            .eq('is_active', true)
-            .eq('supplier_id', supplierId),
-          filters,
-        )
-          .order('updated_at', { ascending: false })
-          .range(0, 29)
-        if (error) throw new Error(`inventory_enriched: ${error.message}`)
-        return (data ?? []) as InventoryRecord[]
-      }),
+    // Browsing with no search term: one real page of the catalogue. The RPC
+    // cannot serve this — an empty `search` has nothing to rank and returns
+    // zero rows by design — so the filters, the count and the page all go
+    // straight to the table, which gets the same contract the search branch
+    // has: `total` is every matching row, not just what this page holds.
+    //
+    // The trade this makes is the supplier spread. Ordering the catalogue by
+    // updated_at surfaces the one or two suppliers ingested most recently, so
+    // page 1 is a shallow set of groups rather than a broad one. Correct
+    // counts and working pagination were worth more than the wider first page.
+    const from = (page - 1) * PLANT_PAGE_SIZE
+    const { data, error, count } = await applyServerFilters(
+      supabase.from('inventory').select('*', { count: 'exact' }).eq('is_active', true),
+      filters,
     )
-    records = perSupplier.flat()
-    // The browse branch reads a capped sample per supplier rather than a page of
-    // one ordered result set, so what it fetched is all there is to count.
-    total = records.length
+      // `name` and `id` are tie-breakers, not preferences: without a total
+      // order, two pages can repeat or skip a row that ties on updated_at.
+      .order('updated_at', { ascending: false })
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + PLANT_PAGE_SIZE - 1)
+    if (error) throw new Error(`inventory: ${error.message}`)
+    records = (data ?? []) as InventoryRecord[]
+    total = count ?? records.length
   }
 
   const supplierIds = [...new Set(records.map((r) => r.supplier_id).filter((id): id is number => id != null))]
@@ -677,7 +657,7 @@ export async function getSupplierPlants(
 
   const { data, error } = await applyServerFilters(
     supabase
-      .from('inventory_enriched')
+      .from('inventory')
       .select('*')
       .eq('supplier_id', id)
       .eq('is_active', true),
@@ -685,7 +665,7 @@ export async function getSupplierPlants(
   )
     .order('updated_at', { ascending: false })
     .range(from, to)
-  if (error) throw new Error(`inventory_enriched: ${error.message}`)
+  if (error) throw new Error(`inventory: ${error.message}`)
   const records = (data ?? []) as InventoryRecord[]
   return {
     plants: await withSourceDetails(records.slice(0, PROFILE_PAGE_SIZE)),

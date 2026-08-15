@@ -1,5 +1,12 @@
 # availability-drop-intake — changelog
 
+## 2.0.3
+
+2026-08-15, following migration 0049. `supplier_groups` and `suppliers.group_id`
+no longer exist: a company's locations now share a `head_branch_id`, and the
+head branch points at itself. §1's lookup selects it, and the brief carries it
+instead of the `group_id`. No change to what this skill does or does not write.
+
 ## 2.0.2
 
 2026-08-14, harness 0.8.18 upgrade. Path-only change: reference docs moved to

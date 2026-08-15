@@ -9,9 +9,8 @@
 //
 // PostgREST applies these to the RPC's result set in an outer query, *before*
 // its own `range()`, so pages and `count: 'exact'` are both correct. Every
-// column named below is in `search_inventory`'s projection and in
-// `inventory_enriched`, so the same spec drives the search path and the browse
-// path.
+// column named below is in `search_inventory`'s projection and on `inventory`,
+// so the same spec drives the search path and the browse path.
 
 import type { ColFilters } from '@/lib/table-config'
 
@@ -42,7 +41,6 @@ export const PLANT_FILTERS: Record<string, FilterSpec> = {
   name: { kind: 'ilike', column: 'name' },
   common_name: { kind: 'ilike', column: 'common_name' },
   botanical_name: { kind: 'ilike', column: 'botanical_name' },
-  other: { kind: 'ilike', column: 'other_names' },
   notes: { kind: 'ilike', column: 'notes' },
   internal_notes: { kind: 'ilike', column: 'internal_notes' },
 }

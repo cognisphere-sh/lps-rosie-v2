@@ -14,8 +14,9 @@ restate table or column definitions.
 Last verified against the live database on 2026-08-12 by direct catalog
 introspection; the contact/location tables were re-verified on 2026-08-14 after
 migrations 0033–0034, the plant identity / alias half on 2026-08-14 after
-migration 0040, and the source-deactivation invariant on 2026-08-14 after
-migration 0048. **If you find a discrepancy, fix this file in the same change.**
+migration 0040, the source-deactivation invariant on 2026-08-14 after
+migration 0048, and the supplier head-branch column on 2026-08-15 after
+migration 0049. **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
 
@@ -24,7 +25,7 @@ Applied migrations live in `harness/agents/daisy/migrations/`.
 ## Shape
 
 ```
-supplier_groups 1 ──< suppliers            (a company's locations; group_id nullable)
+suppliers 1 ──< suppliers                  (a company's locations; head_branch_id, self-referencing)
 
 suppliers 1 ──< inventory_sources 1 ──< inventory >── plant_aliases (by identity key, no FK)
           1 ─────────────────────────< inventory
@@ -54,7 +55,8 @@ re-counted 2026-08-14): `suppliers` 1,383 (1,375 active),
 active) — 47 contacts backfilled from the retired `poc_*` columns on 2026-08-05,
 29 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.
-`supplier_groups` 16, covering 57 supplier rows.
+16 head branches carry 41 other locations between them (57 rows in all); the
+other 1,326 suppliers are their own head.
 
 Links now outnumber active contacts, which is the point: 13 contacts hold 2–6
 locations each.
@@ -76,13 +78,13 @@ locations each.
 ### `suppliers`
 
 One row per nursery / grower / wholesaler — and, for a company that operates at
-several sites, **one row per location** (see `supplier_groups` below).
+several sites, **one row per location** (see `head_branch_id` below).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint identity | no | PK |
 | `name` | text | no | Display name, e.g. "Acosta Farms Nursery, Inc" |
-| `group_id` | bigint → `supplier_groups.id` | yes | The multi-location company this location belongs to. **NULL = single site**, not "unknown" |
+| `head_branch_id` | bigint → `suppliers.id` | no | The company's head branch. **A head branch, and every single-site supplier, points at itself** — never null, never a chain. See below |
 | `category` | text | yes | **CHECK**: `Wholesaler` \| `Grower` \| `Nursery` \| `Other` |
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
 | `website` | text | yes | Usually a bare domain (`acostafarms.com`) — prepend `https://` when linking |
@@ -160,44 +162,54 @@ This is why **you cannot look a supplier up by email against this table any
 more.** Match through `contacts.email`, or just use `search_suppliers`, which
 searches contacts as one of its branches.
 
-### `supplier_groups`
+#### `head_branch_id` — a company's locations
 
-One row per **multi-location company**. Added 2026-08-14 (migration 0033).
+A company that operates at several sites is **several `suppliers` rows, one per
+location**, and one of them is the **head branch**: the row at the company's
+business office. Every other location points at it through `head_branch_id`,
+and **the head branch points at itself**. Replaced the `supplier_groups` table
+on 2026-08-15 (migration 0049); there is no separate company table.
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| `id` | bigint identity | no | PK |
-| `name` | text | no | The company, without the location suffix — "Everde Growers" |
-| `website` | text | yes | Bare domain, the same convention as `suppliers.website` |
-| `notes` | text | yes | Durable facts about the company as a whole |
-| `is_active` | boolean | no, default true | Soft delete |
-| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
+Two consequences worth internalising:
 
-**Each location stays its own `suppliers` row.** That is what `inventory`,
-`inventory_sources` and the contact links hang off, and it is what a buyer
-picks: stock, prices and pickup are per site. The group only names the company
-those rows belong to, so the set of a company's locations is a query rather than
-a guess:
+- **`head_branch_id` is never null.** A single-site supplier is its own head,
+  which is the same statement as "this company has one location". There is no
+  "unknown" value — the column always answers.
+- **It never chains.** A branch may only point at a row that is its own head,
+  enforced by the `set_head_branch` trigger in both directions (you cannot
+  point at a branch, and you cannot demote a head that still has locations).
+
+So a company's locations are one query, from any one of them:
 
 ```sql
 SELECT id, name, city, state FROM suppliers
-WHERE group_id = (SELECT group_id FROM suppliers WHERE id = <any location>)
+WHERE head_branch_id = (SELECT head_branch_id FROM suppliers WHERE id = <any location>)
   AND is_active ORDER BY id;
 ```
+
+**Each location stays its own row.** That is what `inventory`,
+`inventory_sources` and the contact links hang off, and it is what a buyer
+picks: stock, prices and pickup are per site. The head branch names the company
+and is where its switchboard and company-level contacts sit — Everde's head is
+supplier 32, the Houston corporate office; Glen Flora, Mill Creek, Bunnell and
+Canal Point are farms pointing at it.
 
 That set is not recoverable from names. Everde alone spans `Everde Growers`
 (the unsuffixed Houston row), `Everde Growers - Glen Flora Farm` and
 `EVERDE GROWERS - BUNNELL`; Newton uses no dash (`Newton Nurseries Katy`) and
-Calloway's uses an em dash. **`group_id IS NULL` means one location** — the
-single-site majority — not "nobody has checked".
+Calloway's uses an em dash.
 
-The 16 groups seeded by 0033 were identified by hand from a shared brand name
-**and** a shared website domain. Families that matched only one of the two are
-listed at the bottom of `0033_supplier_locations.sql` for someone to confirm,
-along with three sets of same-city rows that look like duplicates wanting a
-merge rather than locations. Adding a group is a judgment call: a wrong one
-fans a supplier's availability out to a nursery that never offered it (see the
-ingestion skill, §2a).
+The 16 companies were identified by hand from a shared brand **and** a shared
+website domain (0033), and their heads were chosen from the contacts on file and
+confirmed against each company's published head-office address (0049, which
+lists all 16 with reasons). Three of them — ArborGen, Calloway's and Moon
+Valley — have no head-office row at all, so their head is a stand-in worth
+revisiting if that office is ever onboarded. Families matching only half the
+test are listed at the bottom of `0033_supplier_locations.sql` for someone to
+confirm, along with three sets of same-city rows that look like duplicates
+wanting a merge rather than locations. Tying two suppliers together is a
+judgment call: a wrong one fans a supplier's availability out to a nursery that
+never offered it (see the ingestion skill, §2a).
 
 ### `contacts`
 
@@ -347,7 +359,7 @@ Price semantics are intentionally strict: `NULL` means no price was printed or
 provided, while a numeric value is the supplier's printed price. On 2026-08-04,
 all 28,998 legacy zero-price placeholders were migrated to `NULL` with explicit
 approval. Future numeric zeroes are valid only when the supplier explicitly
-prints zero. `inventory_enriched`, `rate_charts`, and `search_inventory` pass
+prints zero. `rate_charts` and `search_inventory` pass
 `unit_price` through unchanged, including `NULL`.
 
 #### `size` vs `size_std`
@@ -428,7 +440,7 @@ quantity (`unit_price` / `quantity` is `NULL`), when it was last touched
 not written at all. The `supplier-onboarding-and-ingestion` skill (v3.5.0) states
 the rule and QA-checks it before an ingest commits.
 
-Both are carried by `inventory_enriched` **and** by `search_inventory`. 0039
+Both are carried by `inventory` **and** by `search_inventory`. 0039
 left `internal_notes` out of the RPC to avoid dropping and recreating it, and
 the app compensated with a per-page hydration read; 0040 had to recreate the
 function anyway, so the column went in and that hydration was deleted.
@@ -543,17 +555,14 @@ domain field and must not be inferred from a filename.
 
 ### `plant_aliases`
 
-Typed name equivalences. A row says **"these two strings name the same
-thing"**; `alias_type` records whether that assertion is about a plant or a
-cultivar/selection and controls where the pair attaches for **Also known as**
-display. Since migration 0045 it does **not** constrain search: both types
-expand a matching query span identically. Added 2026-08-14 by migration 0040,
-replacing `plant_other_names`.
+Name equivalences. A row says **"these two strings name the same thing"** — an
+undirected edge between two names, with no kinds and no subtypes. Added
+2026-08-14 by migration 0040, replacing `plant_other_names`; the `alias_type`
+column was dropped 2026-08-15 by migration 0050.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint identity | no | PK |
-| `alias_type` | text | no | **CHECK**: `plant` \| `cultivar`. See below |
 | `name` | text | no | One name, display-cased |
 | `other_name` | text | no | The other name, display-cased |
 | `name_key` / `other_name_key` | text **generated stored** | — | `normalize_plant_key()` of each side, NULL when empty; all matching runs on these |
@@ -562,30 +571,29 @@ replacing `plant_other_names`.
 | `is_active` | boolean | no, default true | Soft delete. Inactive pairs power neither search nor display **and block re-insertion** |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` maintained by trigger |
 
-| `alias_type` | The two sides are | **Also known as** display attachment | Example |
-|---|---|---|---|
-| `plant` | two names for the same **plant** | Rows incident through `name_key`, `common_name_key` or `botanical_name_key` | `Live Oak` ↔ `Quercus virginiana`, `Crape Myrtle` ↔ `Crepe Myrtle` |
-| `cultivar` | two names for the same **selection** | Rows incident through `cultivar_keys` | a variety name ↔ its trade name |
+**Nothing constrains what a pair can reach.** `search_inventory` partitions the
+query into spans and substitutes the opposite endpoint of every active incident
+edge. A bad species↔cultivar pair therefore makes a cultivar query reach the
+generic species and every sibling selection. The direct, reviewed
+exact-equivalence evidence bar is the *only* protection; never infer an edge
+from botanical knowledge.
 
-**Typing is semantic and display metadata, not a search safety boundary.**
-`search_inventory` partitions the query into spans and substitutes the opposite
-endpoint of every active incident edge without filtering `alias_type`. A
-`cultivar` and a `plant` edge therefore expand search identically. A bad
-species↔cultivar pair can make a cultivar query reach the generic species and
-its sibling selections regardless of how the edge is typed. The direct,
-reviewed exact-equivalence evidence bar is the protection; never infer an edge
-from botanical knowledge. `alias_type` remains required because it records what
-the source asserts and keeps **Also known as** attached to the correct identity
-part.
+> **Why `alias_type` is gone.** It carried two jobs. Migration 0045 removed the
+> first — once aliases expanded the query rather than matching a column, an
+> expanded span had no column to be restricted to, so a `plant` edge and a
+> `cultivar` edge already reached identically. The second was choosing which
+> identity part a pair hung off for the **Also known as** display, and 0050
+> removed that display. With no reader left the column was dropped in the same
+> migration. It never influenced retrieval, so dropping it changed no result;
+> what is gone is the record of which kind of equivalence a source asserted.
 
 An alias still exists for exactly one reason: so a search finds the row when the
 user types another name the same thing is known by. **Both sides must be printed
 in the source being ingested**, never supplied from the writer's own knowledge —
 the rule the ingestion skill enforces, and the one alias 44255 broke.
 
-Uniqueness is on `(alias_type, name_key, other_name_key)` — case, spacing and
-symbol variants of a pair are the same pair, and the same two strings can
-legitimately be both a plant pair and a cultivar pair. A BEFORE INSERT trigger
+Uniqueness is on `(name_key, other_name_key)` — case, spacing and symbol
+variants of a pair are the same pair. A BEFORE INSERT trigger
 silently drops duplicates, self-pairs and empty-keyed rows, so writers can
 blind-insert without conflict handling.
 
@@ -612,31 +620,25 @@ rules were built, measured and thrown out there for destroying genuine data.
 
 ## Views
 
-### `inventory_enriched`
+### `inventory_enriched` — removed
 
-Every `inventory` column plus derived `other_names` (text, comma-separated,
-alphabetical, deduped on key), displayed as **Also known as**. A row sees only
-the opposite endpoint of an **active pair directly incident to one of its own
-identity keys** — `plant` edges through its common/botanical name, `cultivar`
-edges through its cultivar. Shared-hub sibling aliases are never inferred.
+Dropped 2026-08-15 by migration 0050, together with the `plant_alias_names()`
+function behind it. Its one contribution over `inventory` was the derived
+`other_names` column (**Also known as**), which was NULL for 90% of active rows
+(28,444 of 31,560) and could not be indexed — `plant_alias_names()` is `STABLE`
+and reads a second table, so an `ilike` on it meant evaluating the function for
+every candidate row.
 
-**Names already spelled inside the row's own `name` are dropped.** Since `name`
-is the composition of the three parts, its key contains all three part keys, so
-an alias equal to (or contained in) the identity would only repeat what the
-Plant column already shows. `plant_alias_names()` is the single implementation,
-shared with `search_inventory` so the two cannot drift.
-
-Read through this view whenever you display inventory; **write to `inventory`
-directly**. PostgREST embedding works through it
-(`select=*,suppliers(name,city,state)`), including ordering the parent rows by an
-embedded to-one column.
+**Read `inventory` directly.** Every other column the view carried was a
+passthrough, so callers move over with no projection change, and PostgREST
+embedding (`select=*,suppliers(name,city,state)`) works the same on the table.
 
 ### `rate_charts`
 
 Backwards-compatibility view: a plain `SELECT` of the pre-rename `inventory`
-columns (no `name_key`, no `other_names`; no `category`/`variety` either, since
-those columns are gone). `inventory` used to be called `rate_charts`. **Do not
-build anything new on it.**
+columns (no `name_key`; no `category`/`variety` either, since those columns are
+gone). `inventory` used to be called `rate_charts`. **Do not build anything new
+on it** — nothing reads it, and it is a candidate for removal.
 
 ---
 
@@ -649,7 +651,6 @@ build anything new on it.**
 | `normalize_search_text(text)` | text | Search tokenization: lowercase, punctuation → spaces, split letter↔digit boundaries ("1G" → "1 g"). The pgroonga document/query normalizer — the concatenation in `search_inventory` must stay byte-identical to the two `inventory_search_*_idx` expressions or the indexes are skipped |
 | `normalize_plant_key(text)` | text | Identity key for plant names: lowercase **letters only** ("Live-Oak 2" → "liveoak"). Backs the generated `*_key` columns |
 | `compose_plant_name(text, text, text)` | text | The SOP name format: the non-empty parts joined by ` - `, in the order common, botanical, cultivar; NULL when all three are empty. What `trg_inventory_derive_identity` writes into `inventory.name` |
-| `plant_alias_names(name_key, common_key, botanical_key, cultivar_keys text[])` | text | The **Also known as** value for one row: active alias endpoints incident to its keys, minus every name already inside its own composed name. Shared by `inventory_enriched` and `search_inventory` |
 | `normalize_size(text)` | text | Size-string normalizer — canonicalizes units/spacing/leading zeros (`"1G"` → `"1 G"`, `"024 Inch Box"` → `"24\" Box"`). **Nothing calls it automatically** (no trigger, no default): ingestion applies it, and migration 0019 applied it to the 38,090 legacy rows that had drifted |
 
 ### Search RPCs
@@ -663,9 +664,9 @@ answers one question: which rows answer this query, and how well.
 
 Returns the inventory columns — including `common_name`, `botanical_name`,
 `cultivar_variety_trade_name`, `cultivar_keys` and `internal_notes` — plus
-`other_names`, `source`, `supplier_name`, `supplier_category`,
-`supplier_state`, `supplier_city`, `size_std`, `height_std`, `width_std`,
-`caliper_std`, and **`relevance`**. 31 columns.
+`source`, `supplier_name`, `supplier_category`, `supplier_state`,
+`supplier_city`, `size_std`, `height_std`, `width_std`, `caliper_std`, and
+**`relevance`**. 30 columns (`other_names` left with migration 0050).
 
 **The projection is the filter surface.** PostgREST applies `.eq()` / `.in()` /
 `.gte()` / `.overlaps()` in an outer query, *before* its own `range()`, so a
@@ -744,7 +745,8 @@ alias names it):
 >
 > An **empty search now returns zero rows immediately** rather than walking the
 > catalogue, so the old "never call it with an empty search" footgun is gone.
-> Listing is still `inventory_enriched`'s job.
+> Listing is still `inventory`'s job — the app's browse path reads the table
+> directly, filtered, counted and paginated in SQL.
 
 ```
 search_suppliers(search text = '', category_filter text = null, fuzzy_ratio real = 0.34,
@@ -766,7 +768,7 @@ c.id asc` — so a supplier with contacts but no flagged primary still reports i
 oldest one). These replaced the `poc_*` columns on 2026-08-05; 0034 moved the
 join onto the link table.
 
-It does **not** return `group_id` — the return type is fixed, so a
+It does **not** return `head_branch_id` — the return type is fixed, so a
 multi-location column would have to be added here before search could carry it.
 
 A supplier also matches **through its contacts**: contact name / email / phone /
@@ -805,7 +807,8 @@ result by the caller (0045).
 | `trg_cascade_source_deactivation` | inventory_sources | AFTER UPDATE OF `is_active`, true→false | Deactivates every active `inventory` row whose `source_id` is that file. One way: reactivating the source does not restore them |
 | `trg_inventory_derive_identity` | inventory | BEFORE INSERT OR UPDATE | Trims the three name parts, composes `name` from them, derives `common_name_key` / `botanical_name_key` and the `cultivar_keys` array |
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
-| `handle_updated_at` | suppliers, supplier_groups, supplier_contacts, inventory, contacts, plant_aliases, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
+| `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
 
 ## Indexes that matter
 
@@ -825,9 +828,8 @@ result by the caller (0045).
   app's size facet. `size_std` is deliberately **not** in the pgroonga document:
   the raw `size` already carries every spelling a search could type.
 - `plant_aliases_name_key_idx` / `plant_aliases_other_key_idx` — btrees used to
-  find the opposite endpoint when a normalized query span names an alias, and
-  by **Also known as** attachment. Query expansion filters `is_active` but not
-  `alias_type`; display attachment filters both. The older
+  find the opposite endpoint when a normalized query span names an alias. Query
+  expansion filters `is_active` and nothing else. The older
   `plant_aliases_pgroonga_idx` remains present but the current 0046 search body
   resolves normalized endpoint keys rather than querying that expression.
 - `inventory_common_name_key_idx`, `inventory_botanical_name_key_idx` — partial
@@ -850,10 +852,10 @@ result by the caller (0045).
 - `supplier_contacts(supplier_id, is_active)` — a location's contacts;
   `supplier_contacts(contact_id, is_active)` — a contact's locations, which is
   the direction the profile's "also covers" line reads.
-- `suppliers(group_id) WHERE group_id IS NOT NULL` — a company's locations.
+- `suppliers(head_branch_id)` — a company's locations.
 - Btree on the stored keys: `inventory(name_key)`, `plant_aliases(name_key)`,
-  `(other_name_key)`, unique `(alias_type, name_key, other_name_key)`. These exist because
-  computing the key per-comparison made the enriched view time out (21s → 119ms).
+  `(other_name_key)`, unique `(name_key, other_name_key)`. These exist because
+  computing the key per-comparison made alias resolution time out (21s → 119ms).
   If you add a key column, `ANALYZE` afterward or the planner reverts to seq scans.
 - `inventory(source_id)`, `inventory(supplier_id, is_active)`,
   `inventory_sources(supplier_id)`.
@@ -883,7 +885,6 @@ Gmail OAuth tokens) included.
 | `plant_aliases` | enabled | `authenticated` full access (replaced `plant_other_names` 2026-08-14) |
 | `contacts` | enabled | `authenticated` full access |
 | `supplier_contacts` | enabled | `authenticated` full access (added 2026-08-14) |
-| `supplier_groups` | enabled | `authenticated` full access (added 2026-08-14) |
 | `custom_commands` | enabled | Per-user via `auth.uid()` |
 | `user_memories` | enabled | Per-user via `auth.uid()` |
 
@@ -899,15 +900,16 @@ Who bypasses RLS, and why nothing broke:
 - **`authenticated`** (the old `lps-rosie` app's logged-in users) keeps full
   access to the catalogue and per-user access to its own chat/user rows.
 
-> ### The views must stay `security_invoker`
+> ### Views must stay `security_invoker`
 >
-> `inventory_enriched` and `rate_charts` are owned by `postgres`, which has
-> `BYPASSRLS`. A Postgres view runs with its **owner's** rights unless it is
-> declared `security_invoker = true`, so with the default setting these two
-> would have handed `anon` the entire catalogue straight back and enabling RLS
-> on `inventory` would have achieved nothing. The migration sets the flag on
-> both. **Any view recreated over these tables must set it too** — `CREATE OR
-> REPLACE VIEW` does not carry the option over on its own.
+> `rate_charts` is owned by `postgres`, which has `BYPASSRLS`. A Postgres view
+> runs with its **owner's** rights unless it is declared
+> `security_invoker = true`, so with the default setting it would have handed
+> `anon` the entire catalogue straight back and enabling RLS on `inventory`
+> would have achieved nothing. The migration sets the flag. **Any view recreated
+> over these tables must set it too** — `CREATE OR REPLACE VIEW` does not carry
+> the option over on its own. (`inventory_enriched` was the other view this
+> applied to until migration 0050 removed it.)
 
 Enabling RLS did **not** loosen the rule about browser keys: the app still
 queries only from server components and gates every page behind the harness
@@ -975,8 +977,9 @@ required.
   `contacts.notes` describes the contact; what was said to them is still an
   entry in `suppliers.communication_notes`.
 - A multi-location company is one `suppliers` row per site, tied together by
-  `supplier_groups`. Availability naming no location goes to **every** location
-  in the group; availability naming one goes to that row alone.
+  `head_branch_id` (a head branch points at itself). Availability naming no
+  location goes to **every** location of that company; availability naming one
+  goes to that row alone.
 - Never infer a person's name from an email address. `contacts.name` is
   nullable precisely so you don't have to.
 - Per-supplier quirks live in daisy's

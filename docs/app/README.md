@@ -151,10 +151,16 @@ rather than a server-rendered one and a client one that drift apart.
 
 ## Search
 
-Every search box is **debounced** (`lib/use-debounced.ts`, 300ms) before it hits
-`search_suppliers` / `search_inventory` — the pgroonga RPCs are far too
-expensive to fire per keystroke. In-flight responses are discarded if a newer
-query has started, so a slow early request can't overwrite a later result.
+Every search box is **debounced** (`useDebouncedSearch` in
+`lib/use-debounced.ts`, 300ms) before it hits `search_suppliers` /
+`search_inventory` — the pgroonga RPCs are far too expensive to fire per
+keystroke. The typed question and the serialized filter state debounce as one
+value, so a keystroke and a filter click landing in the same window settle
+together into a single request rather than on two independent timers. The page
+number resets to 1 during render rather than in an effect, so a search started
+from page 3 doesn't fetch the stale page before the reset lands. In-flight
+responses are discarded if a newer query has started, so a slow early request
+can't overwrite a later result.
 Both list-page toolbars also expose searchable OR-within-field multiselects for
 supplier type, city and state; fields combine with AND. They filter the rows in
 the current server result set and share state with the corresponding table or
@@ -172,9 +178,11 @@ set per search flavour (`PLANT_SEARCH_LABELS` for the two plant searches,
 `search-loader.tsx`.
 
 `search_inventory` returns nothing for an empty search (it has nothing to rank),
-so browsing reads `inventory_enriched` directly. Plant
-Search therefore shows a clean prompt and makes no inventory request until a
-term is entered; the API also returns an empty group list for a blank `q`.
+so browsing reads `inventory` directly — one filtered, ordered, `count: 'exact'`
+paginated read, ordered by `updated_at` with `name` and `id` as tie-breakers so
+paging cannot repeat or skip a row. A blank `q` therefore shows the catalogue
+rather than an empty prompt, and its header count and page controls carry the
+same meaning they do for a search.
 
 The current Plant Search term is mirrored into the URL's `q` parameter and
 saved in `localStorage` under `lps.plant-search.query.v1`. Returning to the page
@@ -227,7 +235,7 @@ Forest Pansy`). The **Plant** column shows that composition and
 is **read-only**; the three parts are the editable columns, and `WRITABLE.inventory`
 in `lib/queries.ts` deliberately no longer lists `name` — a write there would be
 overwritten by the database trigger. Common name and botanical name are in
-`PLANT_HIDDEN` (the Plant column already shows both), **Cultivar** is visible.
+`PLANT_HIDDEN` (the Full Name column already shows both), **Cultivar** is visible.
 
 `cultivar_variety_trade_name` is the residual — everything the printed name
 carries that the other two don't — so one cell can name a cultivar *and* a trade
@@ -239,12 +247,10 @@ a row matches if any of its names is selected, mirroring the database's
 Aliases live in `plant_aliases`. Any contiguous run of query words that names
 an edge is expanded with the other side of it before matching, so
 `Live oak Boardwalk` resolves through the `Live Oak` ↔ `Quercus virginiana`
-edge. `alias_type` records what a pair asserts and drives the *Also known as*
-split, but it no longer restricts what a pair can reach. **Also known as** lists only alias names that are not already spelled
-inside the row's own Plant value — the database drops the rest, so the column
-never repeats what is beside it.
+edge. Edges are untyped and nothing restricts what a pair can reach, so a bad
+pair is a data problem to retire rather than something the schema will contain.
 
-Editing a part has to move the read-only Plant column with it, or the table
+Editing a part has to move the read-only Full Name column with it, or the table
 shows an identity the database no longer holds until the next fetch, so
 `plantEditPatch()` in `lib/columns.ts` recomposes it optimistically. It is a
 mirror of the database's `compose_plant_name()` and the **database stays
@@ -379,7 +385,7 @@ compact `+N` beside it deep-links to the supplier's existing Files tab via
 Every plant API/UI row derives **Ingested** from its active source's immutable
 `inventory_sources.created_at`; manual/source-less rows and rows tied only to an
 inactive source show blank. Supplier **Last ingestion** is the maximum timestamp
-across that supplier's active sources. Search-RPC and `inventory_enriched` rows
+across that supplier's active sources. Search-RPC and `inventory` rows
 already carry `source_id`, so `lib/queries.ts` resolves timestamps in one batched
 source lookup rather than duplicating them into `inventory`. This timestamp is
 when LPS ingested the source, **not** the source's printed/effective availability
@@ -714,8 +720,9 @@ The `Toolbar` renders the control (`pagination` prop: `page`, `pageCount`,
 client-side filters, the right one is the whole match set, so filtering visibly
 moves one and not the other.
 
-Each page holds a page number that resets to 1 when the question changes: the
-debounced query on either page, plus the dimension bounds on Plant search. Every
+Each page holds a page number that resets to 1 when the question changes — the
+debounced query or filter state — and does so during render, before the fetch
+effect can run against the number the new search just invalidated. Every
 client-side concern — column filters, the toolbar multiselects, size selection,
 hidden rows, and Plant search's grouping by supplier — still applies to the
 current page alone, so a supplier group's match count is its count *on this
@@ -878,7 +885,7 @@ lib/
   size-std.ts      the size_std vocabulary and the order the filter offers it in
   size-std.check.mjs      self-check for that order
   server-filters.ts       the filter spec: state -> query string -> SQL
-  use-debounced.ts search-box debounce
+  use-debounced.ts query + filter state debounced as one request
   format.ts        money / number / date formatting
   supabase.ts      server-only client
   utils.ts         cn()

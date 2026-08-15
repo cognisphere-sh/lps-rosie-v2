@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name with name derived) and how typed plant_aliases edges reach it, how to relax filters and reword terms when there are no results, the key-column rules for any fallback query (never write derived name/key columns, never match names with = on raw text), and the shape of a good answer. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", "look up <plant/supplier>", or any price/availability question against the database. (v1.4.0)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule and listing from inventory instead, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name with name derived) and how plant_aliases edges reach it, how to relax filters and reword terms when there are no results, the key-column rules for any fallback query (never write derived name/key columns, never match names with = on raw text), and the shape of a good answer. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", "look up <plant/supplier>", or any price/availability question against the database. (v1.5.0)
 metadata:
   author: lps
-  version: "1.4.0"
+  version: "1.5.0"
 ---
 
 # Looking up a plant or supplier
@@ -18,8 +18,7 @@ and typos — a `LIKE` query does not. Set the filters (`supplier_ids`, sort) fr
 what was actually asked.
 
 An empty `search` returns **nothing** — there is nothing to rank. To *list*
-rather than *search*, select from `inventory_enriched` with an `ORDER BY` and a
-`LIMIT`.
+rather than *search*, select from `inventory` with an `ORDER BY` and a `LIMIT`.
 
 ### How it matches and ranks
 
@@ -58,13 +57,10 @@ AND-ed: `Live Oak Boardwalk` searches
 name comes back either way, and — unlike the older mechanism — an alias-reached
 row is scored like any other text match rather than ranking last.
 
-The **Also known as** value lists only alias names that are not already spelled
-inside the row's own name.
-
-One thing to know when a result looks too broad: the alias type does **not**
-restrict what a pair can reach any more. If a search for a cultivar returns the
-whole species, suspect a bad alias pair joining the two, and report it — that is
-a data problem, not a search bug.
+One thing to know when a result looks too broad: nothing restricts what an alias
+pair can reach. If a search for a cultivar returns the whole species, suspect a
+bad alias pair joining the two, and report it — that is a data problem, not a
+search bug.
 
 ## 2. If nothing comes back, widen before concluding
 

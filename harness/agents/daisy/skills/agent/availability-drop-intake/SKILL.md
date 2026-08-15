@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which supplier a drop came from (sender address, domain or name) and passing the whole multi-location group along, the dispatch contract for the task-thread brief that runs the supplier-onboarding-and-ingestion skill, answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.0.2)
+description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which supplier a drop came from (sender address, domain or name) and passing the whole multi-location company along, the dispatch contract for the task-thread brief that runs the supplier-onboarding-and-ingestion skill, answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.0.3)
 metadata:
   author: lps
-  version: "2.0.2"
+  version: "2.0.3"
 ---
 
 # Availability drop intake
@@ -30,7 +30,7 @@ in `contacts`, linked to suppliers through `supplier_contacts` (a contact can
 cover several locations) — join through both:
 
 ```sql
-SELECT s.id, s.name, s.group_id, c.email
+SELECT s.id, s.name, s.head_branch_id, c.email
 FROM suppliers s
 JOIN supplier_contacts sc ON sc.supplier_id = s.id AND sc.is_active
 JOIN contacts c ON c.id = sc.contact_id AND c.is_active
@@ -42,10 +42,10 @@ If that finds nothing, widen to the sender's **domain**
 that isn't on file yet, and their colleague's is.
 
 **Several rows back for one company is normal, not a duplicate.** A
-multi-location nursery is one `suppliers` row per site sharing a `group_id` —
-Everde has five, Moon Valley seventeen — and a single file from them routinely
-carries availability for more than one of those sites. **Pass every match and the
-`group_id` through in the brief.** Which rows in the file belong to which
+multi-location nursery is one `suppliers` row per site sharing a
+`head_branch_id` — Everde has five, Moon Valley seventeen — and a single file
+from them routinely carries availability for more than one of those sites.
+**Pass every match and the `head_branch_id` through in the brief.** Which rows in the file belong to which
 location is the ingestion skill's call (its §0.1), not yours: never pick one
 yourself, never merge them, and never tell the task thread the drop is "for" a
 location the file didn't name.
@@ -61,7 +61,8 @@ points back at it rather than restating it. The brief carries:
 
 - the declaration that it is a task thread and this thread is the parent,
 - **the supplier**: existing `supplier_id` + name, **every other active location
-  in its group with their ids**, and the `group_id`; or, if nothing matched,
+  of the same company with their ids**, and the `head_branch_id`; or, if nothing
+  matched,
   everything you know about the sender (name, address, domain, signature) and the
   fact that it looks new,
 - **all source material**: attachment paths, website URL, image paths, and the

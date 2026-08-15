@@ -3,7 +3,7 @@
 //
 // `edit: true` means the cell writes back to the database. Only columns that
 // are real, writable columns on their table carry it — derived values
-// (other_names, source, item_count, the aggregates) never do.
+// (source, item_count, the aggregates) never do.
 
 import type { CellValue } from '@/lib/rows'
 
@@ -124,7 +124,7 @@ export const PLANT_COLS: ColumnDef[] = [
   // The whole identity: "Common name [botanical name, cultivar]". The database
   // derives it from the three part columns below (migration 0040), so it is
   // read-only here — edit a part and this recomposes.
-  { key: 'name', label: 'Plant', width: 220 },
+  { key: 'name', label: 'Full Name', width: 220 },
   { key: 'common_name', label: 'Common name', width: 170, edit: true, writes: { table: 'inventory', column: 'common_name' } },
   { key: 'botanical_name', label: 'Botanical name', width: 180, edit: true, writes: { table: 'inventory', column: 'botanical_name' } },
   // Cultivar, variety and trade name share one column; the header filter is a
@@ -134,9 +134,6 @@ export const PLANT_COLS: ColumnDef[] = [
     multiValue: true, edit: true,
     writes: { table: 'inventory', column: 'cultivar_variety_trade_name' },
   },
-  // Only names that are *not* already spelled inside the Plant column — the
-  // database drops the rest (`plant_alias_names`), so this never repeats it.
-  { key: 'other', label: 'Also known as', width: 190 },
   // The cell shows the supplier's own size text; the filter selects on the
   // standardized bucket beside it (lib/size-std.ts).
   { key: 'size', label: 'Size', width: 104, filter: 'multiselect', filterValueKey: 'size_std' },
@@ -163,15 +160,15 @@ export const PLANT_COLS: ColumnDef[] = [
   { key: 'ingestion_date', label: 'Ingested', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 130, filter: 'none' },
 ]
-// Common and botanical name are hidden by default, not absent: the Plant column
-// already shows both inside the composed identity, so showing them again costs
+// Common and botanical name are hidden by default, not absent: the Full Name
+// column already shows both inside the composed identity, so showing them costs
 // 350px for no new information. Unhide either to edit it.
 export const PLANT_HIDDEN = ['common_name', 'botanical_name', 'notes', 'internal_notes', 'cal']
 
 /**
  * The patch an inline plant edit applies to the row on screen.
  *
- * Editing a name part has to move the read-only Plant column with it, or the
+ * Editing a name part has to move the read-only Full Name column with it, or the
  * table shows an identity the database no longer holds until the next fetch.
  * This mirrors `compose_plant_name()` (migrations 0040/0043) — the database stays
  * authoritative; this is the optimistic copy, replaced by the real value on the

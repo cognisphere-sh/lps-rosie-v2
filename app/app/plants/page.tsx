@@ -17,7 +17,7 @@ import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { MASTER_FILTERS, PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
-import { useDebounced } from '@/lib/use-debounced'
+import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
 // Supplier-panel fields — everything on the master row that isn't already shown
@@ -74,7 +74,6 @@ export default function PlantSearchPage() {
 
   const [query, setQuery] = useState('')
   const [searchHydrated, setSearchHydrated] = useState(false)
-  const debouncedQuery = useDebounced(query)
   const [groups, setGroups] = useState<PlantGroup[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -101,12 +100,12 @@ export default function PlantSearchPage() {
         .join('&'),
     [plantCfg.filters, masterCfg.filters, selectedSizes],
   )
-  const debouncedFilterQuery = useDebounced(serverFilterQuery)
+  const {
+    query: debouncedQuery, filters: debouncedFilterQuery, settled,
+  } = useDebouncedSearch(query, serverFilterQuery)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
-  const searching = searchHydrated && hasQuery && (
-    loading || query !== debouncedQuery || serverFilterQuery !== debouncedFilterQuery
-  )
+  const searching = searchHydrated && hasQuery && (loading || !settled)
   const [panelW, setPanelW] = useState(292)
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
@@ -176,7 +175,17 @@ export default function PlantSearchPage() {
 
   // A new question, or a new filter, starts again at page 1 — page 4 of the
   // old result set means nothing once the set changes.
-  useEffect(() => setPage(1), [debouncedFilterQuery, debouncedQuery])
+  //
+  // Reset while rendering, not in an effect. An effect commits *after* the
+  // fetch effect below has already run once against the outgoing page number,
+  // so searching from page 3 would cost two requests: one for the stale page,
+  // one for page 1.
+  const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
+  const [pagedFor, setPagedFor] = useState(searchKey)
+  if (pagedFor !== searchKey) {
+    setPagedFor(searchKey)
+    setPage(1)
+  }
 
   // The values each dropdown offers, for this search and deliberately *not*
   // narrowed by the active filters: options derived from filtered rows would
@@ -562,9 +571,6 @@ export default function PlantSearchPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
-                          {p.values.other && (
-                            <div className="truncate text-[11px] text-muted-foreground">{String(p.values.other)}</div>
-                          )}
                           {mobilePlantSpecs(p).length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
                               {mobilePlantSpecs(p).map((spec) => (
@@ -590,12 +596,6 @@ export default function PlantSearchPage() {
                       </button>
                       {detailsOpen && (
                         <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[11.5px]">
-                          {p.values.other && (
-                            <div>
-                              <span className="font-semibold text-lps-dim">Also known as: </span>
-                              <span className="text-muted-foreground">{String(p.values.other)}</span>
-                            </div>
-                          )}
                           {p.values.notes && (
                             <div>
                               <span className="font-semibold text-lps-dim">Notes: </span>
