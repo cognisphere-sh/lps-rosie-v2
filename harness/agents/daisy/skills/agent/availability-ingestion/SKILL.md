@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every inventory-side database write belongs to this skill. Covers which location each row belongs to when one file covers several locations of a company (head_branch_id, per-tab and per-section evidence, and handing a genuinely new farm to the supplier-onboarding skill), source conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, the match-candidates script, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), the newest-source-wins precedence rule and its three stated exceptions, triaging the drop's images and following plant-photo-catalogue for any that are photographs of plants (including website drops and their unresolved rights), post-ingestion QA, and the report contract. Use when ingesting supplier availability, or fixing or reviewing inventory rows from an ingest. (v1.1.0)
+description: Ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every inventory-side database write belongs to this skill. Covers which location each row belongs to when one file covers several locations of a company (head_branch_id, per-tab and per-section evidence, and handing a genuinely new farm to the supplier-onboarding skill), source conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, the match-candidates script, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), the newest-source-wins precedence rule and its three stated exceptions, triaging the drop's images and following plant-photo-catalogue for any attached photographs of plants (a photo that exists only as a URL is captured as a URL in inventory.image_url and never downloaded), post-ingestion QA, and the report contract. Use when ingesting supplier availability, or fixing or reviewing inventory rows from an ingest. (v1.2.0)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Availability ingestion
@@ -14,7 +14,7 @@ dispatched from the `availability-drop-intake` skill, and it owns **every
 inventory-side database write** — parsing and all `inventory`,
 `inventory_sources` and `plant_aliases` rows.
 
-**Where the boundary is.** Three skills meet here, and each owns one thing:
+**Where the boundary is.** Four skills meet here, and each owns one thing:
 
 - **`availability-drop-intake`** coordinates: it identifies the supplier, briefs
   you, digests your report, and talks to Chris. It never writes a row.
@@ -26,9 +26,11 @@ inventory-side database write** — parsing and all `inventory`,
   here with the new `supplier_id`.** Don't insert a supplier or a contact
   yourself.
 - **`plant-photo-catalogue`** writes every `plant_photos` row and owns the
-  private `plant-photos` bucket. **When the drop carries photos of plants
-  (§6), follow that skill to catalogue them, then come back and report what you
-  catalogued.** Don't upload an image or insert a photo row yourself.
+  private `plant-photos` bucket. **When the drop carries photos of plants as
+  attached files (§6), follow that skill to catalogue them, then come back and
+  report what you catalogued.** Don't upload an image or insert a photo row
+  yourself — and don't download one: a photo that exists only as a URL is
+  captured as a URL, never fetched into our bucket.
 
 You **never talk to Chris, Telegram or the supplier directly** — anything you
 need from a human goes in your report and the main agent relays it. If you find
@@ -178,6 +180,9 @@ you were asked for.
   A photo can be **both** a source and a catalogue photo — a shot of a printed
   label with the plant behind it. Parse it and catalogue it; they are different
   records made from the same file, and §6 says how the second one is written.
+
+  **This table is about files you were given.** An image that exists on a page
+  as a URL is never downloaded — §6 says what to do with it instead.
 - Intermediate files (converted markdown, page images, parse chunks) go to `/tmp` — they are not records.
 
 ## 2. Parse and normalize
@@ -639,7 +644,11 @@ ingest resolves it: update one, report the rest.
 **2. Update the matched row** with this drop's values: `source_id` = the new
 source id **for that row's location**, `unit_price`, `quantity`, `size`,
 `size_std`, `height`/`width`/`caliper` and their `*_std`, `image_url` if the
-drop has one, and `is_active = true`. Notes follow §2's split:
+drop has one, and `is_active = true`. `image_url` is a **link, not a copy** —
+the address of a photo on the supplier's own page, written as-is. It is where a
+captured URL lands (§6); a photo we were *given* as a file goes to
+`plant_photos` instead, and the two never describe the same image. Notes follow
+§2's split:
 
 - **`notes` is replaced** with this drop's supplier text, dated. The row now
   describes the current offering, and the previous drop's file is still in
@@ -789,10 +798,11 @@ row. What follows is only what *this* context adds.
   the company, not which farm the photo was taken at, so leave `supplier_id`
   null unless the photo's own context names one. A null supplier is a working
   catalogue photo; a wrong one is worse than none.
-- **The provenance.** `source` gets the same channel and identifier the drop
-  came through — `Chris, Telegram main message 682, <ts>`, `<sender>, Gmail
-  MessageId <id>, <ts>`, or the exact page URL for a website. Whoever reads the
-  photo later needs to find its origin without your transcript.
+- **The provenance.** `source` gets the channel and identifier the file came
+  through — `Chris, Telegram main message 682, <ts>` or `<sender>, Gmail
+  MessageId <id>, <ts>`. Whoever reads the photo later needs to find its origin
+  without your transcript. It is always a *handover*, never a page address: a
+  photo that only exists at a URL never gets a row at all (below).
 
 ### What the drop is *not* evidence for
 
@@ -814,21 +824,36 @@ matters most here, because everything in the drop looks related:
   supplier's photo does not mean they have it in stock, and nothing you write in
   §6 may read as though it does.
 
-### Website drops
+### Attached files only — a URL stays a URL
 
-A hosted availability page often carries plant photographs. Two constraints:
+**We hold bytes only for photos someone handed us.** That is the line, and it is
+about what we take a copy of, not about what we know:
 
-- **Only the page(s) you were given.** Catalogue photos from the availability
-  page you are already ingesting. **Do not crawl the site** for a gallery, and
-  do not harvest a photo library wholesale — that is a separate, scheduled piece
-  of work with Chris's say-so, not a side effect of an ingest.
-- **Rights are unresolved, so record that rather than assuming it.** A photo we
-  fetched from a supplier's website is theirs, not ours; a photo they *sent* us
-  carries at least an implicit intent that we use it. Put the exact image URL in
-  `source` and tag the row **`web`**, so every web-sourced photo is findable and
-  removable in one query if a supplier ever objects. Raise anything that looks
-  stock-licensed or watermarked under *Flags needing Chris* instead of
-  cataloguing it.
+| The photo arrived as | Do |
+|---|---|
+| an **attachment or file** — an email attachment, a Telegram photo, a file Chris gave you, anything already on disk from the brief | **Catalogue it.** Follow `plant-photo-catalogue`: hash, dedupe, upload, insert |
+| a **URL** — an image on a supplier's availability page, a link in an email body, a photo on their site | **Capture the URL. Never download it.** No bucket object, no `plant_photos` row |
+
+A photo on a supplier's website is theirs, sitting on their server, already
+addressable. Copying it into our bucket takes a licence nobody has stated and
+leaves us maintaining a duplicate that goes stale the day they replace it. The
+link is the better record and costs nothing.
+
+**Where a captured URL goes:**
+
+- **On the plant it belongs to** — `inventory.image_url`, written in §4 with the
+  rest of that row's values, when the page shows a photo for an offering you are
+  ingesting. One URL per row; if the page shows several, take the one that
+  depicts the offering.
+- **Otherwise, in your report.** A gallery page, a general photo page, an image
+  that maps to no row you wrote — the URL goes under *Photos* and nowhere else.
+  Don't invent a `plant_photos` row without a file, and don't park a URL in
+  `notes` to be found later.
+
+**Never fetch an image in order to catalogue it.** Opening a page to read the
+availability is normal; downloading its photographs so they can be uploaded to
+our bucket is the thing this rule forbids. And **don't crawl** — you are reading
+the page you were given, not surveying the site.
 
 ### Before you move on
 
@@ -837,8 +862,11 @@ SELECT id, name, size, size_std, supplier_id, tags, source
 FROM plant_photos WHERE sha256 = ANY(ARRAY[<hashes from this drop>]);
 ```
 
-Every photo in the drop is accounted for: catalogued, skipped as a duplicate of
-an existing `sha256`, or skipped as not-a-plant. The report says which.
+Every image in the drop is accounted for by exactly one of four outcomes —
+catalogued, skipped as a duplicate of an existing `sha256`, skipped as
+not-a-plant, or **captured as a URL and not downloaded**. The report says which,
+and the last one is the only outcome with nothing to show for it in this query,
+which is why it has to be written down.
 
 ## Recording availability status
 
@@ -881,13 +909,15 @@ and it cannot read your transcript. Include:
   inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs
   added. Nothing was retired — if you believe something should be, it goes under
   *Flags needing Chris* instead.
-- **Photos** (when the drop carried any): how many images it held, and what
-  became of each — catalogued (with the `plant_photos` ids, plant, supplier
-  attribution or "unattributed", and whether size was stated or left null),
-  skipped as an exact `sha256` duplicate of a photo already catalogued, or
-  skipped as not a plant (logo, signature, letterhead). Every image is accounted
-  for by one of those three. For a website drop, name the page and say the photos
-  are tagged `web` with rights unresolved (§6).
+- **Photos** (when the drop carried any): every image accounted for, in the two
+  halves §6 splits them into.
+  - **Attached files**, one of: catalogued (with the `plant_photos` ids, plant,
+    supplier attribution or "unattributed", and whether size was stated or left
+    null), skipped as an exact `sha256` duplicate of a photo already catalogued,
+    or skipped as not a plant (logo, signature, letterhead).
+  - **URLs captured**, which were **not** downloaded: the ones written to an
+    `inventory.image_url` (say which rows), and any that mapped to no row —
+    their URLs listed here, since this report is their only record.
 - **Overrides withheld**: any field where you did *not* let this drop win, under
   one of §4's three exceptions. Give both values, both sources, and the sentence
   you are relying on. An empty list is the normal case and worth saying so.

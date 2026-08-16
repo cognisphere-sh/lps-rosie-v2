@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people — every database write on the supplier side belongs to this skill. Covers confirming a supplier is genuinely new before inserting (search_suppliers; several rows for one company are its locations, not duplicates), inserting the suppliers row, onboarding a new location of a known company under its head_branch_id, browser enrichment (website, address, coordinates, phone), availability newsletter signup, the availability_source_type / hosted_availability_url / availability_update_days columns, contacts rows for the main line and for each person (never a name in suppliers.notes), supplier_contacts linking across the locations a person actually covers, is_primary per location, retiring versus deleting, and the contact QA and report block. Use when onboarding a supplier, when the availability-ingestion skill reaches a supplier or farm that has no row, when adding or correcting a supplier's contacts, or when Chris asks to add a nursery. (v1.1.0)
+description: Create and enrich a supplier and its people — every database write on the supplier side belongs to this skill. Covers confirming a supplier is genuinely new before inserting (search_suppliers; several rows for one company are its locations, not duplicates), inserting the suppliers row, onboarding a new location of a known company under its head_branch_id, browser enrichment (website, address, coordinates, phone), availability newsletter signup, the availability_source_type / hosted_availability_url / availability_update_days columns, contacts rows for the main line and for each person (never a name in suppliers.notes), supplier_contacts linking across the locations a person actually covers, is_primary per location, retiring versus deleting, and the contact QA and report block. Use when onboarding a supplier, when the availability-ingestion skill reaches a supplier or farm that has no row, when adding or correcting a supplier's contacts, or when Chris asks to add a nursery. (v1.1.1)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.1.1"
 ---
 
 # Supplier onboarding
@@ -151,13 +151,12 @@ present) and **capture the returned `id`**.
   supplier, fill a null column when a drop reveals it; don't overwrite an
   existing value without evidence it changed.
 
-- **Note a plant-photo gallery; don't catalogue one.** Suppliers' sites often
-  carry photographs of their stock, and they are worth having — but cataloguing
-  them is `plant-photo-catalogue`'s write and harvesting a gallery is scheduled
-  work with Chris's say-so, not a side effect of onboarding. **Record the
-  gallery's URL in your report** and move on. (A photo on the *availability page*
-  of a drop being ingested is different and is handled where that happens:
-  `availability-ingestion` §6.)
+- **Note a plant-photo gallery; never download one.** Suppliers' sites often
+  carry photographs of their stock. **We only hold photos someone hands us** —
+  an image on their page stays on their page, and what we keep is the link.
+  **Record the gallery's URL in your report** and move on. (`plant_photos` is
+  for attached files; `availability-ingestion` §6 has the full rule and where a
+  per-plant URL lands.)
 
 Do the same enrichment and newsletter check for an **existing** supplier whose
 row is missing website/address/coords — don't re-subscribe if their notes say

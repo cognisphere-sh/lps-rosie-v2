@@ -369,9 +369,13 @@ one.
   when the file is from, so a January sheet replayed in August would clobber
   current data under a naive "latest wins"). And **the drop's photographs get
   catalogued**: §1 sorts every image into a source, a plant photo or a
-  logo/signature, and §6 hands the plant ones to `plant-photo-catalogue` with the
-  supplier §0 resolved — only when the drop mapped to exactly one location — while
-  refusing to let the sheet beside a photo become evidence about it.
+  logo/signature, and §6 hands the **attached** plant ones to
+  `plant-photo-catalogue` with the supplier §0 resolved — only when the drop
+  mapped to exactly one location — while refusing to let the sheet beside a photo
+  become evidence about it. **We hold bytes only for photos someone handed us**:
+  a photo that exists as a URL is captured as a URL, in `inventory.image_url`
+  when it belongs to a row being ingested and otherwise in the report, and is
+  never downloaded into our bucket.
 - **supplier-onboarding** — the owner of **every supplier-side database write**:
   confirming a supplier is genuinely new before inserting (several hits for one
   company are usually its locations), the `suppliers` row, `head_branch_id` for a

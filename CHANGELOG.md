@@ -34,13 +34,15 @@ here).
   evidence, size is stated or null and never inherited from the sheet's size
   column, and there is no photo↔inventory link to invent.
 
-  **Website drops are deliberately constrained.** Photos come only from the page
-  already being ingested — no crawling for a gallery — and they are tagged `web`
-  with the image URL in `source`, because a photo we *fetched* is the supplier's
-  work held without a licence anyone stated, unlike one they *sent* us. The tag
-  makes the whole set removable in one query if a supplier ever objects.
-  `supplier-onboarding` correspondingly **notes** a gallery's URL in its report
-  rather than cataloguing it, so harvesting stays scheduled work.
+  **We hold bytes only for photos someone handed us.** An attachment or file is
+  catalogued; a photo that exists as a **URL is captured as a URL and never
+  downloaded**. The image stays on the supplier's server, where it is theirs and
+  already addressable, so no licence has to be assumed — and we don't maintain a
+  duplicate that goes stale the day they replace it. A captured URL lands in
+  **`inventory.image_url`** when it belongs to a row being ingested (that column
+  is a link, not a copy, and never describes the same image as a `plant_photos`
+  row), and otherwise only in the report. `supplier-onboarding` likewise **notes**
+  a gallery's URL rather than downloading it.
 
   `availability-drop-intake` passes every image and the verbatim body (sorting
   plants from logos is the thread's job), digests a new *Photos* block, and its

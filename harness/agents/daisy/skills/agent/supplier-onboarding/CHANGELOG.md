@@ -1,5 +1,12 @@
 # supplier-onboarding — changelog
 
+## 1.1.1
+
+2026-08-16 — §3's gallery bullet restated under the rule in
+`availability-ingestion` 1.2.0: not just "don't catalogue one" but **never
+download one**. An image on a supplier's page stays there and what we keep is
+the link. The report block already carried the URL and is unchanged.
+
 ## 1.1.0
 
 2026-08-16, with `availability-ingestion` 1.1.0 — §3's browser pass now says

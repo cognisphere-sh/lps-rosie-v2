@@ -1,5 +1,23 @@
 # plant-photo-catalogue — changelog
 
+## 1.4.0
+
+2026-08-16 — the admission rule, stated plainly: **every row in `plant_photos`
+is a file someone handed us.** 1.3.0 allowed a photo fetched from a website in
+under a `web` tag with rights unresolved; that is reversed, and the tag and its
+removal query are gone with it.
+
+A photo that exists as a URL is not catalogued here — the URL is captured
+instead, in `inventory.image_url` when it belongs to a row, otherwise in the
+report. Never download an image in order to insert it. The section says what to
+do when someone hands you a URL and asks for "that photo", including the case
+that resolves it: if they send you the file, it is an attachment and this skill
+applies normally.
+
+This is what keeps the schema honest — `sha256` describes bytes we hold and
+`storage_path` points at an object the app can sign, with no rows where either
+is a fiction.
+
 ## 1.3.0
 
 2026-08-16, with `availability-ingestion` 1.1.0 — photos now arrive mostly from

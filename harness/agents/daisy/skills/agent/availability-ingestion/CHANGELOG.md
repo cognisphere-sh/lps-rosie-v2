@@ -1,5 +1,24 @@
 # availability-ingestion — changelog
 
+## 1.2.0
+
+2026-08-16 — **we hold bytes only for photos someone handed us.** 1.1.0's §6
+told a website drop to fetch the page's photographs into our bucket and tag them
+`web` with rights unresolved; that is reversed. §6's *Attached files only* now
+splits every photo two ways: an **attachment or file** is catalogued as before,
+and a photo that exists as a **URL is captured as a URL and never downloaded**.
+
+It is the better answer on both counts the old rule was trying to balance. The
+image stays on the supplier's server, where it is theirs and already
+addressable, so no licence has to be assumed — and we stop maintaining a
+duplicate that goes stale the day they replace it.
+
+A captured URL lands in **`inventory.image_url`** when it belongs to a row being
+ingested (§4 now says that column is a link, not a copy, and that it never
+describes the same image as a `plant_photos` row), and otherwise only in the
+report, whose *Photos* block now splits into attached-files and URLs-captured
+halves. §1's triage table is scoped to files you were given.
+
 ## 1.1.0
 
 2026-08-16 — two rules a drop needs and this skill had only implied.

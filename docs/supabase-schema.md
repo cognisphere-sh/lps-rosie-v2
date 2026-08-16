@@ -371,7 +371,7 @@ availability files.
 | `width_std` / `caliper_std` | double precision | yes | Standardized width/caliper in **inches**; lower bound for a range; `NULL` when unknown/ambiguous |
 | `notes` | text | yes | **Supplier-stated** notes for this offering, from the availability data: their verbatim row description, dated availability status, lead time, per-row qualifiers ("limited", "B&B only"). Not our commentary |
 | `internal_notes` | text | yes | **Ours.** Parse caveats, why a combined size was split, that a quantity is the supplier's shared/tentative count, QA exceptions. Never what the row already answers (a missing price or quantity, `updated_at`, when the drop was ingested). Appended, not clobbered. Added 2026-08-14 (migration 0039) |
-| `image_url` | text | yes | Optional product image |
+| `image_url` | text | yes | Optional product image, as a **link on someone else's server** — the address of a photo on the supplier's own page, written as-is. Never a copy: a photo we were *given* as a file goes to `plant_photos`, and the two never describe the same image |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
@@ -646,6 +646,15 @@ The searchable plant photo catalogue. One row per catalogued photo. Added
 is optional, it may show a plant nobody currently stocks, and nothing about it
 is retired when inventory or a supplier is. A catalogued photo says *this is
 what this plant looks like* — never *this supplier has it in stock*.
+
+**Every row here is a file someone handed us** — an email attachment, a Telegram
+photo, a file given to an agent. An image that lives on someone else's server is
+**never downloaded to make a row**: the URL is captured instead, in
+`inventory.image_url` when it belongs to an offering and otherwise in the
+ingest's report. That is what keeps `sha256` and `storage_path` honest — every
+row describes bytes in our bucket that the app can sign, with no row where
+either is a fiction. **`inventory.image_url` is a link, `plant_photos` is a
+copy**, and the two never describe the same image.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|

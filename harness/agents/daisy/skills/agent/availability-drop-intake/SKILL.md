@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding and plant-photo-catalogue itself when a supplier, a farm or a plant photo needs one), passing every image and the verbatim body so photographs of plants can be catalogued too, answering that thread's follow-up questions, digesting its report — including its Photos and Overrides-withheld blocks — into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels, whose IDs travel with this skill in `artifacts/gmail-labels.md`. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.3.0)
+description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding and plant-photo-catalogue itself when a supplier, a farm or a plant photo needs one), passing every image and the verbatim body so photographs of plants can be catalogued too, answering that thread's follow-up questions, digesting its report — including its Photos and Overrides-withheld blocks — into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels, whose IDs travel with this skill in `artifacts/gmail-labels.md`. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.3.1)
 metadata:
   author: lps
-  version: "2.3.0"
+  version: "2.3.1"
 ---
 
 # Availability drop intake
@@ -147,14 +147,15 @@ farm, so you still get one report. What you do with each part:
   every location of the company while quoting a per-tab source, or to one
   location while quoting none, contradicts itself. Either is a data risk:
   message Chris now rather than waiting for the daily summary.
-- **Photos** — every image the drop carried is accounted for as catalogued,
-  a duplicate, or not a plant. A drop you know had photographs and a report with
-  no *Photos* block means they were dropped on the floor; ask before filing it.
-  Photos catalogued **unattributed** are normal (the drop covered several of the
-  company's locations, so no single one could be claimed) and not a defect.
-  Anything tagged `web` came off a supplier's page with **rights unresolved** —
-  fine to hold, worth mentioning to Chris the first time it happens for a
-  supplier, not every time after.
+- **Photos** — every image the drop carried is accounted for. **Attached files**
+  as catalogued, a duplicate, or not a plant; **URLs** as captured, never
+  downloaded. A drop you know had photographs and a report with no *Photos*
+  block means they were dropped on the floor; ask before filing it. Photos
+  catalogued **unattributed** are normal (the drop covered several of the
+  company's locations, so no single one could be claimed) and not a defect. A
+  URL that mapped to no inventory row is recorded **only in this report** — if
+  it looks worth keeping, put it in the supplier's `notes.md` when you file the
+  rest.
 - **Overrides withheld** — fields where the thread did *not* let this drop win.
   Empty is the normal case. A non-empty list needs the quoted exception read
   against the values: withholding an overwrite on someone's say-so is correct,

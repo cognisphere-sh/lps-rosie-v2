@@ -1,5 +1,14 @@
 # availability-drop-intake — changelog
 
+## 2.3.1
+
+2026-08-16 — §4's *Photos* block follows `availability-ingestion` 1.2.0: a
+drop's images now split into **attached files** (catalogued, duplicate, or not a
+plant) and **URLs captured, never downloaded**. The `web`-tag/rights paragraph
+is gone with the behaviour it described. A URL that mapped to no inventory row
+lives only in the report, so the block says to move it into the supplier's
+`notes.md` when it is worth keeping.
+
 ## 2.3.0
 
 2026-08-16, with `availability-ingestion` 1.1.0 — a drop's photographs and its
