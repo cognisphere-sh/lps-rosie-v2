@@ -756,9 +756,25 @@ const WRITABLE: Record<string, string[]> = {
   // location they cover. `is_primary` lives on `supplier_contacts` and is set
   // through `setPrimaryContact`.
   contacts: ['name', 'email', 'phone', 'title_department', 'notes'],
+  // No `name` or any `*_key`: derived by `trg_plant_photos_derive_identity`,
+  // exactly as on `inventory`. No `supplier_id`, `captured_at` or `source`
+  // either — provenance and attribution are cataloguing decisions that belong
+  // to whoever received the photo, not to a passing correction in the grid.
+  // `size` *is* editable here, unlike on `inventory`, because no ingestion
+  // pipeline owns a photo's size — someone typing what the label says is the
+  // only way it ever gets fixed.
+  plant_photos: [
+    'common_name', 'botanical_name', 'cultivar_variety_trade_name',
+    'size', 'height', 'width', 'caliper', 'tags', 'caption', 'notes',
+  ],
 }
 
 const NUMERIC = new Set(['unit_price', 'quantity', 'availability_update_days'])
+// Array columns arrive as one comma-separated field. Splitting is all this does
+// — `trg_plant_photos_derive_identity` lowercases, trims, dedupes and sorts the
+// result, so there is one definition of what a tag list is and it is the
+// database's.
+const ARRAY = new Set(['tags'])
 // `availability_update_days` is an integer column, so a fractional value would
 // be rejected by Postgres rather than rounded. Say so here instead.
 const INTEGER = new Set(['availability_update_days'])
@@ -787,10 +803,16 @@ export async function updateFields(
   const entries = Object.entries(changes)
   if (entries.length === 0) throw new Error('at least one change is required')
 
-  const values: Record<string, string | number | null> = {}
+  const values: Record<string, string | number | string[] | null> = {}
   for (const [column, raw] of entries) {
     if (!WRITABLE[table]?.includes(column)) {
       throw new Error(`refusing to write ${table}.${column}`)
+    }
+
+    if (ARRAY.has(column)) {
+      // `tags` is NOT NULL, so an emptied field is an empty array, not null.
+      values[column] = raw.split(',').map((part) => part.trim()).filter(Boolean)
+      continue
     }
 
     let value: string | number | null = raw.trim() === '' ? null : raw.trim()
@@ -808,6 +830,10 @@ export async function updateFields(
     if (table === 'inventory' && column === 'height') values.height_std = null
     if (table === 'inventory' && column === 'width') values.width_std = null
     if (table === 'inventory' && column === 'caliper') values.caliper_std = null
+    // Same rule for a photo's size: `size_std` is a reviewed bucket, not
+    // something to guess from freshly typed text. It drops out of the Size
+    // filter until Daisy sets it — which is the honest state, not a bug.
+    if (table === 'plant_photos' && column === 'size') values.size_std = null
   }
 
   const { error } = await supabase.from(table).update(values).eq('id', id)

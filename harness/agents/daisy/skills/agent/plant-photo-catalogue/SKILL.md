@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, and retiring one — including the delete control app users have on every card. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.1.0)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one, and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.2.0)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Cataloguing and searching plant photos
@@ -249,6 +249,33 @@ where sha256 = '<hash>';
 ```
 
 Restoring one is `set is_active = true`, which `query` allows.
+
+## 4. What app users can change under you
+
+The `/photos` lightbox has a pencil, and it writes to the same row you did. A
+signed-in user can edit the **three name parts, size, height/width/caliper,
+tags, caption and notes** — so a photo's metadata is not yours alone once it is
+catalogued, and `updated_at` moving without a note from you is normal.
+
+They cannot touch `supplier_id`, `captured_at`, `source`, `storage_path`,
+`sha256` or anything derived: attribution and provenance stay cataloguing
+decisions, which means **your `source` line and supplier attribution are safe**,
+and a photo whose identity looks wrong was either catalogued that way or
+corrected in the app — `updated_at` against `created_at` tells you which.
+
+One consequence to know: **editing `size` in the app nulls `size_std`**, by the
+same rule that invalidates a standardized dimension when its source text is
+hand-edited. The photo drops out of the Size filter until someone sets the
+bucket. Repairing that is yours:
+
+```sql
+select id, name, size, size_std from public.plant_photos
+where is_active and size is not null and size_std is null;
+
+update public.plant_photos
+set size_std = '<bucket>'   -- <N>G, <N>" Box, a word grade, or other
+where id = '<uuid>';
+```
 
 ---
 

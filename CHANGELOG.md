@@ -19,6 +19,25 @@ here).
 
 ### Added
 
+- **Edit a photo's details inline** — the `/photos` lightbox gains a pencil that
+  turns its detail panel into a form: the three name parts, size,
+  height/width/caliper, tags and caption/notes, staged locally and written as
+  one atomic update on Save, the same contract the supplier profile uses.
+
+  `WRITABLE.plant_photos` deliberately omits `name` and the `*_key` columns
+  (triggers derive them) and `supplier_id` / `captured_at` / `source`
+  (attribution and provenance are cataloguing decisions, not passing
+  corrections). `tags` arrives as one comma-separated field and is split into an
+  array — the trigger then lowercases, trims, dedupes and sorts it, so the
+  database keeps the only definition of what a tag list is. Editing `size`
+  **nulls `size_std`**, the same rule height/width/caliper already follow on
+  `inventory`; the panel warns that the photo will leave the Size filter until
+  the bucket is set again, rather than letting that happen quietly.
+
+  `composePlantName()` is extracted from `plantEditPatch()` and mirrors the
+  database's `compose_plant_name()`, so an edited card shows its new derived
+  name without refetching a page to learn one string.
+
 - **Delete a photo from the catalogue** — each card on `/photos` carries a
   delete control in its top corner. It confirms first, then soft-deletes
   (`is_active = false`, the schema's convention) through the existing

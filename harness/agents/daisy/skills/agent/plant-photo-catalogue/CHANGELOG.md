@@ -1,5 +1,23 @@
 # plant-photo-catalogue — changelog
 
+## 1.2.0
+
+2026-08-16 — new §4, *What app users can change under you*. The `/photos`
+lightbox gained an edit form, so a catalogued photo's metadata is no longer
+Daisy's alone: a signed-in user can change the three name parts, size,
+height/width/caliper, tags, caption and notes, and `updated_at` moving with no
+note is now normal.
+
+What they cannot touch is the half that matters for trust — `supplier_id`,
+`captured_at`, `source`, `storage_path`, `sha256` and everything derived — so
+the section says that plainly rather than leaving Daisy to wonder whether her
+provenance line survived.
+
+It also carries the repair their edits create: editing `size` in the app nulls
+`size_std` (the same rule that invalidates a standardized dimension when its
+source text is hand-edited), dropping the photo out of the Size filter until
+someone sets the bucket. The query that finds those rows is included.
+
 ## 1.1.0
 
 2026-08-16, with migration 0052 — states the identity/size parity with

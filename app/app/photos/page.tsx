@@ -3,11 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { CloseIcon, ChevronLeft, ChevronRight, TrashIcon } from '@/components/workspace/icons'
+import { CloseIcon, ChevronLeft, ChevronRight, PencilIcon, TrashIcon } from '@/components/workspace/icons'
 import { PHOTO_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useToast } from '@/components/workspace/shell'
 import { MultiFilter } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
+import { composePlantName } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
 import type { PhotoCard, PhotoFacets } from '@/lib/rows'
 import { PHOTO_FILTERS, filterQuery } from '@/lib/server-filters'
@@ -55,6 +56,64 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 /**
+ * The editable fields, in the order the panel shows them.
+ *
+ * Every `column` here is in `WRITABLE.plant_photos`, checked again server-side —
+ * this list decides the form, not what may be written. Absent on purpose:
+ * `name` and the `*_key` columns (derived by trigger), and `supplier_id` /
+ * `captured_at` / `source`, which are cataloguing decisions rather than
+ * corrections.
+ */
+const PHOTO_FIELDS = [
+  { column: 'common_name', label: 'Common', of: (p: PhotoCard) => p.commonName },
+  { column: 'botanical_name', label: 'Botanical', of: (p: PhotoCard) => p.botanicalName },
+  { column: 'cultivar_variety_trade_name', label: 'Cultivar', of: (p: PhotoCard) => p.cultivar },
+  { column: 'size', label: 'Size', of: (p: PhotoCard) => p.size },
+  { column: 'height', label: 'Height', of: (p: PhotoCard) => p.height },
+  { column: 'width', label: 'Width', of: (p: PhotoCard) => p.width },
+  { column: 'caliper', label: 'Caliper', of: (p: PhotoCard) => p.caliper },
+  { column: 'tags', label: 'Tags', of: (p: PhotoCard) => p.tags.join(', '), hint: 'comma separated' },
+  { column: 'caption', label: 'Caption', of: (p: PhotoCard) => p.caption, multiline: true },
+  { column: 'notes', label: 'Notes', of: (p: PhotoCard) => p.notes, multiline: true },
+] as const
+
+const draftOf = (photo: PhotoCard): Record<string, string> =>
+  Object.fromEntries(PHOTO_FIELDS.map((f) => [f.column, f.of(photo) ?? '']))
+
+/**
+ * The saved values, applied to the card without refetching a page to learn
+ * them.
+ *
+ * Two of these mirror database triggers rather than reading the result back:
+ * `name` is composed from the three parts, and `tags` are lowercased, trimmed,
+ * deduped and sorted. Both rules are one line here and one line in
+ * `trg_plant_photos_derive_identity`; keep them in step.
+ */
+function photoEditPatch(photo: PhotoCard, draft: Record<string, string>): PhotoCard {
+  const text = (column: string) => draft[column].trim() || null
+  const tags = [
+    ...new Set(draft.tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)),
+  ].sort()
+  const commonName = text('common_name')
+  const botanicalName = text('botanical_name')
+  const cultivar = text('cultivar_variety_trade_name')
+  return {
+    ...photo,
+    commonName,
+    botanicalName,
+    cultivar,
+    name: composePlantName([commonName, botanicalName, cultivar]) || photo.name,
+    size: text('size'),
+    height: text('height'),
+    width: text('width'),
+    caliper: text('caliper'),
+    tags,
+    caption: text('caption'),
+    notes: text('notes'),
+  }
+}
+
+/**
  * Full-size view of one photo with everything the catalogue knows about it.
  *
  * Rendered in the page rather than on a route of its own, so closing it returns
@@ -65,27 +124,51 @@ function Lightbox({
   index,
   onIndex,
   onClose,
+  onSave,
 }: {
   photos: PhotoCard[]
   index: number
   onIndex: (next: number) => void
   onClose: () => void
+  onSave: (photo: PhotoCard, draft: Record<string, string>) => Promise<boolean>
 }) {
   const router = useRouter()
   const photo = photos[index]
   const supplier = photo?.supplier ?? null
+  const [draft, setDraft] = useState<Record<string, string> | null>(null)
+  const [saving, setSaving] = useState(false)
+  const dirty =
+    draft != null && PHOTO_FIELDS.some((f) => draft[f.column] !== (f.of(photo) ?? ''))
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // While editing, Esc backs out of the form and the arrows belong to the
+      // text fields — stepping to the next photo would discard the draft.
+      if (draft) {
+        if (e.key === 'Escape') setDraft(null)
+        return
+      }
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft' && index > 0) onIndex(index - 1)
       if (e.key === 'ArrowRight' && index < photos.length - 1) onIndex(index + 1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [index, onClose, onIndex, photos.length])
+  }, [draft, index, onClose, onIndex, photos.length])
+
+  // Moving to another photo abandons an unstarted edit rather than carrying one
+  // photo's draft onto the next.
+  useEffect(() => setDraft(null), [photo?.id])
 
   if (!photo) return null
+
+  const save = async () => {
+    if (!draft) return
+    setSaving(true)
+    const ok = await onSave(photo, draft)
+    setSaving(false)
+    if (ok) setDraft(null)
+  }
 
   return (
     <div className="fixed inset-0 z-[120] flex flex-col bg-background/95 backdrop-blur-sm md:flex-row">
@@ -123,6 +206,17 @@ function Lightbox({
       <div className="flex max-h-[52%] flex-none flex-col gap-2 overflow-auto border-t border-border bg-card p-4 md:max-h-none md:w-[340px] md:border-l md:border-t-0">
         <div className="flex items-start gap-2">
           <h2 className="m-0 min-w-0 flex-1 font-serif text-[18px] font-semibold">{photo.name}</h2>
+          {!draft && (
+            <button
+              type="button"
+              onClick={() => setDraft(draftOf(photo))}
+              title="Edit details"
+              aria-label="Edit details"
+              className="flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <PencilIcon size={14} />
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -143,7 +237,7 @@ function Lightbox({
           </button>
         )}
 
-        {photo.tags.length > 0 && (
+        {!draft && photo.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {photo.tags.map((tag) => (
               <span
@@ -156,17 +250,77 @@ function Lightbox({
           </div>
         )}
 
-        <div className="mt-1 flex flex-col gap-1 border-t border-lps-hair pt-2">
-          <DetailRow label="Common" value={photo.commonName} />
-          <DetailRow label="Botanical" value={photo.botanicalName && <em>{photo.botanicalName}</em>} />
-          <DetailRow label="Cultivar" value={photo.cultivar} />
-          <DetailRow label="Size" value={photo.size} />
-          <DetailRow label="Height" value={photo.height} />
-          <DetailRow label="Width" value={photo.width} />
-          <DetailRow label="Caliper" value={photo.caliper} />
-          <DetailRow label="Caption" value={photo.caption} />
-          <DetailRow label="Notes" value={photo.notes} />
-        </div>
+        {draft ? (
+          <div className="mt-1 flex flex-col gap-2 border-t border-lps-hair pt-2">
+            {PHOTO_FIELDS.map((field) => (
+              <label key={field.column} className="flex flex-col gap-1">
+                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                  {field.label}
+                  {'hint' in field && field.hint && (
+                    <span className="ml-1.5 font-medium normal-case tracking-normal text-lps-dim">
+                      {field.hint}
+                    </span>
+                  )}
+                </span>
+                {'multiline' in field && field.multiline ? (
+                  <textarea
+                    rows={3}
+                    value={draft[field.column]}
+                    onChange={(e) => setDraft({ ...draft, [field.column]: e.target.value })}
+                    className="w-full resize-y rounded-[7px] border border-input bg-background px-2 py-1.5 text-[12.5px] outline-none focus:border-primary"
+                  />
+                ) : (
+                  <input
+                    value={draft[field.column]}
+                    onChange={(e) => setDraft({ ...draft, [field.column]: e.target.value })}
+                    className="h-8 w-full rounded-[7px] border border-input bg-background px-2 text-[12.5px] outline-none focus:border-primary"
+                  />
+                )}
+              </label>
+            ))}
+            {/* Says what the database is about to do, rather than letting the
+                photo quietly leave the Size filter after a save. */}
+            {draft.size.trim() !== (photo.size ?? '') && (
+              <p className="m-0 rounded-lg bg-lps-tint px-2.5 py-2 text-[11.5px] text-muted-foreground">
+                Changing the size clears its standardized bucket, so this photo
+                leaves the Size filter until Daisy sets it again.
+              </p>
+            )}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={save}
+                disabled={!dirty || saving}
+                className="h-8 flex-1 rounded-[8px] bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (dirty && !window.confirm('Discard your changes to this photo?')) return
+                  setDraft(null)
+                }}
+                disabled={saving}
+                className="h-8 rounded-[8px] border border-border bg-background px-3 text-[12.5px] font-semibold text-foreground disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-1 flex flex-col gap-1 border-t border-lps-hair pt-2">
+            <DetailRow label="Common" value={photo.commonName} />
+            <DetailRow label="Botanical" value={photo.botanicalName && <em>{photo.botanicalName}</em>} />
+            <DetailRow label="Cultivar" value={photo.cultivar} />
+            <DetailRow label="Size" value={photo.size} />
+            <DetailRow label="Height" value={photo.height} />
+            <DetailRow label="Width" value={photo.width} />
+            <DetailRow label="Caliper" value={photo.caliper} />
+            <DetailRow label="Caption" value={photo.caption} />
+            <DetailRow label="Notes" value={photo.notes} />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1 border-t border-lps-hair pt-2">
           {/* Captured and received are different facts and are shown as such —
@@ -359,6 +513,42 @@ export default function PhotoCataloguePage() {
     [toast],
   )
 
+  /**
+   * Save the lightbox's staged edits — one atomic write of only what changed,
+   * the same contract the supplier profile uses.
+   *
+   * Returns whether it stuck, so the panel knows to leave edit mode. The card
+   * is patched locally rather than refetched: a refetch would re-rank the page
+   * around the row that was just edited and move it out from under the reader.
+   */
+  const savePhoto = useCallback(
+    async (photo: PhotoCard, draft: Record<string, string>) => {
+      const changes: Record<string, string> = {}
+      for (const field of PHOTO_FIELDS) {
+        if (draft[field.column] !== (field.of(photo) ?? '')) {
+          changes[field.column] = draft[field.column]
+        }
+      }
+      if (Object.keys(changes).length === 0) return true
+
+      const res = await fetch('/api/rows', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ table: 'plant_photos', id: photo.id, changes }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        toast(body.error ?? 'Could not save photo')
+        return false
+      }
+      const patched = photoEditPatch(photo, draft)
+      setPhotos((prev) => prev.map((p) => (p.id === photo.id ? patched : p)))
+      toast('Photo updated')
+      return true
+    },
+    [toast],
+  )
+
   const activeFilters = sizes.length + tags.length + cultivars.length + supplierPick.length
   const clearAll = useCallback(() => {
     setQuery('')
@@ -514,6 +704,7 @@ export default function PhotoCataloguePage() {
           index={lightbox}
           onIndex={setLightbox}
           onClose={() => setLightbox(null)}
+          onSave={savePhoto}
         />
       )}
     </Shell>

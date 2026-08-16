@@ -184,6 +184,21 @@ export function splitMultiValue(raw: unknown): string[] {
     .filter(Boolean)
 }
 
+/**
+ * `compose_plant_name()` in TypeScript — the non-empty parts joined by ` - `,
+ * in the order common, botanical, cultivar.
+ *
+ * A deliberate mirror of the database function, needed because the derived
+ * `name` is written by trigger: after an edit the browser has the new parts but
+ * not the composition the database just made from them, and refetching a whole
+ * page to learn one string is worse. Keep the two in step; the rule has been
+ * stable since the three parts were introduced and is one line in both
+ * languages. Used by `inventory` rows and by photo records alike.
+ */
+export function composePlantName(parts: (string | null | undefined)[]): string {
+  return parts.map((part) => (part ?? '').trim()).filter(Boolean).join(' - ')
+}
+
 export function plantEditPatch(
   values: Record<string, CellValue>,
   col: ColumnDef,
@@ -197,10 +212,10 @@ export function plantEditPatch(
   }
   if (!(NAME_PARTS as readonly string[]).includes(col.key)) return patch
 
-  const parts = NAME_PARTS.map((key) =>
-    String((key === col.key ? patch[key] : values[key]) ?? '').trim(),
-  ).filter(Boolean)
-  patch.name = parts.length ? parts.join(' - ') : values.name
+  const composed = composePlantName(
+    NAME_PARTS.map((key) => String((key === col.key ? patch[key] : values[key]) ?? '')),
+  )
+  patch.name = composed || values.name
   return patch
 }
 
