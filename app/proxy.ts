@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+import { resolveUser } from '@/lib/session'
+
 // Gate the app behind the harness login — the same credentials as the harness
 // user store (harness/.secrets/users.json, i.e. HARNESS_USER / HARNESS_PASS).
 //
@@ -15,29 +17,19 @@ import type { NextRequest } from 'next/server'
 // `proxy` is Next 16's replacement for the `middleware` file convention.
 const PUBLIC_PREFIXES = ['/login', '/api/auth']
 
-const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
-
-async function resolveUser(cookie: string): Promise<string | null> {
-  try {
-    const res = await fetch(`${HARNESS_URL}/api/auth/me`, {
-      headers: { cookie },
-      cache: 'no-store',
-    })
-    if (!res.ok) return null
-    // /me answers 200 with { user: null } when the session is bad — the status
-    // alone is not the answer.
-    const body = (await res.json()) as { user?: string | null }
-    return body.user ?? null
-  } catch {
-    // Harness unreachable: fail closed. An outage must not open the database.
-    return null
-  }
-}
+// A published artifact is meant to be readable by anyone with the link — that
+// is the whole point of its public flag — so this one path shape is exempt from
+// the gate. Only `/public/`: the sibling `/a/<agent>/private/...` stays behind
+// it, and the harness serves an artifact here only while it is flagged public.
+const PUBLIC_ARTIFACT = /^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
+    PUBLIC_ARTIFACT.test(pathname)
+  ) {
     return NextResponse.next()
   }
 

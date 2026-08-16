@@ -61,6 +61,13 @@ reference docs and memory.
   `pollIntervalSec: 300`, `gmailQuery: "in:inbox -label:daisy after:2026-07-01
   is:unread"`, `firstOfThreadOnly: false`, `allowedSenders: "*"`,
   `requireAgentInTo: false`.
+- **artifacts** — publishes self-contained HTML pages on the app's domain.
+  Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/daisy"}` — the `/a/daisy`
+  prefix is what keeps its links distinct from Nova's, since the plugin appends
+  `/<public|private>/artifacts/<slug>` itself. Secret `ARTIFACTS_APP_SECRET`,
+  shared with Nova and the app (written by `scripts/app/secrets.sh`). Ships the
+  plugin-owned `publish-artifact` skill and `scripts/artifacts/artifact`. See
+  [`../app/README.md`](../app/README.md) § *Agent artifacts*.
 - **scheduler** — one active schedule: `daisy-daily-9am-checkin`, cron
   `0 9 * * *`, posts a daily 9 AM Telegram summary (completed work, blockers,
   pending approvals) to thread `main`, channel `admin`.

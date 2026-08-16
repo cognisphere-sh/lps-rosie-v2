@@ -133,6 +133,8 @@ is enabled in the desktop rail and through mobile More.
 | `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, searchable multiselects for cultivar, supplier type, city and state in the search toolbar, and header pagination through the whole match set 300 plants at a time. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
+| `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
+| `/a/:agent/public/artifacts/:slug` | route | The same page for anyone with the link, and **the app's only ungated path besides `/login`** — served only while the artifact is flagged public. |
 
 | API route | Purpose |
 |---|---|
@@ -142,6 +144,8 @@ is enabled in the desktop rail and through mobile More.
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
+| `GET /a/:agent/private/artifacts/:slug/raw` | The artifact HTML for the page's iframe, fetched from the harness with the shared secret. |
+| `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
 
@@ -634,6 +638,50 @@ stay solid accent with explicit white text. Chat messages, the composer and the
 appearance preview use Roboto at 16px with a compact 1.35 line height, approximating native
 Telegram typography while leaving the rest of the app on Inter.
 
+## Agent artifacts
+
+Daisy and Nova publish self-contained HTML pages — a report, a summary, a
+dashboard — and hand out a link on this domain. The agent runs
+`scripts/artifacts/artifact publish <file.html>`; the harness's `artifacts`
+plugin stores the file and this app serves it.
+
+Each artifact carries a **public/private flag** that decides which of its two
+links works, and **no URL carries a token** — the slug is the whole path:
+
+```
+https://lps.cognisphere.sh/a/<agent>/public/artifacts/<slug>    anyone, while flagged public
+https://lps.cognisphere.sh/a/<agent>/private/artifacts/<slug>   signed-in users, always
+```
+
+**The agent is a path segment** because both agents publish. The plugin builds
+its share links as `<appBaseUrl>/<public|private>/artifacts/<slug>`, so each
+agent's plugin config carries its own `appBaseUrl`
+(`https://lps.cognisphere.sh/a/daisy`, `.../a/nova`) and one route tree under
+`app/a/[agent]/` serves them both. `ARTIFACTS_AGENTS` is the allowlist: an
+agent not on it is a 404 before any request leaves the app, as is a slug
+outside the plugin's `[a-z0-9-]` charset.
+
+**This app owns authentication; the harness only knows "the app vouched for
+this reader".** The private routes attach a shared `ARTIFACTS_APP_SECRET` as
+`X-Artifacts-Secret`, and without it the harness's private path is a `401` —
+which is what keeps private artifacts off the open `/webhook/*` surface. The
+public path takes no secret and 404s for an artifact that isn't flagged public,
+so it is safe to leave outside the gate in `proxy.ts` — the one path besides
+`/login` that is.
+
+**The artifact renders in a sandboxed iframe and the toggle is app chrome
+around it.** Agent-authored HTML arrives with `Content-Security-Policy: sandbox`
+and no `allow-same-origin`, so it sits in an opaque origin and cannot reach this
+app's cookies or storage. `passThroughHtml` deliberately preserves that header
+across the hop — that relay is the security boundary. It is also why the toggle
+can't live inside the artifact: a sandboxed document could never authenticate
+back to the app.
+
+Source: `lib/artifacts.ts` and `app/a/[agent]/`, adapted from the harness's
+template at `app/artifacts-routes/` — see that directory's `LOCAL.md` for what
+was changed and what to re-check on a harness upgrade. Deploy wiring (the
+shared secret, the agent allowlist) is `scripts/app/secrets.sh`.
+
 ## Notes vs Communications
 
 The profile has two text tabs, backed by two different columns that must not be
@@ -759,10 +807,12 @@ from `config`'s `APP_USER` / `APP_PASS`). `next.config.ts` rewrites
 sets its `pi_sid` cookie.
 
 `proxy.ts` (Next 16's replacement for `middleware`) gates every route except
-`/login` and `/api/auth/*`, and **verifies the session rather than just looking
-for the cookie**: `pi_sid` is a signed stateless token, so it calls the harness
-`/api/auth/me` with the incoming cookie and only proceeds when a user comes
-back.
+`/login`, `/api/auth/*` and the public artifact path (*Agent artifacts*), and
+**verifies the session rather than just looking for the cookie**: `pi_sid` is a
+signed stateless token, so it calls the harness `/api/auth/me` with the incoming
+cookie and only proceeds when a user comes back. That call lives in
+`lib/session.ts` so the gate and the private artifact routes share one
+definition of a real session rather than each carrying its own.
 
 That check is load-bearing. Pages read Supabase with the project's **secret**
 key and can now *write*, and the harness is no longer in the path to reauthorize
@@ -847,6 +897,8 @@ responses are skipped (`cache.put` throws on those), and offline lookups pass
 ```
 app/
   api/           suppliers, suppliers/[id], plants, file, rows, chat/[...path]
+  a/[agent]/     agent artifacts: public/ pass-through, private/ page +
+                 ShareToggle + raw + share
   suppliers/     list + [id] profile
   plants/        grouped plant search
   agents/        Know your Agents — profile banner cards
@@ -888,16 +940,23 @@ lib/
   use-debounced.ts query + filter state debounced as one request
   format.ts        money / number / date formatting
   supabase.ts      server-only client
+  session.ts       resolveUser() — the one definition of a real session,
+                   shared by proxy.ts and the artifact routes
+  artifacts.ts     agent allowlist, upstream URLs, signedIn(), header relay
   utils.ts         cn()
 proxy.ts           session gate
+artifacts-routes/  the harness's own route template, refreshed on upgrade and
+                   excluded from the build — reference only, see its LOCAL.md
 ```
 
 ## Environment
 
 `app/.env.local` is **generated from the repo-root `config`** by
 `scripts/server.sh` — do not hand-edit it. `HARNESS_URL`, `HARNESS_USER`,
-`HARNESS_PASS`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `DOMAIN`, `PORT`. Both
-`config` and `.env.local` are gitignored — keep it that way.
+`HARNESS_PASS`, `DOMAIN`, `PORT` from the stock script; `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`, `ARTIFACTS_AGENTS` and `ARTIFACTS_APP_SECRET` appended by
+the `scripts/app/secrets.sh` deploy hook. Both `config` and `.env.local` are
+gitignored — keep it that way.
 
 ## Scripts
 

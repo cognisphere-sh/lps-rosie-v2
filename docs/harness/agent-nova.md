@@ -49,6 +49,13 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
   `<harness-metadata>` blocks, media downloaded to `plugins/telegram/inbox/`,
   outbound via `scripts/telegram/telegram-cli`. Ships the plugin-owned
   `route-chats` skill.
+- **artifacts** — publishes self-contained HTML pages on the app's domain.
+  Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/nova"}` — the `/a/nova`
+  prefix is what keeps its links distinct from Daisy's, since the plugin appends
+  `/<public|private>/artifacts/<slug>` itself. Secret `ARTIFACTS_APP_SECRET`,
+  shared with Daisy and the app (written by `scripts/app/secrets.sh`). Ships the
+  plugin-owned `publish-artifact` skill and `scripts/artifacts/artifact`. See
+  [`../app/README.md`](../app/README.md) § *Agent artifacts*.
 - **scheduler** — cron timers; `schedule_fire` events; `state/schedules.json`
   empty. Managed via `scripts/scheduler/scheduler-cli`.
 - **agent-messaging** — core plugin since harness 0.8.0 (auto-installed on

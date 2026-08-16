@@ -17,6 +17,48 @@ here).
 
 ## 2026-08-16
 
+### Added
+
+- **Daisy and Nova can publish pages on the app's domain** — the harness's
+  `artifacts` plugin (new in 0.8.23), enabled on both agents. An agent writes a
+  self-contained HTML file, runs `scripts/artifacts/artifact publish`, and gets
+  a link; each artifact carries a public/private flag that decides which of its
+  two URLs works, and **no URL carries a token**.
+
+  ```
+  https://lps.cognisphere.sh/a/<agent>/public/artifacts/<slug>    anyone, while public
+  https://lps.cognisphere.sh/a/<agent>/private/artifacts/<slug>   signed-in users
+  ```
+
+  **The agent is a path segment**, which is the whole reason this deviates from
+  the shipped template. The plugin builds share links as
+  `<appBaseUrl>/<public|private>/artifacts/<slug>`, so two agents cannot share a
+  prefix; upstream's answer is to copy the route tree per agent. Instead each
+  agent's plugin config carries its own `appBaseUrl` (`…/a/daisy`, `…/a/nova`)
+  and one tree under `app/app/a/[agent]/` serves both, with `ARTIFACTS_AGENTS`
+  as the allowlist — a third agent is then a `config.json` and one more name on
+  the list. The upstream template is vendored unmodified at
+  `app/artifacts-routes/` (excluded from the build) so future upgrades refresh
+  it and surface upstream security fixes in the diff; its `LOCAL.md` records
+  what was adapted.
+
+  **`signedIn()` verifies the session** rather than checking that a cookie
+  exists, as the shipped placeholder does: `pi_sid` is a signed stateless token,
+  so it asks the harness `/api/auth/me` — the same call `proxy.ts` makes, now
+  extracted to `lib/session.ts` so there is one definition of a real session
+  instead of one per caller. `/a/*/public/artifacts/*` is the only path besides
+  `/login` left outside the gate; the harness serves it only while the artifact
+  is flagged public.
+
+  Deploy wiring lives in the `scripts/app/secrets.sh` hook, not in `config`'s
+  `ARTIFACTS_AGENT`: that stock path wires exactly one agent **and** would
+  overwrite the committed per-agent `config.json` with a domain-root
+  `appBaseUrl`. The hook generates one `ARTIFACTS_APP_SECRET` (reused across
+  restarts, so links and sessions survive), writes it to both agents' buckets in
+  `harness/.secrets/secrets.json`, and appends it plus the allowlist to
+  `app/.env.local`. New `config` key: `ARTIFACTS_AGENTS` (documented in
+  `scripts/app/config.example`).
+
 ### Changed
 
 - **Harness upgraded 0.8.20 → 0.8.23** (data dir migrated with the

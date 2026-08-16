@@ -4,3 +4,18 @@
 # so it must never be given a NEXT_PUBLIC_ prefix.
 SUPABASE_URL=            # https://<project-ref>.supabase.co
 SUPABASE_SECRET_KEY=     # sb_secret_... (Project settings → API keys)
+
+# ---- artifacts: which agents may publish pages on $DOMAIN ----
+# Comma-separated agent ids. scripts/app/secrets.sh generates one shared
+# ARTIFACTS_APP_SECRET, writes it to each agent's bucket in
+# harness/.secrets/secrets.json, and passes the list to the app as
+# ARTIFACTS_AGENTS — the app 404s any agent not named here.
+#
+# Leave the harness-owned ARTIFACTS_AGENT (singular, in ../../config.example)
+# BLANK: it wires only one agent and would overwrite the committed per-agent
+# plugin config.json with a domain-root appBaseUrl.
+#
+# Adding an agent: add it here, create
+# harness/agents/<agent>/plugins/artifacts/config.json with
+# {"appBaseUrl":"https://$DOMAIN/a/<agent>"}, then `server.sh restart`.
+ARTIFACTS_AGENTS=daisy,nova

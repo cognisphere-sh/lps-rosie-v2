@@ -34,8 +34,8 @@ Comparison:
 | `devAgent` | — | **true** |
 | `maxConcurrentSlots` | 5 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
-| Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram, **webchat** (+ core: agent-messaging) |
-| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, gmail-labels; `memory.md` | `memory.md` only |
+| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
+| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `memory.md` only |
 | Migrations | 0001 (applied, superseded) | — |
 | Skills | 5 LPS procedures + create-skill | cognisphere-upgrade, create-plugin, create-skill |
 
