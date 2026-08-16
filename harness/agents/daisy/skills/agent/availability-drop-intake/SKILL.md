@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding itself when a supplier or farm has no row), answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.2.1)
+description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding itself when a supplier or farm has no row), answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels, whose IDs travel with this skill in `artifacts/gmail-labels.md`. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.2.2)
 metadata:
   author: lps
-  version: "2.2.1"
+  version: "2.2.2"
 ---
 
 # Availability drop intake
@@ -164,8 +164,8 @@ After processing an email drop, apply two Gmail labels to the thread via the
 | `Daisy/Escalated` | needs human review — unsure, or fits none of the above |
 
 Gmail nests labels by the `/` separator. Known label IDs are in
-`knowledge/files/gmail-labels.md`; look them up live if that file is stale, and create
-any missing label first:
+`artifacts/gmail-labels.md` (relative to this skill dir); look them up live if
+that file is stale, and create any missing label first:
 
 ```
 gws gmail users labels list --params '{"userId":"me"}'

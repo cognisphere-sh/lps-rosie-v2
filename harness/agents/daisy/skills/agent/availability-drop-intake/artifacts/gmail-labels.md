@@ -1,7 +1,7 @@
 # Gmail label IDs (Daisy's gws label taxonomy)
 
-Reference IDs only — *which* label to apply and how is the
-`availability-drop-intake` skill.
+Reference IDs only — *which* label to apply and how is **§5 Label the email**
+in this skill's `SKILL.md`, which this file sits beside.
 
 Look these up live with `gws gmail users labels list --params '{"userId":"me"}'`
 if this file goes stale — but as of 2026-07-07 these are the IDs:

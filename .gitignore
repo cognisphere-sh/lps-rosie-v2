@@ -13,6 +13,11 @@ __pycache__/
 # agent workspaces
 **/harness/agents/*/workspace/**
 
+# supplier portal logins an agent keeps under knowledge/. knowledge/ is
+# otherwise tracked, so without this the credentials that moved out of the
+# (ignored) workspace on 2026-08-16 would be committable (CLAUDE.md §6).
+**/harness/agents/*/knowledge/files/credentials/**
+
 # webchat runtime state — the chat transcript, uploaded files and the agent's
 # outbound copies. Session data, so it must never be committed (CLAUDE.md §6).
 # Scoped to webchat on purpose: other plugins keep real config under state/

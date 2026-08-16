@@ -1,5 +1,18 @@
 # availability-drop-intake — changelog
 
+## 2.2.2
+
+Approved by Bhoumik, 2026-08-16. Asset-location change: the Gmail label ID
+table moved from `knowledge/files/gmail-labels.md` into this skill as
+`artifacts/gmail-labels.md`, and §5 names the new path.
+
+Everything a procedure needs travels with the skill — the table is a lookup
+this skill alone reads (`supplier-communications` defers here for labelling
+rather than labelling itself), so it is a supporting artifact, not cross-thread
+knowledge. This walks back the 1.0.0 split, which kept the IDs in `knowledge/`
+when it migrated the label-*application* steps out of that same file. No change
+to what this skill does or does not write.
+
 ## 2.2.1
 
 2026-08-16. Harness 0.8.22 made `email_received` a preview instead of the mail:

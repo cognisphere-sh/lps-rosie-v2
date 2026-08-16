@@ -37,7 +37,24 @@ users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< custom_commands
 ```
 
-> **The catalogue was reset on 2026-08-14 and is being rebuilt.** `inventory`,
+> **The catalogue was emptied again on 2026-08-16**, at Bhoumik's request and
+> by the same hard delete: `inventory` (26,340 rows) and `inventory_sources`
+> (173) are **empty**. `plant_aliases` was kept — all 432 rows survive — but
+> every one of the 431 that carried a `source_id` had it nulled, because the
+> foreign key has no cascade and a retired alias is a deliberate blocklist that
+> deleting would re-open. **The alias table therefore has no provenance left**;
+> `source_line` still holds each pair's verbatim evidence. `suppliers` (1,383)
+> and `contacts` (1,854) were untouched. **No backup schema was taken**, so the
+> 2026-08-16 state is not restorable from the database.
+>
+> The 2,050 supplier availability files under `suppliers/` in the `lps` bucket
+> were deleted in the same pass (1.63 GB), so **there is no re-ingest path
+> either** — and `backup_20260814`'s rows now carry `file_path`s that point at
+> deleted objects. The bucket's other 23 objects are work products, not
+> availability data, and were kept: `daisy_shared/`, the `inventory/` plant
+> photos, `brand/lps-logo-transparent.png` and the favicon.
+>
+> **The catalogue was reset once before, on 2026-08-14.** `inventory`,
 > `inventory_sources` and `plant_aliases` were **deleted outright** — not
 > soft-deleted — at Bhoumik's request, then re-ingestion began. The wipe removed
 > 238,748 inventory rows, 2,113 sources and 127 aliases; suppliers, contacts and

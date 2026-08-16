@@ -93,6 +93,38 @@ here).
   `.claude/skills/` + its `.agents/skills/` mirror) was refreshed wholesale; it
   held no local edits.
 
+- **Daisy's non-thread reference material moved from `workspace/` to
+  `knowledge/files/`** — `brand/`, `credentials/`, `plans/`, `templates/` and
+  `plant-reference-photos/`. The two prompts that define the layout
+  (`0-base_prompt.md` §Workspace, `1-agent.md`) give `workspace/` only
+  `index.md`, `threads/`, `daily_notes/` and (LPS-specific) `suppliers/`;
+  everything cross-thread and non-supplier is `knowledge/`. `credentials/`
+  keeps its `0700` mode and is flagged sensitive in `knowledge/index.md` rather
+  than being summarised there. The five references to the old paths in
+  `daily_notes/2026-08-{02,05,12}.md` and `threads/main/notes.md` were
+  repointed.
+
+  **The move changed what git can see.** `workspace/` is ignored
+  (`.gitignore:14`) but `knowledge/` is tracked, so the relocated dirs became
+  committable — including the supplier portal login. `.gitignore` now carries
+  `**/harness/agents/*/knowledge/files/credentials/**` so it cannot be
+  committed (CLAUDE.md §6); `brand/`, `plans/`, `templates/` and
+  `plant-reference-photos/` are trackable on purpose.
+
+- **The Gmail label ID table moved the other way — out of `knowledge/` and into
+  the skill that reads it** (Bhoumik's call): `knowledge/files/gmail-labels.md`
+  → `skills/agent/availability-drop-intake/artifacts/gmail-labels.md`
+  (`availability-drop-intake` → **2.2.2**, §5 and the description name the new
+  path).
+
+  A procedure's supporting files travel with it, and this one has a single
+  reader — `supplier-communications` defers to `availability-drop-intake` for
+  labelling rather than labelling itself, so nothing else consulted the table.
+  It walks back the skill's own 1.0.0 split, which pulled the label-*application*
+  steps out of that file into the skill but left the IDs behind in `knowledge/`.
+  `knowledge/index.md` now states the rule (a lookup only one skill reads is that
+  skill's artifact) so the table doesn't drift back.
+
 ### Added
 
 - **The supplier profile has an *Other farms* tab.** A company that operates at
@@ -116,6 +148,34 @@ here).
   loads its own count separately.
 
 ### Removed
+
+- **The whole catalogue was deleted again** (Bhoumik's call): `inventory`
+  26,340 rows and `inventory_sources` 173 — every row, active or not — leaving
+  both tables empty. `suppliers` (1,383), `contacts` (1,854) and their links
+  were untouched. A **hard delete with no backup schema**, unlike
+  `backup_20260814`, so this state is not restorable from the database.
+
+  **`plant_aliases` was kept and stripped of provenance.** All 432 rows survive,
+  but the 431 carrying a `source_id` had it nulled —
+  `plant_aliases_source_id_fkey` has no cascade, and deleting the rows instead
+  would have re-opened every retired pair, since `dedupe_plant_aliases()` treats
+  a tombstone as a blocklist. `source_line` still holds each pair's verbatim
+  evidence; what is gone is the link from a pair to the drop it was read out of,
+  which is the hole migration 0040 added `source_id` to close.
+
+  **The 2,050 supplier availability files were deleted from the `lps` bucket
+  too** (1.63 GB — every object under `suppliers/`, current and historical).
+  Only 164 of them backed a live source; the rest were drops the 2026-08-14
+  wipe left behind. **There is now no recovery path for the catalogue at all** —
+  not a backup schema, not a re-ingest. It also strands `backup_20260814`:
+  those 238,748 rows still restore, but every `file_path` they carry now points
+  at a deleted object.
+
+  **The other 23 objects in `lps` were deliberately kept**, being work products
+  rather than availability data: `daisy_shared/` (16 — the Laurent quote PDFs,
+  the supplier duplicate audit CSV, the Twin Lakes image, all handed out as
+  signed links), `inventory/` plant photos (5), `brand/lps-logo-transparent.png`
+  and the favicon. The `chat-attachments` bucket (240 objects) was not touched.
 
 - **Everde Growers (supplier 32) and Devil Mountain Wholesale Nursery
   (supplier 126) were emptied of catalogue data** (Bhoumik's call): 6,780
@@ -147,6 +207,29 @@ here).
   blocklist, and deleting the row would have re-opened Olive↔Olea for
   re-insertion. `source_line` still carries the verbatim evidence; only the link
   to the deleted file is gone.
+
+- **Daisy's email threads were purged from `workspace/` and `sessions/`**
+  (Bhoumik's call), leaving only the main thread and its own task threads:
+
+  - `workspace/threads/` went 364 → 1 dir (131 MB → 125 MB). Deleted: 228 email
+    thread dirs (`Subject[gmailThreadId]`), 61 of their task threads, and 74
+    bare-hex dirs from before the subject-prefixed naming. `threads/main/` and
+    its 99 `tasks/` are untouched.
+  - `sessions/` went 649 → 126 dirs (493 MB → 181 MB). Deleted the 523
+    email-thread sessions; kept `main`, `admin` and the 124
+    `main-§-[TASK]-§-*` task-thread sessions, mirroring what survived under
+    `threads/main/`.
+
+  **Done with the harness stopped** (`server.sh stop harness`), because the
+  running server was writing into these dirs mid-inventory; both agents came
+  back with zero failed plugins and the agent-manager re-backfilled its thread
+  session ids without error. **No backup was taken** and both trees are
+  gitignored (`harness/.gitignore:5`, `.gitignore:14`), so this is not
+  recoverable.
+
+  `workspace/index.md` was rebuilt from 552 lines to 73: every entry pointing at
+  a deleted thread dir is gone, and the 38 `main`-scoped entries were kept
+  verbatim.
 
 ## 2026-08-15
 

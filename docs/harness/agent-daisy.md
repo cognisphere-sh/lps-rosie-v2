@@ -93,9 +93,26 @@ reference docs and memory.
   replaced with a copy.
 - `files/suppliers.md` — pointer stub: per-supplier notes now live under
   `workspace/suppliers/[<id>]:<Name>/notes.md` (see `workspace/suppliers/index.md`).
-- `files/gmail-labels.md` — Gmail label ID taxonomy (e.g. `Daisy` = `Label_12`) with a
-  live-lookup command if stale, plus the `gws`-binary-location gotcha. Reference
-  IDs only — *which* label to apply is the `availability-drop-intake` skill.
+- `files/brand/` — LPS logo assets.
+- `files/credentials/` — **sensitive**, mode `0700`: supplier portal logins
+  (currently Garden Center Plants LLC / Buchholz, supplier 22). Values are never
+  printed or forwarded.
+- `files/plans/` — long-lived plan documents.
+- `files/templates/` — reusable output templates, with their own `index.md`.
+- `files/plant-reference-photos/` — Chris-provided plant reference intake, one
+  dated dir per drop, each with an `index.md` manifest. Reference photos only:
+  not supplier availability, and not linked to `inventory` rows.
+
+The last five moved here from the `workspace/` root on 2026-08-16 — reference
+material that is neither thread- nor supplier-scoped belongs in `knowledge/`,
+leaving `workspace/` to `index.md`, `threads/`, `suppliers/` and `daily_notes/`.
+
+Moving the other way on the same date: the **Gmail label ID table** left
+`files/gmail-labels.md` for
+`skills/agent/availability-drop-intake/artifacts/gmail-labels.md`. Only that one
+skill reads it, so it travels with the skill rather than sitting in shared
+knowledge — the rule being that `knowledge/` holds what several threads or
+skills consult, and a single skill's lookup table is one of its artifacts.
 
 `knowledge/memory.md` is Daisy's cross-thread memory — one grep-able file of
 sections separated by `-----$-----$-----$-----`, each with `name`,
