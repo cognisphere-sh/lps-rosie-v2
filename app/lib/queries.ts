@@ -8,6 +8,7 @@ import type {
   PlantGroup,
   PlantRow,
   SourceLink,
+  SupplierLocation,
   SupplierRef,
   SupplierRow,
   SupplierSource,
@@ -604,6 +605,39 @@ export async function getSupplier(id: number): Promise<SupplierRow | null> {
     contacts: contacts.get(id) ?? [],
     itemCount: counts[id] ?? 0,
   })
+}
+
+/**
+ * The company's *other* active locations, head branch first.
+ *
+ * `head_branch_id` is never null and never chains — a single-site supplier
+ * points at itself — so one equality on it is the whole company, and dropping
+ * the supplier being viewed leaves exactly its siblings. An empty result means
+ * this supplier is the company's only location.
+ */
+export async function getSupplierLocations(id: number): Promise<SupplierLocation[]> {
+  const { data: self, error: selfError } = await supabase
+    .from('suppliers')
+    .select('head_branch_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (selfError) throw new Error(`suppliers(${id}) head branch: ${selfError.message}`)
+  if (!self) return []
+  const head = (self as { head_branch_id: number }).head_branch_id
+
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('id, name, category, city, state')
+    .eq('head_branch_id', head)
+    .eq('is_active', true)
+    .neq('id', id)
+    .order('name', { ascending: true })
+  if (error) throw new Error(`suppliers locations(${head}): ${error.message}`)
+
+  type Row = Omit<SupplierLocation, 'is_head'>
+  return ((data ?? []) as Row[])
+    .map((r) => ({ ...r, is_head: r.id === head }))
+    .sort((a, b) => Number(b.is_head) - Number(a.is_head))
 }
 
 export async function getSupplierSources(id: number): Promise<SupplierSource[]> {

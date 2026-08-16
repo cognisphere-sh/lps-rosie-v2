@@ -17,12 +17,12 @@ import { FilterControl } from '@/components/workspace/table-parts'
 import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, PLANT_COLS, plantEditPatch, websiteHref, type ColumnDef } from '@/lib/columns'
 import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { formatDate, money, num } from '@/lib/format'
-import type { Contact, PlantRow, SupplierRow, SupplierSource } from '@/lib/rows'
+import type { Contact, PlantRow, SupplierLocation, SupplierRow, SupplierSource } from '@/lib/rows'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
-type Tab = 'notes' | 'comms' | 'contacts' | 'inventory' | 'files'
+type Tab = 'notes' | 'comms' | 'contacts' | 'inventory' | 'files' | 'locations'
 const DIMENSION_FILTERS = [
   { key: 'h', label: 'Height (ft)' },
   { key: 'w', label: 'Width (in)' },
@@ -326,6 +326,7 @@ export default function SupplierProfilePage() {
 
   const [supplier, setSupplier] = useState<SupplierRow | null>(null)
   const [sources, setSources] = useState<SupplierSource[]>([])
+  const [locations, setLocations] = useState<SupplierLocation[]>([])
   const [notFound, setNotFound] = useState(false)
   const [tab, setTab] = useState<Tab>('inventory')
   const [profileEditing, setProfileEditing] = useState(false)
@@ -376,7 +377,7 @@ export default function SupplierProfilePage() {
     const requested = new URL(window.location.href).searchParams.get('tab')
     if (
       requested === 'notes' || requested === 'comms' || requested === 'contacts' ||
-      requested === 'inventory' || requested === 'files'
+      requested === 'inventory' || requested === 'files' || requested === 'locations'
     ) {
       setTab(requested)
     }
@@ -414,10 +415,15 @@ export default function SupplierProfilePage() {
         }
         return r.json()
       })
-      .then((body: { supplier?: SupplierRow; sources?: SupplierSource[] } | null) => {
+      .then((body: {
+        supplier?: SupplierRow
+        sources?: SupplierSource[]
+        locations?: SupplierLocation[]
+      } | null) => {
         if (!body?.supplier) return
         setSupplier(body.supplier)
         setSources(body.sources ?? [])
+        setLocations(body.locations ?? [])
         setContacts(body.supplier.contacts ?? [])
         setNoteDraft((body.supplier.values.notes as string | null) ?? '')
         setNoteDirty(false)
@@ -793,13 +799,25 @@ export default function SupplierProfilePage() {
   ].filter(Boolean).join(' · ')
   const profileExpanded = !isMobile || profileDetailsOpen || profileEditing
 
+  // A supplier with no siblings is its own head branch, which is the same
+  // statement as "this company has one location" — there is no other farm to
+  // show, so the tab is not offered at all.
   const tabs: [Tab, string][] = [
     ['inventory', `Inventory (${values.item_count == null ? plants.length : num(values.item_count)})`],
     ['contacts', `Contacts (${contacts.length})`],
+    ...(locations.length > 0
+      ? ([['locations', `Other farms (${locations.length})`]] as [Tab, string][])
+      : []),
     ['comms', `Communications (${commsEntries.length})`],
     ['notes', 'Notes'],
     ['files', `Files (${sources.length})`],
   ]
+  // `?tab=locations` on a single-site supplier asks for a tab that isn't there.
+  const activeTab = tabs.some(([t]) => t === tab) ? tab : 'inventory'
+
+  // Every location's head is in the group and `head_branch_id` never chains, so
+  // when no sibling is flagged the supplier being viewed is itself the head.
+  const isHeadOffice = locations.length > 0 && !locations.some((l) => l.is_head)
 
   return (
     <Shell
@@ -982,7 +1000,7 @@ export default function SupplierProfilePage() {
               onClick={() => setTab(id_)}
               className={cn(
                 'shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-2 py-1 text-[11.5px] font-semibold sm:px-3.5 sm:py-1.5 sm:text-[12.5px]',
-                tab === id_ ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-foreground',
+                activeTab === id_ ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-foreground',
               )}
             >
               {label}
@@ -990,7 +1008,7 @@ export default function SupplierProfilePage() {
           ))}
         </div>
 
-        {tab === 'notes' && (
+        {activeTab === 'notes' && (
           <div className="flex max-w-[720px] flex-col gap-2.5 p-4">
             <p className="text-[12px] text-muted-foreground">
               What stays <em>true about</em> this supplier — quirks, preferences, ordering
@@ -1027,7 +1045,7 @@ export default function SupplierProfilePage() {
           </div>
         )}
 
-        {tab === 'contacts' && (
+        {activeTab === 'contacts' && (
           <div className="flex max-w-[760px] flex-col gap-2.5 p-4">
             <p className="text-[12px] text-muted-foreground">
               People at this supplier. The <strong>primary</strong> is the one the supplier tables
@@ -1102,7 +1120,55 @@ export default function SupplierProfilePage() {
           </div>
         )}
 
-        {tab === 'comms' && (
+        {activeTab === 'locations' && (
+          <div className="flex max-w-[760px] flex-col gap-2.5 p-4">
+            <p className="text-[12px] text-muted-foreground">
+              The company&rsquo;s other sites. Each one is its own supplier with its own stock,
+              prices and pickup, so a buyer picks a farm, not a company —{' '}
+              {isHeadOffice
+                ? 'this location is the head office, where the switchboard and company-level contacts sit.'
+                : 'the head office is where the switchboard and company-level contacts sit.'}
+            </p>
+
+            <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))' }}>
+              {locations.map((l) => (
+                <Link
+                  key={l.id}
+                  href={`/suppliers/${l.id}`}
+                  onClick={(event) => {
+                    if (profileDirty && !window.confirm('Discard your unsaved supplier changes?')) {
+                      event.preventDefault()
+                    }
+                  }}
+                  className={cn(
+                    'flex flex-col gap-1.5 rounded-xl border bg-card p-[13px_14px] hover:border-primary',
+                    l.is_head ? 'border-primary' : 'border-border',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 text-[13.5px] font-bold">{l.name}</span>
+                    {l.is_head && (
+                      <span className="flex-none rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-primary">
+                        Head office
+                      </span>
+                    )}
+                  </div>
+                  {l.category && (
+                    <div className="text-[11.5px] text-muted-foreground">{l.category}</div>
+                  )}
+                  <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+                    <MapPinIcon size={12} className="flex-none" />
+                    <span className="truncate">
+                      {[l.city, l.state].filter(Boolean).join(', ') || 'No city on file'}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'comms' && (
           <div className="flex max-w-[720px] flex-col gap-2.5 p-4">
             <p className="text-[12px] text-muted-foreground">
               Every contact with this supplier, newest first. Append-only — entries are never
@@ -1171,7 +1237,7 @@ export default function SupplierProfilePage() {
           </div>
         )}
 
-        {tab === 'inventory' && (
+        {activeTab === 'inventory' && (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card p-[12px_16px]">
               <div className="w-[300px] max-w-full">
@@ -1286,7 +1352,7 @@ export default function SupplierProfilePage() {
           </div>
         )}
 
-        {tab === 'files' && (
+        {activeTab === 'files' && (
           <div className="flex max-w-[720px] flex-col gap-2.5 p-4">
             <div
               title="Uploads happen through the agents, not this app"

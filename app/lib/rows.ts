@@ -48,6 +48,24 @@ export interface Contact {
   updated_at: string | null
 }
 
+/**
+ * Another active location of the same company — a sibling row sharing this
+ * supplier's `head_branch_id`.
+ *
+ * A company that operates at several sites is several `suppliers` rows, one per
+ * location, and one of them is the head branch (see docs/supabase-schema.md).
+ * This never includes the supplier being viewed, so `is_head` is false on every
+ * entry when the supplier being viewed is itself the head.
+ */
+export interface SupplierLocation {
+  id: number
+  name: string
+  category: string | null
+  city: string | null
+  state: string | null
+  is_head: boolean
+}
+
 export interface SupplierRow {
   id: number
   ref: SupplierRef

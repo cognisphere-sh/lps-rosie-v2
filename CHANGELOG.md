@@ -15,6 +15,63 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-16
+
+### Added
+
+- **The supplier profile has an *Other farms* tab.** A company that operates at
+  several sites is several `suppliers` rows sharing a `head_branch_id`, and the
+  profile had no way to get from one to the others — the only cross-location
+  link on the page was a contact's *Also covers* line, which only shows the
+  locations that happen to share that contact. The tab lists every other active
+  location as a card (name, category, city/state) linking to its profile, head
+  branch first and tagged **Head office**.
+
+  The tab is offered **only when there is another location**, so the 1,326
+  single-site suppliers don't get an empty tab; `?tab=locations` on one of them
+  falls back to Inventory. Viewing the head office itself tags no card — it is
+  not one of its own other farms — and the tab's intro says so instead.
+
+  New `getSupplierLocations()` in `app/lib/queries.ts`, returned as `locations`
+  by `GET /api/suppliers/:id`. It is two cheap indexed reads, not a per-location
+  count pass: `head_branch_id` never chains, so one equality on it is the whole
+  company. **No item count on the cards** — that would be one `COUNT` per
+  location on every profile load (Moon Valley has 17), and the profile already
+  loads its own count separately.
+
+### Removed
+
+- **Everde Growers (supplier 32) and Devil Mountain Wholesale Nursery
+  (supplier 126) were emptied of catalogue data** (Bhoumik's call): 6,780
+  `inventory` rows — 6,187 Everde, 593 Devil Mountain — and their 10
+  `inventory_sources`, every one of them active. Active inventory across the
+  rebuild went 31,560 → 24,780, active sources 174 → 164. The two `suppliers`
+  rows themselves, their contacts and their locations were **not** touched, and
+  neither were the source files in the `lps` storage bucket.
+
+  These were the only two multi-location companies with anything ingested since
+  the 2026-08-14 reset, so no multi-farm supplier now carries catalogue data.
+  Both had their availability ingested against the **head branch** rather than
+  the individual farms.
+
+  A **hard delete, against the schema's soft-delete convention**, for the same
+  reason the 2026-08-14 wipe was: a deactivated source cascades to its rows
+  irreversibly (`trg_cascade_source_deactivation` records nothing about which
+  rows it retired), so a soft retire would have been no more recoverable while
+  leaving the tables carrying 6,780 rows they could not describe. **No backup
+  schema was taken this time** — unlike `backup_20260814`, this is not
+  restorable from the database. The 10 source files remain in the bucket, so a
+  re-ingest is the recovery path.
+
+- **Alias 242 (`Olive` ↔ `Olea`) kept its tombstone and lost its provenance.**
+  It was the one `plant_aliases` row pointing at a deleted source — already
+  `is_active = false` — and `plant_aliases_source_id_fkey` has no cascade, so
+  the first delete attempt aborted on it. Its `source_id` was nulled rather than
+  the row deleted: `dedupe_plant_aliases()` treats a retired pair as a
+  blocklist, and deleting the row would have re-opened Olive↔Olea for
+  re-insertion. `source_line` still carries the verbatim evidence; only the link
+  to the deleted file is gone.
+
 ## 2026-08-15
 
 ### Changed

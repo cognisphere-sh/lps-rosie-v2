@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { getSupplier, getSupplierSources } from '@/lib/queries'
+import { getSupplier, getSupplierLocations, getSupplierSources } from '@/lib/queries'
 
 export async function GET(
   _req: Request,
@@ -13,9 +13,13 @@ export async function GET(
   }
 
   try {
-    const [supplier, sources] = await Promise.all([getSupplier(id), getSupplierSources(id)])
+    const [supplier, sources, locations] = await Promise.all([
+      getSupplier(id),
+      getSupplierSources(id),
+      getSupplierLocations(id),
+    ])
     if (!supplier) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    return NextResponse.json({ supplier, sources })
+    return NextResponse.json({ supplier, sources, locations })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
