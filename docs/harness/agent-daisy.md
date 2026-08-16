@@ -313,6 +313,13 @@ and when; the summaries below are one line each.
   supplier — points at itself, so the column is never null and never chains. The
   16 heads were picked from the contacts on file and confirmed against each
   company's published head-office address; the table is dropped.
+- `0051_plant_photo_catalogue.sql` — approved/applied 2026-08-16. The searchable
+  photo catalogue: `public.plant_photos`, the **private** `plant-photos` bucket,
+  and `search_plant_photos` — `search_inventory`'s ranking over a photo's name,
+  size, caption, tags and notes, so the alias graph reaches photos too. Purely
+  additive; nothing existing was touched. Deliberately an MVP of the plan in
+  `knowledge/files/plans/searchable-photo-catalogue-plan.md`: one table rather
+  than the plan's seven, and **no review/approval gate**.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
@@ -391,6 +398,16 @@ something changed and stay true.
   `search_suppliers` usage, the split plant identity and untyped alias edges,
   listing straight from `inventory` (0050 dropped `inventory_enriched`),
   filter relaxation, key-column rules, answer shape.
+- **plant-photo-catalogue** — the owner of every `plant_photos` write: the
+  intake checklist (hash → dedupe on `sha256` → upload to the private
+  `plant-photos` bucket at an id-built path → insert), the evidence rules that
+  keep a reference photo from being read as an availability claim (supplier,
+  size and dimensions are written only when a source stated them, size is never
+  inferred from apparent scale, and a conflict between two sources is preserved
+  in `notes` rather than reconciled), `search_plant_photos` and filtering over
+  its result, sharing with a signed URL, and soft-retiring. Its search half
+  points at `plant-and-supplier-search` for how the ranking thinks rather than
+  restating it — the two RPCs run the same algorithm over different documents.
 - **supplier-communications** — one skill for talking to a supplier and
   recording it (merges the former `supplier-communication-log` and
   `supplier-email-reply`): the never-reply-unbidden rule, the main-thread

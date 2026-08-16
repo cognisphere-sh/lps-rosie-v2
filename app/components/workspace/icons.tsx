@@ -133,6 +133,13 @@ export const FileIcon = (p: P) => (
   </svg>
 )
 
+export const PhotosIcon = (p: P) => (
+  <svg {...stroke} {...box(p)} className={p.className}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="8.5" cy="9.5" r="1.5" /><path d="M21 15l-5-5-9 9" />
+  </svg>
+)
+
 export const UploadIcon = (p: P) => (
   <svg {...stroke} {...box(p)} className={p.className}><path d="M4 16v3h16v-3M12 4v11M8 8l4-4 4 4" /></svg>
 )

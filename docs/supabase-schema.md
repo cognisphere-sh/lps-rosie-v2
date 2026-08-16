@@ -15,8 +15,9 @@ Last verified against the live database on 2026-08-12 by direct catalog
 introspection; the contact/location tables were re-verified on 2026-08-14 after
 migrations 0033–0034, the plant identity / alias half on 2026-08-14 after
 migration 0040, the source-deactivation invariant on 2026-08-14 after
-migration 0048, and the supplier head-branch column on 2026-08-15 after
-migration 0049. **If you find a discrepancy, fix this file in the same change.**
+migration 0048, the supplier head-branch column on 2026-08-15 after
+migration 0049, and the photo catalogue on 2026-08-16 after migration 0051.
+**If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
 
@@ -31,6 +32,8 @@ suppliers 1 ──< inventory_sources 1 ──< inventory >── plant_aliases 
           1 ─────────────────────────< inventory
           1 ─────────────────────────< supplier_contacts >───────────── 1 contacts
           1 ─────────────────────────< availability_queries
+          1 ─────────────────────────< plant_photos   (optional; SET NULL, never cascade)
+                                       plant_photos >── plant_aliases (by identity key, no FK)
 
 users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< user_memories (1:1)
@@ -633,6 +636,52 @@ future audit, read the REJECTED RULES section of
 `harness/agents/daisy/migrations/0008_alias_quality_audit.sql` — four plausible
 rules were built, measured and thrown out there for destroying genuine data.
 
+### `plant_photos`
+
+The searchable plant photo catalogue. One row per catalogued photo. Added
+2026-08-16 by migration 0051, from the plan in daisy's
+`knowledge/files/plans/searchable-photo-catalogue-plan.md`.
+
+**A photo is an independent record, not a column on `inventory`.** Its supplier
+is optional, it may show a plant nobody currently stocks, and nothing about it
+is retired when inventory or a supplier is. A catalogued photo says *this is
+what this plant looks like* — never *this supplier has it in stock*.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | uuid | no | PK, `gen_random_uuid()`. Also names the object — see `storage_path` |
+| `storage_bucket` | text | no, default `plant-photos` | |
+| `storage_path` | text | no | Object key inside that bucket, `suppliers/<supplier-id>/YYYY/MM/<id>.<ext>` or `unassigned/YYYY/MM/<id>.<ext>`. `YYYY/MM` is when it was **received**. Built from ids, never from a supplier name |
+| `mime_type` / `byte_size` / `image_width` / `image_height` | text / bigint / int / int | yes | File facts, recorded at intake |
+| `sha256` | text | yes | Exact-duplicate key, **unique where not null**. The same file arriving twice is one row with a second origin appended to `source`, not a second object |
+| `supplier_id` | bigint → `suppliers.id` ON DELETE SET NULL | yes | **Optional**, and only when a source said so. Never guessed |
+| `common_name` / `botanical_name` / `cultivar_variety_trade_name` | text | yes | The same three-part identity `inventory` carries, each holding only what a source printed |
+| `name` | text | yes | **Derived** — `compose_plant_name()` of the three parts, by trigger |
+| `common_name_key` / `botanical_name_key` / `cultivar_keys` | text / text / text[] | yes | **Derived** by the same trigger, same rules as `inventory` |
+| `size` / `size_std` | text | yes | Only from an explicit statement — a printed label, a price list, or someone saying so. **Never inferred from apparent scale in the frame** |
+| `height` / `width` / `caliper` | text | yes | Same rule. Stated, or null |
+| `tags` | text[] | no, default `{}` | Lowercased, trimmed, deduped and sorted by trigger |
+| `caption` | text | yes | What is visibly in the frame |
+| `notes` | text | yes | What is *not* established, and any conflict between sources — preserved, never reconciled |
+| `source` | text | yes | Verbatim provenance: who, which channel, which message, when |
+| `captured_at` | timestamptz | yes | When the photo was **taken**, if known. Null rather than guessed |
+| `is_active` | boolean | no, default true | Soft delete. Retired rows leave search and `/photos` at once; the object stays in the bucket |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | When we **received** it, and when the row last changed. `updated_at` by trigger |
+
+Three timestamps, three different facts: a photo taken last spring and sent
+yesterday is not fresh. Freshness is read off `captured_at` falling back to
+`created_at` — there is no manually edited flag.
+
+> **What migration 0051 deliberately deferred.** The plan's phase-1 shape is
+> seven tables — a separate `photo_assets`, many-to-many subjects / supplier
+> links / inventory links / tags, and `photo_provenance_events` — plus a review
+> workflow (`pending`/`approved`/`quarantined`), perceptual hashing and
+> generated `display.webp` / `thumb.webp` derivatives. **None of that exists.**
+> One photo carries one subject, at most one supplier and a `text[]` of tags.
+> The columns that make the larger model reachable without a rewrite are here:
+> `sha256`, `source`, and the three separate timestamps. There is **no approval
+> gate** — a catalogued photo is visible to every signed-in user immediately.
+
 ---
 
 ## Views
@@ -667,7 +716,8 @@ on it** — nothing reads it, and it is a candidate for removal.
 |---|---|---|
 | `normalize_search_text(text)` | text | Search tokenization: lowercase, punctuation → spaces, split letter↔digit boundaries ("1G" → "1 g"). The pgroonga document/query normalizer — the concatenation in `search_inventory` must stay byte-identical to the two `inventory_search_*_idx` expressions or the indexes are skipped |
 | `normalize_plant_key(text)` | text | Identity key for plant names: lowercase **letters only** ("Live-Oak 2" → "liveoak"). Backs the generated `*_key` columns |
-| `compose_plant_name(text, text, text)` | text | The SOP name format: the non-empty parts joined by ` - `, in the order common, botanical, cultivar; NULL when all three are empty. What `trg_inventory_derive_identity` writes into `inventory.name` |
+| `compose_plant_name(text, text, text)` | text | The SOP name format: the non-empty parts joined by ` - `, in the order common, botanical, cultivar; NULL when all three are empty. What `trg_inventory_derive_identity` writes into `inventory.name` — and, since 0051, `plant_photos.name` too |
+| `plant_photo_document(name, size, caption, tags, notes)` | text | The searchable text of a photo, IMMUTABLE. **The single definition** behind both `plant_photos_search_*` indexes and `search_plant_photos` — which is why the photo side cannot drift the way the inventory side can, where the same concatenation is repeated in five places |
 | `normalize_size(text)` | text | Size-string normalizer — canonicalizes units/spacing/leading zeros (`"1G"` → `"1 G"`, `"024 Inch Box"` → `"24\" Box"`). **Nothing calls it automatically** (no trigger, no default): ingestion applies it, and migration 0019 applied it to the 38,090 legacy rows that had drifted |
 
 ### Search RPCs
@@ -810,6 +860,32 @@ result by the caller (0045).
   `availability_source_type`, `availability_update_days`,
   `hosted_availability_url`, `created_at`, `updated_at`.
 
+```
+search_plant_photos(search text = '', fuzzy_ratio real = 0.34)
+```
+`search_inventory`'s ranking, over the photo catalogue — same algorithm, same
+contract, added 2026-08-16 by migration 0051. Two parameters, neither a filter;
+supplier scoping, size/tag filtering and sorting are applied as SQL over the
+result. Query groups, alias expansion, size-as-a-phrase-group and
+`relevance = Σ idf` all behave exactly as described above, so everything in
+*How it ranks* applies unchanged.
+
+Returns the `plant_photos` columns plus `supplier_name`, `supplier_category`,
+`supplier_city`, `supplier_state` and `relevance` — 32 columns.
+
+Two things differ from `search_inventory`, both deliberate:
+
+- **The document is `name + size + caption + tags + notes`**, via
+  `plant_photo_document()`. Dimensions are out of it — filter columns, not
+  search text — as on `inventory`.
+- **Suppliers join `LEFT`**, because a photo's supplier is optional. An inner
+  join would hide every unattributed photo. `supplier_name` is therefore null
+  on those rows rather than the row being absent.
+
+An empty search returns zero rows, as with `search_inventory`. Listing is the
+table's job — the app's `/photos` grid reads `plant_photos` directly when there
+is no query, which is the normal way to browse a photo catalogue.
+
 ### Other
 
 `execute_readonly_query(query text) → jsonb` — generic read-only query helper.
@@ -823,9 +899,10 @@ result by the caller (0045).
 | `trg_cascade_supplier_deactivation` | suppliers | AFTER UPDATE OF `is_active`, true→false | Deactivates the supplier's `inventory` rows, `inventory_sources` and `supplier_contacts` links — plus any contact left with no active link at all |
 | `trg_cascade_source_deactivation` | inventory_sources | AFTER UPDATE OF `is_active`, true→false | Deactivates every active `inventory` row whose `source_id` is that file. One way: reactivating the source does not restore them |
 | `trg_inventory_derive_identity` | inventory | BEFORE INSERT OR UPDATE | Trims the three name parts, composes `name` from them, derives `common_name_key` / `botanical_name_key` and the `cultivar_keys` array |
+| `trg_plant_photos_derive_identity` | plant_photos | BEFORE INSERT OR UPDATE | The same derivation as above, plus folding `tags` to trimmed lowercase, deduped and sorted |
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
-| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
 
 ## Indexes that matter
 
@@ -876,6 +953,17 @@ result by the caller (0045).
   If you add a key column, `ANALYZE` afterward or the planner reverts to seq scans.
 - `inventory(source_id)`, `inventory(supplier_id, is_active)`,
   `inventory_sources(supplier_id)`.
+- `plant_photos_search_ngram_idx` / `plant_photos_search_word_idx` — the same
+  pgroonga pair, over `normalize_search_text(plant_photo_document(…))`. Because
+  both the indexes and `search_plant_photos` call that one IMMUTABLE function,
+  the byte-identical-expression trap the `inventory_search_*` pair lives with
+  cannot arise here. **Change the function and both indexes must be rebuilt.**
+- `plant_photos_object_idx` — unique `(storage_bucket, storage_path)`: one
+  catalogue row per object. `plant_photos_sha256_idx` — unique on `sha256`
+  where non-null: one row per distinct file.
+- `plant_photos_supplier_idx`, `plant_photos_active_created_idx` (backs the
+  no-query grid), `plant_photos_size_std_idx`, and GIN on `cultivar_keys` and
+  `tags` for the app's tag filter.
 
 ## Extensions
 
@@ -900,6 +988,7 @@ Gmail OAuth tokens) included.
 | `users` | enabled | Per-user via `auth.uid()` |
 | `inventory_sources` | enabled | `authenticated` full access |
 | `plant_aliases` | enabled | `authenticated` full access (replaced `plant_other_names` 2026-08-14) |
+| `plant_photos` | enabled | `authenticated` full access (added 2026-08-16, migration 0051) |
 | `contacts` | enabled | `authenticated` full access |
 | `supplier_contacts` | enabled | `authenticated` full access (added 2026-08-14) |
 | `custom_commands` | enabled | Per-user via `auth.uid()` |
@@ -936,19 +1025,28 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
 
 ## Storage buckets
 
-Both buckets are **public** — an object key is directly fetchable, no signing
-required.
+- `lps` — **public.** Supplier price-list source files and the older plant
+  photos. Rate-card files go under `suppliers/<slug>/rate-cards/<file>`
+  (`<slug>` = kebab-cased supplier name). Store the **object key** (no scheme)
+  in `inventory_sources.file_path`; a full URL is also accepted there.
+  Agent-shared files go under `daisy_shared/YYYY-MM-DD/<filename>`.
+- `chat-attachments` — **public.** App chat uploads.
+- `plant-photos` — **private**, added 2026-08-16 with migration 0051. The photo
+  catalogue's bytes, keyed by `plant_photos.storage_path`. Capped at 25 MB per
+  object and restricted to `image/jpeg|png|webp|heic|heif`, so a bad file fails
+  at upload rather than after a row is written. **No storage policy exists**, so
+  only the secret key and `postgres` reach the objects at all.
 
-- `lps` — plant photos and supplier price-list source files. Rate-card files go
-  under `suppliers/<slug>/rate-cards/<file>` (`<slug>` = kebab-cased supplier
-  name). Store the **object key** (no scheme) in `inventory_sources.file_path`;
-  a full URL is also accepted there. Agent-shared files go under
-  `daisy_shared/YYYY-MM-DD/<filename>`.
-- `chat-attachments` — app chat uploads.
-
-> Because `lps` is public, treat anything uploaded to it as world-readable.
-> Pre-signed URLs still work and remain the convention for sharing files with
-> users, but they are a courtesy, not an access control.
+> Because `lps` and `chat-attachments` are public, treat anything uploaded to
+> them as world-readable. Pre-signed URLs still work there and remain the
+> convention for sharing files with users, but they are a courtesy, not an
+> access control.
+>
+> `plant-photos` is the exception, and signing is load-bearing rather than
+> polite. The app serves every image through `/api/photos/<id>/image`, which
+> takes a **photo id** and reads the path from the row — a client never supplies
+> a storage path, so the endpoint cannot be turned into a signing oracle for the
+> bucket. Agents use `scripts/agent/supabase/sign-url`.
 
 ---
 
@@ -985,6 +1083,11 @@ required.
 - `file_path`: object key or full URL; anything without `http(s)://` is a key in
   the `lps` bucket.
 - Never write generated `*_key` columns.
+- A **photo** is a reference record, not an availability record. Its supplier,
+  size and dimensions are written only when a source stated them — size is never
+  inferred from apparent scale — and a conflict between two sources is preserved
+  in `notes`, never reconciled. Retiring a supplier or an inventory row does not
+  retire a photo.
 - `suppliers.notes` = facts about the supplier; `suppliers.communication_notes`
   = an append-only log of contact with them. Never append contact history to
   `notes`, and never overwrite `communication_notes`.

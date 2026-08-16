@@ -131,6 +131,7 @@ is enabled in the desktop rail and through mobile More.
 | `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, view-only row hiding, and header pagination through the whole match set 50 at a time. Cards on mobile; the redundant generic Shell title is hidden there. |
 | `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Other farms** / Communications / Notes / Files. **Other farms** lists the company's other active locations as cards linking to each — the head branch tagged **Head office** — and is offered only when there are any, so a single-site supplier never sees an empty tab (`?tab=locations` there falls back to Inventory). Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, searchable multiselects for cultivar, supplier type, city and state in the search toolbar, and header pagination through the whole match set 300 plants at a time. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
+| `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size and tag, and header pagination 60 photos at a time. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
@@ -141,6 +142,8 @@ is enabled in the desktop rail and through mobile More.
 | `GET /api/suppliers?q=&page=` | `search_suppliers` RPC + source file names, 50 per page, with the match `total` and `pageCount`. `?counts=1&ids=` is the "# Items" second pass. |
 | `GET /api/suppliers/:id` | One supplier, its active sources, and the other active locations sharing its `head_branch_id` (`locations`, head branch first, never itself). |
 | `GET /api/plants?q=&page=` | Plant search grouped by supplier, 300 rows per page, with the match `total` and `pageCount`. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before that page is sliced. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges. |
+| `GET /api/photos?q=&page=` | Photo catalogue, 60 per page, with the match `total` and `pageCount`. `p.supplier` / `p.size` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags and `{id,name,city,state}` suppliers — for that search without its filters. |
+| `GET /api/photos/:id/image` | Redirects to a 1-hour signed URL for one photo. Takes a **photo id**, never a storage path: the path is read from the row, so this cannot be used to sign arbitrary objects in the private bucket. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
@@ -178,8 +181,17 @@ it never covers its search box: the list pages use the Shell content slot
 (below the toolbar), the supplier profile a wrapper around the Inventory tab's
 plant list. The caption under the seedlings rotates every 1.6s through a quirky
 set per search flavour (`PLANT_SEARCH_LABELS` for the two plant searches,
-`SUPPLIER_SEARCH_LABELS` for the suppliers list), both defined in
-`search-loader.tsx`.
+`SUPPLIER_SEARCH_LABELS` for the suppliers list, `PHOTO_SEARCH_LABELS` for the
+photo catalogue), all defined in `search-loader.tsx`.
+
+The photo catalogue runs the same machinery against `search_plant_photos`, which
+is `search_inventory`'s algorithm over a photo's name, size, caption, tags and
+notes — so everything below about ranking, aliases and typed sizes applies there
+too, and a search for `Chusan Palm` finds a photo catalogued as *Trachycarpus
+fortunei*. It differs in one way that matters to the page: a blank query
+**browses** `plant_photos` newest-first instead of showing a prompt, because a
+photo catalogue with nothing typed into it is still something you want to look
+at.
 
 `search_inventory` returns nothing for an empty search (it has nothing to rank),
 so browsing reads `inventory` directly — one filtered, ordered, `count: 'exact'`
@@ -733,6 +745,17 @@ narrow the page already fetched: measured on `Crape Myrtle`, 570 rows match and
 105 are `15G`, but only **73** are in the 300-row first page — 32 were
 unreachable by ticking the box, and "Showing 73 of 570" was wrong twice over.
 
+The photo catalogue uses the same spec map (`PHOTO_FILTERS`, prefix `p.`) and,
+because `search_plant_photos` and `plant_photos` carry the same columns, one
+spec drives both its search path and its no-query browse path. Its supplier
+filter selects on `supplier_id` rather than the name — two locations of one
+company share a name, so picking "Everde Growers" must not silently mean
+whichever sorted first; the page keeps a label→id map and only appends the
+city/state to labels that actually repeat. Its `tag` filter reuses the
+`overlaps` kind *without* `normalize`, which the spec gained here: `cultivar_keys`
+holds normalized plant keys while `tags` holds the vocabulary itself, and running
+a tag through `plantKey` would strip its digits and punctuation.
+
 Adding a filter is now a line in the spec, not a migration, because the RPC
 already projects the columns. Two consequences worth knowing:
 
@@ -896,11 +919,13 @@ responses are skipped (`cache.put` throws on those), and offline lookups pass
 
 ```
 app/
-  api/           suppliers, suppliers/[id], plants, file, rows, chat/[...path]
+  api/           suppliers, suppliers/[id], plants, photos, photos/[id]/image,
+                 file, rows, chat/[...path]
   a/[agent]/     agent artifacts: public/ pass-through, private/ page +
                  ShareToggle + raw + share
   suppliers/     list + [id] profile
   plants/        grouped plant search
+  photos/        photo catalogue grid + lightbox
   agents/        Know your Agents — profile banner cards
   login/
   globals.css    design tokens — the theme's source of truth
@@ -930,8 +955,10 @@ lib/
   agents.ts        the agents (id, name, role, avatar, profile, upcoming flag,
                    intro, suggestions) + CHAT_AGENTS, the chattable subset
   columns.ts       column definitions mapped to schema columns + websiteHref()
-  rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink)
+  rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink,
+                   PhotoCard, PhotoFacets)
   queries.ts       every database read, the whitelisted writes, file signing
+  photos.ts        the photo catalogue's reads, facets and image signing
   table-config.ts  column layout state + localStorage persistence + reorder()
   table-config.check.mjs  self-check for reorder()
   size-std.ts      the size_std vocabulary and the order the filter offers it in

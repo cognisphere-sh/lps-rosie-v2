@@ -10,6 +10,63 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0051_plant_photo_catalogue.sql`
+
+Applied 2026-08-16 at Bhoumik's request, in three steps recorded in the Supabase
+history as `plant_photos_table`, `plant_photos_search_indexes` and
+`search_plant_photos`. **Purely additive** — no existing table, column, index or
+function was touched, so nothing could regress.
+
+Adds `public.plant_photos`, the **private** `plant-photos` bucket (25 MB cap,
+`image/jpeg|png|webp|heic|heif` only, **no storage policy** so only the secret
+key and `postgres` reach the objects), and `search_plant_photos`.
+
+The identity half is `inventory`'s, on purpose: three name parts, a derived
+`name`, derived `*_key` columns. That is what lets `plant_aliases` reach photos —
+verified after apply, and it is the property to re-check if the derivation ever
+changes. `search_plant_photos` is `search_inventory`'s body over a different
+document, with one structural difference: **suppliers join LEFT**, because a
+photo's supplier is optional and an inner join would hide every unattributed
+photo.
+
+`plant_photo_document()` exists so the searchable expression has **one**
+definition. On the inventory side the identical concatenation is repeated in two
+index definitions and four places inside the RPC, and a byte of drift silently
+disables the indexes; here both indexes and the function call the same IMMUTABLE
+function. Change it and both indexes must be rebuilt.
+
+**Deliberately deferred from the plan** (`knowledge/files/plans/searchable-photo-catalogue-plan.md`):
+its seven-table phase-1 model — separate `photo_assets`, many-to-many subjects /
+supplier links / inventory links / tags, `photo_provenance_events` — plus the
+review workflow, perceptual hashing and generated `display.webp` / `thumb.webp`
+derivatives. One photo carries one subject, at most one supplier and a `text[]`
+of tags. `sha256`, `source` and the three separate timestamps are present so the
+larger model remains reachable without a rewrite. **There is no approval gate**:
+a catalogued photo is visible to every signed-in user at once. If a review lane
+is wanted, that is the next migration, not a column added quietly.
+
+Post-apply verification, 2026-08-16, against the four photos staged under
+`knowledge/files/plant-reference-photos/intake/` (uploaded and catalogued in the
+same pass; their SHA-256s matched the intake manifests exactly):
+
+- empty search → 0 rows; a search against an **empty** catalogue → 0 rows and no
+  division by zero (the `n_docs = 0` guard, which `search_inventory` does not
+  need and this one did)
+- `crape myrtle` → the Natchez row at 2.41; `Lagerstroemia` → the same row, 1.20
+- partial `windmil palm` → both windmill palm photos; typo `bloodgoodd maple` →
+  the Bloodgood row
+- **alias reach**: `chusan palm` → both windmill palm photos, and *Chusan Palm*
+  appears nowhere in their document — it is reached only through the
+  `plant_aliases` edge to *Trachycarpus fortunei*
+- size ranking: `30g palm` → the two 30 G rows on top
+- through the app: browse, facets, `p.supplier` / `p.size` / `p.tag` filters, the
+  signed-image redirect (307 → a working `image/jpeg`), a non-UUID id → 400, an
+  unknown id → 404, and the bucket's own public URL → **400**, confirming private
+
+Rollback is `drop function search_plant_photos, plant_photo_document; drop table
+plant_photos;` plus deleting the bucket — but the catalogued rows and their
+objects go with it.
+
 ## `0050_drop_other_names_and_alias_type.sql`
 
 Applied 2026-08-15 at Bhoumik's request. Drops the **Also known as** column and

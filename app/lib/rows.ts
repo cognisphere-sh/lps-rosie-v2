@@ -96,3 +96,43 @@ export interface SupplierSource {
   notes: string | null
   created_at: string
 }
+
+/**
+ * One catalogued plant photo, as the grid and the detail sheet render it.
+ *
+ * `imageUrl` is this app's own `/api/photos/<id>/image`, never a bucket URL:
+ * the `plant-photos` bucket is private and the path is resolved from the row
+ * server-side, so no storage key ever reaches the browser.
+ */
+export interface PhotoCard {
+  id: string
+  imageUrl: string
+  name: string
+  commonName: string | null
+  botanicalName: string | null
+  cultivar: string | null
+  size: string | null
+  height: string | null
+  width: string | null
+  caliper: string | null
+  tags: string[]
+  caption: string | null
+  notes: string | null
+  source: string | null
+  /** When the photo was taken; distinct from `createdAt`, when we received it. */
+  capturedAt: string | null
+  createdAt: string | null
+  mimeType: string | null
+  byteSize: number | null
+  pixels: { width: number; height: number } | null
+  supplier: { id: number; name: string; city: string | null; state: string | null } | null
+}
+
+/** The option lists the photo-catalogue filters offer, for one search. */
+export interface PhotoFacets {
+  size: string[]
+  tag: string[]
+  /** City and state so two locations of one company can be told apart in the
+   *  dropdown; the filter itself selects on `id`. */
+  supplier: { id: number; name: string; city: string | null; state: string | null }[]
+}

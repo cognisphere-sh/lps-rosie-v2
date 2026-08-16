@@ -15,6 +15,14 @@ export const PLANT_SEARCH_LABELS = [
   'Waiting on the bees…',
 ]
 
+export const PHOTO_SEARCH_LABELS = [
+  'Developing the film…',
+  'Flipping through the album…',
+  'Focusing the lens…',
+  'Sorting the contact sheet…',
+  'Matching leaves to labels…',
+]
+
 export const SUPPLIER_SEARCH_LABELS = [
   'Digging through suppliers…',
   'Ringing the nurseries…',

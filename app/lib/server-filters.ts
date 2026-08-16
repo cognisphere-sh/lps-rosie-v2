@@ -19,8 +19,12 @@ type FilterSpec =
   | { kind: 'in'; column: string }
   | { kind: 'range'; column: string }
   | { kind: 'ilike'; column: string }
-  /** Multi-valued cell: match the normalized key array with `&&`. */
-  | { kind: 'overlaps'; column: string }
+  /**
+   * Multi-valued cell: match the array column with `&&`. `normalize` is for a
+   * column of plant *keys*, where the dropdown offers display names and the
+   * selection has to be run through `plantKey` first.
+   */
+  | { kind: 'overlaps'; column: string; normalize?: boolean }
 
 /**
  * Plant-table filter keys → the column they select on.
@@ -32,7 +36,7 @@ type FilterSpec =
  */
 export const PLANT_FILTERS: Record<string, FilterSpec> = {
   size: { kind: 'in', column: 'size_std' },
-  cultivar: { kind: 'overlaps', column: 'cultivar_keys' },
+  cultivar: { kind: 'overlaps', column: 'cultivar_keys', normalize: true },
   price: { kind: 'range', column: 'unit_price' },
   qty: { kind: 'range', column: 'quantity' },
   h: { kind: 'range', column: 'height_std' },
@@ -54,6 +58,24 @@ export const MASTER_FILTERS: Record<string, FilterSpec> = {
   category: { kind: 'in', column: 'supplier_category' },
   city: { kind: 'in', column: 'supplier_city' },
   state: { kind: 'in', column: 'supplier_state' },
+}
+
+/**
+ * Photo-catalogue filters, over `search_plant_photos`' projection — and over
+ * `plant_photos` itself, which the grid reads directly when there is no query.
+ * Every column named here exists on both, so one spec drives both paths.
+ *
+ * `supplier` selects on the id rather than the name: two locations of the same
+ * company share a name, and picking "Everde Growers" must not silently mean
+ * whichever one happened to sort first.
+ */
+export const PHOTO_FILTERS: Record<string, FilterSpec> = {
+  size: { kind: 'in', column: 'size_std' },
+  supplier: { kind: 'in', column: 'supplier_id' },
+  // `tags` is a plain text[] of the vocabulary itself — the trigger lowercases
+  // and trims it — so the dropdown offers exactly what the column holds and no
+  // normalization is needed on the way out, unlike `cultivar`.
+  tag: { kind: 'overlaps', column: 'tags' },
 }
 
 /** Suppliers-table filters, over `search_suppliers`' own projection. */
@@ -86,7 +108,7 @@ export function plantKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z]/g, '')
 }
 
-const PREFIX = { plant: 'f', master: 'm', supplier: 's' } as const
+const PREFIX = { plant: 'f', master: 'm', supplier: 's', photo: 'p' } as const
 type Scope = keyof typeof PREFIX
 
 /**
@@ -106,9 +128,12 @@ export function filterQuery(scope: Scope, specs: Record<string, FilterSpec>, fil
 
     if (spec.kind === 'in' || spec.kind === 'overlaps') {
       if (!Array.isArray(value) || value.length === 0) continue
-      // An `overlaps` column holds normalized keys while the dropdown offers
-      // display names, so the selection is normalized on the way out.
-      const values = spec.kind === 'overlaps' ? value.map(plantKey).filter(Boolean) : value
+      // A key column holds normalized keys while the dropdown offers display
+      // names, so the selection is normalized on the way out. A plain array
+      // column (tags) already offers exactly what it stores.
+      const values = spec.kind === 'overlaps' && spec.normalize
+        ? value.map(plantKey).filter(Boolean)
+        : value
       for (const v of [...new Set(values)].sort()) params.append(`${p}.${key}`, v)
     } else if (spec.kind === 'ilike') {
       if (typeof value !== 'string' || !value.trim()) continue

@@ -10,7 +10,7 @@
 - Botanical identity for future reviewed metadata: *Lagerstroemia* 'Natchez' (do not use this note as autonomous visual identification; cultivar was explicitly named by Chris)
 - Visible reference context: field/nursery handling photo of a mature multi-stem tree with wrapped root ball. This is descriptive only, not a commercial form/grade determination.
 - Unknown/not inferred: supplier, farm, container/root-ball specification, caliper, width, price, quantity, availability, capture date, readiness, or stock quality.
-- Status: staged for the future private Visual Plant Library. Not attached to live inventory and not uploaded to a public bucket.
+- Status: **catalogued 2026-08-16** (migration 0051 created the private `plant-photos` bucket this intake was waiting on) as `plant_photos.id` `515737e5-ccb9-4034-a1be-9b2ef89e7d95`, under `unassigned/2026/08/` — no supplier was ever stated, so none was invented. Still not attached to live inventory and never uploaded to a public bucket.
 
 ## Bloodgood Japanese Maple — user-stated 36-inch box
 
@@ -22,4 +22,4 @@
 - Botanical identity for future reviewed metadata: *Acer palmatum* 'Bloodgood' (cultivar was explicitly named by Chris; this is not autonomous visual identification)
 - Visible reference context: nursery photo of a red-leaved Japanese maple in a large wooden box. This is descriptive only and does not establish height, width, caliper, grade, readiness, or quality.
 - Unknown/not inferred: supplier, farm, height, width, caliper, price, quantity, availability, capture date, readiness, or stock quality.
-- Status: staged for the future private Visual Plant Library. Not attached to live inventory and not uploaded to a public bucket.
+- Status: **catalogued 2026-08-16** (migration 0051 created the private `plant-photos` bucket this intake was waiting on) as `plant_photos.id` `73dd6e1f-e1aa-4b53-ac76-a02adc318c4b`, under `unassigned/2026/08/` — no supplier was ever stated, so none was invented. Still not attached to live inventory and never uploaded to a public bucket.

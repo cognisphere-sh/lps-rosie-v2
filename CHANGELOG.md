@@ -19,6 +19,55 @@ here).
 
 ### Added
 
+- **Searchable plant photo catalogue** — a new `/photos` page, a new
+  `public.plant_photos` table, a new **private** `plant-photos` bucket, and
+  `search_plant_photos` (migration 0051). An MVP of the plan Nova wrote in
+  daisy's `knowledge/files/plans/searchable-photo-catalogue-plan.md`.
+
+  **A photo is an independent record, not a column on `inventory`.** Its
+  supplier is optional, it may show a plant nobody currently stocks, and nothing
+  about it is retired when inventory or a supplier is. A catalogued photo says
+  *this is what this plant looks like* — never *this supplier has it in stock*.
+
+  **Search is `search_inventory`'s algorithm over a different document**
+  (name + size + caption + tags + notes) rather than a new one, which is also
+  why the table copies `inventory`'s three-part identity and derived `name`:
+  that is what puts photos on the `plant_aliases` graph. Searching *Chusan Palm*
+  finds a photo catalogued as *Trachycarpus fortunei* even though neither word
+  appears on it. Typo tolerance, both-ends partial matching, IDF ranking and
+  size-as-a-ranking-group all come along unchanged. One structural difference:
+  suppliers join **LEFT**, so an unattributed photo is still findable.
+
+  **The bucket is private**, unlike `lps`. Every image is served through
+  `/api/photos/<id>/image`, which takes a **photo id** and reads the path from
+  the row — a client never supplies a storage path, so the endpoint cannot be
+  turned into a signing oracle for the bucket. Agents use
+  `scripts/agent/supabase/sign-url`.
+
+  A blank query **browses** the catalogue newest-first instead of showing an
+  empty prompt, which is the one place this page deliberately differs from Plant
+  search: browsing is the normal way to use a photo library.
+
+  Daisy gets the **`plant-photo-catalogue`** skill — hash → dedupe on `sha256` →
+  upload at an id-built path → insert, plus the evidence rules that keep a
+  reference photo from being read as an availability claim: supplier, size and
+  dimensions are written only when a source stated them, size is **never**
+  inferred from apparent scale, and a conflict between two sources is preserved
+  in `notes` rather than reconciled.
+
+  The four photos staged under `knowledge/files/plant-reference-photos/intake/`
+  since 2026-08-05 were catalogued in the same pass — they had been waiting for
+  exactly this bucket to exist. Their manifests' SHA-256s matched the files
+  byte-for-byte, and the windmill palm's recorded discrepancy (a label reading
+  `25 Gallon` against Chris's instruction to catalogue it as `30 G`) is carried
+  into the row's `notes` intact.
+
+  **Not built, deliberately:** the plan's seven-table model (separate assets,
+  many-to-many subjects/links/tags, provenance events), the review workflow,
+  perceptual near-duplicate detection, generated thumbnail/display derivatives,
+  bulk intake, and a Photos tab on the supplier profile. There is **no approval
+  gate** — a catalogued photo is visible to every signed-in user at once.
+
 - **Daisy and Nova can publish pages on the app's domain** — the harness's
   `artifacts` plugin (new in 0.8.23), enabled on both agents. An agent writes a
   self-contained HTML file, runs `scripts/artifacts/artifact publish`, and gets
