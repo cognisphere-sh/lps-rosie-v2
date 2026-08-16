@@ -182,21 +182,25 @@ export async function photoFacets(search: string): Promise<PhotoFacets> {
   const { data, error } = term
     ? await supabase
         .rpc('search_plant_photos', { search: term })
-        .select('size_std, tags, supplier_id, supplier_name, supplier_city, supplier_state')
+        .select(
+          'size_std, tags, cultivar_variety_trade_name, supplier_id, supplier_name, supplier_city, supplier_state',
+        )
         .limit(20000)
     : await supabase
         .from('plant_photos')
-        .select('size_std, tags, supplier_id')
+        .select('size_std, tags, cultivar_variety_trade_name, supplier_id')
         .eq('is_active', true)
         .limit(20000)
   if (error) throw new Error(`plant photo facets: ${error.message}`)
 
   const size = new Set<string>()
   const tag = new Set<string>()
+  const cultivar = new Set<string>()
   const suppliers = new Map<number, { name: string; city: string | null; state: string | null }>()
   type Row = {
     size_std: string | null
     tags: string[] | null
+    cultivar_variety_trade_name: string | null
     supplier_id: number | null
     supplier_name?: string | null
     supplier_city?: string | null
@@ -206,6 +210,13 @@ export async function photoFacets(search: string): Promise<PhotoFacets> {
   for (const row of (data ?? []) as Row[]) {
     if (row.size_std) size.add(row.size_std)
     for (const t of row.tags ?? []) if (t) tag.add(t)
+    // The cultivar cell is a comma-separated residual (`Wolff, Emperor 1`), so
+    // the dropdown offers the individual names — the same grain `cultivar_keys`
+    // matches, and the same split the plant facets use.
+    for (const part of (row.cultivar_variety_trade_name ?? '').split(/[,;|]/)) {
+      const value = part.trim()
+      if (value) cultivar.add(value)
+    }
     if (row.supplier_id != null && !suppliers.has(row.supplier_id)) {
       suppliers.set(row.supplier_id, {
         name: row.supplier_name ?? '',
@@ -224,6 +235,7 @@ export async function photoFacets(search: string): Promise<PhotoFacets> {
   return {
     size: [...size],
     tag: [...tag],
+    cultivar: [...cultivar],
     supplier: [...suppliers.entries()]
       .filter(([, s]) => s.name)
       .map(([id, s]) => ({ id, ...s }))

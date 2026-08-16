@@ -657,6 +657,7 @@ what this plant looks like* — never *this supplier has it in stock*.
 | `supplier_id` | bigint → `suppliers.id` ON DELETE SET NULL | yes | **Optional**, and only when a source said so. Never guessed |
 | `common_name` / `botanical_name` / `cultivar_variety_trade_name` | text | yes | The same three-part identity `inventory` carries, each holding only what a source printed |
 | `name` | text | yes | **Derived** — `compose_plant_name()` of the three parts, by trigger |
+| `name_key` | text **generated stored** | — | `normalize_plant_key(name)`, byte-identical to `inventory.name_key` so the two tables **join on identity** (added 2026-08-16, migration 0052). A **whole-identity** key, not a plant-name one — `windmillpalmtrachycarpusfortunei`, not `windmillpalm`. To find a *plant*, use the part keys or the RPC |
 | `common_name_key` / `botanical_name_key` / `cultivar_keys` | text / text / text[] | yes | **Derived** by the same trigger, same rules as `inventory` |
 | `size` / `size_std` | text | yes | Only from an explicit statement — a printed label, a price list, or someone saying so. **Never inferred from apparent scale in the frame** |
 | `height` / `width` / `caliper` | text | yes | Same rule. Stated, or null |
@@ -671,6 +672,17 @@ what this plant looks like* — never *this supplier has it in stock*.
 Three timestamps, three different facts: a photo taken last spring and sent
 yesterday is not fresh. Freshness is read off `captured_at` falling back to
 `created_at` — there is no manually edited flag.
+
+**Identity and size are `inventory`'s columns, deliberately.** Same three name
+parts, same derived `name`, same `name_key` / `common_name_key` /
+`botanical_name_key` / `cultivar_keys`, same `size` / `size_std` pair. That is
+what puts photos on the `plant_aliases` graph — the RPC expands query spans
+through the same edges — and what lets a cultivar filter written for one table
+work unchanged on the other. **The one remaining difference is dimensions:**
+`inventory` also carries numeric `height_std` / `width_std` / `caliper_std`
+backing its range filters; photos carry only the raw text, because nothing
+captures a measured value for a photo yet. Adding them is three columns and
+three partial indexes mirroring `inventory_supplier_*_std_idx`.
 
 > **What migration 0051 deliberately deferred.** The plan's phase-1 shape is
 > seven tables — a separate `photo_assets`, many-to-many subjects / supplier
@@ -871,7 +883,10 @@ result. Query groups, alias expansion, size-as-a-phrase-group and
 *How it ranks* applies unchanged.
 
 Returns the `plant_photos` columns plus `supplier_name`, `supplier_category`,
-`supplier_city`, `supplier_state` and `relevance` — 32 columns.
+`supplier_city`, `supplier_state` and `relevance` — 33 columns (`name_key`
+joined the projection with migration 0052). **The projection is the filter
+surface**, and the return type is fixed, so a new column has to be added here
+before PostgREST can read or filter on it.
 
 Two things differ from `search_inventory`, both deliberate:
 
@@ -960,7 +975,8 @@ is no query, which is the normal way to browse a photo catalogue.
   cannot arise here. **Change the function and both indexes must be rebuilt.**
 - `plant_photos_object_idx` — unique `(storage_bucket, storage_path)`: one
   catalogue row per object. `plant_photos_sha256_idx` — unique on `sha256`
-  where non-null: one row per distinct file.
+  where non-null: one row per distinct file. `plant_photos_name_key_idx` — the
+  same shape as `inventory_name_key_idx`, for joining the two on identity.
 - `plant_photos_supplier_idx`, `plant_photos_active_created_idx` (backs the
   no-query grid), `plant_photos_size_std_idx`, and GIN on `cultivar_keys` and
   `tags` for the app's tag filter.

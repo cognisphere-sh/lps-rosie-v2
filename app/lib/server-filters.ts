@@ -72,6 +72,10 @@ export const MASTER_FILTERS: Record<string, FilterSpec> = {
 export const PHOTO_FILTERS: Record<string, FilterSpec> = {
   size: { kind: 'in', column: 'size_std' },
   supplier: { kind: 'in', column: 'supplier_id' },
+  // Identical to the plant table's, and deliberately so: `plant_photos` carries
+  // the same three name parts and the same derived `cultivar_keys`, so the same
+  // filter works over both without a second normalization rule.
+  cultivar: { kind: 'overlaps', column: 'cultivar_keys', normalize: true },
   // `tags` is a plain text[] of the vocabulary itself — the trigger lowercases
   // and trims it — so the dropdown offers exactly what the column holds and no
   // normalization is needed on the way out, unlike `cultivar`.

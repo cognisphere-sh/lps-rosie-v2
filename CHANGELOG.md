@@ -19,6 +19,31 @@ here).
 
 ### Added
 
+- **Delete a photo from the catalogue** — each card on `/photos` carries a
+  delete control in its top corner. It confirms first, then soft-deletes
+  (`is_active = false`, the schema's convention) through the existing
+  `DELETE /api/rows`; `softDelete()` gains `plant_photos` alongside `suppliers`
+  and `inventory`. The control is **always visible rather than hover-only** —
+  this grid is used on touch screens, where there is no hover. The **image file
+  stays in the bucket**: the row still points at those bytes and deleting them
+  is not reversible, so the prompt says that instead of implying the file is
+  gone. The grid drops the card locally and decrements its total rather than
+  refetching, which would pull a photo up from the next page and shift
+  everything the user was looking at.
+
+- **Cultivar filter on `/photos`**, matching Plant search. It reuses
+  `cultivar_keys` and the same `plantKey` normalization, so one spec entry
+  serves both tables — the payoff of the identity parity below.
+
+- **`plant_photos.name_key`** (migration 0052) — generated with the expression
+  `inventory.name_key` uses, so the two tables **join on identity**, which is
+  what a photo indicator on Plant Search will need. `search_plant_photos` was
+  recreated to project it (33 columns). It keys the **whole composed identity**
+  (`windmillpalmtrachycarpusfortunei`), not a plant name — the part keys or the
+  RPC answer "do we have a photo of this plant?". `height_std` / `width_std` /
+  `caliper_std` are now the only columns `inventory` has that photos do not,
+  left out because nothing captures a measured value for a photo yet.
+
 - **Searchable plant photo catalogue** — a new `/photos` page, a new
   `public.plant_photos` table, a new **private** `plant-photos` bucket, and
   `search_plant_photos` (migration 0051). An MVP of the plan Nova wrote in

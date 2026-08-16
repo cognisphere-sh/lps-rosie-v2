@@ -1,5 +1,25 @@
 # plant-photo-catalogue — changelog
 
+## 1.1.0
+
+2026-08-16, with migration 0052 — states the identity/size parity with
+`inventory` explicitly rather than leaving it implied: the same three name
+parts, the same derived `name` and keys, the same `size` / `size_std`, and the
+new `name_key`, with the worked join that answers "is there a photo of this
+inventory row?". Calls out that `name_key` keys the **whole composed identity**,
+so the bare `normalize_plant_key('Crape Myrtle')` matches nothing — the part
+keys or the RPC answer the same-plant question — and that
+`height_std`/`width_std`/`caliper_std` are the one column set photos do not
+have.
+
+Adds `cultivar_keys` to the worked filter example, matching the Cultivar
+dropdown the `/photos` page gained, and notes that filtering is on the
+normalized key rather than the display name.
+
+Retiring gains the fact that app users can now soft-delete any photo from the
+grid, so a missing photo should be checked for `is_active = false` before the
+insert is assumed to have failed.
+
 ## 1.0.0
 
 2026-08-16, with migration 0051 — initial version, covering the photo

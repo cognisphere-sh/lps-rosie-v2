@@ -3,9 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { CloseIcon, ChevronLeft, ChevronRight } from '@/components/workspace/icons'
+import { CloseIcon, ChevronLeft, ChevronRight, TrashIcon } from '@/components/workspace/icons'
 import { PHOTO_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
-import { Shell } from '@/components/workspace/shell'
+import { Shell, useToast } from '@/components/workspace/shell'
 import { MultiFilter } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { formatDate } from '@/lib/format'
@@ -14,7 +14,7 @@ import { PHOTO_FILTERS, filterQuery } from '@/lib/server-filters'
 import { compareOptions } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 
-const EMPTY_FACETS: PhotoFacets = { size: [], tag: [], supplier: [] }
+const EMPTY_FACETS: PhotoFacets = { size: [], tag: [], cultivar: [], supplier: [] }
 
 /**
  * Dropdown labels for suppliers.
@@ -191,6 +191,7 @@ function Lightbox({
 }
 
 export default function PhotoCataloguePage() {
+  const toast = useToast()
   const [query, setQuery] = useState('')
   const [hydrated, setHydrated] = useState(false)
   const [photos, setPhotos] = useState<PhotoCard[]>([])
@@ -201,8 +202,10 @@ export default function PhotoCataloguePage() {
   const [facets, setFacets] = useState<PhotoFacets>(EMPTY_FACETS)
   const [sizes, setSizes] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
+  const [cultivars, setCultivars] = useState<string[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [lightbox, setLightbox] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const labelToSupplier = useMemo(() => supplierLabels(facets.supplier), [facets.supplier])
   const supplierOptions = useMemo(() => [...labelToSupplier.keys()], [labelToSupplier])
@@ -215,12 +218,13 @@ export default function PhotoCataloguePage() {
       filterQuery('photo', PHOTO_FILTERS, {
         size: sizes,
         tag: tags,
+        cultivar: cultivars,
         supplier: supplierPick
           .map((label) => labelToSupplier.get(label))
           .filter((id): id is number => id != null)
           .map(String),
       }),
-    [labelToSupplier, sizes, supplierPick, tags],
+    [cultivars, labelToSupplier, sizes, supplierPick, tags],
   )
 
   const {
@@ -293,36 +297,74 @@ export default function PhotoCataloguePage() {
     }
   }, [debouncedFilterQuery, debouncedQuery, hydrated, page])
 
-  // A value the current search cannot offer is a leftover from the previous one.
+  // A value the current search cannot offer is a leftover from the previous
+  // one. An empty option list means the facets have not arrived yet, not that
+  // nothing matches, so it never clears a selection.
   useEffect(() => {
     if (loading) return
-    if (facets.size.length && sizes.length) {
-      const valid = new Set(facets.size)
-      const next = sizes.filter((s) => valid.has(s))
-      if (next.length !== sizes.length) setSizes(next)
+    for (const [selected, setSelected, options] of [
+      [sizes, setSizes, facets.size],
+      [tags, setTags, facets.tag],
+      [cultivars, setCultivars, facets.cultivar],
+      [supplierPick, setSupplierPick, supplierOptions],
+    ] as const) {
+      if (!options.length || !selected.length) continue
+      const valid = new Set(options)
+      const next = selected.filter((value) => valid.has(value))
+      if (next.length !== selected.length) setSelected(next)
     }
-    if (facets.tag.length && tags.length) {
-      const valid = new Set(facets.tag)
-      const next = tags.filter((t) => valid.has(t))
-      if (next.length !== tags.length) setTags(next)
-    }
-    if (supplierOptions.length && supplierPick.length) {
-      const valid = new Set(supplierOptions)
-      const next = supplierPick.filter((s) => valid.has(s))
-      if (next.length !== supplierPick.length) setSupplierPick(next)
-    }
-  }, [facets, loading, sizes, supplierOptions, supplierPick, tags])
+  }, [cultivars, facets, loading, sizes, supplierOptions, supplierPick, tags])
 
   const optionList = useCallback(
     (values: string[], key: string) => [...values].sort(compareOptions(key)),
     [],
   )
 
-  const activeFilters = sizes.length + tags.length + supplierPick.length
+  /**
+   * Remove one photo from the catalogue.
+   *
+   * A soft delete, like everything else in this schema — the row goes inactive
+   * and leaves search and this grid, and the image itself stays in the bucket.
+   * The row still points at those bytes and deleting them is not reversible, so
+   * that is what the confirmation says rather than promising the file is gone.
+   */
+  const removePhoto = useCallback(
+    async (photo: PhotoCard) => {
+      if (
+        !window.confirm(
+          `Remove “${photo.name}” from the photo catalogue? The image file itself is kept in storage.`,
+        )
+      ) {
+        return
+      }
+      setDeleting(photo.id)
+      const res = await fetch('/api/rows', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ table: 'plant_photos', id: photo.id }),
+      })
+      setDeleting(null)
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        toast(body.error ?? 'Could not remove photo')
+        return
+      }
+      // Drop it here rather than refetching the page: a refetch would pull the
+      // next photo up from the following page and quietly shift everything the
+      // user was looking at.
+      setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+      setTotal((prev) => Math.max(0, prev - 1))
+      toast('Photo removed')
+    },
+    [toast],
+  )
+
+  const activeFilters = sizes.length + tags.length + cultivars.length + supplierPick.length
   const clearAll = useCallback(() => {
     setQuery('')
     setSizes([])
     setTags([])
+    setCultivars([])
     setSupplierPick([])
   }, [])
 
@@ -353,6 +395,17 @@ export default function PhotoCataloguePage() {
               onChange={setSizes}
               buttonClassName="h-8 px-2 text-[12px]"
               filterPlaceholder="Filter sizes…"
+            />
+          </div>
+          <div className="w-[calc(50%-4px)] md:w-[170px]">
+            <MultiFilter
+              allLabel="Cultivar: Any"
+              selectionLabel="Cultivar"
+              options={optionList(facets.cultivar, 'cultivar')}
+              selected={cultivars}
+              onChange={setCultivars}
+              buttonClassName="h-8 px-2 text-[12px]"
+              filterPlaceholder="Filter cultivars…"
             />
           </div>
           <div className="w-[calc(50%-4px)] md:w-[160px]">
@@ -402,34 +455,52 @@ export default function PhotoCataloguePage() {
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {photos.map((photo, i) => (
-              <button
+              // A div, not a button: the delete control lives inside the card,
+              // and a button cannot contain another button.
+              <div
                 key={photo.id}
-                type="button"
-                onClick={() => setLightbox(i)}
-                className="flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-shadow hover:shadow-[var(--lps-shadow)]"
+                className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-[var(--lps-shadow)]"
               >
-                {/* Plain <img> — see the note in Lightbox. */}
-                <img
-                  src={photo.imageUrl}
-                  alt={photo.name}
-                  loading="lazy"
-                  className="aspect-square w-full bg-lps-tint object-cover"
-                />
-                <div className="flex min-w-0 flex-col gap-0.5 p-2.5">
-                  <span className="truncate text-[12.5px] font-semibold">{photo.name}</span>
-                  {photo.supplier && (
-                    <span className="truncate text-[11.5px] text-muted-foreground">
-                      {photo.supplier.name}
-                    </span>
-                  )}
-                  <div className="flex items-baseline gap-2 text-[11px] text-lps-dim">
-                    <span className="min-w-0 flex-1 truncate">{specLine(photo)}</span>
-                    <span className="flex-none whitespace-nowrap">
-                      {formatDate(photo.capturedAt ?? photo.createdAt)}
-                    </span>
+                <button
+                  type="button"
+                  onClick={() => setLightbox(i)}
+                  className="flex flex-col text-left"
+                >
+                  {/* Plain <img> — see the note in Lightbox. */}
+                  <img
+                    src={photo.imageUrl}
+                    alt={photo.name}
+                    loading="lazy"
+                    className="aspect-square w-full bg-lps-tint object-cover"
+                  />
+                  <div className="flex min-w-0 flex-col gap-0.5 p-2.5">
+                    <span className="truncate text-[12.5px] font-semibold">{photo.name}</span>
+                    {photo.supplier && (
+                      <span className="truncate text-[11.5px] text-muted-foreground">
+                        {photo.supplier.name}
+                      </span>
+                    )}
+                    <div className="flex items-baseline gap-2 text-[11px] text-lps-dim">
+                      <span className="min-w-0 flex-1 truncate">{specLine(photo)}</span>
+                      <span className="flex-none whitespace-nowrap">
+                        {formatDate(photo.capturedAt ?? photo.createdAt)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                {/* Always present, not hover-only: there is no hover on a touch
+                    screen, and this grid is used on one. */}
+                <button
+                  type="button"
+                  disabled={deleting === photo.id}
+                  onClick={() => removePhoto(photo)}
+                  title="Delete photo"
+                  aria-label={`Delete ${photo.name}`}
+                  className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-[var(--lps-shadow)] backdrop-blur-sm hover:bg-lps-warn-bg hover:text-[#C24C2E] disabled:opacity-50"
+                >
+                  <TrashIcon size={13} />
+                </button>
+              </div>
             ))}
           </div>
         )}

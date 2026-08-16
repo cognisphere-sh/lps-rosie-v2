@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, and retiring one. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.0.0)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, and retiring one — including the delete control app users have on every card. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.1.0)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Cataloguing and searching plant photos
@@ -103,9 +103,27 @@ insert into public.plant_photos (
 );
 ```
 
-`name`, `common_name_key`, `botanical_name_key` and `cultivar_keys` are
-**derived by trigger** — never write them. Tags are lowercased, trimmed, deduped
-and sorted for you.
+`name`, `name_key`, `common_name_key`, `botanical_name_key` and `cultivar_keys`
+are **derived** — never write them. Tags are lowercased, trimmed, deduped and
+sorted for you.
+
+> **Identity and size are `inventory`'s columns, on purpose.** Same three name
+> parts, same derived `name` and keys, same `size` / `size_std`. So every rule
+> you already follow on an inventory row applies here unchanged, the alias graph
+> reaches photos the same way, and the two tables join on `name_key`:
+> ```sql
+> select inv.id, ph.id as photo_id
+> from public.inventory inv
+> join public.plant_photos ph on ph.name_key = inv.name_key and ph.is_active
+> where inv.supplier_id = 1 and inv.is_active;
+> ```
+> `name_key` is the **whole composed identity** (`crapemyrtlelagerstroemianatchez`),
+> so it answers "is there a photo of *this row*". To ask "do we already have a
+> photo of this plant", use the part keys or `search_plant_photos` — the bare
+> `normalize_plant_key('Crape Myrtle')` matches nothing.
+>
+> The one column `inventory` has and photos do not: `height_std` / `width_std` /
+> `caliper_std`. Photos keep the raw text only.
 
 #### What each field may hold
 
@@ -172,11 +190,15 @@ the `plant-and-supplier-search` skill for how the ranking thinks. In short:
 - **An empty `search` returns nothing.** To *list* rather than search, select
   from `plant_photos` directly with an `ORDER BY` and a `LIMIT`.
 
-Two parameters, neither a filter. Scope and filter **over** the result:
+Two parameters, neither a filter. Scope and filter **over** the result — the
+same columns the `/photos` page offers as dropdowns:
 
 ```sql
 select * from public.search_plant_photos('maple')
-where supplier_id = 1 and size_std = '36" Box' and tags && array['nursery'];
+where supplier_id = 1
+  and size_std = '36" Box'
+  and cultivar_keys && array['bloodgood']   -- normalized, never the display name
+  and tags && array['nursery'];
 ```
 
 The one difference from `search_inventory`: photos join `suppliers` **LEFT**,
@@ -215,6 +237,18 @@ them.
 Retiring a supplier does **not** retire its photos, and neither does retiring
 inventory. That is deliberate — a photo is evidence of what a plant looks like,
 not a claim about stock.
+
+**Anyone signed into the app can do this too**, from the delete control on each
+card at `/photos`. It runs the same soft delete. So a photo you catalogued may
+be gone without a word to you — if one you expect is missing, check
+`is_active = false` before assuming the insert failed:
+
+```sql
+select id, name, is_active, updated_at from public.plant_photos
+where sha256 = '<hash>';
+```
+
+Restoring one is `set is_active = true`, which `query` allows.
 
 ---
 

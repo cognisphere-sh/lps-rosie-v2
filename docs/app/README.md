@@ -131,7 +131,7 @@ is enabled in the desktop rail and through mobile More.
 | `/suppliers` | client | Master table: search-toolbar multiselects for supplier type, city and state (shared with the matching column-filter state), column picker, per-column filters, sort, drag-reorder, resize, inline edit, view-only row hiding, and header pagination through the whole match set 50 at a time. Cards on mobile; the redundant generic Shell title is hidden there. |
 | `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Other farms** / Communications / Notes / Files. **Other farms** lists the company's other active locations as cards linking to each — the head branch tagged **Head office** — and is offered only when there are any, so a single-site supplier never sees an empty tab (`?tab=locations` there falls back to Inventory). Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search **grouped by supplier**; the generic Shell title is hidden on mobile so search controls start at the top: a sticky supplier panel per group (resizable, 200–480px) with its matching plants beside it, natural size tokens, an available-size selector, searchable multiselects for cultivar, supplier type, city and state in the search toolbar, and header pagination through the whole match set 300 plants at a time. These controls remain visible before a query and while it searches; a supplier-name multiselect appears in the panel head once results exist. Grouped cards on mobile — each supplier card expands/collapses its plant list, only the underlined supplier name opens the supplier page (the rest of the card header is inert), and every plant row shows source size plus height, width/spread and caliper specifications when present; tapping a plant expands its full other names, notes, update date and source link inline. The collapsible mobile **Filters** card carries supplier name and price because size/type/city/state are already beside the search field. |
-| `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size and tag, and header pagination 60 photos at a time. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. |
+| `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size, **cultivar** and tag, and header pagination 60 photos at a time. Each card carries a **delete** control in its top corner (always visible, not hover-only — this grid is used on touch screens): it confirms, then soft-deletes through `DELETE /api/rows`, and says plainly that the image file itself is kept in storage. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
@@ -142,7 +142,7 @@ is enabled in the desktop rail and through mobile More.
 | `GET /api/suppliers?q=&page=` | `search_suppliers` RPC + source file names, 50 per page, with the match `total` and `pageCount`. `?counts=1&ids=` is the "# Items" second pass. |
 | `GET /api/suppliers/:id` | One supplier, its active sources, and the other active locations sharing its `head_branch_id` (`locations`, head branch first, never itself). |
 | `GET /api/plants?q=&page=` | Plant search grouped by supplier, 300 rows per page, with the match `total` and `pageCount`. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before that page is sliced. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges. |
-| `GET /api/photos?q=&page=` | Photo catalogue, 60 per page, with the match `total` and `pageCount`. `p.supplier` / `p.size` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags and `{id,name,city,state}` suppliers — for that search without its filters. |
+| `GET /api/photos?q=&page=` | Photo catalogue, 60 per page, with the match `total` and `pageCount`. `p.supplier` / `p.size` / `p.cultivar` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags, cultivar display names and `{id,name,city,state}` suppliers — for that search without its filters. |
 | `GET /api/photos/:id/image` | Redirects to a 1-hour signed URL for one photo. Takes a **photo id**, never a storage path: the path is read from the row, so this cannot be used to sign arbitrary objects in the private bucket. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
@@ -447,7 +447,18 @@ Inline edits **write to Supabase**. The Suppliers and Plant Search tables expose
 only view-local row hiding in a rightmost action column, with a Restore bar; they
 do not show delete buttons.
 The supplier profile's Inventory tab still supports row delete as a **soft delete**
-(`is_active = false`, the schema's convention).
+(`is_active = false`, the schema's convention), and so does each card on the
+photo catalogue.
+
+`softDelete()` accepts exactly three tables — `suppliers`, `inventory` and
+`plant_photos` — and refuses everything else by name. `contacts` is excluded
+because removing someone from one supplier retires the *link*, not the person
+(`unlinkContact`), and `inventory_sources` because retiring a file has to take
+its rows with it (`deactivateSource`). `plant_photos` needs neither: it cascades
+in no direction, since a photo is evidence of what a plant looks like rather
+than a claim about stock. Its **object stays in the bucket** — the row still
+points at those bytes, deleting them is not reversible, and the confirmation
+prompt says so instead of implying the file is gone.
 
 Editing happens in two places: table cells, and the **supplier profile's detail
 card**. Profile values are inert by default: a deliberate pencil-icon edit
@@ -468,7 +479,10 @@ unavailable** rather than `$0.00`. Numeric sorting keeps missing values last in
 both directions, and active min/max filters exclude missing values.
 
 Deleting is genuinely destructive in effect: a soft-deleted row disappears from
-`search_inventory` and from what the agents see.
+`search_inventory` (or `search_plant_photos`) and from what the agents see. The
+photo grid drops the deleted card locally and decrements its total rather than
+refetching, which would pull a photo up from the next page and shift everything
+the user was looking at.
 
 ## Availability source
 
@@ -774,6 +788,14 @@ already projects the columns. Two consequences worth knowing:
 
 `applyFilters()` in `lib/table-config.ts` therefore now runs with an empty
 filter set on the plant tables; it is still what applies the sort.
+
+One thing the `cultivar` filter makes explicit on both tables: **the browser
+normalizes, the server does not.** `filterQuery()` runs the selection through
+`plantKey()` on the way out, because the dropdown offers display names
+(`Emperor 1`) while `cultivar_keys` holds normalized ones (`emperor`).
+`parseFilters()` takes what it is given, so `?f.cultivar=Natchez` matches
+nothing while `?f.cultivar=natchez` matches — worth knowing when hand-testing an
+endpoint.
 
 ## Paging the list pages
 

@@ -10,6 +10,48 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0052_plant_photos_name_key.sql`
+
+Applied 2026-08-16 at Bhoumik's request, in two steps recorded in the Supabase
+history as `plant_photos_name_key` and `search_plant_photos_name_key`. Closes
+the last identity-column gap between `plant_photos` and `inventory`.
+
+0051 already gave photos the same three name parts, the same derived `name`, the
+same `common_name_key` / `botanical_name_key` / `cultivar_keys` and the same
+`size` / `size_std` pair — all of which is what puts photos on the
+`plant_aliases` graph. What it missed was `name_key`, the one identity column
+`inventory` maintains as a GENERATED column rather than through its trigger.
+Adding it with the identical expression means the two tables can be **joined on
+identity**, which is what a photo indicator on Plant Search needs.
+
+`search_plant_photos` was recreated to project it — the return type is fixed, so
+a new column has to be added there before PostgREST can read or filter on it.
+The body is otherwise unchanged from 0051; only the projection moved (32 → 33
+columns).
+
+⚠ **`name_key` is a whole-identity key, not a plant-name one.** It is
+`normalize_plant_key(name)` and `name` is the *composed* identity, so a windmill
+palm row keys as `windmillpalmtrachycarpusfortunei`. Measured after apply:
+`= normalize_plant_key('Windmill Palm - Trachycarpus fortunei')` returns both
+windmill palm rows, and `= normalize_plant_key('Windmill Palm')` returns
+**zero**. That is the same semantics `inventory.name_key` has — the point of
+making the columns identical rather than inventing a looser one here — and the
+column comment says it out loud so nobody reaches for it to answer "do we have a
+photo of this plant?" (that is the part keys, or the RPC).
+
+**Still different from `inventory`, deliberately:** `height_std` / `width_std` /
+`caliper_std`, the numeric columns backing the app's dimension range filters.
+Photos carry the raw `height` / `width` / `caliper` text but no standardized
+pair, because nothing captures a measured value for a photo yet and an
+unpopulated numeric column reads as a promise the data does not keep. Three
+columns and three partial indexes when a range filter is actually wanted.
+
+Post-apply verification: `name_key` populated on all four existing rows with no
+backfill; `search_plant_photos` returns 33 columns and the same rows and
+relevance as before (`chusan palm` → 2 rows @ 0.69, still reached only through
+the alias edge); `cultivar_keys && array['natchez']` over the RPC → 1 row, which
+is the app's new Cultivar filter.
+
 ## `0051_plant_photo_catalogue.sql`
 
 Applied 2026-08-16 at Bhoumik's request, in three steps recorded in the Supabase

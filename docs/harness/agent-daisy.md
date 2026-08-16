@@ -320,6 +320,12 @@ and when; the summaries below are one line each.
   additive; nothing existing was touched. Deliberately an MVP of the plan in
   `knowledge/files/plans/searchable-photo-catalogue-plan.md`: one table rather
   than the plan's seven, and **no review/approval gate**.
+- `0052_plant_photos_name_key.sql` — approved/applied 2026-08-16. Adds
+  `plant_photos.name_key`, generated with the expression `inventory.name_key`
+  uses, so the two tables join on identity; `search_plant_photos` is recreated
+  to project it (33 columns). A **whole-identity** key — `= normalize_plant_key`
+  of the *composed* name — not a plant-name one. `height_std` / `width_std` /
+  `caliper_std` remain the one deliberate difference from `inventory`.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 

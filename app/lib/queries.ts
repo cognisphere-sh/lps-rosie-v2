@@ -848,7 +848,13 @@ export async function softDelete(table: string, id: string | number): Promise<vo
   // a supplier retires that link, not the person — see `unlinkContact`. Not
   // `inventory_sources` either: retiring a file has to take its rows with it —
   // see `deactivateSource`.
-  if (table !== 'suppliers' && table !== 'inventory') {
+  //
+  // `plant_photos` is a plain soft delete with no cascade in either direction:
+  // a photo is evidence of what a plant looks like, not a claim about stock, so
+  // it neither retires anything nor is retired by anything. The object stays in
+  // the bucket — the row still points at it, and deleting bytes is not
+  // reversible.
+  if (table !== 'suppliers' && table !== 'inventory' && table !== 'plant_photos') {
     throw new Error(`refusing to delete from ${table}`)
   }
   const { error } = await supabase.from(table).update({ is_active: false }).eq('id', id)

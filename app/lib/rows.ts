@@ -132,6 +132,8 @@ export interface PhotoCard {
 export interface PhotoFacets {
   size: string[]
   tag: string[]
+  /** Display names; the filter matches the normalized `cultivar_keys` array. */
+  cultivar: string[]
   /** City and state so two locations of one company can be told apart in the
    *  dropdown; the filter itself selects on `id`. */
   supplier: { id: number; name: string; city: string | null; state: string | null }[]
