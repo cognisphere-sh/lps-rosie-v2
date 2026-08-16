@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one, and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.2.0)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, where photos come from and what changes per source (an ingest hands them over under availability-ingestion §6; a photo fetched from a website carries unresolved rights and is tagged `web`), the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one, and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.3.0)
 metadata:
   author: lps
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Cataloguing and searching plant photos
@@ -145,16 +145,55 @@ sorted for you.
   ```
   The starter vocabulary is context (`nursery`, `field`), production form
   (`container`, `box`, `root ball`), and features (`label`, `multi-stem`,
-  `red foliage`).
+  `red foliage`). One tag is not descriptive and is **required** where it
+  applies: **`web`**, on any photo fetched from a website rather than sent to us
+  — see *Where photos come from* below.
 - **`caption`** — what is visibly in the frame, described plainly.
 - **`notes`** — what is *not* established: the unknowns, and any conflict
   between sources. Conflicts are preserved, never reconciled — if a label says
   `25 Gallon` and Chris says catalogue it as `30 G`, record the instruction in
   `size` and say so in `notes`. Do not overwrite one with the other.
 - **`source`** — verbatim provenance: who, which channel, which message, when.
+  For a photo taken off a web page, the **exact image URL**, so its origin is
+  recoverable and every web-sourced photo is findable in one query.
 - **`captured_at`** — when the photo was **taken**, and only if you know. It is
   not "now"; `created_at` already records when we received it. Leave it null
   rather than guessing — freshness is read off this column.
+
+### Where photos come from, and what changes per source
+
+Most photos arrive during an ingest. `availability-ingestion` §6 sorts the
+drop's images and hands the plant ones here; it also supplies the two things a
+bare file can't carry — the supplier its §0 resolved (**only** when the drop
+mapped to exactly one location) and the drop's provenance string. Everything
+about *how* the row is written is still this skill's.
+
+Two rules that depend on where the file came from:
+
+| Source | Supplier | Rights |
+|---|---|---|
+| A supplier **sent** it — email, Telegram, a message to Chris | theirs, when the drop names one location | they sent it to us to use; nothing extra to record |
+| **Fetched from their website** | theirs, if the page is unambiguously that location's | **unresolved.** Tag the row `web` and put the image URL in `source` |
+
+**A photo we fetched is not a photo we were given.** It is the supplier's work,
+and we hold it without a licence anyone has stated. That is fine for an internal
+reference catalogue and it is not fine to assume forever, so the `web` tag exists
+to make the whole set removable in one query if a supplier ever objects:
+
+```sql
+select id, name, source from public.plant_photos
+where is_active and tags && array['web'];
+```
+
+Never catalogue a watermarked or obviously stock-licensed image, and never crawl
+a supplier's site for a gallery during an ingest — that is scheduled work with
+Chris's say-so, not a side effect.
+
+**The rest of the drop is not evidence about the photo.** A photo that arrived
+beside a 400-row availability sheet is not about those 400 rows, does not inherit
+the sheet's size column, and gets no link to an `inventory` row — there is none
+to make. Identity and size come from the photo's own evidence: a label in the
+frame, the filename, or what the sender wrote.
 
 ### Step 5 — confirm
 

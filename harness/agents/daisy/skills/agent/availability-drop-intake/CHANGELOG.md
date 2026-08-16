@@ -1,5 +1,32 @@
 # availability-drop-intake — changelog
 
+## 2.3.0
+
+2026-08-16, with `availability-ingestion` 1.1.0 — a drop's photographs and its
+precedence conflicts now come back in the report, so this skill says what to do
+with them.
+
+§2's brief gains one instruction: **pass every image, including the ones that
+obviously aren't the availability**, and pass the body verbatim. Sorting plants
+from logos belongs to the thread, and a line like "here's the 30 G windmill
+palm" is the only evidence that photo's identity and size will ever have — an
+image left out of the brief is one nobody sees again.
+
+§4 gains **Photos** and **Overrides withheld**. The first is a coverage check: a
+drop you know had photographs and a report with no Photos block means they were
+dropped on the floor. Unattributed photos are normal, not a defect — the drop
+covered several locations, so no single one could be claimed — and `web`-tagged
+ones carry unresolved rights worth mentioning to Chris the first time per
+supplier. The second is a judgement check: withholding an overwrite on someone's
+say-so is correct, withholding one because a new price "looked wrong" means the
+database is currently disagreeing with what the supplier actually sent, and that
+is a message now.
+
+§5's labels are re-cut around what the mailbox now means. `Catalogued` covers an
+email that carried **no availability but did carry plant photos we catalogued** —
+something reached the database either way — and `Not Availability` gains "and
+had no plant photos in it either", so it stops being the label for a photo drop.
+
 ## 2.2.2
 
 Approved by Bhoumik, 2026-08-16. Asset-location change: the Gmail label ID

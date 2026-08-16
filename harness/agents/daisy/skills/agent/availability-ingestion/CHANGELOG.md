@@ -1,5 +1,44 @@
 # availability-ingestion — changelog
 
+## 1.1.0
+
+2026-08-16 — two rules a drop needs and this skill had only implied.
+
+**The newest source wins** (new block at the head of §4). Update-in-place always
+meant the current drop's values replace what an older file put there, but the
+skill never said so, which left a parse that looks like a repricing open to
+being "corrected" back to the stored figure. Now stated, with the three
+qualifications that make it usable: **silence is not a value** — a field the
+drop doesn't mention is left alone, so a partial list never blanks anything;
+**the email body outranks its own attachment**, being the later thing written,
+with the override recorded in the row's dated `notes`; and the exception is
+*quotable or it doesn't exist* — the brief, the source itself, or knowingly
+replaying a file older than the row's current source. That last one is the trap
+worth the words: `inventory_sources.created_at` is when *we* ingested a file, so
+a January sheet replayed in August gets the newest timestamp and would clobber
+current data under a naive "latest wins". §5 gains the matching check, and the
+report gains an **Overrides withheld** block.
+
+**Photos in the drop get catalogued** (new §6, plus an image-triage table in
+§1). A drop can carry photographs of plants as well as a sheet, and they were
+being dropped on the floor. §1 now sorts every image into one of three things —
+a photograph *of a price list* (a source, parse it), a photograph *of a plant*
+(a catalogue photo, §6), or a logo/signature/letterhead (skip; it is most of
+what an email carries, and it is under 200 px or 20 KB). §6 hands the write
+itself to the **`plant-photo-catalogue`** skill — a fourth entry in the boundary
+list at the top, alongside `supplier-onboarding` — and adds only what this
+context contributes: the supplier §0 resolved (**only** when the drop mapped to
+exactly one location) and the drop's provenance string.
+
+What §6 spends most of its words on is what the drop is *not* evidence for. The
+sheet beside a photo says nothing about the photo: identity comes from the
+photo's own evidence, size is stated or null and never inherited from the sheet's
+size column, and there is no photo↔inventory link to invent. Website drops are
+constrained to the page already being ingested — no crawling for a gallery — and
+their photos are tagged `web` with the image URL in `source`, because rights to a
+photo we fetched are unresolved in a way rights to a photo a supplier sent us are
+not. The report gains a **Photos** block that accounts for every image.
+
 ## 1.0.0
 
 Split out of `supplier-onboarding-and-ingestion`, which combined two procedures

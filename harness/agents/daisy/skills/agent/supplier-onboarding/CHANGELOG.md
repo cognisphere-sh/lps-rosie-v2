@@ -1,5 +1,16 @@
 # supplier-onboarding — changelog
 
+## 1.1.0
+
+2026-08-16, with `availability-ingestion` 1.1.0 — §3's browser pass now says
+what to do about the photographs on a supplier's site: **note the gallery's URL
+in the report, don't catalogue it.** Cataloguing is `plant-photo-catalogue`'s
+write and harvesting a gallery is scheduled work with Chris's say-so, so
+onboarding stays the skill that parses no plant row. The Enrichment block in the
+report carries the URL, which is how such a pass gets scheduled at all. A photo
+on the *availability page* of a drop being ingested is a different case and
+stays where it happens, in `availability-ingestion` §6.
+
 ## 1.0.0
 
 Split out of `supplier-onboarding-and-ingestion`, which combined two procedures

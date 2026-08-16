@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding itself when a supplier or farm has no row), answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels, whose IDs travel with this skill in `artifacts/gmail-labels.md`. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.2.2)
+description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding and plant-photo-catalogue itself when a supplier, a farm or a plant photo needs one), passing every image and the verbatim body so photographs of plants can be catalogued too, answering that thread's follow-up questions, digesting its report — including its Photos and Overrides-withheld blocks — into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels, whose IDs travel with this skill in `artifacts/gmail-labels.md`. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.3.0)
 metadata:
   author: lps
-  version: "2.2.2"
+  version: "2.3.0"
 ---
 
 # Availability drop intake
@@ -13,12 +13,14 @@ Run this loop for every availability drop, without being asked step by step.
 **Where the boundary is.** This skill is coordination only. You identify the
 supplier, brief a task thread, digest what comes back, and label the email. **You
 never write to `suppliers`, `contacts`, `supplier_contacts`, `inventory`,
-`inventory_sources` or `plant_aliases` from here** — every one of those writes,
-plus all parsing, normalization and location mapping, belongs to the task thread:
-the **`availability-ingestion`** skill writes the inventory side, and reaches
-**`supplier-onboarding`** itself for the supplier side when the drop turns out to
-need a supplier or a farm that has no row. You dispatch one thread against
-`availability-ingestion`; it decides whether onboarding is needed. If you are
+`inventory_sources`, `plant_aliases` or `plant_photos` from here** — every one of
+those writes, plus all parsing, normalization and location mapping, belongs to
+the task thread: the **`availability-ingestion`** skill writes the inventory
+side, and reaches **`supplier-onboarding`** itself for the supplier side when the
+drop turns out to need a supplier or a farm that has no row, and
+**`plant-photo-catalogue`** for any photographs of plants the drop carried. You
+dispatch one thread against `availability-ingestion`; it decides which of the
+other two it needs. If you are
 about to write a row, you are in the wrong skill; if the task thread is about to
 message Chris, it is in the wrong one.
 
@@ -88,7 +90,13 @@ points back at it rather than restating it. The brief carries:
   sender (name, address, domain, signature); the thread onboards from there,
 - **all source material**: attachment paths, website URL, image paths, and the
   relevant email body text — including anything in the body that names a farm,
-  branch or ship-from location, because that is what the mapping turns on. An
+  branch or ship-from location, because that is what the mapping turns on.
+  **Pass every image, including the ones that clearly aren't the availability.**
+  A photograph of a plant is a catalogue photo the thread will file under its
+  §6, and a photo you leave out of the brief is one nobody ever sees again;
+  sorting plants from logos is its job, not yours. Pass the body text verbatim
+  for the same reason — a line like "here's the 30 G windmill palm" is the only
+  evidence that photo's identity and size will ever have. An
   `email_received` notification is only a **preview** (header, first two lines,
   attachment *names* — the files are not downloaded), so for an email drop read
   the message first with `bash scripts/gws/email read <MessageId>
@@ -98,7 +106,8 @@ points back at it rather than restating it. The brief carries:
 - **the skill to follow, by name and never with a version number** — "Follow
   the `availability-ingestion` skill". Name that one only: it follows
   `supplier-onboarding` itself if the drop needs a supplier or a farm created,
-  so the brief never has to decide whether onboarding is in scope. The task
+  and `plant-photo-catalogue` for any plant photographs it finds, so the brief
+  never has to decide whether either is in scope. The task
   thread resolves the name against its own `<available_skills>`, which is rebuilt
   at spawn and so is always current; a version copied into a brief is wrong the
   moment the skill is bumped,
@@ -138,6 +147,20 @@ farm, so you still get one report. What you do with each part:
   every location of the company while quoting a per-tab source, or to one
   location while quoting none, contradicts itself. Either is a data risk:
   message Chris now rather than waiting for the daily summary.
+- **Photos** — every image the drop carried is accounted for as catalogued,
+  a duplicate, or not a plant. A drop you know had photographs and a report with
+  no *Photos* block means they were dropped on the floor; ask before filing it.
+  Photos catalogued **unattributed** are normal (the drop covered several of the
+  company's locations, so no single one could be claimed) and not a defect.
+  Anything tagged `web` came off a supplier's page with **rights unresolved** —
+  fine to hold, worth mentioning to Chris the first time it happens for a
+  supplier, not every time after.
+- **Overrides withheld** — fields where the thread did *not* let this drop win.
+  Empty is the normal case. A non-empty list needs the quoted exception read
+  against the values: withholding an overwrite on someone's say-so is correct,
+  withholding one because the new price "looked wrong" is the thread substituting
+  its judgement for the supplier's list, and that is worth a message now — the
+  database is currently disagreeing with what the supplier sent.
 - **Follow-up questions** — §3.
 - **Flags needing Chris** — batch them into the daily summary unless one blocks
   the ingest or risks data, in which case message now.
@@ -158,9 +181,9 @@ After processing an email drop, apply two Gmail labels to the thread via the
 
 | Sub-label | When |
 | --- | --- |
-| `Daisy/Catalogued` | ingested successfully |
+| `Daisy/Catalogued` | ingested successfully — **or the email carried no availability but did carry plant photos that were catalogued.** Something went into the database either way, and that is what this label means |
 | `Daisy/Failed` | couldn't process — parse error, blocked on Chris |
-| `Daisy/Not Availability` | wasn't an availability/price-list drop |
+| `Daisy/Not Availability` | wasn't an availability/price-list drop **and had no plant photos in it either** |
 | `Daisy/Escalated` | needs human review — unsure, or fits none of the above |
 
 Gmail nests labels by the `/` separator. Known label IDs are in

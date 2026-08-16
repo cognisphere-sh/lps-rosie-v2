@@ -1,5 +1,29 @@
 # plant-photo-catalogue — changelog
 
+## 1.3.0
+
+2026-08-16, with `availability-ingestion` 1.1.0 — photos now arrive mostly from
+ingests rather than by hand, so the skill says what that changes.
+
+New *Where photos come from* section, in §1 next to the field rules. An ingest
+supplies the two things a bare file can't carry — the supplier its §0 resolved,
+**only** when the drop mapped to exactly one location, and the drop's provenance
+string — while everything about how the row is written stays here.
+
+The half worth the words is **rights**. A photo a supplier sent us was sent to
+us to use; a photo we fetched off their website is their work held without a
+licence anyone stated. Fine for an internal reference catalogue, not fine to
+assume forever — so a fetched photo is tagged **`web`** (now a required tag, not
+a descriptive one) with the exact image URL in `source`, which makes the whole
+set removable in one query if a supplier ever objects. Watermarked and
+stock-licensed images are not catalogued at all, and crawling a site for a
+gallery during an ingest is out.
+
+Also restated here because it is a `plant_photos` rule and not an ingest one:
+the rest of a drop is not evidence about the photo in it. No inherited size from
+the sheet's size column, no inventory link, identity from the photo's own
+evidence only.
+
 ## 1.2.0
 
 2026-08-16 — new §4, *What app users can change under you*. The `/photos`

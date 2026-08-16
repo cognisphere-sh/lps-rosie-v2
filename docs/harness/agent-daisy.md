@@ -359,6 +359,19 @@ one.
   entry is inserted until `search_inventory` — scoped to that location
   in the outer query, since the RPC takes no supplier filter — also comes back
   empty, which catches the renames trigram similarity misses.
+  Since 1.1.0 it also owns two rules that are about the drop rather than the
+  parse. **The newest source wins**: the drop being ingested beats whatever an
+  older file put there, with three qualifications — silence is not a value (an
+  omitted field is left alone, so a partial list blanks nothing), the email body
+  outranks its own attachment, and the exception has to be *quotable* (the
+  brief, the source itself, or knowingly replaying a file older than the row's
+  current source — `inventory_sources.created_at` is when **we** ingested, not
+  when the file is from, so a January sheet replayed in August would clobber
+  current data under a naive "latest wins"). And **the drop's photographs get
+  catalogued**: §1 sorts every image into a source, a plant photo or a
+  logo/signature, and §6 hands the plant ones to `plant-photo-catalogue` with the
+  supplier §0 resolved — only when the drop mapped to exactly one location — while
+  refusing to let the sheet beside a photo become evidence about it.
 - **supplier-onboarding** — the owner of **every supplier-side database write**:
   confirming a supplier is genuinely new before inserting (several hits for one
   company are usually its locations), the `suppliers` row, `head_branch_id` for a
@@ -366,25 +379,31 @@ one.
   three availability-source columns, `contacts` rows for the main line and each
   person, and `supplier_contacts` linking — one person across however many
   locations the source actually shows them at, `is_primary` per location,
-  retiring rather than deleting. It parses no plant row.
+  retiring rather than deleting. It parses no plant row — and notes a supplier's
+  plant-photo gallery in its report rather than cataloguing it, since harvesting
+  one is scheduled work rather than a side effect of onboarding.
 - **availability-drop-intake** — the coordinator loop, and **no database
   writes at all**: identify which *company* a drop came from — the exact
   `contacts` join for a sender address, `search_suppliers` for a name Chris gives
   — and pass every matched row plus the `head_branch_id`, dispatch the task
-  thread against the canonical brief contract, answer its follow-ups, digest its
-  report, apply the Gmail status labels. It deliberately does **not** enumerate
+  thread against the canonical brief contract (**every image and the verbatim
+  body included**, since sorting plants from logos is the thread's job and a
+  photo left out of the brief is one nobody sees again), answer its follow-ups,
+  digest its report — now including its *Photos* and *Overrides withheld*
+  blocks — apply the Gmail status labels, where `Catalogued` also covers an email
+  that carried no availability but did carry photos worth keeping. It deliberately does **not** enumerate
   the company's locations: `availability-ingestion` §0 fans out from the head
   branch itself, and its query carries the city/state that resolving a farm name
   depends on.
 
-The three are deliberately mutually exclusive, split by what each one writes:
+These are deliberately mutually exclusive, split by what each one writes:
 intake coordinates and talks to humans, `availability-ingestion` writes
 `inventory` / `inventory_sources` / `plant_aliases`, `supplier-onboarding` writes
-`suppliers` / `contacts` / `supplier_contacts`, and neither worker talks to
-anyone. They point at each other for the shared contracts (the brief, the report)
-rather than restating them.
+`suppliers` / `contacts` / `supplier_contacts`, `plant-photo-catalogue` writes
+`plant_photos`, and no worker talks to anyone. They point at each other for the
+shared contracts (the brief, the report) rather than restating them.
 
-**The two worker skills call each other, and the main agent dispatches one
+**The worker skills call each other, and the main agent dispatches one
 thread.** `availability-ingestion` §0 decides which location every parsed row
 belongs to; when the sender matches no supplier at all, or the file names a farm
 the company has no row for, it follows `supplier-onboarding` to create it and

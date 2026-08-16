@@ -19,6 +19,56 @@ here).
 
 ### Added
 
+- **Ingests now catalogue the photos in a drop** — `availability-ingestion`
+  gains an image-triage table in §1 and a new §6. Every image in a drop is one
+  of three things: a photograph *of a price list* (a source — parse it), a
+  photograph *of a plant* (a catalogue photo — §6), or a logo/signature/
+  letterhead (skip; it is most of what an email carries, and it is under 200 px
+  or 20 KB). §6 hands the write to `plant-photo-catalogue`, now a fourth entry
+  in the skill's boundary list, and adds only what the ingest context
+  contributes: the supplier §0 resolved — **only** when the drop mapped to
+  exactly one location — and the drop's provenance string.
+
+  Most of §6 is about what the drop is **not** evidence for. The sheet beside a
+  photo says nothing about the photo: identity comes from the photo's own
+  evidence, size is stated or null and never inherited from the sheet's size
+  column, and there is no photo↔inventory link to invent.
+
+  **Website drops are deliberately constrained.** Photos come only from the page
+  already being ingested — no crawling for a gallery — and they are tagged `web`
+  with the image URL in `source`, because a photo we *fetched* is the supplier's
+  work held without a licence anyone stated, unlike one they *sent* us. The tag
+  makes the whole set removable in one query if a supplier ever objects.
+  `supplier-onboarding` correspondingly **notes** a gallery's URL in its report
+  rather than cataloguing it, so harvesting stays scheduled work.
+
+  `availability-drop-intake` passes every image and the verbatim body (sorting
+  plants from logos is the thread's job), digests a new *Photos* block, and its
+  `Catalogued` label now also covers an email that carried no availability but
+  did carry photos worth keeping.
+
+### Changed
+
+- **The newest source wins, stated explicitly** — `availability-ingestion` §4.
+  Update-in-place always meant the current drop's values replace what an older
+  file put there, but the skill never said so, leaving a parse that looks like a
+  repricing open to being "corrected" back to the stored figure. Three
+  qualifications make it usable: **silence is not a value** (a field the drop
+  omits is left alone, so a partial list blanks nothing), **the email body
+  outranks its own attachment** as the later thing written, and the exception is
+  **quotable or it doesn't exist** — the brief, the source itself, or knowingly
+  replaying a file older than the row's current source.
+
+  That last one is the trap worth the words: `inventory_sources.created_at`
+  records when *we* ingested a file, so a January sheet replayed in August gets
+  the newest timestamp and would clobber current data under a naive "latest
+  wins". §5 gains the matching QA check and the report an *Overrides withheld*
+  block, which intake reads as a judgement check — withholding on someone's
+  say-so is correct, withholding because a price "looked wrong" means the
+  database is disagreeing with what the supplier actually sent.
+
+### Added
+
 - **Edit a photo's details inline** — the `/photos` lightbox gains a pencil that
   turns its detail panel into a form: the three name parts, size,
   height/width/caliper, tags and caption/notes, staged locally and written as

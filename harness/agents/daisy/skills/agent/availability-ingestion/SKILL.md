@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every inventory-side database write belongs to this skill. Covers which location each row belongs to when one file covers several locations of a company (head_branch_id, per-tab and per-section evidence, and handing a genuinely new farm to the supplier-onboarding skill), source conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, the match-candidates script, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, or fixing or reviewing inventory rows from an ingest. (v1.0.0)
+description: Ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every inventory-side database write belongs to this skill. Covers which location each row belongs to when one file covers several locations of a company (head_branch_id, per-tab and per-section evidence, and handing a genuinely new farm to the supplier-onboarding skill), source conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, the match-candidates script, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), the newest-source-wins precedence rule and its three stated exceptions, triaging the drop's images and following plant-photo-catalogue for any that are photographs of plants (including website drops and their unresolved rights), post-ingestion QA, and the report contract. Use when ingesting supplier availability, or fixing or reviewing inventory rows from an ingest. (v1.1.0)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Availability ingestion
@@ -25,6 +25,10 @@ inventory-side database write** — parsing and all `inventory`,
   the company has no row for, follow that skill to create it, then come back
   here with the new `supplier_id`.** Don't insert a supplier or a contact
   yourself.
+- **`plant-photo-catalogue`** writes every `plant_photos` row and owns the
+  private `plant-photos` bucket. **When the drop carries photos of plants
+  (§6), follow that skill to catalogue them, then come back and report what you
+  catalogued.** Don't upload an image or insert a photo row yourself.
 
 You **never talk to Chris, Telegram or the supplier directly** — anything you
 need from a human goes in your report and the main agent relays it. If you find
@@ -156,6 +160,24 @@ you were asked for.
 - **Other attachments:** use `scripts/agent/markitdown <file>` for xlsx/docx and supported office formats. Avoid one-off custom parsers when the standard converter preserves the source structure; if conversion remains ambiguous, retain raw evidence and flag the affected rows instead of guessing.
 - **Workbooks with several sheets:** `markitdown` converts **every** sheet, in workbook order, writing the tab name as a `## <name>` heading above that sheet's table — so tab names survive conversion, and under §0 they are location evidence. Read the whole output and count its `##` headings against the workbook's tabs before you parse: a per-farm workbook parsed as its first table alone silently loses every other farm, and §5's per-supplier count check cannot see the difference because the locations it never wrote to simply don't appear. Three converter behaviours will mislead you if you don't look for them. **Hidden sheets convert like any other**, with nothing in the output marking them hidden — last season's tab is not a location that got this drop. **Each sheet's first row becomes its header**, so a title or logo row above the table pushes the real headers down into the first data row; the tell is a header cell holding the sheet's title, or `Unnamed: 1` where a merged/blank cell was. And **an empty sheet still emits a table**, a degenerate one-cell row rather than nothing. Check the header row of every sheet you parse.
 - If the email **body** contains a URL that may hold the availability (link to a price list / catalog / sheet), open it with `markitdown` or `scripts/agent/agent-browser` — don't treat a bare link as unparseable. If the URL is a downloadable file, download it and check its contents before deciding it's irrelevant.
+- **Triage every image before you parse it. An image is one of three things**,
+  and mistaking one for another is how a drop goes wrong quietly:
+
+  | The image is | What it is | What to do |
+  |---|---|---|
+  | a photograph **of a price list, sheet or screen** | a *source* | render and parse it here, as a scanned document above |
+  | a photograph **of a plant** — in a pot, in a field, on a truck, with or without a label | a *catalogue photo* | §6 |
+  | a logo, signature graphic, banner, icon, map, letterhead, staff portrait | neither | skip it |
+
+  The third row is most of what an email actually carries. Signature and
+  letterhead assets are typically **under 200 px on a side or under 20 KB**, and
+  their filenames say so (`logo`, `sig`, `banner`, `icon`, `header`, `image001`
+  from Outlook). Check the dimensions before you spend anything on an image; a
+  20 KB inline graphic is not a plant.
+
+  A photo can be **both** a source and a catalogue photo — a shot of a printed
+  label with the plant behind it. Parse it and catalogue it; they are different
+  records made from the same file, and §6 says how the second one is written.
 - Intermediate files (converted markdown, page images, parse chunks) go to `/tmp` — they are not records.
 
 ## 2. Parse and normalize
@@ -491,6 +513,49 @@ stopped listing simply isn't touched — it keeps `is_active = true` and its old
 `source_id`. That is the staleness signal: "when did we last see this row" is
 answered by its `source_id`, not by a flag.
 
+### The newest source wins
+
+**The drop you are holding beats whatever an older file put there.** Every field
+it states replaces the stored value — price, quantity, size, dimensions,
+availability text — and you never keep an older number because it looks more
+plausible, rounder, or closer to the rest of the list. A supplier who has
+repriced is not a parse error. If a change looks wrong, **write it and flag it**;
+don't quietly preserve stale data, which leaves the database disagreeing with the
+supplier's own current list and no record of why.
+
+Three qualifications, and they are the whole of the rule:
+
+- **Silence is not a value.** "Trumps" applies to what the new source *states*,
+  never to what it omits. A drop that doesn't mention a field leaves it alone —
+  a price column absent from this week's sheet does not blank last week's price,
+  and a partial list is not an instruction to erase everything outside it. Only
+  an explicit statement ("call for pricing", a struck-through price, "0
+  available") overwrites a value with an empty or zero one, and that is a
+  statement, not a silence.
+- **The email body outranks the file attached to it**, because the body is the
+  later thing written. When they disagree — "prices in the attached go up 10% on
+  Monday", "ignore the second tab", "the 15 G are gone" — the body is the current
+  word and the attachment is the document it is amending. Record what the body
+  said in the row's dated `notes` so the override is visible, and flag it if the
+  amendment is broad enough that you had to interpret it.
+- **Unless explicitly specified otherwise**, which means one of exactly three
+  things — none of them your own judgement:
+  1. **The brief or Chris says so** — "keep the existing prices", "this is a
+     back-catalogue file, don't touch current stock".
+  2. **The source says so** — a file the supplier labels superseded, archived or
+     future-dated ("effective 1 Sept" is not effective today).
+  3. **You are knowingly ingesting an older file than the one already on the
+     row** — a backfill, or a re-send of something already processed. Ingestion
+     order is not recency: `inventory_sources.created_at` records when *we*
+     ingested a file, so replaying a January sheet in August gives it the newest
+     `created_at` and it would clobber current data on a naive "latest wins".
+     **When the file you hold is older than the row's current source, do not
+     overwrite the fields that conflict.** Report them under *Flags needing
+     Chris* with both values, and say which source each came from.
+
+  In all three cases the exception is *stated somewhere you can quote*. If you
+  cannot quote it, the new drop wins.
+
 **1. Pull the nearest existing rows, then decide — never match on a key.**
 
 An exact key (`name_key` + `size`) looks decisive and isn't. Suppliers respell,
@@ -695,7 +760,85 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
 - **If you onboarded anything**, `supplier-onboarding` §5 has the checks for the
   supplier and contact rows — run them there, not here.
 - **Compare against what was there before:** inspect price/quantity/spec changes on the rows you updated, plants that are new to this supplier, and duplicate inflation. Spot-check several important searches afterwards to confirm exact identities rank correctly without sibling-cultivar leakage.
+- **Check that the newest source actually won** (§4). Every field this drop
+  stated is now the stored value, and every field it didn't mention is
+  untouched — a row whose price this sheet listed but which still carries the
+  previous figure means an update was skipped, and a field this sheet was silent
+  about that is now null means silence was treated as a value. Both are worse
+  than a parse miss, because neither shows up in a count. If you *withheld* an
+  overwrite under one of §4's three exceptions, that is not a QA failure — but it
+  must be quotable and it must be in the report.
 - **Record QA evidence in the report contract:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
+
+## 6. Catalogue any plant photos in the drop
+
+A drop that carries photographs of plants carries two things, not one. The sheet
+becomes `inventory`; the photographs become `plant_photos`. **Do the inventory
+first** — §0 has to have resolved the supplier before a photo can be attributed
+to one, and QA has to have passed before you spend anything else on the drop.
+
+**Follow the `plant-photo-catalogue` skill for the write itself** — hash,
+dedupe on `sha256`, upload to the private bucket at an id-built path, insert.
+Don't restate it and don't improvise it; that skill owns every `plant_photos`
+row. What follows is only what *this* context adds.
+
+### What the ingest knows that a bare photo doesn't
+
+- **The supplier.** Use the location §0 resolved — but only when the drop mapped
+  to **exactly one**. A file that fanned out to a company's five farms tells you
+  the company, not which farm the photo was taken at, so leave `supplier_id`
+  null unless the photo's own context names one. A null supplier is a working
+  catalogue photo; a wrong one is worse than none.
+- **The provenance.** `source` gets the same channel and identifier the drop
+  came through — `Chris, Telegram main message 682, <ts>`, `<sender>, Gmail
+  MessageId <id>, <ts>`, or the exact page URL for a website. Whoever reads the
+  photo later needs to find its origin without your transcript.
+
+### What the drop is *not* evidence for
+
+**The sheet beside a photo says nothing about the photo.** This is the rule that
+matters most here, because everything in the drop looks related:
+
+- **Identity** comes from the photo's own evidence only — a label legible in the
+  frame, the filename, or the email/message text naming what was sent. A photo
+  attached to a 400-row availability sheet is not "about" those 400 rows, and it
+  is not about the row that happens to sit nearest it in the file.
+- **Size is stated or null.** It does **not** inherit the sheet's size column,
+  and it is never read off how big the plant looks. If the body says "here's the
+  30 G windmill palm", that is stated. If it says nothing, `size` and `size_std`
+  are null.
+- **No inventory link.** There is no link between a photo and an `inventory`
+  row, by design — photos outlive the rows beside them. Don't invent one in
+  `notes` either; write what the source said, not which row you think it matches.
+- A photo is a **reference record, never an availability claim.** Cataloguing a
+  supplier's photo does not mean they have it in stock, and nothing you write in
+  §6 may read as though it does.
+
+### Website drops
+
+A hosted availability page often carries plant photographs. Two constraints:
+
+- **Only the page(s) you were given.** Catalogue photos from the availability
+  page you are already ingesting. **Do not crawl the site** for a gallery, and
+  do not harvest a photo library wholesale — that is a separate, scheduled piece
+  of work with Chris's say-so, not a side effect of an ingest.
+- **Rights are unresolved, so record that rather than assuming it.** A photo we
+  fetched from a supplier's website is theirs, not ours; a photo they *sent* us
+  carries at least an implicit intent that we use it. Put the exact image URL in
+  `source` and tag the row **`web`**, so every web-sourced photo is findable and
+  removable in one query if a supplier ever objects. Raise anything that looks
+  stock-licensed or watermarked under *Flags needing Chris* instead of
+  cataloguing it.
+
+### Before you move on
+
+```sql
+SELECT id, name, size, size_std, supplier_id, tags, source
+FROM plant_photos WHERE sha256 = ANY(ARRAY[<hashes from this drop>]);
+```
+
+Every photo in the drop is accounted for: catalogued, skipped as a duplicate of
+an existing `sha256`, or skipped as not-a-plant. The report says which.
 
 ## Recording availability status
 
@@ -738,6 +881,16 @@ and it cannot read your transcript. Include:
   inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs
   added. Nothing was retired — if you believe something should be, it goes under
   *Flags needing Chris* instead.
+- **Photos** (when the drop carried any): how many images it held, and what
+  became of each — catalogued (with the `plant_photos` ids, plant, supplier
+  attribution or "unattributed", and whether size was stated or left null),
+  skipped as an exact `sha256` duplicate of a photo already catalogued, or
+  skipped as not a plant (logo, signature, letterhead). Every image is accounted
+  for by one of those three. For a website drop, name the page and say the photos
+  are tagged `web` with rights unresolved (§6).
+- **Overrides withheld**: any field where you did *not* let this drop win, under
+  one of §4's three exceptions. Give both values, both sources, and the sentence
+  you are relying on. An empty list is the normal case and worth saying so.
 - **Duplicates found**: keys where several active rows carried the same price and
   printed name (§4 step 1). Give the plant, size and row ids, and say which one
   you updated. These are a cleanup backlog, not something to fix mid-ingest.
