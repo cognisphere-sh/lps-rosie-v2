@@ -5,6 +5,11 @@ config
 scripts/aws/config
 logs/
 
+# python bytecode — build artifacts of the agent helper scripts, keyed to the
+# path they were compiled at, so they go stale the moment a script moves.
+__pycache__/
+*.pyc
+
 # agent workspaces
 **/harness/agents/*/workspace/**
 

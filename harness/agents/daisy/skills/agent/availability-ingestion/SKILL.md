@@ -1,28 +1,37 @@
 ---
-name: supplier-onboarding-and-ingestion
-description: Onboard a supplier and ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every database write in the ingestion path belongs to this skill. Covers which location each row belongs to when a source covers several locations of one company, onboarding a new suppliers row (browser enrichment, newsletter signup), contacts/supplier_contacts linking and is_primary, conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, onboarding a supplier, or fixing/reviewing inventory rows from an ingest. (v3.6.2)
+name: availability-ingestion
+description: Ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every inventory-side database write belongs to this skill. Covers which location each row belongs to when one file covers several locations of a company (head_branch_id, per-tab and per-section evidence, and handing a genuinely new farm to the supplier-onboarding skill), source conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, the match-candidates script, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), post-ingestion QA, and the report contract. Use when ingesting supplier availability, or fixing or reviewing inventory rows from an ingest. (v1.0.0)
 metadata:
   author: lps
-  version: "3.6.2"
+  version: "1.0.0"
 ---
 
-# Supplier onboarding & availability ingestion
+# Availability ingestion
 
-Onboard a supplier and ingest one availability drop (price list, availability
-sheet, website catalog, or photo) into Supabase. This procedure is normally run
-by a **task thread** dispatched from the `availability-drop-intake` skill, and it
-owns **every database write in the ingestion path** — onboarding, contacts,
-parsing, and all `inventory` / `inventory_sources` / `plant_aliases` rows.
+Ingest one availability drop (price list, availability sheet, website catalog, or
+photo) into Supabase. This procedure is normally run by a **task thread**
+dispatched from the `availability-drop-intake` skill, and it owns **every
+inventory-side database write** — parsing and all `inventory`,
+`inventory_sources` and `plant_aliases` rows.
 
-**Where the boundary is.** The main agent coordinates: it identifies the
-supplier, briefs you, digests your report, and labels the email. It never writes
-a row. You write every row and never talk to Chris, Telegram or the supplier
-directly — anything you need from a human goes in your report and the main agent
-relays it. If you find yourself deciding *whether* to reply to someone, you are
-in the wrong skill.
+**Where the boundary is.** Three skills meet here, and each owns one thing:
 
-**Don't change this skill on your own.** If you find something wrong, missing,
-or inefficient in it, put the suggested change in the *Learnings* part of your
+- **`availability-drop-intake`** coordinates: it identifies the supplier, briefs
+  you, digests your report, and talks to Chris. It never writes a row.
+- **this skill** parses the drop and writes every `inventory`,
+  `inventory_sources` and `plant_aliases` row.
+- **`supplier-onboarding`** writes every `suppliers`, `contacts` and
+  `supplier_contacts` row. **When §0 finds no supplier at all, or finds a farm
+  the company has no row for, follow that skill to create it, then come back
+  here with the new `supplier_id`.** Don't insert a supplier or a contact
+  yourself.
+
+You **never talk to Chris, Telegram or the supplier directly** — anything you
+need from a human goes in your report and the main agent relays it. If you find
+yourself deciding *whether* to reply to someone, you are in the wrong skill.
+
+**Don't change this skill on your own.** If you find something wrong, missing, or
+inefficient in it, put the suggested change in the *Learnings* part of your
 report — changes here require Chris's or Bhoumik's approval, and then a version
 bump per the `create-skill` skill.
 
@@ -43,20 +52,10 @@ location the drop belongs to, a credential is needed, the source is unreadable �
 your report and stop at a safe point. You will be re-invoked with answers in the
 same session. Ask early rather than guessing.
 
-**Two rules that hold for every write below.** Any contact with the supplier
-during onboarding or ingestion gets a timestamped entry in
+Any contact with the supplier during the ingest gets a timestamped entry in
 `suppliers.communication_notes` — follow the `supplier-communications` skill.
-And **people go in `contacts`, never on the supplier row and never in prose**:
-one row per person plus a `supplier_contacts` link per location they cover
-(§0.3); `contacts.notes` describes the *person*. Never write a name, email or
-phone into `suppliers.notes` — a 2026-08-05 cleanup had to lift 29 of them back
-out. A **generic inbox** (`sales@`, `orders@`, `avail@`) is a contact row like
-any other, but it is the company's switchboard, not a person: leave its `name`
-null and mark it `title_department = 'Main line'`.
 
-## 0. Locations, onboarding and contacts
-
-### 0.1 Which location does each row belong to?
+## 0. Which location does each row belong to?
 
 **One source file is not one supplier.** A company that grows or sells at
 several sites is several `suppliers` rows — one per location — tied together by
@@ -82,7 +81,11 @@ this **before parsing** — it decides where every row goes.
    ```
 
    One row back — the supplier itself — → single location, every offering maps
-   to that one `supplier_id`. Carry on at §0.2.
+   to that one `supplier_id`. Carry on at §1.
+
+   **If the brief says the sender matched no supplier at all**, there is nothing
+   to map to yet: follow the **`supplier-onboarding`** skill to create the
+   supplier, then come back here with the id it returns.
 
 2. **Where does the file say a location?** Look in the sheet header, a tab or
    page per farm, a "Ship from" / "Grown at" / "Farm" column, a section heading,
@@ -117,11 +120,11 @@ this **before parsing** — it decides where every row goes.
    that farm's catalogue across two `supplier_id`s permanently, and no later
    ingest can tell the halves apart.
 
-   Only a site that is **genuinely absent** is a new location: onboard it as a
-   new supplier (§0.2) with the same `head_branch_id`, and say so in your
-   report. If it could plausibly be either — a near-match on name, a code you
-   can't tie to a city — it is ambiguous, so step 3 applies: ask, don't
-   onboard.
+   Only a site that is **genuinely absent** is a new location: **follow the
+   `supplier-onboarding` skill** to create it as a new supplier with the same
+   `head_branch_id`, come back here with its id, and say so in your report. If it
+   could plausibly be either — a near-match on name, a code you can't tie to a
+   city — it is ambiguous, so step 3 applies: ask, don't onboard.
 
 3. **Never guess a location from the sender's address or the file name.** If the
    mapping is ambiguous — a location name that matches no row, two plausible
@@ -141,141 +144,17 @@ Carry the resulting **row → `supplier_id` mapping** through §2 and §4; §5 c
 it. Report the per-location counts separately — one total hides a location that
 silently got nothing.
 
-### 0.2 Onboarding (only when the supplier is new)
-
-- **Confirm before you insert — don't re-run the search.** The main agent already
-  looked this supplier up (`availability-drop-intake` §1); your job is the second
-  pair of eyes on a brief that says "new". One call to `search_suppliers` with
-  the name and the sender's domain is enough. A hit means **stop and report it**
-  rather than creating a duplicate — and remember that several hits for one
-  company are usually its locations, not duplicates (§0.1). If it is genuinely
-  new, carry on.
-- INSERT the `suppliers` row with whatever you have (`name` is required; add
-  address parts when present). `suppliers` has **no `email` or `phone` column** —
-  the company's own switchboard is a `contacts` row like any other. Set
-  `category` to one of `Wholesaler`/`Grower`/`Nursery` **only if you actually
-  know it — otherwise leave it null; never guess.** Capture the returned `id`.
-  If this is a **new location of a company already in the database**, set
-  `head_branch_id` to that company's head branch and name the row for the site
-  (`<Company> - <City or farm name>`). Leave `head_branch_id` alone otherwise —
-  a new supplier is its own head branch by default. If it is a new company that
-  turns out to run several sites, report it — deciding which row is the head
-  branch is Chris's call (§0.1 step 4), not something to do mid-ingest.
-- **INSERT a `contacts` row for the supplier's main line** — the general
-  `info@`/`sales@` address and the switchboard number — with
-  `title_department = 'Main line'` and `name` left null. That row is what makes
-  the supplier findable by email next time.
-- **INSERT a `contacts` row for each person you know**, with `name` / `email` /
-  `phone` / `title_department` filled from what the source actually gives — a
-  signature block, a "contact us" page, the sender of the availability email.
-  **Leave `name` null unless the source actually names them** — never infer a
-  name from the address itself. `bobby.green@` is a fair read, but
-  `tynursery.orders@` and `treeoflife.gardencenter@` are not people, and
-  `dwinningham@` cannot yield a first name without inventing one. A contact
-  with only an email or phone is perfectly valid.
-- **Then link them (§0.3).** `contacts` has **no `supplier_id`**: the tie to a
-  supplier is a `supplier_contacts` row, and a contact with no link is invisible
-  to every reader. Getting the right sales/contact person on file, on the right
-  locations, matters — it is how every later availability request reaches a human
-  instead of a switchboard.
-- For an **existing** supplier, check its linked contacts before inserting: add
-  the person only if they are genuinely new, correct the existing row if they
-  moved role, and retire whoever has left. Never delete.
-
-- **Enrich via the browser** (`scripts/agent/agent-browser`): google the
-  supplier; find their **website** (store as a bare domain, e.g.
-  `acostafarms.com` — the UI prepends `https://`), full **address / city /
-  state / zip**, **phone**, and **latitude / longitude** (read coords off
-  their Google Maps listing or geocode the address). UPDATE the row with what
-  you confirm — never invent values you couldn't verify.
-- **Subscribe to their availability newsletter.** While on their website,
-  look for an availability / price-list newsletter signup (footer form,
-  "join our mailing list", Mailchimp/Constant Contact embed). If found,
-  subscribe with Daisy's email **`chris.r@localplantsupply.com`** and record
-  in your report that you subscribed (the main agent tells Chris). If signup
-  needs approval or human steps, note that instead.
-- **Record how their availability reaches us.** Three columns on `suppliers`
-  capture it, and each is filled only from something you actually saw:
-  - `availability_source_type` — `'Email'` when they send the list (a drop
-    landing in the inbox is proof), `'Hosted'` when it lives on a page you
-    fetched. A supplier can be both; record the one this drop came through.
-  - `hosted_availability_url` — the page a hosted list sits on, when there is one.
-  - `availability_update_days` — how often it refreshes, in whole days (7 =
-    weekly), **only when the supplier states it** ("updated every Monday", "new
-    availability weekly", a dated page footer). Never infer it from two drops
-    happening to fall a week apart.
-
-  Leave any of them null when you don't know — null means "not established
-  yet", and a guess sends someone chasing a list that isn't there. For an
-  existing supplier, fill a null column when a drop reveals it; don't overwrite
-  an existing value without evidence it changed.
-- Do the same enrichment/newsletter check for an **existing** supplier whose
-  row is missing website/address/coords — don't re-subscribe if their notes
-  say it's already done.
-
-### 0.3 Linking contacts — one person, however many locations
-
-**A contact can be the point of contact for several nurseries.** That is the
-normal shape at a multi-location company: one inside-sales rep quotes across
-every farm, while a yard manager answers for one site only.
-
-- **Link, don't duplicate.** Before inserting a person, look for them across
-  every location of the company — the same email at a sister location is the
-  same person:
-  ```sql
-  SELECT c.id, c.name, c.email, c.phone, sc.supplier_id, sc.is_primary
-  FROM contacts c
-  JOIN supplier_contacts sc ON sc.contact_id = c.id AND sc.is_active
-  WHERE c.is_active
-    AND sc.supplier_id IN (<every location of the company>)
-    AND (lower(c.email) = lower('<email>') OR c.phone = '<phone>');
-  ```
-  Found → add a link, don't insert a second contact row. Not found → insert the
-  contact, then link it. If you find two *existing* rows that are plainly the
-  same route — same email **and** same phone — report them under *Learnings*;
-  merging them is migration work (0036 did the first pass), not something to do
-  mid-ingest. **A shared inbox is not a duplicate person:** two rows on
-  `info@…` with different phone numbers are two locations or two people, and
-  merging them would delete a working number.
-- **Work out how many locations they cover, from what the source says.** Their
-  signature, title or the sheet header is the evidence: "Inside Sales — all
-  farms" or a company-wide availability list is every location of the company;
-  "Yard Manager, Bunnell" or a farm-specific sheet is that one. **When the source
-  only shows them at one location, link only that one** — coverage is a fact to
-  read, not to assume. Note the evidence in `contacts.notes`.
-  ```sql
-  INSERT INTO contacts (name, email, phone, title_department, notes)
-  VALUES (...) RETURNING id;
-
-  INSERT INTO supplier_contacts (supplier_id, contact_id, is_primary)
-  SELECT s.id, <contact id>, false
-  FROM suppliers s WHERE s.id = ANY(ARRAY[<the locations they cover>]);
-  ```
-  `(supplier_id, contact_id)` is unique, so re-linking someone is
-  `UPDATE supplier_contacts SET is_active = true WHERE …`, never a second row.
-- **`is_primary` is per location.** Flag the one who answers about availability
-  *at that location*; **at most one active primary per location**, so promote by
-  demoting the incumbent first:
-  ```sql
-  UPDATE supplier_contacts SET is_primary = false
-  WHERE supplier_id = <id> AND is_active AND is_primary;
-  UPDATE supplier_contacts SET is_primary = true
-  WHERE supplier_id = <id> AND contact_id = <new primary> AND is_active;
-  ```
-- **Retiring is two different acts.** Someone who stopped covering one farm but
-  still covers others: `UPDATE supplier_contacts SET is_active = false WHERE
-  supplier_id = <id> AND contact_id = <id>`. Someone who left the company:
-  retire every link **and** set `contacts.is_active = false`. Never delete.
-- **Editing a contact row changes them everywhere.** A new phone number is right
-  to write once. Something true only at one site — "handles the Bunnell pickup
-  window" — belongs in that supplier's `notes`, not on the shared person.
+**Contacts are not yours.** If the drop reveals a new person, a new phone number
+or a rep who has left, that is `supplier-onboarding` §4 — follow it for those
+writes, or hand the detail back in your report if the ingest is the only thing
+you were asked for.
 
 ## 1. Acquire and convert the source
 
 - **Text-based PDFs:** use `scripts/agent/markitdown <file>` as the primary extractor and inspect its Markdown tables/continuation lines before parsing. Do not default to `pdftotext` or write an ad hoc custom PDF parser merely because fixed-width text looks usable. If MarkItDown leaves wrapped/ambiguous rows, preserve the extracted evidence and resolve it with visual row-level review rather than a heuristic that can silently cross or drop cells.
 - **Scanned/image-only PDFs:** `pdftotext` cannot OCR pixels unless the file already contains a hidden text layer. Render with `pdftoppm -png`, then use image reading/OCR/vision with page- and row-level visual checks. `pdftotext -layout` may be used only as a diagnostic/fallback when an actual text layer exists, not as the primary parser for scans.
 - **Other attachments:** use `scripts/agent/markitdown <file>` for xlsx/docx and supported office formats. Avoid one-off custom parsers when the standard converter preserves the source structure; if conversion remains ambiguous, retain raw evidence and flag the affected rows instead of guessing.
-- **Workbooks with several sheets:** `markitdown` converts **every** sheet, in workbook order, writing the tab name as a `## <name>` heading above that sheet's table — so tab names survive conversion, and under §0.1 they are location evidence. Read the whole output and count its `##` headings against the workbook's tabs before you parse: a per-farm workbook parsed as its first table alone silently loses every other farm, and §5's per-supplier count check cannot see the difference because the locations it never wrote to simply don't appear. Three converter behaviours will mislead you if you don't look for them. **Hidden sheets convert like any other**, with nothing in the output marking them hidden — last season's tab is not a location that got this drop. **Each sheet's first row becomes its header**, so a title or logo row above the table pushes the real headers down into the first data row; the tell is a header cell holding the sheet's title, or `Unnamed: 1` where a merged/blank cell was. And **an empty sheet still emits a table**, a degenerate one-cell row rather than nothing. Check the header row of every sheet you parse.
+- **Workbooks with several sheets:** `markitdown` converts **every** sheet, in workbook order, writing the tab name as a `## <name>` heading above that sheet's table — so tab names survive conversion, and under §0 they are location evidence. Read the whole output and count its `##` headings against the workbook's tabs before you parse: a per-farm workbook parsed as its first table alone silently loses every other farm, and §5's per-supplier count check cannot see the difference because the locations it never wrote to simply don't appear. Three converter behaviours will mislead you if you don't look for them. **Hidden sheets convert like any other**, with nothing in the output marking them hidden — last season's tab is not a location that got this drop. **Each sheet's first row becomes its header**, so a title or logo row above the table pushes the real headers down into the first data row; the tell is a header cell holding the sheet's title, or `Unnamed: 1` where a merged/blank cell was. And **an empty sheet still emits a table**, a degenerate one-cell row rather than nothing. Check the header row of every sheet you parse.
 - If the email **body** contains a URL that may hold the availability (link to a price list / catalog / sheet), open it with `markitdown` or `scripts/agent/agent-browser` — don't treat a bare link as unparseable. If the URL is a downloadable file, download it and check its contents before deciding it's irrelevant.
 - Intermediate files (converted markdown, page images, parse chunks) go to `/tmp` — they are not records.
 
@@ -400,9 +279,8 @@ One logical row per **plant × size offering**. Normalize every line:
     are two products, not two names for one. A supplier does not price the same
     plant twice under different names in one availability sheet. Check before
     inserting; this is what 44255 got wrong.
-  - **Same thing, not a relative.** Both sides must name the *same* plant (or
-    the same selection, for a `cultivar` edge). Never a species ↔ one of its
-    cultivars **in a `plant` pair** — that is what the `cultivar` type is for —
+  - **Same thing, not a relative.** Both sides must name the *same* plant — the
+    same species, or the same selection. Never a species ↔ one of its cultivars,
     never sibling cultivars, and never two different species:
     `Cercis canadensis` ↔ `Cercis mexicana` is wrong, they are different plants.
     Genuine renames are fine. Where taxonomies disagree, **the trade wins**: if
@@ -594,7 +472,7 @@ guess* rule still holds.
   VALUES (<supplier_id>, '<object key or URL>', '<where/how sourced>') RETURNING id;
   ```
 - **One per file × location.** `inventory_sources.supplier_id` is a single
-  location, so a drop that §0.1 mapped to several gets a row per location
+  location, so a drop that §0 mapped to several gets a row per location
   pointing at the **same** `file_path` — upload the file once. Keep the ids per
   location; §4 stamps each row with its own location's source id, and mixing
   them up attributes one farm's stock to another. Say in `notes` that the file is
@@ -622,7 +500,7 @@ offering look brand new to a key, and the ingest silently duplicates it. So the
 procedure is: **retrieve the closest candidates, look at them, and decide.**
 
 ```bash
-skills/agent/supplier-onboarding-and-ingestion/scripts/match-candidates \
+skills/agent/availability-ingestion/scripts/match-candidates \
   --supplier <supplier_id> --entries /tmp/<thread>-parsed.json
 ```
 
@@ -630,7 +508,7 @@ Feed it your parsed offerings as a JSON array — the **three name parts** from 
 (`common_name`, `botanical_name`, `cultivar`), plus `size`, `unit_price`,
 `quantity`, `height`, `width`, `caliper` when you have them, so the output puts
 your entry and its candidates side by side. For a multi-location drop run it
-**once per `supplier_id`** in the §0.1 mapping, with only that location's
+**once per `supplier_id`** in the §0 mapping, with only that location's
 entries. `--help` documents the rest; the defaults are the ones to use.
 
 For each entry it returns up to five of that supplier's **active** rows plus the
@@ -731,7 +609,7 @@ tells you an item is discontinued, record that in `notes` and raise it under
 **A brand-new supplier's first ingest** finds nothing to match, so it is all
 inserts.
 
-**Multi-location: run steps 1–4 once per `supplier_id`** in the §0.1 mapping,
+**Multi-location: run steps 1–4 once per `supplier_id`** in the §0 mapping,
 each with its own source id. The parsed values are the same; the `supplier_id`,
 the `source_id` and the row each one matches are not — a location is refreshed
 only by its own rows, and a location this drop didn't cover keeps everything it
@@ -799,9 +677,9 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   fix. Report every pair with the verbatim source line that attests both sides;
   it must also be stored in `plant_aliases.source_line`. "It looked like a
   synonym" is not evidence and does not pass.
-- **Check the row → location mapping from §0.1.** Every row this drop touched now
+- **Check the row → location mapping from §0.** Every row this drop touched now
   carries one of the new source ids, so group by supplier and compare against
-  what §0.1 said should happen:
+  what §0 said should happen:
   ```sql
   SELECT supplier_id, count(*) FROM inventory
   WHERE source_id = ANY(ARRAY[<all new source ids>]::uuid[])
@@ -814,14 +692,8 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
     never mentioned appears at all.
   - **One location named for the whole file** → exactly one `supplier_id`, and it
     is the one named.
-- **Check the contact links you wrote.** Each new contact has at least one
-  active link, no person was duplicated at a sister location that already had
-  them, and every location has at most one active primary:
-  ```sql
-  SELECT supplier_id, count(*) FROM supplier_contacts
-  WHERE is_active AND is_primary AND supplier_id = ANY(ARRAY[<locations>])
-  GROUP BY supplier_id HAVING count(*) > 1;   -- expect zero rows
-  ```
+- **If you onboarded anything**, `supplier-onboarding` §5 has the checks for the
+  supplier and contact rows — run them there, not here.
 - **Compare against what was there before:** inspect price/quantity/spec changes on the rows you updated, plants that are new to this supplier, and duplicate inflation. Spot-check several important searches afterwards to confirm exact identities rank correctly without sibling-cultivar leakage.
 - **Record QA evidence in the report contract:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
@@ -851,18 +723,16 @@ part. Return a **compact structured report**, not a transcript — the main agen
 uses it for the thread summary, the daily note, and anything Chris needs to see,
 and it cannot read your transcript. Include:
 
-- **Onboarding** (when performed): new `supplier_id`, its `head_branch_id` when
-  the row is a location of a known company, fields set via browser research —
-  including which of the availability-source columns you set and on what
-  evidence, and which you left null — `contacts` rows added and the
-  `supplier_contacts` links you made (which locations each covers, on what
-  evidence, and which one you made primary where), newsletter subscribed (or why
-  not).
+- **Onboarding** (when any was performed): the block `supplier-onboarding`
+  returns, folded in here so the main agent reads one report — the new
+  `supplier_id` and its `head_branch_id`, enrichment and newsletter, contacts and
+  links. Say what sent you there: a sender that matched nothing, or a farm the
+  file named that had no row.
 - **Locations**: which location(s) this drop was written to and how the mapping
   was decided — the name the source gave per row/section, the one name it gave
   for the whole file, or "no location named → all N of the company's". Say which
   of the company's locations you did **not** write to, and which tabs or
-  sections you skipped as non-locations (§0.1).
+  sections you skipped as non-locations (§0).
 - **Result**, **per location** when the drop covered several, never as one total:
   supplier_id, source ids + `file_path`s created, **rows updated**, **rows
   inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs
@@ -881,4 +751,6 @@ and it cannot read your transcript. Include:
   `notes.md`; anything incorrect/redundant found in SCHEMA.md, this skill, or
   other docs; **suggested skill/script/database changes** (you never change this
   skill — they go to the daily summary for Chris's/Bhoumik's approval).
-- **Suggested status label**: `Catalogued` / `Failed` / `Not Availability` / `Escalated`.
+- **Suggested status label**: `Catalogued` / `Failed` / `Not Availability` /
+  `Escalated` — the four sub-labels defined in `availability-drop-intake` §5,
+  which is where the main agent applies them.

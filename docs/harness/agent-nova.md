@@ -67,12 +67,12 @@ the four shared ones.
 
 ## Skills (`skills/agent/`)
 
-- **cognisphere-upgrade** (v1.2.0) — drives the two-phase harness version
+- **cognisphere-upgrade** — drives the two-phase harness version
   upgrade (bump the dependency, migrate the data dir per the CHANGELOG).
-- **create-plugin** (v1.1.0) — scaffolds a new user-space plugin in
+- **create-plugin** — scaffolds a new user-space plugin in
   `harness/plugins/<id>/` and enables it on an agent; ships a `template/`
   (minimal `hello` interval plugin).
-- **create-skill** (v1.1.0) — authors or updates a versioned agent skill, and
+- **create-skill** — authors or updates a versioned agent skill, and
   migrates a procedure out of a prompt file or `knowledge/` into one.
 
 These skills are mirrored at the app-home `.claude/skills/` so coding agents run

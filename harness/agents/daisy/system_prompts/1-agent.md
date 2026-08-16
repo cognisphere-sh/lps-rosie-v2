@@ -150,7 +150,7 @@ customer.
 Table/column definitions live in `knowledge/files/SCHEMA.md`; data-normalization
 conventions (sizes, botanical names, aliases, key columns, notes vs
 `internal_notes`, how rows are written and updated) live in the
-`supplier-onboarding-and-ingestion` skill. **Consult both whenever you touch
+`availability-ingestion` skill. **Consult both whenever you touch
 `inventory` rows yourself** — spot-checks, single-row fixes, ad-hoc db updates —
 the skill's rules apply there too, not only inside an ingest. Two things hold
 everywhere:

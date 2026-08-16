@@ -1,4 +1,46 @@
-# supplier-onboarding-and-ingestion — changelog
+# availability-ingestion — changelog
+
+## 1.0.0
+
+Split out of `supplier-onboarding-and-ingestion`, which combined two procedures
+that ran at different times, for different reasons, against different tables.
+This skill keeps the inventory-side half; the supplier-side half is now the
+**`supplier-onboarding`** skill. No rule about parsing, normalization, matching
+or QA changed in the move — the content below is the same procedure, renumbered.
+
+- **What came here**: the location mapping (old §0.1, now §0), source conversion
+  (§1), parsing and normalization including the size standard and the
+  `plant_aliases` quality bar (§2), provenance (§3), the update-in-place write
+  path and `match-candidates` (§4), post-ingestion QA (§5), recording
+  availability status, and the canonical report contract. `scripts/match-candidates`
+  moved with it — the path in §4 is now
+  `skills/agent/availability-ingestion/scripts/match-candidates`.
+- **What left**: old §0.2 (onboarding a `suppliers` row, browser enrichment,
+  newsletter signup, the availability-source columns) and §0.3 (`contacts` /
+  `supplier_contacts` linking, `is_primary`, retiring) are now
+  `supplier-onboarding` §1–§4. §5's contact-link QA check went with them.
+- **The two skills call each other.** §0 still decides which location every row
+  belongs to; when it finds no supplier at all, or a farm the company has no row
+  for, it now **follows `supplier-onboarding` to create it** and comes back with
+  the id instead of inserting the supplier inline. In the other direction,
+  `supplier-onboarding` points here when the supplier it just created came with
+  availability to ingest.
+- **Renumbering**: old §0.1 → §0. §1–§5 keep their numbers. Cross-references
+  inside the skill were updated to match; the `match-candidates` docstring's
+  "see §4" is still correct.
+- **Section 2's alias bar drops a stale clause.** "Never a species ↔ one of its
+  cultivars **in a `plant` pair** — that is what the `cultivar` type is for" was
+  left over from before migration 0050 dropped `alias_type`, and contradicted the
+  paragraph above it stating there is no such column. The rule itself is
+  unchanged and now reads without the type: never a species ↔ one of its
+  cultivars, never siblings, never two species.
+
+## Prior history — `supplier-onboarding-and-ingestion`
+
+Everything below is the changelog of the skill this one was split out of, kept
+here because it carries the approval record (dates and who signed off) for rules
+that are still in force. `supplier-onboarding` shares this history.
+
 
 ## 3.6.2
 

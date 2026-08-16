@@ -37,7 +37,7 @@ Comparison:
 | Plugins | admin, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram, **webchat** (+ core: agent-messaging) |
 | Knowledge dir | `files/`: SCHEMA (symlink), suppliers, gmail-labels; `memory.md` | `memory.md` only |
 | Migrations | 0001 (applied, superseded) | — |
-| Skills | 6 LPS procedures + create-skill | cognisphere-upgrade, create-plugin, create-skill |
+| Skills | 5 LPS procedures + create-skill | cognisphere-upgrade, create-plugin, create-skill |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
@@ -91,6 +91,16 @@ These are byte-identical in every agent dir:
   `plugin-<id>.md` is plugin-owned (reseeded on every agent start), and `1-*.md`
   is deployment-owned — identity, persona and behaviour only, no procedures.
   Step-by-step procedures live in `skills/agent/<slug>/` instead.
+
+  **One local edit to `0-base_prompt.md`**, identical in daisy and nova
+  (2026-08-15): the **Task threads** bullet that names the skill to follow now
+  forbids quoting a version number in the brief, where the seed asked for "skill
+  name and its current version". The receiving thread's `<available_skills>` is
+  rebuilt at spawn, so it resolves the name to the current version by itself,
+  and a version copied into a brief is wrong the moment the skill is bumped. As
+  a `0-*` edit this diverges from the seed — the `cognisphere-upgrade` skill's
+  local-edit pass (step 4a/4c) must carry it across upgrades or the seed wording
+  comes back.
 
 ## Plugins
 

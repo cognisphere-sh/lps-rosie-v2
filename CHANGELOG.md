@@ -19,6 +19,86 @@ here).
 
 ### Changed
 
+- **`supplier-onboarding-and-ingestion` is split in two, by what each half
+  writes.** One skill covered two procedures that run at different times, for
+  different reasons, against disjoint tables: onboarding a supplier (which
+  happens once, and can happen with no drop attached) and ingesting a drop
+  (which happens every week, and usually needs no onboarding at all). It is now
+  **`supplier-onboarding`** (`suppliers`, `contacts`, `supplier_contacts`) and
+  **`availability-ingestion`** (`inventory`, `inventory_sources`,
+  `plant_aliases`), both v1.0.0. **No procedural rule changed in the move** —
+  the parsing, size, alias, matching and QA content is the same text, renumbered.
+
+  - **The two call each other, so the main agent still dispatches one thread.**
+    `availability-ingestion` §0 works out which location each parsed row belongs
+    to; when the sender matches no supplier, or the file names a farm the company
+    has no row for, it follows `supplier-onboarding` to create it and returns
+    with the id. A supplier onboarded directly that came with availability
+    attached goes the other way. Whether onboarding is in scope is discovered
+    during the ingest, not decided when the brief is written, so
+    `availability-drop-intake` **v2.0.4 → v2.1.0** names `availability-ingestion`
+    alone and reads one report — `supplier-onboarding`'s *Onboarding* block folds
+    into the ingestion report.
+  - **`scripts/match-candidates` moved with the ingestion half**; §4's path is
+    now `skills/agent/availability-ingestion/scripts/match-candidates`.
+  - **One stale clause dropped on the way.** The alias quality bar still said
+    "never a species ↔ one of its cultivars **in a `plant` pair** — that is what
+    the `cultivar` type is for", four paragraphs after explaining that migration
+    0050 dropped `alias_type` and there are no kinds of pair. The rule stands;
+    the reference to a type that no longer exists is gone.
+  - The retired skill's `CHANGELOG.md` is kept under *Prior history* in
+    `availability-ingestion/CHANGELOG.md` — it carries the approval record
+    (dates and sign-off) for rules still in force in both halves.
+
+- **The coordinator stops assembling a list only the task thread can build**
+  (`availability-drop-intake` **v2.1.0 → v2.2.0**). §2's brief required "every
+  other active location of the same company with their ids", but §1's lookup
+  joins `contacts` → `supplier_contacts` → `suppliers` and returns only the
+  locations the *sender* is linked to — it never fanned out on `head_branch_id`.
+  The contract asked for something the step above it could not produce, and
+  nothing broke only because `availability-ingestion` §0 re-derives the set from
+  the head branch regardless. That redundancy was masking the gap; both are now
+  gone. The brief carries the matched ids and the `head_branch_id`, and the
+  fan-out belongs to the thread, whose query also returns the city and state that
+  resolving a tab label like `Ft Pierce` against a real row depends on.
+
+  Two smaller overlaps went with it. **§1 now says which lookup fits which
+  input**: `search_suppliers` for a name (typo tolerant, where the old
+  hand-written `ILIKE` was the query shape `plant-and-supplier-search` exists to
+  discourage), the exact `contacts` join for an address (an email matches the
+  RPC's contacts branch but scores 0, ranking below every name match). And
+  **§4's update/insert check is framed as what it can actually do** — this skill
+  reads a report about an already-committed transaction, so it is the backstop
+  for a §5 that didn't fire, not a second gate.
+
+- **A skill is referenced by name, never by version.** A stale `(v2.0.0)` in
+  `availability-drop-intake` §2 — pointing at a
+  `supplier-onboarding-and-ingestion` that is actually v3.6.2 — sat inside the
+  one instruction whose purpose is pinning a procedure, and was the line most
+  likely to be copied verbatim into a task-thread brief. The rule is now the
+  general one, because the version belongs where it is authoritative (the
+  skill's own frontmatter and `CHANGELOG.md`) and nowhere a copy can go stale:
+
+  - `availability-drop-intake` **v2.0.3 → v2.0.4**: §2's brief names the skill
+    with no version and says why; the boundary list also gains
+    `supplier_contacts`, which the ingestion skill writes throughout its §0.3
+    but which the "you never write to …" list had left unclaimed.
+  - `0-base_prompt.md` **Task threads** for **daisy and nova** (identical
+    edit): the "name the skill to follow" bullet asked for "skill name and its
+    current version" and now forbids the version. The receiving thread's
+    `<available_skills>` is rebuilt at spawn, so it resolves the name to the
+    current version itself. **This is a local edit to a `0-*` file**, which is
+    harness-owned and seed-replaced on upgrade — the first such divergence, now
+    recorded in [`docs/harness/README.md`](docs/harness/README.md) so the
+    `cognisphere-upgrade` local-edit pass carries it forward.
+  - `docs/harness/agent-daisy.md` and `agent-nova.md` no longer label each
+    skill in their listings with its version. Historical `since vX.Y.Z` notes
+    stay — those are statements about when something changed, and don't go
+    stale.
+
+  Not changed: a skill's own `description` suffix and `metadata.version`, which
+  `create-skill` requires and which are the authoritative copy.
+
 - **Harness upgraded 0.8.18 → 0.8.20** (`@cognisphere-sh/cognisphere-harness`,
   both phases; data stamped in `harness/harness.json`). Two breaking changes,
   both about where guidance lives, and both already satisfied by the day's
@@ -107,6 +187,12 @@ here).
   that the signature gates it. `1.1-supabase.md`'s `sign-url` section now carries
   the `daisy_shared/` convention **and** the public-bucket caveat, next to the
   command it qualifies.
+
+### Fixed
+
+- **`__pycache__/` and `*.pyc` are gitignored.** A compiled cache for
+  `match-candidates` was tracked, and bytecode is keyed to the path it was
+  compiled at — so it went stale the moment the script moved between skills.
 
 ### Removed
 

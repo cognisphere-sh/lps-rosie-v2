@@ -293,19 +293,17 @@ her prompt, so `1-agent.md` no longer lists them — it carries
 identity/persona/behaviour only, and points at skills by name where a rule needs
 one.
 
-- **supplier-onboarding-and-ingestion** (v3.6.2) — the end-to-end procedure a
-  task thread runs to onboard a supplier and ingest one availability drop, and
-  the owner of **every database write in the ingestion path**: mapping each
-  availability row to its location within the company's head branch, browser
-  enrichment and newsletter signup, `contacts`/`supplier_contacts` linking,
+- **availability-ingestion** — the procedure a task thread runs to ingest one
+  availability drop, and the owner of **every inventory-side database write**:
+  mapping each availability row to its location within the company's head branch,
   source conversion (including the tab-per-farm workbook, whose sheet headings
   are what the location mapping reads), parsing and normalization (the three name parts with
   `name` derived, the size standard and `size_std` buckets, price, dimensions,
-  `notes` vs `internal_notes` — and, since v3.5.0, the bar that keeps
+  `notes` vs `internal_notes` — and the bar that keeps
   observations the row itself answers out of `internal_notes`: a missing price
   or quantity, when the row was last updated, when the drop was ingested, a
   restatement of the size or name), the `plant_aliases` quality bar (edges are
-  untyped since v3.6.0, so the bar is the whole of the protection),
+  untyped since migration 0050, so the bar is the whole of the protection),
   provenance, updating `inventory` rows in place, post-ingestion QA,
   and the canonical report contract. Ships
   `scripts/match-candidates` — for each parsed entry it returns the closest five
@@ -314,24 +312,56 @@ one.
   narrow column set, marking any candidate whose cultivar contradicts the
   entry's as `CULTIVAR MISMATCH` and excluding it from the suggestion. Rows are matched by reading those candidates, **not** by an
   exact `(supplier_id, name_key, size)` key, because a respelled or re-sized name
-  is invisible to a key and an update-in-place ingest would duplicate it. Since
-  v3.4.0 no entry is inserted until `search_inventory` — scoped to that location
+  is invisible to a key and an update-in-place ingest would duplicate it. No
+  entry is inserted until `search_inventory` — scoped to that location
   in the outer query, since the RPC takes no supplier filter — also comes back
   empty, which catches the renames trigram similarity misses.
-- **availability-drop-intake** (v2.0.3) — the coordinator loop, and **no database
-  writes at all**: identify the supplier from sender/domain/name and pass the
-  whole group along, dispatch the task thread against the canonical brief
-  contract, answer its follow-ups, digest its report, apply the Gmail status
-  labels.
+- **supplier-onboarding** — the owner of **every supplier-side database write**:
+  confirming a supplier is genuinely new before inserting (several hits for one
+  company are usually its locations), the `suppliers` row, `head_branch_id` for a
+  new location of a known company, browser enrichment and newsletter signup, the
+  three availability-source columns, `contacts` rows for the main line and each
+  person, and `supplier_contacts` linking — one person across however many
+  locations the source actually shows them at, `is_primary` per location,
+  retiring rather than deleting. It parses no plant row.
+- **availability-drop-intake** — the coordinator loop, and **no database
+  writes at all**: identify which *company* a drop came from — the exact
+  `contacts` join for a sender address, `search_suppliers` for a name Chris gives
+  — and pass every matched row plus the `head_branch_id`, dispatch the task
+  thread against the canonical brief contract, answer its follow-ups, digest its
+  report, apply the Gmail status labels. It deliberately does **not** enumerate
+  the company's locations: `availability-ingestion` §0 fans out from the head
+  branch itself, and its query carries the city/state that resolving a farm name
+  depends on.
 
-The two are deliberately mutually exclusive: intake coordinates and talks to
-humans, ingestion writes rows and talks to no one. Each points at the other for
-the shared contracts (the brief, the report) rather than restating them.
-- **plant-and-supplier-search** (v1.6.0) — `search_inventory` /
+The three are deliberately mutually exclusive, split by what each one writes:
+intake coordinates and talks to humans, `availability-ingestion` writes
+`inventory` / `inventory_sources` / `plant_aliases`, `supplier-onboarding` writes
+`suppliers` / `contacts` / `supplier_contacts`, and neither worker talks to
+anyone. They point at each other for the shared contracts (the brief, the report)
+rather than restating them.
+
+**The two worker skills call each other, and the main agent dispatches one
+thread.** `availability-ingestion` §0 decides which location every parsed row
+belongs to; when the sender matches no supplier at all, or the file names a farm
+the company has no row for, it follows `supplier-onboarding` to create it and
+comes back with the id. In the other direction, a supplier onboarded directly
+that arrives with availability attached is handed to `availability-ingestion`.
+So intake's brief names `availability-ingestion` only — whether onboarding is in
+scope is discovered during the ingest, not decided when the brief is written —
+and the *Onboarding* block folds into the ingestion report so one report reaches
+the main agent. Intake's brief names the skill **without a version**; the task
+thread resolves the name against its own `<available_skills>`.
+
+Skill versions are deliberately absent from the list above: a version belongs in
+the skill's own frontmatter and `CHANGELOG.md`, never in a document that
+references it. Historical `since vX.Y.Z` notes below are statements about when
+something changed and stay true.
+- **plant-and-supplier-search** — `search_inventory` /
   `search_suppliers` usage, the split plant identity and untyped alias edges,
   listing straight from `inventory` (0050 dropped `inventory_enriched`),
   filter relaxation, key-column rules, answer shape.
-- **supplier-communications** (v1.1.0) — one skill for talking to a supplier and
+- **supplier-communications** — one skill for talking to a supplier and
   recording it (merges the former `supplier-communication-log` and
   `supplier-email-reply`): the never-reply-unbidden rule, the main-thread
   redirect, the draft-and-approve step, sending as Chris in the existing Gmail
@@ -340,7 +370,7 @@ the shared contracts (the brief, the report) rather than restating them.
   appending to `suppliers.communication_notes`, and which of
   `communication_notes` / `notes` / workspace `notes.md` a fact belongs in. A
   routine availability drop is **not** logged as a contact.
-- **create-skill** (v1.1.0) — shipped with the harness; how to author or bump one
+- **create-skill** — shipped with the harness; how to author or bump one
   of the above. **Changes to any LPS skill need Chris's or Bhoumik's approval**
   first, then a version bump.
 

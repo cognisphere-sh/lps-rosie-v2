@@ -342,7 +342,7 @@ availability files.
 | `name_key` | text **generated stored** | — | `normalize_plant_key(name)`. Do not write |
 | `common_name_key` / `botanical_name_key` | text | — | **Derived by trigger**: `normalize_plant_key()` of the part beside each, NULL when that part is. Do not write |
 | `cultivar_keys` | text[] | — | **Derived by trigger**: one `normalize_plant_key()` per name in `cultivar_variety_trade_name`, split on `,` (`;` and `|` tolerated; never `-` or `/`). What `cultivar` alias edges match against, by overlap (`&&`). NULL when the column is. Do not write |
-| `size` | text | yes | The container/grade sold **as the supplier printed it**, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here. See the `supplier-onboarding-and-ingestion` skill's *Size standard* |
+| `size` | text | yes | The container/grade sold **as the supplier printed it**, normalized by `normalize_size()`: gallons `"15 G"`, feet `"6'"`, inches `"24\""`, compounds keep units (`"3' cal"`, `"24\" box"`, `"15 G/17\""`). `#`/`gal` mean gallons — **except on a box, sized in inches**. Word sizes (`"B&B"`, `"Field Grown"`, `"Quart"`) are valid. Height/width/caliper, form codes (`STD`, `Bush`) and pack counts do **not** belong here. See the `availability-ingestion` skill's *Size standard* |
 | `size_std` | text | yes | Standardized container for `size` — see below. **CHECK**: `<N>" Pot` \| `<N>G` \| `<N>" Box` \| `Bare Root` \| `Liners` \| `Plug` \| `Trays` \| `B&B` \| `Field Grown` \| `Grow Bags` \| `Root Pruned` \| `other`. `NULL` when `size` is |
 | `unit_price` | numeric(10,2) | yes | USD; lower bound if the source gave a range. `NULL` means the supplier provided no price; never coerce missing to zero |
 | `quantity` | numeric | yes | Available quantity if the source lists one |
@@ -395,7 +395,7 @@ plant's size, not a second container.
 
 `other` is a real answer, not a failure: it means a container the standard has
 no bucket for (`Quart`, `10" Hanging Basket`, `Six Pack`). `NULL` means no
-container is known. The full mapping rules live in the `supplier-onboarding-and-ingestion` skill's *Size standard*,
+container is known. The full mapping rules live in the `availability-ingestion` skill's *Size standard*,
 and the app's ordering of the vocabulary is `app/lib/size-std.ts`.
 
 **State after the 0031/0032 backfills (2026-08-13, active rows only — describes
@@ -437,7 +437,7 @@ fact from the row. Observations the row already answers — a missing price or
 quantity (`unit_price` / `quantity` is `NULL`), when it was last touched
 (`updated_at`), when the drop landed or which file it came from (`source_id`,
 `inventory_sources.created_at`), a restatement of the size or the name — are
-not written at all. The `supplier-onboarding-and-ingestion` skill (v3.5.0) states
+not written at all. The `availability-ingestion` skill states
 the rule and QA-checks it before an ingest commits.
 
 Both are carried by `inventory` **and** by `search_inventory`. 0039
