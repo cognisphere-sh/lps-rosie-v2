@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding itself when a supplier or farm has no row), answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.2.0)
+description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding itself when a supplier or farm has no row), answering that thread's follow-up questions, digesting its report into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.2.1)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.2.1"
 ---
 
 # Availability drop intake
@@ -88,7 +88,13 @@ points back at it rather than restating it. The brief carries:
   sender (name, address, domain, signature); the thread onboards from there,
 - **all source material**: attachment paths, website URL, image paths, and the
   relevant email body text — including anything in the body that names a farm,
-  branch or ship-from location, because that is what the mapping turns on,
+  branch or ship-from location, because that is what the mapping turns on. An
+  `email_received` notification is only a **preview** (header, first two lines,
+  attachment *names* — the files are not downloaded), so for an email drop read
+  the message first with `bash scripts/gws/email read <MessageId>
+  --attachments`: that gives you the full body and writes the attachments to
+  `plugins/gws/inbox/<MessageId>/`. Pass those paths, the full body text, and
+  the `MessageId` itself, so the thread can re-read the mail if it needs to,
 - **the skill to follow, by name and never with a version number** — "Follow
   the `availability-ingestion` skill". Name that one only: it follows
   `supplier-onboarding` itself if the drop needs a supplier or a farm created,

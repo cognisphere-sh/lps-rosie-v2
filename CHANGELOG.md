@@ -17,6 +17,40 @@ here).
 
 ## 2026-08-16
 
+### Changed
+
+- **Harness upgraded 0.8.20 → 0.8.23** (data dir migrated with the
+  `cognisphere-upgrade` skill). What the window forced here:
+
+  - **Inbound mail is a preview now, not the mail.** 0.8.22 cut the
+    `email_received` body down to the header, the first two lines of the
+    sender's own text and the *names* of any attachments — nothing is
+    downloaded at poll time. Daisy's `availability-drop-intake` skill (→
+    2.2.1) asked the coordinator to put "attachment paths … and the relevant
+    email body text" in every dispatch brief, which the notification no longer
+    carries, so §2 now says to read the message with `scripts/gws/email read
+    <MessageId> --attachments` first (full body; files land in
+    `plugins/gws/inbox/<MessageId>/`) and to pass the `MessageId` along so the
+    task thread can re-read the mail itself.
+  - **`scripts/gws/format-email` is gone**, replaced by the richer
+    `scripts/gws/email` (`read`/`thread`/`search`/`labels`/`label`). Plugin
+    seeds are never pruned, so the stale script and its `.ts` source were
+    deleted by hand; `knowledge/files/gmail-labels.md` named it too and now
+    names `email`.
+  - **Re-seeded on the next harness restart, no edits needed:** the shortened
+    `plugin-gws.md` / `plugin-telegram.md` fragments (capped at 50 lines
+    upstream, with their procedures moved into plugin-owned skills), the new
+    `email` CLI, and the plugin skills `read-email`, `search-email`,
+    `route-email` (gws) and `route-chats` (telegram).
+
+  Not adopted: the new **`artifacts`** plugin (0.8.21) is opt-in per agent and
+  no agent here publishes pages, so no `plugins/artifacts/` dir was created and
+  `ARTIFACTS_AGENT` stays blank in `config`. The refreshed `config.example` and
+  `scripts/server.sh` carry the wiring for whenever that changes. The
+  harness-owned scaffold (`scripts/`, `config.example`, `docs/base-harness/`,
+  `.claude/skills/` + its `.agents/skills/` mirror) was refreshed wholesale; it
+  held no local edits.
+
 ### Added
 
 - **The supplier profile has an *Other farms* tab.** A company that operates at

@@ -53,14 +53,19 @@ reference docs and memory.
   identity is harness-set (not spoofable); a disallowed sender gets HTTP 403.
   No inbox restriction configured here.
 - **gws** (Google Workspace/Gmail) — polls Gmail server-side, emits one
-  `email_received` per inbound message; outbound via the `gws` CLI. Config:
+  `email_received` per inbound message. Since harness 0.8.22 that notification
+  is a **preview** — header, first two lines of the sender's own text, and
+  attachment names only; the message itself is read with `scripts/gws/email
+  read <MessageId> [--attachments]`. Outbound via the `gws` CLI. Ships the
+  plugin-owned skills `read-email`, `search-email` and `route-email`. Config:
   `pollIntervalSec: 300`, `gmailQuery: "in:inbox -label:daisy after:2026-07-01
   is:unread"`, `firstOfThreadOnly: false`, `allowedSenders: "*"`,
   `requireAgentInTo: false`.
 - **scheduler** — one active schedule: `daisy-daily-9am-checkin`, cron
   `0 9 * * *`, posts a daily 9 AM Telegram summary (completed work, blockers,
   pending approvals) to thread `main`, channel `admin`.
-- **telegram** — bot; `pollTimeoutSec: 25`, `allowedChatIds: ["-1003988082603"]`
+- **telegram** — bot (ships the plugin-owned `route-chats` skill);
+  `pollTimeoutSec: 25`, `allowedChatIds: ["-1003988082603"]`
   (locked to the admin group chat). One routing rule
   (`plugins/telegram/state/routes.json`, managed by `scripts/telegram/routes`):
   chat `-1003988082603` → thread `main`, overriding the `plugin_channel`
@@ -106,8 +111,9 @@ written later doesn't reintroduce procedure.
   `upload` (upload to a Storage bucket).
 - `scripts/agent-msg/send` — inter-/intra-agent messaging CLI (seeded by
   agent-messaging).
-- `scripts/gws/` — `format-email` CLI + `format-email-lib.mjs`/`.d.mts` (decode
-  Gmail message JSON to plain-text body + attachments).
+- `scripts/gws/` — `email` CLI (`read`/`thread`/`search`/`labels`/`label`) +
+  `format-email-lib.mjs`/`.d.mts` (decode Gmail message JSON to plain-text body
+  + attachments), and `routes` (thread-routing rules).
 - `scripts/scheduler/scheduler-cli`, `scripts/telegram/telegram-cli`,
   `scripts/webchat/webchat-cli`.
 

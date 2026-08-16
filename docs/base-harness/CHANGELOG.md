@@ -18,6 +18,137 @@ the harness directory, and applies it after user approval. See
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.23]
+
+### Changed
+
+- gws prompt fragment: the inbound section no longer explains *why* outbound
+  mail must ask to be kept in `To:` — the rule itself is unchanged under
+  **Rules**, and saying it twice spent two lines of a 50-line budget on one
+  instruction.
+
+### Breaking changes
+
+- `system_prompts/plugin-gws.md` reworded; it re-seeds on the next agent start,
+  so restarting the gws agents is all that is required
+  [affects: agents/*/system_prompts/plugin-gws.md]
+
+## [0.8.22]
+
+### Added
+
+- **`scripts/gws/email`** — the agent-facing Gmail CLI, seeded with the `gws`
+  plugin. `email read <messageId>` (full body, `--strip-quotes`,
+  `--attachments` → `plugins/gws/inbox/<messageId>/`), `email thread <threadId>`
+  (skim id/from/date/snippet, or `--full` for every body), `email search
+  '<gmail query>' [--max N]` (hits listed with subject/from/date/snippet — the
+  raw API returns bare ids), `email labels`, and `email label <id> --add NAME
+  --remove NAME --archive --read|--unread [--create] [--thread]`, which
+  resolves label names to Gmail's opaque label ids and refuses an unknown name
+  unless `--create`. It replaces the stdin-only `scripts/gws/format-email`.
+- **Plugin-shipped skills for `gws` and `telegram`**, seeded under
+  `skills/<plugin-id>/<slug>/` like the `artifacts` plugin's: `read-email`
+  (full bodies, quoted history, thread skimming, attachments), `search-email`
+  (Gmail query syntax, filing with labels/archive/read, and the standing
+  `settings.filters` rules), `route-email` (thread-routing rules) and
+  `route-chats` (Telegram chat routing).
+
+### Changed
+
+- **gws notifications are a preview, not the mail.** An `email_received` body
+  is now the `Subject/From/To/TimeStamp` header, the **first two lines** of the
+  sender's own text (quoted reply history stripped first), and the *names* of
+  any attachments. Attachments are no longer downloaded at poll time — the
+  agent fetches what it needs with `scripts/gws/email`, so a mailbox of long
+  quoted-history threads stops spending context on mail nobody reads.
+- **Plugin prompt fragments are capped at 50 lines**, with every step-by-step
+  procedure moved into a plugin-owned skill: `plugin-gws.md` 204 → 50 lines,
+  `plugin-telegram.md` 75 → 48. A fragment costs every turn of every thread; a
+  skill costs one description line until an agent needs it.
+- `docs/server.md`, `docs/base-harness/skills.md` and the `create-plugin` skill
+  (v1.3.0) document the 50-line budget and what belongs in a fragment
+  (identity, event shape, always-on rules) versus a skill. Both scaffold trees
+  are refreshed wholesale by the upgrade skill.
+
+### Breaking changes
+
+- `scripts/gws/format-email` is replaced by `scripts/gws/email`. Plugin seeds
+  are overwritten on every agent start but never pruned, so the stale script
+  has to be deleted by hand   [affects: agents/*/scripts/gws/format-email]
+- Email notifications no longer carry the full body: any agent instruction or
+  knowledge note that assumes one — or that pipes `gws gmail users messages get
+  … | format-email` — must be reworded to call `scripts/gws/email read
+  <MessageId>`   [affects: agents/*/system_prompts/1-*.md]
+- The gws/telegram prompt fragments, the new `email` CLI and the four new
+  skills re-seed themselves on the next agent start; restarting the affected
+  agents is all that is required   [affects: agents/*/skills/gws/]
+
+## [0.8.21]
+
+### Added
+
+- **`artifacts` plugin** — agents publish self-contained static HTML (reports,
+  summaries, dashboards) and share a link on the app's own domain. Each
+  artifact carries a **public/private flag** that decides which of its two URLs
+  works: `<app>/public/artifacts/<slug>` for anyone, or
+  `<app>/private/artifacts/<slug>` behind the app's own login. **No URL carries
+  a token.** The plugin serves `public/<slug>` openly and `private/<slug>`,
+  `private/<slug>/meta`, `private/<slug>/share` only to callers presenting the
+  `ARTIFACTS_APP_SECRET` — which is what keeps private artifacts unreachable
+  from the open `/webhook/*` surface. Config: `appBaseUrl` (required). Catalog
+  scope, so it runs only on agents that opt in.
+- **Artifact HTML is sandboxed and responsive by construction.** Every response
+  carries `Content-Security-Policy: sandbox` without `allow-same-origin` (agent
+  HTML on the app's origin can never touch its cookies or storage), plus
+  `Referrer-Policy: no-referrer`, `nosniff`, and an injected
+  `<meta name="viewport">` when the author omitted one.
+- **`app/artifacts-routes/`** in the home template — drop-in Next.js routes for
+  the two paths above: a pass-through public route, and a protected page that
+  renders the artifact in a sandboxed iframe under the app's own public/private
+  toggle (the toggle is app chrome because a sandboxed page has an opaque
+  origin and could never authenticate). Includes `lib/artifacts.ts` with a
+  fail-closed `signedIn()` for the home to replace.
+- **The `artifacts` seed ships a skill** — `publish-artifact` (authoring rules
+  for one self-contained, mobile-and-desktop-readable file; the starter
+  template; publishing, sharing, updating, taking down). First use of
+  `seed/skills/<plugin-id>/<slug>/`, now documented in `create-plugin`.
+
+### Changed
+
+- **Deploy-time wiring for `artifacts`.** New `config` keys `ARTIFACTS_AGENT`
+  and `ARTIFACTS_SESSION_COOKIE` (both blank = feature off). When the agent is
+  set, `scripts/server.sh secrets` generates `ARTIFACTS_APP_SECRET` once and
+  writes it to **both** `harness/.secrets/secrets.json` and `app/.env.local`,
+  creates `agents/<agent>/plugins/artifacts/config.json` with
+  `appBaseUrl: https://$DOMAIN`, and thereby enables the plugin on that agent.
+  Existing homes get the refreshed `server.sh` + `config.example` from the
+  upgrade, but must add the keys to their own `config` for anything to happen.
+- **`cognisphere-upgrade` 1.3.0** — `app/artifacts-routes/` joins the
+  harness-owned scaffold refresh (the one exception to "never refresh under
+  `app/`"), plus a new step 4b-i that diffs the home's *copies* of those routes
+  and reports drift instead of overwriting them.
+- **`create-plugin` 1.2.0** — documents shipping a skill inside a plugin seed
+  (`seed/skills/<id>/<slug>/`), and its description now says when a plugin is
+  the right answer.
+- **`create-skill` 1.2.0**, **`publish-harness` 1.1.0** — descriptions gained
+  situational triggers; `publish-harness` also covers the new-plugin case of
+  the shipped-artifact rule and deploy-time wiring notes.
+- Docs: `docs/api.md` §10 (artifact routes + header contract),
+  `docs/server.md` (plugin list, plugin-shipped skills),
+  `docs/distribution-and-deployment.md` §5 (deploy-time wiring),
+  `docs/base-harness/README.md`, `app/README.md`.
+
+### Breaking changes
+
+- New `artifacts` plugin — opt in per agent by creating the dir; it needs
+  `config.json` with `appBaseUrl` and the `ARTIFACTS_APP_SECRET` secret, or set
+  `ARTIFACTS_AGENT` in `config` and let `scripts/server.sh secrets` write all
+  three   [affects: agents/*/plugins/artifacts/]
+- Agents with the plugin enabled gain the seeded `scripts/artifacts/artifact`
+  CLI, the `plugin-artifacts.md` prompt fragment and the `publish-artifact`
+  skill on next start; all three are plugin-owned and must not be hand-edited
+  in the agent dir   [affects: agents/*/scripts/artifacts/, agents/*/system_prompts/plugin-artifacts.md, agents/*/skills/artifacts/]
+
 ## [0.8.20]
 
 ### Changed

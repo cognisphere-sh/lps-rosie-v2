@@ -47,7 +47,8 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
 - **admin** — admin chat channel; the human admin reads Nova's visible text.
 - **telegram** — Telegram bot (long-poll, server-side); inbound as
   `<harness-metadata>` blocks, media downloaded to `plugins/telegram/inbox/`,
-  outbound via `scripts/telegram/telegram-cli`.
+  outbound via `scripts/telegram/telegram-cli`. Ships the plugin-owned
+  `route-chats` skill.
 - **scheduler** — cron timers; `schedule_fire` events; `state/schedules.json`
   empty. Managed via `scripts/scheduler/scheduler-cli`.
 - **agent-messaging** — core plugin since harness 0.8.0 (auto-installed on

@@ -1,5 +1,19 @@
 # availability-drop-intake — changelog
 
+## 2.2.1
+
+2026-08-16. Harness 0.8.22 made `email_received` a preview instead of the mail:
+the body is now the header plus the first two lines of the sender's own text,
+and attachments are named but no longer downloaded at poll time.
+
+- **§2 says how to get the source material for an email drop.** The contract
+  asked for "attachment paths … and the relevant email body text", which the
+  notification used to carry and now doesn't. It now says to read the message
+  with `scripts/gws/email read <MessageId> --attachments` first — full body,
+  files written to `plugins/gws/inbox/<MessageId>/` — and to pass the
+  `MessageId` along so the task thread can re-read the mail itself. No change
+  to what this skill does or does not write.
+
 ## 2.2.0
 
 2026-08-15. Closes the last overlap between this skill and the ingestion side:

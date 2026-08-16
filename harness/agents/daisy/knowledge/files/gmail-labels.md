@@ -18,6 +18,6 @@ Still need to create (create on first use, same pattern as `Daisy/Catalogued`):
 
 ## Gotcha: `gws` binary location
 
-`scripts/gws/` in the agent dir only has `format-email` — the actual `gws`
-CLI is a global npm binary. Just call it directly as `gws ...` (it's on
-PATH), don't look for it under `scripts/gws/`.
+`scripts/gws/` in the agent dir only has `email` (reading mail) and `routes` —
+the actual `gws` CLI is a global npm binary. Just call it directly as
+`gws ...` (it's on PATH), don't look for it under `scripts/gws/`.
