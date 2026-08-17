@@ -4,7 +4,7 @@ import type { PhotoCard, PhotoFacets } from '@/lib/rows'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import { supabase } from '@/lib/supabase'
 
-export const PHOTO_PAGE_SIZE = 60
+export const PHOTO_PAGE_SIZE = 50
 
 /**
  * How long a signed image URL lives.
@@ -122,24 +122,78 @@ async function toCards(records: PhotoRecord[]): Promise<PhotoCard[]> {
 }
 
 /**
- * One page of the catalogue.
+ * PostgREST's "Requested range not satisfiable" — the offset is past the end of
+ * the match set.
+ *
+ * Reachable in normal use: the grid only asks for more while it holds fewer
+ * than `total`, but `total` is from the last response, so a photo deleted by
+ * someone else in between makes the request overshoot. "Past the end" is an
+ * empty batch, not a server error.
+ */
+function isRangeError(status: number, error: { code?: string; message?: string }): boolean {
+  // **Status first, and it is the only reliable signal.** On the RPC path
+  // PostgREST's body parses and `message` reads "Requested range not
+  // satisfiable"; on the table path supabase-js hands back a truncated
+  // `{ message: '{\"' }` with no code at all. Both are HTTP 416.
+  return (
+    status === 416 ||
+    error.code === 'PGRST103' ||
+    /range not satisfiable/i.test(error.message ?? '')
+  )
+}
+
+/**
+ * How big the match set actually is — asked only when a range request missed.
+ *
+ * The two paths are written out rather than picked with a ternary: the builders
+ * have different types, and unioning them makes the compiler give up
+ * (TS2589, "type instantiation is excessively deep").
+ */
+async function photoCount(term: string, filters: ServerFilter[]): Promise<number> {
+  if (term) {
+    const { count, error } = await applyServerFilters(
+      supabase.rpc('search_plant_photos', { search: term }, { count: 'exact', head: true }),
+      filters,
+    )
+    if (error) throw new Error(`plant photo count: ${error.message}`)
+    return count ?? 0
+  }
+  // `select('*')` rather than a column list, matching the query above it:
+  // `head` transfers no rows either way, and naming one column is what tips the
+  // builder's generics over the compiler's instantiation limit.
+  const { count, error } = await applyServerFilters(
+    supabase.from('plant_photos').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    filters,
+  )
+  if (error) throw new Error(`plant photo count: ${error.message}`)
+  return count ?? 0
+}
+
+/**
+ * One batch of the catalogue, starting at `offset`.
  *
  * With a query this is `search_plant_photos` with the column filters applied as
- * SQL over its result — same contract as plant search, so a filtered page and
+ * SQL over its result — same contract as plant search, so a filtered batch and
  * its `count` describe the same set. With no query it is the table itself,
  * newest first: unlike plant search, browsing a photo catalogue is the point,
  * and the RPC cannot serve it (an empty search has nothing to rank).
+ *
+ * **An offset, not a page number.** The grid appends rather than flipping, so
+ * the caller asks for "the next batch after what I am already holding" — which
+ * stays correct after a photo is deleted from the grid. A page number would
+ * not: deleting one photo shifts every later row up by one, and page 2 would
+ * then skip the row that moved into the slot page 1 vacated.
  */
 export async function searchPhotos(
   search: string,
   filters: ServerFilter[] = [],
-  page = 1,
+  offset = 0,
 ): Promise<{ photos: PhotoCard[]; total: number }> {
   const term = search.trim()
-  const from = (page - 1) * PHOTO_PAGE_SIZE
+  const from = offset
 
   if (term) {
-    const { data, error, count } = await applyServerFilters(
+    const { data, error, count, status } = await applyServerFilters(
       supabase.rpc('search_plant_photos', { search: term }, { count: 'exact' }),
       filters,
     )
@@ -149,12 +203,15 @@ export async function searchPhotos(
       .order('captured_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .range(from, from + PHOTO_PAGE_SIZE - 1)
-    if (error) throw new Error(`search_plant_photos: ${error.message}`)
+    if (error) {
+      if (isRangeError(status, error)) return { photos: [], total: await photoCount(term, filters) }
+      throw new Error(`search_plant_photos: ${error.message}`)
+    }
     const records = (data ?? []) as PhotoRecord[]
     return { photos: await toCards(records), total: count ?? records.length }
   }
 
-  const { data, error, count } = await applyServerFilters(
+  const { data, error, count, status } = await applyServerFilters(
     supabase.from('plant_photos').select('*', { count: 'exact' }).eq('is_active', true),
     filters,
   )
@@ -163,7 +220,10 @@ export async function searchPhotos(
     .order('created_at', { ascending: false })
     .order('id', { ascending: true })
     .range(from, from + PHOTO_PAGE_SIZE - 1)
-  if (error) throw new Error(`plant_photos: ${error.message}`)
+  if (error) {
+    if (isRangeError(status, error)) return { photos: [], total: await photoCount(term, filters) }
+    throw new Error(`plant_photos: ${error.message}`)
+  }
   const records = (data ?? []) as PhotoRecord[]
   return { photos: await toCards(records), total: count ?? records.length }
 }

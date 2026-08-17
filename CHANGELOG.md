@@ -19,6 +19,40 @@ here).
 
 ### Added
 
+- **`/photos` loads 50 at a time behind a Load more button** — the grid appends
+  instead of flipping pages, because a wall of photos is scanned downwards and a
+  pager throws away everything already looked at. The button carries the
+  remaining count.
+
+  The API takes an **`offset`, not a page number**, and that is what makes it
+  correct rather than merely different: the offset is how many photos are on
+  screen, so deleting one out of the middle doesn't make the next batch skip the
+  row that moved up into its place. A batch that arrives after the question
+  changed is dropped rather than appended, and an id already on screen is never
+  appended twice.
+
+  **Fixed while building it:** an offset past the end of the match set returned
+  a 500. It is reachable in normal use — the browser's `total` is from the last
+  response, so a photo someone else deleted in between makes the request
+  overshoot legitimately. It now returns an empty batch with the true total.
+  PostgREST signals this with HTTP 416 and the **status is the only reliable
+  signal**: on the RPC path the body parses to "Requested range not
+  satisfiable", but on the table path supabase-js hands back a truncated
+  `{ message: '{"' }` with no error code at all.
+
+- **A storage and network cost plan** for the photo catalogue, in daisy's
+  `knowledge/files/plans/photo-storage-and-network-cost-plan.md`. **Nothing in
+  it is implemented** and every phase has a trigger, because at 44 photos and
+  20 MB none of it is worth doing yet — the point is to decide the trigger
+  points before the numbers arrive.
+
+  The measured finding: cost is not storage, it is egress, and it is one
+  mistake. The grid renders thumbnails from **full-size originals** — 459 kB
+  average, 4.5 MB at the top end, to paint a 250 px square. A full batch of 50
+  is ~23 MB where thumbnails would be ~1 MB. Second is round-trips: every image
+  costs an app request, a database read and a signing call, none of it cacheable
+  because the signature is minted per request.
+
 - **Ingests now catalogue the photos in a drop** — `availability-ingestion`
   gains an image-triage table in §1 and a new §6. Every image in a drop is one
   of three things: a photograph *of a price list* (a source — parse it), a

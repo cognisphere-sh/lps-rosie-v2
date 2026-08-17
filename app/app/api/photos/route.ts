@@ -14,8 +14,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 })
   }
 
-  const rawPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10)
-  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1
+  // An offset rather than a page: the grid appends, and "after what I already
+  // hold" survives a photo being deleted out of the middle of the set.
+  const rawOffset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10)
+  const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0
 
   try {
     // The option lists, fetched separately so they can be cached against the
@@ -23,12 +25,10 @@ export async function GET(req: Request) {
     if (url.searchParams.get('facets') === '1') {
       return NextResponse.json({ facets: await photoFacets(search) })
     }
-    const { photos, total } = await searchPhotos(search, filters, page)
-    return NextResponse.json({
-      photos,
-      total,
-      pageCount: Math.max(1, Math.ceil(total / PHOTO_PAGE_SIZE)),
-    })
+    const { photos, total } = await searchPhotos(search, filters, offset)
+    // `total` is the whole match set; the browser knows there is more to load
+    // when what it holds is short of it. The batch size stays on the server.
+    return NextResponse.json({ photos, total, offset, batchSize: PHOTO_PAGE_SIZE })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

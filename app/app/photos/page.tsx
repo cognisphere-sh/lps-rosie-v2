@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { CloseIcon, ChevronLeft, ChevronRight, PencilIcon, TrashIcon } from '@/components/workspace/icons'
 import { PHOTO_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
@@ -350,9 +350,8 @@ export default function PhotoCataloguePage() {
   const [hydrated, setHydrated] = useState(false)
   const [photos, setPhotos] = useState<PhotoCard[]>([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [facets, setFacets] = useState<PhotoFacets>(EMPTY_FACETS)
   const [sizes, setSizes] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
@@ -405,15 +404,14 @@ export default function PhotoCataloguePage() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
   }, [hydrated, query])
 
-  // A new question or a new filter starts again at page 1. Reset while
-  // rendering rather than in an effect, or the fetch below runs once against
-  // the outgoing page number first — see the same note on plant search.
+  // The grid appends rather than flipping pages, so a new question or filter
+  // starts the list over — the effect below replaces `photos` outright, which
+  // is the reset. `searchKeyRef` is what a Load more in flight compares itself
+  // against: a batch that arrives after the question changed must be dropped,
+  // not appended to a list it does not belong to.
   const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
-  const [pagedFor, setPagedFor] = useState(searchKey)
-  if (pagedFor !== searchKey) {
-    setPagedFor(searchKey)
-    setPage(1)
-  }
+  const searchKeyRef = useRef(searchKey)
+  searchKeyRef.current = searchKey
 
   // Options come from the whole match set rather than this page of it, and are
   // keyed on the search term alone — ticking one value never removes the rest.
@@ -431,25 +429,62 @@ export default function PhotoCataloguePage() {
     }
   }, [debouncedQuery, hydrated])
 
+  const batchUrl = useCallback(
+    (offset: number) =>
+      `/api/photos?q=${encodeURIComponent(debouncedQuery)}&offset=${offset}` +
+      (debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''),
+    [debouncedFilterQuery, debouncedQuery],
+  )
+
+  // The first batch of a question, which replaces whatever was on screen.
   useEffect(() => {
     if (!hydrated) return
     let cancelled = false
     setLoading(true)
-    const suffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
-    fetch(`/api/photos?q=${encodeURIComponent(debouncedQuery)}&page=${page}${suffix}`)
+    fetch(batchUrl(0))
       .then((r) => r.json())
-      .then((body: { photos?: PhotoCard[]; total?: number; pageCount?: number }) => {
+      .then((body: { photos?: PhotoCard[]; total?: number }) => {
         if (cancelled) return
         setPhotos(body.photos ?? [])
         setTotal(body.total ?? 0)
-        setPageCount(body.pageCount ?? 1)
         setLoading(false)
       })
       .catch(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true
     }
-  }, [debouncedFilterQuery, debouncedQuery, hydrated, page])
+  }, [batchUrl, hydrated])
+
+  /**
+   * The next batch, appended.
+   *
+   * The offset is how many photos are already on screen rather than a page
+   * number, so deleting one out of the middle doesn't make the next batch skip
+   * the row that moved up into its place.
+   */
+  const loadMore = useCallback(async () => {
+    const asked = searchKeyRef.current
+    setLoadingMore(true)
+    try {
+      const res = await fetch(batchUrl(photos.length))
+      const body = (await res.json()) as { photos?: PhotoCard[]; total?: number }
+      // The question may have changed while this was in flight; that batch
+      // belongs to a list that no longer exists.
+      if (searchKeyRef.current !== asked) return
+      const more = body.photos ?? []
+      // Belt and braces against a double-click or a retried request: an id
+      // already on screen is never appended twice.
+      setPhotos((prev) => {
+        const seen = new Set(prev.map((p) => p.id))
+        return [...prev, ...more.filter((p) => !seen.has(p.id))]
+      })
+      if (body.total != null) setTotal(body.total)
+    } catch {
+      toast('Could not load more photos')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [batchUrl, photos.length, toast])
 
   // A value the current search cannot offer is a leftover from the previous
   // one. An empty option list means the facets have not arrived yet, not that
@@ -616,9 +651,8 @@ export default function PhotoCataloguePage() {
       summary={
         searching
           ? 'Searching…'
-          : `Showing ${photos.length} of ${total.toLocaleString('en-US')} photo${total === 1 ? '' : 's'}`
+          : `Showing ${photos.length.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} photo${total === 1 ? '' : 's'}`
       }
-      pagination={{ page, pageCount, onPage: setPage, busy: searching }}
     />
   )
 
@@ -692,6 +726,25 @@ export default function PhotoCataloguePage() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Load more, not a pager: the grid is a wall of photos people scan
+            downwards, and flipping pages loses everything already looked at.
+            The count says what is left so the button isn't a mystery box. */}
+        {photos.length > 0 && photos.length < total && (
+          <div className="flex flex-col items-center gap-1.5 py-6">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="h-9 rounded-[9px] border border-border bg-card px-5 text-[12.5px] font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
+            <span className="text-[11.5px] text-muted-foreground tabular-nums">
+              {(total - photos.length).toLocaleString('en-US')} more
+            </span>
           </div>
         )}
       </div>
