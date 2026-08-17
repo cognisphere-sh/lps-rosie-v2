@@ -986,13 +986,14 @@ screen. No library — a manifest, a service worker, and Chrome's
 
 | Piece | Role |
 |---|---|
-| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, brand green `theme_color`, 192/512 icons. |
+| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, brand green `theme_color`, and versioned 192/512 cactus-logo icons. |
 | `public/sw.js` | Service worker. Its *existence* plus a `fetch` handler is what makes Chrome consider the app installable. |
 | `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
 | `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
 | `components/pwa/install-app-button.tsx` | The manual entry point, rendered in the desktop rail and mobile ⋯ More. |
 | `components/pwa/ios-install-modal.tsx` | Safari has no install API, so iOS gets Share → Add to Home Screen instructions. |
-| `public/icon-{192,512}.png`, `apple-touch-icon.png` | Generated leaf mark on the brand green; the 512 doubles as the Android `maskable` icon. |
+| `public/lps-cactus-icon-{192,512}.png`, `lps-cactus-apple-touch-icon.png` | CR's purple LPS flowering-cactus mark for browser/iOS home-screen icons. |
+| `public/lps-cactus-icon-maskable-512.png` | Android maskable variant: the full cactus stays inside the safe zone on a solid sampled-purple square. |
 
 **Standalone viewport.** `Shell` is fixed to the visual viewport and tracks its
 height and top offset rather than relying solely on `100dvh`. Document scrolling
@@ -1054,8 +1055,9 @@ public/
                                     panel header, rail, selector, mobile tab
   *_profile.png                     full profile banners, shown on /agents
   manifest.json, sw.js              PWA manifest + service worker
-  icon-192.png, icon-512.png,       install icons (leaf mark, brand green)
-  apple-touch-icon.png
+  lps-cactus-icon-{192,512}.png      install icons (purple flowering cactus)
+  lps-cactus-icon-maskable-512.png   Android safe-zone variant
+  lps-cactus-apple-touch-icon.png    iOS Add to Home Screen icon
 components/
   ui/            lps-ui primitives (button, input, label, card, alert, badge)
   pwa/           install: provider (SW + beforeinstallprompt), auto popup,

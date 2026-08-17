@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **The install/home-screen icon is now CR's purple LPS flowering-cactus mark.**
+  New versioned 192px, 512px and 180px Apple assets replace the generic white
+  leaf on green, and the manifest has a dedicated 512px maskable variant with
+  the full cactus inside Android's safe zone. Versioned filenames keep fresh
+  installs from reusing the old icon cache.
 - **Double-quoted Plant Search is exact; unquoted search remains broad**
   (Bhoumik's direction, migration 0057). One balanced outer pair such as
   `"Italian Cypress"` bypasses partial/fuzzy/note discovery and compares complete

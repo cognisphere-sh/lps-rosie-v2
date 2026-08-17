@@ -21,7 +21,10 @@ export const metadata: Metadata = {
   description: 'Suppliers and plant availability for Local Plant Supply.',
   // Linking the manifest is what makes Chrome run its installability check.
   manifest: '/manifest.json',
-  icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
+  icons: {
+    icon: '/lps-cactus-icon-192.png',
+    apple: '/lps-cactus-apple-touch-icon.png',
+  },
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Plant Supply' },
 }
 
