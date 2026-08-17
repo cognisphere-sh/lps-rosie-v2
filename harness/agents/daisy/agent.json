@@ -9,7 +9,7 @@
   "threadIdStrategy": {
     "type": "plugin_channel"
   },
-  "maxConcurrentSlots": 20,
+  "maxConcurrentSlots": 10,
   "maxAttempts": 3,
   "runtime": "subprocess",
   "secretsSchema": {

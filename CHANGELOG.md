@@ -19,7 +19,7 @@ here).
 
 ### Changed
 
-- **daisy's `maxConcurrentSlots` raised 5 → 20.** daisy fields Telegram, Gmail
+- **daisy's `maxConcurrentSlots` raised 5 → 10.** daisy fields Telegram, Gmail
   and the app's chat panel through one agent, and the slot pool is what caps
   how many of those turns run at once — at 5, a burst across the three
   channels queued behind itself.

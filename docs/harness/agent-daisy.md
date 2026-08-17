@@ -14,7 +14,7 @@ they are one conversation, not two — and has its own Gmail inbox.
   panel, which route to the same thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
 - **threadIdStrategy**: `plugin_channel`
-- **maxConcurrentSlots**: 20 · **maxAttempts**: 3 · **runtime**: `subprocess`
+- **maxConcurrentSlots**: 10 · **maxAttempts**: 3 · **runtime**: `subprocess`
 - **devAgent**: no
 - **secretsSchema** (required: `SUPABASE_PROJECT_ID`, `SUPABASE_SECRET_KEY`):
   - `SUPABASE_PROJECT_ID` — Supabase project ref
