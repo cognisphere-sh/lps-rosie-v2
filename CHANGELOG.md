@@ -19,6 +19,42 @@ here).
 
 ### Changed
 
+- **Column sorting now runs in SQL** on all three tables — the Suppliers list,
+  Plant search, and the supplier profile's Inventory tab — over the whole match
+  set, rather than reordering the page already in the browser. It was the last
+  piece of table state left behind when filtering moved to the server: sorting
+  Plant search by price answered "cheapest of the 300 rows relevance returned"
+  instead of "cheapest of the 570 that matched", `Name ▲` on Suppliers only ever
+  rearranged fifty rows, and on a profile it covered 100 of Austin Plant
+  Supply's 1,467.
+
+  New `app/lib/server-sort.ts` mirrors `server-filters.ts` — one spec per table
+  mapping a column key to the column the database orders by, plus
+  `sortQuery()`/`parseSort()`/`clientOnlySort()`. Sort travels with the filters
+  in one debounced string, so a filter click and a sort click landing together
+  still cost one request, and a sort change resets to page 1. Missing values
+  stay last in both directions; on the plant tables a header sort outranks
+  relevance and relevance becomes its tie-breaker. `PLANT_SORTS` drives the
+  profile tab's search branch and its no-query browse branch alike, as
+  `PLANT_FILTERS` already did.
+
+  What still sorts the page, and why: values assembled after the fetch
+  (`# Items`, `Other contacts`, `Inventory sources`, `Last ingestion`, `Source`,
+  `Ingested`), `Communication notes` (outside `search_suppliers`' projection),
+  `Size` (SQL orders `size_std` as text and puts `100G` between `10G` and
+  `15G` — the canonical order is `lib/size-std.ts`, not an index), and Plant
+  search's supplier panel, whose master rows *are* this page's groups. Asking
+  for "the supplier with the most matches" across the whole result set is an
+  aggregate over `search_inventory` grouped by supplier, which no RPC serves.
+
+### Fixed
+
+- **`docs/app/README.md` no longer claims size filtering is page-local.** It
+  said the Size selector applied to the current 300-row page of
+  `search_inventory`; `PLANT_FILTERS.size` has selected on `size_std` in SQL
+  since column filtering moved to the server, so the paragraph had been wrong
+  since that change and contradicted *Where a filter runs* further down.
+
 - **daisy moved to `gpt-5.6-terra`** from `gpt-5.6-sol` (provider and
   thinkingLevel unchanged). `docs/harness/` already described daisy as
   `terra`, so the config now matches the docs rather than the other way

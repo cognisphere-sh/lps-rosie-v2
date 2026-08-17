@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { PAGE_SIZE, itemCounts, listSuppliers, supplierFacets } from '@/lib/queries'
 import { SUPPLIER_FILTERS, parseFilters } from '@/lib/server-filters'
+import { SUPPLIER_SORTS, parseSort } from '@/lib/server-sort'
 
 // Debounced search from the client lands here. proxy.ts has already verified
 // the harness session, so anything reaching this handler is signed in.
@@ -37,9 +38,12 @@ export async function GET(req: Request) {
     // describe the same set. `# Items` stays client-side: it is not a column
     // `search_suppliers` returns, it is the second-pass count above.
     const filters = parseFilters('supplier', SUPPLIER_FILTERS, url.searchParams)
+    // Sorting travels with the request for the same reason the filters do: a
+    // header sort is a question about every match, not about this page.
+    const sort = parseSort(SUPPLIER_SORTS, url.searchParams)
     // The page size lives on the server, so the page count is computed here
     // rather than handing the browser a divisor it would have to duplicate.
-    const { rows, total } = await listSuppliers(search, page, filters)
+    const { rows, total } = await listSuppliers(search, page, filters, sort)
     return NextResponse.json({ rows, total, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

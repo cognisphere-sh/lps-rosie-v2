@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
+import type { ServerSort } from '@/lib/server-sort'
 import { sourceUrl, supabase } from '@/lib/supabase'
 import type {
   Contact,
@@ -350,12 +351,25 @@ export async function listSuppliers(
   search: string,
   page = 1,
   filters: ServerFilter[] = [],
+  sort: ServerSort | null = null,
 ): Promise<{ rows: SupplierRow[]; total: number }> {
   const from = (page - 1) * PAGE_SIZE
-  const { data, error, count } = await applyServerFilters(
+  let query = applyServerFilters(
     supabase.rpc('search_suppliers', { search }, { count: 'exact' }),
     filters,
-  ).range(from, from + PAGE_SIZE - 1)
+  )
+  // A header sort replaces the function's own relevance ordering and applies to
+  // the whole result set, so page 1 is the top of the sort rather than fifty
+  // rows rearranged. Missing values go last in both directions, matching what
+  // the browser used to do. `id` is a tie-breaker, not a preference: without a
+  // total order, two pages of a low-cardinality sort (State, say) can repeat or
+  // skip a row.
+  if (sort) {
+    query = query
+      .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+      .order('id', { ascending: true })
+  }
+  const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1)
 
   if (error) throw new Error(`search_suppliers: ${error.message}`)
   const records = (data ?? []) as SupplierRecord[]
@@ -389,15 +403,23 @@ async function inventorySearch(
   term: string,
   filters: ServerFilter[],
   page: number,
+  sort: ServerSort | null,
 ): Promise<{ records: InventoryRecord[]; total: number }> {
   const from = (page - 1) * PLANT_PAGE_SIZE
   // Ordering is stated explicitly rather than relying on the function's own
   // ORDER BY surviving PostgREST's outer query. `relevance` is IDF-weighted
   // term coverage; the tie-breakers match what the function does internally.
-  const { data, error, count } = await applyServerFilters(
+  let query = applyServerFilters(
     supabase.rpc('search_inventory', { search: term }, { count: 'exact' }),
     filters,
   )
+  // A header sort outranks relevance, because asking for the cheapest match is
+  // asking across the whole result set and not within the page relevance chose.
+  // Relevance stays underneath it, so equal prices still lead with the best
+  // match. Missing values go last either way — descending price must not
+  // promote unpriced inventory above real supplier prices.
+  if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+  const { data, error, count } = await query
     .order('relevance', { ascending: false })
     .order('updated_at', { ascending: false })
     .range(from, from + PLANT_PAGE_SIZE - 1)
@@ -483,6 +505,7 @@ export async function searchPlantGroups(
   search: string,
   filters: ServerFilter[] = [],
   page = 1,
+  sort: ServerSort | null = null,
 ): Promise<{ groups: PlantGroup[]; total: number }> {
   const term = search.trim()
   let records: InventoryRecord[]
@@ -493,7 +516,7 @@ export async function searchPlantGroups(
     // The RPC owns full-query identity semantics. An empty specific query must
     // stay empty: splitting it into individual words here can turn an unknown
     // cultivar into a broad generic result and defeat the backend safety gate.
-    ;({ records, total } = await inventorySearch(term, filters, page))
+    ;({ records, total } = await inventorySearch(term, filters, page, sort))
   } else {
     // Browsing with no search term: one real page of the catalogue. The RPC
     // cannot serve this — an empty `search` has nothing to rank and returns
@@ -506,10 +529,12 @@ export async function searchPlantGroups(
     // page 1 is a shallow set of groups rather than a broad one. Correct
     // counts and working pagination were worth more than the wider first page.
     const from = (page - 1) * PLANT_PAGE_SIZE
-    const { data, error, count } = await applyServerFilters(
+    let query = applyServerFilters(
       supabase.from('inventory').select('*', { count: 'exact' }).eq('is_active', true),
       filters,
     )
+    if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+    const { data, error, count } = await query
       // `name` and `id` are tie-breakers, not preferences: without a total
       // order, two pages can repeat or skip a row that ties on updated_at.
       .order('updated_at', { ascending: false })
@@ -666,6 +691,7 @@ export async function getSupplierPlants(
   search: string,
   page = 1,
   filters: ServerFilter[] = [],
+  sort: ServerSort | null = null,
 ): Promise<{ plants: PlantRow[]; hasMore: boolean }> {
   const term = search.trim()
   const from = (page - 1) * PROFILE_PAGE_SIZE
@@ -674,10 +700,15 @@ export async function getSupplierPlants(
   if (term) {
     // `supplier_ids` left the RPC with the other filter parameters (migration
     // 0045) — scoping to one supplier is the same outer filter as any other.
-    const { data, error } = await applyServerFilters(
+    let query = applyServerFilters(
       supabase.rpc('search_inventory', { search: term }).eq('supplier_id', id),
       filters,
     )
+    // Same rule as the plant search: a header sort orders the supplier's whole
+    // matched inventory, not the hundred rows this page happens to hold, and
+    // relevance drops to being its tie-breaker.
+    if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+    const { data, error } = await query
       .order('relevance', { ascending: false })
       .order('updated_at', { ascending: false })
       .range(from, to)
@@ -689,7 +720,7 @@ export async function getSupplierPlants(
     }
   }
 
-  const { data, error } = await applyServerFilters(
+  let query = applyServerFilters(
     supabase
       .from('inventory')
       .select('*')
@@ -697,6 +728,8 @@ export async function getSupplierPlants(
       .eq('is_active', true),
     filters,
   )
+  if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+  const { data, error } = await query
     .order('updated_at', { ascending: false })
     .range(from, to)
   if (error) throw new Error(`inventory: ${error.message}`)

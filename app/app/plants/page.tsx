@@ -16,6 +16,7 @@ import { MASTER_COLS, PLANT_COLS, plantEditPatch, type ColumnDef } from '@/lib/c
 import { formatDate, money, num } from '@/lib/format'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { MASTER_FILTERS, PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
+import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
@@ -83,26 +84,28 @@ export default function PlantSearchPage() {
   const [facets, setFacets] = useState<Record<string, string[]>>({})
   const hasQuery = query.trim().length > 0
 
-  // Every column filter is applied as SQL over the search result, so the whole
-  // filter state travels to the server as one stable string. Stable matters:
-  // it is a `useEffect` dependency, so an unchanged filter set must serialize
-  // identically or the page would refetch on every render.
+  // Every column filter, and the plant table's header sort, is applied as SQL
+  // over the search result, so the whole state travels to the server as one
+  // stable string. Stable matters: it is a `useEffect` dependency, so an
+  // unchanged filter set must serialize identically or the page would refetch
+  // on every render.
   //
   // The Size selector lives in its own state (it is persisted to the URL) but
   // is the same `size` filter as far as the server is concerned.
-  const serverFilterQuery = useMemo(
+  const serverQuery = useMemo(
     () =>
       [
         filterQuery('plant', PLANT_FILTERS, { ...plantCfg.filters, size: selectedSizes }),
         filterQuery('master', MASTER_FILTERS, masterCfg.filters),
+        sortQuery(PLANT_SORTS, plantCfg.sort),
       ]
         .filter(Boolean)
         .join('&'),
-    [plantCfg.filters, masterCfg.filters, selectedSizes],
+    [plantCfg.filters, plantCfg.sort, masterCfg.filters, selectedSizes],
   )
   const {
-    query: debouncedQuery, filters: debouncedFilterQuery, settled,
-  } = useDebouncedSearch(query, serverFilterQuery)
+    query: debouncedQuery, filters: debouncedServerQuery, settled,
+  } = useDebouncedSearch(query, serverQuery)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
   const searching = searchHydrated && hasQuery && (loading || !settled)
@@ -173,14 +176,14 @@ export default function PlantSearchPage() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
   }, [hasQuery, query, searchHydrated, selectedSizes])
 
-  // A new question, or a new filter, starts again at page 1 — page 4 of the
-  // old result set means nothing once the set changes.
+  // A new question, filter or sort starts again at page 1 — page 4 of the old
+  // result set means nothing once the set or its ordering changes.
   //
   // Reset while rendering, not in an effect. An effect commits *after* the
   // fetch effect below has already run once against the outgoing page number,
   // so searching from page 3 would cost two requests: one for the stale page,
   // one for page 1.
-  const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
+  const searchKey = `${debouncedQuery}\n${debouncedServerQuery}`
   const [pagedFor, setPagedFor] = useState(searchKey)
   if (pagedFor !== searchKey) {
     setPagedFor(searchKey)
@@ -220,7 +223,7 @@ export default function PlantSearchPage() {
 
     let cancelled = false
     setLoading(true)
-    const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
+    const filterSuffix = debouncedServerQuery ? `&${debouncedServerQuery}` : ''
     fetch(`/api/plants?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { groups?: PlantGroup[]; total?: number; pageCount?: number }) => {
@@ -238,7 +241,7 @@ export default function PlantSearchPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedFilterQuery, debouncedQuery, page, refreshNonce, searchHydrated])
+  }, [debouncedServerQuery, debouncedQuery, page, refreshNonce, searchHydrated])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -276,12 +279,14 @@ export default function PlantSearchPage() {
   // the browser: that used to let sibling cultivars back into the result set.
   const refinedGroups = groups
 
-  // Plant-level column filters apply across every supplier; a supplier whose
-  // plants all filter out drops off the page entirely.
-  // Column filters ran in SQL before this page was fetched, so nothing here
-  // re-applies them. What is left is genuinely view-local: sorting, rows the
-  // user hid, and the supplier shortlist. A size typed into the query is not
-  // handled here either — it is a ranking signal the search itself applies.
+  // Column filters, and the plant table's sort, ran in SQL before this page was
+  // fetched, so nothing here re-applies them. What is left is genuinely
+  // view-local: rows the user hid, the supplier shortlist, the supplier panel's
+  // own sort — the master rows *are* this page's groups, so ordering them is
+  // arranging what came back rather than asking a new question — and the plant
+  // columns SQL cannot order (Size, Source, Ingested; see PLANT_SORTS). A size
+  // typed into the query is not handled here either: it is a ranking signal the
+  // search itself applies.
   const visibleGroups = useMemo(() => {
     const masterRows = refinedGroups.map((g) => g.supplier)
     const ordered = masterCfg.sort
@@ -303,7 +308,7 @@ export default function PlantSearchPage() {
             (p) => !hiddenPlants.includes(p.id),
           ),
           {},
-          plantCfg.sort,
+          clientOnlySort(plantCfg.sort, PLANT_SORTS),
         ),
       }))
       .filter((g) => g.plants.length > 0)

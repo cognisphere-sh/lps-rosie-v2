@@ -13,6 +13,7 @@ import { SUPPLIER_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
 import type { SupplierRow } from '@/lib/rows'
 import { SUPPLIER_FILTERS, clientOnlyFilters, filterQuery } from '@/lib/server-filters'
+import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 
@@ -40,26 +41,32 @@ export default function SuppliersPage() {
     return () => window.removeEventListener('lps:refresh', refresh)
   }, [])
 
-  // Column filters run as SQL over the RPC result, so they travel with the
-  // request rather than being applied to whichever page came back.
-  const serverFilterQuery = useMemo(
-    () => filterQuery('supplier', SUPPLIER_FILTERS, cfg.filters),
-    [cfg.filters],
+  // Column filters and the header sort both run as SQL over the RPC result, so
+  // they travel with the request rather than being applied to whichever page
+  // came back. They share one debounce timer: a filter click and a sort click
+  // landing together should cost one request, not two.
+  const serverQuery = useMemo(
+    () =>
+      [filterQuery('supplier', SUPPLIER_FILTERS, cfg.filters), sortQuery(SUPPLIER_SORTS, cfg.sort)]
+        .filter(Boolean)
+        .join('&'),
+    [cfg.filters, cfg.sort],
   )
   const {
-    query: debouncedQuery, filters: debouncedFilterQuery, settled,
-  } = useDebouncedSearch(query, serverFilterQuery)
+    query: debouncedQuery, filters: debouncedServerQuery, settled,
+  } = useDebouncedSearch(query, serverQuery)
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
   const searching = loading || !settled
 
-  // A new search or filter starts again at page 1.
+  // A new search, filter or sort starts again at page 1 — page 3 of the old
+  // ordering means nothing once the ordering changes.
   //
   // Reset while rendering, not in an effect. An effect commits *after* the
   // fetch effect below has already run once against the outgoing page number,
   // so searching from page 3 would cost two requests: one for the stale page,
   // one for page 1.
-  const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
+  const searchKey = `${debouncedQuery}\n${debouncedServerQuery}`
   const [pagedFor, setPagedFor] = useState(searchKey)
   if (pagedFor !== searchKey) {
     setPagedFor(searchKey)
@@ -86,7 +93,7 @@ export default function SuppliersPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
+    const filterSuffix = debouncedServerQuery ? `&${debouncedServerQuery}` : ''
     fetch(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { rows?: SupplierRow[]; total?: number; pageCount?: number }) => {
@@ -100,7 +107,7 @@ export default function SuppliersPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, debouncedFilterQuery, page, refreshNonce])
+  }, [debouncedQuery, debouncedServerQuery, page, refreshNonce])
 
   // Second pass: "# Items" needs one COUNT per supplier, so it arrives after
   // the table has already rendered rather than holding it up.
@@ -142,15 +149,16 @@ export default function SuppliersPage() {
     [toast],
   )
 
-  // Everything except `# Items` was filtered in SQL before this page arrived;
-  // that one is a per-supplier COUNT from a second pass, so it has no column to
-  // filter on and stays here.
+  // Everything except `# Items` was filtered and sorted in SQL before this page
+  // arrived; that one is a per-supplier COUNT from a second pass, so it has no
+  // column to filter or order on and stays here. The columns assembled per page
+  // — the contact and source lists — sort here for the same reason.
   const visibleRows = useMemo(
     () =>
       applyFilters(
         rows.filter((r) => !hiddenRows.includes(r.id)),
         clientOnlyFilters(cfg.filters, SUPPLIER_FILTERS),
-        cfg.sort,
+        clientOnlySort(cfg.sort, SUPPLIER_SORTS),
       ),
     [rows, hiddenRows, cfg.filters, cfg.sort],
   )

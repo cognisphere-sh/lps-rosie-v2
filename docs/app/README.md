@@ -139,9 +139,9 @@ is enabled in the desktop rail and through mobile More.
 
 | API route | Purpose |
 |---|---|
-| `GET /api/suppliers?q=&page=` | `search_suppliers` RPC + source file names, 50 per page, with the match `total` and `pageCount`. `?counts=1&ids=` is the "# Items" second pass. |
+| `GET /api/suppliers?q=&page=` | `search_suppliers` RPC + source file names, 50 per page, with the match `total` and `pageCount`. `sort=&dir=` order the whole match set before that page is sliced. `?counts=1&ids=` is the "# Items" second pass. |
 | `GET /api/suppliers/:id` | One supplier, its active sources, and the other active locations sharing its `head_branch_id` (`locations`, head branch first, never itself). |
-| `GET /api/plants?q=&page=` | Plant search grouped by supplier, 300 rows per page, with the match `total` and `pageCount`. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before that page is sliced. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges. |
+| `GET /api/plants?q=&page=` | Plant search grouped by supplier, 300 rows per page, with the match `total` and `pageCount`. Optional `height_min`/`height_max` (feet), `width_min`/`width_max` and `caliper_min`/`caliper_max` (inches) are validated and applied before that page is sliced. `sort=&dir=` order the whole match set ahead of relevance, likewise before the slice. `?supplierId=&page=` provides one supplier's paged list with the same server-side ranges and the same `sort=&dir=`. |
 | `GET /api/photos?q=&offset=` | Photo catalogue, 50 per batch, with the match `total`. **An `offset`, not a page number** — the grid appends, so it asks for "the next batch after what I hold", which stays correct after a photo is deleted out of the middle; a page number would skip the row that moved up. An offset past the end returns an **empty batch with the true total**, not an error. `p.supplier` / `p.size` / `p.cultivar` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags, cultivar display names and `{id,name,city,state}` suppliers — for that search without its filters. |
 | `GET /api/photos/:id/image` | Redirects to a 1-hour signed URL for one photo. Takes a **photo id**, never a storage path: the path is read from the row, so this cannot be used to sign arbitrary objects in the private bucket. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
@@ -291,8 +291,10 @@ container to largest: the word grades `Bare Root`, `Liners`, `Plug`, `Trays`;
 then pots, gallons and boxes each ascending **by number, not alphabetically** —
 `4" Pot` before `8" Pot`, `2G` before `15G` before `100G`; then the field-dug
 grades `B&B`, `Field Grown`, `Grow Bags`, `Root Pruned`; then `other` last.
-Sorting the Size column follows the same order. All three numbered families are
-open sets, so a bucket the database has never seen before needs no app change.
+Sorting the Size column follows the same order, which is why Size is one of the
+few columns whose sort still runs in the browser — see *Where a sort runs*. All
+three numbered families are open sets, so a bucket the database has never seen
+before needs no app change.
 
 The earlier scheme listed raw `size` text, which made every spelling its own
 checkbox (2,783 supplier/size variants across the catalogue); the one before
@@ -306,9 +308,9 @@ mirrored as repeated URL `size` parameters, and are saved as a JSON array under
 `lps.plant-search.size-choice.v3`. The two earlier keys are deleted on load —
 their stored raw-text selections mean nothing against the buckets. Selections
 that no longer exist in the current matches are dropped once results load. Size
-filtering applies to the current page of the `search_inventory` result set (300
-rows), so a bucket that only exists further into the matches appears when you
-page to it.
+filtering runs in SQL over the whole `search_inventory` result set, not over the
+300-row page — the paragraph that said otherwise predated *Where a filter runs*
+and was wrong from the day that moved.
 
 Height, width and caliper retain the supplier's human-readable strings for
 cells/cards and editing, while hidden numeric row values power range filters:
@@ -796,16 +798,18 @@ already projects the columns. Two consequences worth knowing:
   would collapse to whatever is selected, so picking one size would remove every
   other size from its own dropdown. Because the key is the search term, changing
   a filter never refetches them.
-- **Three things stay in the browser, each for a reason.** Sorting, because it
-  is view-local and the RPC's relevance ordering must stay primary. `# Items` on
-  the Suppliers table, because it is a per-supplier COUNT from a second pass and
+- **Two things stay in the browser, each for a reason.** `# Items` on the
+  Suppliers table, because it is a per-supplier COUNT from a second pass and
   not a column `search_suppliers` returns. And a size *typed into the query*
   (`15g`), because it matches by value against the supplier's printed size text
   — `15g` finds a row listed as `10/15 G` — which is a range no single
   standardized bucket can express, so there is no column to compare against.
+  Sorting used to be a third; it moved to SQL for the same reason filtering did
+  (*Where a sort runs*, below).
 
 `applyFilters()` in `lib/table-config.ts` therefore now runs with an empty
-filter set on the plant tables; it is still what applies the sort.
+filter set on the plant tables; what it still applies is the handful of sorts
+SQL cannot.
 
 One thing the `cultivar` filter makes explicit on both tables: **the browser
 normalizes, the server does not.** `filterQuery()` runs the selection through
@@ -814,6 +818,54 @@ normalizes, the server does not.** `filterQuery()` runs the selection through
 `parseFilters()` takes what it is given, so `?f.cultivar=Natchez` matches
 nothing while `?f.cultivar=natchez` matches — worth knowing when hand-testing an
 endpoint.
+
+## Where a sort runs
+
+**A column header's sort is SQL too, applied over the search result**, and for
+the same reason its filters are: the browser holds one page, so sorting there
+answered "cheapest of the 300 rows relevance happened to return" when the
+question was "cheapest of the 570 that matched". On the Suppliers table it was
+plainer still — `Name ▲` only ever rearranged the fifty rows on screen.
+
+All three tables do it: the Suppliers list, Plant search's plant table, and the
+supplier profile's Inventory tab, where it matters most — Austin Plant Supply
+carries 1,467 rows, so "cheapest first" over a 100-row page was answering about
+7% of their catalogue.
+
+`lib/server-sort.ts` mirrors `lib/server-filters.ts`: `SUPPLIER_SORTS` and
+`PLANT_SORTS` map a column key to the column the database orders by,
+`sortQuery()` serializes the header's state (`sort=` + `dir=`), `parseSort()`
+looks the key up in the spec rather than trusting it as a column name — the same
+reason `parseFilters()` does — and `clientOnlySort()` returns the sort only when
+no spec covers it. Sort and filter state share one debounced string per page, so
+a filter click and a sort click landing together cost one request.
+
+Ordering goes on outside the RPC, before `range()`, so page 1 is the top of the
+whole ordering. Missing values sort last in both directions (`nullsFirst:
+false`), matching what the browser did — descending price must not promote
+unpriced inventory above real supplier prices. On both plant tables a header
+sort outranks relevance, which stays underneath it so equal prices still lead
+with the best match; on Suppliers an `id` tie-breaker follows the sort column,
+because without a total order two pages of a low-cardinality sort (State, say)
+can repeat or skip a row. `PLANT_SORTS` drives the profile tab's search branch
+and its no-query browse branch alike, the same way `PLANT_FILTERS` does — the
+columns are on `search_inventory` and on `inventory` both.
+
+Four kinds of column are absent from the maps and still sort the page:
+
+- **Values assembled after the fetch.** `# Items`, `Other contacts`,
+  `Inventory sources` and `Last ingestion` on Suppliers; `Source` and `Ingested`
+  on the plant tables. None is a column the query could order by.
+- **`Communication notes`**, which is on `suppliers` but outside
+  `search_suppliers`' projection.
+- **`Size`**, because SQL would order `size_std` as text and put `100G` between
+  `10G` and `15G`. Its canonical order is a rule (`lib/size-std.ts`), not
+  something an index expresses.
+- **The whole supplier panel on Plant search.** Its master rows *are* this
+  page's groups, assembled from the plants that came back, so ordering them
+  arranges what was fetched. Asking for "the supplier with the most matches"
+  across the entire result set is a different query — an aggregate over
+  `search_inventory` grouped by supplier — and nothing here can serve it.
 
 ## Paging the list pages
 
@@ -847,7 +899,8 @@ client-side filters, the right one is the whole match set, so filtering visibly
 moves one and not the other.
 
 Each page holds a page number that resets to 1 when the question changes — the
-debounced query or filter state — and does so during render, before the fetch
+debounced query, filter or sort state, since page 3 of one ordering means
+nothing under another — and does so during render, before the fetch
 effect can run against the number the new search just invalidated. Every
 client-side concern — column filters, the toolbar multiselects, size selection,
 hidden rows, and Plant search's grouping by supplier — still applies to the
@@ -860,7 +913,9 @@ A supplier can carry thousands of rows (Austin Plant Supply has 1,467), so the
 profile's Inventory tab pages through them 100 at a time rather than capping the
 list. `getSupplierPlants` fetches `PROFILE_PAGE_SIZE + 1` and reports `hasMore` from the
 extra row, so there is no second count query; the page count in the header comes
-from the supplier's own `item_count`.
+from the supplier's own `item_count`. Filters and the header sort are applied
+before that slice, so both describe the supplier's whole inventory rather than
+the hundred rows on screen — see *Where a filter runs* and *Where a sort runs*.
 
 ## Truncation
 
@@ -1019,7 +1074,8 @@ lib/
   size-std.ts      the size_std vocabulary and the order the filter offers it in
   size-std.check.mjs      self-check for that order
   server-filters.ts       the filter spec: state -> query string -> SQL
-  use-debounced.ts query + filter state debounced as one request
+  server-sort.ts          the sort spec, same shape: which columns SQL orders
+  use-debounced.ts query + filter/sort state debounced as one request
   format.ts        money / number / date formatting
   supabase.ts      server-only client
   session.ts       resolveUser() — the one definition of a real session,

@@ -16,6 +16,7 @@ import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { FilterControl } from '@/components/workspace/table-parts'
 import { AVAILABILITY_SOURCE_TYPES, MASTER_COLS, PLANT_COLS, plantEditPatch, websiteHref, type ColumnDef } from '@/lib/columns'
 import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
+import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { formatDate, money, num } from '@/lib/format'
 import type { Contact, PlantRow, SupplierLocation, SupplierRow, SupplierSource } from '@/lib/rows'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
@@ -335,15 +336,20 @@ export default function SupplierProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false)
 
   const [query, setQuery] = useState('')
-  // Column filters are applied as SQL over the result, so the whole filter
-  // state travels with the request instead of narrowing the page in place.
-  const serverFilterQuery = useMemo(
-    () => filterQuery('plant', PLANT_FILTERS, plantCfg.filters),
-    [plantCfg.filters],
+  // Column filters and the header sort are both applied as SQL over the result,
+  // so the whole state travels with the request instead of narrowing or
+  // reordering the page in place. A supplier can carry thousands of rows, so
+  // "cheapest first" has to mean cheapest of theirs, not of these hundred.
+  const serverQuery = useMemo(
+    () =>
+      [filterQuery('plant', PLANT_FILTERS, plantCfg.filters), sortQuery(PLANT_SORTS, plantCfg.sort)]
+        .filter(Boolean)
+        .join('&'),
+    [plantCfg.filters, plantCfg.sort],
   )
   const {
-    query: debouncedQuery, filters: debouncedFilterQuery, settled,
-  } = useDebouncedSearch(query, serverFilterQuery)
+    query: debouncedQuery, filters: debouncedServerQuery, settled,
+  } = useDebouncedSearch(query, serverQuery)
   const [plants, setPlants] = useState<PlantRow[]>([])
   const [facets, setFacets] = useState<Record<string, string[]>>({})
   const [loadingPlants, setLoadingPlants] = useState(true)
@@ -431,11 +437,12 @@ export default function SupplierProfilePage() {
       .catch(() => setNotFound(true))
   }, [id])
 
-  // A new search starts again at page 1. Reset while rendering, not in an
+  // A new search, filter or sort starts again at page 1 — page 3 of one
+  // ordering means nothing under another. Reset while rendering, not in an
   // effect: an effect commits *after* the fetch effect below has already run
   // once against the outgoing page number, costing a request for a page of the
   // result set the search just replaced.
-  const searchKey = `${debouncedQuery}\n${debouncedFilterQuery}`
+  const searchKey = `${debouncedQuery}\n${debouncedServerQuery}`
   const [pagedFor, setPagedFor] = useState(searchKey)
   if (pagedFor !== searchKey) {
     setPagedFor(searchKey)
@@ -461,7 +468,7 @@ export default function SupplierProfilePage() {
     if (!Number.isInteger(id)) return
     let cancelled = false
     setLoadingPlants(true)
-    const filterSuffix = debouncedFilterQuery ? `&${debouncedFilterQuery}` : ''
+    const filterSuffix = debouncedServerQuery ? `&${debouncedServerQuery}` : ''
     fetch(`/api/plants?supplierId=${id}&page=${page}&q=${encodeURIComponent(debouncedQuery)}${filterSuffix}`)
       .then((r) => r.json())
       .then((body: { plants?: PlantRow[]; hasMore?: boolean }) => {
@@ -474,7 +481,7 @@ export default function SupplierProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [id, debouncedFilterQuery, debouncedQuery, page, plantsVersion])
+  }, [id, debouncedServerQuery, debouncedQuery, page, plantsVersion])
 
   const savePlant = useCallback(
     async (row: PlantRow, col: ColumnDef, next: string) => {
@@ -736,14 +743,15 @@ export default function SupplierProfilePage() {
     )
   }
 
-  // Filtering already happened in SQL; what is left here is view-local —
-  // sorting, rows the user hid, and rows deleted in this session.
+  // Filtering and sorting already happened in SQL; what is left here is
+  // view-local — rows the user hid, rows deleted in this session, and the
+  // columns SQL cannot order (Size, Source, Ingested; see PLANT_SORTS).
   const visiblePlants = useMemo(
     () =>
       applyFilters(
         plants.filter((p) => !hiddenPlants.includes(p.id) && !deleted.includes(p.id)),
         {},
-        plantCfg.sort,
+        clientOnlySort(plantCfg.sort, PLANT_SORTS),
       ),
     [plants, hiddenPlants, deleted, plantCfg.sort],
   )
