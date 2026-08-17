@@ -207,6 +207,15 @@ the saved state cannot serve stale inventory. Clearing the search removes both
 the URL parameter and saved term. Browser Back/Forward changes are restored via
 `popstate`.
 
+Wrapping the entire plant identity in straight double quotes switches the same
+API to exact mode: `"Italian Cypress"` compares complete common, botanical and
+composed identity parts (plus exact cultivar keys and one direct reviewed alias
+hop), ignoring punctuation/case/word order but refusing extra tokens. It
+therefore excludes Arizona Cypress and Blue Ice while the unquoted query keeps
+the broad discovery tail. Quotes are preserved in the URL and local storage.
+Use the existing Size selector with an exact query; text outside the closing
+quote deliberately means the query is no longer fully wrapped and stays broad.
+
 Plant Search treats size as part of the natural question without showing a
 permanent filter form. A query such as `15g Agave Americana` is parsed into the
 plant-name query (`Agave Americana`) and an independent 15-gallon constraint, so
@@ -214,7 +223,7 @@ alias matching cannot silently ignore the size token. Explicit gallon spellings
 (`15 G`, `15G`, `15 gallon`) and explicit box notation are normalized; the
 supplier's original size text remains unchanged.
 
-### How results are ranked
+### How unquoted results are ranked
 
 `search_inventory` matches **names, size and notes** and ranks by
 **IDF-weighted term coverage**: the query is split into groups (longest span

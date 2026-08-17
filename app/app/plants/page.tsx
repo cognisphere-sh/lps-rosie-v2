@@ -407,7 +407,7 @@ export default function PlantSearchPage() {
 
   const toolbar = (
     <Toolbar
-      placeholder="Search plant name, optionally with size (15g)…"
+      placeholder={'Search plant name; use "quotes" for exact…'}
       query={query}
       onQuery={setQuery}
       controls={
@@ -731,8 +731,9 @@ export default function PlantSearchPage() {
       {!searchHydrated ? null : !hasQuery ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <span className="text-[15px] font-semibold">What plant are you looking for?</span>
-          <span className="max-w-[430px] text-[12.5px] text-muted-foreground">
-            Search by plant name, with an optional size such as “15g Agave Americana”.
+          <span className="max-w-[470px] text-[12.5px] text-muted-foreground">
+            Search broadly by plant name, optionally with a size such as “15g Agave Americana”.
+            Wrap an exact common or botanical identity in double quotes: "Italian Cypress".
           </span>
         </div>
       ) : isMobile ? (

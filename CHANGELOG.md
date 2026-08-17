@@ -19,6 +19,17 @@ here).
 
 ### Changed
 
+- **Double-quoted Plant Search is exact; unquoted search remains broad**
+  (Bhoumik's direction, migration 0057). One balanced outer pair such as
+  `"Italian Cypress"` bypasses partial/fuzzy/note discovery and compares complete
+  common, botanical, composed or cultivar identity plus one active direct alias
+  hop. Case, punctuation and token order are ignored, but extra identity tokens
+  are not—so `"Cypress Italian"` is identical while Arizona Cypress / Blue Ice
+  stay out. The app preserves quotes in its existing URL/local-storage query and
+  now advertises the mode in the search prompt. Live regression held four
+  unquoted ID digests exactly; quoted Italian Cypress returned 20 clean rows / 8
+  suppliers and quoted Cupressus sempervirens 29 / 12, both with zero wrong
+  identities. No inventory or alias data changed.
 - **Multi-location suppliers now present once at company level** in Supplier
   Search and Plant Search (Chris's request, Bhoumik-approved). Supplier Search
   groups the location-level `search_suppliers` match set by migration 0049's

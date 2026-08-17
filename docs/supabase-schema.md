@@ -748,6 +748,7 @@ on it** — nothing reads it, and it is a candidate for removal.
 |---|---|---|
 | `normalize_search_text(text)` | text | Search tokenization: lowercase, punctuation → spaces, split letter↔digit boundaries ("1G" → "1 g"). The pgroonga document/query normalizer — the concatenation in `search_inventory` must stay byte-identical to the two `inventory_search_*_idx` expressions or the indexes are skipped |
 | `normalize_plant_key(text)` | text | Identity key for plant names: lowercase **letters only** ("Live-Oak 2" → "liveoak"). Backs the generated `*_key` columns |
+| `normalize_identity_token_key(text)` | text | Exact-mode identity signature (0057): normalized tokens sorted and joined, so `Italian Cypress` = `Cypress, Italian`, while either differs from any identity with an extra token such as `Blue Ice`. IMMUTABLE/STRICT/PARALLEL SAFE; comparison helper only, not stored evidence |
 | `compose_plant_name(text, text, text)` | text | The SOP name format: the non-empty parts joined by ` - `, in the order common, botanical, cultivar; NULL when all three are empty. What `trg_inventory_derive_identity` writes into `inventory.name` — and, since 0051, `plant_photos.name` too |
 | `plant_photo_document(name, size, caption, tags, notes)` | text | The searchable text of a photo, IMMUTABLE. **The single definition** behind both `plant_photos_search_*` indexes and `search_plant_photos` — which is why the photo side cannot drift the way the inventory side can, where the same concatenation is repeated in five places |
 | `normalize_size(text)` | text | Size-string normalizer — canonicalizes units/spacing/leading zeros (`"1G"` → `"1 G"`, `"024 Inch Box"` → `"24\" Box"`). **Nothing calls it automatically** (no trigger, no default): ingestion applies it, and migration 0019 applied it to the 38,090 legacy rows that had drifted |
@@ -761,6 +762,19 @@ search_inventory(search text = '', fuzzy_ratio real = 0.34)
 sorting are the caller's job, applied as SQL over the result. The function
 answers one question: which rows answer this query, and how well.
 
+**One outer pair of straight double quotes selects exact identity mode**
+(migration 0057): `"Italian Cypress"` matches a complete common, botanical or
+composed identity part, an exact cultivar key, or one active direct alias hop.
+Comparison ignores case, punctuation and token order (`"Cypress Italian"` is
+the same query), but it does **not** ignore extra tokens—Arizona Cypress and
+Blue Ice cannot enter a quoted Italian Cypress result through substring, fuzzy
+or notes matching. The outer quotes must wrap the entire non-empty query;
+unbalanced/internal quotes remain on the broad path. A size cannot sit outside
+the wrapper, so use the Size filter with quoted identity mode.
+
+**Unquoted input is unchanged broad discovery.** It executes the 0050
+IDF-weighted partial/fuzzy body and intentionally keeps related tail matches.
+
 Returns the inventory columns — including `common_name`, `botanical_name`,
 `cultivar_variety_trade_name`, `cultivar_keys` and `internal_notes` — plus
 `source`, `supplier_name`, `supplier_category`, `supplier_state`,
@@ -771,9 +785,9 @@ Returns the inventory columns — including `common_name`, `botanical_name`,
 `.gte()` / `.overlaps()` in an outer query, *before* its own `range()`, so a
 filtered page and its `count` describe the same set.
 
-#### What it matches
+#### What unquoted discovery matches
 
-The **document is `name + size + notes`**, normalized. The three name parts are
+The broad-mode **document is `name + size + notes`**, normalized. The three name parts are
 inside `name`, which is composed from them. Height, width and caliper are
 deliberately *not* in it — they are filter columns, not search text.
 

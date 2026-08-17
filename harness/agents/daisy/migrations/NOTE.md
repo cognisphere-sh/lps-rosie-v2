@@ -10,6 +10,24 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0057_quoted_exact_plant_search.sql`
+
+Applied 2026-08-17 at Bhoumik's request. Adds the immutable
+`normalize_identity_token_key(text)` helper and replaces only the body of the
+existing two-argument `search_inventory` RPC; no inventory, source, alias or
+index changed.
+
+A query wrapped by one outer pair of straight double quotes now matches complete
+identity-part/direct-alias equivalence instead of broad discovery. Case,
+punctuation and token order are ignored; extra tokens are not. Unquoted input
+runs the 0050 body unchanged. Pre/post digests were identical for unquoted
+Italian Cypress, Cupressus sempervirens, Live Oak and Crape Myrtle Muskogee.
+Quoted Italian Cypress returned 20 rows / 8 suppliers; its reversed-word query
+had the identical ID digest. Quoted Cupressus sempervirens returned 29 / 12.
+Both had zero Arizona/arizonica/Blue Ice rows. An unbalanced quote stayed broad
+without error. PostgREST exposed one unchanged RPC signature, and the app API
+returned the same 20 clean quoted results.
+
 ## `0054_plant_photo_reclaimable.sql`
 
 Applied 2026-08-16 at Bhoumik's request, one step. Adds
