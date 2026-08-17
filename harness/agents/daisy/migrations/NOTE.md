@@ -10,6 +10,47 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0053_plant_photos_bucket_normalised.sql`
+
+Applied 2026-08-16 at Bhoumik's request, one step. **Bucket configuration only**
+— no table, index, function or row touched.
+
+    allowed_mime_types  image/jpeg|png|webp|heic|heif  ->  image/webp
+    file_size_limit     25 MB                          ->  8 MB
+
+Follows the decision that the catalogue is a **reference library, not an
+archive**. Photos are normalised before upload by the new
+`skills/agent/plant-photo-catalogue/scripts/prepare-photo` — EXIF orientation
+baked into the pixels, all metadata dropped, long edge capped at 2048px,
+re-encoded to WebP. Measured on a 4032x3024 phone photo: **7.9 MB -> 819 kB,
+89.6% smaller**, correctly rotated, GPS gone.
+
+**The narrowed type list is the enforcement, not decoration.** Exactly one
+process writes to this bucket and it always emits WebP, so an un-normalised
+upload is by definition wrong and now fails at the API rather than being found
+later. HEIC left the list for the same reason: it is a *source* format
+`prepare-photo` reads (via pillow-heif) and converts, never something we store.
+The 8 MB ceiling is a backstop — a 2048px WebP is under 1 MB, so anything near
+it means the normaliser was skipped.
+
+Both settings gate **uploads only**. The 44 objects already in the bucket are
+JPEGs, still readable, rows still valid, and deliberately **not backfilled**:
+re-encoding them would destroy originals we still hold to save roughly 13 MB.
+They normalise if and when they are re-sent.
+
+One semantic change rides along, in the skill rather than the schema:
+`plant_photos.sha256` now hashes the file we were **handed**, not the object
+stored. Keying on our own output would break dedupe the day the encoder settings
+change. One-row-per-object is guaranteed by `plant_photos_object_idx` instead,
+which is what it was always for.
+
+Post-apply verification: bucket reports `{image/webp}` / 8388608; a JPEG upload
+is refused with `InvalidMimeType` / HTTP 415 while the same photo normalised to
+WebP uploads cleanly (probe object deleted afterwards, bucket back to 44); the
+existing JPEG objects still render through `/api/photos/<id>/image`.
+
+Rollback is the reverse UPDATE; nothing else to undo.
+
 ## `0052_plant_photos_name_key.sql`
 
 Applied 2026-08-16 at Bhoumik's request, in two steps recorded in the Supabase

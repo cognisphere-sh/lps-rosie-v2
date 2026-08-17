@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""prepare-photo — normalise one image for the photo catalogue and report the
+facts the `plant_photos` insert needs.
+
+    prepare-photo <file> [--out-dir DIR] [--max-edge N] [--quality N] [--keep]
+
+Prints one JSON object to stdout. Every field named like a `plant_photos`
+column is that column's value; copy them into the insert rather than measuring
+the file again.
+
+WHAT IT DOES, and why each step is here
+  * **Bakes in EXIF orientation, then drops the metadata.** A phone photo is
+    often stored sideways with an orientation tag; a viewer that ignores the tag
+    shows it rotated. Applying the rotation to the pixels means every consumer
+    agrees. Dropping the rest removes GPS — a photo taken at a supplier's site
+    carries their coordinates, and the catalogue has no use for them.
+  * **Caps the long edge** (default 2048px). A 4032x3024 phone photo is not a
+    more useful plant reference than a 2048px one, and it is four times the
+    bytes. Never upsizes: a small image is passed through at its own size.
+  * **Re-encodes to WebP** (default quality 82). One format for everything the
+    app has to display, and 30-60% smaller than the JPEG it usually replaces.
+
+THE CATALOGUE IS A REFERENCE LIBRARY, NOT AN ARCHIVE — decided 2026-08-16. The
+normalised file is what gets stored; the original is not kept. That is the whole
+point of this script, and it is why `--keep` exists for the cases where you want
+to look at what was discarded before it is gone.
+
+`sha256` IS THE HASH OF THE FILE YOU WERE HANDED, not of the normalised output.
+That is deliberate and it is what keeps dedupe working: the same photo re-sent
+next month must still collide with the row we already have, and it would not if
+the key described our own output, which changes whenever the quality or size
+settings do. The stored object's own hash is reported as `prepared_sha256` for
+debugging and is not written anywhere.
+
+Exit codes: 0 ok · 2 bad usage · 3 unreadable or not an image
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+import tempfile
+
+from PIL import Image, ImageOps, UnidentifiedImageError
+
+# iPhone photos are HEIC and the bucket accepts them; Pillow cannot open one on
+# its own. Registered opportunistically so a machine without the wheel still
+# handles every other format rather than failing at import.
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:  # pragma: no cover - depends on the venv
+    pass
+
+# Mirrors the bucket's own `allowed_mime_types`, so a file that would be
+# rejected on upload is rejected here instead — before anything is hashed,
+# re-encoded or written.
+ACCEPTED = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+PIL_TO_MIME = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "HEIF": "image/heic",
+    "MPO": "image/jpeg",  # multi-picture JPEG, as some phones write
+}
+
+
+def sha256_of(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def has_gps(image: Image.Image) -> bool:
+    """Whether the source carried location metadata, for the intake note."""
+    try:
+        return bool(image.getexif().get_ifd(0x8825))
+    except Exception:
+        return False
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(add_help=True, description="Normalise a photo for the catalogue.")
+    parser.add_argument("file")
+    parser.add_argument("--out-dir", default=None, help="where to write it (default: a temp dir)")
+    parser.add_argument("--max-edge", type=int, default=2048, help="cap the long edge (default 2048)")
+    parser.add_argument("--quality", type=int, default=82, help="WebP quality (default 82)")
+    parser.add_argument(
+        "--keep",
+        action="store_true",
+        help="leave the source file alone and say so; it is never deleted by this script either way",
+    )
+    args = parser.parse_args()
+
+    src = args.file
+    if not os.path.isfile(src):
+        print(f"prepare-photo: not a readable file: {src}", file=sys.stderr)
+        return 3
+
+    src_bytes = os.path.getsize(src)
+    src_hash = sha256_of(src)
+
+    try:
+        image = Image.open(src)
+        image.load()
+    except UnidentifiedImageError:
+        print(f"prepare-photo: not an image Pillow can read: {src}", file=sys.stderr)
+        return 3
+    except Exception as exc:  # a truncated or malformed file
+        print(f"prepare-photo: cannot read {src}: {exc}", file=sys.stderr)
+        return 3
+
+    src_format = image.format or "?"
+    src_mime = PIL_TO_MIME.get(src_format)
+    if src_mime not in ACCEPTED:
+        print(
+            f"prepare-photo: {src_format} is not one of the accepted types "
+            f"({', '.join(sorted(ACCEPTED))}) — the bucket would reject it",
+            file=sys.stderr,
+        )
+        return 3
+
+    notes: list[str] = []
+    gps = has_gps(image)
+    src_w, src_h = image.size
+
+    # Rotation first: every later step works on pixels that are already the
+    # right way up, and the tag that said so is dropped with the rest.
+    image = ImageOps.exif_transpose(image)
+    if image.size != (src_w, src_h):
+        notes.append(f"applied EXIF orientation ({src_w}x{src_h} -> {image.size[0]}x{image.size[1]})")
+
+    # WebP carries alpha; a palette image with transparency has to become RGBA
+    # first or the transparency is lost. Anything exotic (CMYK) becomes RGB.
+    if image.mode in ("RGBA", "LA"):
+        pass
+    elif image.mode == "P" and "transparency" in image.info:
+        image = image.convert("RGBA")
+    elif image.mode != "RGB":
+        image = image.convert("RGB")
+
+    before = image.size
+    if max(image.size) > args.max_edge:
+        # `thumbnail` preserves the aspect ratio and never upsizes.
+        image.thumbnail((args.max_edge, args.max_edge), Image.Resampling.LANCZOS)
+        notes.append(f"resized {before[0]}x{before[1]} -> {image.size[0]}x{image.size[1]}")
+    else:
+        notes.append(f"kept at {image.size[0]}x{image.size[1]} (already within {args.max_edge}px)")
+
+    out_dir = args.out_dir or tempfile.mkdtemp(prefix="prepare-photo-")
+    os.makedirs(out_dir, exist_ok=True)
+    stem = os.path.splitext(os.path.basename(src))[0]
+    out = os.path.join(out_dir, f"{stem}.webp")
+
+    # No `exif=` and no `icc_profile=`: this is where the metadata goes.
+    image.save(out, "WEBP", quality=args.quality, method=6)
+    out_bytes = os.path.getsize(out)
+
+    notes.append("stripped metadata" + (" (source carried GPS)" if gps else ""))
+    if out_bytes >= src_bytes:
+        # Rare — a already-optimised small PNG or WebP. Said out loud rather
+        # than silently shipping a bigger file: uniform format, baked
+        # orientation and stripped metadata are still worth having, but you
+        # should know the byte count went the wrong way.
+        notes.append(f"NOTE: output is larger than the source ({out_bytes} vs {src_bytes} bytes)")
+
+    print(
+        json.dumps(
+            {
+                # --- straight into the plant_photos insert ---
+                "sha256": src_hash,  # the file we were HANDED — the dedupe key
+                "mime_type": "image/webp",
+                "byte_size": out_bytes,
+                "image_width": image.size[0],
+                "image_height": image.size[1],
+                # --- what to upload ---
+                "prepared": out,
+                "prepared_sha256": sha256_of(out),
+                # --- what it was, for the intake note and the report ---
+                "source": {
+                    "filename": os.path.basename(src),
+                    "path": os.path.abspath(src),
+                    "mime_type": src_mime,
+                    "byte_size": src_bytes,
+                    "width": src_w,
+                    "height": src_h,
+                    "had_gps": gps,
+                    "kept": bool(args.keep),
+                },
+                "saved_bytes": src_bytes - out_bytes,
+                "saved_pct": round(100 * (src_bytes - out_bytes) / src_bytes, 1) if src_bytes else 0.0,
+                "notes": notes,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

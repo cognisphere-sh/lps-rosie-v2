@@ -1,9 +1,32 @@
 # Photo catalogue — storage and network cost plan
 
 **Date:** 2026-08-16
-**Status:** Plan only. Nothing here is implemented; each phase has a gate.
+**Status:** Lever D is **implemented** (2026-08-16) — see the box below. A, B
+and C are still plan only; each has a trigger.
 **Scope:** the `plant-photos` bucket and the `/photos` page. Not the `lps`
 bucket (supplier source files), which has its own profile.
+
+> ### Implemented 2026-08-16 — lever D, "store less"
+>
+> **Decision: the catalogue is a reference library, not an archive.** Photos are
+> normalised before upload — EXIF orientation baked into the pixels, all
+> metadata dropped, long edge capped at 2048px, re-encoded to WebP — by
+> `skills/agent/plant-photo-catalogue/scripts/prepare-photo`. Migration 0053
+> narrowed the bucket to `image/webp` / 8 MB so the storage layer enforces it
+> rather than the skill merely describing it.
+>
+> Measured: a 4032×3024 phone photo goes **7.9 MB → 819 kB (89.6%)**; an
+> already-recompressed Telegram photo saves 11%. The win is on phone drops,
+> which is where the growth is.
+>
+> **The existing 44 objects were deliberately not backfilled.** Re-encoding them
+> would destroy originals we still hold to save roughly 13 MB — not a trade
+> worth making. They normalise if and when they are re-sent, so the saving here
+> is prospective, and that is the honest framing.
+>
+> Still open from lever D: the **orphan sweep**. Retired photos' objects are
+> never reclaimed (1 today). The skill carries the audit query; automating the
+> deletion waits on decision 2 below.
 
 ---
 
@@ -108,20 +131,21 @@ headers. A user who scrolls back up re-requests everything.
 - **Normalise originals at ingest.** A 4.5 MB phone photo at 4032 × 3024 is not
   a more useful reference than a 2048 px long-edge WebP at ~400 kB. Capping the
   long edge would cut storage roughly 4× for phone-sourced photos.
-  **This is a policy decision, not a technical one** — Nova's catalogue plan
-  says preserve originals privately, and this contradicts it. Decide explicitly:
-  is the catalogue an *archive* (keep originals) or a *reference library* (keep
-  what is useful)? If archive, this lever is off and A/B/C carry the load.
+  **Done 2026-08-16** at 2048px / WebP q82, on the reference-library decision.
+  Prospective only — existing objects are not backfilled.
 - **Strip EXIF** on anything stored. Smaller, and it removes GPS from photos
-  taken at a supplier's site — a privacy win independent of cost.
+  taken at a supplier's site — a privacy win independent of cost. **Done
+  2026-08-16**, in the same pass.
 - **Reclaim orphaned objects.** Soft-deleting a photo leaves its object in the
   bucket forever; nothing reclaims it. One such object exists today. It needs a
   periodic sweep — objects whose row is inactive or missing, older than a grace
   period — and a decision about how long a deleted photo's bytes are kept.
-- Exact-duplicate bytes are **already** prevented by the unique `sha256` index.
-  Near-duplicates are not, and re-sent photos are the common case; perceptual
-  hashing is deferred (see the catalogue plan) and is a *storage* argument as
-  well as a data-quality one.
+- Exact duplicates are **already** prevented by the unique `sha256` index, which
+  since the normalisation change keys the **source** file rather than the stored
+  object — deliberately, so a re-sent photo still collides even after the
+  encoder settings change. Near-duplicates are not caught, and re-sent photos
+  are the common case; perceptual hashing is deferred (see the catalogue plan)
+  and is a *storage* argument as well as a data-quality one.
 
 ---
 
@@ -146,7 +170,7 @@ No optimisation before numbers. Three of these are one query each:
 | **0 — Measure** | The four metrics above; write them down | Now. It is one query and one dashboard read |
 | **1 — Thumbnails** | Lever A via transforms, for the grid only | **> ~300 photos**, or the first complaint about the page being slow on mobile data |
 | **2 — Batch + cache** | Levers B and C together — they interact through the TTL | Same trigger as Phase 1; do it in the same piece of work if the page view already feels slow |
-| **3 — Store less** | Lever D: the archive-vs-reference decision, EXIF stripping, the orphan sweep | **> ~2 GB stored**, or the first phone-sourced bulk drop |
+| **3 — Store less** | ~~normalisation, EXIF stripping~~ **done 2026-08-16**. Remaining: the orphan sweep | Sweep: **> ~100 reclaimable objects**, or once decision 2 is made |
 | **4 — Near-duplicates** | Perceptual hashing, from the catalogue plan | When reviewers report seeing the same photo twice, or storage growth outpaces photo count |
 
 **Phase 1 and 2 together are the whole of the practical win.** Phase 3 is
@@ -176,8 +200,10 @@ save space.
 
 ## 6. Decisions needed before Phase 1
 
-1. **Archive or reference library?** Whether originals are preserved as-is
-   decides whether lever D exists at all.
+1. ~~**Archive or reference library?**~~ **Decided 2026-08-16: reference
+   library.** Originals are not kept; the normalised WebP is the stored file.
+   This deliberately contradicts Nova's catalogue plan, which said preserve
+   originals privately.
 2. **How long are a deleted photo's bytes kept** before the orphan sweep
    reclaims them?
 3. **Transform billing vs thumbnail storage** — confirmed against current

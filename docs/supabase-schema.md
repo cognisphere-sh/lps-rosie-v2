@@ -651,10 +651,21 @@ what this plant looks like* — never *this supplier has it in stock*.
 photo, a file given to an agent. An image that lives on someone else's server is
 **never downloaded to make a row**: the URL is captured instead, in
 `inventory.image_url` when it belongs to an offering and otherwise in the
-ingest's report. That is what keeps `sha256` and `storage_path` honest — every
-row describes bytes in our bucket that the app can sign, with no row where
-either is a fiction. **`inventory.image_url` is a link, `plant_photos` is a
-copy**, and the two never describe the same image.
+ingest's report. **`inventory.image_url` is a link, `plant_photos` is a copy**,
+and the two never describe the same image.
+
+**The catalogue is a reference library, not an archive** (decided 2026-08-16).
+What is stored is a normalised copy, not the file as received: EXIF orientation
+baked into the pixels, all metadata dropped (GPS included), long edge capped at
+2048px, re-encoded to WebP —
+`skills/agent/plant-photo-catalogue/scripts/prepare-photo`. Measured on a
+4032×3024 phone photo, 7.9 MB → 819 kB. Migration 0053 made this a rule the
+bucket enforces rather than a convention: it accepts `image/webp` only.
+
+That is why `sha256` describes the **source** file rather than the stored
+object. Keying on our own output would break dedupe the day the encoder settings
+change. One-row-per-object is guaranteed by `plant_photos_object_idx` instead —
+unique on `(storage_bucket, storage_path)` — which is what it was always for.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -662,7 +673,7 @@ copy**, and the two never describe the same image.
 | `storage_bucket` | text | no, default `plant-photos` | |
 | `storage_path` | text | no | Object key inside that bucket, `suppliers/<supplier-id>/YYYY/MM/<id>.<ext>` or `unassigned/YYYY/MM/<id>.<ext>`. `YYYY/MM` is when it was **received**. Built from ids, never from a supplier name |
 | `mime_type` / `byte_size` / `image_width` / `image_height` | text / bigint / int / int | yes | File facts, recorded at intake |
-| `sha256` | text | yes | Exact-duplicate key, **unique where not null**. The same file arriving twice is one row with a second origin appended to `source`, not a second object |
+| `sha256` | text | yes | Exact-duplicate key, **unique where not null** — the hash of the file we were **handed**, not of the object stored. Photos are normalised before upload (below), so the two differ; keying on the source is what makes a re-sent photo still collide with the row we hold. The same file arriving twice is one row with a second origin appended to `source` |
 | `supplier_id` | bigint → `suppliers.id` ON DELETE SET NULL | yes | **Optional**, and only when a source said so. Never guessed |
 | `common_name` / `botanical_name` / `cultivar_variety_trade_name` | text | yes | The same three-part identity `inventory` carries, each holding only what a source printed |
 | `name` | text | yes | **Derived** — `compose_plant_name()` of the three parts, by trigger |
@@ -1057,10 +1068,14 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
   Agent-shared files go under `daisy_shared/YYYY-MM-DD/<filename>`.
 - `chat-attachments` — **public.** App chat uploads.
 - `plant-photos` — **private**, added 2026-08-16 with migration 0051. The photo
-  catalogue's bytes, keyed by `plant_photos.storage_path`. Capped at 25 MB per
-  object and restricted to `image/jpeg|png|webp|heic|heif`, so a bad file fails
-  at upload rather than after a row is written. **No storage policy exists**, so
-  only the secret key and `postgres` reach the objects at all.
+  catalogue's bytes, keyed by `plant_photos.storage_path`. Since migration 0053
+  it accepts **`image/webp` only, up to 8 MB**: everything written to it is a
+  normalised copy (see `plant_photos` above), so the narrow type list is what
+  enforces the pipeline — uploading a source file fails with `InvalidMimeType`.
+  The 8 MB ceiling is a backstop, not a target; a 2048px WebP is under 1 MB.
+  The 44 objects predating 0053 are JPEGs and stay readable — the limits gate
+  uploads only, and they are deliberately not backfilled. **No storage policy
+  exists**, so only the secret key and `postgres` reach the objects at all.
 
 > Because `lps` and `chat-attachments` are public, treat anything uploaded to
 > them as world-readable. Pre-signed URLs still work there and remain the

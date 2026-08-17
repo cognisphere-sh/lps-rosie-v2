@@ -15,3 +15,17 @@ markitdown[pdf,docx,pptx,xlsx,xls,outlook,audio-transcription]==0.1.5
 
 # Web metasearch CLI (deedy5/ddgs) — invoked via scripts/agent/ddgs.
 ddgs
+
+# Image normalisation for the photo catalogue, used by
+# skills/agent/plant-photo-catalogue/scripts/prepare-photo.
+#
+# Pillow already arrives as a markitdown transitive dependency; it is declared
+# here because the photo pipeline depends on it directly and must not break the
+# day markitdown stops needing it.
+#
+# pillow-heif is the reason HEIC works at all: the `plant-photos` bucket accepts
+# image/heic and image/heif, iPhones produce them, and Pillow alone cannot open
+# one. Without this an iPhone photo fails at prepare time rather than uploading
+# as something we can never render.
+pillow
+pillow-heif

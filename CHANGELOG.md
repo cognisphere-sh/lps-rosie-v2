@@ -19,6 +19,45 @@ here).
 
 ### Added
 
+- **Photos are normalised before they are stored** — migration 0053 plus a new
+  `scripts/prepare-photo` in the `plant-photo-catalogue` skill. This implements
+  lever D of the cost plan, on an explicit decision by Bhoumik: **the catalogue
+  is a reference library, not an archive.** Originals are not kept.
+
+  One command bakes EXIF orientation into the pixels, drops all metadata, caps
+  the long edge at 2048px and re-encodes to WebP, then reports the column values
+  for the insert. Measured on a 4032×3024 phone photo: **7.9 MB → 819 kB, 89.6%
+  smaller**, correctly rotated, GPS gone. An already-recompressed Telegram photo
+  saves 11% — the honest range, and the win is on phone drops, which is where
+  growth comes from.
+
+  Dropping GPS is a privacy change as much as a size one: a photo taken at a
+  supplier's site carries their coordinates and the catalogue has no use for
+  them.
+
+  **The bucket enforces it rather than the skill describing it.** 0053 narrows
+  `plant-photos` to `image/webp` and 8 MB, so uploading an original now fails
+  with `InvalidMimeType` — exactly one process writes to that bucket and it
+  always emits WebP. HEIC left the accepted list because it is a *source* format
+  `prepare-photo` reads (via the newly-declared `pillow-heif`) and converts,
+  never something we store.
+
+  **`plant_photos.sha256` now means the file we were handed, not the object
+  stored.** The distinction only exists once normalisation does, and getting it
+  wrong would quietly break dedupe: a photo re-sent next month must still
+  collide with the row we hold, and it would not if the key described our own
+  output, which changes whenever the encoder settings do. One-row-per-object is
+  guaranteed by `plant_photos_object_idx` instead — which is what it was always
+  for.
+
+  **The 44 existing objects are deliberately not backfilled.** Re-encoding them
+  would destroy originals we still hold to save roughly 13 MB. They normalise if
+  and when they are re-sent, so this saving is prospective.
+
+  Still open from lever D: the orphan sweep. Retired photos' objects are never
+  reclaimed (one today); the skill carries the audit query, and automating
+  deletion waits on a decision about how long a deleted photo's bytes are kept.
+
 - **`/photos` loads 50 at a time behind a Load more button** — the grid appends
   instead of flipping pages, because a wall of photos is scanned downwards and a
   pager throws away everything already looked at. The button carries the

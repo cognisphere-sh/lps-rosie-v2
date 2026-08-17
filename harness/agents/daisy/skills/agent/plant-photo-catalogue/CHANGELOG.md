@@ -1,5 +1,40 @@
 # plant-photo-catalogue — changelog
 
+## 1.5.0
+
+2026-08-16, with migration 0053 — **the catalogue is a reference library, not
+an archive**, decided by Bhoumik. Step 1 is now one command,
+`scripts/prepare-photo`, and what gets stored is its output rather than the file
+we were handed.
+
+It bakes EXIF orientation into the pixels, drops all metadata, caps the long
+edge at 2048px and re-encodes to WebP. Measured on a 4032x3024 phone photo:
+**7.9 MB → 819 kB, 89.6% smaller**, correctly rotated, GPS gone. On an
+already-recompressed Telegram photo the saving is a more modest 11%, which is
+the honest range — the win is on phone drops.
+
+Dropping GPS is a privacy change as much as a size one: a photo taken at a
+supplier's site carries their coordinates, and the catalogue has no use for
+them.
+
+**`sha256` now means the file we were handed, not the object we stored.** The
+distinction only appears once normalisation exists, and getting it wrong would
+quietly break dedupe: the same photo re-sent next month must still collide with
+the row we hold, and it would not if the key described our own output — which
+changes the day the quality or size settings do. One consequence is written
+down: the unique index on `sha256` no longer guarantees one row per object;
+`plant_photos_object_idx` does, and always did.
+
+The bucket enforces the pipeline rather than the skill merely describing it —
+`image/webp` only, 8 MB ceiling — so uploading the original now fails with
+`InvalidMimeType`. That error means step 1 was skipped, and the failure-modes
+table says so.
+
+Retiring gains the reclaim audit: retired photos' objects are never reclaimed
+automatically, and the query separates them from true orphans (an upload whose
+insert failed). Deleting stays a deliberate act — how long a deleted photo's
+bytes are kept is still undecided.
+
 ## 1.4.0
 
 2026-08-16 — the admission rule, stated plainly: **every row in `plant_photos`

@@ -326,6 +326,13 @@ and when; the summaries below are one line each.
   to project it (33 columns). A **whole-identity** key — `= normalize_plant_key`
   of the *composed* name — not a plant-name one. `height_std` / `width_std` /
   `caliper_std` remain the one deliberate difference from `inventory`.
+- `0053_plant_photos_bucket_normalised.sql` — approved/applied 2026-08-16.
+  Bucket config only: `plant-photos` narrows to **`image/webp`, 8 MB**. Follows
+  the decision that the catalogue is a **reference library, not an archive** —
+  photos are normalised before upload (`prepare-photo`), so the narrow type list
+  is what enforces the pipeline rather than the skill merely describing it. Gates
+  uploads only; the 44 existing JPEGs are untouched and deliberately not
+  backfilled.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
@@ -428,8 +435,9 @@ something changed and stay true.
   listing straight from `inventory` (0050 dropped `inventory_enriched`),
   filter relaxation, key-column rules, answer shape.
 - **plant-photo-catalogue** — the owner of every `plant_photos` write: the
-  intake checklist (hash → dedupe on `sha256` → upload to the private
-  `plant-photos` bucket at an id-built path → insert), the evidence rules that
+  intake checklist (**normalise with `scripts/prepare-photo`** → dedupe on
+  `sha256` → upload to the private `plant-photos` bucket at an id-built path →
+  insert), the evidence rules that
   keep a reference photo from being read as an availability claim (supplier,
   size and dimensions are written only when a source stated them, size is never
   inferred from apparent scale, and a conflict between two sources is preserved
@@ -437,6 +445,13 @@ something changed and stay true.
   its result, sharing with a signed URL, and soft-retiring. Its search half
   points at `plant-and-supplier-search` for how the ranking thinks rather than
   restating it — the two RPCs run the same algorithm over different documents.
+  Ships `scripts/prepare-photo` (Pillow + pillow-heif, both now declared in
+  `bootstrap/requirements.txt`): it bakes EXIF orientation into the pixels,
+  drops all metadata including GPS, caps the long edge at 2048px and re-encodes
+  to WebP, then reports the column values for the insert. A 4032×3024 phone
+  photo goes 7.9 MB → 819 kB. Its `sha256` is the hash of the file we were
+  **handed**, not of the object stored, so a re-sent photo still dedupes after
+  the encoder settings change.
 - **supplier-communications** — one skill for talking to a supplier and
   recording it (merges the former `supplier-communication-log` and
   `supplier-email-reply`): the never-reply-unbidden rule, the main-thread

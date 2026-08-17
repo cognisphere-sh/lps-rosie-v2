@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (hash, dimensions, MIME, dedupe by SHA-256), the object-path convention, what may and may not be written into a photo's identity/size/supplier fields, where photos come from — **attached files only**, so a photo that exists as a URL is never downloaded and the URL is captured instead (inventory.image_url, or the report) — the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one, and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.4.0)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (normalise with scripts/prepare-photo — EXIF/GPS stripped, long edge capped, WebP — then dedupe by SHA-256 of the file we were handed), the id-built object-path convention, what may and may not be written into a photo's identity/size/supplier fields, where photos come from — **attached files only**, so a photo that exists as a URL is never downloaded and the URL is captured instead (inventory.image_url, or the report) — the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one, and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.5.0)
 metadata:
   author: lps
-  version: "1.4.0"
+  version: "1.5.0"
 ---
 
 # Cataloguing and searching plant photos
@@ -30,24 +30,57 @@ no agent-only photo search.
 
 ## 1. Cataloguing a photo
 
-### Step 1 — file facts, before anything else
+### Step 1 — normalise the file, and read its facts off the result
 
-Cheap work first. Compute these from the file on disk:
+One command does the whole of this step:
 
 ```sh
-sha256sum <file> | cut -d' ' -f1     # exact-duplicate key
-stat -c%s <file>                     # byte size
-file -b --mime-type <file>           # must be image/jpeg|png|webp|heic|heif
+skills/agent/plant-photo-catalogue/scripts/prepare-photo <file>
 ```
 
-Pixel dimensions come from the file too (any image tool, or the JPEG SOF
-header). The bucket rejects anything over **25 MB** or outside those MIME
-types, so a bad file fails at upload rather than after you have written a row.
+It prints a JSON object. Every field named like a column **is** that column's
+value — copy them into the insert rather than measuring the file again:
+
+```json
+{
+  "sha256": "c8d636…",          // the file you were HANDED — the dedupe key
+  "mime_type": "image/webp",
+  "byte_size": 337582,
+  "image_width": 1280,
+  "image_height": 964,
+  "prepared": "/tmp/prepare-photo-xxxx/<name>.webp",   // upload THIS
+  "source": { "filename": "…", "byte_size": 380038, "had_gps": false, … },
+  "saved_bytes": 42456, "saved_pct": 11.2,
+  "notes": ["resized 4032x3024 -> 1536x2048", "stripped metadata (source carried GPS)"]
+}
+```
+
+**Upload `prepared`, never the file you were given.** The catalogue is a
+reference library, not an archive: the normalised WebP is what we keep. The
+script bakes EXIF orientation into the pixels, drops all metadata (GPS
+included — a photo taken at a supplier's site carries their coordinates), caps
+the long edge at 2048px and re-encodes. Measured on a phone photo: 7.9 MB →
+819 kB.
+
+**The bucket enforces this**, since migration 0053: it accepts `image/webp`
+only, up to 8 MB. Handing it the original fails with `InvalidMimeType`, which is
+the intended outcome — that error means Step 1 was skipped, not that the photo
+is bad.
+
+Two things worth reading in the output:
+
+- **`notes`** carries anything the reviewer should know — that the source had
+  GPS, that it was resized, or the rare `output is larger than the source`.
+- **`saved_pct`** belongs in the intake report when it is large. A phone drop
+  saving 85%+ is the reason this step exists.
+
+If `prepare-photo` exits 3 the file is not an image we can take. Say so and stop
+— do not upload it anyway.
 
 ### Step 2 — dedupe on the hash
 
 ```sql
-select id, name, source from public.plant_photos where sha256 = '<hash>';
+select id, name, source from public.plant_photos where sha256 = '<sha256 from step 1>';
 ```
 
 **A hit means do not upload again.** The same file arriving twice is one object
@@ -59,6 +92,17 @@ set source = source || ' | also received: <who, channel, when>'
 where id = '<uuid>';
 ```
 
+> **`sha256` is the hash of the file we were handed, not of the object we
+> stored.** That is deliberate, and it is what keeps this check working across
+> normalisation: the same photo re-sent next month must still collide with the
+> row we already have, and it would not if the key described our own output —
+> which changes the day the quality or size settings change. The object's own
+> hash is reported as `prepared_sha256` and is written nowhere.
+>
+> One consequence: the unique index on `sha256` no longer guarantees one row per
+> *object*. `plant_photos_object_idx`, unique on `(storage_bucket,
+> storage_path)`, is what does that, and always was.
+
 If the *same plant* was photographed twice, those are two different files with
 two different hashes — two rows. That is correct.
 
@@ -68,19 +112,20 @@ Generate the photo's UUID first and use it for both the object name and the
 row id, so the path and the record can never drift apart.
 
 ```
-suppliers/<supplier-id>/YYYY/MM/<uuid>.<ext>     when a supplier is known
-unassigned/YYYY/MM/<uuid>.<ext>                  when one is not
+suppliers/<supplier-id>/YYYY/MM/<uuid>.webp     when a supplier is known
+unassigned/YYYY/MM/<uuid>.webp                  when one is not
 ```
 
 `YYYY/MM` is when we **received** it. The path is built from ids, never from a
-supplier name — names get edited, paths do not.
+supplier name — names get edited, paths do not. The extension is always `.webp`
+now: it is the only thing the bucket accepts.
 
 ```sh
 scripts/agent/supabase/upload \
   --bucket plant-photos \
-  --path suppliers/1/2026/08/<uuid>.jpg \
-  --file <local-file> \
-  --content-type image/jpeg \
+  --path suppliers/1/2026/08/<uuid>.webp \
+  --file <the "prepared" path from step 1> \
+  --content-type image/webp \
   --no-upsert
 ```
 
@@ -95,7 +140,7 @@ insert into public.plant_photos (
   supplier_id, common_name, botanical_name, cultivar_variety_trade_name,
   size, size_std, height, width, caliper, tags, caption, notes, source, captured_at
 ) values (
-  '<uuid>', 'suppliers/1/2026/08/<uuid>.jpg', 'image/jpeg', 171530, 1280, 964,
+  '<uuid>', 'suppliers/1/2026/08/<uuid>.webp', 'image/webp', 337582, 1280, 964,
   '<sha256>', 1, 'Windmill Palm', 'Trachycarpus fortunei', null,
   '30 G', '30G', '4-5 ft', null, null,
   array['label'], '<what is visible>', '<what is unresolved>',
@@ -248,7 +293,7 @@ not load:
 
 ```sh
 scripts/agent/supabase/sign-url --bucket plant-photos \
-  --path suppliers/1/2026/08/<uuid>.jpg --expiry 604800
+  --path suppliers/1/2026/08/<uuid>.webp --expiry 604800
 ```
 
 For a person already signed into the app, `https://<app>/photos?q=<plant>` is
@@ -269,6 +314,25 @@ Retired rows leave search and the `/photos` grid immediately. **Leave the object
 in the bucket** unless someone asks for it to be destroyed for a rights or
 privacy reason; deleting bytes is not reversible and the row still points at
 them.
+
+Those objects are never reclaimed automatically, so they accumulate. This is the
+audit — run it when someone asks what the bucket is carrying that nothing can
+show:
+
+```sql
+select o.name, o.created_at, p.id, p.name as plant, p.is_active
+from storage.objects o
+left join public.plant_photos p
+  on p.storage_bucket = o.bucket_id and p.storage_path = o.name
+where o.bucket_id = 'plant-photos'
+  and (p.id is null or not p.is_active)
+order by o.created_at;
+```
+
+Two kinds come back: a **retired photo's object** (row present, inactive) and a
+**true orphan** (no row at all — an upload whose insert then failed). Report
+them. Deleting is a separate, deliberate act, and how long a deleted photo's
+bytes are kept has not been decided.
 
 Retiring a supplier does **not** retire its photos, and neither does retiring
 inventory. That is deliberate — a photo is evidence of what a plant looks like,
@@ -319,7 +383,9 @@ where id = '<uuid>';
 
 | Symptom | Cause |
 |---|---|
-| Upload returns 4xx immediately | file over 25 MB, or a MIME type the bucket does not allow |
+| Upload returns `InvalidMimeType` / HTTP 415 | you uploaded the source instead of `prepared` — the bucket takes `image/webp` only (0053). Re-run step 1 and upload its `prepared` path |
+| Upload returns 4xx on size | over 8 MB, which a 2048px WebP never is — the normaliser was skipped or its `--max-edge` was raised |
+| `prepare-photo` exits 3 | not an image, truncated, or a format we do not accept. HEIC needs `pillow-heif`; re-run `bash bootstrap/bootstrap.sh` if it is missing |
 | `duplicate key value violates unique constraint "plant_photos_sha256_idx"` | this exact file is already catalogued — step 2 was skipped |
 | `..._object_idx` violation | that object path already has a row; you reused a UUID |
 | Row inserted but `/photos` shows a broken image | the upload did not happen, or `storage_path` does not match the object |
