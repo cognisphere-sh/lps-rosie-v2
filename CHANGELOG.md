@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **daisy moved to `gpt-5.6-terra`** from `gpt-5.6-sol` (provider and
+  thinkingLevel unchanged). `docs/harness/` already described daisy as
+  `terra`, so the config now matches the docs rather than the other way
+  round. nova is still on `sol` against the same doc claim.
+
 - **daisy's `maxConcurrentSlots` raised 5 → 10.** daisy fields Telegram, Gmail
   and the app's chat panel through one agent, and the slot pool is what caps
   how many of those turns run at once — at 5, a burst across the three
