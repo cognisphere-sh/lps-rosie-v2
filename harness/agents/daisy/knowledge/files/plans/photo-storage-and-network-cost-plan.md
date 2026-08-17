@@ -1,8 +1,8 @@
 # Photo catalogue — storage and network cost plan
 
 **Date:** 2026-08-16
-**Status:** Lever D is **implemented** (2026-08-16) — see the box below. A, B
-and C are still plan only; each has a trigger.
+**Status:** Lever D is **complete** (2026-08-16) — see the box below. A, B and
+C are still plan only; each has a trigger.
 **Scope:** the `plant-photos` bucket and the `/photos` page. Not the `lps`
 bucket (supplier source files), which has its own profile.
 
@@ -24,9 +24,13 @@ bucket (supplier source files), which has its own profile.
 > worth making. They normalise if and when they are re-sent, so the saving here
 > is prospective, and that is the honest framing.
 >
-> Still open from lever D: the **orphan sweep**. Retired photos' objects are
-> never reclaimed (1 today). The skill carries the audit query; automating the
-> deletion waits on decision 2 below.
+> The **orphan sweep** landed the same day (migration 0054 +
+> `scripts/reclaim-orphans`): objects no active row points at, dry run by
+> default, 30-day grace. Decision 2 is answered by that default rather than by
+> policy — 30 days, adjustable per run, and `--reason orphan` sweeps only failed
+> uploads, which cost nobody an undo.
+>
+> **Lever D is complete.** A, B and C — all egress, not storage — remain.
 
 ---
 
@@ -137,9 +141,11 @@ headers. A user who scrolls back up re-requests everything.
   taken at a supplier's site — a privacy win independent of cost. **Done
   2026-08-16**, in the same pass.
 - **Reclaim orphaned objects.** Soft-deleting a photo leaves its object in the
-  bucket forever; nothing reclaims it. One such object exists today. It needs a
-  periodic sweep — objects whose row is inactive or missing, older than a grace
-  period — and a decision about how long a deleted photo's bytes are kept.
+  bucket forever. **Done 2026-08-16**: `plant_photo_reclaimable()` +
+  `scripts/reclaim-orphans`, dry run by default, 30-day grace. Reclaiming makes
+  retirement permanent — the row keeps its `storage_path`, so a reactivated
+  photo would render broken — which is why the grace period is long and
+  `--reason orphan` exists for the safe half.
 - Exact duplicates are **already** prevented by the unique `sha256` index, which
   since the normalisation change keys the **source** file rather than the stored
   object — deliberately, so a re-sent photo still collides even after the
@@ -170,7 +176,7 @@ No optimisation before numbers. Three of these are one query each:
 | **0 — Measure** | The four metrics above; write them down | Now. It is one query and one dashboard read |
 | **1 — Thumbnails** | Lever A via transforms, for the grid only | **> ~300 photos**, or the first complaint about the page being slow on mobile data |
 | **2 — Batch + cache** | Levers B and C together — they interact through the TTL | Same trigger as Phase 1; do it in the same piece of work if the page view already feels slow |
-| **3 — Store less** | ~~normalisation, EXIF stripping~~ **done 2026-08-16**. Remaining: the orphan sweep | Sweep: **> ~100 reclaimable objects**, or once decision 2 is made |
+| **3 — Store less** | ~~normalisation, EXIF stripping, the orphan sweep~~ — **all done 2026-08-16**. Lever D is complete | — |
 | **4 — Near-duplicates** | Perceptual hashing, from the catalogue plan | When reviewers report seeing the same photo twice, or storage growth outpaces photo count |
 
 **Phase 1 and 2 together are the whole of the practical win.** Phase 3 is
@@ -204,7 +210,8 @@ save space.
    library.** Originals are not kept; the normalised WebP is the stored file.
    This deliberately contradicts Nova's catalogue plan, which said preserve
    originals privately.
-2. **How long are a deleted photo's bytes kept** before the orphan sweep
-   reclaims them?
+2. ~~**How long are a deleted photo's bytes kept?**~~ **Answered by the default:
+   30 days**, per run rather than as policy — `reclaim-orphans
+   --older-than-days N`. Revisit only if that proves wrong in practice.
 3. **Transform billing vs thumbnail storage** — confirmed against current
    Supabase pricing, which decides A's implementation.

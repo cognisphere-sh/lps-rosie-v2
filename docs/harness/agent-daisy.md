@@ -333,6 +333,13 @@ and when; the summaries below are one line each.
   is what enforces the pipeline rather than the skill merely describing it. Gates
   uploads only; the 44 existing JPEGs are untouched and deliberately not
   backfilled.
+- `0054_plant_photo_reclaimable.sql` — approved/applied 2026-08-16. Adds
+  `plant_photo_reclaimable(older_than_days)`, listing bucket objects no **active**
+  catalogue row points at — retired photos' tombstoned objects and true orphans
+  from a failed insert. `SECURITY DEFINER` (PostgREST cannot see
+  `storage.objects`) granted to `service_role` only, so the safety rule — an
+  active photo's object is never a candidate — lives in the database rather than
+  in a script's arguments.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
@@ -451,7 +458,9 @@ something changed and stay true.
   to WebP, then reports the column values for the insert. A 4032×3024 phone
   photo goes 7.9 MB → 819 kB. Its `sha256` is the hash of the file we were
   **handed**, not of the object stored, so a re-sent photo still dedupes after
-  the encoder settings change.
+  the encoder settings change. Also ships `scripts/reclaim-orphans`, the storage
+  sweep over `plant_photo_reclaimable()` — dry run by default, `--reason orphan`
+  for the half that cannot cost anyone a photo they wanted back.
 - **supplier-communications** — one skill for talking to a supplier and
   recording it (merges the former `supplier-communication-log` and
   `supplier-email-reply`): the never-reply-unbidden rule, the main-thread

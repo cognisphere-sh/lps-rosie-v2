@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (normalise with scripts/prepare-photo — EXIF/GPS stripped, long edge capped, WebP — then dedupe by SHA-256 of the file we were handed), the id-built object-path convention, what may and may not be written into a photo's identity/size/supplier fields, where photos come from — **attached files only**, so a photo that exists as a URL is never downloaded and the URL is captured instead (inventory.image_url, or the report) — the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one, and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.5.0)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (normalise with scripts/prepare-photo — EXIF/GPS stripped, long edge capped, WebP — then dedupe by SHA-256 of the file we were handed), the id-built object-path convention, what may and may not be written into a photo's identity/size/supplier fields, where photos come from — **attached files only**, so a photo that exists as a URL is never downloaded and the URL is captured instead (inventory.image_url, or the report) — the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one and reclaiming the bytes behind retired photos with scripts/reclaim-orphans (dry run by default; `orphan` is the safe half to sweep, `retired` destroys someone's undo), and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.6.0)
 metadata:
   author: lps
-  version: "1.5.0"
+  version: "1.6.0"
 ---
 
 # Cataloguing and searching plant photos
@@ -315,24 +315,44 @@ in the bucket** unless someone asks for it to be destroyed for a rights or
 privacy reason; deleting bytes is not reversible and the row still points at
 them.
 
-Those objects are never reclaimed automatically, so they accumulate. This is the
-audit — run it when someone asks what the bucket is carrying that nothing can
-show:
+### Reclaiming the bytes behind retired photos
 
-```sql
-select o.name, o.created_at, p.id, p.name as plant, p.is_active
-from storage.objects o
-left join public.plant_photos p
-  on p.storage_bucket = o.bucket_id and p.storage_path = o.name
-where o.bucket_id = 'plant-photos'
-  and (p.id is null or not p.is_active)
-order by o.created_at;
+Those objects are never reclaimed automatically, so they accumulate. The sweep:
+
+```sh
+skills/agent/plant-photo-catalogue/scripts/reclaim-orphans              # dry run, 30-day grace
+skills/agent/plant-photo-catalogue/scripts/reclaim-orphans --reason orphan
+skills/agent/plant-photo-catalogue/scripts/reclaim-orphans --delete     # actually remove
 ```
 
-Two kinds come back: a **retired photo's object** (row present, inactive) and a
-**true orphan** (no row at all — an upload whose insert then failed). Report
-them. Deleting is a separate, deliberate act, and how long a deleted photo's
-bytes are kept has not been decided.
+**Dry run is the default and nothing is deleted without `--delete`.** It reads
+`plant_photo_reclaimable(older_than_days)` (migration 0054), which is where the
+safety rule lives: **an object belonging to an active photo can never be
+returned**, however the script is called.
+
+Two kinds come back, and they deserve different treatment:
+
+| `reason` | What it is | Sweeping it |
+|---|---|---|
+| `orphan` | no row at all — an upload whose insert then failed | **safe.** Nobody has ever seen it and nothing can |
+| `retired` | a soft-deleted photo's object; the row survives as a tombstone | **destroys someone's undo.** Only with their say-so |
+
+`--reason orphan` sweeps just the first kind. Reach for it by default: it is the
+housekeeping half, and it cannot cost anyone a photo they wanted back.
+
+> ⚠ **Reclaiming makes retirement permanent.** The row keeps its
+> `storage_path`, so reactivating a photo whose bytes were swept gives a broken
+> image with no way back. The grace period is the only protection — 30 days by
+> default, and under a day needs `--force`.
+>
+> This is not hypothetical: on 2026-08-16 a `--older-than-days 0 --delete
+> --force` run intended for two test orphans took a real retired photo with it.
+> It was restorable **only** because the intake original was still on disk. Scope
+> the sweep with `--reason`, and prefer the default grace.
+
+**Deleting is still a deliberate act needing approval** — report what the dry run
+found and let Chris or Bhoumik decide, rather than sweeping because the list was
+long.
 
 Retiring a supplier does **not** retire its photos, and neither does retiring
 inventory. That is deliberate — a photo is evidence of what a plant looks like,

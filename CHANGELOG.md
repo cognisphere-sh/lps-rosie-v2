@@ -19,6 +19,31 @@ here).
 
 ### Added
 
+- **The orphan sweep** — migration 0054 adds `plant_photo_reclaimable()`, and
+  the photo skill ships `scripts/reclaim-orphans`. This completes lever D of the
+  cost plan.
+
+  It lists bucket objects **no active catalogue row points at**: a `retired`
+  photo's tombstoned object, or an `orphan` with no row at all from an upload
+  whose insert failed. The safety rule — an active photo's object is never a
+  candidate — lives in the function rather than the script, so it holds however
+  the sweep is called. `SECURITY DEFINER` granted to `service_role` only, since
+  `storage.objects` isn't reachable through PostgREST and `authenticated` has no
+  business enumerating bucket contents.
+
+  Dry run by default, 30-day grace, `--delete` to act. That default is also the
+  answer to the plan's open question about how long a deleted photo's bytes are
+  kept — a per-run knob rather than a policy.
+
+  **Reclaiming makes retirement permanent**: the row keeps its `storage_path`,
+  so reactivating a swept photo gives a broken image with no way back. That
+  warning is written from an incident, not caution — a `--older-than-days 0
+  --delete --force` run intended for two test orphans took a real retired photo
+  with it. Restored the same day from the on-disk intake original (its `sha256`
+  was unchanged, which incidentally confirmed the source-hash design), and
+  `--reason {orphan,retired,all}` exists as a direct result. `--reason orphan`
+  sweeps only the half that cannot cost anyone an undo.
+
 - **Photos are normalised before they are stored** — migration 0053 plus a new
   `scripts/prepare-photo` in the `plant-photo-catalogue` skill. This implements
   lever D of the cost plan, on an explicit decision by Bhoumik: **the catalogue

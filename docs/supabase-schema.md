@@ -925,6 +925,24 @@ is no query, which is the normal way to browse a photo catalogue.
 
 `execute_readonly_query(query text) → jsonb` — generic read-only query helper.
 
+```
+plant_photo_reclaimable(older_than_days int = 30)
+```
+Objects in the `plant-photos` bucket that **no active catalogue row points at**,
+older than the grace period — added 2026-08-16 by migration 0054. Returns
+`object_name`, `reason` (`retired` for a soft-deleted photo's tombstoned object,
+`orphan` for one with no row at all), `age_days`, `byte_size`, `photo_id` and
+`photo_name`.
+
+**An object belonging to an active photo can never be returned**, which is the
+one property the function exists to guarantee — the sweep asks the database
+rather than diffing two lists in a script. `SECURITY DEFINER` with a locked
+`search_path`, because `storage.objects` is not reachable through PostgREST
+otherwise, and granted to **`service_role` only**: `authenticated` has no reason
+to enumerate bucket contents. Read by
+`skills/agent/plant-photo-catalogue/scripts/reclaim-orphans`, which is dry-run
+by default.
+
 ---
 
 ## Triggers
@@ -1073,9 +1091,11 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
   normalised copy (see `plant_photos` above), so the narrow type list is what
   enforces the pipeline — uploading a source file fails with `InvalidMimeType`.
   The 8 MB ceiling is a backstop, not a target; a 2048px WebP is under 1 MB.
-  The 44 objects predating 0053 are JPEGs and stay readable — the limits gate
+  The objects predating 0053 are JPEGs and stay readable — the limits gate
   uploads only, and they are deliberately not backfilled. **No storage policy
   exists**, so only the secret key and `postgres` reach the objects at all.
+  Nothing reclaims an object automatically when its photo is retired; see
+  `plant_photo_reclaimable()` above and the skill's sweep.
 
 > Because `lps` and `chat-attachments` are public, treat anything uploaded to
 > them as world-readable. Pre-signed URLs still work there and remain the

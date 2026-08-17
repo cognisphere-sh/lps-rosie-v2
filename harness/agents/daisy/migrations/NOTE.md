@@ -10,6 +10,45 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0054_plant_photo_reclaimable.sql`
+
+Applied 2026-08-16 at Bhoumik's request, one step. Adds
+`public.plant_photo_reclaimable(older_than_days int default 30)` — the last open
+piece of lever D in the photo cost plan. No table, index or row touched.
+
+It lists objects in the `plant-photos` bucket that **no active catalogue row
+points at**, older than the grace period, tagged `retired` (a soft-deleted
+photo's tombstoned object) or `orphan` (no row at all — an upload whose insert
+then failed).
+
+**An object belonging to an active photo can never be returned.** That is the
+property the function exists for, and it is why the sweep asks the database
+rather than diffing two lists in a script.
+
+`SECURITY DEFINER` with `search_path` pinned, because `storage.objects` is not
+exposed to PostgREST and the alternative was a script carrying its own Postgres
+connection — duplicating the pooler/direct fallback `scripts/agent/supabase/query`
+already solves. Granted to **`service_role` only**; `authenticated` must not be
+able to enumerate bucket contents.
+
+Read by `skills/agent/plant-photo-catalogue/scripts/reclaim-orphans`, which is
+dry run by default and needs `--delete` to act.
+
+Post-apply verification: `(30)` → 0 rows (the one candidate was hours old);
+`(0)` → 1 row, the retired windmill palm label; `(-5)` clamps to 0 rather than
+reaching into the future; `(null)` falls back to 30. Critically, joining the
+`(0)` result against active photos returns **zero** — no live object leaks into
+the candidate list. The delete path was then exercised against two purpose-built
+orphans and confirmed.
+
+⚠ **A real object was destroyed during that test.** The `--older-than-days 0
+--delete --force` run intended for the two orphans also swept the genuinely
+retired windmill palm label photo, because nothing scoped it. Restored the same
+day from the on-disk intake original, normalised to WebP; its `sha256` was
+unchanged, which incidentally confirmed the source-hash design. Its row now
+points at the `.webp` path and stays `is_active = false` — that decision was not
+reversed. The script gained `--reason {orphan,retired,all}` as a direct result.
+
 ## `0053_plant_photos_bucket_normalised.sql`
 
 Applied 2026-08-16 at Bhoumik's request, one step. **Bucket configuration only**

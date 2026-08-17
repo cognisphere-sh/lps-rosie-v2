@@ -1,5 +1,27 @@
 # plant-photo-catalogue — changelog
 
+## 1.6.0
+
+2026-08-16, with migration 0054 — the orphan sweep, closing the last open piece
+of lever D in the cost plan. New `scripts/reclaim-orphans` deletes bucket
+objects no active row points at; §3 gains *Reclaiming the bytes behind retired
+photos*.
+
+The safety rule lives in `plant_photo_reclaimable()` rather than the script, so
+**an object belonging to an active photo can never be a candidate** however it
+is called. The script is a thin HTTP client over that, dry run by default.
+
+The section separates the two kinds because they are not equally safe to sweep.
+An `orphan` — an upload whose insert failed — is housekeeping nobody has ever
+seen. A `retired` object is someone's undo, and deleting it makes the retirement
+permanent: the row keeps its `storage_path`, so reactivating that photo later
+gives a broken image with no way back.
+
+That warning is written from an actual incident rather than caution: a
+`--older-than-days 0 --delete --force` run intended for two test orphans took a
+real retired photo with it, and it was restorable only because the intake
+original was still on disk. `--reason orphan` exists because of it.
+
 ## 1.5.0
 
 2026-08-16, with migration 0053 — **the catalogue is a reference library, not

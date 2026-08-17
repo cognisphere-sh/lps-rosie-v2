@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""reclaim-orphans — delete `plant-photos` objects that no active catalogue row
+points at.
+
+    reclaim-orphans                          # dry run, 30-day grace (the default)
+    reclaim-orphans --older-than-days 90     # dry run, stricter
+    reclaim-orphans --reason orphan          # only failed uploads, never a retired photo
+    reclaim-orphans --delete                 # actually remove them
+    reclaim-orphans --json                   # machine-readable, never deletes
+
+Two kinds of object accumulate and both are listed:
+
+  retired  the photo was soft-deleted; the row survives as a tombstone and its
+           object was left behind, which is what `is_active = false` does
+  orphan   no row at all — an upload whose insert then failed
+
+**An object belonging to an active photo can never appear here.** That rule is
+enforced in `plant_photo_reclaimable()` (migration 0054), not in this script, so
+it holds however this is called.
+
+⚠ DELETING IS PERMANENT AND IT MAKES RETIREMENT PERMANENT WITH IT. The row keeps
+its `storage_path`, so reactivating a photo whose bytes were swept gives a
+broken image and no way back. The grace period is the only protection, which is
+why it defaults to 30 days and why a grace under a day needs `--force`.
+
+Dry run is the default. Nothing is deleted without `--delete`.
+
+Auth: SUPABASE_SECRET_KEY, plus SUPABASE_URL or SUPABASE_PROJECT_ID — the same
+environment `upload` and `sign-url` read, exported by the harness.
+
+Exit codes: 0 ok · 2 bad usage · 4 API error
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+BUCKET = "plant-photos"
+# Supabase takes a list of prefixes per delete call; kept modest so one failure
+# is a small blast radius and the progress line means something.
+DELETE_BATCH = 100
+
+
+def base_url() -> str:
+    url = os.environ.get("SUPABASE_URL")
+    if url:
+        return url.rstrip("/")
+    ref = os.environ.get("SUPABASE_PROJECT_ID")
+    if not ref:
+        sys.exit("reclaim-orphans: set SUPABASE_URL or SUPABASE_PROJECT_ID")
+    return f"https://{ref}.supabase.co"
+
+
+def call(method: str, path: str, payload: dict | None) -> object:
+    key = os.environ.get("SUPABASE_SECRET_KEY")
+    if not key:
+        sys.exit("reclaim-orphans: SUPABASE_SECRET_KEY not set")
+    body = json.dumps(payload).encode() if payload is not None else None
+    request = urllib.request.Request(
+        f"{base_url()}{path}",
+        data=body,
+        method=method,
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            raw = response.read()
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:400]
+        print(f"reclaim-orphans: HTTP {exc.code} on {method} {path}\n{detail}", file=sys.stderr)
+        raise SystemExit(4)
+    except urllib.error.URLError as exc:
+        print(f"reclaim-orphans: cannot reach {base_url()}: {exc.reason}", file=sys.stderr)
+        raise SystemExit(4)
+
+
+def human(byte_count: int) -> str:
+    value = float(byte_count)
+    for unit in ("B", "kB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:,.0f} {unit}" if unit == "B" else f"{value:,.1f} {unit}"
+        value /= 1024
+    return f"{byte_count} B"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(add_help=True, description=__doc__.split("\n")[0])
+    parser.add_argument("--older-than-days", type=int, default=30, help="grace period (default 30)")
+    parser.add_argument(
+        "--reason",
+        choices=("all", "retired", "orphan"),
+        default="all",
+        help=(
+            "which kind to sweep. `orphan` is the safe one — a failed upload nobody "
+            "ever saw — while `retired` destroys a photo someone could still want back "
+            "(default: all)"
+        ),
+    )
+    parser.add_argument("--delete", action="store_true", help="actually remove them")
+    parser.add_argument("--force", action="store_true", help="allow a grace period under a day")
+    parser.add_argument("--json", action="store_true", help="print the candidate list as JSON; never deletes")
+    args = parser.parse_args()
+
+    candidates = call(
+        "POST",
+        "/rest/v1/rpc/plant_photo_reclaimable",
+        {"older_than_days": args.older_than_days},
+    )
+    if not isinstance(candidates, list):
+        print(f"reclaim-orphans: unexpected response: {candidates!r}", file=sys.stderr)
+        return 4
+
+    # Filtered here rather than in the function: the safety rule belongs in the
+    # database, but which *kind* to sweep is the operator's call at the prompt.
+    if args.reason != "all":
+        candidates = [c for c in candidates if c.get("reason") == args.reason]
+
+    if args.json:
+        print(json.dumps(candidates, indent=2))
+        return 0
+
+    total = sum(c.get("byte_size") or 0 for c in candidates)
+    retired = sum(1 for c in candidates if c.get("reason") == "retired")
+    orphans = len(candidates) - retired
+
+    if not candidates:
+        scope = "" if args.reason == "all" else f" among {args.reason} objects"
+        print(f"Nothing to reclaim{scope} at a {args.older_than_days}-day grace period.")
+        print("(An object whose photo is still active is never a candidate.)")
+        return 0
+
+    print(f"{len(candidates)} object(s) reclaimable — {retired} retired, {orphans} orphan — {human(total)}\n")
+    print(f"  {'reason':8}  {'age':>5}  {'size':>10}  object")
+    for c in candidates:
+        print(
+            f"  {c['reason']:8}  {c['age_days']:>4}d  {human(c.get('byte_size') or 0):>10}  {c['object_name']}"
+        )
+        if c.get("photo_name"):
+            print(f"  {'':8}  {'':5}  {'':10}  ↳ {c['photo_name']}")
+
+    if not args.delete:
+        print(f"\nDry run — nothing deleted. Re-run with --delete to remove these {len(candidates)}.")
+        return 0
+
+    if args.older_than_days < 1 and not args.force:
+        print(
+            f"\nRefusing: --older-than-days {args.older_than_days} would sweep photos retired "
+            "moments ago, and reclaiming cannot be undone. Add --force if that is really "
+            "what you want.",
+            file=sys.stderr,
+        )
+        return 2
+
+    names = [c["object_name"] for c in candidates]
+    removed = 0
+    for start in range(0, len(names), DELETE_BATCH):
+        batch = names[start : start + DELETE_BATCH]
+        call("DELETE", f"/storage/v1/object/{BUCKET}", {"prefixes": batch})
+        removed += len(batch)
+        print(f"  deleted {removed}/{len(names)}")
+
+    print(f"\nReclaimed {removed} object(s), {human(total)}.")
+    print("Their rows are untouched and still carry storage_path — a reactivated photo")
+    print("among them would now render broken.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
