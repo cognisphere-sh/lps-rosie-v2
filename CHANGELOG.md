@@ -19,6 +19,18 @@ here).
 
 ### Changed
 
+- **Multi-location suppliers now present once at company level** in Supplier
+  Search and Plant Search (Chris's request, Bhoumik-approved). Supplier Search
+  groups the location-level `search_suppliers` match set by migration 0049's
+  `head_branch_id` **before** its 50-company pagination, shows combined active
+  item/latest-availability summaries, and expands to the exact matching farms.
+  Plant Search wraps its existing location groups as company → farm → inventory;
+  multi-location companies and their farm inventory start collapsed, while
+  single-site suppliers keep the direct row/card. City/state/type filters still
+  execute on farms before grouping, so a narrowed wrapper says `N of M
+  locations` and aggregates only those matches. No inventory, source, contact,
+  edit or profile link changes ownership: every plant remains under its original
+  location `supplier_id` and provenance.
 - **Column sorting now runs in SQL** on all three tables — the Suppliers list,
   Plant search, and the supplier profile's Inventory tab — over the whole match
   set, rather than reordering the page already in the browser. It was the last

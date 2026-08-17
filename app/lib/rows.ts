@@ -6,6 +6,8 @@ export type CellValue = string | number | string[] | null
 
 export interface SupplierRef {
   id: number
+  /** The company head; self for a single-location supplier. */
+  headBranchId: number
   latitude: number | null
   longitude: number | null
   is_active: boolean
@@ -76,6 +78,17 @@ export interface SupplierRow {
   contacts: Contact[]
 }
 
+/** One company result in Supplier Search, with only the matching locations expanded beneath it. */
+export interface SupplierCompany {
+  /** The head supplier row id; stable company identity. */
+  id: number
+  name: string
+  /** Every active location in the company, before search/filter narrowing. */
+  locationCount: number
+  /** Location rows that answered the current query and filters. */
+  locations: SupplierRow[]
+}
+
 export interface PlantRow {
   id: string
   supplierId: number | null
@@ -85,8 +98,13 @@ export interface PlantRow {
 }
 
 export interface PlantGroup {
+  /** Exact farm/location that owns every plant in this group. */
   supplier: SupplierRow
   plants: PlantRow[]
+  /** Company head metadata for presentation only; inventory remains location-scoped. */
+  companyId: number
+  companyName: string
+  companyLocationCount: number
 }
 
 export interface SupplierSource {

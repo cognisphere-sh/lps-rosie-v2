@@ -9,6 +9,7 @@ import type {
   PlantGroup,
   PlantRow,
   SourceLink,
+  SupplierCompany,
   SupplierLocation,
   SupplierRef,
   SupplierRow,
@@ -21,6 +22,8 @@ export const PLANT_PAGE_SIZE = 300
 interface SupplierRecord {
   id: number
   name: string
+  /** Added by migration 0049; search_suppliers does not project it, so callers augment it. */
+  head_branch_id?: number | null
   category: string | null
   address: string | null
   city: string | null
@@ -77,6 +80,7 @@ function toSupplierRow(
 ): SupplierRow {
   const ref: SupplierRef = {
     id: s.id,
+    headBranchId: s.head_branch_id ?? s.id,
     latitude: s.latitude,
     longitude: s.longitude,
     is_active: s.is_active ?? true,
@@ -352,34 +356,100 @@ export async function listSuppliers(
   page = 1,
   filters: ServerFilter[] = [],
   sort: ServerSort | null = null,
-): Promise<{ rows: SupplierRow[]; total: number }> {
-  const from = (page - 1) * PAGE_SIZE
-  let query = applyServerFilters(
-    supabase.rpc('search_suppliers', { search }, { count: 'exact' }),
-    filters,
-  )
-  // A header sort replaces the function's own relevance ordering and applies to
-  // the whole result set, so page 1 is the top of the sort rather than fifty
-  // rows rearranged. Missing values go last in both directions, matching what
-  // the browser used to do. `id` is a tie-breaker, not a preference: without a
-  // total order, two pages of a low-cardinality sort (State, say) can repeat or
-  // skip a row.
-  if (sort) {
-    query = query
-      .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
-      .order('id', { ascending: true })
+): Promise<{ companies: SupplierCompany[]; total: number }> {
+  // Supplier Search paginates companies, not farms. Grouping a 50-location SQL
+  // page afterwards would repeat Everde on several pages and make the total a
+  // location count, so read the (small: ~1,400 rows) match set first, attach
+  // migration 0049's head_branch_id, group, and only then take the company page.
+  const records: SupplierRecord[] = []
+  for (let from = 0; ; from += 1000) {
+    let query = applyServerFilters(supabase.rpc('search_suppliers', { search }), filters)
+    // A header sort replaces relevance across the whole location match set.
+    // Company order is the first matching location in that stable order.
+    if (sort) {
+      query = query
+        .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+        .order('id', { ascending: true })
+    }
+    const { data, error } = await query.range(from, from + 999)
+    if (error) throw new Error(`search_suppliers: ${error.message}`)
+    const batch = (data ?? []) as SupplierRecord[]
+    records.push(...batch)
+    if (batch.length < 1000) break
   }
-  const { data, error, count } = await query.range(from, from + PAGE_SIZE - 1)
 
-  if (error) throw new Error(`search_suppliers: ${error.message}`)
-  const records = (data ?? []) as SupplierRecord[]
-  const ids = records.map((r) => r.id)
-  const [sources, contacts] = await Promise.all([sourcesBySupplier(ids), contactsBySupplier(ids)])
+  if (!records.length) return { companies: [], total: 0 }
+
+  // search_suppliers predates head_branch_id and deliberately has no grouping
+  // responsibility. Read the one missing key from suppliers and keep every
+  // location record otherwise byte-for-byte from the ranked/filtered RPC.
+  const headByLocation = new Map<number, number>()
+  for (let at = 0; at < records.length; at += 500) {
+    const ids = records.slice(at, at + 500).map((record) => record.id)
+    const { data, error } = await supabase.from('suppliers').select('id, head_branch_id').in('id', ids)
+    if (error) throw new Error(`supplier company keys: ${error.message}`)
+    for (const row of (data ?? []) as { id: number; head_branch_id: number }[]) {
+      headByLocation.set(row.id, row.head_branch_id)
+    }
+  }
+
+  const grouped = new Map<number, SupplierRecord[]>()
+  for (const record of records) {
+    const headId = headByLocation.get(record.id) ?? record.id
+    record.head_branch_id = headId
+    grouped.set(headId, [...(grouped.get(headId) ?? []), record])
+  }
+
+  const total = grouped.size
+  const fromCompany = (page - 1) * PAGE_SIZE
+  const pageEntries = [...grouped.entries()].slice(fromCompany, fromCompany + PAGE_SIZE)
+  if (!pageEntries.length) return { companies: [], total }
+
+  const headIds = pageEntries.map(([headId]) => headId)
+  const [{ data: heads, error: headError }, { data: activeLocations, error: locationError }] = await Promise.all([
+    supabase.from('suppliers').select('*').in('id', headIds),
+    supabase.from('suppliers').select('id, head_branch_id').in('head_branch_id', headIds).eq('is_active', true),
+  ])
+  if (headError) throw new Error(`supplier company heads: ${headError.message}`)
+  if (locationError) throw new Error(`supplier company locations: ${locationError.message}`)
+
+  const headRecords = new Map((heads ?? []).map((row) => [(row as SupplierRecord).id, row as SupplierRecord]))
+  const locationCount = new Map<number, number>()
+  for (const row of (activeLocations ?? []) as { id: number; head_branch_id: number }[]) {
+    locationCount.set(row.head_branch_id, (locationCount.get(row.head_branch_id) ?? 0) + 1)
+  }
+
+  const locationRecords = pageEntries.flatMap(([, matches]) => matches)
+  const locationIds = locationRecords.map((record) => record.id)
+  const [sources, contacts] = await Promise.all([
+    sourcesBySupplier(locationIds),
+    contactsBySupplier(locationIds),
+  ])
+  const rowsById = new Map(
+    locationRecords.map((record) => [
+      record.id,
+      toSupplierRow(record, {
+        sources: sources.get(record.id) ?? [],
+        contacts: contacts.get(record.id) ?? [],
+      }),
+    ]),
+  )
+
   return {
-    rows: records.map((r) =>
-      toSupplierRow(r, { sources: sources.get(r.id) ?? [], contacts: contacts.get(r.id) ?? [] }),
-    ),
-    total: count ?? records.length,
+    companies: pageEntries.map(([headId, matches]) => {
+      const head = headRecords.get(headId)
+      const locations = matches
+        .map((record) => rowsById.get(record.id)!)
+        .sort((a, b) => Number(b.id === headId) - Number(a.id === headId) ||
+          String(a.values.name ?? '').localeCompare(String(b.values.name ?? '')))
+      return {
+        id: headId,
+        name: head?.name ?? String(locations[0]?.values.name ?? ''),
+        locationCount: locationCount.get(headId) ?? locations.length,
+        locations,
+      }
+    }),
+    total,
   }
 }
 
@@ -557,7 +627,24 @@ export async function searchPlantGroups(
   ])
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
 
-  const byId = new Map((sups ?? []).map((s) => [(s as SupplierRecord).id, s as SupplierRecord]))
+  const supplierRecords = (sups ?? []) as SupplierRecord[]
+  const byId = new Map(supplierRecords.map((supplier) => [supplier.id, supplier]))
+  const headIds = [...new Set(supplierRecords.map((supplier) => supplier.head_branch_id ?? supplier.id))]
+  const [{ data: heads, error: headError }, { data: companyLocations, error: companyLocationError }] =
+    await Promise.all([
+      supabase.from('suppliers').select('id, name').in('id', headIds),
+      supabase.from('suppliers').select('id, head_branch_id').in('head_branch_id', headIds).eq('is_active', true),
+    ])
+  if (headError) throw new Error(`supplier company heads: ${headError.message}`)
+  if (companyLocationError) throw new Error(`supplier company locations: ${companyLocationError.message}`)
+  const companyName = new Map((heads ?? []).map((head) => [head.id as number, head.name as string]))
+  const companyLocationCount = new Map<number, number>()
+  for (const location of (companyLocations ?? []) as { id: number; head_branch_id: number }[]) {
+    companyLocationCount.set(
+      location.head_branch_id,
+      (companyLocationCount.get(location.head_branch_id) ?? 0) + 1,
+    )
+  }
 
   const groups = new Map<number, PlantGroup>()
   for (const plant of plantRows) {
@@ -567,12 +654,16 @@ export async function searchPlantGroups(
 
     let group = groups.get(plant.supplierId)
     if (!group) {
+      const headId = record.head_branch_id ?? record.id
       group = {
         supplier: toSupplierRow(record, {
           sources: sources.get(plant.supplierId) ?? [],
           contacts: contacts.get(plant.supplierId) ?? [],
         }),
         plants: [],
+        companyId: headId,
+        companyName: companyName.get(headId) ?? record.name,
+        companyLocationCount: companyLocationCount.get(headId) ?? 1,
       }
       groups.set(plant.supplierId, group)
     }

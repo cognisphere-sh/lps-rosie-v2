@@ -33,6 +33,13 @@ const RETIRED_PLANT_SIZE_KEYS = [
   'lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1', 'lps.plant-search.size-choice.v2',
 ]
 
+interface PlantCompanyView {
+  id: number
+  name: string
+  locationCount: number
+  locations: PlantGroup[]
+}
+
 // Size and supplier/location filters appear beside the search field. These
 // remaining numeric filters use a compact disclosure in that same toolbar.
 const MOBILE_FILTERS = [
@@ -114,8 +121,10 @@ export default function PlantSearchPage() {
   const [hiddenSuppliers, setHiddenSuppliers] = useState<number[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
   const [filtersOpen, setFiltersOpen] = useState(false)
-  // Mobile only: supplier cards whose plant list is collapsed.
+  // Location inventory and multi-location company wrappers collapse separately:
+  // company is presentation only; every plant stays under its exact farm.
   const [collapsed, setCollapsed] = useState<number[]>([])
+  const [collapsedCompanies, setCollapsedCompanies] = useState<number[]>([])
   const [expandedPlants, setExpandedPlants] = useState<string[]>([])
   const [refreshNonce, setRefreshNonce] = useState(0)
 
@@ -232,9 +241,16 @@ export default function PlantSearchPage() {
         setGroups(nextGroups)
         setTotal(body.total ?? 0)
         setPageCount(body.pageCount ?? 1)
-        // New mobile result sets start as a supplier shortlist. People can
-        // expand only the suppliers whose inventory they want to inspect.
+        // New result sets are a company shortlist. Farms and their inventory
+        // remain independently expandable beneath the presentation wrapper.
         setCollapsed(nextGroups.map((group) => group.supplier.id))
+        setCollapsedCompanies([
+          ...new Set(
+            nextGroups
+              .filter((group) => group.companyLocationCount > 1)
+              .map((group) => group.companyId),
+          ),
+        ])
         setLoading(false)
       })
       .catch(() => !cancelled && setLoading(false))
@@ -299,7 +315,7 @@ export default function PlantSearchPage() {
       .filter(
         (g) =>
           !hiddenSuppliers.includes(g.supplier.id) &&
-          (supplierPick.length === 0 || supplierPick.includes(String(g.supplier.values.name ?? ''))),
+          (supplierPick.length === 0 || supplierPick.includes(g.companyName)),
       )
       .map((g) => ({
         ...g,
@@ -315,9 +331,24 @@ export default function PlantSearchPage() {
   }, [refinedGroups, masterCfg.sort, plantCfg.sort, hiddenPlants, hiddenSuppliers, supplierPick])
 
   const supplierNames = useMemo(
-    () => [...new Set(refinedGroups.map((g) => String(g.supplier.values.name ?? '')))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(refinedGroups.map((group) => group.companyName))].sort((a, b) => a.localeCompare(b)),
     [refinedGroups],
   )
+
+  const companyGroups = useMemo(() => {
+    const grouped = new Map<number, PlantCompanyView>()
+    for (const location of visibleGroups) {
+      const company = grouped.get(location.companyId) ?? {
+        id: location.companyId,
+        name: location.companyName,
+        locationCount: location.companyLocationCount,
+        locations: [],
+      }
+      company.locations.push(location)
+      grouped.set(location.companyId, company)
+    }
+    return [...grouped.values()]
+  }, [visibleGroups])
 
   const allPlants = useMemo(() => refinedGroups.flatMap((g) => g.plants), [refinedGroups])
   const shownPlants = visibleGroups.reduce((n, g) => n + g.plants.length, 0)
@@ -480,7 +511,7 @@ export default function PlantSearchPage() {
         searching
           ? 'Searching…'
           : hasQuery
-            ? `${visibleGroups.length} suppliers · Showing ${shownPlants} of ${total.toLocaleString('en-US')} plants`
+            ? `${companyGroups.length} companies · ${visibleGroups.length} locations · Showing ${shownPlants} of ${total.toLocaleString('en-US')} plants`
             : 'Search by plant name'
       }
       pagination={hasQuery ? { page, pageCount, onPage: setPage, busy: searching } : undefined}
@@ -505,8 +536,198 @@ export default function PlantSearchPage() {
     return Array.isArray(v) ? v.join(', ') : v == null ? '' : String(v)
   }
 
+  const toggleCompany = (id: number) =>
+    setCollapsedCompanies((prev) =>
+      prev.includes(id) ? prev.filter((companyId) => companyId !== id) : [...prev, id],
+    )
+
+  const mobileLocationGroup = (g: PlantGroup, nested = false) => {
+    const open = !collapsed.includes(g.supplier.id)
+    return (
+      <div
+        key={g.supplier.id}
+        className={cn(
+          'shrink-0 overflow-hidden border-border bg-card',
+          nested ? 'border-t border-lps-hair' : 'rounded-xl border',
+        )}
+      >
+        <div className={cn('flex items-start gap-2 bg-lps-tint p-3', open && 'border-b border-lps-hair')}>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
+                className="min-w-0 flex-1 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
+              >
+                {String(g.supplier.values.name ?? '')}
+              </button>
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {g.supplier.values.category && (
+                <Badge variant={badgeFor(String(g.supplier.values.category)) as 'default' | 'secondary' | 'outline'}>
+                  {String(g.supplier.values.category)}
+                </Badge>
+              )}
+              <span className="text-[11.5px] text-muted-foreground">
+                {[g.supplier.values.city, g.supplier.values.state].filter(Boolean).join(', ')}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setCollapsed((prev) =>
+                open ? [...prev, g.supplier.id] : prev.filter((id) => id !== g.supplier.id),
+              )
+            }
+            aria-expanded={open}
+            aria-label={open ? 'Collapse location inventory' : 'Expand location inventory'}
+            className="inline-flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground"
+          >
+            <ChevronDown size={16} className={open ? '' : '-rotate-90'} />
+          </button>
+        </div>
+        <div className={cn('flex flex-col', !open && 'hidden')}>
+          {g.plants.map((p) => {
+            const detailsOpen = expandedPlants.includes(p.id)
+            return (
+              <div key={p.id} className="border-b border-lps-hair last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedPlants((prev) =>
+                      detailsOpen ? prev.filter((id) => id !== p.id) : [...prev, p.id],
+                    )
+                  }
+                  aria-expanded={detailsOpen}
+                  className="flex w-full items-start gap-3 p-3 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
+                    {mobilePlantSpecs(p).length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                        {mobilePlantSpecs(p).map((spec) => (
+                          <span key={spec.label || 'size'}>
+                            {spec.label && <span className="text-lps-dim">{spec.label} </span>}
+                            {String(spec.value)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-none items-start gap-1.5 text-right">
+                    <div>
+                      <div className={cn('text-[14px] tabular-nums', p.values.price == null ? 'text-[11px] italic text-lps-dim' : 'font-bold')}>
+                        {p.values.price == null ? 'Price unavailable' : money(p.values.price)}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground tabular-nums">
+                        {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
+                      </div>
+                    </div>
+                    <ChevronDown size={14} className={cn('mt-1.5 text-lps-dim', !detailsOpen && '-rotate-90')} />
+                  </div>
+                </button>
+                {detailsOpen && (
+                  <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[11.5px]">
+                    {p.values.notes && (
+                      <div>
+                        <span className="font-semibold text-lps-dim">Notes: </span>
+                        <span className="text-muted-foreground">{String(p.values.notes)}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+                      {p.values.ingestion_date && <span>Ingested {formatDate(String(p.values.ingestion_date))}</span>}
+                      {p.values.updated && <span>Row updated {formatDate(String(p.values.updated))}</span>}
+                      {p.sourcePath && (
+                        <a
+                          href={fileHref(p.sourcePath)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-primary hover:underline"
+                        >
+                          Open source
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const desktopLocationGroup = (g: PlantGroup) => (
+    <div
+      key={g.supplier.id}
+      className="flex items-stretch border-b border-border bg-card"
+      style={{ height: panelH }}
+    >
+      <div
+        className="sticky left-0 z-[14] flex flex-none flex-col gap-1.5 overflow-y-auto overflow-x-hidden border-r border-border bg-card p-[11px_14px]"
+        style={{ width: panelW, minWidth: panelW }}
+      >
+        <div className="flex items-start gap-1.5">
+          <button
+            type="button"
+            onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
+            className="min-w-0 flex-1 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
+          >
+            {String(g.supplier.values.name ?? '')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setHiddenSuppliers((prev) => [...prev, g.supplier.id])}
+            title="Hide location"
+            aria-label="Hide location"
+            className="inline-flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-lps-dim hover:bg-muted hover:text-foreground"
+          >
+            <EyeOffIcon size={13} />
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {g.supplier.values.category && (
+            <Badge variant={badgeFor(String(g.supplier.values.category)) as 'default' | 'secondary' | 'outline'}>
+              {String(g.supplier.values.category)}
+            </Badge>
+          )}
+          <span className="whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+            {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
+          </span>
+        </div>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          {panelDetailCols.map((col) => {
+            const text = detailText(g, col)
+            if (!text) return null
+            return (
+              <span key={col.key} className="truncate text-[11.5px] text-muted-foreground">
+                <span className="text-lps-dim">{col.label}: </span>{text}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        {g.plants.map((p) => (
+          <PlantRowLine
+            key={p.id}
+            row={p}
+            cfg={plantCfg}
+            onHide={() => setHiddenPlants((prev) => [...prev, p.id])}
+            onEdit={(col, next) => savePlant(p, col, next)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+
   return (
-    <Shell page="inventory" title="Plant search" subtitle="Grouped by supplier" toolbar={toolbar} hideHeaderOnMobile>
+    <Shell page="inventory" title="Plant search" subtitle="Grouped by company and location" toolbar={toolbar} hideHeaderOnMobile>
       {!searchHydrated ? null : !hasQuery ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <span className="text-[15px] font-semibold">What plant are you looking for?</span>
@@ -516,121 +737,36 @@ export default function PlantSearchPage() {
         </div>
       ) : isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5">
-          {visibleGroups.map((g) => {
-            const open = !collapsed.includes(g.supplier.id)
+          {companyGroups.map((company) => {
+            if (company.locationCount === 1 && company.locations.length === 1) {
+              return mobileLocationGroup(company.locations[0])
+            }
+            const open = !collapsedCompanies.includes(company.id)
+            const matches = company.locations.reduce((sum, location) => sum + location.plants.length, 0)
             return (
-            <div key={g.supplier.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-              <div className={cn('flex items-start gap-2 bg-lps-tint p-3', open && 'border-b border-lps-hair')}>
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
-                      className="min-w-0 flex-1 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
-                    >
-                      {String(g.supplier.values.name ?? '')}
-                    </button>
-                    <span className="text-[11px] font-semibold text-muted-foreground">
-                      {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {g.supplier.values.category && (
-                      <Badge variant={badgeFor(String(g.supplier.values.category)) as 'default' | 'secondary' | 'outline'}>
-                        {String(g.supplier.values.category)}
-                      </Badge>
-                    )}
-                    <span className="text-[11.5px] text-muted-foreground">
-                      {[g.supplier.values.city, g.supplier.values.state].filter(Boolean).join(', ')}
-                    </span>
-                  </div>
-                </div>
+              <div key={company.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">
                 <button
                   type="button"
-                  onClick={() =>
-                    setCollapsed((prev) =>
-                      open ? [...prev, g.supplier.id] : prev.filter((id) => id !== g.supplier.id),
-                    )
-                  }
+                  onClick={() => toggleCompany(company.id)}
                   aria-expanded={open}
-                  aria-label={open ? 'Collapse plants' : 'Expand plants'}
-                  className="inline-flex size-7 flex-none items-center justify-center rounded-md text-muted-foreground"
+                  className="flex w-full items-center gap-3 bg-lps-tint p-3.5 text-left"
                 >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14.5px] font-bold">{company.name}</div>
+                    <div className="mt-1 text-[11.5px] text-muted-foreground">
+                      {company.locations.length === company.locationCount
+                        ? `${company.locationCount} locations`
+                        : `${company.locations.length} of ${company.locationCount} locations`}
+                      {' · '}{matches} match{matches === 1 ? '' : 'es'}
+                    </div>
+                  </div>
                   <ChevronDown size={16} className={open ? '' : '-rotate-90'} />
                 </button>
+                {open && company.locations.map((location) => mobileLocationGroup(location, true))}
               </div>
-              <div className={cn('flex flex-col', !open && 'hidden')}>
-                {g.plants.map((p) => {
-                  const detailsOpen = expandedPlants.includes(p.id)
-                  return (
-                    <div key={p.id} className="border-b border-lps-hair last:border-b-0">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedPlants((prev) =>
-                            detailsOpen ? prev.filter((id) => id !== p.id) : [...prev, p.id],
-                          )
-                        }
-                        aria-expanded={detailsOpen}
-                        className="flex w-full items-start gap-3 p-3 text-left"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
-                          {mobilePlantSpecs(p).length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
-                              {mobilePlantSpecs(p).map((spec) => (
-                                <span key={spec.label || 'size'}>
-                                  {spec.label && <span className="text-lps-dim">{spec.label} </span>}
-                                  {String(spec.value)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-none items-start gap-1.5 text-right">
-                          <div>
-                            <div className={cn('text-[14px] tabular-nums', p.values.price == null ? 'text-[11px] italic text-lps-dim' : 'font-bold')}>
-                              {p.values.price == null ? 'Price unavailable' : money(p.values.price)}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground tabular-nums">
-                              {p.values.qty == null ? '—' : `${num(p.values.qty)} avail`}
-                            </div>
-                          </div>
-                          <ChevronDown size={14} className={cn('mt-1.5 text-lps-dim', !detailsOpen && '-rotate-90')} />
-                        </div>
-                      </button>
-                      {detailsOpen && (
-                        <div className="flex flex-col gap-2 border-t border-lps-hair bg-lps-tint px-3 py-2.5 text-[11.5px]">
-                          {p.values.notes && (
-                            <div>
-                              <span className="font-semibold text-lps-dim">Notes: </span>
-                              <span className="text-muted-foreground">{String(p.values.notes)}</span>
-                            </div>
-                          )}
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-                            {p.values.ingestion_date && <span>Ingested {formatDate(String(p.values.ingestion_date))}</span>}
-                            {p.values.updated && <span>Row updated {formatDate(String(p.values.updated))}</span>}
-                            {p.sourcePath && (
-                              <a
-                                href={fileHref(p.sourcePath)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="font-semibold text-primary hover:underline"
-                              >
-                                Open source
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
             )
           })}
-          {!searching && visibleGroups.length === 0 && (
+          {!searching && companyGroups.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches this search.</div>
           )}
         </div>
@@ -650,7 +786,7 @@ export default function PlantSearchPage() {
                       Supplier
                     </span>
                     <span className="ml-auto text-[10.5px] text-lps-dim">
-                      {visibleGroups.length} group{visibleGroups.length === 1 ? '' : 's'}
+                      {companyGroups.length} compan{companyGroups.length === 1 ? 'y' : 'ies'}
                     </span>
                     <ColumnPicker
                       title="Supplier fields"
@@ -662,7 +798,7 @@ export default function PlantSearchPage() {
                     />
                   </div>
                   <MultiFilter
-                    allLabel="All suppliers"
+                    allLabel="All companies"
                     options={supplierNames}
                     selected={supplierPick}
                     onChange={setSupplierPick}
@@ -675,80 +811,38 @@ export default function PlantSearchPage() {
                 <PlantHeaderRow cfg={plantCfg} options={optionList} />
               </div>
 
-              {visibleGroups.map((g) => {
+              {companyGroups.map((company) => {
+                if (company.locationCount === 1 && company.locations.length === 1) {
+                  return desktopLocationGroup(company.locations[0])
+                }
+                const open = !collapsedCompanies.includes(company.id)
+                const matches = company.locations.reduce((sum, location) => sum + location.plants.length, 0)
                 return (
-                  <div
-                    key={g.supplier.id}
-                    className="flex items-stretch border-b border-border bg-card"
-                    style={{ height: panelH }}
-                  >
-                    <div
-                      className={cn(
-                        'sticky left-0 z-[14] flex flex-none flex-col gap-1.5 overflow-y-auto overflow-x-hidden border-r border-border bg-card p-[11px_14px]',
-                      )}
-                      style={{ width: panelW, minWidth: panelW }}
+                  <div key={company.id} className="border-b border-border">
+                    <button
+                      type="button"
+                      onClick={() => toggleCompany(company.id)}
+                      aria-expanded={open}
+                      className="sticky left-0 z-[15] flex h-[54px] w-full items-center gap-3 bg-lps-tint px-4 text-left"
                     >
-                      <div className="flex items-start gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/suppliers/${g.supplier.id}`)}
-                          className="min-w-0 flex-1 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
-                        >
-                          {String(g.supplier.values.name ?? '')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setHiddenSuppliers((prev) => [...prev, g.supplier.id])}
-                          title="Hide supplier"
-                          aria-label="Hide supplier"
-                          className="inline-flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-lps-dim hover:bg-muted hover:text-foreground"
-                        >
-                          <EyeOffIcon size={13} />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {g.supplier.values.category && (
-                          <Badge variant={badgeFor(String(g.supplier.values.category)) as 'default' | 'secondary' | 'outline'}>
-                            {String(g.supplier.values.category)}
-                          </Badge>
-                        )}
-                        <span className="whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-secondary-foreground">
-                          {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
-                        </span>
-                      </div>
-
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        {panelDetailCols.map((col) => {
-                          const text = detailText(g, col)
-                          if (!text) return null
-                          return (
-                            <span key={col.key} className="truncate text-[11.5px] text-muted-foreground">
-                              <span className="text-lps-dim">{col.label}: </span>
-                              {text}
-                            </span>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
-                      {g.plants.map((p) => (
-                        <PlantRowLine
-                          key={p.id}
-                          row={p}
-                          cfg={plantCfg}
-                          onHide={() => setHiddenPlants((prev) => [...prev, p.id])}
-                          onEdit={(col, next) => savePlant(p, col, next)}
-                        />
-                      ))}
-                    </div>
+                      <ChevronDown size={15} className={open ? '' : '-rotate-90'} />
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-bold">{company.name}</span>
+                      <span className="text-[11.5px] text-muted-foreground">
+                        {company.locations.length === company.locationCount
+                          ? `${company.locationCount} locations`
+                          : `${company.locations.length} of ${company.locationCount} locations`}
+                      </span>
+                      <span className="text-[12px] font-semibold">
+                        {matches} match{matches === 1 ? '' : 'es'}
+                      </span>
+                    </button>
+                    {open && company.locations.map(desktopLocationGroup)}
                   </div>
                 )
               })}
             </div>
 
-            {!searching && visibleGroups.length === 0 && (
+            {!searching && companyGroups.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
                 <span className="text-[14px] font-semibold">Nothing matches these filters</span>
                 <span className="text-[12.5px] text-muted-foreground">

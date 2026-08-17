@@ -43,8 +43,12 @@ export async function GET(req: Request) {
     const sort = parseSort(SUPPLIER_SORTS, url.searchParams)
     // The page size lives on the server, so the page count is computed here
     // rather than handing the browser a divisor it would have to duplicate.
-    const { rows, total } = await listSuppliers(search, page, filters, sort)
-    return NextResponse.json({ rows, total, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) })
+    const { companies, total } = await listSuppliers(search, page, filters, sort)
+    return NextResponse.json({
+      companies,
+      total,
+      pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
