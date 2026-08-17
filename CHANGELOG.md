@@ -24,6 +24,27 @@ here).
   how many of those turns run at once — at 5, a burst across the three
   channels queued behind itself.
 
+- **Harness upgraded 0.8.23 → 0.8.25** (data dir migrated with the
+  `cognisphere-upgrade` skill). Nothing in the window needed a hand edit:
+
+  - **0.8.24 adds `scheduler-cli list` filters** (`--thread-id`,
+    `--active`/`--paused`, `--from`/`--to` with a `fires` array per schedule)
+    and the dependency-free cron evaluator behind them,
+    `scripts/scheduler/cron-fires`. All three breaking-change entries land in
+    plugin-owned seed files — the two scripts and `plugin-scheduler.md` (34 →
+    41 lines) — which re-copy on the next agent start, so **restarting daisy
+    and nova is the whole migration**. `scheduler-cli list --from/--to` exits
+    non-zero until `cron-fires` is seeded.
+  - **0.8.25 is web-only** — the thread list nests task threads as a tree to
+    any depth instead of a flat two-level dropdown. No harness artifacts.
+
+  The scaffold refresh was a no-op beyond the upstream changelog: `scripts/`,
+  `config.example`, `docs/base-harness/` and `.claude/skills/` are byte-identical
+  across the two versions. `app/artifacts-routes/` is unchanged too, so the live
+  routes it was adapted into (see its `LOCAL.md`) gained no drift to port. The
+  documented local edit to both agents' `0-base_prompt.md` survives untouched —
+  no base-prompt entry in this window.
+
 ## 2026-08-16
 
 ### Added
