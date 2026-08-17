@@ -32,7 +32,7 @@ Comparison:
 | | daisy | nova |
 |---|---|---|
 | `devAgent` | — | **true** |
-| `maxConcurrentSlots` | 5 | — |
+| `maxConcurrentSlots` | 20 | — |
 | `secretsSchema` | Supabase (4 keys) | — |
 | Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
 | Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `memory.md` only |
