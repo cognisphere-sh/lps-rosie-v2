@@ -18,7 +18,7 @@ a thread telegram doesn't route to would split the conversation.
 |---|---|---|
 | `threadId` | `main` | Thread web messages are delivered to (`threadIdOverride`). |
 | `maxUploadMb` | `25` | Per-file upload cap; a bigger body gets HTTP 413. |
-| `pendingTimeoutSec` | `900` | How long the "working…" indicator may stay up without a reply before the panel drops it. |
+| `pendingTimeoutSec` | `900` | How long an unanswered web message may keep the "working…" indicator up before the panel drops it. Does not bound the queue half of the indicator. |
 | `historyLimit` | `200` | Messages kept in memory and returned to the browser. |
 
 No secrets.
@@ -34,7 +34,7 @@ No secrets.
 | &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
 | `GET api/file?name=<stored>` | browser | The bytes of one attachment (inbox or outbox). |
 | `POST api/reset` | browser | Wipes the thread's context **and** the transcript. |
-| `POST api/reply` | the agent | `{text, attachments[]}` → the reply, and clears `pending`. |
+| `POST api/reply` | the agent | `{text, attachments[]}` → the reply, and clears the panel's half of `pending`. |
 
 ### Auth — two callers, two mechanisms
 
@@ -87,17 +87,32 @@ the pi session jsonl, which holds tool calls and reasoning and is not a chat log
 
 ## The "working…" indicator
 
-`pending` goes true when a user message is handed to the agent and false on the
-agent's first `webchat-cli send`. It is plugin-side state, not a harness query —
-the harness exposes no per-thread busy flag.
+`pending` is the OR of two things, because the agent works for more callers than
+the panel:
 
-Two consequences worth knowing:
+1. **This panel is owed a reply** — plugin-side state: true when a user message
+   is handed to the agent, false on the agent's first `webchat-cli send`.
+2. **The agent has an event in flight** — any row at `status=in_flight` in its
+   queue, whatever put it there: a Telegram message, a cron tick, another
+   agent's ping. Read per poll from the harness's own
+   `GET /api/agents/<id>/events?status=in_flight&limit=1`, with the browser's
+   session cookie forwarded (the same cookie the request already authenticated
+   with). An unreachable or unauthorized harness answers "not working" rather
+   than failing the poll.
 
-- A **harness restart clears it**, because it is in-memory. That is the right
-  failure direction: a restarted harness is not mid-turn.
-- A reply that goes out over **Telegram instead of the panel** does not clear it
-  (same thread, different channel). `pendingTimeoutSec` is the backstop, so the
-  panel recovers on its own rather than spinning forever.
+So the sidebar reads *Working…* whenever the agent is actually busy, not only
+when the busyness started in the panel.
+
+Three consequences worth knowing:
+
+- A **harness restart clears (1)**, because it is in-memory. That is the right
+  failure direction: a restarted harness is not mid-turn. (2) needs no clearing
+  — it is a live query.
+- A reply that goes out over **Telegram instead of the panel** does not clear
+  (1) (same thread, different channel). `pendingTimeoutSec` is the backstop, so
+  the panel recovers on its own rather than spinning forever.
+- A **queued-but-not-yet-dispatched** event does not count as working. Only
+  `in_flight` does — queued means nobody is chewing on it yet.
 
 ## Inbound event shape
 

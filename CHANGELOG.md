@@ -72,6 +72,15 @@ here).
 
 ### Changed
 
+- **The chat sidebar says *Working…* whenever the agent is working.** `webchat`'s
+  `pending` used to mean only "this panel is owed a reply", so an agent busy on a
+  Telegram message, a cron tick or another agent's ping read as *Online* in the
+  app. Each poll now also asks the harness for the agent's in-flight queue rows
+  (`GET /api/agents/<id>/events?status=in_flight&limit=1`, the browser's session
+  cookie forwarded) and ORs that in. A harness that is unreachable or refuses the
+  cookie answers "not working" rather than failing the poll. Queued rows still
+  read as idle — nobody is chewing on them yet.
+
 - **The customer list is a table, not a stack of cards.** `/customers` now
   renders in the same shape Suppliers does — sticky header with per-column
   sort, filter, resize and drag-to-reorder, a column picker, and the layout

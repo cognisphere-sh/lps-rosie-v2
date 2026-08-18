@@ -11,6 +11,8 @@
  *   POST api/upload   raw body + `x-file-name`  → stores in inbox/, returns {name}
  *   POST api/send     {text, attachments?[]}    → transcript + notify(agent)
  *   GET  api/messages ?since=<id>|?before=<id>  → {messages, hasMore, pending, cursor}
+ *                     (`pending` = this panel is owed a reply, OR the agent has
+ *                      an event in flight from any channel)
  *                     &limit=<n>                (newest n of that window)
  *   GET  api/file     ?name=<stored name>       → the bytes
  *   POST api/reset                              → wipe thread context + transcript
@@ -182,7 +184,7 @@ export default class WebchatPlugin {
     return msg;
   }
 
-  /** True while the agent owes an answer and hasn't timed out. */
+  /** True while the agent owes an answer to the panel and hasn't timed out. */
   private isPending(): boolean {
     if (this.pendingSince === null) return false;
     if (Date.now() - this.pendingSince > this.cfg.pendingTimeoutSec * 1000) {
@@ -205,6 +207,29 @@ export default class WebchatPlugin {
       return body.user ?? null;
     } catch {
       return null; // harness unreachable: fail closed
+    }
+  }
+
+  /**
+   * True while the runner is chewing on ANY event for this agent — a cron
+   * tick, a telegram message, another agent's ping. The panel's own
+   * `pendingSince` only knows about web messages, so without this the
+   * indicator reads "Online" while the agent is visibly busy elsewhere.
+   * Reads the harness's queue through its own API (same cookie as the
+   * session check); unreachable or unauthorized answers "not working".
+   */
+  private async hasInFlightEvent(cookie: string): Promise<boolean> {
+    if (!this.apiBase || !this.ctx) return false;
+    try {
+      const res = await fetch(
+        `${this.apiBase}/api/agents/${this.ctx.agentId}/events?status=in_flight&limit=1`,
+        { headers: { cookie } },
+      );
+      if (!res.ok) return false;
+      const body = (await res.json()) as { total?: number };
+      return (body.total ?? 0) > 0;
+    } catch {
+      return false;
     }
   }
 
@@ -258,7 +283,8 @@ export default class WebchatPlugin {
       }
 
       // --- browser side: everything below needs a real harness session ---
-      const user = await this.sessionUser(String(req.headers.cookie ?? ""));
+      const cookie = String(req.headers.cookie ?? "");
+      const user = await this.sessionUser(cookie);
       if (!user) return json(401, { error: "unauthorized" });
 
       if (req.method === "GET" && path === "/api/messages") {
@@ -277,7 +303,7 @@ export default class WebchatPlugin {
         return json(200, {
           messages,
           hasMore: messages.length < window.length,
-          pending: this.isPending(),
+          pending: this.isPending() || (await this.hasInFlightEvent(cookie)),
           cursor: this.messages[this.messages.length - 1]?.id ?? 0,
         });
       }

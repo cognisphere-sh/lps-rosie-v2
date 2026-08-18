@@ -875,9 +875,12 @@ every iOS recording.
 > missing-device separately. Do not restore a bare `catch {}` here: it makes the
 > button look broken rather than blocked.
 
-**Busy state.** The plugin reports `pending`; the panel shows a bouncing-dot
-"Daisy is working…" bubble, an amber status dot in the header, and a dot on the
-collapsed rail avatar. See the plugin doc for what does and doesn't clear it.
+**Busy state.** The plugin reports `pending` — true while this panel is owed a
+reply *or* the agent has any event in flight (Telegram, cron, another agent), so
+the header reads *Working…* whenever the agent is actually busy, not only when
+the panel started it. The panel shows a bouncing-dot "Daisy is working…" bubble,
+an amber status dot in the header, and a dot on the collapsed rail avatar. See
+the plugin doc for what does and doesn't clear it.
 
 **Markdown.** Agent replies render through a ~30-line subset renderer (bold,
 inline code, links, bullet lists) rather than a markdown dependency. It also
