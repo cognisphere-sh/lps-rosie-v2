@@ -765,12 +765,12 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 |---|---|---|---|
 | `id` | bigint identity | no | PK |
 | `customer_id` | bigint → `customers.id` ON DELETE SET NULL | yes | **Nullable** — anonymous intake, mapped later |
+| `name` | text | yes | **What the job is called** — "Riverbend patio planting". Written by rosie at intake and editable in the app; NULL renders as `JR-<id>`, which is an unnamed request's real name. Never generated from the id. Added 2026-08-18 (migration 0059) |
 | `status` | text | no, default `sourcing` | **CHECK**: `sourcing` \| `quoted` \| `closed_won` \| `closed_lost` \| `archived`. Underscore spellings match `chat_sessions.status`. `closed_won` is the future convert-to-order hook (order tables are deferred); `archived` is a terminal status while `is_active` stays the soft delete |
-| `needs_attention` | boolean | no, default false | The "a human should look at this" flag the UI surfaces. Set it with the why appended to `internal_notes` in the same change |
 | `billing_address` / `billing_city` / `billing_state` / `billing_zip` | text | yes | |
 | `shipping_address` / `shipping_city` / `shipping_state` / `shipping_zip` | text | yes | |
 | `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited. Holds only what the structured columns don't: constraints, deadlines, conditions — not the plants, the address or the identity |
-| `internal_notes` | text | yes | **Ours.** Append-only, timestamped entries |
+| `sourcing_notes` | text | yes | **Ours.** Free text, edited in place. At request level it holds what changed about the *job* ("Delivery date 8/22 → 8/29"); a line's sourcing detail belongs on the line. Named `internal_notes` until migration 0061 |
 | `external_notes` | text | yes | Written to be **shown to the customer** |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
@@ -796,10 +796,9 @@ the search RPCs and key columns, downstream.
 | `unit_price` | numeric(10,2) | yes | NULL = not priced yet; **never 0** — same rule as `inventory.unit_price` |
 | `total` | numeric(12,2) | — | **`GENERATED ALWAYS AS (quantity * unit_price) STORED`** — never write it. NULL until both parts exist |
 | `status` | text | no, default `pending` | **CHECK**: `pending` \| `available` \| `alternative_proposed` \| `unavailable`. Narrowed from seven words by **migration 0058**: `sourcing` described an activity rather than a state and is already recorded, in more detail, by `internal_notes`; `confirmed` was a stronger `available` nothing distinguished; a dropped line is `unavailable` with the reason in the notes, and a line entered in error is deactivated rather than statused. Existing rows were remapped (`sourcing`→`pending`, `confirmed`→`available`, `cancelled`→`unavailable`) — only the first had any |
-| `needs_attention` | boolean | no, default false | Same convention as the request-level flag |
 | `customer_notes` | text | yes | The customer's words about this line, verbatim — and **only what no other column holds**. Not a restatement of `name`/`size`/`quantity`: constraints, preferences and conditions, not the ask (`job-requests` skill, §4) |
-| `internal_notes` | text | yes | **The sourcing log** — which supplier may have it, availability, pricing, alternatives. Append-only, timestamped |
-| `external_notes` | text | yes | **Customer-visible.** A quantity change or a substitution must be explained here in the same change that makes it |
+| `sourcing_notes` | text | yes | **The sourcing sheet** — free text, edited in place, a terse line per supplier (`APS: $26/unit, availability requested`). Updated rather than appended to: the changelog holds what a line said before. Free text is allowed; nothing enforces the shape. Named `internal_notes` until migration 0061 |
+| `external_notes` | text | yes | **Customer-visible.** A quantity change or a substitution is **named** here in the same change that makes it — what the customer is being offered, never why (`job-requests` §4). Sizes are written `XX G` |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -1151,10 +1150,8 @@ by default.
 - The job-request set (0055): `customers_active_created_idx (is_active,
   created_at DESC)` and partial `customers_email_idx` (the intake find-by-email
   path); `job_requests_customer_idx (customer_id, is_active)`; partial
-  `job_requests_status_idx` / `job_request_items_status_idx` (active rows) and
-  `job_requests_attention_idx` / `job_request_items_attention_idx`
-  (`WHERE needs_attention AND is_active` — the "needs attention" surfaces the
-  UI will read); `job_request_items_request_idx (job_request_id, is_active)`;
+  `job_requests_status_idx` / `job_request_items_status_idx` (active rows);
+  `job_request_items_request_idx (job_request_id, is_active)`;
   `job_request_changelog_request_idx (job_request_id, created_at DESC)` and
   partial `job_request_changelog_item_idx` backing the last-5-entries fetch.
 

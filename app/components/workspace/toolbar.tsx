@@ -4,25 +4,46 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronDown, ChevronLeft, ChevronRight } from '@/components/workspace/icons'
+import { CheckIcon, ChevronDown, ChevronLeft, ChevronRight } from '@/components/workspace/icons'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import { cn } from '@/lib/utils'
 
 export interface Chip {
   label: string
-  value: string
+  /**
+   * The picked option labels. Empty means "all" — a filter nobody has narrowed
+   * is the absence of a filter, not a list of every option.
+   */
+  values: string[]
   options: string[]
-  onChange: (value: string) => void
+  onChange: (values: string[]) => void
   allLabel: string
+  /**
+   * Pick one at a time. For options that cannot overlap — a date range is
+   * "the last 7 days" or "the last 30", never both.
+   */
+  single?: boolean
 }
 
 function ChipMenu({ chip }: { chip: Chip }) {
   const [open, setOpen] = useState(false)
-  useOutsideClose(open, () => setOpen(false))
-  const active = chip.value !== 'all'
+  const pop = useOutsideClose(open, () => setOpen(false))
+  const picked = new Set(chip.values)
+  const active = picked.size > 0
+
+  const toggle = (o: string) => {
+    if (chip.single) {
+      chip.onChange([o])
+      setOpen(false)
+      return
+    }
+    // The menu stays open: picking a second value is the point of a
+    // multi-select, and closing after the first would hide it.
+    chip.onChange(picked.has(o) ? chip.values.filter((v) => v !== o) : [...chip.values, o])
+  }
 
   return (
-    <div data-menu className="relative">
+    <div ref={pop} data-menu className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -31,25 +52,46 @@ function ChipMenu({ chip }: { chip: Chip }) {
           active ? 'border-primary bg-secondary text-primary' : 'border-border bg-card text-muted-foreground',
         )}
       >
-        {active ? chip.value : chip.label}
+        {picked.size === 1 ? chip.values[0] : picked.size ? `${chip.label} · ${picked.size}` : chip.label}
         <ChevronDown size={12} />
       </button>
       {open && (
         <div className="lps-pop absolute left-0 top-[calc(100%+6px)] z-[80] max-h-[280px] min-w-[200px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-          {['all', ...chip.options].map((o) => (
+          <button
+            type="button"
+            onClick={() => {
+              chip.onChange([])
+              setOpen(false)
+            }}
+            className={cn(
+              'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
+              active ? 'font-normal text-muted-foreground' : 'font-semibold text-foreground',
+            )}
+          >
+            <span className="size-[15px] flex-none" />
+            {chip.allLabel}
+          </button>
+          {chip.options.map((o) => (
             <button
               key={o}
               type="button"
-              onClick={() => {
-                chip.onChange(o)
-                setOpen(false)
-              }}
+              onClick={() => toggle(o)}
               className={cn(
-                'flex w-full cursor-pointer items-center rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
-                chip.value === o ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
+                'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12px] hover:bg-muted',
+                picked.has(o) ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground',
               )}
             >
-              {o === 'all' ? chip.allLabel : o}
+              <span
+                className={cn(
+                  'inline-flex size-[15px] flex-none items-center justify-center rounded-[5px] border',
+                  picked.has(o)
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-input bg-background',
+                )}
+              >
+                {picked.has(o) && <CheckIcon size={10} />}
+              </span>
+              {o}
             </button>
           ))}
         </div>

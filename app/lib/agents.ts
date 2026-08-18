@@ -41,7 +41,7 @@ export const AGENTS: Agent[] = [
     profile: '/rosie_profile.png',
     intro: 'Ask Rosie about customers, job requests, quotes or sourcing status.',
     suggestions: [
-      'Which job requests need attention?',
+      'Which job requests are still being sourced?',
       'Log a new job request',
       'Draft a quote for a request',
     ],

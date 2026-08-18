@@ -62,8 +62,10 @@ fidelity", start here rather than reverting one of these by accident:
 | `Job Requests` is a **live route** (`/requests`) | Was rendered disabled while it was out of scope; the Order Requests design is now implemented against the real `job_requests` tables. |
 | Requests are **collapsed cards that expand**, not one always-open grouped table | Asked for directly: a request is scanned by its metadata and counts first, and opened only when its lines matter. The mock's left-hand merged "order" cell becomes the card head, which is also what makes the screen work on a narrow viewport. |
 | Selection and the bulk action bar exist, but the bar's **actions are Set status / Flag for input / Clear flag**, not the mock's Email quote / Text quote / Place order / PDF quote / Send availability request | The checkboxes and the bar are the design's; what they can do is bounded by what exists. Every outward-facing action in the mock is an approval-gated flow that has no implementation — Rosie has no mailbox and may not contact a customer unbidden (`docs/harness/agent-rosie.md`), and order placement is the request→order conversion deferred by migration 0055. A button that only raised a toast would misrepresent what the system can do, so the bar carries the writes the app already owns. |
-| The mock's one **Notes** column is two: **Shared note** and **Internal note** | The mock's sample data has a single undifferentiated thread; the real schema has three audiences with three different rules. A single cell cannot honestly edit a field written for the customer *and* an append-only log in the same control, so each gets its own column and its own popover. The customer's own words appear as a third thing — a read-only line under the item name, where the ask is read. |
+| The mock's one **Notes** column is two: **Shared note** and **Sourcing note** | The mock's sample data has a single undifferentiated thread; the real schema has three audiences with three different rules. A single cell cannot honestly edit a field written for the customer *and* our own working sheet in the same control, so each gets its own column and its own popover. The customer's own words appear as a third thing — a read-only line under the item name, where the ask is read. |
 | **No "new customer" form** on `/customers` | Customer creation is Rosie's find-or-create during intake: match on email, then phone, then name + company (`job-requests` skill, §1). A plain New button beside it is a second, blinder create path, and the failure it produces — two rows for one person, requests split across them — is exactly what that matching order exists to prevent. The page reads and edits; intake creates. |
+| **Order** columns and the Orders tab are drawn empty | There are no order tables: migration 0055 defers them, naming a `closed_won` request as the hook they will be created from. Asked what the two order figures should read, the owner chose "build the columns, leave them empty" over reusing closed-won requests as stand-in orders. So `Orders` and `Total order value` render `—`, and the customer page's Orders tab says why. Filling them is a one-line change per column once the tables land. |
+| The Job Requests **Status** chip opens with Archived unticked | Archived is a terminal status and there are only ever more of them; opening the page on them would bury the work. It is a **starting selection, not a rule** — the chip is an ordinary multi-select, ticking Archived brings them back, and *Clear all* returns to the same starting selection rather than to nothing. |
 | No **Size** chip in the Job Requests toolbar | Removed at the owner's request. It reads poorly as a facet: unlike `inventory.size`, which is a graded vocabulary with a reviewed `size_std`, `job_request_items.size` is the customer's **verbatim ask** and migration 0055 deliberately gives it no standardized twin — "30 gal", "30 gal or larger" and "30g" are three dropdown options for one thing. **The server-side filter stays**, deliberately: `GET /api/requests?size=` still selects, and `?facets=1` still returns the option list, so the chip is a UI decision rather than a lost capability. |
 | The line table has no **botanical name** sub-line | `job_request_items` records the plant as the customer asked for it (`name`, `size`) and nothing else — matching an ask to a botanical name is downstream sourcing work, not a column. The sub-line under the name carries the customer's note about that line instead. |
 | Inline editing covers **fields the mock never made editable** (name, size, demand, avail, unit price, addresses, shared note) as well as its status picker | Asked for directly. Writes go through the existing whitelisted `PATCH /api/rows`, so the server — not the dropdown — decides what may be written. |
@@ -71,7 +73,7 @@ fidelity", start here rather than reverting one of these by accident:
 | Notes are grouped by **kind** (Customer / Shared / Internal), not by named author with avatars | The schema keeps three note columns rather than a thread table, so "who said it" is not recorded per entry. The kind is what actually governs disclosure, and it is what the popover shows. |
 | The mock's own agent chat sidebar is not rebuilt | The Shell already carries the app's agent chat panel on every page; a second one on this page would be two chats side by side. |
 | Chat lists three agents (Daisy, Rosie, Nova) | All three are chattable — each has the harness `webchat` plugin on its `main` thread. `lib/agents.ts` still carries the `upcoming` flag for agents added ahead of their plugin; nothing sets it today. |
-| No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
+| No agent dropdown in the chat header — size presets, plus the other agents as avatars | The mock's dropdown was removed at the owner's request. The avatars replace it: the same switch the collapsed rail offers, without having to close the panel to reach it. |
 | A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
 | Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
 | No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
@@ -149,8 +151,9 @@ in the desktop rail and through mobile More.
 | `/suppliers/:id` | client | Profile — **one page per company** on a head-branch id, one farm on a farm id (*Companies and farms*). One Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Farms** / Communications / Notes / Files; on a company page every one of them covers all the company's locations and **tags each entry with the farm it belongs to**. **Farms** lists each location as a card with the same editable field grid the header has, plus a link to that farm's own page, and is offered only where there is more than one location (`?tab=farms` on a single-site supplier falls back to Inventory). Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Mobile inventory cards also show the supplier's raw caliper text when present. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search, **one card per company**, with every matching row from every one of its farms beside it and a **Branch** column naming the farm each row is at. Every plant retains its original `supplier_id` and source; the card links to the company page. The generic Shell title is hidden on mobile; the search toolbar carries natural size tokens, available-size/cultivar/type/city/state controls and pagination through the whole match set 300 plants at a time. Desktop keeps the resizable company panel and plant columns; mobile starts each company collapsed and lets each plant expose its branch, notes, dates and source inline. |
 | `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size, **cultivar** and tag. **50 photos at a time behind a Load more button**, which appends rather than flipping pages — a wall of photos is scanned downwards, and a pager loses everything already looked at. The button carries the remaining count so it isn't a mystery box. Each card carries a **delete** control in its top corner (always visible, not hover-only — this grid is used on touch screens): it confirms, then soft-deletes through `DELETE /api/rows`, and says plainly that the image file itself is kept in storage. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. The lightbox's pencil turns that panel into a **form**: the three name parts, size, height/width/caliper, tags (comma separated) and caption/notes, staged locally and written as one atomic update on Save, exactly as the supplier profile does. While editing, Esc backs out of the form rather than closing the lightbox and the arrows belong to the text fields, so a draft can't be lost by reaching for the next photo. |
-| `/customers` | client | **Customers** — one collapsed card per person, ordered by name, because that is how a customer is looked up (unlike Job Requests, which leads with what needs attention). The head carries name, company, the contact routes that exist, the address, `N requests · M open` with the summed line total, and the last contact-log entry truncated to one line. Expanding gives four editable blocks: **Who they are** (name/company/email/phone), **Address**, **Notes** (durable facts, edited in place) and **Contact log** (`communication_notes`, append-only through `POST /api/rows` — same rule as a request's internal log), plus **Job requests**, which lists their active requests with status pill, line count, total and date. Search matches name, company, email or phone; a **State** chip and a **With requests · N** toggle narrow further. **No create form, deliberately** — see the deviations table. |
-| `/requests` | client | **Job Requests**, from the Order Requests design comp. One **collapsed card per request** carrying everything it is judged on without opening it — a select box, `JR-<id>`, status pill, a **Needs input · N** badge, customer/company, contact routes, ship-to address, created/updated dates, `N lines · $total`, a per-status count pill row (`2 available`, `1 unavailable`, …) and **the newest note on the request, truncated to one line** and tagged with its audience. Clicking the card expands it into three things: an **Order details** drawer, the line-item table, and a **Change history** drawer at the foot. The drawer sits directly under the head and is **shut by default** — a second level of expansion — carrying the shipping and billing addresses and the three note blocks, with a one-line summary of what it is hiding while closed. Order particulars are read when a request is being actioned, not when it is being scanned, so the head keeps only the destination city and state. The table is Select / Item / Size / Demand / Avail / Unit price / Total / Status / Shared note / Internal note, colour-keyed by status down a left edge. Each line's **name carries the customer's note about that line** underneath it, in italics — the ask and what they said about it, read together. **The counts on a collapsed card always describe the whole request**, never the filtered subset the expanded table draws — so a card can honestly read `4 lines` while showing one. A search or an item-level filter auto-expands the cards it matched, since the question was about lines. **Expand all / Collapse all** in the toolbar. The line table scrolls sideways below ~1180px rather than crushing its columns, and each card is `flex-none` so the card list scrolls vertically instead of the card being shrunk and clipping its own contents. **Fields are edited inline**: click a line's name, size, demand, avail or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged value is never written), pick a status from the pill's dropdown, toggle the needs-input flag from its badge, and edit the ship-to/bill-to parts and the shared note in the Order details drawer. Every write goes through `PATCH /api/rows`, and the page refetches afterwards because `total` and every count are derived. **Change history** is the request's whole audit trail — every edit to it or its lines, by this app *and* by the agents, since `job_request_changelog` is trigger-written and neither write path has to cooperate. Each entry names the actor in words (`service_role` → "This app", `postgres` → "An agent script"), says whether it was a create or a change and what it was about, and lists each column as `old → new`. It is fetched only when opened, and re-fetched after any write, so an edit you just made shows up in the history you are looking at. Nothing in it is editable — the rows are immutable by design. **Not editable, deliberately:** `total` (generated) and `customer_notes` (the customer's own words); `internal_notes` is appended to, never rewritten — see *Row tinting and selection* and *Job requests* below. |
+| `/customers` | client | **Customers** — a table, one row per person, in the same shape Suppliers uses: sticky header with per-column sort, filter, resize and drag-to-reorder, a column picker at the right edge, and the layout persisted per table. Columns are Name (opens their page), Company, Email, Phone, **Active requests**, **Active request value**, **Orders**, **Total order value**, City, State, Street, ZIP, Notes, Added, Last updated — Street, ZIP, Notes and Added hidden by default. The two request figures are summed **in the browser** from the rollup each customer already carries (`sourcing` + `quoted`); the two order figures are **empty on purpose** — there are no order tables (migration 0055 defers them), and a column reading a request figure under an order's name would be a lie. Every cell but the four figures and the two dates is **edited in place** through `PATCH /api/rows`. Search matches name, company, email or phone; a **State** chip and a **With requests · N** toggle narrow further, both server-side. The **column header's** sort and filters run over the page in view rather than the whole table — two of the columns are summed in the browser and have no database column to order on. On mobile the table gives way to one card per customer, opening the same page. Cards no longer expand here: everything the old drawer held moved to `/customers/:id`. **No create form, deliberately** — see the deviations table. |
+| `/customers/:id` | client | **One customer.** A details card — the contact routes, a four-figure summary (Active requests, Active request value, Orders, Total order value, the last two reading `—` until order tables exist), **Who they are** and **Address** as editable field grids, **Notes** edited in place and the append-only **Contact log** with its add box — and under it two tabs. **Requests** lists their active requests with status pill, line count, total and date, and each line **opens** into the same body the Job Requests page draws (Order details drawer, editable line-item table, Change history), minus the line checkboxes: this page has no selection bar to act on them. The opened request is fetched on its own from `GET /api/requests/:id` and re-fetched after any write. **Orders** is drawn and empty, saying why. Nothing is behind a second chevron here — this is where a customer is corrected, not scanned. |
+| `/requests` | client | **Job Requests**, from the Order Requests design comp. One **collapsed card per request** carrying everything it is judged on without opening it — `JR-<id>`, **the job's name** (`job_requests.name`, click to rename; blank on an unnamed request, because `JR-<id>` beside it is already its name), status pill, customer/company, contact routes, ship-to address, created/updated dates, a **Demand & Availability panel** — Subtotal and Items demanded above a rule, and below it **every** line status with its count under its own label, zeros included, so "nothing is unavailable" and "nobody has looked yet" cannot render alike — and **the newest note on the request, truncated to one line** and tagged with its audience. The card head carries **no checkbox**: selection is per line, in the table the card opens. Clicking the card expands it into three things: an **Order details** drawer, the line-item table, and a **Change history** drawer at the foot. The drawer sits directly under the head and is **shut by default** — a second level of expansion — carrying the shipping and billing addresses and the three note blocks, with a one-line summary of what it is hiding while closed. The **sourcing note** block is an ordinary editable field there, like the shared note: it is free text kept current, not a log that grows without bound. Order particulars are read when a request is being actioned, not when it is being scanned, so the head keeps only the destination city and state. The table is Select / Item / Size / Demand / Avail / Unit price / Total / Status / Shared note / Sourcing note, colour-keyed by status down a left edge. Each line's **name carries the customer's note about that line** underneath it, in italics — the ask and what they said about it, read together. **The counts on a collapsed card always describe the whole request**, never the filtered subset the expanded table draws — so a card can honestly read `4 lines` while showing one. A search or an item-level filter auto-expands the cards it matched, since the question was about lines. **Expand all / Collapse all** in the toolbar. The line table scrolls sideways below ~1180px rather than crushing its columns, and each card is `flex-none` so the card list scrolls vertically instead of the card being shrunk and clipping its own contents. **Fields are edited inline**: click a line's name, size, demand, avail or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged value is never written), rename the job from the card head, pick a status from the pill's dropdown, and edit the ship-to/bill-to parts and both note fields in the Order details drawer. Every write goes through `PATCH /api/rows`, and the page refetches afterwards because `total` and every count are derived. **Change history** is the request's whole audit trail — every edit to it or its lines, by this app *and* by the agents, since `job_request_changelog` is trigger-written and neither write path has to cooperate. Each entry names the actor in words (`service_role` → "This app", `postgres` → "An agent script"), says whether it was a create or a change and what it was about, and lists each column as `old → new`. It is fetched only when opened, and re-fetched after any write, so an edit you just made shows up in the history you are looking at. Nothing in it is editable — the rows are immutable by design. **Not editable, deliberately:** `total` (generated) and `customer_notes` (the customer's own words) — see *Row tinting and selection* and *Job requests* below. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
@@ -164,15 +167,17 @@ in the desktop rail and through mobile More.
 | `GET /api/photos?q=&offset=` | Photo catalogue, 50 per batch, with the match `total`. **An `offset`, not a page number** — the grid appends, so it asks for "the next batch after what I hold", which stays correct after a photo is deleted out of the middle; a page number would skip the row that moved up. An offset past the end returns an **empty batch with the true total**, not an error. `p.supplier` / `p.size` / `p.cultivar` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags, cultivar display names and `{id,name,city,state}` suppliers — for that search without its filters. |
 | `GET /api/photos/:id/image` | Redirects to a 1-hour signed URL for one photo. Takes a **photo id**, never a storage path: the path is read from the row, so this cannot be used to sign arbitrary objects in the private bucket. |
 | `GET /api/customers?q=&page=` | Customers, 25 per page, each with its active job requests and the rollup over them (`openCount`, summed `lineTotal`) and its parsed contact log. `q` matches name, company, email or phone — the `,` and `)` characters are stripped from it because PostgREST's `or()` grammar has no parameter binding and they would break out of it. `state` and `requests=1` (has at least one active request) filter. `?facets=1` returns the state option list plus the header totals. |
+| `GET /api/customers/:id` | One customer, whole — the same shape the list returns, with their active requests and the rollup over them. For their own page, which lists nothing else. 404 when the id is not an active customer. |
+| `GET /api/requests/:id` | One request, whole — every active line, the per-status counts and `lineTotal`, in the same shape the list returns. Nothing filters it: it is for the pages that show a request without listing them, and a customer's card opens its requests one at a time. 404 when the id is not an active request. |
 | `GET /api/requests/:id/changelog` | One request's whole `job_request_changelog` trail, newest first, with each entry's line item resolved to its name (including retired ones — a retired line still has a history). Its own endpoint rather than a field on the request: the list is unbounded and only wanted when the history drawer opens, so paying for it on every card would be paying for it in vain almost always. |
-| `GET /api/requests?q=&page=` | Job requests, 25 per page, each with **all** of its active line items, its per-status counts, `lineTotal` and `attentionCount`. `q` matches a plant name on the request, the customer's name/company/email, or the request id (`7` or `JR-7`) — a plant match narrows the lines returned, a customer or id match keeps them all. `status` / `itemStatus` are whitelisted against the CHECK vocabularies (an unknown value is dropped, not an error); `size`, `customer`, `created`/`updated` (days back) and `needs=1` filter too — `size` is still served though the toolbar no longer offers it as a chip (see the deviations table). **`needs=1` means the request's own flag *or* a line waiting on someone** — flagged by hand, or with no availability answer yet — resolved in SQL so the page and its `total` describe the same set. `?facets=1` returns the size and customer option lists plus the header totals. |
+| `GET /api/requests?q=&page=` | Job requests, 25 per page, each with **all** of its active line items, its per-status counts and `lineTotal`. `q` matches a plant name on the request, the customer's name/company/email, or the request id (`7` or `JR-7`) — a plant match narrows the lines returned, a customer or id match keeps them all. `status` / `itemStatus` are whitelisted against the CHECK vocabularies (an unknown value is dropped, not an error); `size`, `customer` and `created`/`updated` (days back) filter too — `size` is still served though the toolbar no longer offers it as a chip (see the deviations table). `?facets=1` returns the size and customer option lists plus the header totals. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
 | `GET /a/:agent/private/artifacts/:slug/raw` | The artifact HTML for the page's iframe, fetched from the harness with the shared secret. |
 | `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
-| `POST /api/rows` | Append one stamped entry to an append-only note column (`job_requests.internal_notes`, `job_request_items.internal_notes`, `customers.communication_notes`). A separate verb because it is a different operation: PATCH *replaces* what a column holds, and these columns must never be replaced. |
+| `POST /api/rows` | Append one stamped entry to an append-only note column — `customers.communication_notes`, the only one left. A separate verb because it is a different operation: PATCH *replaces* what a column holds, and a contact log must never be replaced. The job-request note columns moved off this route on 2026-08-18 — they are `sourcing_notes` now (migration 0061) and are edited through PATCH like any other field. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
 
 Pages are client components that fetch from these routes — the workspace is
@@ -588,16 +593,20 @@ the user was looking at.
 The line table follows the design's tint rule: a row's background is its status
 pill's colour, thinned to about a third (`toneTint` in `lib/job-requests.ts`,
 via `color-mix` so one rule lives in one place rather than doubling every tone
-token with a faded twin). Three states override it, in this order — **selected**
-beats **waiting on input** beats the status tint — because what a line *is*
-matters more than how it is doing.
+token with a faded twin). **Selected** overrides it, and nothing else does.
+
+A needs-input amber used to sit between the two. It went on 2026-08-18 along
+with the flag itself (below): once "waiting on somebody" became "any status but
+`available`", the override painted nearly every row one colour and buried the
+statuses it was drawn on top of.
 
 Selection is over **line items**, not requests, and only over the lines the
-filters let through. A card's checkbox is tri-state over its own visible lines;
-the per-card column header deliberately has no second checkbox, since it would
-select exactly the same set. When a filter, a search or a page turn changes what
-came back, anything that fell out of view leaves the selection with it —
-otherwise "12 selected" would act on rows nobody has in front of them.
+filters let through. Every checkbox is on a line, in the table a card opens: the
+card head carried a tri-state one until 2026-08-18, and the per-card column
+header still has none, since either would only ever mean "all of them". When a
+filter, a search or a page turn changes what came back, anything that fell out
+of view leaves the selection with it — otherwise "12 selected" would act on rows
+nobody has in front of them.
 
 The bar that appears with a selection carries **Set status**, **Flag for
 input** and **Clear flag**: writes this app already owns, applied per line
@@ -609,42 +618,94 @@ request are absent — see the deviations table.
 ### Job requests
 
 `job_requests` and `job_request_items` are written through the same
-`PATCH /api/rows` whitelist as every other table, with three columns held back
-on purpose:
+`PATCH /api/rows` whitelist as every other table, with two columns held back on
+purpose:
 
 - **`total`** is `GENERATED ALWAYS AS (quantity * unit_price)`. Postgres rejects
   a write to it outright; the whitelist refuses first, with a sentence.
 - **`customer_notes`** is what the customer said. It is evidence, and the
   workspace has no business rewriting it.
-- **`internal_notes`** is an append-only sourcing log (`job-requests` skill).
-  A grid cell overwrites, so offering it there would destroy the log the moment
-  someone edited a stale copy of it. It is therefore absent from `WRITABLE` and
-  reached only through **`appendNote`** (`POST /api/rows`), which has its own
-  short whitelist (`APPENDABLE`), stamps the entry
-  `[YYYY-MM-DD HH:MM America/Chicago]` server-side — the browser's clock is not
-  the deployment's timezone — and separates it from the previous entry with a
-  blank line, which is exactly what the reader expects.
-  `customers.communication_notes` is the same kind of column and is reached the
-  same way. Reader and writer live together in **`lib/notes.ts`**
-  (`parseEntries` / `noteStamp`) because they are two halves of one format: the
-  only way they can disagree is if someone changes one without the other.
 
-  `appendNote` is read-modify-write, because PostgREST cannot express
-  `col = col || $1`. Rosie writes the same columns, so two appends in the same
-  instant can cost one entry. That was taken deliberately over a migration for
-  a database function: `job_request_changelog` records the before and after of
-  every write either way, so a lost entry is recoverable rather than gone.
+**`sourcing_notes` is free text, edited in place** — changed 2026-08-18, on
+Chris's instruction. It had been an append-only log reached only through
+`appendNote`, on the reasoning that a grid cell overwrites and an overwrite
+would destroy the history. What it is actually used for is a **working sheet**:
+a terse line per supplier (`APS: $26/unit, availability requested`) that is
+*kept current*, so when a supplier answers, that line should change rather than
+gain a second entry underneath it. It is therefore an ordinary writable column,
+edited as a textarea in the request drawer and in each line's Sourcing note
+popover, and the history it used to carry itself is in `job_request_changelog`,
+which records the before and after of every write anyway.
+
+`customers.communication_notes` did not change and is still append-only: a
+contact happened at a time and cannot be edited into not having happened. It is
+the only column left on the `APPENDABLE` list, reached through **`appendNote`**
+(`POST /api/rows`), which stamps the entry
+`[YYYY-MM-DD HH:MM America/Chicago]` server-side — the browser's clock is not
+the deployment's timezone — and separates it from the previous entry with a
+blank line. Reader and writer live together in **`lib/notes.ts`**
+(`parseEntries` / `noteStamp`) because they are two halves of one format: the
+only way they can disagree is if someone changes one without the other.
+
+`appendNote` is read-modify-write, because PostgREST cannot express
+`col = col || $1`. Rosie writes that column too, so two appends in the same
+instant can cost one entry. That was taken deliberately over a migration for a
+database function: the changelog records the before and after either way, so a
+lost entry is recoverable rather than gone.
+
+**The column is `sourcing_notes`.** It was `internal_notes` until migration
+0061 renamed it on both job-request tables (`inventory.internal_notes` is
+daisy's, means something else, and keeps its name). "Internal" said who may read
+it, which the other two columns already imply by contrast; the name now says
+what goes in it. The UI calls it **Sourcing note** in the drawer, the line table
+header and the popover.
+
+**A customer-facing note names a change; it does not argue for it.**
+`external_notes` says what the customer is being offered — "Substituting 3 G for
+the 5 G requested", "Quoting 12 rather than 10" — and never the reason, which is
+a `sourcing_notes` line. Sizes are written `XX G` in both note columns; only the
+item's own `size` keeps the customer's verbatim wording.
+
+**A request has a name.** `job_requests.name` (migration 0059) is what the job
+is called out loud — "Riverbend patio planting" — written by Rosie at intake
+and editable from the card head. It is nullable and never generated: an unnamed
+request shows nothing there, because the `JR-<id>` beside it is already its
+name, and a stand-in like "Request 12" would read as though somebody had named
+it.
 
 **An item's status is where the line stands, not what is being done about it.**
 Migration 0058 narrowed `job_request_items.status` to four words — `pending`,
 `available`, `alternative_proposed`, `unavailable`. `sourcing` described an
-activity, and the activity is already in `internal_notes` in more useful detail;
+activity, and the activity is already in `sourcing_notes` in more useful detail;
 `confirmed` was a stronger `available` that nothing distinguished; a dropped
 line is `unavailable` with the reason in the notes. The app follows: the status
 dropdown offers four, the derived **Partial** pill now only overrides
 `available`, and the per-status count pills on a card have four buckets.
 `job_requests.status` is untouched — its `sourcing` is the *request's* lifecycle
 stage and means something different.
+
+**"Needs input" is gone entirely** — migration 0060 dropped
+`needs_attention` from both tables, and every trace of it went with the column:
+the pill on a line, the badge on a card and on a customer's request list, the
+amber row tint, the toolbar count and filter, the selection bar's Flag / Clear
+buttons, the `needs=1` API parameter, and the sort that floated flagged
+requests to the top.
+
+It went in stages that each made the next one obvious. The flag started as one
+of two signals — the hand-set column, plus "availability unanswered"
+(`available_quantity IS NULL`). That second half broke when Rosie stopped
+filling `available_quantity` (it is a human call, so her skill forbids it), and
+was replaced by "any status but `available`". That derivation was right, and it
+showed the flag up for what it was: **every** line not yet `available` is
+waiting on somebody, so the marker appeared on nearly every row and
+distinguished nothing — while the status pill next to it said the same thing in
+a more specific word.
+
+What says a line needs a person now is its **status** — `alternative_proposed`
+is a substitution waiting on approval, `unavailable` is a decision somebody has
+to make, `pending` is unanswered, and only `available` needs no one — and
+**`sourcing_notes`** says why. That was always the better record; the flag was a
+second, blunter copy of it.
 
 `status` on both tables is checked against the CHECK vocabulary **server-side**
 (`ENUMS` in `lib/queries.ts`), so a bad value comes back naming the allowed ones
@@ -733,9 +794,11 @@ the UI greys them out as "Coming soon" and the chat proxy answers 404 for them;
 (Daisy, Rosie and Nova are all chattable). Activating one is removing the flag
 plus `mkdir harness/agents/<id>/plugins/webchat` (with a `config.json` naming
 the thread its Telegram routes to — see the plugin doc).
-There is no selector in the panel header — switching agents happens from the
-collapsed rail on desktop and the tab bar's agent tabs on mobile (`shell.tsx`
-owns the mobile selection and passes it down as `mobileAgentId`).
+On desktop, switching agents happens from the collapsed rail, or — with the
+panel docked — from the other agents' avatars at the right of its header, which
+swap the conversation in place. On mobile it is the tab bar's agent tabs
+(`shell.tsx` owns the mobile selection and passes it down as `mobileAgentId`),
+so the sheet's header carries the back button instead.
 
 **Transport.** `app/api/chat/[...path]/route.ts` forwards to
 `<harness>/webhook/<agent>/webchat/api/<action>`, passing the cookie and
@@ -749,6 +812,17 @@ browser. A harness that is down answers 502 rather than hanging the poll.
 The panel **polls** `api/messages?since=<cursor>` every 2s while it is open —
 no SSE, no websocket. A sent message is added optimistically and then adopts
 the id the server returns, so the next poll doesn't duplicate it.
+
+**Pagination.** The first fetch of a transcript asks for `&limit=50`, so the
+panel opens on the 50 newest messages rather than the whole history. When the
+server reports `hasMore`, a *Load earlier messages* button at the top of the
+transcript fetches the previous 50 (`?before=<oldest held id>&limit=50`) and
+prepends them; a layout effect adds the height the prepend introduced back to
+`scrollTop`, so the reader stays on the message they were looking at. Polls
+after the first send no `limit` — they carry a delta, and truncating a delta
+would drop messages permanently. How far back the button can go is bounded by
+the plugin's `historyLimit` (200), since paging reads the same in-memory
+window.
 
 **Scrolling** pins to the newest message: a `useLayoutEffect` sets
 `scrollTop = scrollHeight` before paint, so a reload opens at the bottom rather
@@ -811,9 +885,11 @@ normalizes literal `\\n` sequences from CLI replies into line breaks, including
 in existing transcript entries. Tables are not supported — the plugin's seed
 prompt tells Daisy to use bullet lists.
 
-Panel open/closed and width persist to `localStorage` under `lps.chat.v1`,
-written from an effect behind a `hydrated` ref — the same pattern, and the same
-reason, as the table layout.
+Panel open/closed, width and the selected agent persist to `localStorage` under
+`lps.chat.v1`, written from an effect behind a `hydrated` ref — the same
+pattern, and the same reason, as the table layout. The agent is part of that
+record because every page mounts its own `Shell`: without it, navigating or
+refreshing dropped the panel back to the first agent in `AGENTS`.
 
 ### Chat appearance
 
@@ -1209,10 +1285,13 @@ responses are skipped (`cache.put` throws on those), and offline lookups pass
 ```
 app/
   api/           suppliers, suppliers/[id], plants, photos, photos/[id]/image,
-                 file, rows, chat/[...path]
+                 customers, customers/[id], requests, requests/[id],
+                 requests/[id]/changelog, file, rows, chat/[...path]
   a/[agent]/     agent artifacts: public/ pass-through, private/ page +
                  ShareToggle + raw + share
   suppliers/     list (one row per company) + [id] profile (one page per company)
+  customers/     list (a table) + [id] page (details card, Requests / Orders tabs)
+  requests/      job requests, one card per request
   plants/        plant search, one card per company
   photos/        photo catalogue grid + lightbox
   agents/        Know your Agents — profile banner cards
@@ -1236,11 +1315,16 @@ components/
                      composer (attach, paste, voice), markdown subset
     editable.tsx     click-to-edit text/textarea and the append-a-log-entry
                      control, shared by Job Requests and Customers
+    job-request.tsx  a request's expanded card — RequestBody (Order details
+                     drawer, line table, change history), the status pill (its
+                     menu positioned `fixed`, so a card's own overflow cannot
+                     clip it), the Demand & Availability panel and note cells,
+                     shared by Job Requests and Customers
     table-parts.tsx  column picker, column head (sort/filter/resize/drag),
                      FilterControl (the head's filter widget, reused on mobile),
                      cell (plain/link/badge/list/file/url), MultiFilter
     plant-table.tsx  the plant sub-table, shared by search + profile
-    toolbar.tsx      search box, filter chips, count summary
+    toolbar.tsx      search box, multi-select filter chips, count summary
     search-loader.tsx  sprouting-seedlings loader + overlay for ongoing searches
     icons.tsx        the design's icon set
 lib/
@@ -1252,20 +1336,23 @@ lib/
                    PhotoCard, PhotoFacets, JobRequestRow, JobRequestItem,
                    JobNote, JobAddress, JobRequestFacets)
   queries.ts       every database read, the whitelisted writes, file signing,
-                   appendNote() for the append-only note columns
+                   appendNote() for communication_notes
   job-requests.ts  the two status vocabularies, their tones and labels, the
                    derived Partial pill, coverColor()/toneTint() — the one place
                    the schema's spellings and the design's colours are reconciled
   job-request-queries.ts  the job-request reads: one page of requests with all
-                   their items, the facets, the header totals and one request's
-                   whole changelog
+                   their items, one request by id, the facets, the header totals
+                   and one request's whole changelog
   customer-queries.ts  the customer reads: one page of customers with their
-                   request rollup, the state facet and the header totals
-  notes.ts         the append-only note convention — parseEntries()/noteStamp()
+                   request rollup, one customer by id, the state facet and the
+                   header totals
+  notes.ts         the append-only note convention (communication_notes)
                    /shortStamp(), one definition of the format the agents' skills
                    and this app both write
   photos.ts        the photo catalogue's reads, facets and image signing
   table-config.ts  column layout state + localStorage persistence + reorder()
+                   — one entry per TableId (suppliers, plantMaster, plants,
+                   customers)
   table-config.check.mjs  self-check for reorder()
   size-std.ts      the size_std vocabulary and the order the filter offers it in
   size-std.check.mjs      self-check for that order

@@ -21,7 +21,7 @@ export type RequestStatus = (typeof REQUEST_STATUSES)[number]
  * Four words, since migration 0058: `pending` → `available`, with
  * `alternative_proposed` and `unavailable` as the other two endings. What is
  * being *done* about a pending line is not a status — it is the timestamped
- * `internal_notes` sourcing log, which also says what was found out.
+ * `sourcing_notes` sheet, which also says what was found out.
  */
 export const ITEM_STATUSES = [
   'pending',

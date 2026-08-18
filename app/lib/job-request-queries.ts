@@ -1,6 +1,5 @@
 import 'server-only'
 
-import { coverOf } from '@/lib/job-requests'
 import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
@@ -21,8 +20,8 @@ const CHUNK = 1000
 interface RequestRecord {
   id: number
   customer_id: number | null
+  name: string | null
   status: string
-  needs_attention: boolean
   billing_address: string | null
   billing_city: string | null
   billing_state: string | null
@@ -32,7 +31,7 @@ interface RequestRecord {
   shipping_state: string | null
   shipping_zip: string | null
   customer_notes: string | null
-  internal_notes: string | null
+  sourcing_notes: string | null
   external_notes: string | null
   created_at: string | null
   updated_at: string | null
@@ -48,9 +47,8 @@ interface ItemRecord {
   unit_price: number | null
   total: number | null
   status: string
-  needs_attention: boolean
   customer_notes: string | null
-  internal_notes: string | null
+  sourcing_notes: string | null
   external_notes: string | null
   updated_at: string | null
 }
@@ -68,8 +66,6 @@ export interface JobRequestFilters {
   itemStatus?: string[]
   size?: string[]
   customerId?: number[]
-  /** Only requests needing attention, by their own flag or an item's. */
-  needsOnly?: boolean
   /** Days back from now; undefined means all time. */
   createdWithin?: number
   updatedWithin?: number
@@ -78,21 +74,24 @@ export interface JobRequestFilters {
 /**
  * Split one of the three note columns into entries.
  *
- * `internal_notes` and `communication_notes` are append-only text: entries are
- * separated by a blank line and stamped `[YYYY-MM-DD HH:MM America/Chicago]`
- * (the `job-requests` skill's format). Text that predates the convention, or a
- * customer's verbatim message, has no stamp — it stays one unstamped entry
- * rather than being reshaped.
+ * `communication_notes` is append-only text: entries are separated by a blank
+ * line and stamped `[YYYY-MM-DD HH:MM America/Chicago]` (the `job-requests`
+ * skill's format). Text that predates the convention, or a customer's verbatim
+ * message, has no stamp — it stays one unstamped entry rather than being
+ * reshaped.
+ *
+ * `sourcing_notes` is deliberately absent: it is free text, edited in place —"
+ * a working sheet of what each supplier said, not a sequence of entries — so
+ * it is carried raw and never parsed.
  */
 function noteEntries(text: string | null, kind: JobNote['kind']): JobNote[] {
   return parseEntries(text).map((e) => ({ kind, ...e }))
 }
 
-function notesOf(r: { customer_notes: string | null; internal_notes: string | null; external_notes: string | null }): JobNote[] {
+function notesOf(r: { customer_notes: string | null; external_notes: string | null }): JobNote[] {
   return [
     ...noteEntries(r.customer_notes, 'customer'),
     ...noteEntries(r.external_notes, 'shared'),
-    ...noteEntries(r.internal_notes, 'internal'),
   ]
 }
 
@@ -102,26 +101,6 @@ const addressOf = (
   state: string | null,
   zip: string | null,
 ): JobAddress => ({ address, city, state, zip })
-
-/**
- * Whether a line item is waiting on a person.
- *
- * Its own flag is the explicit signal; an unanswered availability is the
- * implicit one, and is what makes the design's "Needs input" count non-zero
- * before anyone has flagged anything by hand.
- */
-const needsAttention = (flag: boolean, quantity: unknown, available: unknown) =>
-  flag ||
-  coverOf(
-    quantity == null ? null : Number(quantity),
-    available == null ? null : Number(available),
-  ) === 'unanswered'
-
-const recordNeedsAttention = (r: {
-  needs_attention: boolean
-  quantity: number | null
-  available_quantity: number | null
-}) => needsAttention(r.needs_attention, r.quantity, r.available_quantity)
 
 function toItem(r: ItemRecord): JobRequestItem {
   return {
@@ -133,10 +112,54 @@ function toItem(r: ItemRecord): JobRequestItem {
     unitPrice: r.unit_price == null ? null : Number(r.unit_price),
     total: r.total == null ? null : Number(r.total),
     status: r.status,
-    needsAttention: recordNeedsAttention(r),
     notes: notesOf(r),
     customerNotes: r.customer_notes,
     externalNotes: r.external_notes,
+    sourcingNotes: r.sourcing_notes,
+    updatedAt: r.updated_at,
+  }
+}
+
+const REQUEST_COLUMNS =
+  'id, customer_id, name, status, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, customer_notes, sourcing_notes, external_notes, created_at, updated_at'
+
+/**
+ * One request as the cards render it.
+ *
+ * `all` is every active line, which is what the rollups are computed over;
+ * `visible` is the subset the item filters let through, which is what the
+ * expanded table draws — so a collapsed card never lies about a request whose
+ * lines are filtered out of view.
+ */
+function toRow(
+  r: RequestRecord,
+  all: ItemRecord[],
+  customer: JobRequestRow['customer'],
+  visible: ItemRecord[],
+): JobRequestRow {
+  const statusCounts: StatusCounts = {}
+  let lineTotal = 0
+  for (const it of all) {
+    statusCounts[it.status] = (statusCounts[it.status] ?? 0) + 1
+    lineTotal += it.total == null ? 0 : Number(it.total)
+  }
+
+  return {
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    customer,
+    billing: addressOf(r.billing_address, r.billing_city, r.billing_state, r.billing_zip),
+    shipping: addressOf(r.shipping_address, r.shipping_city, r.shipping_state, r.shipping_zip),
+    customerNotes: r.customer_notes,
+    notes: notesOf(r),
+    externalNotes: r.external_notes,
+    sourcingNotes: r.sourcing_notes,
+    itemCount: all.length,
+    statusCounts,
+    lineTotal,
+    items: visible.map(toItem),
+    createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
 }
@@ -150,7 +173,7 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     const { data, error } = await supabase
       .from('job_request_items')
       .select(
-        'id, job_request_id, name, size, quantity, available_quantity, unit_price, total, status, needs_attention, customer_notes, internal_notes, external_notes, updated_at',
+        'id, job_request_id, name, size, quantity, available_quantity, unit_price, total, status, customer_notes, sourcing_notes, external_notes, updated_at',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)
@@ -196,32 +219,6 @@ async function requestIdsMatchingItems(
   return [...ids]
 }
 
-/**
- * Request ids holding at least one line that is waiting on somebody — flagged
- * by hand, or simply never answered on availability.
- *
- * This is the other half of "Needs input": the request's own flag only covers
- * what a person marked, and the toolbar counts unanswered lines too. Without
- * this, filtering by Needs input hides a request whose flag is clear but whose
- * lines are not — while still counting those lines in the total.
- */
-async function requestIdsNeedingAttention(): Promise<number[]> {
-  const ids = new Set<number>()
-  for (let from = 0; ; from += CHUNK) {
-    const { data, error } = await supabase
-      .from('job_request_items')
-      .select('job_request_id')
-      .eq('is_active', true)
-      .or('needs_attention.eq.true,available_quantity.is.null')
-      .order('id', { ascending: true })
-      .range(from, from + CHUNK - 1)
-    if (error) throw new Error(`job_request_items: ${error.message}`)
-    const rows = (data ?? []) as { job_request_id: number }[]
-    for (const r of rows) ids.add(r.job_request_id)
-    if (rows.length < CHUNK) break
-  }
-  return [...ids]
-}
 
 /** Requests whose customer matches the search, so a name finds their requests. */
 async function requestIdsMatchingCustomer(search: string): Promise<number[]> {
@@ -280,10 +277,7 @@ export async function listJobRequests(
 
   let query = supabase
     .from('job_requests')
-    .select(
-      'id, customer_id, status, needs_attention, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, customer_notes, internal_notes, external_notes, created_at, updated_at',
-      { count: 'exact' },
-    )
+    .select(REQUEST_COLUMNS, { count: 'exact' })
     .eq('is_active', true)
 
   if (restrictTo) {
@@ -294,18 +288,8 @@ export async function listJobRequests(
   if (filters.customerId?.length) query = query.in('customer_id', filters.customerId)
   if (filters.createdWithin) query = query.gte('created_at', daysAgoIso(filters.createdWithin))
   if (filters.updatedWithin) query = query.gte('updated_at', daysAgoIso(filters.updatedWithin))
-  // The request's own flag OR a line waiting on someone — applied in SQL so the
-  // page and its `count` describe the same set.
-  if (filters.needsOnly) {
-    const attn = await requestIdsNeedingAttention()
-    query = attn.length
-      ? query.or(`needs_attention.eq.true,id.in.(${attn.join(',')})`)
-      : query.eq('needs_attention', true)
-  }
-
   const from = (page - 1) * JOB_REQUEST_PAGE_SIZE
   const { data, error, count } = await query
-    .order('needs_attention', { ascending: false })
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false })
     .range(from, from + JOB_REQUEST_PAGE_SIZE - 1)
@@ -319,14 +303,6 @@ export async function listJobRequests(
 
   const requests: JobRequestRow[] = records.map((r) => {
     const all = itemMap.get(r.id) ?? []
-    const statusCounts: StatusCounts = {}
-    let lineTotal = 0
-    let attentionCount = 0
-    for (const it of all) {
-      statusCounts[it.status] = (statusCounts[it.status] ?? 0) + 1
-      lineTotal += it.total == null ? 0 : Number(it.total)
-      if (recordNeedsAttention(it)) attentionCount++
-    }
 
     // The visible subset. Request-level filters already selected the request;
     // these decide which of its lines the expanded table draws. A search that
@@ -341,24 +317,7 @@ export async function listJobRequests(
     })
 
     const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
-    return {
-      id: r.id,
-      status: r.status,
-      needsAttention: r.needs_attention || attentionCount > 0,
-      customer,
-      billing: addressOf(r.billing_address, r.billing_city, r.billing_state, r.billing_zip),
-      shipping: addressOf(r.shipping_address, r.shipping_city, r.shipping_state, r.shipping_zip),
-      customerNotes: r.customer_notes,
-      notes: notesOf(r),
-      externalNotes: r.external_notes,
-      itemCount: all.length,
-      attentionCount,
-      statusCounts,
-      lineTotal,
-      items: visible.map(toItem),
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }
+    return toRow(r, all, customer, visible)
   })
 
   const total = count ?? requests.length
@@ -367,6 +326,32 @@ export async function listJobRequests(
     total,
     pageCount: Math.max(1, Math.ceil(total / JOB_REQUEST_PAGE_SIZE)),
   }
+}
+
+/**
+ * One request by id, with every one of its lines.
+ *
+ * Nothing filters here: this is the request as its own card shows it, fetched
+ * when a page that does not list requests — a customer's card — opens one.
+ */
+export async function jobRequest(id: number): Promise<JobRequestRow | null> {
+  const { data, error } = await supabase
+    .from('job_requests')
+    .select(REQUEST_COLUMNS)
+    .eq('id', id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw new Error(`job_requests: ${error.message}`)
+  if (!data) return null
+
+  const r = data as RequestRecord
+  const [itemMap, customerMap] = await Promise.all([
+    itemsByRequest([r.id]),
+    customersById(r.customer_id == null ? [] : [r.customer_id]),
+  ])
+  const all = itemMap.get(r.id) ?? []
+  const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
+  return toRow(r, all, customer, all)
 }
 
 async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['customer']>> {
@@ -463,20 +448,10 @@ export async function jobRequestChangelog(requestId: number): Promise<JobChange[
 }
 
 /** Totals for the header line, over the whole active set rather than a page. */
-export async function jobRequestSummary(): Promise<{ requests: number; items: number; attention: number }> {
-  const [{ count: requests }, { data: items, error }] = await Promise.all([
+export async function jobRequestSummary(): Promise<{ requests: number; items: number }> {
+  const [{ count: requests }, { count: items }] = await Promise.all([
     supabase.from('job_requests').select('id', { count: 'exact', head: true }).eq('is_active', true),
-    supabase
-      .from('job_request_items')
-      .select('needs_attention, quantity, available_quantity')
-      .eq('is_active', true)
-      .limit(CHUNK),
+    supabase.from('job_request_items').select('id', { count: 'exact', head: true }).eq('is_active', true),
   ])
-  if (error) throw new Error(`job_request_items: ${error.message}`)
-  const rows = (items ?? []) as ItemRecord[]
-  return {
-    requests: requests ?? 0,
-    items: rows.length,
-    attention: rows.filter((i) => recordNeedsAttention(i)).length,
-  }
+  return { requests: requests ?? 0, items: items ?? 0 }
 }

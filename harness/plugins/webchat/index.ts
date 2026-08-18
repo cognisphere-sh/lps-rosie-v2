@@ -10,7 +10,8 @@
  * Endpoints
  *   POST api/upload   raw body + `x-file-name`  → stores in inbox/, returns {name}
  *   POST api/send     {text, attachments?[]}    → transcript + notify(agent)
- *   GET  api/messages ?since=<id>               → {messages, pending, cursor}
+ *   GET  api/messages ?since=<id>|?before=<id>  → {messages, hasMore, pending, cursor}
+ *                     &limit=<n>                (newest n of that window)
  *   GET  api/file     ?name=<stored name>       → the bytes
  *   POST api/reset                              → wipe thread context + transcript
  *   POST api/reply    {text, attachments?[]}    → agent's reply (CLI only)
@@ -262,9 +263,20 @@ export default class WebchatPlugin {
 
       if (req.method === "GET" && path === "/api/messages") {
         const since = Number(url.searchParams.get("since") ?? 0);
-        const messages = this.messages.filter((m) => m.id > since);
+        const before = Number(url.searchParams.get("before") ?? 0);
+        const limit = Number(url.searchParams.get("limit") ?? 0);
+        // `since` walks forward (the poll); `before` walks backward (the
+        // panel's "load earlier"). `limit` keeps the newest slice of whichever
+        // window was asked for — the poll leaves it off so it can never drop a
+        // message it is the only one delivering.
+        const window =
+          before > 0
+            ? this.messages.filter((m) => m.id < before)
+            : this.messages.filter((m) => m.id > since);
+        const messages = limit > 0 ? window.slice(-limit) : window;
         return json(200, {
           messages,
+          hasMore: messages.length < window.length,
           pending: this.isPending(),
           cursor: this.messages[this.messages.length - 1]?.id ?? 0,
         });

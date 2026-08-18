@@ -10,6 +10,59 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0061_rename_internal_notes_to_sourcing_notes.sql`
+
+Applied 2026-08-18 at Bhoumik's request, one step. Renames `internal_notes` →
+`sourcing_notes` on `job_requests` and `job_request_items`, with a comment on
+each.
+
+**Why:** "internal" said who may read it, which `customer_notes` and
+`external_notes` already imply by contrast; the name now says what goes in it —
+who we asked, what they said, what it costs. Only rosie's two tables:
+`inventory.internal_notes` is daisy's, means parse caveats on an ingested row,
+and keeps its name.
+
+Data, column position and the changelog are untouched — entries written before
+today still name `internal_notes` in their `changes` jsonb, which is correct:
+that is what the column was called when they were written.
+
+## `0060_drop_needs_attention.sql`
+
+Applied 2026-08-18 at Bhoumik's request, one step. Drops `needs_attention` from
+`job_requests` and `job_request_items`, and with it the two partial indexes over
+it from 0055 (`job_requests_attention_idx`, `job_request_items_attention_idx` —
+Postgres drops an index that depends on a dropped column).
+
+**Why:** it was the weaker of two ways to say "a person has to look at this".
+`status` says it in a more specific word — `alternative_proposed`,
+`unavailable`, `pending`, against `available`, which needs no one. Once the
+app's "Needs input" surface was derived that way, the flag marked nearly every
+row, which marks nothing. `status` for where a line stands and `internal_notes`
+for why replace it.
+
+No data lost — both tables were empty when this was applied.
+
+## `0059_job_request_name.sql`
+
+Applied 2026-08-18 at Bhoumik's request, one step. One nullable column,
+`job_requests.name`.
+
+**Why:** a request was addressable only as `JR-<id>` and by whose it is, which
+is enough to look one up and not enough to recognize one — a customer with three
+open requests gave three identical-looking cards. The name is the handle people
+already use out loud ("the Riverbend planting").
+
+Nullable and undefaulted on purpose: a name is a judgement, and a generated
+stand-in would look like somebody had named it. The UI falls back to `JR-<id>`.
+No backfill — the table was empty when this was applied.
+
+## `0058_job_request_item_status_vocabulary.sql`
+
+Applied 2026-08-18 at Bhoumik's request, one step. `job_request_items.status`
+narrowed from seven words to four (`pending`, `available`,
+`alternative_proposed`, `unavailable`), remapping before narrowing. See the
+migration file's own header for what went and why.
+
 ## `0057_quoted_exact_plant_search.sql`
 
 Applied 2026-08-17 at Bhoumik's request. Adds the immutable

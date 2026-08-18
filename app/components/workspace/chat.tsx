@@ -26,6 +26,7 @@ type ChatMessage = {
 }
 
 const POLL_MS = 2000
+const PAGE = 50
 const MIN_W = 280
 const STORE = 'lps.chat.v1'
 
@@ -258,28 +259,67 @@ function useChat(agentId: string, active: boolean) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const cursor = useRef(0)
+  // Oldest id held, so "load earlier" knows where the page it has starts.
+  const oldest = useRef(0)
 
   // Switching agents means a different transcript — reset before the next poll.
   useEffect(() => {
     cursor.current = 0
+    oldest.current = 0
     setMessages([])
     setPending(false)
+    setHasMore(false)
   }, [agentId])
 
   const poll = useCallback(async () => {
+    // First fetch of a transcript takes only the newest page; every poll after
+    // it is a delta, so `limit` would be free to drop a message.
+    const first = cursor.current === 0
     try {
-      const res = await fetch(`/api/chat/${agentId}/messages?since=${cursor.current}`, { cache: 'no-store' })
+      const res = await fetch(
+        `/api/chat/${agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}`,
+        { cache: 'no-store' },
+      )
       if (!res.ok) throw new Error(String(res.status))
-      const body = (await res.json()) as { messages: ChatMessage[]; pending: boolean; cursor: number }
+      const body = (await res.json()) as {
+        messages: ChatMessage[]; hasMore: boolean; pending: boolean; cursor: number
+      }
       if (body.messages.length) {
         setMessages((prev) => [...prev, ...body.messages])
         cursor.current = body.messages[body.messages.length - 1].id
+        if (!oldest.current) oldest.current = body.messages[0].id
       }
+      if (first) setHasMore(body.hasMore)
       setPending(body.pending)
       setError('')
     } catch {
       setError('Can’t reach the agent.')
+    }
+  }, [agentId])
+
+  const loadMore = useCallback(async () => {
+    if (!oldest.current) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(
+        `/api/chat/${agentId}/messages?before=${oldest.current}&limit=${PAGE}`,
+        { cache: 'no-store' },
+      )
+      if (!res.ok) throw new Error(String(res.status))
+      const body = (await res.json()) as { messages: ChatMessage[]; hasMore: boolean }
+      if (body.messages.length) {
+        setMessages((prev) => [...body.messages, ...prev])
+        oldest.current = body.messages[0].id
+      }
+      setHasMore(body.hasMore)
+      setError('')
+    } catch {
+      setError('Can’t load earlier messages.')
+    } finally {
+      setLoadingMore(false)
     }
   }, [agentId])
 
@@ -320,11 +360,13 @@ function useChat(agentId: string, active: boolean) {
   const reset = useCallback(async () => {
     await fetch(`/api/chat/${agentId}/reset`, { method: 'POST' })
     cursor.current = 0
+    oldest.current = 0
     setMessages([])
     setPending(false)
+    setHasMore(false)
   }, [agentId])
 
-  return { messages, pending, error, send, reset, refresh: poll }
+  return { messages, pending, error, hasMore, loadingMore, send, reset, loadMore, refresh: poll }
 }
 
 /**
@@ -522,19 +564,26 @@ function StatusDot({ pending }: { pending: boolean }) {
 }
 
 function Transcript({
-  agent, messages, pending, error, onSuggest, onRefresh, mobile, wallpaper,
+  agent, messages, pending, error, hasMore, loadingMore, onSuggest, onRefresh, onLoadMore,
+  mobile, wallpaper,
 }: {
   agent: Agent
   messages: ChatMessage[]
   pending: boolean
   error: string
+  hasMore: boolean
+  loadingMore: boolean
   onSuggest: (s: string) => void
   onRefresh: () => Promise<void>
+  onLoadMore: () => Promise<void>
   mobile?: boolean
   wallpaper: ChatWallpaperId
 }) {
   const box = useRef<HTMLDivElement>(null)
   const pullStart = useRef<number | null>(null)
+  // Height before an older page is prepended, so the layout effect below can
+  // hold the reader's place instead of letting the new bubbles push it down.
+  const anchor = useRef<number | null>(null)
   // Stay pinned to the newest message, but never yank the user back down while
   // they are scrolled up reading history.
   const pinned = useRef(true)
@@ -562,9 +611,21 @@ function Transcript({
   // Layout effect, not effect: the jump happens before paint, so a reload opens
   // at the bottom instead of flashing the top of the transcript first.
   useLayoutEffect(() => {
-    if (pinned.current) toBottom()
-    if (box.current) updateEdges(box.current)
+    const el = box.current
+    if (el && anchor.current !== null) {
+      el.scrollTop += el.scrollHeight - anchor.current
+      anchor.current = null
+    } else if (pinned.current) {
+      toBottom()
+    }
+    if (el) updateEdges(el)
   }, [messages.length, pending, toBottom, updateEdges])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return
+    anchor.current = box.current?.scrollHeight ?? 0
+    await onLoadMore()
+  }, [loadingMore, onLoadMore])
 
   const finishPull = useCallback(async () => {
     pullStart.current = null
@@ -607,6 +668,17 @@ function Transcript({
       className="font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background p-4"
       style={chatWallpaperStyle(wallpaper)}
     >
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => { void loadMore() }}
+          disabled={loadingMore}
+          className="mx-auto cursor-pointer rounded-full border border-lps-edge bg-card px-3 py-1.5 text-[12px] font-semibold text-primary hover:bg-secondary disabled:cursor-default disabled:opacity-60"
+        >
+          {loadingMore ? 'Loading…' : 'Load earlier messages'}
+        </button>
+      )}
+
       {messages.length === 0 && !pending && (
         <div className="m-auto max-w-[260px] text-center text-[14px] leading-[1.4] text-muted-foreground">
           <Image src={agent.avatar} alt="" width={56} height={56} className="mx-auto mb-3 rounded-full" />
@@ -935,8 +1007,13 @@ export function AgentChat({
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORE)
-      const saved = raw ? (JSON.parse(raw) as { open?: boolean; width?: number }) : null
+      const saved = raw
+        ? (JSON.parse(raw) as { open?: boolean; width?: number; agent?: string })
+        : null
       setOpen(saved?.open ?? window.innerWidth >= 1180)
+      // Every page mounts its own Shell, so without this the panel would drop
+      // back to the first agent on each navigation or refresh.
+      if (saved?.agent && CHAT_AGENTS.some((a) => a.id === saved.agent)) setAgentId(saved.agent)
       if (saved?.width) {
         // Migrate the previous Full preset (viewport minus rail + 240px peek)
         // into the new true-Full layout instead of restoring it as an arbitrary
@@ -958,8 +1035,8 @@ export function AgentChat({
 
   useEffect(() => {
     if (!hydrated.current) return
-    window.localStorage.setItem(STORE, JSON.stringify({ open, width }))
-  }, [open, width])
+    window.localStorage.setItem(STORE, JSON.stringify({ open, width, agent: agentId }))
+  }, [open, width, agentId])
 
   useEffect(() => {
     if (isMobile) return
@@ -1046,6 +1123,28 @@ export function AgentChat({
           </span>
         </div>
       )}
+      {/* The other agents, so the docked panel can switch without being closed
+          back to the rail. Mobile switches from its own Agents list instead. */}
+      {!big && (
+        <div className="flex flex-none items-center gap-1.5">
+          {AGENTS.filter((a) => a.id !== agent.id).map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              disabled={a.upcoming}
+              onClick={() => setAgentId(a.id)}
+              aria-label={`Switch to ${a.name}`}
+              title={a.upcoming ? `${a.name} · Coming soon` : `Switch to ${a.name} · ${a.role}`}
+              className={cn(
+                'flex size-[22px] flex-none border-none bg-transparent p-0',
+                a.upcoming ? 'cursor-not-allowed opacity-35' : 'cursor-pointer opacity-55 hover:opacity-100',
+              )}
+            >
+              <Image src={a.avatar} alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 
@@ -1065,8 +1164,11 @@ export function AgentChat({
           messages={chat.messages}
           pending={chat.pending}
           error={chat.error}
+          hasMore={chat.hasMore}
+          loadingMore={chat.loadingMore}
           onSuggest={setDraft}
           onRefresh={chat.refresh}
+          onLoadMore={chat.loadMore}
           mobile
           wallpaper={appearance.wallpaper}
         />
@@ -1192,8 +1294,11 @@ export function AgentChat({
         messages={chat.messages}
         pending={chat.pending}
         error={chat.error}
+        hasMore={chat.hasMore}
+        loadingMore={chat.loadingMore}
         onSuggest={setDraft}
         onRefresh={chat.refresh}
+        onLoadMore={chat.loadMore}
         wallpaper={appearance.wallpaper}
       />
       <Composer agent={agent} composer={composer} onSend={send} draft={draft} setDraft={setDraft} />

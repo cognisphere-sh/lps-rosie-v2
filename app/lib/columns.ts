@@ -46,7 +46,7 @@ export interface ColumnDef {
   /** For kind="select": the values the dropdown offers. Blank always clears. */
   options?: string[]
   /** Table + column this cell writes to when edited. */
-  writes?: { table: 'suppliers' | 'inventory'; column: string }
+  writes?: { table: 'suppliers' | 'inventory' | 'customers'; column: string }
 }
 
 /** `suppliers.availability_source_type` — how a supplier's list reaches us. */
@@ -226,16 +226,51 @@ export function plantEditPatch(
   return patch
 }
 
-export type TableId = 'suppliers' | 'plantMaster' | 'plants'
+// Customers — one row per person or company who has asked for plants.
+//
+// The two request figures are computed in the browser from the rollup each
+// customer already carries, so they need no column of their own in the
+// database. The two order figures have no source at all yet: order tables are
+// deferred (migration 0055), and the columns are drawn empty rather than
+// filled with a request figure wearing an order's name.
+export const CUSTOMER_COLS: ColumnDef[] = [
+  // A link cell opens the row; it has no second gesture to spare for editing,
+  // so the name is corrected on the customer's own page.
+  { key: 'name', label: 'Name', width: 190, kind: 'link' },
+  { key: 'company', label: 'Company', width: 170, edit: true, writes: { table: 'customers', column: 'company' } },
+  { key: 'email', label: 'Email', width: 210, edit: true, writes: { table: 'customers', column: 'email' } },
+  { key: 'phone', label: 'Phone', width: 145, edit: true, writes: { table: 'customers', column: 'phone' } },
+  { key: 'active_requests', label: 'Active requests', width: 132, align: 'right', num: true, filter: 'range' },
+  { key: 'active_request_value', label: 'Active request value', width: 160, align: 'right', money: true, filter: 'range' },
+  // Neither carries `num`/`money`: they hold an em dash, not a number, and a
+  // money cell with nothing in it reads "Price unavailable", which is a
+  // different claim from "orders do not exist yet".
+  { key: 'order_count', label: 'Orders', width: 104, align: 'right', filter: 'none' },
+  { key: 'order_value', label: 'Total order value', width: 155, align: 'right', filter: 'none' },
+  { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'customers', column: 'city' } },
+  { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'customers', column: 'state' } },
+  { key: 'address', label: 'Street', width: 210, edit: true, writes: { table: 'customers', column: 'address' } },
+  { key: 'zip', label: 'ZIP', width: 96, edit: true, writes: { table: 'customers', column: 'zip' } },
+  // `notes` = durable facts, edited in place. The append-only contact log is
+  // not a column here: it is a thread, and a table cell cannot append to one.
+  { key: 'notes', label: 'Notes', width: 230, edit: true, writes: { table: 'customers', column: 'notes' } },
+  { key: 'created_at', label: 'Added', width: 130, filter: 'none' },
+  { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },
+]
+export const CUSTOMER_HIDDEN = ['address', 'zip', 'notes', 'created_at']
+
+export type TableId = 'suppliers' | 'plantMaster' | 'plants' | 'customers'
 
 export const TABLE_COLS: Record<TableId, ColumnDef[]> = {
   suppliers: SUPPLIER_COLS,
   plantMaster: MASTER_COLS,
   plants: PLANT_COLS,
+  customers: CUSTOMER_COLS,
 }
 
 export const DEFAULT_HIDDEN: Record<TableId, string[]> = {
   suppliers: SUPPLIER_HIDDEN,
   plantMaster: MASTER_HIDDEN,
   plants: PLANT_HIDDEN,
+  customers: CUSTOMER_HIDDEN,
 }

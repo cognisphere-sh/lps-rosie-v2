@@ -49,7 +49,6 @@ export async function GET(req: Request) {
       customerId: list(url.searchParams.get('customer'))
         ?.map(Number)
         .filter(Number.isInteger),
-      needsOnly: url.searchParams.get('needs') === '1',
       createdWithin: days(url.searchParams.get('created')),
       updatedWithin: days(url.searchParams.get('updated')),
     }

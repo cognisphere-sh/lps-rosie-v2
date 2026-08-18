@@ -184,7 +184,7 @@ export interface PhotoCard {
  * One note on a job request or line item, as the notes popover renders it.
  *
  * The database keeps three note columns rather than a thread table
- * (`customer_notes` / `internal_notes` / `external_notes`), so a "thread" here
+ * (`customer_notes` / `sourcing_notes` / `external_notes`), so a "thread" here
  * is those columns split into their timestamped entries — see `noteEntries` in
  * lib/queries.ts. `kind` is what decides who may see it: `internal` never
  * reaches a customer-facing surface.
@@ -222,7 +222,6 @@ export interface JobRequestItem {
   /** Generated in the database as quantity × unit_price — never written. */
   total: number | null
   status: string
-  needsAttention: boolean
   notes: JobNote[]
   /**
    * Raw `customer_notes` — what the customer said about *this line*, shown
@@ -231,6 +230,8 @@ export interface JobRequestItem {
   customerNotes: string | null
   /** Raw `external_notes`, for the editor — `notes` is the parsed view of it. */
   externalNotes: string | null
+  /** Raw `sourcing_notes` — free text, edited in place. Never parsed. */
+  sourcingNotes: string | null
   updatedAt: string | null
 }
 
@@ -246,8 +247,9 @@ export type StatusCounts = Record<string, number>
  */
 export interface JobRequestRow {
   id: number
+  /** What the job is called. NULL = unnamed; the card falls back to `JR-<id>`. */
+  name: string | null
   status: string
-  needsAttention: boolean
   customer: { id: number; name: string; company: string | null; email: string | null; phone: string | null } | null
   billing: JobAddress
   shipping: JobAddress
@@ -255,9 +257,9 @@ export interface JobRequestRow {
   notes: JobNote[]
   /** Raw `external_notes`, for the editor — `notes` is the parsed view of it. */
   externalNotes: string | null
+  /** Raw `sourcing_notes` — free text, edited in place. Never parsed. */
+  sourcingNotes: string | null
   itemCount: number
-  /** Items needing attention, by flag or by an unanswered/short quantity. */
-  attentionCount: number
   statusCounts: StatusCounts
   lineTotal: number
   items: JobRequestItem[]
@@ -311,7 +313,6 @@ export interface PhotoFacets {
 export interface CustomerRequest {
   id: number
   status: string
-  needsAttention: boolean
   itemCount: number
   lineTotal: number
   createdAt: string | null

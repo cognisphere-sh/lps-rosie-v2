@@ -28,7 +28,7 @@ export async function patchRow(table: string, id: number, column: string, value:
 /**
  * Add one stamped entry to an append-only note column.
  *
- * The other verb on the same endpoint. `internal_notes` is a log, so the app
+ * The other verb on the same endpoint. `communication_notes` is a log, so the app
  * may add to it but never replace it — the server enforces that, this only asks.
  */
 export async function appendEntry(table: string, id: number, column: string, text: string): Promise<void> {
@@ -227,7 +227,7 @@ export function EditableTextarea({
 /**
  * Write one new entry into an append-only log.
  *
- * Deliberately not an editor: `internal_notes` is the sourcing record, so the
+ * Deliberately not an editor: `communication_notes` is the contact log, so the
  * only thing the app may do to it is add. The stamp is the server's — the
  * browser's clock is not the deployment's timezone.
  */

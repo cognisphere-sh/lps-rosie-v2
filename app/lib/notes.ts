@@ -1,11 +1,11 @@
 /**
  * The deployment's append-only note convention, in one place.
  *
- * Several columns are logs rather than fields — `job_requests.internal_notes`,
- * `job_request_items.internal_notes`, `customers.communication_notes`,
- * `suppliers.communication_notes`. They all follow the same shape, written by
- * the agents' skills and now by this app: entries separated by a blank line,
- * each stamped `[YYYY-MM-DD HH:MM America/Chicago]`.
+ * Two columns are logs rather than fields — `customers.communication_notes`
+ * and `suppliers.communication_notes`. Both follow the same shape, written by
+ * the agents' skills and by this app: entries separated by a blank line, each
+ * stamped `[YYYY-MM-DD HH:MM America/Chicago]`. (The job-request note columns
+ * were this kind of thing until 2026-08-18; `sourcing_notes` is free text now.)
  *
  * Reader and writer live together deliberately. They are two halves of one
  * format, and the only way the parser and the stamper can disagree is if

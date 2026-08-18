@@ -1004,13 +1004,13 @@ const WRITABLE: Record<string, string[]> = {
     'size', 'height', 'width', 'caliper', 'tags', 'caption', 'notes',
   ],
   // Absent on purpose: `customer_notes` is the customer's own words and is
-  // evidence, not a field (docs/supabase-schema.md); `internal_notes` is
-  // append-only and a plain overwrite would destroy the sourcing log — an
-  // append control, not an inline edit, is what that column needs.
-  // `customer_id` is absent too: mapping an anonymous request to a customer is
-  // a find-or-create decision, not a typed correction.
+  // evidence, not a field (docs/supabase-schema.md). `customer_id` is absent
+  // too: mapping an anonymous request to a customer is a find-or-create
+  // decision, not a typed correction.
+  // `sourcing_notes` IS writable — it is a free-text working sheet, kept
+  // current by editing it, and the changelog records every before/after.
   job_requests: [
-    'status', 'needs_attention', 'external_notes',
+    'name', 'status', 'external_notes', 'sourcing_notes',
     'billing_address', 'billing_city', 'billing_state', 'billing_zip',
     'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
   ],
@@ -1018,10 +1018,10 @@ const WRITABLE: Record<string, string[]> = {
   // Postgres outright. Same note rules as the request above.
   job_request_items: [
     'name', 'size', 'quantity', 'available_quantity', 'unit_price',
-    'status', 'needs_attention', 'external_notes',
+    'status', 'external_notes', 'sourcing_notes',
   ],
   // `notes` is durable facts about the customer and is edited in place;
-  // `communication_notes` is absent for the same reason `internal_notes` is —
+  // `communication_notes` is absent for the reason `sourcing_notes` no longer is —
   // it is an append-only contact log, reached through `appendNote`.
   customers: [
     'name', 'company', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes',
@@ -1044,7 +1044,6 @@ const NUMERIC = new Set([
   'unit_price', 'quantity', 'availability_update_days', 'available_quantity',
 ])
 // Checkbox columns arrive as the strings a form produces.
-const BOOLEAN = new Set(['needs_attention'])
 // Array columns arrive as one comma-separated field. Splitting is all this does
 // — `trg_plant_photos_derive_identity` lowercases, trims, dedupes and sorts the
 // result, so there is one definition of what a tag list is and it is the
@@ -1093,11 +1092,6 @@ export async function updateFields(
       continue
     }
 
-    if (BOOLEAN.has(column)) {
-      values[column] = raw === 'true' || raw === '1'
-      continue
-    }
-
     if (ARRAY.has(column)) {
       // `tags` is NOT NULL, so an emptied field is an empty array, not null.
       values[column] = raw.split(',').map((part) => part.trim()).filter(Boolean)
@@ -1140,15 +1134,18 @@ export async function updateFields(
 /**
  * Note columns that are logs rather than fields.
  *
- * `internal_notes` on a request or a line item is the sourcing record, and
  * `customers.communication_notes` is the contact log: entries are stamped and
- * never rewritten (migration 0055). That is why those columns are absent from
- * WRITABLE — an inline edit would overwrite the whole history — and appending
- * is the only way the app adds to them.
+ * never rewritten, because a contact happened at a time and cannot be edited
+ * into not having happened. That is why the column is absent from WRITABLE —
+ * an inline edit would overwrite the whole history — and appending is the only
+ * way the app adds to it.
+ *
+ * `sourcing_notes` (which was `internal_notes` until migration 0061) used to
+ * be here for the same reason. It is a free-text working sheet now — one line
+ * per supplier, kept current by editing it — so it is an ordinary writable
+ * column and the changelog holds its history.
  */
 const APPENDABLE: Record<string, string[]> = {
-  job_requests: ['internal_notes'],
-  job_request_items: ['internal_notes'],
   customers: ['communication_notes'],
 }
 

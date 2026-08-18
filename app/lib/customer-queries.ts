@@ -55,13 +55,12 @@ async function requestsByCustomer(
     id: number
     customer_id: number
     status: string
-    needs_attention: boolean
     created_at: string | null
   }[] = []
   for (let from = 0; ; from += CHUNK) {
     const { data, error } = await supabase
       .from('job_requests')
-      .select('id, customer_id, status, needs_attention, created_at')
+      .select('id, customer_id, status, created_at')
       .in('customer_id', customerIds)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
@@ -101,7 +100,6 @@ async function requestsByCustomer(
     list.push({
       id: r.id,
       status: r.status,
-      needsAttention: r.needs_attention,
       itemCount: acc.lines,
       lineTotal: acc.total,
       createdAt: r.created_at,
@@ -136,6 +134,40 @@ const addressOf = (r: CustomerRecord): JobAddress => ({
   state: r.state,
   zip: r.zip,
 })
+
+function toRow(r: CustomerRecord, requests: CustomerRequest[]): CustomerRow {
+  return {
+    id: r.id,
+    name: r.name,
+    company: r.company,
+    email: r.email,
+    phone: r.phone,
+    address: addressOf(r),
+    notes: r.notes,
+    comms: parseEntries(r.communication_notes),
+    requests,
+    openCount: requests.filter((req) => OPEN_STATUSES.includes(req.status)).length,
+    lineTotal: requests.reduce((sum, req) => sum + req.lineTotal, 0),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }
+}
+
+/** One customer, whole — what their own page is built from. */
+export async function customer(id: number): Promise<CustomerRow | null> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select(COLUMNS)
+    .eq('id', id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw new Error(`customers: ${error.message}`)
+  if (!data) return null
+
+  const record = data as unknown as CustomerRecord
+  const requests = await requestsByCustomer([record.id])
+  return toRow(record, requests.get(record.id) ?? [])
+}
 
 /**
  * One page of customers, each carrying its own job-request rollup.
@@ -178,24 +210,7 @@ export async function listCustomers(
   const records = (data ?? []) as CustomerRecord[]
   const requestMap = await requestsByCustomer(records.map((r) => r.id))
 
-  const customers: CustomerRow[] = records.map((r) => {
-    const requests = requestMap.get(r.id) ?? []
-    return {
-      id: r.id,
-      name: r.name,
-      company: r.company,
-      email: r.email,
-      phone: r.phone,
-      address: addressOf(r),
-      notes: r.notes,
-      comms: parseEntries(r.communication_notes),
-      requests,
-      openCount: requests.filter((req) => OPEN_STATUSES.includes(req.status)).length,
-      lineTotal: requests.reduce((sum, req) => sum + req.lineTotal, 0),
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }
-  })
+  const customers = records.map((r) => toRow(r, requestMap.get(r.id) ?? []))
 
   const total = count ?? customers.length
   return { customers, total, pageCount: Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE)) }

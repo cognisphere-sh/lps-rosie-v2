@@ -19,6 +19,278 @@ here).
 
 ### Added
 
+- **A customer has their own page.** `/customers/:id` — a details card (contact
+  routes, the four figures, editable Who they are / Address grids, Notes and
+  the append-only contact log) with **Requests** and **Orders** tabs under it.
+  Each request on the Requests tab opens into the same body the Job Requests
+  page draws. Backed by a new `GET /api/customers/:id`. The customer list
+  stopped expanding cards in the same change, and everything the old drawer
+  held is here.
+
+- **Order columns, drawn and empty.** The customers table and the customer page
+  both carry `Orders` and `Total order value`, and the customer page has an
+  Orders tab. All three read `—` and say why: there are no order tables —
+  migration 0055 defers them, with a won request as the hook they will be
+  created from. Chosen over reusing closed-won requests as stand-in orders, so
+  nothing on screen calls a request an order.
+
+- **The chat sidebar pages its history.** Opening a conversation now loads the
+  50 newest messages instead of everything the plugin holds, with a *Load
+  earlier messages* button at the top of the transcript for the previous 50 at
+  a time. `webchat`'s `api/messages` grew `before=<id>` (walk backwards),
+  `limit=<n>` and a `hasMore` flag to serve it; the 2s poll deliberately keeps
+  sending no `limit`, because it carries a delta and a truncated delta loses
+  messages for good. Prepending a page adjusts `scrollTop` by the height it
+  added, so the reader keeps their place. How far back the button reaches is
+  still bounded by the plugin's `historyLimit` (200) — paging reads the same
+  in-memory window, not the transcript file.
+
+- **Switch agents without closing the chat panel.** The docked panel's header
+  now carries the other agents as small avatars — click one and the
+  conversation swaps in place. Until now the only way to reach another agent on
+  desktop was to hide the panel, click their avatar in the collapsed rail, and
+  have it re-open, which meant losing the conversation you were looking at to
+  get to the one you wanted. The rail still works the same way; mobile keeps
+  its Agents list.
+
+### Fixed
+
+- **The status picker is no longer clipped by its own card.** A job card
+  clips its overflow — it has to, for its rounded corners and its
+  sideways-scrolling line table — so the absolutely-positioned status menu was
+  cut off at the card's bottom edge, which is exactly where a request near the
+  foot of the list opens it. The menu is now positioned `fixed`, measured off
+  the pill, flipping above it when it would not fit below, and closing on any
+  scroll underneath it.
+
+- **The open chat panel stays on the agent you picked.** Every page mounts its
+  own `Shell`, so the panel's agent state was rebuilt from scratch on each
+  navigation and refresh and fell back to the first entry in `AGENTS` — you'd
+  be mid-conversation with Rosie, click through to another page, and find Daisy
+  in the header. The selected agent now persists to `localStorage` alongside
+  the panel's open/closed and width, in the same `lps.chat.v1` record.
+
+### Changed
+
+- **The customer list is a table, not a stack of cards.** `/customers` now
+  renders in the same shape Suppliers does — sticky header with per-column
+  sort, filter, resize and drag-to-reorder, a column picker, and the layout
+  persisted — with Name, Company, Email, Phone, **Active requests**, **Active
+  request value**, **Orders**, **Total order value**, City, State, Street, ZIP,
+  Notes, Added and Last updated. The two request figures are summed in the
+  browser from the rollup each customer already carries; the name opens their
+  page. Cards that expand in a list are for scanning a few; a table is for
+  comparing many, and comparing was what the page was being used for.
+
+- **The job card leads with a Demand & Availability panel.** The per-status
+  count pills — which only appeared for statuses that had lines — gave way to a
+  panel carrying Subtotal and Items demanded above a rule, and below it every
+  line status with its **count under its own label**, zeros included. A pill row
+  that hides its empty statuses renders "nothing is unavailable" and "nobody has
+  looked yet" identically, and those are the two things the card is scanned for.
+  The right-hand total/lines stack folded into the same panel.
+
+- **The job card head lost its checkbox.** Selecting every line on a request
+  from the head duplicated what the lines already do, on a card whose whole
+  first row is now about the job. Selection is per line, in the table the card
+  opens; the selection bar is unchanged.
+
+- **Toolbar filter chips select more than one value.** Every chip on Job
+  Requests and Customers is a multi-select: a checkbox per option, an "all" row
+  that clears, and the menu stays open while more are picked. Date-range chips
+  stay single-pick — two ranges back from now are one range. The list APIs
+  already parsed comma-separated sets, so nothing server-side moved.
+
+- **Job Requests opens with Archived unticked.** The Status chip starts on every
+  status but Archived, and *Clear all* returns to that rather than to nothing.
+  Archived is terminal and there are only ever more of them. It is a starting
+  selection, not a rule — ticking Archived brings them back.
+
+- **A request's internal log scrolls instead of running on.** The sourcing log
+  in the Order details drawer is append-only and unbounded, so on a
+  well-worked request it was the block setting the height of the whole note row
+  — the shared note and the customer's words beside it padded out to match, and
+  the line table pushed off screen. It now sits in a 160px scroll box, on both
+  pages that draw the drawer. The other two blocks are untouched.
+
+- **Rosie sources from Austin Plant Supply first, and signs every note she
+  writes.** Two policy changes from Chris, carried in her `1-agent.md` and the
+  three skills that act on them (`job-requests` 1.3.0,
+  `plant-and-supplier-search` 1.1.0, `quote-generation` 1.0.2).
+
+  **The default source.** Austin Plant Supply (`suppliers.id = 1`) is the house
+  yard and its catalogue is already in the database, so a line is priced from
+  their row by Rosie's own look-up — reading inventory was never "contacting a
+  supplier", and going to daisy first for something the database can answer was
+  a round trip for nothing. `job-requests` §5 is now a ladder: their price, else
+  their closest alternative (a neighbouring size, a near cultivar — proposed to
+  the customer with `alternative_proposed` + an `external_notes` explanation),
+  else other suppliers, else `unavailable`. A line that leaves Austin Plant
+  Supply must say in `internal_notes` **why** it left and **whose** price it now
+  carries; when an Austin substitute and another supplier's exact ask both
+  exist, both are recorded and `needs_attention` lets Chris pick. Chris or the
+  customer naming a supplier — or excluding one — overrides the ladder, recorded
+  with who said it. `plant-and-supplier-search` gained the scoped look-up
+  (filter `search_inventory`'s result to supplier 1, and read the whole size
+  range, since the closest size they *do* have is what gets recommended) and had
+  a stale claim corrected in the same pass: the RPC has no `supplier_ids`
+  parameter — scoping and sorting are the caller's.
+
+  **Pricing writes one column.** New `job-requests` §5.1: `unit_price`, from the
+  row sourced. `available_quantity` is **not** Rosie's — how many we can supply
+  is settled by people in the app — and `total` stays generated, i.e. the
+  customer's *asked* quantity times the unit price, which is also what a quoted
+  line is. A `0` in an inventory row is not a price.
+
+  **Notes are signed as well as stamped.** The entry format becomes
+  `[<timestamp>] <Name>: <text>`, the name being whose entry it is: `Rosie` for
+  her own work, `Chris`/`Bhoumik` for what they decided, `Daisy` for what came
+  back from her. It applies to every append-only column she writes — both
+  `internal_notes` and `customers.communication_notes`. The app's appends
+  (`lib/notes.ts`) are unchanged and still carry no name — it resolves the
+  signed-in user in `lib/session.ts` but never threads it into `appendNote` —
+  so an unsigned entry now reads as one a person typed in the UI.
+
+- **"Needs input" is derived from status, not from an empty availability.** A
+  line waits on a person when its `needs_attention` flag is set **or** its
+  status is anything but `available` — a substitution to approve
+  (`alternative_proposed`), a plant we can't get (`unavailable`), or a line
+  nobody has answered yet (`pending`). The previous implicit signal was
+  `available_quantity IS NULL`, and the pricing rule above breaks it: that
+  column is filled by people in the app and never by Rosie, so it says nothing
+  about whether the sourcing landed and would have flagged every line she ever
+  touched. One rule — `needsAttention` in `lib/job-request-queries.ts` — feeds
+  the line pill, the card badge, the header count and the `needs=1` filter
+  (applied in SQL, so a page and its count still describe one set). Rosie's
+  `job-requests` §6 says the matching thing from her side: the status flags
+  itself, so the column is for what the status doesn't say.
+
+- **`internal_notes` is now `sourcing_notes`** on both job-request tables
+  (migration 0061), and **Sourcing note** in the UI — the drawer block, the line
+  table header and the popover. "Internal" said who may read it, which
+  `customer_notes` and `external_notes` already imply by contrast; the new name
+  says what goes in it. Data, column position and history are untouched, and
+  changelog entries written earlier still name `internal_notes`, which is what
+  it was called when they were written. `inventory.internal_notes` is daisy's,
+  means parse caveats on an ingested row, and keeps its name.
+
+- **A customer-facing note names a change; it does not argue for it.**
+  `external_notes` now says only what the customer is being offered —
+  "Substituting 3 G for the 5 G requested", "Quoting 12 rather than 10" — and
+  never the reason, which stays a `sourcing_notes` line. A note that argues its
+  case invites a negotiation about the case; one that states the offer leaves
+  Chris to say more if he wants to. **Sizes are written `XX G`** in both note
+  columns, the way the inventory prints them; only an item's own `size` keeps
+  the customer's verbatim wording. The two notes already written were rewritten
+  to match.
+
+- **Newlines in a note are real newlines.** Rosie had been writing `\n` as two
+  characters — a plain single-quoted `'\n'` in psql is a backslash and an `n`,
+  not a line break — so three sourcing sheets rendered as one long line in the
+  app. The three rows were repaired and the `job-requests` skill now says to use
+  `E'…\n…'`. Nothing in the app changed: the note field already renders real
+  newlines (`whitespace-pre-wrap`), which is how the bug was visible at all.
+
+- **`needs_attention` is gone — the column and every trace of it**
+  (migration 0060). It was the weaker of two ways to say "a person has to look
+  at this"; `status` is the other, and says it in a more specific word.
+  Removed with it: the badges on lines, cards and a customer's request list;
+  the amber row tint; the toolbar's count and filter; the selection bar's
+  **Flag for input** / **Clear flag**; the `needs=1` API parameter and the
+  `needsOnly` filter; the sort that floated flagged requests to the top;
+  `attentionCount` and `summary.attention`; the column's entries in the PATCH
+  whitelist and the boolean coercion that existed only for it; the two partial
+  indexes over it from 0055 (dropped with the column by Postgres); Rosie's
+  `job-requests` §6 and her prompt's "set the flag" instruction; and the
+  Job Requests chat starter that asked which requests need attention. What
+  says a line needs a person now is its **status** —
+  `alternative_proposed`, `unavailable`, `pending`, against `available`, which
+  needs no one — and `internal_notes` says why. Both tables were empty, so
+  nothing was lost. `job-requests` skill at 1.5.0; Statuses and Contacting the
+  customer renumber to §6 and §7.
+
+- **The "Needs input" badge is gone from every row.** The pill on a line, the
+  badge on a request card, the copy of it on a customer's request list, and the
+  amber row tint all went. They were drawn when "waiting on somebody" meant an
+  unanswered availability and marked a handful of rows; under the status rule
+  above they marked every line that is not `available` — which is every line
+  still being worked, so the marker stopped distinguishing anything, and the
+  status pill next to it already said the same thing in a more specific word.
+  The row tint went with them, because it had begun overriding the status
+  colours it sat on top of. What remains: the toolbar's **Needs input · N**
+  count and filter, the selection bar's **Flag for input** / **Clear flag** over
+  selected lines, and the `needs_attention` column itself, which Rosie still
+  sets with a reason. The per-request toggle went with the badge that carried
+  it, so a request-level flag is now set from the selection bar or by Rosie,
+  not from the card head.
+
+- **A popover closes when anything outside it is clicked**, including another
+  popover. `useOutsideClose` tested whether the click had landed inside *any*
+  `[data-menu]`/`[data-pop]`, so opening a second note or status picker left the
+  first one open behind it. It now returns a ref for the popover's own
+  container and closes on a mousedown outside *that* node; every caller (the
+  note and status popovers, the toolbar chips, the column and filter menus)
+  attaches it. A caller that doesn't keeps the old behaviour rather than closing
+  on its own clicks.
+
+- **`internal_notes` is free text, edited in place — no longer an append-only
+  log.** What the column is actually for is a working sheet: a terse line per
+  supplier on a line item (`APS: $26/unit, availability requested`,
+  `Acosta: $50/unit, confirmed available`), *kept current*, so a supplier's
+  answer rewrites their line instead of adding a second entry under it. Free
+  text is welcome and nothing enforces the shape. At request level it is
+  narrower still — only what changed about the job (`Delivery date 8/22 →
+  8/29`); a line's sourcing detail belongs on the line. Both are ordinary
+  writable columns now, edited as a textarea (the drawer's Internal note block,
+  and each line's Internal note popover, which previews the last line and counts
+  the rest). `customers.communication_notes` is untouched and is the last
+  append-only column in the app — a contact happened at a time and cannot be
+  edited into not having happened — so the stamped-and-signed entry format
+  applies there alone. The history `internal_notes` used to carry itself was
+  always in `job_request_changelog`, which records the before and after of every
+  write regardless of who made it.
+
+### Added
+
+- **A job request has a name** (migration 0059 — `job_requests.name`, nullable
+  text). A request was addressable only as `JR-<id>` and by whose it is, which
+  is enough to look one up and not enough to recognize one: a customer with
+  three open requests gave three identical-looking card heads. The name is the
+  handle people already use — "Riverbend patio planting" — written by Rosie at
+  intake and editable from the card head. Nullable and never generated: an
+  unnamed request shows nothing there, because `JR-<id>` beside it is already
+  its name, and "Request 12" would read as though somebody had named it.
+
+- **A customer's requests open in place, on `/customers`.** An expanded
+  customer card now leads with its *Job requests*: the customer's own record —
+  name, company, contact routes, address, notes and contact log — moved behind a
+  **Customer details** drawer, shut by default with a one-line summary of what
+  it holds, the same second-level chevron a request card keeps its particulars
+  behind. A customer is opened to see what they have asked for; their record is
+  read when it is being edited.
+
+  Each line in the *Job requests* block now has a chevron of its own, and
+  opening it draws the request exactly as `/requests` draws it — the Order details drawer
+  (shipping, billing, the three note blocks), the editable line-item table and
+  the Change history — so the question "what did they actually ask for?" is
+  answered where it is asked, without changing page and searching for the
+  customer again.
+
+  The expanded card was ~700 lines living in `app/requests/page.tsx`; it is now
+  `components/workspace/job-request.tsx`, whose `RequestBody` both pages render.
+  Line selection is the one thing that varies: it is a prop, and without it the
+  select column is not drawn at all — `/customers` has no bar to act on a
+  selection, and a checkbox nothing can act on would be a lie. Nothing about
+  `/requests` changed on screen.
+
+  The request itself is fetched only when a line is opened, through a new
+  `GET /api/requests/:id` (`jobRequest()` in `lib/job-request-queries.ts`, which
+  now shares its record → row mapping with the list read). The customers payload
+  is untouched: it still carries only the rollup each line shows, so a card
+  costs nothing extra until a request on it is actually opened. Writes made
+  inside an opened request refetch it along with the customer list, since the
+  totals and counts on both are derived.
+
 - **Rosie is live in the web app's chat panel**, alongside Daisy and Nova. Her
   `webchat` plugin was already configured and running on the harness side
   (`threadId: main`) since she was created; the only thing holding the panel
@@ -238,6 +510,12 @@ here).
     did before: `head_branch_id` never chains and a lone supplier is its own
     head, so "this company" and "this farm" are the same code path with a
     different id list.
+
+### Removed
+
+- **JR-14 is deleted.** "16202 Oak Grove Rd landscaping, Aug 25 delivery" and
+  its 11 line items, removed at the owner's request; the changelog rows went
+  with them on the foreign key's cascade.
 
 ## 2026-08-17
 

@@ -16,19 +16,34 @@ import { cn } from '@/lib/utils'
 export const badgeFor = (category: string) =>
   category === 'Grower' ? 'secondary' : category === 'Wholesaler' ? 'default' : 'outline'
 
-/** Close a popover when the pointer goes down outside any `[data-menu]`. */
-export function useOutsideClose(open: boolean, close: () => void) {
+/**
+ * Close a popover when the pointer goes down outside it.
+ *
+ * Returns a ref to put on the popover's own container. "Outside" means outside
+ * *that* node — a click inside a different popover counts, which is what makes
+ * opening one close the others. The editors a popover holds are inside it, so
+ * a mousedown into a textarea still doesn't close the thing containing it.
+ */
+export function useOutsideClose<T extends HTMLElement = HTMLDivElement>(
+  open: boolean,
+  close: () => void,
+) {
+  const ref = useRef<T>(null)
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      // `[data-pop]` as well as `[data-menu]`: the job-request popovers hold
-      // editors, and a mousedown into a textarea must not close the thing that
-      // contains it. Same pair the Order Requests design listens for.
-      if (!(e.target as HTMLElement).closest('[data-menu],[data-pop]')) close()
+      const target = e.target as HTMLElement
+      // Unattached ref: a caller that hasn't adopted it yet keeps the old
+      // "outside every popover" test rather than closing on its own clicks.
+      const inside = ref.current
+        ? ref.current.contains(target)
+        : !!target.closest('[data-menu],[data-pop]')
+      if (!inside) close()
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open, close])
+  return ref
 }
 
 const checkRow = (on: boolean) =>
@@ -61,10 +76,10 @@ export function ColumnPicker({
   size?: 'sm' | 'md'
 }) {
   const [open, setOpen] = useState(false)
-  useOutsideClose(open, () => setOpen(false))
+  const pop = useOutsideClose(open, () => setOpen(false))
 
   return (
-    <div data-menu className="relative">
+    <div ref={pop} data-menu className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -124,14 +139,14 @@ export function MultiFilter({
 }) {
   const [open, setOpen] = useState(false)
   const [needle, setNeedle] = useState('')
-  useOutsideClose(open, () => setOpen(false))
+  const pop = useOutsideClose(open, () => setOpen(false))
 
   const shown = needle
     ? options.filter((o) => o.toLowerCase().includes(needle.toLowerCase()))
     : options
 
   return (
-    <div data-menu className="relative w-full">
+    <div ref={pop} data-menu className="relative w-full">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -208,7 +223,7 @@ export function FilterControl({
 }) {
   const [multiOpen, setMultiOpen] = useState(false)
   const [needle, setNeedle] = useState('')
-  useOutsideClose(multiOpen, () => setMultiOpen(false))
+  const pop = useOutsideClose(multiOpen, () => setMultiOpen(false))
 
   const kind = col.filter ?? 'text'
   const selected = Array.isArray(value) ? value : []
@@ -258,7 +273,7 @@ export function FilterControl({
     : options
 
   return (
-    <div data-menu className="relative">
+    <div ref={pop} data-menu className="relative">
       <button
         type="button"
         onClick={() => setMultiOpen((v) => !v)}

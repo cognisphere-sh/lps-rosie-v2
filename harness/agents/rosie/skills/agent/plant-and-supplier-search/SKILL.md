@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs and their filters, the never-call-with-an-empty-search rule and listing from inventory instead, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name with name derived) and how plant_aliases edges reach it, how to relax filters and reword terms when there are no results, answering a geographic question from farm/region evidence rather than the supplier's HQ state, the key-column rules for any fallback query (never match names with = on raw text), and the shape of a good answer. These are daisy's tables — read-only for you; what you learn goes into a job request's internal_notes, and a data problem gets reported to daisy, not fixed. Use when Chris, Bhoumik or a thread asks "who has <plant>", "what does <supplier> carry", or any price/availability question against the database — including your own sourcing look-ups before asking daisy. (v1.0.0)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs (search + fuzzy_ratio only — scoping and sorting are the caller's, over the result), scoping a sourcing look-up to Austin Plant Supply (supplier 1, the default source) and when to widen past it, the never-call-with-an-empty-search rule, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name, name derived) and how plant_aliases edges reach it, relaxing filters and rewording when nothing comes back, answering a geographic question from farm/region evidence rather than the supplier's HQ state, the key-column rules for any fallback query (never match names with = on raw text), and the shape of a good answer. These are daisy's tables — read-only for you; findings go into a job request's sourcing_notes and data problems get reported to daisy, not fixed. Use for any price/availability question against the database. (v1.1.1)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.1.1"
 ---
 
 # Looking up a plant or supplier
@@ -11,7 +11,7 @@ metadata:
 Read `knowledge/files/SCHEMA.md` before writing any query.
 
 **These are daisy's tables and you only read them.** A sourcing look-up's
-findings go into the job-request item's `internal_notes` (see `job-requests`);
+findings go into the job-request item's `sourcing_notes` (see `job-requests`);
 anything that looks wrong in the data — a bad alias pair, a stale price — gets
 reported to daisy by agent-message, never fixed by you.
 
@@ -19,11 +19,35 @@ reported to daisy by agent-message, never fixed by you.
 
 Prefer **`search_inventory`** for plants and **`search_suppliers`** for
 suppliers. They handle other/common names via the alias graph, partial matching
-and typos — a `LIKE` query does not. Set the filters (`supplier_ids`, sort) from
-what was actually asked.
+and typos — a `LIKE` query does not. `search_inventory` takes only `search` and
+`fuzzy_ratio`; **scoping and sorting are yours**, applied as SQL over its
+result.
 
 An empty `search` returns **nothing** — there is nothing to rank. To *list*
 rather than *search*, select from `inventory` with an `ORDER BY` and a `LIMIT`.
+
+### Scope a sourcing look-up to Austin Plant Supply
+
+A look-up done for a job request starts at **Austin Plant Supply**
+(`suppliers.id = 1`) — the house yard and the default source (`job-requests`
+§5). Scope it by filtering the result:
+
+```sql
+SELECT supplier_name, name, size, size_std, unit_price, quantity, relevance
+FROM search_inventory('live oak 30 g')
+WHERE supplier_id = 1
+ORDER BY relevance DESC, unit_price;
+```
+
+The RPC already excludes inactive rows and retired sources, so a supplier
+filter is all you add. Read the whole size range that comes back, not just the
+size asked for — when they don't have the ask, the closest thing they *do* have
+is what the ladder's next rung recommends.
+
+Widen past supplier 1 only on the ladder's terms — Austin Plant Supply has
+neither the ask nor a close alternative, or Chris or the customer named another
+supplier. A question that was never about a job request ("who has Muskogee?")
+is not scoped at all.
 
 ### How it matches and ranks
 

@@ -1,263 +1,74 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import {
-  AppendNote, EditableText, EditableTextarea, type EditProps,
-} from '@/components/workspace/editable'
-import { ChevronDown, ChevronRight, MailIcon, MapPinIcon, PhoneIcon } from '@/components/workspace/icons'
-import { Shell } from '@/components/workspace/shell'
+import { patchRow } from '@/components/workspace/editable'
+import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
+import { Cell, ColumnHead, ColumnPicker } from '@/components/workspace/table-parts'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
+import { CUSTOMER_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate, money } from '@/lib/format'
-import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/lib/job-requests'
-import { shortStamp } from '@/lib/notes'
-import type { CustomerFacets, CustomerRequest, CustomerRow, JobAddress } from '@/lib/rows'
+import type { CellValue, CustomerFacets, CustomerRow } from '@/lib/rows'
+import { applyFilters, compareOptions, optionsFor, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
-import { cn } from '@/lib/utils'
 
 const EMPTY_FACETS: CustomerFacets = { state: [] }
 
-/** "1240 SE Ankeny St · Portland, OR · 97214" for the collapsed card. */
-const addressLine = (a: JobAddress) =>
-  [a.address, [a.city, a.state].filter(Boolean).join(', '), a.zip].filter(Boolean).join(' · ')
+/** Holds the column picker, as on Suppliers. */
+const ACTIONS_W = 16 + 26
 
-/** One labelled, editable field. */
-function Field({
-  label,
-  ...props
-}: EditProps & { label: string; value: string | number | null; placeholder?: string }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
-        {label}
-      </span>
-      <EditableText {...props} />
-    </div>
-  )
+/** Statuses that mean a request is still live — what "active" counts. */
+const ACTIVE_STATUSES = ['sourcing', 'quoted']
+
+/** One table row, as the shared `Cell` wants it: an id and a bag of values. */
+interface Row {
+  id: number
+  values: Record<string, CellValue>
 }
 
-/** One titled block in the expanded card. */
-function Block({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </div>
-  )
-}
-
-/** One of the customer's requests, as a line in their card. */
-function RequestLine({ request }: { request: CustomerRequest }) {
-  const tone = requestStatusTone(request.status)
-  return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-lps-hair py-1.5 last:border-b-0">
-      <span className="flex-none text-[12.5px] font-bold tracking-tight text-primary">
-        {requestRef(request.id)}
-      </span>
-      <span
-        className="flex-none whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold"
-        style={toneStyle(tone)}
-      >
-        {requestStatusLabel(request.status)}
-      </span>
-      {request.needsAttention && (
-        <span className="flex-none whitespace-nowrap rounded-full bg-lps-warn-bg px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-lps-warn-fg">
-          Needs input
-        </span>
-      )}
-      <span className="text-[11.5px] text-muted-foreground">
-        {request.itemCount} {request.itemCount === 1 ? 'line' : 'lines'}
-      </span>
-      <span className="ml-auto flex-none whitespace-nowrap text-[12px] font-semibold tabular-nums text-foreground">
-        {money(request.lineTotal) || '$0.00'}
-      </span>
-      <span className="flex-none whitespace-nowrap text-[10.5px] text-lps-dim">
-        {formatDate(request.createdAt)}
-      </span>
-    </div>
-  )
-}
-
-function CustomerCard({
-  customer,
-  expanded,
-  onToggle,
-  onSaved,
-}: {
-  customer: CustomerRow
-  expanded: boolean
-  onToggle: () => void
-  onSaved: () => void
-}) {
-  const edit = { table: 'customers', id: customer.id, onSaved }
-  const where = addressLine(customer.address)
-  const latest = customer.comms.length ? customer.comms[customer.comms.length - 1] : null
-
-  return (
-    <div className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
-      <div onClick={onToggle} className="flex cursor-pointer flex-col gap-2 px-3.5 py-3 hover:bg-lps-tint">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${customer.name}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle()
-            }}
-            className="flex size-5 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-          <span className="text-[13.5px] font-semibold text-foreground">{customer.name}</span>
-          {customer.company && (
-            <span className="whitespace-nowrap rounded-full bg-secondary px-2 py-0.5 text-[11.5px] font-semibold text-primary">
-              {customer.company}
-            </span>
-          )}
-          <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim">
-            Added {formatDate(customer.createdAt)}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 pl-[30px]">
-          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground">
-            {customer.email && (
-              <span className="inline-flex items-center gap-1">
-                <MailIcon size={12} /> {customer.email}
-              </span>
-            )}
-            {customer.phone && (
-              <span className="inline-flex items-center gap-1">
-                <PhoneIcon size={12} /> {customer.phone}
-              </span>
-            )}
-            {where && (
-              <span className="inline-flex items-center gap-1">
-                <MapPinIcon size={12} /> {where}
-              </span>
-            )}
-            {!customer.email && !customer.phone && !where && (
-              <span className="italic text-lps-dim">No contact route on file</span>
-            )}
-          </span>
-          <div className="flex flex-col items-end gap-px">
-            <span className="whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-foreground">
-              {money(customer.lineTotal) || '$0.00'}
-            </span>
-            <span className="whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-[.05em] text-muted-foreground">
-              {customer.requests.length} {customer.requests.length === 1 ? 'request' : 'requests'}
-              {customer.openCount > 0 && ` · ${customer.openCount} open`}
-            </span>
-          </div>
-        </div>
-
-        {/* The last thing anyone logged, on one line — enough to tell a customer
-            waiting on a reply from one who simply exists. */}
-        {latest && (
-          <div
-            className="flex min-w-0 items-baseline gap-2 border-t border-lps-hair pl-[30px] pt-2"
-            title={latest.text}
-          >
-            <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
-              {latest.text}
-            </span>
-            {latest.stamp && (
-              <span className="ml-auto flex-none whitespace-nowrap text-[10.5px] text-lps-dim">
-                {shortStamp(latest.stamp)}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {expanded && (
-        <div className="flex flex-col gap-3 border-t border-border bg-lps-tint px-3.5 py-3">
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-                Who they are
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <Field {...edit} label="Name" column="name" value={customer.name} placeholder="name" />
-                <Field {...edit} label="Company" column="company" value={customer.company} placeholder="—" />
-                <Field {...edit} label="Email" column="email" value={customer.email} placeholder="—" />
-                <Field {...edit} label="Phone" column="phone" value={customer.phone} placeholder="—" />
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 rounded-xl border border-lps-hair bg-card p-3">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-                Address
-              </span>
-              <Field {...edit} label="Street" column="address" value={customer.address.address} placeholder="street" />
-              <div className="grid grid-cols-[minmax(0,1fr)_64px_84px] gap-2">
-                <Field {...edit} label="City" column="city" value={customer.address.city} placeholder="city" />
-                <Field {...edit} label="State" column="state" value={customer.address.state} placeholder="—" />
-                <Field {...edit} label="ZIP" column="zip" value={customer.address.zip} placeholder="—" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Block label="Notes — durable facts, edited in place">
-              <EditableTextarea
-                {...edit}
-                column="notes"
-                value={customer.notes}
-                placeholder="What is worth knowing about this customer?"
-              />
-            </Block>
-            <Block label="Contact log — append only">
-              {customer.comms.length ? (
-                <div className="flex max-h-[240px] flex-col gap-1.5 overflow-auto">
-                  {customer.comms.map((entry, i) => (
-                    <div key={i} className="flex flex-col gap-1 rounded-xl bg-lps-bubble p-2.5">
-                      {entry.stamp && (
-                        <span className="text-[10.5px] text-muted-foreground">{entry.stamp}</span>
-                      )}
-                      <p className="m-0 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground">
-                        {entry.text}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="px-1 text-[12px] text-lps-dim">Nothing logged yet.</span>
-              )}
-              <AppendNote
-                table="customers"
-                id={customer.id}
-                column="communication_notes"
-                onSaved={onSaved}
-                placeholder="Who reached out, and what was said?"
-              />
-            </Block>
-          </div>
-
-          <Block label={`Job requests — ${customer.requests.length} active`}>
-            {customer.requests.length ? (
-              <div className="flex flex-col">
-                {customer.requests.map((r) => (
-                  <RequestLine key={r.id} request={r} />
-                ))}
-              </div>
-            ) : (
-              <span className="px-1 text-[12px] text-lps-dim">
-                No active requests. Rosie files them as they come in.
-              </span>
-            )}
-          </Block>
-        </div>
-      )}
-    </div>
-  )
+/**
+ * A customer as a row.
+ *
+ * The two request figures are summed here rather than server-side: the rollup
+ * that comes with a customer already lists every active request with its own
+ * total, so the browser has everything it needs and the API keeps one shape.
+ * The two order figures are an em dash on purpose — order tables are deferred
+ * (migration 0055), so the columns exist and say nothing rather than quietly
+ * showing a request figure under an order's name.
+ */
+function toRow(c: CustomerRow): Row {
+  const active = c.requests.filter((r) => ACTIVE_STATUSES.includes(r.status))
+  return {
+    id: c.id,
+    values: {
+      name: c.name,
+      company: c.company,
+      email: c.email,
+      phone: c.phone,
+      active_requests: active.length,
+      active_request_value: active.reduce((sum, r) => sum + r.lineTotal, 0),
+      order_count: '—',
+      order_value: '—',
+      address: c.address.address,
+      city: c.address.city,
+      state: c.address.state,
+      zip: c.address.zip,
+      notes: c.notes,
+      created_at: c.createdAt,
+      updated: c.updatedAt,
+    },
+  }
 }
 
 export default function CustomersPage() {
+  const router = useRouter()
+  const isMobile = useIsMobile()
+  const toast = useToast()
+  const cfg = useTableConfig('customers')
+
   const [query, setQuery] = useState('')
-  const [state, setState] = useState('all')
+  const [state, setState] = useState<string[]>([])
   const [withRequests, setWithRequests] = useState(false)
   const [page, setPage] = useState(1)
 
@@ -268,14 +79,12 @@ export default function CustomersPage() {
   const [error, setError] = useState('')
   const [facets, setFacets] = useState<CustomerFacets>(EMPTY_FACETS)
   const [summary, setSummary] = useState({ customers: 0, withRequests: 0 })
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  /** Bumped after a write, to refetch the page and everything derived from it. */
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
 
   const serverQuery = useMemo(() => {
     const p = new URLSearchParams()
-    if (state !== 'all') p.set('state', state)
+    if (state.length) p.set('state', state.join(','))
     if (withRequests) p.set('requests', '1')
     return p.toString()
   }, [state, withRequests])
@@ -337,33 +146,66 @@ export default function CustomersPage() {
     }
   }, [debounced, debouncedFilters, page, reloads])
 
-  const toggle = useCallback((id: number) => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
+  const rows = useMemo(() => customers.map(toRow), [customers])
 
-  const allExpanded = customers.length > 0 && customers.every((c) => expanded.has(c.id))
+  // The column header's sort and filters run over the page in view, not over
+  // the whole table: two of the columns are summed in the browser and have no
+  // database column to order on. The search box, the State chip and the
+  // active-requests toggle are the filters that reach the server.
+  const visible = useMemo(
+    () => applyFilters(rows, cfg.filters, cfg.sort),
+    [rows, cfg.filters, cfg.sort],
+  )
+
+  const saveCell = useCallback(
+    async (row: Row, col: ColumnDef, next: string) => {
+      if (!col.writes) return
+      try {
+        await patchRow(col.writes.table, row.id, col.writes.column, next)
+      } catch (e) {
+        toast((e as Error).message)
+        return
+      }
+      // Refetch rather than patching in place: `name` and the address parts are
+      // plain columns, but the page is ordered by name on the server.
+      reload()
+      toast(`${col.label} updated`)
+    },
+    [toast, reload],
+  )
+
+  const optionList = useCallback(
+    (key: string) =>
+      (key === 'state' ? [...facets.state] : optionsFor(rows, key)).sort(compareOptions(key)),
+    [facets.state, rows],
+  )
 
   const chips: Chip[] = [
-    { label: 'State', value: state, options: facets.state, onChange: setState, allLabel: 'All states' },
+    { label: 'State', values: state, options: facets.state, onChange: setState, allLabel: 'All states' },
   ]
 
-  const hasFilters = state !== 'all' || withRequests || query !== ''
+  const hasFilters =
+    state.length > 0 || withRequests || query !== '' || Object.keys(cfg.filters).length > 0
   const clearAll = () => {
     setQuery('')
-    setState('all')
+    setState([])
     setWithRequests(false)
+    cfg.clearFilters()
   }
+
+  const cellValue = (row: Row, col: ColumnDef): CellValue =>
+    col.key === 'created_at' || col.key === 'updated'
+      ? formatDate(row.values[col.key] as string | null)
+      : row.values[col.key] ?? null
+
+  const tableWidth = ACTIONS_W + cfg.visible.reduce((n, c) => n + cfg.widthOf(c), 0)
 
   return (
     <Shell
       page="customers"
       title="Customers"
       subtitle={`${summary.customers} ${summary.customers === 1 ? 'customer' : 'customers'} · ${summary.withRequests} with active requests`}
+      hideHeaderOnMobile
       toolbar={
         <Toolbar
           placeholder="Search name, company, email, phone…"
@@ -372,69 +214,157 @@ export default function CustomersPage() {
           chips={chips}
           hasFilters={hasFilters}
           onClear={clearAll}
-          summary={`${total} ${total === 1 ? 'customer' : 'customers'}`}
+          summary={
+            busy || !settled ? 'Searching…' : `${total} ${total === 1 ? 'customer' : 'customers'}`
+          }
           pagination={{ page, pageCount, onPage: setPage, busy }}
           controls={
-            <>
-              <button
-                type="button"
-                onClick={() => setWithRequests((v) => !v)}
-                className={cn(
-                  'cursor-pointer rounded-full border px-[11px] py-[5px] text-[12px] font-semibold',
-                  withRequests
-                    ? 'border-primary bg-secondary text-primary'
-                    : 'border-border bg-card text-muted-foreground',
-                )}
-              >
-                With requests · {summary.withRequests}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setExpanded(allExpanded ? new Set() : new Set(customers.map((c) => c.id)))
-                }
-                className="cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground"
-              >
-                {allExpanded ? 'Collapse all' : 'Expand all'}
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => setWithRequests((v) => !v)}
+              className={
+                withRequests
+                  ? 'cursor-pointer rounded-full border border-primary bg-secondary px-[11px] py-[5px] text-[12px] font-semibold text-primary'
+                  : 'cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground'
+              }
+            >
+              With requests · {summary.withRequests}
+            </button>
           }
         />
       }
     >
-      {/* The Shell hands its children a fixed, overflow-hidden box, so this is
-          the scroll container — see the same note on Job Requests. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
-        {error && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
-            {error}
+      {error && (
+        <div className="mx-4 mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+          {error}
+        </div>
+      )}
+
+      {isMobile ? (
+        // A table does not fit a phone, so each customer is a card that opens
+        // their page — the same trade the Suppliers list makes.
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5">
+          {visible.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => router.push(`/customers/${row.id}`)}
+              className="flex w-full cursor-pointer flex-col gap-2 rounded-xl border border-border bg-card p-3.5 text-left"
+            >
+              <div className="flex items-start justify-between gap-2.5">
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-bold leading-tight">
+                    {String(row.values.name ?? '')}
+                  </div>
+                  <div className="text-[11.5px] text-muted-foreground">
+                    {String(row.values.company ?? '') ||
+                      [row.values.city, row.values.state].filter(Boolean).join(', ') ||
+                      'No company or address on file'}
+                  </div>
+                </div>
+                <div className="flex flex-none flex-col items-end gap-[3px] text-right">
+                  <div className="text-[15px] font-bold tabular-nums">
+                    {money(row.values.active_request_value) || '$0.00'}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {Number(row.values.active_requests ?? 0)} active
+                  </div>
+                </div>
+              </div>
+              <span className="text-[12.5px] font-semibold text-primary">Open customer →</span>
+            </button>
+          ))}
+          {!busy && visible.length === 0 && (
+            <div className="p-12 text-center text-[13px] text-muted-foreground">
+              Nothing matches these filters.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mx-4 mb-4 mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+          <div className="relative min-h-0 flex-1 overflow-auto">
+            <table
+              className="border-separate"
+              style={{ width: tableWidth, borderSpacing: 0, tableLayout: 'fixed' }}
+            >
+              <thead>
+                <tr>
+                  {cfg.visible.map((col) => (
+                    <th
+                      key={col.key}
+                      className="sticky top-0 z-20 border-b border-border bg-lps-headrow p-[8px_10px] align-top"
+                      style={{ width: cfg.widthOf(col), minWidth: cfg.widthOf(col) }}
+                    >
+                      <ColumnHead
+                        col={col}
+                        width={cfg.widthOf(col)}
+                        sort={cfg.sort}
+                        filters={cfg.filters}
+                        options={optionList(col.key)}
+                        onSort={() => cfg.cycleSort(col.key)}
+                        onFilter={(v) => cfg.setColFilter(col.key, v)}
+                        onResize={(w) => cfg.resizeColumn(col.key, w)}
+                        onMove={(from) => cfg.moveColumn(from, col.key)}
+                      />
+                    </th>
+                  ))}
+                  <th
+                    className="sticky right-0 top-0 z-[22] border-b border-l border-border bg-lps-headrow p-1.5 align-top"
+                    style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
+                  >
+                    <ColumnPicker
+                      title="Columns"
+                      cols={CUSTOMER_COLS}
+                      hidden={cfg.config.hidden}
+                      onToggle={cfg.toggleColumn}
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((row) => (
+                  <tr key={row.id} className="lps-row h-[48px] bg-card transition-colors hover:bg-muted">
+                    {cfg.visible.map((col) => (
+                      <td
+                        key={col.key}
+                        className="relative border-b border-lps-hair p-[5px_4px] align-middle"
+                        style={{
+                          width: cfg.widthOf(col),
+                          minWidth: cfg.widthOf(col),
+                          textAlign: col.align ?? 'left',
+                        }}
+                      >
+                        <Cell
+                          col={col}
+                          rowId={row.id}
+                          value={cellValue(row, col)}
+                          onOpen={
+                            col.kind === 'link' ? () => router.push(`/customers/${row.id}`) : undefined
+                          }
+                          onSave={col.edit ? (next) => saveCell(row, col, next) : undefined}
+                        />
+                      </td>
+                    ))}
+                    <td
+                      className="sticky right-0 z-10 border-b border-l border-lps-hair bg-card p-[4px_6px]"
+                      style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
+                    />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {!busy && visible.length === 0 && (
+              <div className="flex flex-col items-center gap-2 px-5 py-14 text-center">
+                <span className="text-[14px] font-semibold">Nothing matches these filters</span>
+                <span className="text-[12.5px] text-muted-foreground">
+                  Clear a column filter, or search a name, company, email or phone number.
+                </span>
+              </div>
+            )}
           </div>
-        )}
-        {!error && !busy && customers.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <span className="text-[14px] font-semibold text-foreground">
-              {hasFilters ? 'No customers match these filters' : 'No customers yet'}
-            </span>
-            <span className="max-w-[420px] text-[12.5px] text-muted-foreground">
-              {hasFilters
-                ? 'Try clearing the state or search filters.'
-                : 'Customers are created by Rosie during intake, which matches on email, then phone, then name and company — so a request never quietly produces a second copy of someone already on file.'}
-            </span>
-          </div>
-        )}
-        {customers.map((customer) => (
-          <CustomerCard
-            key={customer.id}
-            customer={customer}
-            expanded={expanded.has(customer.id)}
-            onToggle={() => toggle(customer.id)}
-            onSaved={reload}
-          />
-        ))}
-        {(busy || !settled) && customers.length === 0 && (
-          <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
-        )}
-      </div>
+        </div>
+      )}
     </Shell>
   )
 }

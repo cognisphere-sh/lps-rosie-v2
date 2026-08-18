@@ -29,7 +29,9 @@ No secrets.
 |---|---|---|
 | `POST api/upload` | browser | Raw body + `x-file-name` → stores in `inbox/`, returns `{name, label, size, mime}`. |
 | `POST api/send` | browser | `{text, attachments[]}` → records the message and wakes the agent. |
-| `GET api/messages?since=<id>` | browser | `{messages, pending, cursor}`. Polled every 2s while the panel is open. |
+| `GET api/messages?since=<id>` | browser | `{messages, hasMore, pending, cursor}` — everything newer than `<id>`. Polled every 2s while the panel is open. |
+| `GET api/messages?before=<id>` | browser | The page of history *older* than `<id>`, for the panel's "Load earlier messages". |
+| &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
 | `GET api/file?name=<stored>` | browser | The bytes of one attachment (inbox or outbox). |
 | `POST api/reset` | browser | Wipes the thread's context **and** the transcript. |
 | `POST api/reply` | the agent | `{text, attachments[]}` → the reply, and clears `pending`. |
@@ -78,7 +80,9 @@ Three places, each with a different job — the plugin adds **no new database**:
 | What the model sees | `agents/<id>/sessions/<threadId>/<sessionId>.jsonl` — pi's session, shared with Telegram |
 
 The transcript is read into memory once at start; every append writes both, and
-the browser polls memory rather than the file. It is deliberately separate from
+the browser polls memory rather than the file. `historyLimit` therefore also
+bounds how far "Load earlier messages" can walk back — paging reads the same
+in-memory window, not the file. It is deliberately separate from
 the pi session jsonl, which holds tool calls and reasoning and is not a chat log.
 
 ## The "working…" indicator
