@@ -15,6 +15,12 @@ function reorder(keys, fromKey, toKey) {
   return next
 }
 
+function showCaliperInStoredPlants(layouts) {
+  const plants = layouts.plants
+  if (!plants?.hidden.includes('cal')) return layouts
+  return { ...layouts, plants: { ...plants, hidden: plants.hidden.filter((key) => key !== 'cal') } }
+}
+
 const cols = ['a', 'b', 'c', 'd']
 
 // Rightward drop lands after the target, leftward before it.
@@ -43,4 +49,18 @@ for (const from of cols) {
 // Input is never mutated.
 assert.deepEqual(cols, ['a', 'b', 'c', 'd'])
 
-console.log('table-config: reorder ok')
+// The one-time caliper visibility migration removes only the old default-hidden
+// value, retaining every other table and plants preference byte-for-byte.
+const stored = {
+  suppliers: { order: ['state', 'name'], hidden: ['notes'], widths: { name: 300 } },
+  plants: { order: ['size', 'cal'], hidden: ['notes', 'cal'], widths: { cal: 140 } },
+}
+assert.deepEqual(showCaliperInStoredPlants(stored), {
+  suppliers: stored.suppliers,
+  plants: { order: ['size', 'cal'], hidden: ['notes'], widths: { cal: 140 } },
+})
+assert.deepEqual(stored.plants.hidden, ['notes', 'cal'])
+const alreadyVisible = { plants: { order: ['cal'], hidden: ['notes'], widths: {} } }
+assert.equal(showCaliperInStoredPlants(alreadyVisible), alreadyVisible)
+
+console.log('table-config: reorder and caliper migration ok')

@@ -16,6 +16,7 @@ export type ColFilter = string | string[] | { min?: string; max?: string }
 export type ColFilters = Record<string, ColFilter>
 
 const STORAGE_KEY = 'lps.tables.v1'
+const CAL_VISIBLE_MIGRATION_KEY = 'lps.tables.v1.cal-visible'
 const FILTER_VALUE_KEYS = new Map(
   Object.values(TABLE_COLS)
     .flat()
@@ -54,10 +55,24 @@ export function reorder(keys: string[], fromKey: string, toKey: string): string[
   return next
 }
 
+export function showCaliperInStoredPlants(
+  layouts: Partial<Record<TableId, TableConfig>>,
+): Partial<Record<TableId, TableConfig>> {
+  const plants = layouts.plants
+  if (!plants?.hidden.includes('cal')) return layouts
+  return { ...layouts, plants: { ...plants, hidden: plants.hidden.filter((key) => key !== 'cal') } }
+}
+
 function read(): Partial<Record<TableId, TableConfig>> {
   if (typeof window === 'undefined') return {}
   try {
-    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
+    const layouts = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
+    if (window.localStorage.getItem(CAL_VISIBLE_MIGRATION_KEY)) return layouts
+
+    const migrated = showCaliperInStoredPlants(layouts)
+    if (migrated !== layouts) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+    window.localStorage.setItem(CAL_VISIBLE_MIGRATION_KEY, '1')
+    return migrated
   } catch {
     return {}
   }

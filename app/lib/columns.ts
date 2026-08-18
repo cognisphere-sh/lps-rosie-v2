@@ -170,7 +170,7 @@ export const PLANT_COLS: ColumnDef[] = [
 // Common and botanical name are hidden by default, not absent: the Full Name
 // column already shows both inside the composed identity, so showing them costs
 // 350px for no new information. Unhide either to edit it.
-export const PLANT_HIDDEN = ['common_name', 'botanical_name', 'notes', 'internal_notes', 'cal']
+export const PLANT_HIDDEN = ['common_name', 'botanical_name', 'notes', 'internal_notes']
 
 /**
  * The patch an inline plant edit applies to the row on screen.

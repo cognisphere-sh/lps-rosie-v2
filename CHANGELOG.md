@@ -19,6 +19,15 @@ here).
 
 ### Changed
 
+- **Caliper is visible by default in both desktop plant tables** — Plant Search
+  and supplier Inventory share the `plants` column layout, so `cal` was removed
+  from that layout's default-hidden list without changing its `caliper_std`
+  range filter or sort. Existing `lps.tables.v1` layouts migrate once by
+  removing only `cal` from `plants.hidden`, preserving all other column order,
+  width and visibility preferences. Mobile Plant Search keeps its labelled
+  **Cal** value, and mobile supplier Inventory cards now show the raw supplier
+  caliper when present. Dimensions remain outside broad free-text search.
+
 - **Suppliers, Plant search and the supplier profile now present one company,
   not one `suppliers` row.** A company that operates at several sites is
   several rows tied together by `head_branch_id`, and every surface drew one

@@ -1594,9 +1594,14 @@ export default function SupplierProfilePage() {
                         <div key={p.id} className="flex items-start gap-3 border-b border-lps-hair p-3">
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
-                            <div className="mt-1 text-[11.5px] text-muted-foreground">
-                              {String(p.values.size ?? '')}
-                            </div>
+                            {(p.values.size || p.values.cal) && (
+                              <div className="mt-1 flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground">
+                                {p.values.size && <span>{String(p.values.size)}</span>}
+                                {p.values.cal && (
+                                  <span><span className="text-lps-dim">Cal </span>{String(p.values.cal)}</span>
+                                )}
+                              </div>
+                            )}
                             <div className="mt-0.5 text-[10.5px] text-lps-dim">
                               Ingested {formatDate(p.values.ingestion_date as string | null) || '—'}
                             </div>
