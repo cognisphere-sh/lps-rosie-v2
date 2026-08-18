@@ -16,7 +16,9 @@ introspection; the contact/location tables were re-verified on 2026-08-14 after
 migrations 0033–0034, the plant identity / alias half on 2026-08-14 after
 migration 0040, the source-deactivation invariant on 2026-08-14 after
 migration 0048, the supplier head-branch column on 2026-08-15 after
-migration 0049, and the photo catalogue on 2026-08-16 after migration 0051.
+migration 0049, the photo catalogue on 2026-08-16 after migration 0051, and
+the customer/job-request tables on 2026-08-17 when migrations 0055 and 0056
+created them.
 **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -38,8 +40,17 @@ suppliers 1 ──< inventory_sources 1 ──< inventory >── plant_aliases 
 users 1 ──< chat_sessions 1 ──< availability_queries
       1 ──< user_memories (1:1)
       1 ──< custom_commands
+
+customers 1 ──< job_requests 1 ──< job_request_items      (customer_id nullable; SET NULL)
+                job_requests 1 ──< job_request_changelog >── 1 job_request_items (item_id nullable)
 ```
 
+> **The catalogue has since been rebuilt.** Verified 2026-08-18: `inventory`
+> holds **37,988 active rows**, `inventory_sources` **432 active**, and
+> `plant_aliases` has grown to **898**. The two wipes below are history, not the
+> current state — read them for what they say about cascades and backups, not
+> for row counts.
+>
 > **The catalogue was emptied again on 2026-08-16**, at Bhoumik's request and
 > by the same hard delete: `inventory` (26,340 rows) and `inventory_sources`
 > (173) are **empty**. `plant_aliases` was kept — all 432 rows survive — but
@@ -75,8 +86,9 @@ re-counted 2026-08-14): `suppliers` 1,383 (1,375 active),
 active) — 47 contacts backfilled from the retired `poc_*` columns on 2026-08-05,
 29 lifted out of `suppliers.notes`, and the rest moved from `suppliers.email` /
 `suppliers.phone` when those columns were dropped the same day.
-16 head branches carry 41 other locations between them (57 rows in all); the
-other 1,326 suppliers are their own head.
+**Re-counted 2026-08-18:** `suppliers` 1,403 (1,395 active), forming **1,335
+companies** — 22 head branches carry 60 other locations between them (82 rows in
+all), and the other 1,313 suppliers are their own head.
 
 Links now outnumber active contacts, which is the point: 13 contacts hold 2–6
 locations each.
@@ -219,10 +231,11 @@ That set is not recoverable from names. Everde alone spans `Everde Growers`
 `EVERDE GROWERS - BUNNELL`; Newton uses no dash (`Newton Nurseries Katy`) and
 Calloway's uses an em dash.
 
-The 16 companies were identified by hand from a shared brand **and** a shared
-website domain (0033), and their heads were chosen from the contacts on file and
-confirmed against each company's published head-office address (0049, which
-lists all 16 with reasons). Three of them — ArborGen, Calloway's and Moon
+The first 16 companies were identified by hand from a shared brand **and** a
+shared website domain (0033), and their heads were chosen from the contacts on
+file and confirmed against each company's published head-office address (0049,
+which lists all 16 with reasons); more have been tied together since — 22 as of
+2026-08-18. Three of them — ArborGen, Calloway's and Moon
 Valley — have no head-office row at all, so their head is a stand-in worth
 revisiting if that office is ever onboarded. Families matching only half the
 test are listed at the bottom of `0033_supplier_locations.sql` for someone to
@@ -714,6 +727,105 @@ three partial indexes mirroring `inventory_supplier_*_std_idx`.
 > `sha256`, `source`, and the three separate timestamps. There is **no approval
 > gate** — a catalogued photo is visible to every signed-in user immediately.
 
+### `customers`
+
+One row per customer — the **person**; their company is an attribute. Added
+2026-08-17 by migration 0055. Owned by the **rosie** agent: rosie writes these
+tables and only reads the supplier side; daisy is the reverse.
+
+Contact routes are **inline** (`email`/`phone` on the row), deliberately unlike
+suppliers — a job request comes from a person, and the `contacts` + link-table
+split can be introduced by migration if multi-contact customers ever appear.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `name` | text | no | The person's name. Never guessed from an email address |
+| `company` | text | yes | |
+| `email` / `phone` | text | yes | Inline, unlike suppliers |
+| `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
+| `notes` | text | yes | **Durable facts**, edited in place — same split as suppliers |
+| `communication_notes` | text | yes | **Append-only contact log**, timestamped entries — same convention as `suppliers.communication_notes` |
+| `is_active` | boolean | no, default true | Soft delete. No deactivation cascade — retiring a customer is a deliberate act, and their requests keep their history |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `job_requests`
+
+One row per customer job request. Added 2026-08-17 by migration 0055; owned by
+rosie. The app's users edit these rows in the UI **concurrently with the
+agent** — that is why the changelog below exists, and why agents re-read a row
+immediately before updating it.
+
+**`customer_id` is nullable: an anonymous request is a real request.** One
+received before the sender is known carries its identity clues in
+`customer_notes` and is mapped later by a plain `UPDATE`. The FK is `SET NULL`
+so nothing about a customer row's lifecycle can silently take requests with it.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `customer_id` | bigint → `customers.id` ON DELETE SET NULL | yes | **Nullable** — anonymous intake, mapped later |
+| `status` | text | no, default `sourcing` | **CHECK**: `sourcing` \| `quoted` \| `closed_won` \| `closed_lost` \| `archived`. Underscore spellings match `chat_sessions.status`. `closed_won` is the future convert-to-order hook (order tables are deferred); `archived` is a terminal status while `is_active` stays the soft delete |
+| `needs_attention` | boolean | no, default false | The "a human should look at this" flag the UI surfaces. Set it with the why appended to `internal_notes` in the same change |
+| `billing_address` / `billing_city` / `billing_state` / `billing_zip` | text | yes | |
+| `shipping_address` / `shipping_city` / `shipping_state` / `shipping_zip` | text | yes | |
+| `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited |
+| `internal_notes` | text | yes | **Ours.** Append-only, timestamped entries |
+| `external_notes` | text | yes | Written to be **shown to the customer** |
+| `is_active` | boolean | no, default true | Soft delete |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `job_request_items`
+
+One row per line item on a job request. Added 2026-08-17 by migration 0055;
+owned by rosie.
+
+**`name` and `size` are the customer's verbatim ask** ("30 gal or larger") —
+evidence, not classification, so there is deliberately no `size_std` and no
+copy of the inventory size CHECK. Matching against inventory happens through
+the search RPCs and key columns, downstream.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `job_request_id` | bigint → `job_requests.id` ON DELETE CASCADE | no | |
+| `name` | text | no | The plant as the customer asked for it |
+| `size` | text | yes | Verbatim ask. No `size_std` — see above |
+| `quantity` | numeric | yes | **CHECK**: null or `> 0`. **Demand** — what the customer asked for |
+| `available_quantity` | numeric | yes | **CHECK**: null or `>= 0`. **Avail** — how many we can actually supply (migration 0056). NULL = not answered yet (renders as a dash, never zero); 0 = confirmed unavailable; below `quantity` = partial cover, which is where the UI's derived "Partial" pill comes from. Deliberately not clamped to `quantity` — a supplier may offer more than was asked |
+| `unit_price` | numeric(10,2) | yes | NULL = not priced yet; **never 0** — same rule as `inventory.unit_price` |
+| `total` | numeric(12,2) | — | **`GENERATED ALWAYS AS (quantity * unit_price) STORED`** — never write it. NULL until both parts exist |
+| `status` | text | no, default `pending` | **CHECK**: `pending` \| `sourcing` \| `available` \| `alternative_proposed` \| `unavailable` \| `confirmed` \| `cancelled` |
+| `needs_attention` | boolean | no, default false | Same convention as the request-level flag |
+| `customer_notes` | text | yes | The customer's words about this line, verbatim |
+| `internal_notes` | text | yes | **The sourcing log** — which supplier may have it, availability, pricing, alternatives. Append-only, timestamped |
+| `external_notes` | text | yes | **Customer-visible.** A quantity change or a substitution must be explained here in the same change that makes it |
+| `is_active` | boolean | no, default true | Soft delete |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `job_request_changelog`
+
+The audit trail for the two tables above, added by the same migration.
+**Written only by the `log_job_request_changes()` trigger** — an agent or the
+app never inserts into it, and rows are immutable (no `updated_at`, no
+`is_active`, nothing edits them). Because it is a trigger, the UI's edits and
+the agents' edits are both captured without either write path cooperating.
+
+**Reading convention (agents):** whenever you load a request or an item to act
+on it, load its **last 5 changelog entries** too
+(`ORDER BY created_at DESC, id DESC LIMIT 5`) — that is how you see what
+changed under you since you last looked.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `job_request_id` | bigint → `job_requests.id` ON DELETE CASCADE | no | Set for item-level entries too (the item's request) |
+| `item_id` | bigint → `job_request_items.id` ON DELETE CASCADE | yes | NULL = a request-level entry |
+| `actor` | text | no | `coalesce(current_setting('app.actor', true), current_user)`. A writer that opens its session with `SET app.actor TO '<name>'` is named; otherwise the role still separates agent scripts (`postgres`) from the app (`service_role`) |
+| `action` | text | no | **CHECK**: `insert` \| `update` |
+| `changes` | jsonb | no | On insert: the row's non-null fields. On update: `{col: {"old": …, "new": …}}` per changed column, `updated_at` excluded. Generated `total` appears with its real values (the trigger is AFTER). A no-op update writes no row |
+| `created_at` | timestamptz | no, default `now()` | |
+
 ---
 
 ## Views
@@ -957,6 +1069,9 @@ to enumerate bucket contents. Read by
 `skills/agent/plant-photo-catalogue/scripts/reclaim-orphans`, which is dry-run
 by default.
 
+**`log_job_request_changes()`** (0055) — the trigger function behind
+`job_request_changelog`; see that table and §Triggers. Not called directly.
+
 ---
 
 ## Triggers
@@ -969,7 +1084,8 @@ by default.
 | `trg_plant_photos_derive_identity` | plant_photos | BEFORE INSERT OR UPDATE | The same derivation as above, plus folding `tags` to trimmed lowercase, deduped and sorted |
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
-| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
+| `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
 
 ## Indexes that matter
 
@@ -1032,6 +1148,15 @@ by default.
 - `plant_photos_supplier_idx`, `plant_photos_active_created_idx` (backs the
   no-query grid), `plant_photos_size_std_idx`, and GIN on `cultivar_keys` and
   `tags` for the app's tag filter.
+- The job-request set (0055): `customers_active_created_idx (is_active,
+  created_at DESC)` and partial `customers_email_idx` (the intake find-by-email
+  path); `job_requests_customer_idx (customer_id, is_active)`; partial
+  `job_requests_status_idx` / `job_request_items_status_idx` (active rows) and
+  `job_requests_attention_idx` / `job_request_items_attention_idx`
+  (`WHERE needs_attention AND is_active` — the "needs attention" surfaces the
+  UI will read); `job_request_items_request_idx (job_request_id, is_active)`;
+  `job_request_changelog_request_idx (job_request_id, created_at DESC)` and
+  partial `job_request_changelog_item_idx` backing the last-5-entries fetch.
 
 ## Extensions
 
@@ -1061,6 +1186,10 @@ Gmail OAuth tokens) included.
 | `supplier_contacts` | enabled | `authenticated` full access (added 2026-08-14) |
 | `custom_commands` | enabled | Per-user via `auth.uid()` |
 | `user_memories` | enabled | Per-user via `auth.uid()` |
+| `customers` | enabled | `authenticated` full access (added 2026-08-17, migration 0055) |
+| `job_requests` | enabled | `authenticated` full access (added 2026-08-17, migration 0055) |
+| `job_request_items` | enabled | `authenticated` full access (added 2026-08-17, migration 0055) |
+| `job_request_changelog` | enabled | `authenticated` full access (added 2026-08-17, migration 0055). Its real write-protection is that only the trigger writes it in practice |
 
 **`anon` now reaches no application table at all** — verified against the live
 REST API, every table and both views return `[]`.
@@ -1097,7 +1226,8 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
   photos. Rate-card files go under `suppliers/<slug>/rate-cards/<file>`
   (`<slug>` = kebab-cased supplier name). Store the **object key** (no scheme)
   in `inventory_sources.file_path`; a full URL is also accepted there.
-  Agent-shared files go under `daisy_shared/YYYY-MM-DD/<filename>`.
+  Agent-shared files go under `daisy_shared/YYYY-MM-DD/<filename>` (rosie's
+  under `rosie_shared/YYYY-MM-DD/<filename>`).
 - `chat-attachments` — **public.** App chat uploads.
 - `plant-photos` — **private**, added 2026-08-16 with migration 0051. The photo
   catalogue's bytes, keyed by `plant_photos.storage_path`. Since migration 0053
@@ -1175,7 +1305,22 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
   location goes to **every** location of that company; availability naming one
   goes to that row alone.
 - Never infer a person's name from an email address. `contacts.name` is
-  nullable precisely so you don't have to.
+  nullable precisely so you don't have to (and `customers.name` waits for a
+  real name rather than a guess).
 - Per-supplier quirks live in daisy's
   `workspace/suppliers/[<supplierId>]:<Name>/notes.md` (see
-  `workspace/suppliers/index.md` for the name → id map).
+  `workspace/suppliers/index.md` for the name → id map). Per-customer quirks
+  live in rosie's `workspace/customers/[<customerId>]:<Name>/notes.md`.
+- The job-request tables carry **three notes columns each**: `customer_notes`
+  (the customer's words, verbatim, never edited), `internal_notes` (ours,
+  append-only, timestamped — on an item it is the sourcing log), and
+  `external_notes` (written to be shown to the customer — a quantity change or
+  substitution is explained there in the same change). Supplier names and
+  supplier pricing never go in a customer-visible field.
+- A line item carries **two quantities**: `quantity` is the customer's demand and
+  `available_quantity` is what we can supply. "Partial" is not a status — it is
+  `available_quantity < quantity`, derived where it is displayed so a stored word
+  can never contradict the figures beside it.
+- Never write `job_request_items.total` (generated) and never insert into
+  `job_request_changelog` (trigger-written). A writer that wants the changelog
+  to name it opens its session with `SET app.actor TO '<name>'`.

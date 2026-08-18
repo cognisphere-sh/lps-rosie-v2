@@ -28,6 +28,51 @@ Both had zero Arizona/arizonica/Blue Ice rows. An unbalanced quote stayed broad
 without error. PostgREST exposed one unchanged RPC signature, and the app API
 returned the same 20 clean quoted results.
 
+## `0056_job_request_item_available_quantity.sql`
+
+Applied 2026-08-17 at Bhoumik's request, one step. One nullable column,
+`job_request_items.available_quantity`, plus its `>= 0` CHECK.
+
+**Why:** the Order Requests design gives every line two quantity columns —
+Demand and Avail — and derives its whole "Partial" state from the gap between
+them. 0055 shipped only `quantity`, so that column of the screen had nothing
+behind it. NULL means unanswered (a dash, never a zero), 0 means confirmed
+unavailable, and below `quantity` is partial cover. It is deliberately not
+constrained against `quantity`: a supplier offering more than was asked is real.
+
+The 0055 changelog trigger picked the column up with no change, since it diffs
+`to_jsonb(NEW)` rather than a column list — verified by updating the new column
+and seeing one changelog row naming only `available_quantity`.
+
+## `0055_customers_and_job_requests.sql`
+
+Applied 2026-08-17 at Bhoumik's request, one step, recorded as
+`customers_and_job_requests`. The customer side of the business: `customers`,
+`job_requests`, `job_request_items` and the trigger-written
+`job_request_changelog`. **These tables are owned by the new `rosie` agent** —
+daisy does not write them; the file lives here because this directory is the
+deployment's single sequential migration record.
+
+Shape decisions worth remembering: `job_requests.customer_id` is **nullable**
+(anonymous intake, mapped to a customer later; FK is SET NULL);
+`job_request_items.total` is `GENERATED ALWAYS AS (quantity * unit_price)`;
+the changelog is written only by `log_job_request_changes()` (AFTER INSERT OR
+UPDATE on both request tables) so the app's UI edits and agent edits are both
+audited without either cooperating — the actor is the `app.actor` GUC when a
+writer sets it, else the connecting role. Status vocabularies use underscore
+spellings to match `chat_sessions.status`.
+
+Post-apply verification (all test rows removed after): anonymous insert and
+later mapping; bad status and `quantity = 0` rejected; `total` computed
+(10 × 24.50 = 245.00), NULL while unpriced, direct write refused; UPDATE bumps
+`updated_at` and writes one changelog row naming exactly the changed columns
+(old/new — the generated `total` shows its real values); a no-op UPDATE writes
+none; `SET app.actor TO 'rosie'` appears as the actor, `RESET` falls back to
+`postgres`; the last-5 fetch returns newest-first; deleting the test request
+cascaded its items and changelog rows. `get_advisors` (security) shows no new
+findings beyond the pre-existing mutable-search_path WARN pattern every
+trigger function here carries.
+
 ## `0054_plant_photo_reclaimable.sql`
 
 Applied 2026-08-16 at Bhoumik's request, one step. Adds

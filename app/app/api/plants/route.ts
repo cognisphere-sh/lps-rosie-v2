@@ -7,7 +7,14 @@ import { PLANT_SORTS, parseSort } from '@/lib/server-sort'
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const search = url.searchParams.get('q') ?? ''
-  const supplierId = url.searchParams.get('supplierId')
+  // The supplier profile scopes its inventory to a set of farms: every location
+  // of the company on a company page, one farm on a farm page. The page knows
+  // that set — it is the same `locations` its tabs are built from.
+  const supplierIds = url.searchParams
+    .getAll('supplierId')
+    .flatMap((raw) => raw.split(','))
+    .map((raw) => Number.parseInt(raw, 10))
+    .filter(Number.isInteger)
 
   // Column filters are applied as SQL over the search result, so they arrive
   // here rather than being applied to whatever page the browser holds.
@@ -37,17 +44,10 @@ export async function GET(req: Request) {
     // other value from its own dropdown. Fetched on its own so it can be
     // cached against the search term while filters change freely.
     if (url.searchParams.get('facets') === '1') {
-      const scope = supplierId ? Number.parseInt(supplierId, 10) : undefined
-      return NextResponse.json({
-        facets: await plantFacets(search, Number.isInteger(scope) ? scope : undefined),
-      })
+      return NextResponse.json({ facets: await plantFacets(search, supplierIds) })
     }
-    if (supplierId) {
-      const id = Number.parseInt(supplierId, 10)
-      if (!Number.isInteger(id)) {
-        return NextResponse.json({ error: 'bad supplierId' }, { status: 400 })
-      }
-      return NextResponse.json(await getSupplierPlants(id, search, page, filters, sort))
+    if (supplierIds.length) {
+      return NextResponse.json(await getSupplierPlants(supplierIds, search, page, filters, sort))
     }
     // The page size lives on the server, so the page count is computed here
     // rather than handing the browser a divisor it would have to duplicate.

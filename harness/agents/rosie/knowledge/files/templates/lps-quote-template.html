@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{QUOTE_NUMBER}} — Local Plant Supply Quote</title>
+<style>
+  @page { size: letter; margin: 0.45in; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 10pt; }
+  .title { font-size: 21pt; font-weight: 700; margin-bottom: 18px; }
+  .header { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; margin-bottom: 24px; }
+  .company { line-height: 1.45; }
+  .company strong { font-size: 13pt; }
+  .meta { width: 100%; border-collapse: collapse; }
+  .meta td { padding: 4px 6px; border-bottom: 1px solid #bbb; }
+  .meta td:nth-child(odd) { font-weight: 700; width: 30%; }
+  .addresses { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 22px; }
+  .addresses h3 { font-size: 10pt; margin: 0 0 5px; }
+  .addresses div { white-space: pre-line; line-height: 1.4; }
+  table.items { width: 100%; border-collapse: collapse; }
+  .items th { text-align: left; padding: 7px 5px; border-top: 1px solid #111; border-bottom: 1px solid #111; font-size: 9pt; }
+  .items td { padding: 7px 5px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  .items .num { text-align: right; white-space: nowrap; }
+  .items .qty { text-align: center; }
+  .total-row td { border-top: 2px solid #111; border-bottom: 0; font-weight: 700; font-size: 12pt; padding-top: 10px; }
+  .notes { margin-top: 22px; font-size: 9pt; line-height: 1.4; }
+  .notes strong { font-size: 10pt; }
+</style>
+</head>
+<body>
+<div class="title">Quote</div>
+<div class="header">
+  <div class="company"><strong>Local Plant Supply</strong><br>{{COMPANY_ADDRESS_BLOCK}}</div>
+  <table class="meta"><tr><td>Date</td><td>{{DATE}}</td></tr><tr><td>Quote #</td><td>{{QUOTE_NUMBER}}</td></tr><tr><td>Target Delivery</td><td>{{TARGET_DELIVERY}}</td></tr></table>
+</div>
+<div class="addresses"><section><h3>Name / Address</h3><div>{{CUSTOMER_NAME_AND_ADDRESS}}</div></section><section><h3>Ship To</h3><div>{{SHIP_TO}}</div></section></div>
+<table class="items">
+<thead><tr><th class="qty">Qty</th><th>Description</th><th class="num">Unit Cost</th><th class="num">Total</th><th>Comments</th></tr></thead>
+<tbody>{{ITEM_ROWS}}<tr class="total-row"><td colspan="3" class="num">Total</td><td class="num">{{TOTAL}}</td><td></td></tr></tbody>
+</table>
+<div class="notes"><strong>Quote notes</strong><br>{{QUOTE_NOTES}}</div>
+</body>
+</html>

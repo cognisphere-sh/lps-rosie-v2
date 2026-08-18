@@ -1,0 +1,363 @@
+#!/usr/bin/env node
+// query — runs a SQL statement against the bound Supabase project's
+// Postgres database via `psql`. Refuses anything that isn't SELECT / INSERT /
+// UPDATE / WITH / EXPLAIN / transactional / SET / SHOW.
+//
+// Connection: psql reads PGHOST / PGPORT / PGUSER / PGDATABASE / PGPASSWORD
+// from env. The harness exports the agent's declared secrets verbatim
+// (SUPABASE_PROJECT_ID, SUPABASE_DB_PASSWORD, ...), so this bin translates
+// those into the PG* names libpq actually looks for. PGPASSWORD never appears
+// in argv, only in env.
+//
+// Endpoint selection: Supabase's DIRECT host (db.<ref>.supabase.co) is
+// IPv6-only. Hosts without IPv6 egress (e.g. an EC2 box in a default,
+// IPv4-only VPC) can't reach it and fail with "Network is unreachable". So by
+// default we connect through the IPv4 SESSION-mode pooler
+// (aws-1-<region>.pooler.supabase.com:5432, user `postgres.<ref>`) FIRST and
+// fall back to the direct host — the pooler works anywhere IPv4 egress does,
+// the direct host covers IPv6-capable networks where the pooler is disabled.
+// Session mode (port 5432, not 6543) keeps full feature parity: BEGIN/COMMIT,
+// SET, SHOW all behave. psql exit code 2 means "couldn't connect", which is
+// what triggers the fallback; a real SQL error (exit 3) does not.
+//
+// Overrides (all optional): SUPABASE_REGION (default us-east-1) picks the
+// pooler region; SUPABASE_POOLER_HOST / SUPABASE_POOLER_PORT pin the pooler
+// endpoint. If the operator sets any of PGHOST / PGUSER / PGPORT explicitly
+// (e.g. pointing at a different DB during testing), that single target wins
+// verbatim and no fallback is attempted.
+//
+// Pattern D from references/bin-ipc.md: bin talks to the external service
+// directly, the plugin process is just a holder for shared config + secrets.
+
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const HELP = `Usage: query [-c <sql> | -f <file> | <stdin>] [--csv|--tsv|--unaligned]
+
+  -c, --command <sql>   Run a single SQL string.
+  -f, --file <path>     Read SQL from a file.
+  --csv                 Emit psql --csv output.
+  --tsv                 Emit tab-separated values (no header decorations).
+  --unaligned, -A       Emit psql -A output.
+  -h, --help            Show this help.
+
+If neither -c nor -f is given, SQL is read from stdin.
+
+Allowed statements: SELECT, INSERT, UPDATE, WITH (with non-destructive body),
+EXPLAIN, BEGIN/COMMIT/ROLLBACK/SAVEPOINT/RELEASE, SET, SHOW, VALUES, START,
+and CREATE [OR REPLACE] FUNCTION|PROCEDURE.
+
+Blocked: DELETE, DROP, TRUNCATE, ALTER, GRANT, REVOKE, VACUUM, CLUSTER,
+REINDEX, REFRESH, COMMENT, REASSIGN, COPY, DO, LOCK, LOAD, PREPARE,
+DEALLOCATE, EXECUTE, CALL, LISTEN, NOTIFY, UNLISTEN, CHECKPOINT, DISCARD,
+IMPORT, and any CREATE form other than FUNCTION/PROCEDURE (TABLE, INDEX,
+VIEW, TRIGGER, etc.). Forbidden words are detected after stripping comments
+and string literals, so hiding them in a comment or a CTE body still trips
+the guard. Function bodies (dollar-quoted or single-quoted) are stripped
+before the scan — runtime behavior of any function you create is your
+responsibility.
+`;
+
+const ALLOWED_FIRST = new Set([
+	"select",
+	"insert",
+	"update",
+	"with",
+	"explain",
+	"begin",
+	"start",
+	"commit",
+	"rollback",
+	"savepoint",
+	"release",
+	"set",
+	"show",
+	"values",
+	// `create` is allowed as the leading keyword but only for FUNCTION /
+	// PROCEDURE — see the special-case check in validate() below. Other CREATE
+	// forms (TABLE, INDEX, VIEW, TRIGGER, ...) are still rejected.
+	"create",
+]);
+
+const FORBIDDEN_ANY = new Set([
+	"delete",
+	"drop",
+	"truncate",
+	"alter",
+	"grant",
+	"revoke",
+	"vacuum",
+	"cluster",
+	"reindex",
+	"refresh",
+	"comment",
+	"reassign",
+	"copy",
+	"do",
+	"import",
+	"lock",
+	"load",
+	"prepare",
+	"deallocate",
+	"execute",
+	"call",
+	"listen",
+	"notify",
+	"unlisten",
+	"checkpoint",
+	"discard",
+]);
+
+function parseArgs() {
+	const argv = process.argv.slice(2);
+	let sql;
+	let mode = "default";
+	for (let i = 0; i < argv.length; i++) {
+		const a = argv[i];
+		if (a === "-c" || a === "--command") {
+			if (sql !== undefined) die("multiple SQL sources provided", 2);
+			sql = argv[++i];
+			if (sql === undefined) die(`${a} requires a SQL string argument`, 2);
+		} else if (a === "-f" || a === "--file") {
+			if (sql !== undefined) die("multiple SQL sources provided", 2);
+			const path = argv[++i];
+			if (!path) die(`${a} requires a file path argument`, 2);
+			sql = readFileSync(path, "utf8");
+		} else if (a === "--csv") {
+			mode = "csv";
+		} else if (a === "--tsv") {
+			mode = "tsv";
+		} else if (a === "--unaligned" || a === "-A") {
+			mode = "unaligned";
+		} else if (a === "-h" || a === "--help") {
+			process.stdout.write(HELP);
+			process.exit(0);
+		} else {
+			die(`unknown option: ${a}\n\n${HELP}`, 2);
+		}
+	}
+	if (sql === undefined) {
+		if (process.stdin.isTTY) die(`no SQL provided (use -c, -f, or stdin)\n\n${HELP}`, 2);
+		sql = readFileSync(0, "utf8");
+	}
+	return { sql, mode };
+}
+
+function die(msg, code) {
+	process.stderr.write(`query: ${msg}\n`);
+	process.exit(code);
+}
+
+/**
+ * Strip comments and string literals so the keyword scan doesn't trip on
+ * SQL embedded in user data (e.g. `INSERT INTO logs VALUES ('we dropped X')`)
+ * or in `/* ... *\/` blocks.
+ */
+function stripCommentsAndStrings(sql) {
+	let s = sql;
+	// Block comments — non-greedy, multiline.
+	s = s.replace(/\/\*[\s\S]*?\*\//g, " ");
+	// Line comments to end-of-line.
+	s = s.replace(/--[^\n]*/g, " ");
+	// Dollar-quoted strings: $tag$...$tag$ (tag may be empty).
+	s = s.replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g, " '<dq>' ");
+	// Single-quoted strings, '' is the doubled-quote escape.
+	s = s.replace(/'(?:[^']|'')*'/g, " '<s>' ");
+	// Double-quoted identifiers, "" doubled-quote escape.
+	s = s.replace(/"(?:[^"]|"")*"/g, ' "<id>" ');
+	return s;
+}
+
+function validate(sql) {
+	const stripped = stripCommentsAndStrings(sql);
+	const stmts = stripped
+		.split(";")
+		.map((s) => s.trim())
+		.filter(Boolean);
+	if (stmts.length === 0) {
+		throw new Error("empty query: no statements found after stripping comments");
+	}
+	for (const stmt of stmts) {
+		// Tokenize on whitespace/punctuation so things like `delete,` or
+		// `(delete` still surface as a `delete` token.
+		const tokens = stmt.split(/[\s(),;]+/).filter(Boolean);
+		const first = tokens[0]?.toLowerCase() ?? "";
+		if (!ALLOWED_FIRST.has(first)) {
+			throw new Error(
+				`disallowed leading keyword '${tokens[0] ?? ""}'. Statement: ${truncate(stmt)}`,
+			);
+		}
+		// CREATE is only allowed as `CREATE [OR REPLACE] FUNCTION|PROCEDURE`.
+		// Walk past the optional OR REPLACE pair to find the object-kind token.
+		if (first === "create") {
+			let i = 1;
+			while (
+				i < tokens.length &&
+				(tokens[i].toLowerCase() === "or" || tokens[i].toLowerCase() === "replace")
+			) {
+				i++;
+			}
+			const kind = tokens[i]?.toLowerCase() ?? "";
+			if (kind !== "function" && kind !== "procedure") {
+				throw new Error(
+					`only CREATE [OR REPLACE] FUNCTION|PROCEDURE is allowed; got 'CREATE ${tokens[i] ?? "(missing)"}'. Statement: ${truncate(stmt)}`,
+				);
+			}
+		}
+		for (const tok of tokens) {
+			if (FORBIDDEN_ANY.has(tok.toLowerCase())) {
+				throw new Error(
+					`forbidden keyword '${tok}' present (DELETE/DROP/TRUNCATE/ALTER/etc. are blocked, ` +
+						`including inside CTE bodies). Statement: ${truncate(stmt)}`,
+				);
+			}
+		}
+	}
+}
+
+function truncate(s) {
+	return s.length > 120 ? `${s.slice(0, 120)}…` : s;
+}
+
+// An ordered list of connection targets to try. The first that establishes a
+// connection wins; a target is only skipped on a connection failure (psql
+// exit 2), never on a SQL error. Each target is a `{ label, PG* }` bundle.
+function buildTargets() {
+	const projectId = process.env.SUPABASE_PROJECT_ID;
+	const password = process.env.SUPABASE_DB_PASSWORD;
+	if (!projectId) die("SUPABASE_PROJECT_ID not set in env", 2);
+	if (!password) die("SUPABASE_DB_PASSWORD not set in env", 2);
+	const database = process.env.PGDATABASE ?? "postgres";
+
+	// Explicit override: if the operator pinned any connection param, honor it
+	// verbatim as the sole target (no fallback) — the testing escape hatch.
+	if (process.env.PGHOST || process.env.PGUSER || process.env.PGPORT) {
+		return [
+			{
+				label: "explicit",
+				PGHOST: process.env.PGHOST ?? `db.${projectId}.supabase.co`,
+				PGPORT: process.env.PGPORT ?? "5432",
+				PGUSER: process.env.PGUSER ?? "postgres",
+				PGDATABASE: database,
+				PGPASSWORD: process.env.PGPASSWORD ?? password,
+			},
+		];
+	}
+
+	const region = process.env.SUPABASE_REGION ?? "us-east-1";
+	// Pooler (IPv4, session mode) first — reachable wherever IPv4 egress is.
+	const pooler = {
+		label: "pooler",
+		PGHOST: process.env.SUPABASE_POOLER_HOST ?? `aws-1-${region}.pooler.supabase.com`,
+		PGPORT: process.env.SUPABASE_POOLER_PORT ?? "5432",
+		PGUSER: `postgres.${projectId}`,
+		PGDATABASE: database,
+		PGPASSWORD: process.env.PGPASSWORD ?? password,
+	};
+	// Direct host (IPv6-only) fallback — for IPv6-capable networks.
+	const direct = {
+		label: "direct",
+		PGHOST: `db.${projectId}.supabase.co`,
+		PGPORT: "5432",
+		PGUSER: "postgres",
+		PGDATABASE: database,
+		PGPASSWORD: process.env.PGPASSWORD ?? password,
+	};
+	return [pooler, direct];
+}
+
+// Build the psql env for a single target. Supabase mandates TLS, so default
+// PGSSLMODE to `require` unless the operator overrode it.
+function envForTarget(t) {
+	return {
+		...process.env,
+		PGHOST: t.PGHOST,
+		PGPORT: t.PGPORT,
+		PGUSER: t.PGUSER,
+		PGDATABASE: t.PGDATABASE,
+		PGPASSWORD: t.PGPASSWORD,
+		PGSSLMODE: process.env.PGSSLMODE ?? "require",
+	};
+}
+
+function psqlFlagsFor(mode) {
+	switch (mode) {
+		case "csv":
+			// Quiet suppresses command tags such as a leading `SET` line when a
+			// machine-readable query starts with `SET statement_timeout; SELECT ...`.
+			return ["--quiet", "--csv"];
+		case "tsv":
+			return ["--quiet", "-A", "-F", "\t"];
+		case "unaligned":
+			return ["--quiet", "-A"];
+		default:
+			return [];
+	}
+}
+
+function main() {
+	const { sql, mode } = parseArgs();
+	try {
+		validate(sql);
+	} catch (e) {
+		die(`SQL validation failed: ${e.message}`, 3);
+	}
+	// SQL is fed to psql over stdin, never as a "-c" argv element: a batched
+	// INSERT covering a full price-list ingest can run to tens of thousands
+	// of characters, and passing that as a single argv string blows past the
+	// OS ARG_MAX (spawnSync fails with E2BIG) well before psql even starts.
+	const flags = [
+		"--no-psqlrc",
+		"--pset=pager=off",
+		"-v",
+		"ON_ERROR_STOP=1",
+		...psqlFlagsFor(mode),
+	];
+
+	const PSQL_CONN_ERR = 2; // psql exit code for "could not connect to server"
+	const targets = buildTargets();
+	const connErrors = [];
+	for (let i = 0; i < targets.length; i++) {
+		const t = targets[i];
+		const isLast = i === targets.length - 1;
+		// stdout streams straight through; stderr is captured so we can suppress
+		// a failed target's connection error and only surface the authoritative
+		// attempt (or a combined diagnostic if every target fails to connect).
+		const r = spawnSync("psql", flags, {
+			stdio: ["pipe", "inherit", "pipe"],
+			input: sql,
+			env: envForTarget(t),
+			encoding: "utf8",
+		});
+		if (r.error?.code === "ENOENT") {
+			die(
+				`psql not found on PATH. Install the postgres client: brew install postgresql@15`,
+				127,
+			);
+		}
+		// Check r.status before treating r.error as fatal: when psql refuses the
+		// connection fast (e.g. "connection refused"), it can exit before ever
+		// reading stdin, so writing a large `sql` payload into its stdin pipe
+		// races the exit and surfaces as EPIPE on our end — but r.status is
+		// still the authoritative psql exit code (2), and this is just a
+		// connection failure like any other, not a real error.
+		if (r.status === PSQL_CONN_ERR) {
+			connErrors.push(`[${t.label} ${t.PGHOST}:${t.PGPORT}] ${(r.stderr ?? "").trim()}`);
+			if (!isLast) continue; // couldn't connect — try the next endpoint
+			// Every target failed to connect: emit the combined diagnostic.
+			process.stderr.write(
+				`query: could not connect to the database via any endpoint:\n${connErrors.join("\n")}\n`,
+			);
+			process.exit(PSQL_CONN_ERR);
+		}
+		if (r.error) {
+			die(String(r.error), 1);
+		}
+		// Connected (status 0, or a real SQL/runtime error): this attempt is
+		// authoritative. Flush its captured stderr and propagate the status.
+		if (r.stderr) process.stderr.write(r.stderr);
+		process.exit(r.status ?? 1);
+	}
+}
+
+main();

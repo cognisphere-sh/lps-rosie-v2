@@ -125,6 +125,13 @@ export const PLANT_COLS: ColumnDef[] = [
   // derives it from the three part columns below (migration 0040), so it is
   // read-only here — edit a part and this recomposes.
   { key: 'name', label: 'Full Name', width: 220 },
+  // Which farm holds the row. Plant search groups by company — one card per
+  // company, not per site — so this is what says where the stock actually is.
+  // Read-only: moving a row between farms is a re-ingestion, not a cell edit.
+  // No entry in PLANT_SORTS or PLANT_FILTERS: `inventory` has no farm-name
+  // column to order or filter on, so the header sorts the page (see
+  // lib/server-sort.ts) and the panel's own company picker does the filtering.
+  { key: 'branch', label: 'Branch', width: 180, filter: 'none' },
   { key: 'common_name', label: 'Common name', width: 170, edit: true, writes: { table: 'inventory', column: 'common_name' } },
   { key: 'botanical_name', label: 'Botanical name', width: 180, edit: true, writes: { table: 'inventory', column: 'botanical_name' } },
   // Cultivar, variety and trade name share one column; the header filter is a

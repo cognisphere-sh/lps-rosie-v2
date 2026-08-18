@@ -1,0 +1,125 @@
+#!/usr/bin/env node
+/*
+ * Fail-closed preflight for a historical availability drop.
+ * It makes no database writes. Its durable decision is the JSON record passed
+ * with --record; that record must be revalidated immediately before a write.
+ */
+import fs from 'node:fs';
+import cp from 'node:child_process';
+import crypto from 'node:crypto';
+import path from 'node:path';
+
+function die(message) { console.error(`GATE FAIL: ${message}`); process.exit(2); }
+function usage() { die('usage: historical-backfill-gate preflight --input <json> --record <json> | revalidate --input <json> --record <json>'); }
+const [command, ...args] = process.argv.slice(2);
+function option(name) { const i=args.indexOf(name); return i < 0 ? null : args[i+1]; }
+const inputPath=option('--input'), recordPath=option('--record');
+if (!['preflight','revalidate'].includes(command) || !inputPath || !recordPath) usage();
+function load(path) { try { return JSON.parse(fs.readFileSync(path,'utf8')); } catch(e) { die(`cannot read JSON ${path}: ${e.message}`); } }
+const input=load(inputPath);
+function canonical(v) { return JSON.stringify(v, Object.keys(v).sort()); }
+const inputHash=crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
+function sqlJson(sql) {
+  const out=cp.spawnSync('scripts/agent/supabase/query',['--unaligned','-c',sql],{encoding:'utf8',cwd:process.cwd()});
+  if(out.status !== 0) die(`database read failed: ${(out.stderr||out.stdout).trim()}`);
+  // psql's aligned footer remains even with --unaligned, and long JSON is
+  // display-wrapped. Preserve the complete JSON region instead of assuming one line.
+  const start=out.stdout.search(/\n[\[{]/);
+  const end=out.stdout.lastIndexOf('\n(1 row)');
+  if(start < 0 || end < 0) die(`unexpected database response: ${out.stdout.trim()}`);
+  const json=out.stdout.slice(start + 1,end);
+  try { return JSON.parse(json); } catch(e) { die(`invalid database JSON: ${e.message}`); }
+}
+function quote(v) { return `'${String(v).replaceAll("'","''")}'`; }
+function assertInput() {
+  if(input.schema_version !== 1 || !input.incoming || !Array.isArray(input.incoming.supplier_ids) || !Array.isArray(input.incoming.offerings) || !Array.isArray(input.later_evidence)) die('input must contain schema_version=1, incoming.supplier_ids, incoming.offerings, and later_evidence');
+  if(input.incoming.source_scope !== 'availability') die('incoming source_scope must be availability; a campaign/unknown source cannot pass');
+  if(!/^\d{4}-\d\d-\d\dT/.test(input.incoming.effective_at || '')) die('incoming.effective_at must be an ISO timestamp');
+  if(!input.incoming.supplier_ids.length || input.incoming.supplier_ids.some(x=>!Number.isSafeInteger(x))) die('supplier_ids must be nonempty integer ids');
+  for (const o of input.incoming.offerings) {
+    if(!Number.isSafeInteger(o.supplier_id) || !input.incoming.supplier_ids.includes(o.supplier_id)) die('every offering must name one requested supplier_id');
+    if(!o.common_name && !o.botanical_name && !o.cultivar_variety_trade_name) die('every offering needs a printed identity part');
+  }
+}
+assertInput();
+const ids=[...new Set(input.incoming.supplier_ids)];
+const idSql=ids.join(',');
+const effective=quote(input.incoming.effective_at);
+const db=sqlJson(`
+WITH targets AS (
+  SELECT id, name, head_branch_id, is_active FROM suppliers WHERE id IN (${idSql})
+), heads AS (SELECT DISTINCT head_branch_id FROM targets), sources AS (
+  SELECT src.id::text, src.supplier_id, src.created_at, src.file_path, src.notes,
+         s.name AS supplier_name, s.head_branch_id,
+         count(i.id) FILTER (WHERE i.is_active) AS active_offering_count
+  FROM inventory_sources src
+  JOIN suppliers s ON s.id=src.supplier_id
+  JOIN heads h ON h.head_branch_id=s.head_branch_id
+  LEFT JOIN inventory i ON i.source_id=src.id
+  WHERE src.is_active AND src.created_at > ${effective}
+  GROUP BY src.id, src.supplier_id, src.created_at, src.file_path, src.notes, s.name, s.head_branch_id
+)
+SELECT json_build_object(
+ 'targets', coalesce((SELECT json_agg(t ORDER BY t.id) FROM targets t),'[]'::json),
+ 'later_sources', coalesce((SELECT json_agg(s ORDER BY s.created_at,s.id) FROM sources s),'[]'::json)
+)::text;`);
+if(db.targets.length !== ids.length) die('one or more supplier ids do not resolve');
+if(db.targets.some(t=>!t.is_active || !t.head_branch_id)) die('supplier/location is inactive or lacks a head_branch_id');
+const evidenceById=new Map();
+for(const e of input.later_evidence) {
+  if(!e || typeof e.source_id !== 'string' || evidenceById.has(e.source_id)) die('later_evidence requires unique source_id values');
+  if(!['authoritative-current','historical-static','withheld','escalated-partial'].includes(e.disposition)) die(`invalid evidence disposition for ${e.source_id}`);
+  if(typeof e.reason !== 'string' || !e.reason.trim() || typeof e.evidence !== 'string' || !e.evidence.trim()) die(`reason and evidence are required for ${e.source_id}`);
+  if(e.disposition === 'authoritative-current' && e.scope !== 'full') die(`authoritative-current source ${e.source_id} must prove scope=full, not a campaign/partial label`);
+  evidenceById.set(e.source_id,e);
+}
+const actualIds=new Set(db.later_sources.map(s=>s.id));
+const suppliedIds=new Set(evidenceById.keys());
+const missing=[...actualIds].filter(x=>!suppliedIds.has(x)), extra=[...suppliedIds].filter(x=>!actualIds.has(x));
+if(missing.length || extra.length) die(`later-source evidence is incomplete or stale; missing=[${missing}] extra=[${extra}]`);
+// A later source is authoritative only when a reviewer has attested it is a full,
+// current availability and the database has its actual active offerings.
+const authoritative=db.later_sources.filter(s=>evidenceById.get(s.id).disposition==='authoritative-current');
+let coverage=[];
+if(input.incoming.offerings.length && authoritative.length) {
+ const values=input.incoming.offerings.map(o=>`(${o.supplier_id},${o.common_name?quote(o.common_name):'NULL'},${o.botanical_name?quote(o.botanical_name):'NULL'},${o.cultivar_variety_trade_name?quote(o.cultivar_variety_trade_name):'NULL'},${o.size?quote(o.size):'NULL'})`).join(',');
+ const sourceIds=authoritative.map(s=>quote(s.id)).join(',');
+ coverage=sqlJson(`WITH incoming(supplier_id,common_name,botanical_name,cultivar,size) AS (VALUES ${values}),
+ matches AS (
+ SELECT row_number() OVER () AS n, e.supplier_id, concat_ws(' - ',e.common_name,e.botanical_name,e.cultivar) AS printed_name, e.size,
+        array_agg(DISTINCT i.source_id::text) FILTER (WHERE i.id IS NOT NULL) AS later_source_ids
+ FROM incoming e LEFT JOIN inventory i ON i.is_active AND i.supplier_id=e.supplier_id
+   AND i.source_id IN (${sourceIds})
+   AND i.name_key=normalize_plant_key(concat_ws(' - ',e.common_name,e.botanical_name,e.cultivar))
+   AND i.size IS NOT DISTINCT FROM e.size
+ GROUP BY e.supplier_id,e.common_name,e.botanical_name,e.cultivar,e.size
+)
+SELECT coalesce(json_agg(matches ORDER BY n),'[]'::json)::text FROM matches;`);
+}
+let decision, rationale;
+// A full, current later list is the later availability policy speaks about. A
+// campaign subject/body is never enough: it must be reviewer-attested and have
+// actual active offerings. Coverage remains in the record as a checkable
+// offering-to-offering comparison, not a fragile campaign-label shortcut.
+const validAuthoritative=authoritative.filter(s=>Number(s.active_offering_count)>0);
+if (validAuthoritative.length) {
+ decision='SKIP'; rationale='a later full authoritative availability source has active offerings; historical drop is superseded (direct offering coverage is recorded below)';
+} else if (authoritative.length) {
+ decision='FAIL'; rationale='a claimed full later availability has no active offerings; its authority/supersession is ambiguous';
+} else {
+ decision='ALLOW'; rationale='no later full authoritative availability exists; static, withheld, and partial/escalated evidence was reviewed but cannot supersede this historical drop';
+}
+const snapshot={targets:db.targets,later_sources:db.later_sources,coverage,decision,rationale};
+const fingerprint=crypto.createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+const record={gate:'historical-backfill-gate',version:1,created_at:new Date().toISOString(),input_path:inputPath,input_sha256:inputHash,decision,rationale,snapshot,fingerprint};
+if(command==='revalidate') {
+ const old=load(recordPath);
+ if(old.gate!=='historical-backfill-gate' || old.version!==1 || old.input_sha256!==inputHash) die('record is not for this exact input');
+ if(old.decision==='FAIL' || decision==='FAIL') die(rationale);
+ if(old.fingerprint!==fingerprint || old.decision!==decision) die('database/source landscape changed since preflight; run a new preflight and review its evidence');
+ record.revalidated_at=new Date().toISOString();
+}
+fs.mkdirSync(path.dirname(recordPath),{recursive:true});
+fs.writeFileSync(recordPath,JSON.stringify(record,null,2)+'\n');
+console.log(JSON.stringify({decision,rationale,record:recordPath,fingerprint},null,2));
+process.exit(decision==='FAIL'?2:0);

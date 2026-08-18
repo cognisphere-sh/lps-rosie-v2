@@ -25,6 +25,11 @@ Two linked Claude Design projects:
   `Supplier Workspace.dc.html`) — the screens and layout this app implements.
 - **Local Plant Supply UI** (`17ff846c-…`, `lps-ui@0.1.0`) — the shadcn/ui
   (new-york) component set the design builds on.
+- **Order Requests** (`ebbc6644-7e83-439a-8970-77f9fcaf74c9`,
+  `Order Requests.dc.html`) — the Job Requests screen, implemented at
+  `/requests`. It contributes the six status **tones** now in `globals.css`
+  (`--lps-tone-{green,lime,grey,amber,red,teal}-{bg,fg,dot}`, each with a dark
+  variant), read through `lib/job-requests.ts`.
 
 The layout is followed as-is; only the **columns and fields** were remapped onto
 the real schema. Two things the design owns that are easy to lose:
@@ -54,7 +59,13 @@ fidelity", start here rather than reverting one of these by accident:
 |---|---|
 | Higher-contrast dark-mode muted text and table chrome | The mock's small labels, empty states, controls and dividers were difficult to distinguish on typical displays. |
 | `--destructive-foreground` set to white | Upstream ships it equal to `--destructive`, making destructive text invisible. |
-| `Job Requests` rendered disabled | Job Requests remains out of scope. Settings is now a real responsive route containing Chat appearance. |
+| `Job Requests` is a **live route** (`/requests`) | Was rendered disabled while it was out of scope; the Order Requests design is now implemented against the real `job_requests` tables. |
+| Requests are **collapsed cards that expand**, not one always-open grouped table | Asked for directly: a request is scanned by its metadata and counts first, and opened only when its lines matter. The mock's left-hand merged "order" cell becomes the card head, which is also what makes the screen work on a narrow viewport. |
+| No selection checkboxes and no bulk action bar (Email quote / Text quote / Place order / PDF quote / Send availability request) | Every one of those actions is an approval-gated flow that does not exist yet — customer email needs Chris's sign-off per the `job-requests` skill, and order placement is the deferred request→order conversion. A button that only raised a toast would misrepresent what the system can do. |
+| Inline editing covers **fields the mock never made editable** (name, size, demand, avail, unit price, addresses, shared note) as well as its status picker | Asked for directly. Writes go through the existing whitelisted `PATCH /api/rows`, so the server — not the dropdown — decides what may be written. |
+| "Partial" is **derived**, not a stored status | The mock lists it beside the others; in the schema it is a fact about two numbers (`available_quantity < quantity`), so `itemPill()` derives it. A stored value could disagree with the figures printed next to it. |
+| Notes are grouped by **kind** (Customer / Shared / Internal), not by named author with avatars | The schema keeps three note columns rather than a thread table, so "who said it" is not recorded per entry. The kind is what actually governs disclosure, and it is what the popover shows. |
+| The mock's own agent chat sidebar is not rebuilt | The Shell already carries the app's agent chat panel on every page; a second one on this page would be two chats side by side. |
 | Chat lists three agents (Daisy, Rosie, Nova); Daisy and Nova are chattable | Rosie is `upcoming` in `lib/agents.ts` — shown disabled ("Coming soon") in the desktop rail and mobile Agents list, and refused by the chat proxy. |
 | No agent selector in the chat header — size presets only | Removed at the owner's request. Agents are picked from the collapsed rail (close the panel to switch). |
 | A **Know your Agents** page (`/agents`) added to the rail's bottom section (above the user entry) and the mobile ⋯ menu | Not in the mock; shows each agent's profile banner from `public/*_profile.png` with an Active / Coming soon badge. |
@@ -62,6 +73,7 @@ fidelity", start here rather than reverting one of these by accident:
 | No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
 | Signed-in user read from `/api/auth/me` | The mock hardcoded a name and initials into the markup. |
 | **Communications** tab added; **Notes** edits in place; supplier profile fields require explicit edit mode | The schema has two distinct note columns, and tap-anywhere field editing is unsafe on touch screens. Profile changes are staged and saved together. See below. |
+| Suppliers, Plant search and the profile present **one company**, not one `suppliers` row | A company with several sites is several rows in the database (`head_branch_id`), and the mock draws one row per row — so Everde filled fifteen lines of a fifty-line page and a buyer had to reconcile them by eye. Asked for directly. The farm is never lost: it expands under the company row, names itself in the plant table's **Branch** column, and tags every entry on the profile. See *Companies and farms*. |
 | Profile inventory is paginated | The mock had a fixed list; real suppliers carry thousands of rows. |
 | Column reorder is direction-aware | The mock's algorithm makes an adjacent rightward drag a no-op. See *Column layout*. |
 | Source/website cells are links; supplier sources show latest + history count | The mock rendered them as plain text. |
@@ -128,10 +140,11 @@ is enabled in the desktop rail and through mobile More.
 |---|---|---|
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
-| `/suppliers` | client | Company-level Supplier Search. Multi-location suppliers render once as a collapsed company summary with combined active-item count/latest matching availability, then expand to the exact farm/location rows and their existing profile links; single-site suppliers stay one row/card. Type/city/state and column filters still run on locations before grouping, so a narrowed result says `N of M locations` and never assigns farm inventory to the head office. Company pagination is 50 results at a time. Location rows retain the column picker, sort, resize, inline edit and view-only hiding; compact cards serve mobile. |
-| `/suppliers/:id` | client | Profile: one Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Other farms** / Communications / Notes / Files. **Other farms** lists the company's other active locations as cards linking to each — the head branch tagged **Head office** — and is offered only when there are any, so a single-site supplier never sees an empty tab (`?tab=locations` there falls back to Inventory). Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
-| `/plants` | client | Plant search grouped **company → farm/location → exact inventory**. A multi-location company is one collapsed presentation wrapper; expanding it reveals only the independently matched/filtered farms, and each farm expands its own rows. Every plant retains its original `supplier_id`, source and location profile link. Single-site suppliers keep the direct supplier presentation. The generic Shell title is hidden on mobile; the search toolbar carries natural size tokens, available-size/cultivar/type/city/state controls and pagination through the whole match set 300 plants at a time. Desktop keeps the resizable supplier panel and plant columns; mobile starts both multi-location company and farm inventory disclosures collapsed, then lets each plant expose notes/dates/source inline. |
+| `/suppliers` | client | Supplier Search, **one row per company** — see *Companies and farms*. The row is the head office's own record; only `# Items` and the ingestion columns speak for the whole company. A leading chevron expands the farms that answered the query beneath it, as full rows with their own profile links. Type/city/state and column filters still run on locations before grouping, so a company can appear because one farm matched and its expander reads `2 of 5 farms`. Company pagination is 50 results at a time. Rows retain the column picker, sort, resize, inline edit and view-only hiding; compact cards serve mobile. |
+| `/suppliers/:id` | client | Profile — **one page per company** on a head-branch id, one farm on a farm id (*Companies and farms*). One Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Farms** / Communications / Notes / Files; on a company page every one of them covers all the company's locations and **tags each entry with the farm it belongs to**. **Farms** lists each location as a card with the same editable field grid the header has, plus a link to that farm's own page, and is offered only where there is more than one location (`?tab=farms` on a single-site supplier falls back to Inventory). Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Desktop keeps details expanded, its back link visible and its pencil in the header. |
+| `/plants` | client | Plant search, **one card per company**, with every matching row from every one of its farms beside it and a **Branch** column naming the farm each row is at. Every plant retains its original `supplier_id` and source; the card links to the company page. The generic Shell title is hidden on mobile; the search toolbar carries natural size tokens, available-size/cultivar/type/city/state controls and pagination through the whole match set 300 plants at a time. Desktop keeps the resizable company panel and plant columns; mobile starts each company collapsed and lets each plant expose its branch, notes, dates and source inline. |
 | `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size, **cultivar** and tag. **50 photos at a time behind a Load more button**, which appends rather than flipping pages — a wall of photos is scanned downwards, and a pager loses everything already looked at. The button carries the remaining count so it isn't a mystery box. Each card carries a **delete** control in its top corner (always visible, not hover-only — this grid is used on touch screens): it confirms, then soft-deletes through `DELETE /api/rows`, and says plainly that the image file itself is kept in storage. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. The lightbox's pencil turns that panel into a **form**: the three name parts, size, height/width/caliper, tags (comma separated) and caption/notes, staged locally and written as one atomic update on Save, exactly as the supplier profile does. While editing, Esc backs out of the form rather than closing the lightbox and the arrows belong to the text fields, so a draft can't be lost by reaching for the next photo. |
+| `/requests` | client | **Job Requests**, from the Order Requests design comp. One **collapsed card per request** carrying everything it is judged on without opening it — `JR-<id>`, status pill, a **Needs input · N** badge, customer/company, contact routes, ship-to address, created/updated dates, `N lines · $total`, and a per-status count pill row (`2 available`, `1 unavailable`, …). Clicking the card expands its line-item table: Item / Size / Demand / Avail / Unit price / Total / Status / Notes, colour-keyed by status down a left edge, with a **Needs input** row tint. **The counts on a collapsed card always describe the whole request**, never the filtered subset the expanded table draws — so a card can honestly read `4 lines` while showing one. A search or an item-level filter auto-expands the cards it matched, since the question was about lines. **Expand all / Collapse all** in the toolbar. The line table scrolls sideways below ~960px rather than crushing its columns, and each card is `flex-none` so the card list scrolls vertically instead of the card being shrunk and clipping its own contents. **Fields are edited inline**: click a line's name, size, demand, avail or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged value is never written), pick a status from the pill's dropdown, toggle the needs-input flag from its badge, and edit the ship-to/bill-to parts and the shared note in the expanded detail block. Every write goes through `PATCH /api/rows`, and the page refetches afterwards because `total` and every count are derived. **Not editable, deliberately:** `total` (generated), `customer_notes` (the customer's own words) and `internal_notes` (an append-only sourcing log — overwriting it from a grid cell would destroy the record); the notes popover says so and offers only the shared note. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
 | `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
@@ -139,11 +152,12 @@ is enabled in the desktop rail and through mobile More.
 
 | API route | Purpose |
 |---|---|
-| `GET /api/suppliers?q=&page=` | Runs the location-level `search_suppliers` result and filters first, attaches each location's `head_branch_id`, groups before pagination, and returns `companies` (50 per page) with each company's matching location rows plus total active location count. `total`/`pageCount` are company counts. `?counts=1&ids=` remains the per-location active-item second pass; the browser sums only displayed/matching locations for the wrapper. |
-| `GET /api/suppliers/:id` | One supplier, its active sources, and the other active locations sharing its `head_branch_id` (`locations`, head branch first, never itself). |
-| `GET /api/plants?q=&page=` | Plant search remains paged at inventory-row grain (300), then returns exact location `groups` enriched with `companyId`, head name and total active company locations. The browser wraps those groups by company without merging rows. Plant and location filters—including city/state—run before the page/grouping. `sort=&dir=` orders the whole inventory match set ahead of relevance; `?supplierId=&page=` remains one exact location's paged inventory. |
+| `GET /api/suppliers?q=&page=` | Runs the location-level `search_suppliers` result and filters first, attaches each location's `head_branch_id`, groups before pagination, and returns `companies` (50 per page). Each carries the **`head` row** — read from `suppliers`, so it is present whether or not it matched — the matching farms under it, `matchedCount`, `locationCount` and `locationIds`. The head row's source list is the whole company's, newest first, so its **Last ingestion** is the company's. `total`/`pageCount` are company counts. `?counts=1&ids=` is still the per-location active-item second pass, now asked for **every** location id so the company row's `# Items` is the company's. |
+| `GET /api/suppliers/:id` | The whole profile as one payload (`getSupplierProfile`): `subjectId`, `company` (`{id, name, locationCount}`) and `locations` — head branch first, each with its own row, contacts, active sources and item count. On a head-branch id that is every active location of the company; on a farm id it is that farm alone. |
+| `GET /api/plants?q=&page=` | Plant search is still paged at inventory-row grain (300), then grouped into **company** `groups`: `companyId`, `companyName`, the head-office `company` row carrying the aggregates, `locationCount`, `matchedLocations` and the plants themselves, each with `values.branch` naming its farm. Plant and location filters — including city/state — run before the page and the grouping. `sort=&dir=` orders the whole inventory match set ahead of relevance. `?supplierId=&page=` is the profile's inventory and takes a **comma-separated set** of farm ids — the profile's whole scope — so a company page pages through its farms as one list. |
 | `GET /api/photos?q=&offset=` | Photo catalogue, 50 per batch, with the match `total`. **An `offset`, not a page number** — the grid appends, so it asks for "the next batch after what I hold", which stays correct after a photo is deleted out of the middle; a page number would skip the row that moved up. An offset past the end returns an **empty batch with the true total**, not an error. `p.supplier` / `p.size` / `p.cultivar` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags, cultivar display names and `{id,name,city,state}` suppliers — for that search without its filters. |
 | `GET /api/photos/:id/image` | Redirects to a 1-hour signed URL for one photo. Takes a **photo id**, never a storage path: the path is read from the row, so this cannot be used to sign arbitrary objects in the private bucket. |
+| `GET /api/requests?q=&page=` | Job requests, 25 per page, each with **all** of its active line items, its per-status counts, `lineTotal` and `attentionCount`. `q` matches a plant name on the request, the customer's name/company/email, or the request id (`7` or `JR-7`) — a plant match narrows the lines returned, a customer or id match keeps them all. `status` / `itemStatus` are whitelisted against the CHECK vocabularies (an unknown value is dropped, not an error); `size`, `customer`, `created`/`updated` (days back) and `needs=1` filter too. **`needs=1` means the request's own flag *or* a line waiting on someone** — flagged by hand, or with no availability answer yet — resolved in SQL so the page and its `total` describe the same set. `?facets=1` returns the size and customer option lists plus the header totals. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox. See *Agent chat*. |
@@ -155,6 +169,45 @@ is enabled in the desktop rail and through mobile More.
 Pages are client components that fetch from these routes — the workspace is
 interaction-heavy (column layout, filters, editing), so there is one data path
 rather than a server-rendered one and a client one that drift apart.
+
+## Companies and farms
+
+**A company that operates at several sites is several `suppliers` rows, one per
+location, tied together by `head_branch_id`** (schema doc). The database keeps
+it that way and nothing here changes that: stock, prices and pickup are per
+site, so `inventory`, `inventory_sources` and every contact link hang off the
+*farm*. What changed is the **unit the app presents**, which is now the company
+everywhere a supplier is listed:
+
+| Surface | Unit | Where the farm still shows |
+|---|---|---|
+| `/suppliers` | One row per company, the head office's own record | Chevron expands the matching farms as full rows |
+| `/plants` | One card per company | The **Branch** column on every plant row |
+| `/suppliers/:id` on a head id | One page for the company | Tabs tag each entry with its farm; **Farms** edits them |
+| `/suppliers/:id` on a farm id | That farm alone | It *is* the farm — with a link up to the company |
+
+Three consequences are worth holding on to:
+
+- **The head office is a row, not a rollup.** Its name, contacts, website and
+  address on the Suppliers table are its own. Only `# Items` and the ingestion
+  columns are company-wide, because a corporate office holds no stock and a row
+  reading `0 items` would understate the company it stands for. Everde's head
+  (supplier 32, the Houston office) therefore reports its 15 farms' 4,814 items
+  and their latest drop, beside its own Houston address.
+- **A company appears whenever any of its farms matched.** The head office is
+  read from `suppliers` rather than picked out of the match set, so searching
+  `bunnell` still presents *Everde Growers* — with `1 of 15 farms` on the
+  expander and only EVERDE GROWERS - BUNNELL beneath it. The corollary: a
+  city filter can leave a row whose own City column is not the city you picked.
+- **Farms keep their own page.** Links from search point at the company, but
+  every farm is still `/suppliers/<farm-id>`, reachable from the Farms tab, and
+  that page is the same component with a scope of one.
+
+`getSupplierProfile` is where the two cases meet. `head_branch_id` is never null
+and never chains, so one equality on it is the whole company and a single-site
+supplier is its own head — which makes "every location of this company" and
+"this one farm" the same code path with a different id list, and makes the
+1,313 single-site suppliers render exactly as they did before.
 
 ## Search
 
@@ -225,7 +278,7 @@ supplier's original size text remains unchanged.
 
 ### How unquoted results are ranked
 
-`search_inventory` matches **names, size and notes** and ranks by
+Unquoted `search_inventory` matches **names, size and notes** and ranks by
 **IDF-weighted term coverage**: the query is split into groups (longest span
 first, so `live oak` is one concept), each group is weighted by how rare it is
 in the catalogue, and a row's `relevance` is the sum over the groups it matched.
@@ -333,12 +386,11 @@ than leaving a stale filter value; ingestion/review must repopulate the pair.
 On mobile, price and dimension controls use a compact disclosure inside the
 primary toolbar rather than a second results-summary filter card.
 
-Mobile search results arrive as a collapsed **company** shortlist. A
-multi-location wrapper shows matching farms versus the company's total and the
-combined match count; expanding it reveals farm cards, whose inventory remains
-collapsed independently. A single-site supplier skips the redundant company
-layer. The underlined farm name still opens that exact location profile, while
-company/farm chevrons only disclose their children.
+Mobile Plant search results arrive as a collapsed **company** shortlist: one
+card per company, showing its match count and — where it has more than one site
+— how many of its farms answered. Expanding a card lists the matching rows, each
+naming its branch above the size line. The underlined company name opens the
+company profile; the chevron only discloses the rows.
 
 ## Contacts
 
@@ -386,9 +438,14 @@ columns server-side for anything querying the RPC directly.
 **On the profile** — a **Contacts** tab renders one card per contact: name,
 title/department, `mailto:`/`tel:` links, notes, shared-location line, and a
 **Primary** badge. Cards support edit in place, **Make primary**, and remove.
-Adding uses the same form. Because promotion flips `is_primary` on two links at
-once, every mutation re-reads the list from `/api/contacts` instead of patching
-local state. The profile's quick call/email actions fall back to the primary
+Adding uses the same form. On a company page the tab covers **every farm**, one
+card per `supplier_contacts` link, each tagged with the location it is at — a
+rep who covers three farms is three cards, because the primary flag and the
+removal are per link and pretending otherwise would make either ambiguous. The
+add form gains a farm picker for the same reason: a contact is always linked to
+one location. Because promotion flips `is_primary` on two links at once, every
+mutation re-reads the whole profile from `/api/suppliers/:id` instead of
+patching local state. The profile's quick call/email actions fall back to the primary
 contact when the supplier has no switchboard `phone`/`email`, and read from that
 live list so a promotion is reflected immediately.
 
@@ -419,7 +476,8 @@ source lookup rather than duplicating them into `inventory`. This timestamp is
 when LPS ingested the source, **not** the source's printed/effective availability
 date; the latter must be modeled separately rather than inferred from filenames.
 
-The profile's **Files tab** lists a supplier's active sources and can retire one:
+The profile's **Files tab** lists the active sources of every location in
+scope — tagged with the farm on a company page — and can retire one:
 **Deactivate** confirms, then flips `is_active` on the file, which retires every
 inventory row still attributed to it (`DELETE /api/rows` with
 `table: 'inventory_sources'` → `deactivateSource`). The cascade itself is a
@@ -513,6 +571,33 @@ Deleting is genuinely destructive in effect: a soft-deleted row disappears from
 photo grid drops the deleted card locally and decrements its total rather than
 refetching, which would pull a photo up from the next page and shift everything
 the user was looking at.
+
+### Job requests
+
+`job_requests` and `job_request_items` are written through the same
+`PATCH /api/rows` whitelist as every other table, with three columns held back
+on purpose:
+
+- **`total`** is `GENERATED ALWAYS AS (quantity * unit_price)`. Postgres rejects
+  a write to it outright; the whitelist refuses first, with a sentence.
+- **`customer_notes`** is what the customer said. It is evidence, and the
+  workspace has no business rewriting it.
+- **`internal_notes`** is an append-only sourcing log (`job-requests` skill).
+  A grid cell overwrites, so offering it here would destroy the log the moment
+  someone edited a stale copy of it. Appending needs its own control; until
+  there is one, the column is read-only in the app and only Rosie appends.
+
+`status` on both tables is checked against the CHECK vocabulary **server-side**
+(`ENUMS` in `lib/queries.ts`), so a bad value comes back naming the allowed ones
+rather than as a constraint-violation string, and the server does not depend on
+the dropdown having been honest. `quantity > 0` and `available_quantity >= 0`
+are likewise reported as sentences.
+
+Every write — from this app or from Rosie — is recorded by the
+`job_request_changelog` trigger with the actor that made it: `service_role` for
+the app, `rosie` for the agent (which sets the `app.actor` GUC). Nothing in the
+write path has to cooperate for that to happen, which is the point of it being
+a trigger.
 
 ## Availability source
 
@@ -748,6 +833,12 @@ mixed (see [the schema doc](../supabase-schema.md#notes-vs-communication_notes--
 | **Notes** | `suppliers.notes` | What is **true about** the supplier — quirks, preferences, ordering constraints. A textarea, **edited in place**. |
 | **Communications** | `suppliers.communication_notes` | What was **said to** them. **Append-only**: pick a channel, write what and why, and it appends a timestamped entry. Rendered newest-first; the column itself stays in append order. |
 
+Both columns are per location, so on a company page both tabs are per location
+too: **Notes** renders one tagged editor per farm, and **Communications** merges
+every farm's log into one list ordered by the `[YYYY-MM-DD HH:MM …]` stamp each
+entry opens with, tagging each entry and asking which farm a new one is about.
+Entries without a stamp have no position to claim and fall to the end.
+
 Daisy writes to `communication_notes` in the same format every time she contacts
 a supplier, so app-entered and agent-entered history read as one log.
 
@@ -808,9 +899,13 @@ already projects the columns. Two consequences worth knowing:
   would collapse to whatever is selected, so picking one size would remove every
   other size from its own dropdown. Because the key is the search term, changing
   a filter never refetches them.
-- **Two things stay in the browser, each for a reason.** `# Items` on the
-  Suppliers table, because it is a per-supplier COUNT from a second pass and
-  not a column `search_suppliers` returns. And a size *typed into the query*
+- **Three things stay in the browser, each for a reason.** `# Items` on the
+  Suppliers table, because it is a per-location COUNT from a second pass and
+  not a column `search_suppliers` returns — and on a company row it is a sum
+  over locations, so it filters the company, not one of its farms. **Branch**
+  on the plant tables, because `inventory` has no farm-name column to select
+  on; the panel's own company picker is what narrows by supplier. And a size
+  *typed into the query*
   (`15g`), because it matches by value against the supplier's printed size text
   — `15g` finds a row listed as `10/15 G` — which is a range no single
   standardized bucket can express, so there is no column to compare against.
@@ -864,18 +959,21 @@ columns are on `search_inventory` and on `inventory` both.
 Four kinds of column are absent from the maps and still sort the page:
 
 - **Values assembled after the fetch.** `# Items`, `Other contacts`,
-  `Inventory sources` and `Last ingestion` on Suppliers; `Source` and `Ingested`
-  on the plant tables. None is a column the query could order by.
+  `Inventory sources` and `Last ingestion` on Suppliers; `Source`, `Ingested`
+  and `Branch` on the plant tables. None is a column the query could order by —
+  `Branch` comes from `search_inventory`'s projected `supplier_name` on the
+  search path and from a supplier lookup on the browse path, so there is no one
+  column both could order on.
 - **`Communication notes`**, which is on `suppliers` but outside
   `search_suppliers`' projection.
 - **`Size`**, because SQL would order `size_std` as text and put `100G` between
   `10G` and `15G`. Its canonical order is a rule (`lib/size-std.ts`), not
   something an index expresses.
-- **The whole supplier panel on Plant search.** Its master rows *are* this
+- **The whole company panel on Plant search.** Its master rows *are* this
   page's groups, assembled from the plants that came back, so ordering them
-  arranges what was fetched. Asking for "the supplier with the most matches"
+  arranges what was fetched. Asking for "the company with the most matches"
   across the entire result set is a different query — an aggregate over
-  `search_inventory` grouped by supplier — and nothing here can serve it.
+  `search_inventory` grouped by head branch — and nothing here can serve it.
 
 ## Paging the list pages
 
@@ -913,17 +1011,21 @@ debounced query, filter or sort state, since page 3 of one ordering means
 nothing under another — and does so during render, before the fetch
 effect can run against the number the new search just invalidated. Every
 client-side concern — column filters, the toolbar multiselects, size selection,
-hidden rows, and Plant search's grouping by supplier — still applies to the
-current page alone, so a supplier group's match count is its count *on this
+hidden rows, and Plant search's grouping by company — still applies to the
+current page alone, so a company card's match count is its count *on this
 page*.
 
 ## Paging the profile's inventory
 
 A supplier can carry thousands of rows (Austin Plant Supply has 1,467), so the
 profile's Inventory tab pages through them 100 at a time rather than capping the
-list. `getSupplierPlants` fetches `PROFILE_PAGE_SIZE + 1` and reports `hasMore` from the
-extra row, so there is no second count query; the page count in the header comes
-from the supplier's own `item_count`. Filters and the header sort are applied
+list. `getSupplierPlants` takes the profile's **whole scope** — every farm of
+the company, or the one farm — fetches `PROFILE_PAGE_SIZE + 1` and reports
+`hasMore` from the extra row, so there is no second count query; the page count
+in the header comes from the scope's summed `item_count`. The page it returns is
+then grouped by farm and drawn as a **card beside its rows**, the same shape
+Plant search uses, because inventory is per farm even when the page is not. A
+single-site supplier has one group and no card — there is nothing to tell apart. Filters and the header sort are applied
 before that slice, so both describe the supplier's whole inventory rather than
 the hundred rows on screen — see *Where a filter runs* and *Where a sort runs*.
 
@@ -934,13 +1036,16 @@ hovering shows the whole thing. The source-list cell's tooltip lists every file.
 
 ## Performance notes
 
-- **"# Items"** needs one indexed `COUNT` per supplier (PostgREST has aggregate
+- **"# Items"** needs one indexed `COUNT` per location (PostgREST has aggregate
   functions disabled on this project), ~2s for a page of 50. It loads as a
-  second pass so the table renders immediately. A
-  `supplier_item_counts(ids bigint[])` RPC would collapse it to one query.
-- Master-row aggregates on Plant search (`# Plants`, `Lowest price`,
-  `In stock`) describe the **matched** plants, not the supplier's whole
-  catalogue — same as the design, and free to compute.
+  second pass so the table renders immediately. A company page counts every one
+  of its locations, so the pass is slightly wider than the rows on screen — 60
+  extra ids across the whole catalogue, since only 22 companies have more than
+  one site. A `supplier_item_counts(ids bigint[])` RPC would collapse it to one
+  query.
+- Company-card aggregates on Plant search (`# Plants`, `Lowest price`,
+  `In stock`) describe the **matched** plants across the company, not any
+  farm's whole catalogue — same as the design, and free to compute.
 
 ## Auth
 
@@ -1044,8 +1149,8 @@ app/
                  file, rows, chat/[...path]
   a/[agent]/     agent artifacts: public/ pass-through, private/ page +
                  ShareToggle + raw + share
-  suppliers/     list + [id] profile
-  plants/        grouped plant search
+  suppliers/     list (one row per company) + [id] profile (one page per company)
+  plants/        plant search, one card per company
   photos/        photo catalogue grid + lightbox
   agents/        Know your Agents — profile banner cards
   login/
@@ -1077,7 +1182,8 @@ lib/
   agents.ts        the agents (id, name, role, avatar, profile, upcoming flag,
                    intro, suggestions) + CHAT_AGENTS, the chattable subset
   columns.ts       column definitions mapped to schema columns + websiteHref()
-  rows.ts          row shapes (SupplierRow, PlantRow, PlantGroup, SourceLink,
+  rows.ts          row shapes (SupplierRow, SupplierCompany, SupplierProfile,
+                   SupplierScopeLocation, PlantRow, PlantGroup, SourceLink,
                    PhotoCard, PhotoFacets)
   queries.ts       every database read, the whitelisted writes, file signing
   photos.ts        the photo catalogue's reads, facets and image signing

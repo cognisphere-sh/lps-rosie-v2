@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import type { ServerSort } from '@/lib/server-sort'
 import { sourceUrl, supabase } from '@/lib/supabase'
@@ -10,7 +11,7 @@ import type {
   PlantRow,
   SourceLink,
   SupplierCompany,
-  SupplierLocation,
+  SupplierProfile,
   SupplierRef,
   SupplierRow,
   SupplierSource,
@@ -55,6 +56,8 @@ interface InventoryRecord {
   unit_price: number | null
   quantity: number | null
   supplier_id: number | null
+  /** Projected by `search_inventory`; absent when reading `inventory` directly. */
+  supplier_name?: string | null
   source_id?: string | null
   notes: string | null
   internal_notes: string | null
@@ -123,6 +126,8 @@ function toSupplierRow(
 function toPlantRow(
   r: InventoryRecord,
   sourceDetails?: { path: string; ingestedAt: string | null } | null,
+  /** The farm's name, where the caller resolved it — `search_inventory` projects it. */
+  branch?: string | null,
 ): PlantRow {
   const path = sourceDetails?.path ?? r.source ?? null
   return {
@@ -131,6 +136,9 @@ function toPlantRow(
     sourcePath: path,
     values: {
       name: r.name,
+      // Which farm holds the row. Plant search groups by company, so without
+      // this the rows under one card would not say where the stock actually is.
+      branch: branch ?? r.supplier_name ?? null,
       common_name: r.common_name,
       botanical_name: r.botanical_name,
       cultivar: r.cultivar_variety_trade_name,
@@ -204,10 +212,20 @@ async function detailsBySourceId(
  * exposes the source ingestion timestamp. Resolve it once per result batch;
  * manual/source-less rows deliberately remain blank.
  */
-async function withSourceDetails(records: InventoryRecord[]): Promise<PlantRow[]> {
+async function withSourceDetails(
+  records: InventoryRecord[],
+  /** Farm names by supplier id, for the browse path — `inventory` has no `supplier_name`. */
+  branches?: Map<number, string>,
+): Promise<PlantRow[]> {
   const ids = [...new Set(records.map((r) => r.source_id).filter((v): v is string => !!v))]
   const details = await detailsBySourceId(ids)
-  return records.map((r) => toPlantRow(r, r.source_id ? details.get(r.source_id) ?? null : null))
+  return records.map((r) =>
+    toPlantRow(
+      r,
+      r.source_id ? details.get(r.source_id) ?? null : null,
+      r.supplier_id == null ? null : branches?.get(r.supplier_id) ?? null,
+    ),
+  )
 }
 
 /** Active source files per supplier, for the "Inventory sources" column. */
@@ -405,6 +423,10 @@ export async function listSuppliers(
   const pageEntries = [...grouped.entries()].slice(fromCompany, fromCompany + PAGE_SIZE)
   if (!pageEntries.length) return { companies: [], total }
 
+  // The row the page shows is the head office, matched or not — so it is read
+  // here rather than picked out of the match set. Its siblings come with it:
+  // `# Items` and the ingestion columns on that row are company-wide, and a
+  // farm that did not answer the query still holds stock the company has.
   const headIds = pageEntries.map(([headId]) => headId)
   const [{ data: heads, error: headError }, { data: activeLocations, error: locationError }] = await Promise.all([
     supabase.from('suppliers').select('*').in('id', headIds),
@@ -414,39 +436,55 @@ export async function listSuppliers(
   if (locationError) throw new Error(`supplier company locations: ${locationError.message}`)
 
   const headRecords = new Map((heads ?? []).map((row) => [(row as SupplierRecord).id, row as SupplierRecord]))
-  const locationCount = new Map<number, number>()
+  const companyLocationIds = new Map<number, number[]>()
   for (const row of (activeLocations ?? []) as { id: number; head_branch_id: number }[]) {
-    locationCount.set(row.head_branch_id, (locationCount.get(row.head_branch_id) ?? 0) + 1)
+    companyLocationIds.set(row.head_branch_id, [...(companyLocationIds.get(row.head_branch_id) ?? []), row.id])
   }
+  const locationIdsOf = (headId: number, matches: SupplierRecord[]) => [
+    ...new Set([...(companyLocationIds.get(headId) ?? []), ...matches.map((record) => record.id)]),
+  ]
 
-  const locationRecords = pageEntries.flatMap(([, matches]) => matches)
-  const locationIds = locationRecords.map((record) => record.id)
+  // Sources for every location in these companies, not just the matching ones,
+  // because the head row's ingestion columns speak for the whole company.
+  // Contacts stay per row: the head office's own people are what its row shows.
+  const everyLocationId = [
+    ...new Set(pageEntries.flatMap(([headId, matches]) => locationIdsOf(headId, matches))),
+  ]
+  const contactIds = [...new Set([...headIds, ...pageEntries.flatMap(([, m]) => m.map((r) => r.id))])]
   const [sources, contacts] = await Promise.all([
-    sourcesBySupplier(locationIds),
-    contactsBySupplier(locationIds),
+    sourcesBySupplier(everyLocationId),
+    contactsBySupplier(contactIds),
   ])
-  const rowsById = new Map(
-    locationRecords.map((record) => [
-      record.id,
-      toSupplierRow(record, {
-        sources: sources.get(record.id) ?? [],
-        contacts: contacts.get(record.id) ?? [],
-      }),
-    ]),
-  )
 
   return {
     companies: pageEntries.map(([headId, matches]) => {
-      const head = headRecords.get(headId)
+      const locationIds = locationIdsOf(headId, matches)
+      const head = headRecords.get(headId) ?? matches[0]
+      const headRow = toSupplierRow(head, {
+        // Newest first, so `last_ingestion_date` reads the latest drop anywhere
+        // in the company — toSupplierRow takes it from the head of this list.
+        sources: locationIds
+          .flatMap((id) => sources.get(id) ?? [])
+          .sort((a, b) => b.ingestedAt.localeCompare(a.ingestedAt)),
+        contacts: contacts.get(headId) ?? [],
+      })
       const locations = matches
-        .map((record) => rowsById.get(record.id)!)
-        .sort((a, b) => Number(b.id === headId) - Number(a.id === headId) ||
-          String(a.values.name ?? '').localeCompare(String(b.values.name ?? '')))
+        .filter((record) => record.id !== headId)
+        .map((record) =>
+          toSupplierRow(record, {
+            sources: sources.get(record.id) ?? [],
+            contacts: contacts.get(record.id) ?? [],
+          }),
+        )
+        .sort((a, b) => String(a.values.name ?? '').localeCompare(String(b.values.name ?? '')))
       return {
         id: headId,
-        name: head?.name ?? String(locations[0]?.values.name ?? ''),
-        locationCount: locationCount.get(headId) ?? locations.length,
+        name: head?.name ?? String(headRow.values.name ?? ''),
+        head: headRow,
         locations,
+        locationCount: locationIds.length,
+        matchedCount: matches.length,
+        locationIds,
       }
     }),
     total,
@@ -454,8 +492,13 @@ export async function listSuppliers(
 }
 
 /**
- * Plant search, grouped by supplier — the master rows on the Plant search page
- * are the suppliers that matched, with their matching plants underneath.
+ * Plant search, grouped by **company** — one card per company, with every
+ * matching plant from every one of its farms underneath it, each row naming its
+ * farm in `values.branch`.
+ *
+ * Inventory itself stays location-scoped: `inventory.supplier_id` is a farm and
+ * nothing here changes that. The company is the unit of presentation, because a
+ * buyer asking "who has 15G Live Oak" wants one Everde, not four.
  *
  * `search_inventory` returns nothing for an empty query — there is nothing to
  * rank — so an empty search browses `inventory` directly instead.
@@ -509,16 +552,16 @@ async function inventorySearch(
  */
 export async function plantFacets(
   search: string,
-  supplierId?: number,
+  supplierIds?: number[],
 ): Promise<Record<string, string[]>> {
   const term = search.trim()
   // A supplier's own tab browses rather than searches, so with no query its
-  // facets come from that supplier's inventory instead of from a match set.
-  if (!term) return supplierId ? inventoryFacets(supplierId) : {}
+  // facets come from that company's inventory instead of from a match set.
+  if (!term) return supplierIds?.length ? inventoryFacets(supplierIds) : {}
   let facetQuery = supabase
     .rpc('search_inventory', { search: term })
     .select('size_std, cultivar_variety_trade_name, supplier_category, supplier_city, supplier_state')
-  if (supplierId != null) facetQuery = facetQuery.eq('supplier_id', supplierId)
+  if (supplierIds?.length) facetQuery = facetQuery.in('supplier_id', supplierIds)
   const { data, error } = await facetQuery
     // ponytail: a facet on a match set larger than this is truncated. Raise it
     // or move to a distinct-values RPC if a real query ever exceeds it.
@@ -550,12 +593,12 @@ export async function plantFacets(
   return Object.fromEntries(Object.entries(facets).map(([k, v]) => [k, [...v]]))
 }
 
-/** Facets for one supplier's whole active inventory — the no-search case. */
-async function inventoryFacets(supplierId: number): Promise<Record<string, string[]>> {
+/** Facets for a profile's whole active inventory — the no-search case. */
+async function inventoryFacets(supplierIds: number[]): Promise<Record<string, string[]>> {
   const { data, error } = await supabase
     .from('inventory')
     .select('size_std, cultivar_variety_trade_name')
-    .eq('supplier_id', supplierId)
+    .in('supplier_id', supplierIds)
     .eq('is_active', true)
     .limit(20000)
   if (error) throw new Error(`inventory facets: ${error.message}`)
@@ -619,66 +662,88 @@ export async function searchPlantGroups(
   const supplierIds = [...new Set(records.map((r) => r.supplier_id).filter((id): id is number => id != null))]
   if (!supplierIds.length) return { groups: [], total }
 
-  const [{ data: sups, error: supErr }, sources, contacts, plantRows] = await Promise.all([
-    supabase.from('suppliers').select('*').in('id', supplierIds),
-    sourcesBySupplier(supplierIds),
-    contactsBySupplier(supplierIds),
-    withSourceDetails(records),
-  ])
+  const { data: sups, error: supErr } = await supabase.from('suppliers').select('*').in('id', supplierIds)
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
-
   const supplierRecords = (sups ?? []) as SupplierRecord[]
   const byId = new Map(supplierRecords.map((supplier) => [supplier.id, supplier]))
+  const headOf = (id: number) => byId.get(id)?.head_branch_id ?? id
+
   const headIds = [...new Set(supplierRecords.map((supplier) => supplier.head_branch_id ?? supplier.id))]
   const [{ data: heads, error: headError }, { data: companyLocations, error: companyLocationError }] =
     await Promise.all([
-      supabase.from('suppliers').select('id, name').in('id', headIds),
+      supabase.from('suppliers').select('*').in('id', headIds),
       supabase.from('suppliers').select('id, head_branch_id').in('head_branch_id', headIds).eq('is_active', true),
     ])
   if (headError) throw new Error(`supplier company heads: ${headError.message}`)
   if (companyLocationError) throw new Error(`supplier company locations: ${companyLocationError.message}`)
-  const companyName = new Map((heads ?? []).map((head) => [head.id as number, head.name as string]))
-  const companyLocationCount = new Map<number, number>()
+  const headRecords = new Map((heads ?? []).map((row) => [(row as SupplierRecord).id, row as SupplierRecord]))
+
+  // Every active location of every company on this page, so the card's own
+  // columns (its files, its last ingestion) speak for the company the way the
+  // Suppliers table's row does — even for farms this search did not match.
+  const companyLocationIds = new Map<number, Set<number>>()
   for (const location of (companyLocations ?? []) as { id: number; head_branch_id: number }[]) {
-    companyLocationCount.set(
-      location.head_branch_id,
-      (companyLocationCount.get(location.head_branch_id) ?? 0) + 1,
-    )
+    const set = companyLocationIds.get(location.head_branch_id) ?? new Set<number>()
+    set.add(location.id)
+    companyLocationIds.set(location.head_branch_id, set)
+  }
+  for (const id of supplierIds) {
+    const head = headOf(id)
+    const set = companyLocationIds.get(head) ?? new Set<number>()
+    set.add(id)
+    companyLocationIds.set(head, set)
   }
 
+  const [sources, contacts, plantRows] = await Promise.all([
+    sourcesBySupplier([...new Set([...companyLocationIds.values()].flatMap((set) => [...set]))]),
+    contactsBySupplier(headIds),
+    // The browse path reads `inventory`, which has no `supplier_name`, so the
+    // Branch column's farm names are resolved from the supplier records here.
+    withSourceDetails(records, new Map(supplierRecords.map((r) => [r.id, r.name]))),
+  ])
+
   const groups = new Map<number, PlantGroup>()
+  const matchedFarms = new Map<number, Set<number>>()
   for (const plant of plantRows) {
     if (plant.supplierId == null) continue
     const record = byId.get(plant.supplierId)
     if (!record) continue
+    const headId = record.head_branch_id ?? record.id
 
-    let group = groups.get(plant.supplierId)
+    let group = groups.get(headId)
     if (!group) {
-      const headId = record.head_branch_id ?? record.id
+      const head = headRecords.get(headId) ?? record
+      const locationIds = [...(companyLocationIds.get(headId) ?? new Set([record.id]))]
       group = {
-        supplier: toSupplierRow(record, {
-          sources: sources.get(plant.supplierId) ?? [],
-          contacts: contacts.get(plant.supplierId) ?? [],
-        }),
-        plants: [],
         companyId: headId,
-        companyName: companyName.get(headId) ?? record.name,
-        companyLocationCount: companyLocationCount.get(headId) ?? 1,
+        companyName: head.name,
+        company: toSupplierRow(head, {
+          sources: locationIds
+            .flatMap((id) => sources.get(id) ?? [])
+            .sort((a, b) => b.ingestedAt.localeCompare(a.ingestedAt)),
+          contacts: contacts.get(headId) ?? [],
+        }),
+        locationCount: locationIds.length,
+        matchedLocations: 0,
+        plants: [],
       }
-      groups.set(plant.supplierId, group)
+      groups.set(headId, group)
+      matchedFarms.set(headId, new Set())
     }
     group.plants.push(plant)
+    matchedFarms.get(headId)!.add(plant.supplierId)
   }
 
-  // The master row's aggregates describe the *matched* plants, not the
-  // supplier's whole catalogue — same as the design.
-  for (const group of groups.values()) {
+  // The card's aggregates describe the *matched* plants across the company, not
+  // any one farm's whole catalogue — same as the design.
+  for (const [headId, group] of groups) {
     const prices = group.plants
       .map((p) => p.values.price)
       .filter((v): v is number => typeof v === 'number')
-    group.supplier.values.plant_count = group.plants.length
-    group.supplier.values.cheapest = prices.length ? Math.min(...prices) : null
-    group.supplier.values.in_stock = group.plants.reduce(
+    group.matchedLocations = matchedFarms.get(headId)?.size ?? 1
+    group.company.values.plant_count = group.plants.length
+    group.company.values.cheapest = prices.length ? Math.min(...prices) : null
+    group.company.values.in_stock = group.plants.reduce(
       (n, p) => n + (typeof p.values.qty === 'number' ? p.values.qty : 0),
       0,
     )
@@ -707,78 +772,117 @@ export async function supplierFacets(search: string): Promise<Record<string, str
   return Object.fromEntries(Object.entries(facets).map(([k, v]) => [k, [...v]]))
 }
 
-export async function getSupplier(id: number): Promise<SupplierRow | null> {
-  const [{ data, error }, sources, contacts, counts] = await Promise.all([
-    supabase.from('suppliers').select('*').eq('id', id).maybeSingle(),
-    sourcesBySupplier([id]),
-    contactsBySupplier([id]),
-    itemCounts([id]),
-  ])
-  if (error) throw new Error(`suppliers(${id}): ${error.message}`)
-  if (!data) return null
-  return toSupplierRow(data as SupplierRecord, {
-    sources: sources.get(id) ?? [],
-    contacts: contacts.get(id) ?? [],
-    itemCount: counts[id] ?? 0,
-  })
+/** Active source files per supplier, with the ids and URLs the Files tab needs. */
+async function sourcesByLocation(ids: number[]): Promise<Map<number, SupplierSource[]>> {
+  const map = new Map<number, SupplierSource[]>()
+  if (!ids.length) return map
+  const { data, error } = await supabase
+    .from('inventory_sources')
+    .select('id, supplier_id, file_path, notes, created_at')
+    .in('supplier_id', ids)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(`inventory_sources(${ids.join(',')}): ${error.message}`)
+
+  type Row = { id: string; supplier_id: number; file_path: string; notes: string | null; created_at: string }
+  for (const row of (data ?? []) as Row[]) {
+    const { supplier_id, ...source } = row
+    map.set(supplier_id, [...(map.get(supplier_id) ?? []), { ...source, url: sourceUrl(source.file_path) }])
+  }
+  return map
 }
 
 /**
- * The company's *other* active locations, head branch first.
+ * Everything one supplier profile page renders.
  *
- * `head_branch_id` is never null and never chains — a single-site supplier
- * points at itself — so one equality on it is the whole company, and dropping
- * the supplier being viewed leaves exactly its siblings. An empty result means
- * this supplier is the company's only location.
+ * **The page is one page per company.** Opened on a head-branch id its scope is
+ * every active location of the company, so its tabs list the contacts, files
+ * and notes of all of them and tag each entry with the farm it belongs to.
+ * Opened on a farm id the scope is that farm alone — the farm keeps its own
+ * page, reachable from the company's Farms tab.
+ *
+ * `head_branch_id` is never null and never chains (docs/supabase-schema.md), so
+ * one equality on it is the whole company and a single-site supplier is its own
+ * head — which makes the company case and the lone-farm case the same code.
  */
-export async function getSupplierLocations(id: number): Promise<SupplierLocation[]> {
+export async function getSupplierProfile(id: number): Promise<SupplierProfile | null> {
   const { data: self, error: selfError } = await supabase
     .from('suppliers')
-    .select('head_branch_id')
+    .select('id, head_branch_id')
     .eq('id', id)
     .maybeSingle()
   if (selfError) throw new Error(`suppliers(${id}) head branch: ${selfError.message}`)
-  if (!self) return []
-  const head = (self as { head_branch_id: number }).head_branch_id
+  if (!self) return null
+  const headId = (self as { head_branch_id: number }).head_branch_id
 
-  const { data, error } = await supabase
+  const { data: siblings, error: siblingError } = await supabase
     .from('suppliers')
-    .select('id, name, category, city, state')
-    .eq('head_branch_id', head)
+    .select('id')
+    .eq('head_branch_id', headId)
     .eq('is_active', true)
-    .neq('id', id)
-    .order('name', { ascending: true })
-  if (error) throw new Error(`suppliers locations(${head}): ${error.message}`)
+  if (siblingError) throw new Error(`suppliers locations(${headId}): ${siblingError.message}`)
+  const companyIds = [...new Set([...((siblings ?? []) as { id: number }[]).map((r) => r.id), headId])]
+  const scopeIds = id === headId ? companyIds : [id]
 
-  type Row = Omit<SupplierLocation, 'is_head'>
-  return ((data ?? []) as Row[])
-    .map((r) => ({ ...r, is_head: r.id === head }))
-    .sort((a, b) => Number(b.is_head) - Number(a.is_head))
+  const [{ data: rows, error: rowError }, sources, contacts, counts] = await Promise.all([
+    supabase.from('suppliers').select('*').in('id', scopeIds),
+    sourcesByLocation(scopeIds),
+    contactsBySupplier(scopeIds),
+    itemCounts(scopeIds),
+  ])
+  if (rowError) throw new Error(`suppliers(${scopeIds.join(',')}): ${rowError.message}`)
+  if (!rows?.length) return null
+
+  const locations = (rows as SupplierRecord[])
+    .map((record) => ({
+      row: toSupplierRow(record, {
+        sources: sourceLinksOf(sources.get(record.id) ?? []),
+        contacts: contacts.get(record.id) ?? [],
+        itemCount: counts[record.id] ?? 0,
+      }),
+      is_head: record.id === headId,
+      sources: sources.get(record.id) ?? [],
+    }))
+    // Head office first; the rest alphabetically, as the Farms tab lists them.
+    .sort((a, b) =>
+      Number(b.is_head) - Number(a.is_head) ||
+      String(a.row.values.name ?? '').localeCompare(String(b.row.values.name ?? '')),
+    )
+
+  const headName =
+    locations.find((location) => location.is_head)?.row.values.name ??
+    (await supabase.from('suppliers').select('name').eq('id', headId).maybeSingle()).data?.name ??
+    ''
+
+  return {
+    subjectId: id,
+    company: { id: headId, name: String(headName), locationCount: companyIds.length },
+    locations,
+  }
 }
 
-export async function getSupplierSources(id: number): Promise<SupplierSource[]> {
-  const { data, error } = await supabase
-    .from('inventory_sources')
-    .select('*')
-    .eq('supplier_id', id)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-
-  if (error) throw new Error(`inventory_sources(${id}): ${error.message}`)
-  return ((data ?? []) as { id: string; file_path: string; notes: string | null; created_at: string }[]).map(
-    (s) => ({ ...s, url: sourceUrl(s.file_path) }),
-  )
+/** The `SourceLink` shape the row's "Inventory sources" column renders. */
+function sourceLinksOf(sources: SupplierSource[]): SourceLink[] {
+  return sources.map((source) => ({
+    label: fileLabel(source.file_path),
+    path: source.file_path,
+    ingestedAt: source.created_at,
+  }))
 }
 
 export const PROFILE_PAGE_SIZE = 100
 
 /**
- * One supplier's plants, one page at a time — a supplier can carry thousands of
+ * One company's plants, one page at a time — a supplier can carry thousands of
  * rows, so the profile pages through them rather than capping the list.
  * Fetches PAGE_SIZE + 1 to report `hasMore` without a second count query.
+ *
+ * `ids` is the profile's scope: every location of the company on a company
+ * page, one farm on a farm page. Each row names its farm in `values.branch`,
+ * which is what the Inventory tab groups its farm cards by.
  */
 export async function getSupplierPlants(
-  id: number,
+  ids: number[],
   search: string,
   page = 1,
   filters: ServerFilter[] = [],
@@ -790,9 +894,9 @@ export async function getSupplierPlants(
 
   if (term) {
     // `supplier_ids` left the RPC with the other filter parameters (migration
-    // 0045) — scoping to one supplier is the same outer filter as any other.
+    // 0045) — scoping to a company's farms is the same outer filter as any other.
     let query = applyServerFilters(
-      supabase.rpc('search_inventory', { search: term }).eq('supplier_id', id),
+      supabase.rpc('search_inventory', { search: term }).in('supplier_id', ids),
       filters,
     )
     // Same rule as the plant search: a header sort orders the supplier's whole
@@ -815,18 +919,25 @@ export async function getSupplierPlants(
     supabase
       .from('inventory')
       .select('*')
-      .eq('supplier_id', id)
+      .in('supplier_id', ids)
       .eq('is_active', true),
     filters,
   )
   if (sort) query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false })
-  const { data, error } = await query
-    .order('updated_at', { ascending: false })
-    .range(from, to)
+  const [{ data, error }, { data: farms, error: farmError }] = await Promise.all([
+    query.order('updated_at', { ascending: false }).range(from, to),
+    // `inventory` carries no `supplier_name`, so the Branch column's farm names
+    // are read here — `search_inventory` above projects them itself.
+    supabase.from('suppliers').select('id, name').in('id', ids),
+  ])
   if (error) throw new Error(`inventory: ${error.message}`)
+  if (farmError) throw new Error(`suppliers(${ids.join(',')}): ${farmError.message}`)
   const records = (data ?? []) as InventoryRecord[]
   return {
-    plants: await withSourceDetails(records.slice(0, PROFILE_PAGE_SIZE)),
+    plants: await withSourceDetails(
+      records.slice(0, PROFILE_PAGE_SIZE),
+      new Map(((farms ?? []) as { id: number; name: string }[]).map((farm) => [farm.id, farm.name])),
+    ),
     hasMore: records.length > PROFILE_PAGE_SIZE,
   }
 }
@@ -891,9 +1002,42 @@ const WRITABLE: Record<string, string[]> = {
     'common_name', 'botanical_name', 'cultivar_variety_trade_name',
     'size', 'height', 'width', 'caliper', 'tags', 'caption', 'notes',
   ],
+  // Absent on purpose: `customer_notes` is the customer's own words and is
+  // evidence, not a field (docs/supabase-schema.md); `internal_notes` is
+  // append-only and a plain overwrite would destroy the sourcing log — an
+  // append control, not an inline edit, is what that column needs.
+  // `customer_id` is absent too: mapping an anonymous request to a customer is
+  // a find-or-create decision, not a typed correction.
+  job_requests: [
+    'status', 'needs_attention', 'external_notes',
+    'billing_address', 'billing_city', 'billing_state', 'billing_zip',
+    'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
+  ],
+  // No `total`: generated from quantity × unit_price, so a write is rejected by
+  // Postgres outright. Same note rules as the request above.
+  job_request_items: [
+    'name', 'size', 'quantity', 'available_quantity', 'unit_price',
+    'status', 'needs_attention', 'external_notes',
+  ],
 }
 
-const NUMERIC = new Set(['unit_price', 'quantity', 'availability_update_days'])
+/**
+ * Columns whose value must be one of a fixed vocabulary.
+ *
+ * The database CHECK is the real guard; this exists so a bad value comes back
+ * as a sentence naming the allowed ones rather than a constraint-violation
+ * string, and so the server does not depend on the dropdown having been honest.
+ */
+const ENUMS: Record<string, readonly string[]> = {
+  'job_requests.status': REQUEST_STATUSES,
+  'job_request_items.status': ITEM_STATUSES,
+}
+
+const NUMERIC = new Set([
+  'unit_price', 'quantity', 'availability_update_days', 'available_quantity',
+])
+// Checkbox columns arrive as the strings a form produces.
+const BOOLEAN = new Set(['needs_attention'])
 // Array columns arrive as one comma-separated field. Splitting is all this does
 // — `trg_plant_photos_derive_identity` lowercases, trims, dedupes and sorts the
 // result, so there is one definition of what a tag list is and it is the
@@ -927,10 +1071,24 @@ export async function updateFields(
   const entries = Object.entries(changes)
   if (entries.length === 0) throw new Error('at least one change is required')
 
-  const values: Record<string, string | number | string[] | null> = {}
+  const values: Record<string, string | number | boolean | string[] | null> = {}
   for (const [column, raw] of entries) {
     if (!WRITABLE[table]?.includes(column)) {
       throw new Error(`refusing to write ${table}.${column}`)
+    }
+
+    const allowed = ENUMS[`${table}.${column}`]
+    if (allowed) {
+      if (!allowed.includes(raw)) {
+        throw new Error(`${column} must be one of: ${allowed.join(', ')}`)
+      }
+      values[column] = raw
+      continue
+    }
+
+    if (BOOLEAN.has(column)) {
+      values[column] = raw === 'true' || raw === '1'
+      continue
     }
 
     if (ARRAY.has(column)) {
@@ -945,6 +1103,14 @@ export async function updateFields(
       if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
       if (INTEGER.has(column) && !Number.isInteger(n)) {
         throw new Error(`${column} must be a whole number of days`)
+      }
+      // Both are CHECK-constrained (`quantity > 0`, `available_quantity >= 0`).
+      // Naming the rule beats surfacing a constraint-violation string.
+      if (column === 'quantity' && n <= 0) {
+        throw new Error('quantity must be greater than zero')
+      }
+      if (column === 'available_quantity' && n < 0) {
+        throw new Error('available quantity cannot be negative')
       }
       value = n
     }

@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# scheduler-cli — read/write plugins/scheduler/state/schedules.json
+#
+# Subcommands: add, list, remove, pause, resume
+#
+# State writes are atomic (jq | mv). The plugin watches the file and reloads
+# within a second.
+set -euo pipefail
+
+# Help before the state-file init below: it must work from any cwd, and the
+# init would abort (set -e) when plugins/scheduler/state/ doesn't exist.
+case "${1:-}" in
+  help|-h|--help)
+    cat <<'EOF'
+scheduler-cli — manage plugins/scheduler/state/schedules.json.
+
+USAGE
+  scheduler-cli add --name N --cron C --text T --thread-id ID [--channel CH] [--once]
+  scheduler-cli list [--thread-id ID] [--from WHEN] [--to WHEN] [--active|--paused] [--max N]
+  scheduler-cli remove --name N
+  scheduler-cli pause  --name N
+  scheduler-cli resume --name N
+
+SUBCOMMANDS
+  add     Add a schedule, replacing any existing one with the same --name.
+          --cron is a cron expression; --text is the message injected on
+          thread --thread-id when it fires; --once deletes the schedule
+          after its first firing.
+  list    Print schedules.json, optionally filtered.
+            --thread-id  only schedules bound to that thread
+            --active     only schedules that are not paused
+            --paused     only paused schedules
+            --from/--to  only schedules that FIRE in that window; each one
+                         gains a `fires` array of the occurrences in range.
+                         WHEN is ISO (`2026-08-17T09:00:00Z`) or bare
+                         (`2026-08-17`, `2026-08-17 09:00`) — bare means wall
+                         clock in the harness timezone. --from defaults to
+                         now, --to to --from + 7 days. Max window 366 days.
+            --max        cap fires listed per schedule (default 50; a capped
+                         schedule is flagged `"truncated": true`).
+  remove  Delete a schedule by name.
+  pause   Keep the schedule but stop firing it (paused=true).
+  resume  Un-pause (paused=false).
+
+Writes are atomic; the plugin watches the file and reloads within a second.
+Run from the agent directory (paths are relative to it).
+EOF
+    exit 0
+    ;;
+esac
+
+state="plugins/scheduler/state/schedules.json"
+[ -f "$state" ] || echo '{"schedules":[]}' > "$state"
+
+cmd="${1:-}"; shift || true
+
+write() {
+  local body="$1"
+  local tmp
+  tmp="$(mktemp "${state}.XXXXXX")"
+  printf '%s' "$body" > "$tmp"
+  mv -f "$tmp" "$state"
+}
+
+case "$cmd" in
+  add)
+    name=""; cron=""; text=""; tid=""; chan=""; once="false"
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --name) name="$2"; shift 2 ;;
+        --cron) cron="$2"; shift 2 ;;
+        --text) text="$2"; shift 2 ;;
+        --thread-id) tid="$2"; shift 2 ;;
+        --channel) chan="$2"; shift 2 ;;
+        --once) once="true"; shift ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+      esac
+    done
+    [ -n "$name" ] && [ -n "$cron" ] && [ -n "$text" ] && [ -n "$tid" ] || {
+      echo "usage: scheduler-cli add --name N --cron C --text T --thread-id ID [--channel CH] [--once]" >&2
+      exit 2
+    }
+    new="$(jq -nc --arg n "$name" --arg c "$cron" --arg t "$text" --arg tid "$tid" --arg ch "$chan" --argjson once "$once" \
+      '{name:$n,cron:$c,text:$t,threadId:$tid}
+       + (if $ch=="" then {} else {channelId:$ch} end)
+       + (if $once then {onetime:true} else {} end)')"
+    body="$(jq -c --argjson new "$new" \
+      '.schedules |= ((map(select(.name != $new.name))) + [$new])' "$state")"
+    write "$body"
+    printf '%s\n' "$new"
+    ;;
+  list)
+    tid=""; from=""; to=""; only=""; max=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --thread-id) tid="$2"; shift 2 ;;
+        --from) from="$2"; shift 2 ;;
+        --to) to="$2"; shift 2 ;;
+        --max) max="$2"; shift 2 ;;
+        --active) only="active"; shift ;;
+        --paused) only="paused"; shift ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+      esac
+    done
+    body="$(jq -c --arg tid "$tid" --arg only "$only" '
+      .schedules |= map(
+        select($tid == "" or .threadId == $tid)
+        | select($only == "" or ($only == "paused") == (.paused == true))
+      )' "$state")"
+    if [ -n "$from" ] || [ -n "$to" ]; then
+      # Fire-time filtering needs cron evaluation, which jq can't do.
+      # Timezone comes from the harness settings (agent dir is
+      # <root>/<id>/agents/<agent>), falling back to the system zone.
+      tz="$(jq -r '.timezone // empty' ../../harness.json 2>/dev/null || true)"
+      set -- ; [ -n "$tz" ] && set -- --tz "$tz"
+      [ -n "$from" ] && set -- "$@" --from "$from"
+      [ -n "$to" ] && set -- "$@" --to "$to"
+      [ -n "$max" ] && set -- "$@" --max "$max"
+      printf '%s' "$body" | node scripts/scheduler/cron-fires "$@"
+    else
+      printf '%s' "$body" | jq .
+    fi
+    ;;
+  remove)
+    name=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --name) name="$2"; shift 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+      esac
+    done
+    [ -n "$name" ] || { echo "usage: scheduler-cli remove --name N" >&2; exit 2; }
+    body="$(jq -c --arg n "$name" '.schedules |= map(select(.name != $n))' "$state")"
+    write "$body"
+    echo "{\"removed\":\"$name\"}"
+    ;;
+  pause|resume)
+    name=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --name) name="$2"; shift 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+      esac
+    done
+    [ -n "$name" ] || { echo "usage: scheduler-cli $cmd --name N" >&2; exit 2; }
+    paused="true"
+    [ "$cmd" = "resume" ] && paused="false"
+    body="$(jq -c --arg n "$name" --argjson p "$paused" \
+      '.schedules |= map(if .name == $n then .paused = $p else . end)' "$state")"
+    write "$body"
+    echo "{\"$cmd\":\"$name\"}"
+    ;;
+  *)
+    echo "usage: scheduler-cli {add|list|remove|pause|resume} ... (see: scheduler-cli --help)" >&2
+    exit 2
+    ;;
+esac

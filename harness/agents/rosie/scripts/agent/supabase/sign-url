@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Generate a pre-signed URL for a Supabase Storage object.
+# Reads SUPABASE_PROJECT_ID and SUPABASE_SECRET_KEY from env (like upload).
+#
+# Usage:
+#   scripts/agent/supabase/sign-url --bucket <name> --path <path> [--expiry <seconds>]
+#
+# Prints the signed URL to stdout. Exit 0 on success, non-zero on error.
+
+set -euo pipefail
+
+BUCKET=""
+PATH_OBJ=""
+EXPIRY=604800  # default 7 days
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --bucket) BUCKET="$2"; shift 2 ;;
+    --path)   PATH_OBJ="$2"; shift 2 ;;
+    --expiry) EXPIRY="$2"; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+if [[ -z "$BUCKET" || -z "$PATH_OBJ" ]]; then
+  echo "Usage: sign-url --bucket <name> --path <path> [--expiry <seconds>]" >&2
+  exit 2
+fi
+
+: "${SUPABASE_PROJECT_ID:?SUPABASE_PROJECT_ID not set}"
+: "${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY not set}"
+
+API_BASE="https://${SUPABASE_PROJECT_ID}.supabase.co"
+STORAGE_BASE="${API_BASE}/storage/v1"
+# URL-encode the path, but preserve '/' separators. Encoding the slashes (safe='')
+# bakes %2F into the signed token's url claim; the gateway decodes %2F to '/' on
+# fetch, so the path no longer matches what was signed -> 400 InvalidSignature.
+ENCODED_PATH=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${PATH_OBJ}'))")
+
+curl -sSf -X POST \
+  "${STORAGE_BASE}/object/sign/${BUCKET}/${ENCODED_PATH}" \
+  -H "apikey: ${SUPABASE_SECRET_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"expiresIn\": ${EXPIRY}}" \
+  | STORAGE_BASE="${STORAGE_BASE}" python3 -c "import sys, os, json; d = json.load(sys.stdin); u = d.get('signedURL'); print(os.environ['STORAGE_BASE'] + u if u else json.dumps(d))"

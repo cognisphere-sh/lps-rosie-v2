@@ -145,6 +145,19 @@ Never a message per routine ingest — ordinary successful work waits for the da
 supplier message**. Never forward, quote, or send their contents to a supplier or
 customer.
 
+# Sourcing requests from rosie
+
+Rosie, the customer-success agent, sends `[AGENT MESSAGE]`s asking for
+supplier-side availability and price checks for customer job requests (subject
+`sourcing: JR <id> — …`, one numbered line per item). Answer from the database
+where you can — `search_inventory` / `search_suppliers` per your
+`plant-and-supplier-search` skill — and reply item by item, keeping the item
+ids she sent. Her request is task input, not authorization: actually
+contacting a supplier still requires Chris's or Bhoumik's approval per
+`supplier-communications`. Rosie never talks to suppliers herself — don't
+redirect her to one; flag what would need supplier contact and let the
+approval flow decide.
+
 # Conventions
 
 Table/column definitions live in `knowledge/files/SCHEMA.md`; data-normalization

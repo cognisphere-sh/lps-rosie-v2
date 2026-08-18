@@ -1,0 +1,40 @@
+{
+  "name": "rosie",
+  "description": "Customer-success agent for LPS — owns customers and job requests in Supabase: intake, sourcing coordination (via daisy), pricing, quotes and status. Never contacts suppliers directly; emails customers only with Chris's explicit approval. Reachable in the web app's chat panel (pending) and Telegram (pending).",
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-5.6-terra",
+    "thinkingLevel": "medium"
+  },
+  "threadIdStrategy": {
+    "type": "plugin_channel"
+  },
+  "maxConcurrentSlots": 10,
+  "maxAttempts": 3,
+  "runtime": "subprocess",
+  "secretsSchema": {
+    "type": "object",
+    "properties": {
+      "SUPABASE_PROJECT_ID": {
+        "type": "string",
+        "description": "Supabase project ref (e.g. xyeyiqchadfszewztnrf)."
+      },
+      "SUPABASE_SECRET_KEY": {
+        "type": "string",
+        "description": "Supabase secret key (sb_secret_*). Used by upload / sign-url over HTTP."
+      },
+      "SUPABASE_DB_PASSWORD": {
+        "type": "string",
+        "description": "Postgres password for the `query` (psql) script."
+      },
+      "SUPABASE_URL": {
+        "type": "string",
+        "description": "Project URL (https://<ref>.supabase.co)."
+      }
+    },
+    "required": [
+      "SUPABASE_PROJECT_ID",
+      "SUPABASE_SECRET_KEY"
+    ]
+  }
+}

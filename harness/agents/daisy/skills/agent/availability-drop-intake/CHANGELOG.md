@@ -1,5 +1,14 @@
 # availability-drop-intake — changelog
 
+## 2.4.0
+
+2026-08-18 — Bhoumik-approved historical backfill safeguard: the dispatch
+contract now marks historical sources, carries their exact effective/received
+time, requires `availability-ingestion`'s pre-write gate, and refuses to turn an
+unresolved numeric supplier/location into early onboarding. This keeps every
+supplier/contact/source/inventory/alias/photo write behind the same gate.
+
+
 ## 2.3.1
 
 2026-08-16 — §4's *Photos* block follows `availability-ingestion` 1.2.0: a

@@ -1,5 +1,33 @@
 # availability-ingestion — changelog
 
+## 1.4.0
+
+2026-08-18 — Approved by Bhoumik: identity normalization now makes the best
+possible evidence-based classification of a source's printed display, rather
+than treating any useful separation as prohibited inference. Explicit printed
+parts remain preserved; a botanical identity is never fabricated from outside
+knowledge. When the source's display convention/evidence cannot support a
+confident split, the complete printed identity atom is intentionally kept in
+`common_name` and `botanical_name` / `cultivar_variety_trade_name` remain NULL.
+The identity examples and QA check now show and accept that fallback, so an
+intentional common-name preservation is not falsely reported as a botanical or
+cultivar parsing error.
+
+## 1.3.0
+
+2026-08-18 — Approved by Bhoumik: historical backfill now has a **mandatory
+fail-closed pre-write gate**. Before any supplier, contact, source, inventory,
+alias or photo write, a task resolves numeric supplier/head identities, parses
+its offerings read-only, and runs `scripts/historical-backfill-gate`. The script
+requires evidence for every active later source across the entire head branch,
+rejects campaign/status-label shortcuts, records dispositions for static,
+withheld and partial/Escalated material, writes a durable JSON decision record,
+and compares actual normalized offerings. It must be revalidated immediately
+before the transaction/first write; any landscape/input/evidence ambiguity stops
+all writes. This closes the R. Plants punctuation, KG/Brantley provenance/photo,
+and partial-static Hillside/Joss failure modes.
+
+
 ## 1.2.0
 
 2026-08-16 — **we hold bytes only for photos someone handed us.** 1.1.0's §6

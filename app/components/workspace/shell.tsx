@@ -39,7 +39,7 @@ const NAV = [
   { id: 'photos', label: 'Photos', href: '/photos', Icon: PhotosIcon, enabled: true },
   // Designed but out of scope for this build — shown disabled so the rail keeps
   // its shape without offering a route that goes nowhere.
-  { id: 'requests', label: 'Job Requests', href: '#', Icon: RequestsIcon, enabled: false },
+  { id: 'requests', label: 'Job Requests', href: '/requests', Icon: RequestsIcon, enabled: true },
 ] as const
 
 // ------------------------------------------------------------------- toasts

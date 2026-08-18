@@ -1,0 +1,70 @@
+---
+name: quote-generation
+description: Turn a job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates in knowledge/files/templates/ (lps-quote-template.html is the default) and how to maintain them, filling a quote strictly from customer-safe fields (external_notes and the customer's own data — never internal_notes, supplier names or supplier pricing), rendering the PDF with agent-browser, uploading to the lps bucket under rosie_shared/ and signing the URL, publishing the HTML through the artifacts plugin, and what happens after — the Chris-approval gate before anything reaches the customer, moving the request to quoted, and recording the quote link in external_notes. Use when a job request is priced and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.0.0)
+metadata:
+  author: lps
+  version: "1.0.0"
+---
+
+# Quote generation
+
+A quote is a **customer-facing document**. Everything in it must come from
+customer-safe fields: the request's and items' `external_notes`, the
+customer's own data, item names/sizes/quantities/prices and the generated
+`total`. Never `internal_notes`, never a supplier's name or a supplier's
+price. If the substance of an internal note belongs in the quote ("available
+early September"), rewrite it customer-safe in `external_notes` first — then
+quote from there.
+
+## 1. Templates
+
+Templates live in `knowledge/files/templates/`; `lps-quote-template.html` is
+the default. A template is a complete HTML document with `{{PLACEHOLDER}}`
+slots (`{{DATE}}`, `{{QUOTE_NUMBER}}`, `{{CUSTOMER_NAME_AND_ADDRESS}}`,
+`{{SHIP_TO}}`, `{{ITEM_ROWS}}`, `{{TOTAL}}`, `{{QUOTE_NOTES}}`, …) and
+print-ready CSS (`@page size: letter`).
+
+- Quote numbers are `JR<requestId>-<YYYYMMDD>` — reproducible from the data,
+  no counter to maintain.
+- A new or changed template is a skill-adjacent asset: add it to
+  `knowledge/files/templates/`, list it in `knowledge/index.md`, and get
+  Chris's approval on the rendered look before first use — the template *is*
+  what customers see.
+
+## 2. Filling
+
+Read the request fresh (with its last-5 changelog entries — `job-requests`
+§3). Then:
+
+- One `{{ITEM_ROWS}}` row per **active, quotable** item — statuses
+  `available`, `alternative_proposed` (with its `external_notes` explanation
+  in the Comments cell) and `confirmed`. `pending`/`sourcing` items either
+  hold the quote or are listed as "to follow" — ask Chris which, don't decide
+  silently. `unavailable`/`cancelled` items appear only as a short note if the
+  customer needs to see they were considered.
+- Prices are the items' `unit_price`/`total`; the quote's total is the sum of
+  quoted lines. An unpriced (`NULL`) item cannot be quoted — price it or hold
+  it.
+- Addresses come from the request's billing/shipping fields; fall back to the
+  customer's address, and leave the slot visibly blank rather than inventing
+  one.
+- Write the filled HTML to the thread's `files/` dir.
+
+## 3. Rendering and sharing
+
+- **PDF**: print the filled HTML with `scripts/agent/agent-browser`
+  (headless print-to-PDF). Verify the PDF opens and paginates before sharing.
+- **Upload**: `scripts/agent/supabase/upload --bucket lps --path
+  rosie_shared/YYYY-MM-DD/JR<requestId>-quote.pdf --file <local>` then
+  `scripts/agent/supabase/sign-url` for the link. The bucket is public —
+  nothing internal goes in the file (it shouldn't be in the quote anyway).
+- **HTML page**: publish the same document through the artifacts plugin when a
+  live link is wanted alongside (or instead of) the PDF.
+
+## 4. After
+
+The quote reaching the customer is a customer contact — the whole
+`job-requests` §8 flow applies: Chris approves the draft (quote attached or
+linked), the send is logged in `customers.communication_notes`, the request
+moves `sourcing → quoted` (guarded), and the quote link is appended to the
+request's `external_notes` with a timestamp.

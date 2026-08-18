@@ -15,7 +15,137 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-18
+
+### Changed
+
+- **Suppliers, Plant search and the supplier profile now present one company,
+  not one `suppliers` row.** A company that operates at several sites is
+  several rows tied together by `head_branch_id`, and every surface drew one
+  line per row — Everde alone filled fifteen lines of a fifty-line page, and a
+  buyer had to reconcile them by eye. The database is unchanged: stock, prices
+  and pickup are still per farm, and every plant still belongs to one. What
+  moved is the unit each screen presents.
+  - **`/suppliers`** is one row per company, and the row is the **head
+    office's own record** — its contacts, website and address. Only `# Items`
+    and the ingestion columns are company-wide, because a corporate office
+    holds no stock and a row reading `0 items` would understate the company it
+    stands for. A leading chevron expands the farms that answered the query as
+    full rows. The head office is read from `suppliers` rather than picked out
+    of the match set, so searching `bunnell` still presents *Everde Growers*,
+    with `1 of 15 farms` on the expander. This replaces the collapsed
+    company *wrapper* row added on 2026-08-16, which showed a name and two
+    counts and cost a click before any supplier detail was visible.
+  - **`/plants`** is one card per company, with every matching row from every
+    one of its farms beside it and a new read-only **Branch** column naming the
+    farm each row is at. Everde's 102 Crape Myrtle rows are now one card
+    spanning six farms instead of six cards under a wrapper. The card's
+    aggregates (`# Plants`, `Lowest price`, `In stock`) describe the matched
+    plants across the company.
+  - **`/suppliers/:id`** on a head-branch id is one page for the whole company.
+    Contacts, Communications, Notes and Files cover every location and **tag
+    each entry with the farm it belongs to**; Notes is one editor per farm and
+    Communications merges the farms' logs by timestamp. The **Other farms** tab
+    becomes **Farms**, which now carries each location's full editable field
+    grid — so a farm's city, availability source and cadence stay editable
+    without leaving the company page — beside a link to that farm's own page.
+    The Inventory tab spans the company and draws a **farm card beside its
+    rows**, the same shape Plant search uses, because inventory is per farm
+    even when the page is not. A farm id still resolves to that farm alone:
+    same component, scope of one, with a link up to the company.
+  - Server side: `getSupplierProfile()` replaces `getSupplier()` /
+    `getSupplierLocations()` / `getSupplierSources()` and answers the whole page
+    in one payload; `getSupplierPlants()` takes a set of farm ids;
+    `listSuppliers()` and `searchPlantGroups()` group on `head_branch_id` and
+    carry the head-office row. `GET /api/plants?supplierId=` accepts a
+    comma-separated set. `# Items` still loads as a second pass, now over every
+    location of every company on the page (60 extra ids catalogue-wide — only
+    22 companies have more than one site).
+  - A single-site supplier — 1,313 of 1,335 companies — renders exactly as it
+    did before: `head_branch_id` never chains and a lone supplier is its own
+    head, so "this company" and "this farm" are the same code path with a
+    different id list.
+
 ## 2026-08-17
+
+### Added
+
+- **The Job Requests screen is live at `/requests`**, implementing the Order
+  Requests design comp (Claude Design project `ebbc6644-…`) against the real
+  tables. Each request is a **collapsed card** carrying what it is judged on —
+  `JR-<id>`, status, a Needs-input badge, customer and contact routes, ship-to
+  address, dates, `N lines · $total`, and a per-status count pill row — and
+  expands to the design's line-item table (Item / Size / Demand / Avail / Unit
+  price / Total / Status / Notes), colour-keyed by status with a tinted
+  needs-input row. **A collapsed card's counts always describe the whole
+  request**, never the filtered subset the expanded table draws. Searching or
+  filtering by item status auto-expands the cards that matched, because that
+  question was about lines. Toolbar carries search (plant, customer, or
+  `JR-7`), Status / Item status / Size / Customer / Created / Updated chips, a
+  Needs-input toggle and Expand all. New: `app/app/requests/page.tsx`,
+  `app/app/api/requests/route.ts`, `app/lib/job-request-queries.ts` (server) and
+  `app/lib/job-requests.ts` (the status vocabulary, shared with the API), plus
+  the six status **tones** in `globals.css` with dark variants. The nav entry is
+  enabled; `docs/app/README.md` records what was deliberately *not* built —
+  selection and the bulk quote/order actions — because those are approval-gated
+  flows that do not exist yet, and a button that only raised a toast would
+  misrepresent it.
+- **Inline editing on Job Requests.** Click a line's name, size, demand, avail
+  or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged
+  value is never written to the changelog); pick a status from the pill's
+  dropdown; toggle the needs-input flag from its badge; edit the ship-to and
+  bill-to parts and the shared customer-facing note in the expanded detail
+  block. Writes go through the existing whitelisted `PATCH /api/rows`, extended
+  with the two job-request tables plus server-side vocabulary checks for
+  `status` and range checks for the quantities — so a bad value returns a
+  sentence naming what is allowed rather than a constraint-violation string.
+  **`total`, `customer_notes` and `internal_notes` are deliberately not
+  editable**: the first is generated, the second is the customer's own words,
+  and the third is an append-only sourcing log a grid cell would overwrite.
+  Verified against the live request: an edit from the app records
+  `service_role` in `job_request_changelog` beside Rosie's own `rosie` entries,
+  which is exactly what the 0055 trigger was for.
+- **`job_request_items.available_quantity`** — migration 0056. The design's
+  Demand/Avail pair, and the source of its "Partial" state: NULL is unanswered
+  (a dash, never zero), 0 is confirmed unavailable, and below `quantity` is
+  partial cover. "Partial" stays **derived** rather than stored so a status word
+  can never contradict the numbers printed beside it.
+- **The customer side of the database** — migration 0055
+  (`customers_and_job_requests`, applied via the Supabase MCP): `customers`
+  (inline contact fields, unlike the supplier `contacts` split),
+  `job_requests` (nullable `customer_id` for anonymous intake; status
+  `sourcing|quoted|closed_won|closed_lost|archived`, `closed_won` being the
+  future convert-to-order hook), `job_request_items` (verbatim `name`/`size`,
+  generated `total`, per-item status and notes), and the trigger-written
+  `job_request_changelog` audit trail that captures UI and agent edits alike
+  (actor from the `app.actor` GUC, else the connecting role). `needs_attention`
+  flags on requests and items are the surface the future Job Requests UI will
+  read. Full narrative in `harness/agents/daisy/migrations/0055_*.sql` and
+  `NOTE.md`; schema doc updated in the same change.
+- **The `rosie` agent**, rebuilt from scratch as the customer-success agent
+  (`harness/agents/rosie/`, docs in `docs/harness/agent-rosie.md`): owns every
+  agent-side write to the new tables, coordinates all supplier questions
+  through daisy by agent-message (never contacts a supplier), and emails
+  customers only after Chris approves the specific draft. Skills:
+  `job-requests` (intake, concurrency discipline for UI-shared tables,
+  sourcing via daisy, statuses), `plant-and-supplier-search` (read-only
+  adaptation of daisy's), `quote-generation` (HTML/PDF quotes from templates
+  in `knowledge/files/templates/`). Plugins: artifacts + webchat + telegram
+  enabled (Telegram bot token pending — the plugin idles without it); **gws
+  deliberately not enabled** until a rosie mailbox exists (it hard-fails
+  without credentials); enable steps prewritten in her doc. Daisy's prompt
+  gained a matching *Sourcing requests from rosie* section, and both existing
+  agents' stock `0.1-agent-directory.md` files were deleted to regenerate with
+  rosie on restart. The app still lists rosie as upcoming — the Job Requests
+  UI is a later build.
+
+### Fixed
+
+- `docs/harness/README.md` drift, corrected while adding rosie to it: the
+  harness version line said 0.8.11 (`harness.json` has been 0.8.25 since the
+  upgrade) and the agents table still showed nova on `gpt-5.6-terra` (its
+  `agent.json` moved to `gpt-5.6-sol`, a drift the 0.8.25 entry below already
+  acknowledged).
 
 ### Changed
 

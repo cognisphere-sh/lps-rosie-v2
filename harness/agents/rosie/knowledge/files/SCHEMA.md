@@ -1,0 +1,1 @@
+../../../../../docs/supabase-schema.md

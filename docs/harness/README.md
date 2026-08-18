@@ -11,38 +11,36 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.8.11**, timezone **America/Chicago**.
+- `harness.json` — version **0.8.25**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
-  wholesale plant nursery. Two agents run the supply and dev split.
-
-> The `rosie` customer-success agent has been **removed** and will be rebuilt
-> from scratch; the deployment keeps the name (systemd units `rosie-harness` /
-> `rosie-app`, package `cognisphere-harness-rosie`) because that is deploy
-> identity, not the agent.
+  wholesale plant nursery. Three agents split the work: supplier side,
+  customer side, and dev.
 
 ## Agents
 
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
-| [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-terra` | `single` | Telegram (dev) + the app's chat panel |
+| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Operator console for now; Telegram & the app's chat panel pending (see her doc) |
+| [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-sol` | `single` | Telegram (dev) + the app's chat panel |
 
 Comparison:
 
-| | daisy | nova |
-|---|---|---|
-| `devAgent` | — | **true** |
-| `maxConcurrentSlots` | 10 | — |
-| `secretsSchema` | Supabase (4 keys) | — |
-| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
-| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `memory.md` only |
-| Migrations | 0001 (applied, superseded) | — |
-| Skills | 5 LPS procedures + create-skill | cognisphere-upgrade, create-plugin, create-skill |
+| | daisy | rosie | nova |
+|---|---|---|---|
+| `devAgent` | — | — | **true** |
+| `maxConcurrentSlots` | 10 | 10 | — |
+| `secretsSchema` | Supabase (4 keys) | Supabase (4 keys, same values) | — |
+| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram (token pending), **webchat** (+ core: agent-messaging); **gws pending** a mailbox | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
+| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `files/`: SCHEMA (symlink), templates; `memory.md` | `memory.md` only |
+| Migrations | 0001–0055 (the deployment's record; 0055's tables are rosie-owned) | — (recorded in daisy's dir) | — |
+| Skills | 5 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
-daisy and nova through the [`webchat`](plugin-webchat.md) plugin. See
-[`../app/README.md`](../app/README.md).
+daisy and nova through the [`webchat`](plugin-webchat.md) plugin (rosie's
+webchat is configured but the app still lists her as upcoming —
+`app/lib/agents.ts`). See [`../app/README.md`](../app/README.md).
 
 ### Database schema is shared, not per-agent
 
@@ -92,8 +90,9 @@ These are byte-identical in every agent dir:
   is deployment-owned — identity, persona and behaviour only, no procedures.
   Step-by-step procedures live in `skills/agent/<slug>/` instead.
 
-  **One local edit to `0-base_prompt.md`**, identical in daisy and nova
-  (2026-08-15): the **Task threads** bullet that names the skill to follow now
+  **One local edit to `0-base_prompt.md`**, identical in daisy, nova and rosie
+  (2026-08-15; rosie's copy taken from daisy's at creation): the **Task
+  threads** bullet that names the skill to follow now
   forbids quoting a version number in the brief, where the seed asked for "skill
   name and its current version". The receiving thread's `<available_skills>` is
   rebuilt at spawn, so it resolves the name to the current version by itself,
@@ -108,7 +107,7 @@ One user-space plugin lives in `harness/plugins/`:
 
 | Plugin | Purpose | Enabled on |
 |---|---|---|
-| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova |
+| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova, rosie (app side still disabled) |
 
 No catalog plugins are forked. Every other plugin an agent uses is a bundled
 core/catalog plugin enabled by an empty `agents/<id>/plugins/<plugin>/` dir;

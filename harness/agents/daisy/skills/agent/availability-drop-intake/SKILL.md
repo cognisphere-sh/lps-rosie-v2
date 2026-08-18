@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop from arrival to closed loop, without doing the ingest or writing any row yourself. Covers identifying which company a drop came from (contacts join for an address, search_suppliers for a name) and passing every matched row plus the head_branch_id along without enumerating the company's locations, the dispatch contract for the task-thread brief that runs the availability-ingestion skill (which reaches supplier-onboarding and plant-photo-catalogue itself when a supplier, a farm or a plant photo needs one), passing every image and the verbatim body so photographs of plants can be catalogued too, answering that thread's follow-up questions, digesting its report — including its Photos and Overrides-withheld blocks — into the thread summary / daily note / supplier notes, deciding what reaches Chris now versus in the daily summary, and applying the Daisy Gmail status labels, whose IDs travel with this skill in `artifacts/gmail-labels.md`. Use when a supplier availability email arrives, when Chris asks you to ingest availability from a website, image or attachment, or when a task thread reports an ingest back. (v2.3.1)
+description: Coordinate one availability drop without writing rows. Covers supplier identification, task-thread dispatch, images/body handoff, the historical-backfill gate handoff, report digestion and Gmail labels. Use for supplier drops, historical backfill, Chris-requested ingests, or ingest reports. (v2.4.0)
 metadata:
   author: lps
-  version: "2.3.1"
+  version: "2.4.0"
 ---
 
 # Availability drop intake
@@ -114,6 +114,11 @@ points back at it rather than restating it. The brief carries:
 - the path to `knowledge/files/SCHEMA.md` and to the supplier's
   `workspace/suppliers/[<id>]:<Name>/notes.md` if present, to read first,
 - the ThreadId and the current timestamp.
+- **For historical/backfill only:** state that it is historical, give the exact
+  source effective/received timestamp, and require the task to run
+  `availability-ingestion`'s mandatory historical-backfill pre-write gate. Do
+  not dispatch a source whose supplier/location cannot be resolved by numeric
+  id first; that is a fail-closed gate blocker, not an invitation to onboard.
 
 Don't restate the skill's steps in the brief. The task thread is you and has the
 same skills installed; naming the skill is what keeps both threads on the same

@@ -1,0 +1,129 @@
+#!/bin/sh
+# upload — upload a single file to a Supabase Storage bucket.
+#
+# Usage:
+#   upload --bucket <name> --path <dest/path.ext> --file <local-file>
+#                    [--content-type <mime>] [--no-upsert] [--public-url]
+#
+# Flags:
+#   --bucket NAME         Target bucket (must already exist).
+#   --path PATH           Object path inside the bucket (e.g. resumes/abc.pdf).
+#   --file LOCAL          Path to the local file to upload.
+#   --content-type MIME   Explicit Content-Type. Defaults to `file -b --mime-type`.
+#   --no-upsert           Refuse if the object already exists (default: upsert).
+#   --public-url          On success, also print the bucket's public-URL form.
+#                         Only meaningful for buckets configured as public.
+#
+# Auth: reads SUPABASE_SECRET_KEY from env (declared in agent.json and
+# exported by the harness). The project URL is derived from SUPABASE_PROJECT_ID
+# (https://<id>.supabase.co); an explicit SUPABASE_URL in env wins if set.
+# SUPABASE_SECRET_KEY is the new-format `sb_secret_*` key
+# (https://github.com/orgs/supabase/discussions/29260) which bypasses RLS, so
+# this bin inherits the recruiter agent's already-trusted threat model.
+#
+# Header strategy: the new keys aren't JWTs, so the storage API only requires
+# `apikey: <secret>`. We additionally send `Authorization: Bearer <secret>`
+# with the *same* value — the migration discussion states this duplication is
+# explicitly allowed for backward compatibility, so the same code works for
+# legacy `service_role` JWTs too if a project hasn't migrated yet.
+#
+# Exit codes:
+#   0    upload succeeded
+#   2    bad CLI usage / missing required flag
+#   3    local file not readable
+#   4    storage API returned non-2xx (HTTP body printed to stderr)
+#   127  curl not on PATH
+
+set -eu
+
+BUCKET=
+DEST=
+LOCAL=
+CTYPE=
+UPSERT=true
+PUBLIC_URL=false
+
+die() { echo "upload: $1" >&2; exit "${2:-2}"; }
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--bucket)        BUCKET=$2; shift 2 ;;
+		--path)          DEST=$2;   shift 2 ;;
+		--file)          LOCAL=$2;  shift 2 ;;
+		--content-type)  CTYPE=$2;  shift 2 ;;
+		--no-upsert)     UPSERT=false; shift ;;
+		--public-url)    PUBLIC_URL=true; shift ;;
+		-h|--help)
+			sed -n '2,/^# Exit/p' "$0" | sed 's/^# \{0,1\}//' | sed '$d'
+			exit 0 ;;
+		*) die "unknown option: $1" 2 ;;
+	esac
+done
+
+[ -n "$BUCKET" ] || die "--bucket is required" 2
+[ -n "$DEST" ]   || die "--path is required" 2
+[ -n "$LOCAL" ]  || die "--file is required" 2
+[ -r "$LOCAL" ]  || die "local file '$LOCAL' is not readable" 3
+
+if [ -z "${SUPABASE_URL:-}" ]; then
+	[ -n "${SUPABASE_PROJECT_ID:-}" ] || die "neither SUPABASE_URL nor SUPABASE_PROJECT_ID is set" 2
+	SUPABASE_URL="https://${SUPABASE_PROJECT_ID}.supabase.co"
+fi
+[ -n "${SUPABASE_SECRET_KEY:-}" ] || die "SUPABASE_SECRET_KEY not set in env" 2
+
+command -v curl >/dev/null 2>&1 || die "curl not found on PATH" 127
+command -v python3 >/dev/null 2>&1 || die "python3 not found on PATH" 127
+
+# Auto-detect content type if not given. `file` is on macOS by default.
+if [ -z "$CTYPE" ]; then
+	if command -v file >/dev/null 2>&1; then
+		CTYPE=$(file -b --mime-type "$LOCAL" 2>/dev/null || echo "application/octet-stream")
+	else
+		CTYPE=application/octet-stream
+	fi
+fi
+
+# Percent-encode DEST (preserving '/' separators) before it goes into a URL.
+# Object keys routinely contain spaces or other reserved characters (real
+# supplier filenames like "Acosta Farms New JULY Availability WK 28-
+# FOLIAGE AVAILABILITY.xlsx"), and curl rejects an unencoded space in a URL
+# with "URL rejected: Malformed input to a URL function". Same approach as
+# sign-url, but passed via argv (not string-interpolated into -c) so a
+# literal quote in the filename can't break the python source.
+DEST_ENCODED=$(python3 -c "
+import sys
+from urllib.parse import quote
+print('/'.join(quote(seg, safe='') for seg in sys.argv[1].split('/')))
+" "$DEST")
+
+URL="${SUPABASE_URL%/}/storage/v1/object/${BUCKET}/${DEST_ENCODED}"
+
+# Capture body + status separately. Use POST + x-upsert: true for upsert
+# semantics (matches the JS client default); the storage API treats this as
+# create-or-overwrite.
+TMP=$(mktemp -t supabase-upload.XXXXXX) || die "mktemp failed" 1
+trap 'rm -f "$TMP"' EXIT
+
+STATUS=$(curl -sS -o "$TMP" -w '%{http_code}' \
+	-X POST "$URL" \
+	-H "apikey: ${SUPABASE_SECRET_KEY}" \
+	-H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
+	-H "Content-Type: ${CTYPE}" \
+	-H "x-upsert: ${UPSERT}" \
+	--data-binary "@${LOCAL}")
+
+case "$STATUS" in
+	2*)
+		# Storage returns {"Key":"<bucket>/<path>"} on success.
+		cat "$TMP"
+		echo
+		if [ "$PUBLIC_URL" = true ]; then
+			echo "${SUPABASE_URL%/}/storage/v1/object/public/${BUCKET}/${DEST_ENCODED}"
+		fi
+		exit 0 ;;
+	*)
+		echo "upload: HTTP $STATUS uploading to $URL" >&2
+		cat "$TMP" >&2
+		echo >&2
+		exit 4 ;;
+esac

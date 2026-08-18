@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { getSupplier, getSupplierLocations, getSupplierSources } from '@/lib/queries'
+import { getSupplierProfile } from '@/lib/queries'
 
 export async function GET(
   _req: Request,
@@ -13,13 +13,12 @@ export async function GET(
   }
 
   try {
-    const [supplier, sources, locations] = await Promise.all([
-      getSupplier(id),
-      getSupplierSources(id),
-      getSupplierLocations(id),
-    ])
-    if (!supplier) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    return NextResponse.json({ supplier, sources, locations })
+    // One payload for the whole profile: on a head-branch id it covers every
+    // location of the company, on a farm id that farm alone. See
+    // getSupplierProfile — the tabs tag their entries from `locations`.
+    const profile = await getSupplierProfile(id)
+    if (!profile) return NextResponse.json({ error: 'not found' }, { status: 404 })
+    return NextResponse.json(profile)
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

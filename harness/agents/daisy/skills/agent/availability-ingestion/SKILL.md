@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop (sheet, price list, web catalog or photo) into Supabase — every inventory-side database write belongs to this skill. Covers which location each row belongs to when one file covers several locations of a company (head_branch_id, per-tab and per-section evidence, and handing a genuinely new farm to the supplier-onboarding skill), source conversion (markitdown/pdftoppm, multi-sheet workbooks), parsing and normalization into the three name columns (common/botanical/cultivar_variety_trade_name, with name derived) plus size/size_std/price/dimensions, notes vs internal_notes, the plant_aliases quality bar (untyped edges, evidence rule), provenance in inventory_sources, the match-candidates script, updating rows in place and inserting only what a supplier-scoped search_inventory check clears as new (nothing is retired), the newest-source-wins precedence rule and its three stated exceptions, triaging the drop's images and following plant-photo-catalogue for any attached photographs of plants (a photo that exists only as a URL is captured as a URL in inventory.image_url and never downloaded), post-ingestion QA, and the report contract. Use when ingesting supplier availability, or fixing or reviewing inventory rows from an ingest. (v1.2.0)
+description: Ingest one availability drop into Supabase — every inventory-side write belongs here. Covers location mapping, source conversion, identity/size/price normalization, aliases, provenance, match/update/insert rules, newest-source precedence, photo triage, and a fail-closed historical-backfill supersession gate with durable evidence and immediate revalidation before any business write. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v1.4.0)
 metadata:
   author: lps
-  version: "1.2.0"
+  version: "1.4.0"
 ---
 
 # Availability ingestion
@@ -60,6 +60,52 @@ same session. Ask early rather than guessing.
 
 Any contact with the supplier during the ingest gets a timestamped entry in
 `suppliers.communication_notes` — follow the `supplier-communications` skill.
+
+## Historical backfill: mandatory pre-write supersession gate
+
+**Applies whenever the brief says historical/backfill. This comes before every
+write path in this skill — onboarding, source upload/provenance, inventory,
+aliases and photos.** A historical source that fails the gate writes nothing.
+Do not create a provenance-only source, catalogue a photo, add a contact, or
+onboard a location as a workaround.
+
+1. Resolve each target by numeric `supplier_id` and read its `head_branch_id`,
+never a display name. You may use §0's mapping evidence **read-only** to build
+locations and parse offerings. A new/ambiguous supplier or location fails
+closed: onboarding cannot precede this gate.
+2. Review **all active later `inventory_sources` across each resolved head
+branch**, not an arbitrary horizon. For every source attest and quote evidence
+for one disposition: `authoritative-current` (a full current availability with
+actual active offerings), `historical-static`, `withheld`, or
+`escalated-partial`. A campaign label, Gmail label, timestamp or row count alone
+is not authority. Static, future/prebook, withheld and partial/Escalated content
+cannot supersede the historical source.
+3. Create `/tmp/<thread>-backfill-gate-input.json` with `schema_version: 1`, an
+`incoming` object containing ISO `effective_at`, `source_scope: "availability"`,
+target `supplier_ids`, and parsed per-location `offerings` (supplier_id, printed
+identity parts, size); plus `later_evidence`, one entry for **every** source the
+script finds: source_id, disposition, nonempty reason and quoted evidence. An
+`authoritative-current` entry also requires `scope: "full"`.
+4. Before any business write run:
+
+```bash
+skills/agent/availability-ingestion/scripts/historical-backfill-gate preflight \
+  --input /tmp/<thread>-backfill-gate-input.json \
+  --record workspace/threads/<parent>/tasks/<slug>/files/backfill-gate.json
+```
+
+`SKIP` means a later full authoritative source has active offerings: make no
+business write. `ALLOW` permits normal ingestion. `FAIL` is fail-closed: correct
+evidence or report the blocker. The durable record captures resolved
+supplier/head identities, all later sources, classifications, actual offering
+counts and a direct normalized offering comparison.
+5. After staging/QA but **immediately before `BEGIN` or the first write**, run
+that command with `revalidate`. A changed landscape, mapping, input, decision,
+or incomplete evidence fails closed; preflight/review again. This applies even
+when the proposed write is only a photo, source, supplier, contact or alias.
+
+Report the decision, record path, source dispositions, offering comparison and
+revalidation result.
 
 ## 0. Which location does each row belong to?
 
@@ -195,14 +241,17 @@ One logical row per **plant × size offering**. Normalize every line:
   bucket it belongs to. The app's size filter is built from `size_std`, so a row
   you leave unmapped is invisible to every size checkbox — and `size` still has
   to be clean, because it is what the table cell shows and what search reads.
-- **Name — three columns, one per thing the source prints.** Since migration
-  0040 the identity is split, and you write the parts, never the whole:
+- **Name — three columns, classified from the source.** Since migration 0040
+  the identity is split. Preserve every explicit printed part, then make the
+  **best possible evidence-based classification** of the source's displayed
+  identity; write the parts, never the whole, except for the intentional
+  uncertain fallback below:
 
   | Column | Holds | Example |
   |---|---|---|
-  | `common_name` | the common name as printed | `Forest Pansy Redbud` |
-  | `botanical_name` | the botanical / scientific name as printed | `Cercis canadensis` |
-  | `cultivar_variety_trade_name` | **everything else in the printed name** — cultivar, variety, selection, trade name — as printed | `Forest Pansy` |
+  | `common_name` | the printed common/trade-facing name, or the complete printed identity atom when classification is uncertain | `Forest Pansy Redbud` |
+  | `botanical_name` | an explicitly printed botanical / scientific identity | `Cercis canadensis` |
+  | `cultivar_variety_trade_name` | explicitly indicated residual cultivar, variety, selection or trade-name part | `Forest Pansy` |
 
   - **`inventory.name` is derived. Never write it.** A database trigger joins
     the parts it has with **` - `**, in the order common, botanical, cultivar —
@@ -216,27 +265,38 @@ One logical row per **plant × size offering**. Normalize every line:
     because the cultivar column is itself comma-separated. `name_key`, `common_name_key`,
     `botanical_name_key` and `cultivar_keys` are derived too — never write those
     either.
-  - **Each column carries only what the source explicitly prints for that
-    offering.** This is the whole point of the split. Don't move a botanical
-    name you happen to know into `botanical_name`, don't split a printed common
-    name into a cultivar you inferred, and don't promote a trade name to a
-    cultivar because you recognise it. A part the source doesn't print is
-    **NULL**, and NULL is a fact.
-  - **Keep the common name.** If the source prints one, it goes in
+  - **Classify from what the source gives you, not from outside knowledge.**
+    Preserve explicit printed parts. Use the source's display convention and
+    evidence — labels, typography, parentheses, quotation marks, column headers
+    and repeated formatting — to separate a common name, an explicitly printed
+    botanical identity, and residual cultivar/variety/selection/trade-name
+    parts. Never manufacture or complete a botanical identity from knowledge,
+    a web lookup, or recognition: `botanical_name` is NULL unless the source
+    itself prints it. Likewise, do not invent a cultivar/selection merely
+    because you recognise a word.
+  - **When classification remains uncertain, use the safe fallback.** Preserve
+    the **complete printed identity atom** in `common_name`; set
+    `botanical_name` and `cultivar_variety_trade_name` to NULL. Do not split an
+    ambiguous atom just because it looks partly botanical or cultivar-like. This
+    is intentional preservation, not a parse failure.
+  - **Keep an explicit common name.** If the source prints one, it goes in
     `common_name` even when the botanical name is printed too. Nothing else
     records it; dropping it loses it until someone reparses the source.
-  - **`cultivar_variety_trade_name` takes everything else in the printed name.**
-    It is the residual: whatever the source's plant name carries that the common
-    and botanical name don't. Cultivar, variety, selection, trade name — all of
-    it, because sources do not distinguish them reliably and guessing which is
-    which loses information. **Comma-separate them** when a row prints more than
-    one:
+  - **`cultivar_variety_trade_name` takes an explicitly identifiable residual.**
+    Once the printed common and botanical parts have been identified from the
+    source's own convention, it holds the remaining explicitly indicated
+    cultivar, variety, selection or trade name. Sources do not distinguish those
+    residual types reliably, so preserve them together rather than guessing
+    which kind each is. **Comma-separate them** when a row explicitly prints
+    more than one. If the source gives only one unclassified identity atom, do
+    **not** force a residual split; use the `common_name` fallback above.
 
     | Source prints | `common_name` | `botanical_name` | `cultivar_variety_trade_name` | derived `name` |
     |---|---|---|---|---|
     | `Acer palmatum 'Wolff' - Emperor 1®` | — | `Acer palmatum` | `Wolff, Emperor 1®` | `Acer palmatum - Wolff, Emperor 1®` |
     | `Forest Pansy Redbud (Cercis canadensis 'Forest Pansy')` | `Forest Pansy Redbud` | `Cercis canadensis` | `Forest Pansy` | `Forest Pansy Redbud - Cercis canadensis - Forest Pansy` |
     | `Crape Myrtle - 'Muskogee'` | `Crape Myrtle` | — | `Muskogee` | `Crape Myrtle - Muskogee` |
+    | `Purtis Pink Oleander` (a lone, unclassified source cell) | `Purtis Pink Oleander` | — | — | `Purtis Pink Oleander` |
 
     The comma matters: the database splits on it to build `cultivar_keys`, one
     identity key per name, and that is what a `cultivar` alias edge and the
@@ -714,9 +774,11 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   perennial list, everything collapsing to `other`) is a parse miss, not a
   quirk. A `size` that turned out to be a height/width/caliper belongs in that
   column with its `*_std`, leaving both `size` and `size_std` `NULL`.
-- **Check the name split.** Every row this drop wrote has the parts the source
-  printed and nothing else, and its derived `name` reads the way §2 says. Expect
-  zero rows from each of these:
+- **Check the name classification.** Every row this drop wrote preserves the
+  source's explicit parts without fabrication, or intentionally keeps one
+  uncertain complete printed atom in `common_name` with the other identity fields
+  NULL; its derived `name` reads the way §2 says. Expect zero rows from each of
+  these:
   ```sql
   -- a part that is neither NULL nor real text, or an identity with no name at all
   SELECT id, common_name, botanical_name, cultivar_variety_trade_name, name
@@ -739,9 +801,11 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
     AND cultivar_variety_trade_name ~ '\s[-/]\s'
     AND cardinality(cultivar_keys) = 1;
   ```
-  Then read a sample of `name` values back: a botanical name in `common_name`,
-  or a cultivar left inside `common_name` instead of its own column, is invisible
-  to these queries and visible immediately to a reader.
+  Then read a sample of `name` values back. Flag a botanical identity in
+  `common_name`, or a cultivar left there, **only when the source convention and
+  evidence support a confident split**. A complete source atom intentionally
+  preserved in `common_name` under §2's uncertainty fallback is correct and
+  must not be falsely flagged.
 - **Verify every alias pair you wrote — mechanically, not by eye.** For each new
   pair run `search_inventory('<other_name>')` and `search_inventory('<the row's
   name>')` and list the identities each returns. If either returns an identity
