@@ -511,6 +511,42 @@ here).
     head, so "this company" and "this farm" are the same code path with a
     different id list.
 
+- **Harness upgraded 0.8.25 → 0.9.2** (data dir migrated with the
+  `cognisphere-upgrade` skill). The whole breaking-change window is 0.9.0's
+  gws rework, so **daisy is the only agent it touches**:
+
+  - **Daisy owns her mail notifications now.** 0.9.0 adds an agent-writable
+    overlay at `plugins/gws/state/settings.json` with a `scripts/gws/settings
+    show|set|reset` CLI, re-read on every poll tick: she can change
+    `pollIntervalSec` (`-1` silences email outright — no polling, nothing
+    marked read, she searches when she wants), `gmailQuery`, `allowedSenders`
+    and `requireAgentInTo` without an operator edit. `firstOfThreadOnly` stays
+    operator-only, and the effective settings are announced to her as a
+    `gws_settings` message on every harness start.
+  - **The upstream default flip is a no-op here.** 0.9.0 moved
+    `pollIntervalSec` 60 → 900 and `requireAgentInTo` true → false; daisy's
+    `plugins/gws/config.json` sets both explicitly (300 and false), so her
+    inbound behaviour is unchanged.
+  - **The other three entries are seed files** — the new `scripts/gws/settings`,
+    the rewritten `system_prompts/plugin-gws.md`, and the `read-email` (1.1.1),
+    `search-email` (1.0.1) and `route-email` (1.0.1) skills, all reworded off
+    the old you-in-`To` delivery rule and onto her settings. They re-copy on the
+    next agent start, so restarting daisy was the entire migration.
+  - **0.9.1 and 0.9.2 are runtime-only** — three memory leaks closed (the
+    session-cost cache, the Ajv singleton, a wedged `pi` child that now times
+    out at 60s), stdin EPIPE no longer crashes the server, and batch teardown
+    now SIGKILL-sweeps pi's whole process group, plus a /tmp janitor for
+    `pi-bash-*.log` and stale browser profiles. One behavioural consequence
+    worth knowing: **a background process an agent starts no longer survives
+    its turn** — the group sweep kills it at batch end.
+
+  The scaffold refresh was again a no-op beyond the upstream changelog:
+  `scripts/`, `config.example`, `docs/base-harness/`, `.claude/skills/` and
+  `app/artifacts-routes/` are byte-identical across the two versions, so the
+  live routes adapted from the template (its `LOCAL.md`) gained no drift to
+  port. No base-prompt entry in the window, so the documented local edit to all
+  three agents' `0-base_prompt.md` survives untouched.
+
 ### Removed
 
 - **JR-14 is deleted.** "16202 Oak Grove Rd landscaping, Aug 25 delivery" and

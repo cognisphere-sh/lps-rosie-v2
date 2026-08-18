@@ -57,10 +57,19 @@ reference docs and memory.
   is a **preview** — header, first two lines of the sender's own text, and
   attachment names only; the message itself is read with `scripts/gws/email
   read <MessageId> [--attachments]`. Outbound via the `gws` CLI. Ships the
-  plugin-owned skills `read-email`, `search-email` and `route-email`. Config:
-  `pollIntervalSec: 300`, `gmailQuery: "in:inbox -label:daisy after:2026-07-01
-  is:unread"`, `firstOfThreadOnly: false`, `allowedSenders: "*"`,
-  `requireAgentInTo: false`.
+  plugin-owned skills `read-email`, `search-email` and `route-email`. Operator
+  config (`plugins/gws/config.json`): `pollIntervalSec: 300`, `gmailQuery:
+  "in:inbox -label:daisy after:2026-07-01 is:unread"`, `firstOfThreadOnly:
+  false`, `allowedSenders: "*"`, `requireAgentInTo: false` — every key the
+  harness 0.9.0 defaults flipped (`pollIntervalSec` 60 → 900,
+  `requireAgentInTo` true → false) is set explicitly here, so that release did
+  not change Daisy's behaviour. Since 0.9.0 Daisy also **owns her own
+  notification settings**: `scripts/gws/settings show|set|reset` writes an
+  overlay at `plugins/gws/state/settings.json` that takes precedence over the
+  operator config for `pollIntervalSec` (`-1` silences email entirely),
+  `gmailQuery`, `allowedSenders` and `requireAgentInTo` — re-read every poll,
+  and re-announced to her as a `gws_settings` message on each harness start.
+  `firstOfThreadOnly` stays operator-only.
 - **artifacts** — publishes self-contained HTML pages on the app's domain.
   Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/daisy"}` — the `/a/daisy`
   prefix is what keeps its links distinct from Nova's, since the plugin appends
@@ -137,7 +146,8 @@ written later doesn't reintroduce procedure.
   agent-messaging).
 - `scripts/gws/` — `email` CLI (`read`/`thread`/`search`/`labels`/`label`) +
   `format-email-lib.mjs`/`.d.mts` (decode Gmail message JSON to plain-text body
-  + attachments), and `routes` (thread-routing rules).
+  + attachments), `routes` (thread-routing rules), and `settings` (her own
+  notification overlay).
 - `scripts/scheduler/scheduler-cli`, `scripts/telegram/telegram-cli`,
   `scripts/webchat/webchat-cli`.
 

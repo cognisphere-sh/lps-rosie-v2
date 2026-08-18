@@ -18,6 +18,99 @@ the harness directory, and applies it after user approval. See
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.2]
+
+### Fixed
+
+- **Batch teardown now reaps the pi child's entire process tree.** Pi is
+  spawned in its own process group (`detached: true`) and, once it exits,
+  the group is SIGKILL-swept — so headless browsers, dev servers, and
+  anything else the agent's bash tool left running die with the batch
+  instead of accumulating on the server. The 5s no-exit escalation also
+  kills the group, not just pi.
+- **/tmp no longer fills up.** A janitor sweeps known agent debris from the
+  OS temp dir at boot and every 6h (age > 24h): pi's `pi-bash-*.log`
+  output-spill files (pi writes them for any oversized command output and
+  never deletes them) and browser profile dirs
+  (`.org.chromium.*`, `puppeteer_dev_chrome_profile-*`, `playwright*`).
+
+### Changed
+
+- **Agent-spawned processes are now strictly batch-scoped.** A background
+  process started during one turn no longer survives to the next — the
+  group sweep at batch end kills it. No shipped plugin or seed relied on
+  cross-batch daemons; if a future workload needs one, run it outside the
+  agent (e.g. a plugin) or ask for a skip-sweep flag.
+
+## [0.9.1]
+
+### Fixed
+
+- **Memory leaks in the harness execution path.** Three long-running-process
+  leaks closed:
+  - The per-file session-cost cache (`api/agents.ts`) never evicted — entries
+    for deleted threads lived for the life of the process. A failed stat now
+    evicts, and past 4096 entries a sweep drops entries whose file is gone.
+  - The shared Ajv singleton pinned a compiled validator per agent restart
+    (its cache is keyed by schema object identity and `agent.json` is
+    re-parsed on every start). Validation now uses a throwaway Ajv per call.
+  - A wedged `pi` child that never acked its prompt frame held its worker
+    slot, batch state, and OS process forever. `sendPrompt` now times out
+    after 60 s; the batch fails and the child is torn down.
+- **Async EPIPE on the pi child's stdin no longer crashes the server.** The
+  stdin stream had no `error` listener, so a child dying mid-write raised an
+  unhandled `'error'` event; it now logs at debug.
+
+## [0.9.0]
+
+### Added
+
+- **The agent owns her gws notification settings.** New agent-writable overlay
+  `plugins/gws/state/settings.json`, managed by the seeded
+  `scripts/gws/settings` CLI (`show|set|reset`) and re-read by the plugin on
+  every poll tick — the same live-reload pattern as `routes.json`, so a change
+  applies within one poll. Per-key precedence: `settings.json` →
+  operator `config.json` → defaults. Overridable keys: `pollIntervalSec`,
+  `gmailQuery`, `allowedSenders`, `requireAgentInTo` (`firstOfThreadOnly`
+  stays operator-only).
+- **Passive mailbox.** `pollIntervalSec: -1` disables polling entirely: no
+  notifications, nothing marked read — the agent reads mail only when she
+  chooses to search. While passive the loop still re-reads settings every
+  60s, so setting a real interval again resumes within a minute (pending
+  unread arrives on the next poll).
+- **Settings announced on start.** Each plugin start posts one `gws_settings`
+  message on the plugin's `main` channel — mailbox address, effective
+  settings, routing-rule count, and how to change them — so the agent can
+  re-assert her preferences after every harness restart.
+
+### Changed
+
+- **gws defaults: notify on all unread inbox, poll every 15 minutes.**
+  `pollIntervalSec` 60 → 900 and `requireAgentInTo` true → false — by default
+  the latest message of *every* unread inbox thread now wakes the agent,
+  routed to its per-thread id as before; Cc/Bcc-only mail is skipped only
+  when `requireAgentInTo` is switched back on. Operators who want the old
+  behavior set both keys explicitly in `plugins/gws/config.json`.
+
+### Breaking changes
+
+- New seeded `scripts/gws/settings` — the settings overlay's CLI. Plugin seeds
+  re-copy on the next agent start, so restarting each agent installs it
+  [affects: agents/*/scripts/gws/]
+- `system_prompts/plugin-gws.md` rewritten (still 50 lines): new inbound
+  default, the Settings section, and the "ask to be kept in `To:`" outbound
+  rule dropped (it existed only for the old `requireAgentInTo: true` default);
+  it re-seeds on the next agent start
+  [affects: agents/*/system_prompts/plugin-gws.md]
+- gws skills `read-email` (1.1.1), `search-email` (1.0.1), `route-email`
+  (1.0.1): wording that hardcoded the old you-in-`To` delivery rule now points
+  at the agent-owned settings; they re-seed on the next agent start
+  [affects: agents/*/skills/gws/]
+- The default flip means an existing `plugins/gws/config.json` that never set
+  `pollIntervalSec` / `requireAgentInTo` changes behavior on upgrade — set
+  them explicitly to keep the old 60s / To-only behavior
+  [affects: agents/*/plugins/gws/config.json]
+
 ## [0.8.25]
 
 ### Changed
