@@ -769,7 +769,7 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 | `needs_attention` | boolean | no, default false | The "a human should look at this" flag the UI surfaces. Set it with the why appended to `internal_notes` in the same change |
 | `billing_address` / `billing_city` / `billing_state` / `billing_zip` | text | yes | |
 | `shipping_address` / `shipping_city` / `shipping_state` / `shipping_zip` | text | yes | |
-| `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited |
+| `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited. Holds only what the structured columns don't: constraints, deadlines, conditions — not the plants, the address or the identity |
 | `internal_notes` | text | yes | **Ours.** Append-only, timestamped entries |
 | `external_notes` | text | yes | Written to be **shown to the customer** |
 | `is_active` | boolean | no, default true | Soft delete |
@@ -795,9 +795,9 @@ the search RPCs and key columns, downstream.
 | `available_quantity` | numeric | yes | **CHECK**: null or `>= 0`. **Avail** — how many we can actually supply (migration 0056). NULL = not answered yet (renders as a dash, never zero); 0 = confirmed unavailable; below `quantity` = partial cover, which is where the UI's derived "Partial" pill comes from. Deliberately not clamped to `quantity` — a supplier may offer more than was asked |
 | `unit_price` | numeric(10,2) | yes | NULL = not priced yet; **never 0** — same rule as `inventory.unit_price` |
 | `total` | numeric(12,2) | — | **`GENERATED ALWAYS AS (quantity * unit_price) STORED`** — never write it. NULL until both parts exist |
-| `status` | text | no, default `pending` | **CHECK**: `pending` \| `sourcing` \| `available` \| `alternative_proposed` \| `unavailable` \| `confirmed` \| `cancelled` |
+| `status` | text | no, default `pending` | **CHECK**: `pending` \| `available` \| `alternative_proposed` \| `unavailable`. Narrowed from seven words by **migration 0058**: `sourcing` described an activity rather than a state and is already recorded, in more detail, by `internal_notes`; `confirmed` was a stronger `available` nothing distinguished; a dropped line is `unavailable` with the reason in the notes, and a line entered in error is deactivated rather than statused. Existing rows were remapped (`sourcing`→`pending`, `confirmed`→`available`, `cancelled`→`unavailable`) — only the first had any |
 | `needs_attention` | boolean | no, default false | Same convention as the request-level flag |
-| `customer_notes` | text | yes | The customer's words about this line, verbatim |
+| `customer_notes` | text | yes | The customer's words about this line, verbatim — and **only what no other column holds**. Not a restatement of `name`/`size`/`quantity`: constraints, preferences and conditions, not the ask (`job-requests` skill, §4) |
 | `internal_notes` | text | yes | **The sourcing log** — which supplier may have it, availability, pricing, alternatives. Append-only, timestamped |
 | `external_notes` | text | yes | **Customer-visible.** A quantity change or a substitution must be explained here in the same change that makes it |
 | `is_active` | boolean | no, default true | Soft delete |
@@ -1317,6 +1317,14 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
   `external_notes` (written to be shown to the customer — a quantity change or
   substitution is explained there in the same change). Supplier names and
   supplier pricing never go in a customer-visible field.
+- **`customer_notes` is the remainder, not a transcript.** Whatever a structured
+  column already holds — plant, size, quantity, address, identity — lives there
+  and only there; the note carries what has nowhere else to go. A note that
+  restates a column is a sign the column was filled wrong.
+- **An item's status is where the line stands, not what is being done about
+  it.** Since migration 0058 there are four: `pending`, `available`,
+  `alternative_proposed`, `unavailable`. Progress — who was asked, what came
+  back — is `internal_notes`, which says more than a status word could.
 - A line item carries **two quantities**: `quantity` is the customer's demand and
   `available_quantity` is what we can supply. "Partial" is not a status — it is
   `available_quantity < quantity`, derived where it is displayed so a stored word

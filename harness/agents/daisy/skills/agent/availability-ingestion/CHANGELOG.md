@@ -1,5 +1,29 @@
 # availability-ingestion — changelog
 
+## 1.5.1
+
+2026-08-18 — Approved by Bhoumik: the post-write identity QA no longer treats
+ordinary ASCII or typographic apostrophes inside a name as malformed quotation
+marks. It now flags brackets and quote characters that are stray or wrapping
+(leading, trailing, or not between alphanumeric characters), while accepting
+valid names such as `Bracken’s Brown Beauty`, `Bracken's Brown Beauty`, and
+`O'Neil`. The QA examples also make the invalid wrapped forms explicit.
+
+## 1.5.0
+
+2026-08-18 — Bhoumik clarified the boundary between manually handed availability
+and the email/backlog historical policy. A Chris/Bhoumik image, attachment, or
+web source classified `manual/current-receipt` uses the inbound handoff as its
+received/retrieved time and does not enter the historical gate merely because it
+prints an old or non-ISO date. Its provenance and row notes retain the printed
+date and a confirmation-required currentness caveat; current receipt supplies
+operational precedence unless an explicit/quotable §4 exception says otherwise.
+
+The mandatory fail-closed historical-backfill gate is otherwise unchanged and
+now expressly applies only when the brief marks the email/backlog work
+historical/backfill, with its exact ISO effective/received input, numeric
+resolution, evidence, preflight, and immediate revalidation still required.
+
 ## 1.4.0
 
 2026-08-18 — Approved by Bhoumik: identity normalization now makes the best

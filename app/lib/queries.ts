@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
+import { noteStamp } from '@/lib/notes'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import type { ServerSort } from '@/lib/server-sort'
 import { sourceUrl, supabase } from '@/lib/supabase'
@@ -1019,6 +1020,12 @@ const WRITABLE: Record<string, string[]> = {
     'name', 'size', 'quantity', 'available_quantity', 'unit_price',
     'status', 'needs_attention', 'external_notes',
   ],
+  // `notes` is durable facts about the customer and is edited in place;
+  // `communication_notes` is absent for the same reason `internal_notes` is —
+  // it is an append-only contact log, reached through `appendNote`.
+  customers: [
+    'name', 'company', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes',
+  ],
 }
 
 /**
@@ -1128,6 +1135,58 @@ export async function updateFields(
 
   const { error } = await supabase.from(table).update(values).eq('id', id)
   if (error) throw new Error(`${table} update: ${error.message}`)
+}
+
+/**
+ * Note columns that are logs rather than fields.
+ *
+ * `internal_notes` on a request or a line item is the sourcing record, and
+ * `customers.communication_notes` is the contact log: entries are stamped and
+ * never rewritten (migration 0055). That is why those columns are absent from
+ * WRITABLE — an inline edit would overwrite the whole history — and appending
+ * is the only way the app adds to them.
+ */
+const APPENDABLE: Record<string, string[]> = {
+  job_requests: ['internal_notes'],
+  job_request_items: ['internal_notes'],
+  customers: ['communication_notes'],
+}
+
+/**
+ * Add one stamped entry to an append-only note column.
+ *
+ * Read-modify-write, because PostgREST cannot express `col = col || $1`. Rosie
+ * writes these columns too, so two appends landing in the same instant can cost
+ * one entry. The trade was taken deliberately: the alternative is a migration
+ * for a database function, and `job_request_changelog` records the before/after
+ * of every write either way, so a lost entry is recoverable rather than gone.
+ */
+export async function appendNote(
+  table: string,
+  id: string | number,
+  column: string,
+  text: string,
+): Promise<void> {
+  if (!APPENDABLE[table]?.includes(column)) {
+    throw new Error(`refusing to append to ${table}.${column}`)
+  }
+  const entry = text.trim()
+  if (!entry) throw new Error('an entry cannot be empty')
+
+  const { data, error } = await supabase.from(table).select(column).eq('id', id).maybeSingle()
+  if (error) throw new Error(`${table}: ${error.message}`)
+  if (!data) throw new Error(`${table} ${id} not found`)
+
+  // `column` is a runtime name, so PostgREST's generated row type cannot
+  // describe the shape it returns — the whitelist above is what makes it safe.
+  const row = data as unknown as Record<string, string | null>
+  const current = (row[column] ?? '').trimEnd()
+  const stamped = `${noteStamp()} ${entry}`
+  const { error: writeError } = await supabase
+    .from(table)
+    .update({ [column]: current ? `${current}\n\n${stamped}` : stamped })
+    .eq('id', id)
+  if (writeError) throw new Error(`${table} append: ${writeError.message}`)
 }
 
 /**

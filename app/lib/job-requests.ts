@@ -15,15 +15,19 @@ export const REQUEST_STATUSES = [
 ] as const
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
-/** `job_request_items.status` — the CHECK vocabulary, in lifecycle order. */
+/**
+ * `job_request_items.status` — the CHECK vocabulary, in lifecycle order.
+ *
+ * Four words, since migration 0058: `pending` → `available`, with
+ * `alternative_proposed` and `unavailable` as the other two endings. What is
+ * being *done* about a pending line is not a status — it is the timestamped
+ * `internal_notes` sourcing log, which also says what was found out.
+ */
 export const ITEM_STATUSES = [
   'pending',
-  'sourcing',
   'available',
   'alternative_proposed',
   'unavailable',
-  'confirmed',
-  'cancelled',
 ] as const
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
 
@@ -42,6 +46,16 @@ export function toneStyle(tone: Tone) {
 }
 export const toneDot = (tone: Tone) => `var(--lps-tone-${tone}-dot)`
 
+/**
+ * The design's row tint — the pill's own background, thinned.
+ *
+ * A pill is a small shape and can carry a full-strength wash; a whole table row
+ * cannot, so the design draws it at about a third. `color-mix` keeps that one
+ * rule here rather than doubling every tone token with a faded twin.
+ */
+export const toneTint = (tone: Tone) =>
+  `color-mix(in srgb, var(--lps-tone-${tone}-bg) 40%, transparent)`
+
 export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: Tone }> = {
   sourcing: { label: 'Sourcing', tone: 'amber' },
   quoted: { label: 'Quoted', tone: 'teal' },
@@ -52,12 +66,9 @@ export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: T
 
 export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }> = {
   pending: { label: 'Pending', tone: 'grey' },
-  sourcing: { label: 'Sourcing', tone: 'amber' },
   available: { label: 'Available', tone: 'green' },
   alternative_proposed: { label: 'Substituted', tone: 'teal' },
   unavailable: { label: 'Unavailable', tone: 'red' },
-  confirmed: { label: 'Confirmed', tone: 'green' },
-  cancelled: { label: 'Cancelled', tone: 'grey' },
 }
 
 export const requestStatusLabel = (s: string) =>
@@ -80,9 +91,8 @@ export function coverOf(quantity: number | null, available: number | null): Cove
  *
  * The design draws "Partial" as its own state, but partial-ness is a fact about
  * two numbers, not a status someone sets — so it is derived here. It only
- * overrides a status that claims the item is covered (`available`/`confirmed`);
- * an explicitly `unavailable` or `cancelled` line keeps its own word whatever
- * the numbers say.
+ * overrides a status that claims the item is covered (`available`); an
+ * explicitly `unavailable` line keeps its own word whatever the numbers say.
  */
 export function itemPill(
   status: string,
@@ -90,8 +100,7 @@ export function itemPill(
   available: number | null,
 ): { label: string; tone: Tone } {
   const meta = ITEM_STATUS_META[status as ItemStatus] ?? { label: status, tone: 'grey' as Tone }
-  const cover = coverOf(quantity, available)
-  if ((status === 'available' || status === 'confirmed') && cover === 'partial') {
+  if (status === 'available' && coverOf(quantity, available) === 'partial') {
     return { label: 'Partial', tone: 'lime' }
   }
   return meta

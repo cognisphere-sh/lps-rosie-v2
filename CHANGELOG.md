@@ -17,6 +17,79 @@ here).
 
 ## 2026-08-18
 
+### Added
+
+- **Rosie is live in the web app's chat panel**, alongside Daisy and Nova. Her
+  `webchat` plugin was already configured and running on the harness side
+  (`threadId: main`) since she was created; the only thing holding the panel
+  back was the `upcoming: true` flag on her entry in `app/lib/agents.ts`, which
+  the desktop rail, the mobile Agents list, the `/agents` page and the
+  `/api/chat/<id>/…` proxy all read. Removing it — plus an intro line and three
+  starter suggestions — is the whole change. `main` is the same thread her
+  Telegram route lands on, so the panel and Telegram are one conversation, the
+  way Daisy's are. No agent carries `upcoming` now.
+
+  Two descriptions that had gone stale were corrected in the same pass: her
+  `agent.json` (and the peer `0.1-agent-directory.md` copies daisy and nova
+  read) still called both channels "pending", and `docs/harness/agent-rosie.md`
+  still called her Telegram bot token pending — `lps_rosie_bot` authenticates
+  and its chat is routed to `main`.
+
+- **A Customers page** at `/customers`, with a rail entry beside Job Requests —
+  the two customer-side surfaces, in the order the work runs: who they are, then
+  what they asked for. One collapsed card per person, ordered by **name**,
+  because that is how a customer is looked up (Job Requests leads with what
+  needs attention instead). The head carries name, company, whichever contact
+  routes exist, the address, `N requests · M open` with the summed line total,
+  and the last contact-log entry on one line. Expanding gives editable blocks
+  for who they are, their address, their **Notes** (durable facts, edited in
+  place) and their **Contact log** (`communication_notes`, append-only — the
+  same rule as a request's internal log), plus a list of their active requests
+  with status, line count and total. Search matches name, company, email or
+  phone; a State chip and a **With requests** toggle narrow it.
+  New `GET /api/customers` and `lib/customer-queries.ts`.
+  - **No create form, deliberately.** Customer creation is Rosie's find-or-create
+    during intake — email, then phone, then name + company. A New button beside
+    that is a second, blinder create path, and the duplicate rows it produces are
+    exactly what the matching order exists to prevent. The empty state says so.
+  - Two extractions, because Customers is the second consumer of each and
+    duplicating either would let the copies drift: **`lib/notes.ts`** now holds
+    the append-only note convention (`parseEntries` / `noteStamp` /
+    `shortStamp`) that the agents' skills and this app both write, and
+    **`components/workspace/editable.tsx`** holds the click-to-edit text,
+    textarea and append-entry controls that were the Job Requests page's.
+  - Fixed in passing: the nav rail's comment and the docs both still claimed
+    Job Requests was "rendered disabled because it is out of scope". It has been
+    live for two days.
+
+- **A Change history drawer on every job request** — the whole
+  `job_request_changelog` trail at the foot of the expanded card, behind a
+  toggle. Every edit to the request or its lines appears, by this app *and* by
+  the agents: the log is trigger-written, so neither write path has to cooperate
+  for it to be complete. An entry names its actor in words (`service_role` →
+  "This app", `postgres` → "An agent script"), says whether it created or
+  changed something and what it was about, and lists each column as
+  `old → new`. New `GET /api/requests/:id/changelog` and
+  `jobRequestChangelog()`; fetched only when the drawer opens, and re-fetched
+  after any write so an edit you just made appears in the history you are
+  looking at. Read-only — the rows are immutable by design.
+
+### Removed
+
+- **The Size chip is gone from the Job Requests toolbar.** It read poorly as a
+  facet: unlike `inventory.size`, which is a graded vocabulary with a reviewed
+  `size_std`, `job_request_items.size` is the customer's **verbatim ask** and
+  migration 0055 deliberately gives it no standardized twin — "30 gal", "30 gal
+  or larger" and "30g" are three dropdown options for one thing. The
+  **server-side filter and its facet stay** (`GET /api/requests?size=`,
+  `?facets=1`): this is a toolbar decision, not a lost capability.
+
+- **Job request JR-3 was hard-deleted at the owner's request** — the only
+  request on the deployment, an anonymous 2026-08-17 Telegram intake with 13
+  line items. `ON DELETE CASCADE` took its items and all 52 of its
+  `job_request_changelog` entries with it; the tables are now empty
+  (`customers` already was). Not recoverable.
+
 ### Changed
 
 - **Caliper is visible by default in both desktop plant tables** — Plant Search
@@ -27,6 +100,97 @@ here).
   width and visibility preferences. Mobile Plant Search keeps its labelled
   **Cal** value, and mobile supplier Inventory cards now show the raw supplier
   caliper when present. Dimensions remain outside broad free-text search.
+
+- **`job_request_items.status` narrows from seven words to four** —
+  `pending → available | alternative_proposed | unavailable`
+  (**migration 0058**, applied via the Supabase MCP).
+  - **`sourcing` is gone** because it described an *activity*, not a state of
+    the line, and the activity was already recorded item by item and
+    timestamped in `internal_notes` — which says *what was found out*, not just
+    that someone was looking. A line being worked is `pending`.
+  - **`confirmed` is gone**: it was a stronger `available` that nothing in the
+    app or the skills distinguished. Acceptance is a note plus
+    `job_requests.status = 'closed_won'`.
+  - **`cancelled` is gone**: a dropped line is `unavailable` with the reason in
+    the notes, and a line entered *in error* is deactivated
+    (`is_active = false`), never statused.
+  - Existing rows were remapped before the CHECK narrowed —
+    `sourcing`→`pending` (6 rows), `confirmed`→`available` and
+    `cancelled`→`unavailable` (none). Every remap is in
+    `job_request_changelog`, so each line's prior value is recoverable.
+  - App side: the status dropdown offers four, the derived **Partial** pill now
+    overrides only `available`, and a card's count pills have four buckets. The
+    `job-requests` skill and `docs/supabase-schema.md` say why in the same
+    change. `job_requests.status` is untouched — its `sourcing` is the
+    *request's* lifecycle stage.
+
+- **`customer_notes` is documented as the remainder, not a transcript.** The
+  `job-requests` skill now states that whatever a structured column already
+  holds — plant, size, quantity, address, identity — belongs in that column and
+  only there, with a where-it-goes table, the rule that restating the ask adds
+  nothing, and the observation that a note duplicating a column means the column
+  was filled wrong. This is what the app's new sub-line under an item name is
+  for: the *extra* the customer said, read alongside the fields.
+
+- **Job Requests: order details became a second level of expansion.** Shipping,
+  billing and the three note blocks moved out of the bottom of the expanded card
+  into an **Order details** drawer directly under the head, shut by default and
+  carrying a one-line summary of what it hides. They are read when a request is
+  being actioned, not when it is scanned. The head is lighter for it — the
+  street address moved into the drawer and only the destination city and state
+  remain — and was repolished around that: the line total is now the prominent
+  figure, the per-status count pills have their own row, and the newest note sits
+  below a hairline.
+
+### Added
+
+- **Job Requests gains the Order Requests design's selection, action bar and
+  split note columns.** The screen already drew the design's cards, tones and
+  status pills; this brings over the parts that were missing and finishes the
+  three audiences the schema actually has.
+  - **Selection.** A tri-state checkbox on each card selects that request's
+    visible lines; each line has its own. A selection only means something over
+    lines you can see, so anything that falls out of view when a filter, a
+    search or a page turn changes the result set leaves the selection with it.
+  - **A bulk action bar** appears with the selection: **Set status**, **Flag
+    for input**, **Clear flag**, and Clear. Applied per line through
+    `PATCH /api/rows` with `Promise.allSettled`, so one rejected line does not
+    hide the ones that went through and the toast names the failures. The
+    design's Email quote / Text quote / PDF quote / Place order / Send
+    availability request are **deliberately absent** — Rosie has no mailbox and
+    may not contact a customer unbidden, and the order tables are deferred by
+    migration 0055. A button that only raised a toast would misrepresent the
+    system.
+  - **Two note columns instead of one.** The mock draws a single Notes column;
+    the schema has three audiences with three different rules, and one cell
+    cannot honestly edit a field written for the customer *and* an append-only
+    log. **Shared note** edits `external_notes` whole; **Internal note** shows
+    the log and appends to it; the **customer's own words about a line** are a
+    read-only italic sub-line under its name, where the ask is read. The
+    collapsed card gained the newest note on the request, truncated to one line
+    and tagged with its audience.
+  - **`internal_notes` is writable from the app for the first time**, by
+    appending only. New `appendNote()` behind `POST /api/rows` — a separate verb
+    from PATCH because PATCH *replaces* and these columns must never be
+    replaced. It has its own short whitelist, stamps the entry
+    `[YYYY-MM-DD HH:MM America/Chicago]` server-side (the browser's clock is not
+    the deployment's timezone) and separates entries with a blank line, which is
+    what `noteEntries` reads back. It is read-modify-write, because PostgREST
+    cannot express `col = col || $1`; `job_request_changelog` records every
+    write either way, so a racing append is recoverable rather than gone.
+  - **Row tinting** now follows the design: a line's background is its status
+    pill's colour thinned to about a third (`toneTint`, via `color-mix`), with
+    selected beating waiting-on-input beating the status tint.
+
+### Fixed
+
+- **Popovers holding an editor closed on the first click inside them.**
+  `useOutsideClose` only treated `[data-menu]` as inside, but the job-request
+  status pickers and note popovers mark themselves `[data-pop]` — a mousedown
+  into one of their textareas counted as an outside click. It now honours both,
+  the same pair the Order Requests design listens for.
+
+### Changed
 
 - **Suppliers, Plant search and the supplier profile now present one company,
   not one `suppliers` row.** A company that operates at several sites is

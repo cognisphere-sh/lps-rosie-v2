@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Turn a job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates in knowledge/files/templates/ (lps-quote-template.html is the default) and how to maintain them, filling a quote strictly from customer-safe fields (external_notes and the customer's own data — never internal_notes, supplier names or supplier pricing), rendering the PDF with agent-browser, uploading to the lps bucket under rosie_shared/ and signing the URL, publishing the HTML through the artifacts plugin, and what happens after — the Chris-approval gate before anything reaches the customer, moving the request to quoted, and recording the quote link in external_notes. Use when a job request is priced and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.0.0)
+description: Turn a job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates in knowledge/files/templates/ (lps-quote-template.html is the default) and how to maintain them, filling a quote strictly from customer-safe fields (external_notes and the customer's own data — never internal_notes, supplier names or supplier pricing), rendering the PDF with agent-browser, uploading to the lps bucket under rosie_shared/ and signing the URL, publishing the HTML through the artifacts plugin, and what happens after — the Chris-approval gate before anything reaches the customer, moving the request to quoted, and recording the quote link in external_notes. Use when a job request is priced and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.0.1)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # Quote generation
@@ -37,11 +37,11 @@ Read the request fresh (with its last-5 changelog entries — `job-requests`
 §3). Then:
 
 - One `{{ITEM_ROWS}}` row per **active, quotable** item — statuses
-  `available`, `alternative_proposed` (with its `external_notes` explanation
-  in the Comments cell) and `confirmed`. `pending`/`sourcing` items either
-  hold the quote or are listed as "to follow" — ask Chris which, don't decide
-  silently. `unavailable`/`cancelled` items appear only as a short note if the
-  customer needs to see they were considered.
+  `available` and `alternative_proposed` (the latter with its `external_notes`
+  explanation in the Comments cell). A `pending` item either holds the quote or
+  is listed as "to follow" — ask Chris which, don't decide silently. An
+  `unavailable` item appears only as a short note if the customer needs to see
+  it was considered. (Four statuses since migration 0058 — `job-requests` §7.)
 - Prices are the items' `unit_price`/`total`; the quote's total is the sum of
   quoted lines. An unpriced (`NULL`) item cannot be quoted — price it or hold
   it.

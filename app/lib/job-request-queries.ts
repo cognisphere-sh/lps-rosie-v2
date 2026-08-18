@@ -1,8 +1,10 @@
 import 'server-only'
 
 import { coverOf } from '@/lib/job-requests'
+import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
+  JobChange,
   JobNote,
   JobRequestFacets,
   JobRequestItem,
@@ -83,17 +85,7 @@ export interface JobRequestFilters {
  * rather than being reshaped.
  */
 function noteEntries(text: string | null, kind: JobNote['kind']): JobNote[] {
-  if (!text?.trim()) return []
-  return text
-    .split(/\n\s*\n/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean)
-    .map((chunk) => {
-      const m = chunk.match(/^\[([^\]]+)\]\s*([\s\S]*)$/)
-      return m
-        ? { kind, stamp: m[1], text: m[2].trim() }
-        : { kind, stamp: null, text: chunk }
-    })
+  return parseEntries(text).map((e) => ({ kind, ...e }))
 }
 
 function notesOf(r: { customer_notes: string | null; internal_notes: string | null; external_notes: string | null }): JobNote[] {
@@ -143,6 +135,7 @@ function toItem(r: ItemRecord): JobRequestItem {
     status: r.status,
     needsAttention: recordNeedsAttention(r),
     notes: notesOf(r),
+    customerNotes: r.customer_notes,
     externalNotes: r.external_notes,
     updatedAt: r.updated_at,
   }
@@ -390,7 +383,12 @@ async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['
   return map
 }
 
-/** The option lists the toolbar chips offer. Sizes come from the live items. */
+/**
+ * The option lists the toolbar chips offer. Sizes come from the live items.
+ *
+ * `size` is still computed although the toolbar stopped offering a Size chip:
+ * the filter itself is intact on the server, and this is the list it would need.
+ */
 export async function jobRequestFacets(): Promise<JobRequestFacets> {
   const [{ data: sizes, error: sizeErr }, { data: customers, error: custErr }] = await Promise.all([
     supabase.from('job_request_items').select('size').eq('is_active', true).not('size', 'is', null).limit(CHUNK),
@@ -405,6 +403,63 @@ export async function jobRequestFacets(): Promise<JobRequestFacets> {
     ),
     customer: (customers ?? []) as JobRequestFacets['customer'],
   }
+}
+
+interface ChangeRecord {
+  id: number
+  item_id: number | null
+  actor: string
+  action: string
+  changes: Record<string, unknown> | null
+  created_at: string
+}
+
+/**
+ * The whole change history of one request, newest first.
+ *
+ * Fetched on its own rather than with the request: it is unbounded, it is only
+ * read when someone opens the drawer, and nothing else on the card depends on it.
+ *
+ * Item names are resolved without an `is_active` filter — a retired line still
+ * has a history, and an entry that could not name what it was about would be
+ * worse than useless.
+ */
+export async function jobRequestChangelog(requestId: number): Promise<JobChange[]> {
+  const rows: ChangeRecord[] = []
+  for (let from = 0; ; from += CHUNK) {
+    const { data, error } = await supabase
+      .from('job_request_changelog')
+      .select('id, item_id, actor, action, changes, created_at')
+      .eq('job_request_id', requestId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + CHUNK - 1)
+    if (error) throw new Error(`job_request_changelog: ${error.message}`)
+    const page = (data ?? []) as ChangeRecord[]
+    rows.push(...page)
+    if (page.length < CHUNK) break
+  }
+
+  const itemIds = [...new Set(rows.map((r) => r.item_id).filter((v): v is number => v != null))]
+  const names = new Map<number, string>()
+  if (itemIds.length) {
+    const { data, error } = await supabase
+      .from('job_request_items')
+      .select('id, name')
+      .in('id', itemIds)
+    if (error) throw new Error(`job_request_items: ${error.message}`)
+    for (const r of (data ?? []) as { id: number; name: string }[]) names.set(r.id, r.name)
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    itemId: r.item_id,
+    itemName: r.item_id == null ? null : names.get(r.item_id) ?? null,
+    actor: r.actor,
+    action: r.action === 'insert' ? 'insert' : 'update',
+    changes: r.changes ?? {},
+    createdAt: r.created_at,
+  }))
 }
 
 /** Totals for the header line, over the whole active set rather than a page. */

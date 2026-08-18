@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop without writing rows. Covers supplier identification, task-thread dispatch, images/body handoff, the historical-backfill gate handoff, report digestion and Gmail labels. Use for supplier drops, historical backfill, Chris-requested ingests, or ingest reports. (v2.4.0)
+description: Coordinate one availability drop without writing rows. Covers supplier identification, task-thread dispatch, manual/current-receipt versus email/backfill classification, images/body handoff, the historical-backfill gate handoff, report digestion and Gmail labels. Use for supplier drops, historical backfill, Chris-requested ingests, or ingest reports. (v2.5.0)
 metadata:
   author: lps
-  version: "2.4.0"
+  version: "2.5.0"
 ---
 
 # Availability drop intake
@@ -114,11 +114,20 @@ points back at it rather than restating it. The brief carries:
 - the path to `knowledge/files/SCHEMA.md` and to the supplier's
   `workspace/suppliers/[<id>]:<Name>/notes.md` if present, to read first,
 - the ThreadId and the current timestamp.
-- **For historical/backfill only:** state that it is historical, give the exact
-  source effective/received timestamp, and require the task to run
-  `availability-ingestion`'s mandatory historical-backfill pre-write gate. Do
-  not dispatch a source whose supplier/location cannot be resolved by numeric
-  id first; that is a fail-closed gate blocker, not an invitation to onboard.
+- **Classify the intake explicitly — never infer historical solely from a date
+  printed on the material.** A source Chris or Bhoumik hands over manually
+  (image, attachment, or website) is **manual/current-receipt**: give the
+  inbound handoff timestamp as its received/retrieved time, preserve any printed
+  old or non-ISO date verbatim, and state that availability/pricing is
+  **confirmation-required**. It does **not** need the historical gate unless
+  Chris/Bhoumik or the brief explicitly calls it historical/backfill. This is
+  true even when the material displays only an old year.
+- **For email/backlog historical/backfill only:** state that it is historical,
+  give the exact ISO source effective/received timestamp, and require the task
+  to run `availability-ingestion`'s mandatory historical-backfill pre-write
+  gate. Do not dispatch a source whose supplier/location cannot be resolved by
+  numeric id first; that is a fail-closed gate blocker, not an invitation to
+  onboard.
 
 Don't restate the skill's steps in the brief. The task thread is you and has the
 same skills installed; naming the skill is what keeps both threads on the same

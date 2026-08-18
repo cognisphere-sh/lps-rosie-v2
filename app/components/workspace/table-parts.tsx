@@ -21,7 +21,10 @@ export function useOutsideClose(open: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('[data-menu]')) close()
+      // `[data-pop]` as well as `[data-menu]`: the job-request popovers hold
+      // editors, and a mousedown into a textarea must not close the thing that
+      // contains it. Same pair the Order Requests design listens for.
+      if (!(e.target as HTMLElement).closest('[data-menu],[data-pop]')) close()
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)

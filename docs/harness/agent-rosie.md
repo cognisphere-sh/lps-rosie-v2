@@ -46,8 +46,8 @@ Enabled now (core `admin` / `scheduler` / `agent-messaging` need no dirs):
 | Plugin | Config (`plugins/<id>/config.json`) | Note |
 |---|---|---|
 | `artifacts` | `{ "appBaseUrl": "https://lps.cognisphere.sh/a/rosie" }` | `rosie` is in `ARTIFACTS_AGENTS` (deploy `config`), so the restart writes her `ARTIFACTS_APP_SECRET` |
-| `webchat` | `{ "threadId": "main" }` | Harness side ready; the app still lists rosie as `upcoming` (`app/lib/agents.ts`) — flipping that is the UI-enable step |
-| `telegram` | `{ "pollTimeoutSec": 25, "allowedChatIds": ["-1003988082603"] }` | **Token pending.** The plugin tolerates a missing `TELEGRAM_BOT_TOKEN` (warns and idles, state stays `running`). Operator steps: create a new bot via BotFather (a token supports one poller — daisy's cannot be shared), put it in secrets as `rosie.telegram.TELEGRAM_BOT_TOKEN`, add the bot to the admin group, restart, then add a `scripts/telegram/routes` rule if the group should land on `main` like daisy's |
+| `webchat` | `{ "threadId": "main" }` | **Live** (2026-08-18). The app's chat panel reaches her at `/api/chat/rosie/*`; `main` is the same thread telegram routes to, so panel and Telegram are one conversation |
+| `telegram` | `{ "pollTimeoutSec": 25, "allowedChatIds": ["-1004491410854"] }` | **Live** — bot `lps_rosie_bot`, token in secrets as `rosie.telegram.TELEGRAM_BOT_TOKEN` (a token supports one poller, so this is her own bot, not daisy's). `state/routes.json` maps that chat to `main`, the thread webchat also uses |
 
 ### Pending: email (gws)
 
@@ -113,9 +113,12 @@ sequential record (see its `NOTE.md`, entry 0055). Rosie's own dir has no
 
 ## Skills (`skills/agent/`)
 
-| Skill | Version | What it is |
-|---|---|---|
-| `job-requests` | 1.0.0 | The core operating procedure: intake (incl. anonymous), concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends), the last-5-changelog fetch rule, the three-notes split and customer-visibility rule (qty changes / substitutions explained in `external_notes`), sourcing via daisy, `needs_attention` conventions, both status lifecycles, the Chris-approved customer-contact flow |
-| `plant-and-supplier-search` | 1.0.0 | Adapted from daisy's v1.6.0 — same RPC guidance, plus the read-only framing (findings go to item `internal_notes`; data problems get reported to daisy, not fixed). Fold daisy-side search changes in on approval |
-| `quote-generation` | 1.0.0 | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule, agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate |
-| `create-skill` | (template) | Installed by `cognisphere agent new` |
+Each skill's version lives in its own frontmatter and `CHANGELOG.md`; it is
+deliberately not repeated here, where it would only go stale.
+
+| Skill | What it is |
+|---|---|
+| `job-requests` | The core operating procedure: intake (incl. anonymous), concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends), the last-5-changelog fetch rule, the three-notes split — including that `customer_notes` holds only what no structured column already does — and the customer-visibility rule (qty changes / substitutions explained in `external_notes`), sourcing via daisy, `needs_attention` conventions, the four-word item status vocabulary and the request lifecycle, the Chris-approved customer-contact flow |
+| `plant-and-supplier-search` | Adapted from daisy's — same RPC guidance, plus the read-only framing (findings go to item `internal_notes`; data problems get reported to daisy, not fixed). Fold daisy-side search changes in on approval |
+| `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule, agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate |
+| `create-skill` | Installed by `cognisphere agent new` (template) |

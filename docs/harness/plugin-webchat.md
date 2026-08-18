@@ -1,8 +1,8 @@
 # Plugin: webchat
 
 **A browser chat channel for an agent.** User-space plugin at
-`harness/plugins/webchat/`; enabled on [`daisy`](agent-daisy.md) and
-[`nova`](agent-nova.md).
+`harness/plugins/webchat/`; enabled on [`daisy`](agent-daisy.md),
+[`nova`](agent-nova.md) and [`rosie`](agent-rosie.md).
 
 The web app's chat panel (`app/components/workspace/chat.tsx`) posts here
 through a thin app-side proxy; the agent answers with the seeded

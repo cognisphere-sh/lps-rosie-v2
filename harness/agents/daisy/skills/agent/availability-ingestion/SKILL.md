@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop into Supabase — every inventory-side write belongs here. Covers location mapping, source conversion, identity/size/price normalization, aliases, provenance, match/update/insert rules, newest-source precedence, photo triage, and a fail-closed historical-backfill supersession gate with durable evidence and immediate revalidation before any business write. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v1.4.0)
+description: Ingest one availability drop into Supabase — every inventory-side write belongs here. Covers location mapping, source conversion, identity/size/price normalization, aliases, provenance, current-receipt manual intake, match/update/insert rules, photo triage, and a fail-closed historical-backfill gate with durable evidence and immediate revalidation before any business write. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v1.5.1)
 metadata:
   author: lps
-  version: "1.4.0"
+  version: "1.5.1"
 ---
 
 # Availability ingestion
@@ -45,8 +45,14 @@ bump per the `create-skill` skill.
 
 Your brief follows the **dispatch contract in the `availability-drop-intake`
 skill (§2)** — the supplier the main agent resolved, the source material, the
-ThreadId, and the current timestamp. Read the brief rather than re-deriving any
-of it. Two things to read before you write anything:
+ThreadId, current timestamp, and its explicit intake classification. Read the
+brief rather than re-deriving any of it. **A Chris/Bhoumik manual handoff
+(image, attachment, or web source) classified `manual/current-receipt` is not a
+historical backfill merely because its material prints an old or non-ISO date.**
+Use the handoff timestamp as received/retrieved time and follow *Manual
+current-receipt intake* below. Only an explicit `historical/backfill`
+classification invokes the historical gate. Two things to read before you write
+anything:
 
 - **`knowledge/files/SCHEMA.md`** — before any query.
 - **`workspace/suppliers/[<supplierId>]:<Name>/notes.md`** if it exists — this
@@ -63,9 +69,12 @@ Any contact with the supplier during the ingest gets a timestamped entry in
 
 ## Historical backfill: mandatory pre-write supersession gate
 
-**Applies whenever the brief says historical/backfill. This comes before every
-write path in this skill — onboarding, source upload/provenance, inventory,
-aliases and photos.** A historical source that fails the gate writes nothing.
+**Applies only when the brief explicitly says historical/backfill (the
+email/backlog path). This comes before every write path in this skill —
+onboarding, source upload/provenance, inventory, aliases and photos.** A
+historical source that fails the gate writes nothing. An old/non-ISO date printed
+on a Chris/Bhoumik manual handoff does not itself make it historical; use
+*Manual current-receipt intake* instead.
 Do not create a provenance-only source, catalogue a photo, add a contact, or
 onboard a location as a workaround.
 
@@ -106,6 +115,32 @@ when the proposed write is only a photo, source, supplier, contact or alias.
 
 Report the decision, record path, source dispositions, offering comparison and
 revalidation result.
+
+## Manual current-receipt intake
+
+When Chris or Bhoumik manually hands over an image, attachment, or website and
+the brief classifies it `manual/current-receipt`, ingest it as received now —
+**not** as a historical backfill merely because it displays `2023`, another old
+date, or a non-ISO year. No historical-backfill gate is required unless the
+brief explicitly calls the source historical/backfill.
+
+- Use the inbound handoff timestamp from the brief as the source's
+  received/retrieved timestamp. `inventory_sources.created_at` remains the
+  immutable database ingest time; it is not an effective date. In each new
+  `inventory_sources.notes`, record the manual channel/identifier, the handoff
+  timestamp, and every printed source date verbatim.
+- Preserve the printed historical date and the currentness caveat rather than
+  laundering it into a current claim. Put supplier-stated dated availability or
+  price text in `inventory.notes`; append a dated `internal_notes` statement
+  that the source was manually received at the handoff time, quote the printed
+  date, and says **currentness/availability and pricing require confirmation**.
+  This is a meaningful currentness caveat, not a duplicate of `created_at`.
+- Treat current receipt as the source's operational precedence date under §4,
+  while retaining that confirmation requirement. Do not withhold values merely
+  because the printed year is old; an exception still requires an explicit
+  historical/backfill or other quotable §4 instruction.
+- Include the classification, handoff timestamp, printed date(s), and
+  confirmation-required caveat in the report and QA it before commit.
 
 ## 0. Which location does each row belong to?
 
@@ -786,12 +821,19 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   WHERE source_id = ANY(ARRAY[<new source ids>]::uuid[])
     AND coalesce(common_name, botanical_name, cultivar_variety_trade_name) IS NULL;
 
-  -- a part that still carries a bracket, a quote or a size: a parse miss
+  -- a part that still carries a bracket, a size, or a stray/wrapping quote:
+  -- a quote/apostrophe between alphanumeric characters is valid name text
   SELECT id, common_name, botanical_name, cultivar_variety_trade_name
   FROM inventory
   WHERE source_id = ANY(ARRAY[<new source ids>]::uuid[])
-    AND (common_name ~ '[\[\]'']' OR botanical_name ~ '[\[\]'']'
-      OR cultivar_variety_trade_name ~ '[\[\]'']');
+    AND (common_name ~ '\[|(^|[^[:alnum:]])[''‘’“”"]|[''‘’“”"]($|[^[:alnum:]])'
+      OR botanical_name ~ '\[|(^|[^[:alnum:]])[''‘’“”"]|[''‘’“”"]($|[^[:alnum:]])'
+      OR cultivar_variety_trade_name ~ '\[|(^|[^[:alnum:]])[''‘’“”"]|[''‘’“”"]($|[^[:alnum:]])');
+
+  -- valid (no result): Bracken’s Brown Beauty, Bracken's Brown Beauty,
+  -- O'Neil; invalid (must result): 'Bracken’s Brown Beauty', “O'Neil”,
+  -- or a leading/trailing unmatched quote. A wrapping quote belongs to the
+  -- source display syntax, not to a stored identity part.
 
   -- two selection names run together instead of comma-separated: the row would
   -- key as one string and match neither name
@@ -841,6 +883,11 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   than a parse miss, because neither shows up in a count. If you *withheld* an
   overwrite under one of §4's three exceptions, that is not a QA failure — but it
   must be quotable and it must be in the report.
+- **Manual/current-receipt QA:** when applicable, verify each new source note
+  identifies the manual channel/identifier and inbound handoff timestamp, and
+  every affected row preserves the printed date/currentness caveat with
+  confirmation required in the correct notes column. An old or non-ISO printed
+  year alone must not have triggered the historical gate.
 - **Record QA evidence in the report contract:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
 ## 6. Catalogue any plant photos in the drop
@@ -972,7 +1019,10 @@ and it cannot read your transcript. Include:
   supplier_id, source ids + `file_path`s created, **rows updated**, **rows
   inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs
   added. Nothing was retired — if you believe something should be, it goes under
-  *Flags needing Chris* instead.
+  *Flags needing Chris* instead. For a manual/current-receipt intake, also state
+  the handoff timestamp, printed date(s), and that all availability/pricing is
+  confirmation-required; for an explicit historical/backfill, state the gate
+  decision/record/revalidation instead.
 - **Photos** (when the drop carried any): every image accounted for, in the two
   halves §6 splits them into.
   - **Attached files**, one of: catalogued (with the `plant_photos` ids, plant,

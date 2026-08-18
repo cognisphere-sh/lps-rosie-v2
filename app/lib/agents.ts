@@ -39,9 +39,12 @@ export const AGENTS: Agent[] = [
     role: 'Customers',
     avatar: '/rosie.png',
     profile: '/rosie_profile.png',
-    upcoming: true,
-    intro: 'Rosie will look after customer relationships. Coming soon.',
-    suggestions: [],
+    intro: 'Ask Rosie about customers, job requests, quotes or sourcing status.',
+    suggestions: [
+      'Which job requests need attention?',
+      'Log a new job request',
+      'Draft a quote for a request',
+    ],
   },
   {
     id: 'nova',

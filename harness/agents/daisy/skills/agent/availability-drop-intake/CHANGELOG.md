@@ -1,5 +1,16 @@
 # availability-drop-intake — changelog
 
+## 2.5.0
+
+2026-08-18 — Bhoumik clarified that material Chris or Bhoumik manually hands
+Daisy (an image, attachment, or web source) is a **manual/current-receipt**
+intake, even when it displays an old or non-ISO year. §2 now requires that
+classification, inbound handoff received/retrieved timestamp, verbatim printed
+date, and confirmation-required caveat in the dispatch brief. The mandatory
+fail-closed gate remains unchanged for an explicitly historical/backfill
+email/backlog source, including its exact ISO timestamp and numeric-target
+requirements; a printed old date alone does not invoke it.
+
 ## 2.4.0
 
 2026-08-18 — Bhoumik-approved historical backfill safeguard: the dispatch

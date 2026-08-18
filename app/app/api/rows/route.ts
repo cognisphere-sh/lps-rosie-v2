@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { deactivateSource, softDelete, updateCell, updateFields } from '@/lib/queries'
+import { appendNote, deactivateSource, softDelete, updateCell, updateFields } from '@/lib/queries'
 
 /** One inline edit, or a staged set of fields written atomically. */
 export async function PATCH(req: Request) {
@@ -22,6 +22,31 @@ export async function PATCH(req: Request) {
     } else {
       return NextResponse.json({ error: 'column or changes is required' }, { status: 400 })
     }
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+  }
+}
+
+/**
+ * Append one stamped entry to an append-only note column.
+ *
+ * A separate verb from PATCH because it is a different operation: PATCH replaces
+ * what a column holds, and these columns must never be replaced. Body:
+ * { table, id, column, text }.
+ */
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json()) as {
+      table?: string
+      id?: string | number
+      column?: string
+      text?: string
+    }
+    if (!body.table || body.id == null || !body.column) {
+      return NextResponse.json({ error: 'table, id and column are required' }, { status: 400 })
+    }
+    await appendNote(body.table, body.id, body.column, body.text ?? '')
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })

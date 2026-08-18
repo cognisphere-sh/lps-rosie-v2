@@ -12,7 +12,7 @@ import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AgentChat } from '@/components/workspace/chat'
 import {
   AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
-  MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
+  CustomersIcon, MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import {
@@ -21,7 +21,8 @@ import {
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
-export type PageId = 'suppliers' | 'inventory' | 'photos' | 'agents' | 'requests' | 'settings'
+export type PageId =
+  | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
 
 function nearestVerticalScroller(target: EventTarget | null, boundary: HTMLElement): HTMLElement | null {
   let el = target instanceof HTMLElement ? target : null
@@ -37,8 +38,9 @@ const NAV = [
   { id: 'suppliers', label: 'Suppliers', href: '/suppliers', Icon: SuppliersIcon, enabled: true },
   { id: 'inventory', label: 'Plant search', href: '/plants', Icon: InventoryIcon, enabled: true },
   { id: 'photos', label: 'Photos', href: '/photos', Icon: PhotosIcon, enabled: true },
-  // Designed but out of scope for this build — shown disabled so the rail keeps
-  // its shape without offering a route that goes nowhere.
+  // The customer side, in the order it is worked: who they are, then what they
+  // asked for.
+  { id: 'customers', label: 'Customers', href: '/customers', Icon: CustomersIcon, enabled: true },
   { id: 'requests', label: 'Job Requests', href: '/requests', Icon: RequestsIcon, enabled: true },
 ] as const
 

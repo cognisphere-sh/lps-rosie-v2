@@ -2,6 +2,8 @@
 // keys in lib/columns.ts; `ref` carries the extra fields the UI needs but does
 // not show as a column.
 
+import type { NoteEntry } from '@/lib/notes'
+
 export type CellValue = string | number | string[] | null
 
 export interface SupplierRef {
@@ -194,7 +196,12 @@ export interface JobNote {
   text: string
 }
 
-/** The four address parts, kept separate so each is individually editable. */
+/**
+ * The four address parts, kept separate so each is individually editable.
+ *
+ * Shared by job requests (billing and shipping) and customers — the same four
+ * columns under the same four names, so one shape and one editor serve both.
+ */
 export interface JobAddress {
   address: string | null
   city: string | null
@@ -217,6 +224,11 @@ export interface JobRequestItem {
   status: string
   needsAttention: boolean
   notes: JobNote[]
+  /**
+   * Raw `customer_notes` — what the customer said about *this line*, shown
+   * under its name. Theirs, so read-only wherever it appears.
+   */
+  customerNotes: string | null
   /** Raw `external_notes`, for the editor — `notes` is the parsed view of it. */
   externalNotes: string | null
   updatedAt: string | null
@@ -253,7 +265,32 @@ export interface JobRequestRow {
   updatedAt: string | null
 }
 
-/** The option lists the job-request filters offer, for one search. */
+/**
+ * One `job_request_changelog` row — an audit entry, never edited.
+ *
+ * The trigger writes these for the app and the agents alike, which is what
+ * makes the history complete: neither write path has to cooperate.
+ */
+export interface JobChange {
+  id: number
+  /** NULL = the entry is about the request itself, not one of its lines. */
+  itemId: number | null
+  /** The line's name at read time, or null if the item is gone. */
+  itemName: string | null
+  /** `rosie`, `service_role` (the app), `postgres` (agent scripts), … */
+  actor: string
+  action: 'insert' | 'update'
+  /** insert: the row's non-null fields. update: `{col: {old, new}}`. */
+  changes: Record<string, unknown>
+  createdAt: string
+}
+
+/**
+ * The option lists the job-request filters offer, for one search.
+ *
+ * `size` is still served though the toolbar no longer offers it as a chip — see
+ * the route table in `docs/app/README.md`.
+ */
 export interface JobRequestFacets {
   size: string[]
   customer: { id: number; name: string; company: string | null }[]
@@ -268,4 +305,48 @@ export interface PhotoFacets {
   /** City and state so two locations of one company can be told apart in the
    *  dropdown; the filter itself selects on `id`. */
   supplier: { id: number; name: string; city: string | null; state: string | null }[]
+}
+
+/** One of a customer's job requests, as their card lists it. */
+export interface CustomerRequest {
+  id: number
+  status: string
+  needsAttention: boolean
+  itemCount: number
+  lineTotal: number
+  createdAt: string | null
+}
+
+/**
+ * One customer, with the rollup their card is judged on.
+ *
+ * The request figures are computed over **active** requests and items, so a
+ * customer's card and the Job Requests page always agree about them. Contact
+ * routes are inline columns rather than a link table — a job request comes from
+ * a person, and migration 0055 says why suppliers' shape was not copied.
+ */
+export interface CustomerRow {
+  id: number
+  name: string
+  company: string | null
+  email: string | null
+  phone: string | null
+  address: JobAddress
+  /** Durable facts, edited in place. */
+  notes: string | null
+  /** `communication_notes` parsed into its stamped entries, oldest first. */
+  comms: NoteEntry[]
+  /** Their active requests, newest first. */
+  requests: CustomerRequest[]
+  /** Requests not yet closed or archived — what "open" means on the card. */
+  openCount: number
+  /** Summed `job_request_items.total` across their active requests. */
+  lineTotal: number
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** The option lists the customer filters offer. */
+export interface CustomerFacets {
+  state: string[]
 }

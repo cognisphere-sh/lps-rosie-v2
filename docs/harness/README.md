@@ -21,7 +21,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
-| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Operator console for now; Telegram & the app's chat panel pending (see her doc) |
+| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | The app's chat panel and Telegram, both on the `main` thread (see her doc) |
 | [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-sol` | `single` | Telegram (dev) + the app's chat panel |
 
 Comparison:
@@ -38,9 +38,8 @@ Comparison:
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
-daisy and nova through the [`webchat`](plugin-webchat.md) plugin (rosie's
-webchat is configured but the app still lists her as upcoming —
-`app/lib/agents.ts`). See [`../app/README.md`](../app/README.md).
+daisy, nova and rosie through the [`webchat`](plugin-webchat.md) plugin. See
+[`../app/README.md`](../app/README.md).
 
 ### Database schema is shared, not per-agent
 
@@ -107,7 +106,7 @@ One user-space plugin lives in `harness/plugins/`:
 
 | Plugin | Purpose | Enabled on |
 |---|---|---|
-| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova, rosie (app side still disabled) |
+| [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova, rosie |
 
 No catalog plugins are forked. Every other plugin an agent uses is a bundled
 core/catalog plugin enabled by an empty `agents/<id>/plugins/<plugin>/` dir;

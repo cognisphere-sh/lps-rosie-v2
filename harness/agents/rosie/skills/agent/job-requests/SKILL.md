@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for customer job requests — the tables rosie owns. Covers intake (find-or-create the customer, anonymous requests and mapping them later), the concurrency discipline for tables the app's users edit too (SET app.actor, re-SELECT before UPDATE, guarded status transitions, atomic append-only notes), the changelog fetch rule (read the last 5 job_request_changelog entries with every request/item you load), the three-notes split and the customer-visibility rule for quantity changes and substitutions, sourcing through daisy by agent-message (never contacting a supplier), needs_attention conventions, the Chris-approved customer-email flow logged in customers.communication_notes, and both status lifecycles. Use whenever you create, read, edit or advance a job request or its items, when a customer's ask needs sourcing, when something needs human attention, and before any contact with a customer. (v1.0.0)
+description: The operating procedure for customer job requests — the tables rosie owns. Covers intake (find-or-create the customer, anonymous requests and mapping them later), the concurrency discipline for tables the app's users edit too (SET app.actor, re-SELECT before UPDATE, guarded status transitions, atomic append-only notes), the changelog fetch rule (read the last 5 job_request_changelog entries with every request/item you load), the three-notes split (including that customer_notes holds only what no structured column already does) and the customer-visibility rule for quantity changes and substitutions, sourcing through daisy by agent-message (never contacting a supplier), needs_attention conventions, the Chris-approved customer-email flow logged in customers.communication_notes, the four-word item status vocabulary (no sourcing/confirmed/cancelled — progress lives in internal_notes) and both status lifecycles. Use whenever you create, read, edit or advance a job request or its items, when a customer's ask needs sourcing, when something needs human attention, and before any contact with a customer. (v1.2.0)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.2.0"
 ---
 
 # Job requests
@@ -38,7 +38,8 @@ rows the same task:
    `job_request_items` row per asked-for plant. `name` and `size` are the
    customer's **verbatim ask** ("30 gal or larger" goes in `size` as written);
    what they said about an item goes in the item's `customer_notes`, and the
-   overall message in the request's `customer_notes`.
+   overall message in the request's `customer_notes` — in both cases **only
+   what no other column already holds** (§4).
 
 4. **Mapping an anonymous request later** is a find-or-create of the customer
    (step 1) followed by a targeted update:
@@ -118,9 +119,40 @@ that is what `internal_notes` is for.
 
 | Column | Whose words | Discipline |
 |---|---|---|
-| `customer_notes` | The customer's, verbatim | Evidence. Never edited. |
+| `customer_notes` | The customer's, verbatim | Evidence. Never edited. **What the structured columns don't already hold.** |
 | `internal_notes` | Ours, internal | Append-only, timestamped. Sourcing log. |
 | `external_notes` | Ours, **customer-visible** | Written to be shown/sent to the customer. |
+
+**`customer_notes` is the remainder, not a transcript.** Everything a customer
+told you that a column already holds — the plant, the size, the quantity, the
+delivery address, who they are — belongs in that column and **only** there. What
+goes in `customer_notes` is what has nowhere else to live: constraints,
+preferences, deadlines, conditions, reasons, and anything you had to leave out
+of a structured field.
+
+| They said | Where it goes |
+|---|---|
+| "10 Live Oak, 30 gal" | `job_request_items.name` / `size` / `quantity` |
+| "deliver to 88 NW Quimby St, Portland" | `job_requests.shipping_*` |
+| "I'm Dan at Terra Firma, 503-555-0134" | `customers.name` / `company` / `phone` |
+| "needs to be on site before the Jul 15 inspection" | request `customer_notes` |
+| "client is picky about branching — send photos first" | item `customer_notes` |
+| "partial is fine if the rest ships by then" | item `customer_notes` |
+| "same crew as the Riverbend job last spring" | request `customer_notes` |
+
+Two consequences worth stating:
+
+- **Do not restate the ask.** An item whose `customer_notes` reads "wants 10 in
+  30 gal" adds nothing to `quantity = 10, size = '30 gal'` — it just gives a
+  later reader two places to check and a chance for them to disagree. If the
+  ask is all they said, leave the column NULL.
+- **A note that duplicates a column is a signal you filled the column wrong.**
+  "30 gal or larger" in `customer_notes` means `size` should have read
+  `30 gal or larger`, verbatim. Fix the column; don't keep both.
+
+The app shows this column exactly that way: an item's note is a sub-line under
+its name, and the request's is read in the expanded card — as the *extra* the
+customer said, alongside the fields rather than repeating them.
 
 `internal_notes` on an item is the **sourcing log** — which supplier may have
 it, availability status, pricing, alternatives:
@@ -193,22 +225,39 @@ plus `archived`.
 | `closed_lost` | Customer declined or went quiet past follow-up. |
 | `archived` | Terminal, deliberate shelving — Chris-approved, like `is_active = false`. |
 
-**`job_request_items.status`** — `pending → sourcing →
-available | alternative_proposed | unavailable → confirmed | cancelled`.
+**`job_request_items.status`** — `pending → available |
+alternative_proposed | unavailable`. Four words, since migration 0058.
 
 | Status | Means |
 |---|---|
-| `pending` | Not yet sourced. The starting state. |
-| `sourcing` | Asked daisy / working availability. |
+| `pending` | Not answered yet. The starting state, and where a line stays for as long as it is being worked. |
 | `available` | A source exists (named in `internal_notes`), priced or priceable. |
 | `alternative_proposed` | The ask isn't available as stated; a substitute is proposed (explained in `external_notes` — §4). |
-| `unavailable` | No source found; customer told via `external_notes`. |
-| `confirmed` | Customer accepted this line (as asked or as substituted). |
-| `cancelled` | Customer dropped this line. |
+| `unavailable` | No source found, or the line was dropped. Either way the customer is told via `external_notes` and the reason is in `internal_notes`. |
 
-Terminal states (`closed_won`, `closed_lost`, `archived`, `confirmed`,
-`cancelled`) are left by human instruction only. `unit_price` is NULL until
-genuinely priced — never 0 — and `total` computes itself.
+**A status is where a line stands, not what you are doing about it.** There is
+no `sourcing` status: a line you have asked daisy about is still `pending`, and
+the fact that you asked — and what came back — is an `internal_notes` entry,
+timestamped and specific:
+
+```
+[2026-08-18 09:12 America/Chicago] Asked daisy for 30 gal availability.
+[2026-08-18 14:30 America/Chicago] Daisy: Acosta has 8 @ $42, ready Sep.
+```
+
+That log says more than a status word ever did, and it is the only place the
+progress of a line is recorded. Do not restate it as a status.
+
+`confirmed` and `cancelled` are gone too. A customer accepting a line does not
+change what the line *is* — it stays `available` (or `alternative_proposed`),
+and the acceptance is a note plus, when the whole request is committed,
+`job_requests.status = 'closed_won'`. A line the customer drops becomes
+`unavailable` with the reason in the notes; a line entered **in error** is
+deactivated (`is_active = false`), never statused.
+
+The request-level terminal states (`closed_won`, `closed_lost`, `archived`) are
+left by human instruction only. `unit_price` is NULL until genuinely priced —
+never 0 — and `total` computes itself.
 
 ## 8. Contacting the customer
 
