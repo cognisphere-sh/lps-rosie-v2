@@ -1,5 +1,12 @@
 # plant-photo-catalogue — changelog
 
+## 1.6.1
+
+2026-08-18. **Description rewritten short** — what the skill covers, then when
+to use it. It had grown to 1455 characters, past pi's 1024-character cap, so
+the tail of it (retiring, reclaiming bytes, half the trigger phrases) was at
+risk of never reaching the agent at all. The procedure itself is unchanged.
+
 ## 1.6.0
 
 2026-08-16, with migration 0054 — the orphan sweep, closing the last open piece

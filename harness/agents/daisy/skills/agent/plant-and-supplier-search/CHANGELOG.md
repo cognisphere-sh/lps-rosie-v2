@@ -1,5 +1,10 @@
 # plant-and-supplier-search — changelog
 
+## 1.6.1
+
+2026-08-18. **Description rewritten short** — coverage in a clause or two, then
+when to use it. No change to the procedure.
+
 ## 1.6.0
 
 2026-08-15 — new §4, *HQ is not stock location*, migrated out of

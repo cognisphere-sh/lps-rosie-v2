@@ -882,6 +882,12 @@ the panel started it. The panel shows a bouncing-dot "Daisy is working…" bubbl
 an amber status dot in the header, and a dot on the collapsed rail avatar. See
 the plugin doc for what does and doesn't clear it.
 
+**Message stamps.** Each bubble carries its full local date and time under it,
+`fmtStamp` in `chat.tsx` (`2026-08-18 21:26`), not a bare clock. The transcript
+pages back over days, so `9:41` alone left yesterday's message reading as
+today's. It is the browser's zone — unlike the append-only note stamps, which
+are written server-side in `America/Chicago` because they become stored text.
+
 **Markdown.** Agent replies render through a ~30-line subset renderer (bold,
 inline code, links, bullet lists) rather than a markdown dependency. It also
 normalizes literal `\\n` sequences from CLI replies into line breaks, including

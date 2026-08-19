@@ -1,5 +1,11 @@
 # supplier-onboarding — changelog
 
+## 1.1.2
+
+2026-08-18. **Description rewritten short** — coverage in a clause or two, then
+when to use it, instead of a column-by-column restatement of the procedure.
+No change to the procedure.
+
 ## 1.1.1
 
 2026-08-16 — §3's gallery bullet restated under the rule in

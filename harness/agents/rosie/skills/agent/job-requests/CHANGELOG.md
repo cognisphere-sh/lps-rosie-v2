@@ -1,5 +1,77 @@
 # job-requests — changelog
 
+## 1.10.0
+
+2026-08-19, from Bhoumik. **A sourcing-notes supplier line names what was
+priced before the price, and says outright when it is a substitute.** New §4.1
+gives the one shape every line follows:
+
+```
+<Supplier>: [Substitute: ]<the row they have> @ $<price>/unit[, <facts>]
+```
+
+`APS: $175/unit, Dwarf Sabal Minor/Silver Palmetto 15 G` made a reader work out
+which half was the offer, and marked a swap — when it was one — with a trailing
+`alternative` that is easy to miss at the end of ten lines. `APS: Dwarf Sabal
+Minor/Silver Palmetto 15 G @ $175/unit` and `APS: Substitute: Thryallis 3 G @
+$23/unit` read in the order the fact is thought, and the swap is the second
+word of the line.
+
+The catalogue row is named whenever its wording differs from the ask; when it
+is word for word the ask the price alone carries it (`APS: $7/unit`). Naming it
+is not restating the ask — it is *which row we priced*, which no column holds.
+Nothing to price keeps its `@`-less form (`APS: no 30 G`), and so does a row
+with no price on file.
+
+`Substitute:` is the same test as the existing `external_notes` rule: the
+prefix, a `Quoted for <offering>.` note and `alternative_proposed` are written
+in the same task, and a catalogue that merely words the same plant differently
+earns none of the three.
+
+Every example in the skill moves to the new shape — §2's `E'…'` newline pair,
+§4's sourcing sheet, §5.1's two blocks, §6's — and §5 rung 2, rung 3 and §5.2's
+hand-back from daisy point at §4.1. §6's stray `30 gal` becomes `30 G` in the
+same pass.
+
+
+## 1.9.0
+
+2026-08-18, from Bhoumik. Customer-facing substitution notes use `Quoted for
+<offering>.`, and appear only when the offered plant or size differs from the
+ask. A catalogue naming difference alone does not earn an `external_notes`
+line.
+
+
+## 1.8.0
+
+2026-08-18, from Bhoumik. Normalize gallon notation in every
+`job_request_items.size` value to `G` (`3 G`, never `3 gal`), including intake
+and examples. This makes the job-request table agree with the inventory and
+customer quote convention.
+
+
+## 1.7.0
+
+2026-08-18, from Bhoumik. **`unit_price` is an Austin Plant Supply price.** The
+ladder already sent rung-3 lines to other suppliers; now what comes back stays
+in `sourcing_notes` — supplier named, price included — and `unit_price` stays
+NULL. §5 rung 3, §5.1 (new opening rule and a second note example) and §5.2's
+hand-back from daisy all say the same thing: the column is theirs, the note
+carries everyone else's.
+
+The exception is the one that already existed. When Chris or the customer names
+another supplier for the line (§5), that price goes in the column, and the note
+says whose instruction put it there.
+
+Why: the price column is read as one number in one currency of trust — what the
+house yard charges. A rung-3 price silently sitting in it makes a quote out of a
+lead, and Chris is the one who decides a line is worth buying in. Until he does,
+the finding is a finding.
+
+The description is rewritten short in the same bump — what the skill covers, in
+a clause, plus when to use it. It had grown into a summary of the procedure and
+was one edit away from pi's 1024-character cap.
+
 ## 1.6.0
 
 2026-08-18, with migration 0061. Two changes from Chris.

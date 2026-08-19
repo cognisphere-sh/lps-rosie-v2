@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people — every database write on the supplier side belongs to this skill. Covers confirming a supplier is genuinely new before inserting (search_suppliers; several rows for one company are its locations, not duplicates), inserting the suppliers row, onboarding a new location of a known company under its head_branch_id, browser enrichment (website, address, coordinates, phone), availability newsletter signup, the availability_source_type / hosted_availability_url / availability_update_days columns, contacts rows for the main line and for each person (never a name in suppliers.notes), supplier_contacts linking across the locations a person actually covers, is_primary per location, retiring versus deleting, and the contact QA and report block. Use when onboarding a supplier, when the availability-ingestion skill reaches a supplier or farm that has no row, when adding or correcting a supplier's contacts, or when Chris asks to add a nursery. (v1.1.1)
+description: Create and enrich a supplier and its people — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including a new location of a known company), browser enrichment and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and report block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v1.1.2)
 metadata:
   author: lps
-  version: "1.1.1"
+  version: "1.1.2"
 ---
 
 # Supplier onboarding

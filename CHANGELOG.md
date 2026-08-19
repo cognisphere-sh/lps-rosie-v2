@@ -15,6 +15,26 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-19
+
+### Changed
+
+- **Rosie's sourcing notes name what was priced before the price.** A supplier
+  line on a job-request item now follows one shape —
+  `<Supplier>: [Substitute: ]<the row they have> @ $<price>/unit[, <facts>]`.
+  `APS: $175/unit, Dwarf Sabal Minor/Silver Palmetto 15 G` left a reader to
+  work out which half was the offer, and flagged a swap with a trailing
+  `alternative` that disappears at the end of ten lines;
+  `APS: Substitute: Thryallis 3 G @ $23/unit` puts the swap in the second word.
+  The catalogue row is named whenever its wording differs from the ask — that
+  is *which row we priced*, which no column holds — and a line with nothing to
+  price keeps its `@`-less form (`APS: no 30 G`). `Substitute:` rides with the
+  `external_notes` `Quoted for <offering>.` note and `alternative_proposed`;
+  catalogue naming differences earn none of the three. `job-requests` §4.1
+  (new) with every example moved onto it, plus the matching convention in
+  `1-agent.md`. Existing rows keep the old wording until they are next
+  rewritten.
+
 ## 2026-08-18
 
 ### Added
@@ -71,6 +91,35 @@ here).
   the panel's open/closed and width, in the same `lps.chat.v1` record.
 
 ### Changed
+
+- **rosie's price column is Austin Plant Supply's.** The sourcing ladder was
+  already Austin-Plant-Supply-first, but a line she had to source elsewhere used
+  to get that supplier's price written into `unit_price`. It doesn't now: the
+  other supplier's price goes on its own `sourcing_notes` line — named, with
+  what they quoted — and `unit_price` stays NULL until Chris or the customer
+  explicitly sources the line there, which is the one instruction that puts
+  someone else's price in the column. A quote reads that column as what the
+  house yard charges; a bought-in price belongs to a decision only Chris makes.
+  (`job-requests` §5/§5.1/§5.2 → 1.7.0, `quote-generation` → 1.0.4, which now
+  says an unpriced line may be unpriced on purpose. Both skills' descriptions
+  were rewritten short in the same bump — what the skill covers, plus when to
+  use it; job-requests' had grown to within a few characters of pi's
+  1024-character cap.)
+
+- **Skill descriptions are an intro plus a when-to-use, not a second copy of the
+  procedure.** Bhoumik's rule, applied across the long ones: daisy's
+  `plant-photo-catalogue` (→ 1.6.1 — its description was 1455 characters, *past*
+  pi's 1024-character cap, so its tail may never have reached her at all),
+  `supplier-onboarding` (→ 1.1.2), `supplier-communications` (→ 1.1.1) and
+  `plant-and-supplier-search` (→ 1.6.1), plus rosie's copy of
+  `plant-and-supplier-search` (→ 1.1.2). Descriptions only — no procedure moved.
+  `availability-drop-intake` and `availability-ingestion` were already short;
+  the cognisphere-authored skills are upstream's and were left alone.
+
+- **Chat message stamps carry the date.** Every bubble's caption is now
+  `YYYY-MM-DD HH:MM` local (`fmtStamp` in `chat.tsx`) instead of a bare
+  `9:41 PM`. The transcript pages back over days, so a clock alone made
+  yesterday's message read as today's.
 
 - **The chat sidebar says *Working…* whenever the agent is working.** `webchat`'s
   `pending` used to mean only "this panel is owed a reply", so an agent busy on a

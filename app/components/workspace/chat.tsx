@@ -563,6 +563,15 @@ function StatusDot({ pending }: { pending: boolean }) {
   )
 }
 
+/** `2026-08-18 21:26` — the message's own date and time, in the reader's zone.
+ *  Fixed shape rather than a locale format: the transcript spans days, and a
+ *  bare clock leaves yesterday's message reading as today's. */
+const fmtStamp = (ms: number) => {
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 function Transcript({
   agent, messages, pending, error, hasMore, loadingMore, onSuggest, onRefresh, onLoadMore,
   mobile, wallpaper,
@@ -722,7 +731,7 @@ function Transcript({
             </div>
           )}
           <span className={cn('text-[11px] leading-none text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
-            {new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            {fmtStamp(m.at)}
           </span>
         </div>
       ))}

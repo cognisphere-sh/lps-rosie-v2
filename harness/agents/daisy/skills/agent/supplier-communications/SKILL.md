@@ -1,9 +1,9 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never reply or ask a supplier a follow-up unbidden), the main-thread redirect that hands a reply request to the email's own thread, composing and sending as Chris in the existing Gmail thread, routing their reply back with a Gmail-thread-scoped gws rule (never a sender-wide one), and logging every contact in suppliers.communication_notes — entry format, the append-only read-modify-write SQL, what is not a contact event (routine availability drops), and the split between communication_notes (what was said, only grows), suppliers.notes (what is true about them, edited in place) and the supplier's workspace notes.md. Use when Chris or Bhoumik asks you to reply to, chase or question a supplier, whenever you email/message/call one, whenever one contacts you, and when deciding where a supplier fact belongs. (v1.1.0)
+description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never contact one unbidden), the main-thread redirect, composing and sending as Chris on the email's own thread, routing the reply back with a thread-scoped rule, logging the contact in `suppliers.communication_notes`, and which of the three note homes a supplier fact belongs in. Use when asked to reply to, chase or question a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v1.1.1)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.1.1"
 ---
 
 # Supplier communications

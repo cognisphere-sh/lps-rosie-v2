@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and the private `plant-photos` bucket, its identity/size columns being `inventory`'s (so the alias graph and the `name_key` join both work), the intake checklist (normalise with scripts/prepare-photo — EXIF/GPS stripped, long edge capped, WebP — then dedupe by SHA-256 of the file we were handed), the id-built object-path convention, what may and may not be written into a photo's identity/size/supplier fields, where photos come from — **attached files only**, so a photo that exists as a URL is never downloaded and the URL is captured instead (inventory.image_url, or the report) — the `search_plant_photos` RPC with its filters and how it differs from `search_inventory`, sharing a photo with a signed URL, retiring one and reclaiming the bytes behind retired photos with scripts/reclaim-orphans (dry run by default; `orphan` is the safe half to sweep, `retired` destroys someone's undo), and what app users can change under you from the /photos lightbox (metadata yes, provenance and attribution no) including the size_std repair their size edits leave behind. Use when Chris, Bhoumik or a thread sends a plant photo, asks to "catalogue this photo", "add this to the photo library / visual plant library", "find a photo of <plant>", "what does <plant> look like", "do we have photos from <supplier>", or asks about the /photos page. (v1.6.0)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and its private bucket, normalising and deduping an intake, what a photo's identity and provenance fields may say, the attachments-only rule for where photos come from, the `search_plant_photos` RPC, sharing by signed URL, retiring a photo and reclaiming its bytes, and what app users can change under you. Use when a photo arrives to be catalogued, when someone asks what a plant looks like or what photos we hold, or when the /photos page comes up. (v1.6.1)
 metadata:
   author: lps
-  version: "1.6.0"
+  version: "1.6.1"
 ---
 
 # Cataloguing and searching plant photos

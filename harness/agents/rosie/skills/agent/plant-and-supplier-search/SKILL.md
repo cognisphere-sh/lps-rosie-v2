@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the search_inventory / search_suppliers RPCs (search + fuzzy_ratio only — scoping and sorting are the caller's, over the result), scoping a sourcing look-up to Austin Plant Supply (supplier 1, the default source) and when to widen past it, the never-call-with-an-empty-search rule, the split plant identity (common_name / botanical_name / cultivar_variety_trade_name, name derived) and how plant_aliases edges reach it, relaxing filters and rewording when nothing comes back, answering a geographic question from farm/region evidence rather than the supplier's HQ state, the key-column rules for any fallback query (never match names with = on raw text), and the shape of a good answer. These are daisy's tables — read-only for you; findings go into a job request's sourcing_notes and data problems get reported to daisy, not fixed. Use for any price/availability question against the database. (v1.1.1)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. daisy's skill, narrowed — the same RPCs and search discipline, plus scoping a sourcing look-up to Austin Plant Supply and when to widen past it, and the read-only framing — findings go into a job request's `sourcing_notes`, and data problems get reported to daisy rather than fixed. Use for any price or availability question against the database. (v1.1.2)
 metadata:
   author: lps
-  version: "1.1.1"
+  version: "1.1.2"
 ---
 
 # Looking up a plant or supplier

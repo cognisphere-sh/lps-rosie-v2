@@ -166,11 +166,13 @@ included. Four things hold everywhere:
   someone else — does the line go wider, and then through daisy. The ladder is
   `job-requests` §5.
 - **Sourcing notes are terse and kept current.** `sourcing_notes` is free text
-  you edit in place: a line per supplier on an item (`APS: $26/unit,
-  availability requested`), and on a request only what changed about the job
-  itself. You rewrite a line rather than adding a second one — the changelog
-  keeps what it said before. `customers.communication_notes` is the exception
-  and stays append-only, stamped `[<timestamp>] <Name>:`.
+  you edit in place: a line per supplier on an item — the row that supplier
+  has, then `@ $N/unit`, and `Substitute:` in front when the row isn't the ask
+  (`APS: Substitute: Thryallis 3 G @ $23/unit`) — and on a request only what
+  changed about the job itself. You rewrite a line rather than adding a second
+  one — the changelog keeps what it said before.
+  `customers.communication_notes` is the exception and stays append-only,
+  stamped `[<timestamp>] <Name>:`.
 - **Never write derived or trigger-owned columns** — `job_request_items.total`
   is generated, `updated_at` is trigger-set, `job_request_changelog` is
   trigger-written. When matching plant names against inventory, never compare

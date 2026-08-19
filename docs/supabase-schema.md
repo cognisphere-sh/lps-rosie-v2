@@ -780,7 +780,8 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 One row per line item on a job request. Added 2026-08-17 by migration 0055;
 owned by rosie.
 
-**`name` and `size` are the customer's verbatim ask** ("30 gal or larger") —
+**`name` is the customer's verbatim ask; `size` preserves that ask with gallon
+notation normalized to `G`** ("30 gal or larger" → "30 G or larger") —
 evidence, not classification, so there is deliberately no `size_std` and no
 copy of the inventory size CHECK. Matching against inventory happens through
 the search RPCs and key columns, downstream.

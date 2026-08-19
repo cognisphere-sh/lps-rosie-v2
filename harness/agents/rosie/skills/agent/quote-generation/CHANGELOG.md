@@ -1,5 +1,26 @@
 # quote-generation — changelog
 
+## 1.2.0
+
+2026-08-18, from Bhoumik. Comments for alternative-proposed quote lines now
+read `Quoted for <offering>.` and are omitted for catalogue-name-only
+variations, matching job-requests 1.9.0.
+
+
+## 1.1.0
+
+2026-08-18, from Bhoumik. Quote Size columns now render gallons as `G` (`3 G`,
+never `3 gal`), matching the normalized job-request item value.
+
+
+## 1.0.4
+
+2026-08-18, alongside `job-requests` 1.7.0. §2 says why an unpriced line may be
+unpriced on purpose: `unit_price` carries an Austin Plant Supply price, so a
+line sourced elsewhere holds its price in `sourcing_notes` and is quotable only
+once Chris sources it there. The description is rewritten short in the same
+bump — coverage in a clause, plus when to use it.
+
 ## 1.0.3
 
 2026-08-18, alongside `job-requests` 1.6.0. A substituted line's Comments cell

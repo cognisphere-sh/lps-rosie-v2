@@ -46,25 +46,31 @@ instruction and detailed in the `job-requests` skill:
   yard's catalogue is in the database, so she prices a line from their row
   herself — reading inventory is not contacting a supplier. If they don't have
   the ask she recommends their closest alternative; only when they have neither
-  does the line go to other suppliers (through daisy), and the item's
-  `sourcing_notes` then says why it left Austin Plant Supply and whose price it
-  carries. Chris or the customer naming — or excluding — a supplier overrides
-  the ladder.
+  does the line go to other suppliers (through daisy) — and then the price
+  stays in the item's `sourcing_notes`, which says why the line left Austin
+  Plant Supply, which supplier quoted and what they quoted. Chris or the
+  customer naming — or excluding — a supplier overrides the ladder, and a
+  supplier named that way is the only one whose price she writes into
+  `unit_price`.
 - **`sourcing_notes` is a working sheet, not a log.** Free text she edits in
-  place: on an item, a terse line per supplier (`APS: $26/unit, availability
-  requested`), updated rather than appended to; on a request, only what changed
-  about the job itself. `customers.communication_notes` is the exception that
-  stays append-only, stamped `[<timestamp>] <Name>:` — a contact happened at a
-  time. (The app's own appends there carry the stamp but no name: it resolves
-  the signed-in user in `lib/session.ts` but doesn't thread it into
+  place: on an item, a terse line per supplier in one shape — the row that
+  supplier has, then `@ $N/unit`, with `Substitute:` in front when the row
+  isn't the ask (`APS: Substitute: Thryallis 3 G @ $23/unit`) — updated rather
+  than appended to; on a request, only what changed about the job itself.
+  `customers.communication_notes` is the exception that stays append-only,
+  stamped `[<timestamp>] <Name>:` — a contact happened at a time. (The app's
+  own appends there carry the stamp but no name: it resolves the signed-in
+  user in `lib/session.ts` but doesn't thread it into
   `appendNote`.)
 - **She names the job.** `job_requests.name` (migration 0059) is written at
   intake — what the job is called out loud, NULL rather than an invented
   label.
 
-Pricing writes **one** column: `unit_price`. `available_quantity` is left to
-people in the app, and `total` is generated — the customer's *asked* quantity
-times the unit price.
+Pricing writes **one** column: `unit_price`, and it carries an Austin Plant
+Supply price — anyone else's stays in `sourcing_notes` until Chris or the
+customer sources the line there. `available_quantity` is left to people in the
+app, and `total` is generated — the customer's *asked* quantity times the unit
+price.
 
 ## Plugins
 
@@ -145,7 +151,7 @@ deliberately not repeated here, where it would only go stale.
 
 | Skill | What it is |
 |---|---|
-| `job-requests` | The core operating procedure: intake (incl. anonymous), concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends), the free-text `sourcing_notes` (a line per supplier, renamed from `internal_notes` by migration 0061) against the stamped, append-only contact log, the last-5-changelog fetch rule, the three-notes split — including that `customer_notes` holds only what no structured column already does — and the customer-visibility rule (qty changes / substitutions **named** in `external_notes`, never explained, sizes as `XX G`), the Austin-Plant-Supply-first pricing and sourcing ladder (and `unit_price` as the only column she fills), sourcing via daisy, the four-word item status vocabulary — the only thing that says a line needs a person, since `needs_attention` was dropped by migration 0060 — and the request lifecycle, the Chris-approved customer-contact flow |
+| `job-requests` | The core operating procedure: intake (incl. anonymous), concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends), the free-text `sourcing_notes` (a line per supplier in one shape — the row priced, then its price, `Substitute:`-prefixed when it isn't the ask; renamed from `internal_notes` by migration 0061) against the stamped, append-only contact log, the last-5-changelog fetch rule, the three-notes split — including that `customer_notes` holds only what no structured column already does — and the customer-visibility rule (qty changes / substitutions **named** in `external_notes`, never explained, sizes as `XX G`), the Austin-Plant-Supply-first pricing and sourcing ladder (`unit_price` is the only column she fills, and it carries an Austin Plant Supply price — another supplier's stays in `sourcing_notes` unless Chris or the customer sourced the line there), sourcing via daisy, the four-word item status vocabulary — the only thing that says a line needs a person, since `needs_attention` was dropped by migration 0060 — and the request lifecycle, the Chris-approved customer-contact flow |
 | `plant-and-supplier-search` | Adapted from daisy's — same RPC guidance, plus the read-only framing (findings go to item `sourcing_notes`; data problems get reported to daisy, not fixed) and the sourcing look-up scoped to Austin Plant Supply. Fold daisy-side search changes in on approval |
 | `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule, agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate |
 | `create-skill` | Installed by `cognisphere agent new` (template) |

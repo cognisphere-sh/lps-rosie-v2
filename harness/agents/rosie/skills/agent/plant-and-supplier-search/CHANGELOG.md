@@ -1,5 +1,11 @@
 # plant-and-supplier-search — changelog
 
+## 1.1.2
+
+2026-08-18. **Description rewritten short** — coverage in a clause or two, then
+when to use it, keeping what makes rosie's copy hers (Austin-Plant-Supply
+scoping, the read-only framing). No change to the procedure.
+
 ## 1.1.1
 
 2026-08-18. Findings go into a job-request item's `sourcing_notes` — the column
