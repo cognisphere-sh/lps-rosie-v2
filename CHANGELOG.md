@@ -19,6 +19,17 @@ here).
 
 ### Changed
 
+- **Job-request cards scan in three lines.** The collapsed head on
+  `/requests` was carrying a bordered Demand & Availability panel — six figures
+  at 17–19px over two rows — plus the customer's email and phone and both the
+  created and updated dates. The panel is now a single-line strip (subtotal,
+  item count, then every status with its count, zeros dimmed rather than
+  dropped, so "nothing is unavailable" still cannot render as "nobody has
+  looked yet"), the contact routes are gone (they belong to the customer, one
+  click away on their card, not to this request), and only the updated date is
+  drawn, with created in its tooltip. A card is about half as tall, so more of
+  the list is in view at once. Nothing was removed from the expanded card.
+
 - **Rosie's sourcing notes name what was priced before the price.** A supplier
   line on a job-request item now follows one shape —
   `<Supplier>: [Substitute: ]<the row they have> @ $<price>/unit[, <facts>]`.

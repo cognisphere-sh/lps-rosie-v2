@@ -205,12 +205,12 @@ export function StatusPill({
 }
 
 /**
- * The design's Demand & Availability panel — what the job is worth, how many
- * lines it asks for, and where those lines stand, each count under its label.
+ * What the job is worth and where its lines stand, on one line.
  *
- * Every status is drawn, zeros included. A row of pills that only shows the
- * non-empty statuses makes "nothing is unavailable" and "nobody has looked
- * yet" render identically, and those are the two things a card is scanned for.
+ * Every status is drawn, zeros included. A row that only shows the non-empty
+ * statuses makes "nothing is unavailable" and "nobody has looked yet" render
+ * identically, and those are the two things a card is scanned for — so a zero
+ * is dimmed rather than dropped.
  */
 export function DemandSummary({
   lineTotal,
@@ -222,60 +222,33 @@ export function DemandSummary({
   counts: Record<string, number>
 }) {
   return (
-    <div className="rounded-xl border border-border bg-lps-tint px-3.5 py-3">
-      <div className="flex flex-wrap gap-x-12 gap-y-2.5">
-        <Figure label="Subtotal" value={money(lineTotal) || '$0.00'} />
-        <Figure label="Items demanded" value={String(itemCount)} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2.5 border-t border-lps-hair pt-3">
-        {ITEM_STATUS_OPTIONS.map((o) => {
-          const dot = toneDot(itemPill(o.value, null, null).tone)
-          return (
-            <Figure
-              key={o.value}
-              label={o.label}
-              dot={dot}
-              value={String(counts[o.value] ?? 0)}
-              color={dot}
-              small
+    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11.5px]">
+      <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-foreground">
+        {money(lineTotal) || '$0.00'}
+      </span>
+      <span className="whitespace-nowrap text-muted-foreground">
+        {itemCount} {itemCount === 1 ? 'item' : 'items'}
+      </span>
+      <span className="h-3 w-px flex-none bg-lps-hair" />
+      {ITEM_STATUS_OPTIONS.map((o) => {
+        const count = counts[o.value] ?? 0
+        return (
+          <span
+            key={o.value}
+            className={cn(
+              'inline-flex items-center gap-1 whitespace-nowrap',
+              count === 0 && 'opacity-45',
+            )}
+          >
+            <span
+              className="size-[6px] flex-none rounded-full"
+              style={{ background: toneDot(itemPill(o.value, null, null).tone) }}
             />
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/** One "label above, figure below" cell of the panel. */
-function Figure({
-  label,
-  value,
-  dot,
-  color,
-  small,
-}: {
-  label: string
-  value: string
-  dot?: string
-  /** The figure's own colour — the status tone, zeros included. */
-  color?: string
-  small?: boolean
-}) {
-  return (
-    <div className="flex min-w-[92px] flex-col gap-1">
-      <span className="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] text-muted-foreground">
-        {dot && <span className="size-[7px] flex-none rounded-full" style={{ background: dot }} />}
-        {label}
-      </span>
-      <span
-        className={cn(
-          'whitespace-nowrap font-bold tabular-nums leading-none',
-          small ? 'text-[17px]' : 'text-[19px]',
-        )}
-        style={{ color: color ?? 'var(--foreground)' }}
-      >
-        {value}
-      </span>
+            <span className="font-semibold tabular-nums text-foreground">{count}</span>
+            <span className="text-muted-foreground">{o.label}</span>
+          </span>
+        )
+      })}
     </div>
   )
 }

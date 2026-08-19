@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
-  ChevronDown, ChevronRight, CloseIcon, MailIcon, MapPinIcon, PhoneIcon,
+  ChevronDown, ChevronRight, CloseIcon, MapPinIcon,
 } from '@/components/workspace/icons'
 import { EditableText, patchRow } from '@/components/workspace/editable'
 import {
@@ -110,7 +110,7 @@ function RequestCard({
       {/* The head is a div, not a button: it carries the status picker, and a
           button inside a button is invalid HTML. The chevron is the
           keyboard-reachable control; clicking the head also toggles. */}
-      <div onClick={onToggle} className="flex cursor-pointer flex-col gap-2 px-3.5 py-3 hover:bg-lps-tint">
+      <div onClick={onToggle} className="flex cursor-pointer flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
@@ -149,35 +149,24 @@ function RequestCard({
             tone={tone}
             options={REQUEST_STATUS_OPTIONS}
           />
-          <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim">
-            Created {formatDate(request.createdAt)} · Updated {formatDate(request.updatedAt)}
+          <span
+            className="ml-auto whitespace-nowrap text-[11px] text-lps-dim"
+            title={`Created ${formatDate(request.createdAt)}`}
+          >
+            {formatDate(request.updatedAt)}
           </span>
         </div>
 
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 pl-[30px]">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-[13.5px] font-semibold text-foreground">
-              {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-[30px] text-[12px]">
+          <span className="font-semibold text-foreground">
+            {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
+          </span>
+          {contact && <span className="text-muted-foreground">· {contact}</span>}
+          {locality && (
+            <span className="inline-flex items-center gap-1 text-muted-foreground">
+              <MapPinIcon size={11} /> {locality}
             </span>
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted-foreground">
-              {contact && <span>{contact}</span>}
-              {request.customer?.email && (
-                <span className="inline-flex items-center gap-1">
-                  <MailIcon size={12} /> {request.customer.email}
-                </span>
-              )}
-              {request.customer?.phone && (
-                <span className="inline-flex items-center gap-1">
-                  <PhoneIcon size={12} /> {request.customer.phone}
-                </span>
-              )}
-              {locality && (
-                <span className="inline-flex items-center gap-1">
-                  <MapPinIcon size={12} /> {locality}
-                </span>
-              )}
-            </span>
-          </div>
+          )}
         </div>
 
         <div className="pl-[30px]">
