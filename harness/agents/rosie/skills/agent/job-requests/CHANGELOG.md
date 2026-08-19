@@ -1,5 +1,27 @@
 # job-requests — changelog
 
+## 1.11.0
+
+2026-08-19, from Bhoumik. **The shared note never mentions a supplier or a
+price list unless someone explicitly asks for it.** §4.2 already ended on
+"Supplier names and supplier pricing never appear either" — one sentence at the
+tail of a paragraph about substitution reasons, easy to read as being only
+about substitutions. It is now its own rule, and it names the whole category:
+supplier names, supplier or catalogue pricing, price lists, stock counts, who
+was asked and what came back. `Quoted for Muskogee Crape Myrtle 30 G.` is the
+note; `APS quoted Muskogee at $265` is a `sourcing_notes` line typed into the
+wrong column.
+
+The rule now carries the exception it was missing: Chris or the customer can
+ask for a supplier or a price to be named in what the customer sees, and then
+it is written — that and nothing more, with who asked recorded in
+`sourcing_notes` in the same task. A message that merely mentions a supplier is
+not that instruction.
+
+The §4 note table points at §4.2 so the rule is visible from the skim, and
+`quote-generation` gained the same exception, since a quote's Comments cell is
+filled from `external_notes`.
+
 ## 1.10.0
 
 2026-08-19, from Bhoumik. **A sourcing-notes supplier line names what was

@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, how a line total is arrived at, rendering and uploading the PDF, publishing the HTML, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.2.0)
+description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, how a line total is arrived at, rendering and uploading the PDF, publishing the HTML, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.2.1)
 metadata:
   author: lps
-  version: "1.2.0"
+  version: "1.2.1"
 ---
 
 # Quote generation
@@ -11,10 +11,12 @@ metadata:
 A quote is a **customer-facing document**. Everything in it must come from
 customer-safe fields: the request's and items' `external_notes`, the
 customer's own data, item names/sizes/quantities/prices and the generated
-`total`. Never `sourcing_notes`, never a supplier's name or a supplier's
-price. If something from the sourcing sheet belongs in the quote, put the
-customer-safe version in `external_notes` first — what they are being offered,
-not the reason for it (`job-requests` §4) — and quote from there.
+`total`. Never `sourcing_notes`, never a supplier's name, a supplier's price
+or a price list — unless Chris explicitly asked for one to be named, the same
+exception the shared note carries (`job-requests` §4.2). If something from the
+sourcing sheet belongs in the quote, put the customer-safe version in
+`external_notes` first — what they are being offered, not the reason for it
+(`job-requests` §4) — and quote from there.
 
 ## 1. Templates
 

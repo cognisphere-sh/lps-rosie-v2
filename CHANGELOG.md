@@ -19,6 +19,20 @@ here).
 
 ### Changed
 
+- **The shared note never names a supplier or a price list unless someone
+  asks for it.** `job-requests` §4.2 ended on a single sentence — "Supplier
+  names and supplier pricing never appear either" — sitting at the tail of a
+  paragraph about substitution reasons, where it read as a rule about
+  substitutions rather than about the column. It is now its own rule naming the
+  whole category (supplier names, supplier or catalogue pricing, price lists,
+  stock counts, who was asked and what came back), with the exception it was
+  missing: Chris or the customer can explicitly ask for one to be named, and
+  then it is written — that and nothing more, with who asked recorded in
+  `sourcing_notes` in the same task. A message that merely mentions a supplier
+  is not that instruction. `quote-generation` and rosie's agent prompt carried
+  flat "never" wordings of the same rule and now carry the exception too, since
+  a quote's Comments cell is filled from `external_notes`.
+
 - **Job-request cards scan in three lines.** The collapsed head on
   `/requests` was carrying a bordered Demand & Availability panel — six figures
   at 17–19px over two rows — plus the customer's email and phone and both the

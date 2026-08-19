@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for customer job requests — the tables rosie owns. Covers intake, the concurrency discipline for tables the app edits too, the three note columns, what each may carry and the shape of a sourcing-notes supplier line, the Austin-Plant-Supply-first sourcing and pricing ladder (unit_price carries an Austin Plant Supply price; another supplier's stays in sourcing_notes), asking daisy, the request and item status vocabularies, and the customer-contact flow. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v1.10.0)
+description: The operating procedure for customer job requests — the tables rosie owns. Covers intake, the concurrency discipline for tables the app edits too, the three note columns, what each may carry and the shape of a sourcing-notes supplier line, the rule that the customer-visible note never names a supplier or a price list unless someone explicitly asks, the Austin-Plant-Supply-first sourcing and pricing ladder (unit_price carries an Austin Plant Supply price; another supplier's stays in sourcing_notes), asking daisy, the request and item status vocabularies, and the customer-contact flow. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v1.11.0)
 metadata:
   author: lps
-  version: "1.10.0"
+  version: "1.11.0"
 ---
 
 # Job requests
@@ -164,7 +164,7 @@ that is what `sourcing_notes` is for.
 |---|---|---|
 | `customer_notes` | The customer's, verbatim | Evidence. Never edited. **What the structured columns don't already hold.** |
 | `sourcing_notes` | Ours, internal | **Free text, edited in place.** A line per supplier, in §4.1's shape. |
-| `external_notes` | Ours, **customer-visible** | Written to be shown/sent to the customer. |
+| `external_notes` | Ours, **customer-visible** | Written to be shown/sent to the customer. **Never how we sourced it** — §4.2. |
 
 **`customer_notes` is the remainder, not a transcript.** Everything a customer
 told you that a column already holds — the plant, the size, the quantity, the
@@ -287,7 +287,19 @@ same offered plant. State the offer, not the reason. Why we substituted is
 ours: a price we don't hold, a grower who is out this season, a supplier who
 sells in dozens. "5 G price is not on file", "Natchez unavailable this season",
 "the supplier sells in dozens" — every one of those is an `sourcing_notes`
-line. Supplier names and supplier pricing never appear either.
+line.
+
+**Where we source from is never in it.** The shared note says what the customer
+is getting; it says nothing about how we got it. Supplier names, supplier or
+catalogue pricing, price lists, stock counts, who was asked and what they came
+back with — none of it belongs in `external_notes`, however plainly the
+sourcing sheet carries it. `Quoted for Muskogee Crape Myrtle 30 G.` is the
+note; `APS quoted Muskogee at $265` is a `sourcing_notes` line typed into the
+wrong column. **The one exception is being told to.** When Chris (or the
+customer) explicitly asks for a supplier, a price list or any of the rest to be
+named in what the customer sees, write that and only that, and record who asked
+in `sourcing_notes` in the same task. Never volunteer it, and never read the
+instruction into a message that merely happens to mention a supplier.
 
 **Sizes are written `XX G`** — `1 G`, `3 G`, `30 G` — the way the inventory
 prints them, in both note columns. Not `3-gallon`, not `3gal`, not `#3`. The

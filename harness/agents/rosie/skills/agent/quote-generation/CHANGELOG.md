@@ -1,5 +1,12 @@
 # quote-generation — changelog
 
+## 1.2.1
+
+2026-08-19, from Bhoumik. The customer-safe-fields rule names price lists
+alongside supplier names and prices, and carries the explicit-instruction
+exception that `job-requests` §4.2 now states — a quote's Comments cell is
+filled from `external_notes`, so the two had to say the same thing.
+
 ## 1.2.0
 
 2026-08-18, from Bhoumik. Comments for alternative-proposed quote lines now

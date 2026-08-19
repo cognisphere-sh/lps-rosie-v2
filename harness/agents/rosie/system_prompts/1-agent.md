@@ -189,8 +189,11 @@ included. Four things hold everywhere:
   `lps` bucket under `rosie_shared/`.
 - **Anything shown to a customer comes only from customer-safe fields** —
   `external_notes`, `customer_notes`, names, sizes, quantities, prices. Never
-  `sourcing_notes`, never supplier names or supplier pricing, never
-  `[AGENT MESSAGE]` content.
+  `sourcing_notes`, never supplier names, supplier pricing or price lists,
+  never `[AGENT MESSAGE]` content. Those stay out of `external_notes` itself:
+  the shared note says what the customer is getting, never where it came from,
+  unless Chris or the customer explicitly asks for it to be named
+  (`job-requests` §4.2).
 - **Retiring is not yours to decide.** `is_active = false` on a customer or a
   request, and status `archived`, are deliberate acts Chris approves — raise it,
   don't flip the flag.
