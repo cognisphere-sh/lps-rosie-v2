@@ -15,6 +15,23 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-20
+
+### Changed
+
+- **Appearance controls replace the fixed forest-green app accent.** Settings
+  now offers five contrast-paired app header/accent palettes with live updates,
+  an Edge-inspired teal default, device persistence and Reset. The existing
+  per-agent picker is explicitly labelled **Outgoing message & agent accent**:
+  it still independently controls each conversation's outgoing bubbles and
+  chat actions, rather than adding a confusing duplicate bubble control. It
+  gains an Edge Teal choice and uses it for Daisy by default; the old exact
+  Forest/Coral/Violet default trio migrates once while all custom color
+  combinations remain untouched. A missing app preference (the former implicit
+  green default) moves to teal; valid explicit choices are preserved.
+  Browser/PWA theme chrome follows the selected accent, including dark mode;
+  the app's internal content header remains a neutral surface.
+
 ## 2026-08-19
 
 ### Changed

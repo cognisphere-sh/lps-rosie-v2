@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-export type ChatThemeId = 'forest' | 'rose' | 'violet' | 'garden' | 'desert' | 'agave'
+export type ChatThemeId = 'edge' | 'forest' | 'rose' | 'violet' | 'garden' | 'desert' | 'agave'
 export type ChatAgentId = 'daisy' | 'rosie' | 'nova'
 export type ChatWallpaperId = 'none' | 'line-art' | 'desert-night'
 
@@ -10,9 +10,10 @@ export type ChatAppearance = {
 }
 
 export const CHAT_APPEARANCE_STORE = 'lps.chat.appearance.v1'
+export const CHAT_EDGE_DEFAULT_MIGRATION_STORE = 'lps.chat.appearance.v1.edge-default'
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
   themes: {
-    daisy: 'forest',
+    daisy: 'edge',
     rosie: 'rose',
     nova: 'violet',
   },
@@ -20,13 +21,14 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
 }
 
 export const CHAT_THEMES: { id: ChatThemeId; label: string; accent: string; preview: string }[] = [
-  // The first three are sampled toward each profile image's dominant backdrop.
+  { id: 'edge', label: 'Edge Teal', accent: '#087F8C', preview: '#d8eef0' },
+  // These three are sampled toward each profile image's dominant backdrop.
   { id: 'forest', label: 'Forest Green', accent: '#3e7b36', preview: '#dcebd8' },
   { id: 'rose', label: 'Coral Rose', accent: '#b15150', preview: '#f0d9d8' },
   { id: 'violet', label: 'Electric Violet', accent: '#6540bd', preview: '#e3dcf4' },
-  { id: 'garden', label: 'Garden Green', accent: '#2f9f5b', preview: '#dff3e6' },
-  { id: 'desert', label: 'Fuchsia Bloom', accent: '#c34fa3', preview: '#f3d5ea' },
-  { id: 'agave', label: 'Agave Blue', accent: '#347fbd', preview: '#d7e9f7' },
+  { id: 'garden', label: 'Garden Green', accent: '#247a45', preview: '#dff3e6' },
+  { id: 'desert', label: 'Fuchsia Bloom', accent: '#a63e89', preview: '#f3d5ea' },
+  { id: 'agave', label: 'Agave Blue', accent: '#276a9e', preview: '#d7e9f7' },
 ]
 
 export const CHAT_WALLPAPERS: {

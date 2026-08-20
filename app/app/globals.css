@@ -8,7 +8,7 @@
    here, so this block is the theme's source of truth. */
 
 :root {
-  /* Green Nature Theme - Light Mode */
+  /* Edge Teal accent over the existing nature-neutral light theme. */
   --background: #F9FCF7;
   --foreground: #1E3B28;
 
@@ -18,17 +18,17 @@
   --popover: #FFFFFF;
   --popover-foreground: #1E3B28;
 
-  --primary: #2F7A44;
+  --primary: #087F8C;
   --primary-foreground: #FFFFFF;
 
-  --secondary: #E6F1E7;
-  --secondary-foreground: #2F7A44;
+  --secondary: #E4F1F2;
+  --secondary-foreground: #17646C;
 
   --muted: #E6F1E7;
   --muted-foreground: #6B7F6C;
 
-  --accent: #A8E06D;
-  --accent-foreground: #1E3B28;
+  --accent: #BDE7E5;
+  --accent-foreground: #153A3D;
 
   --destructive: oklch(0.577 0.245 27.325);
   /* Upstream lps-ui ships this equal to --destructive, which makes destructive
@@ -38,10 +38,10 @@
 
   --border: #DDEBDD;
   --input: #DDEBDD;
-  --ring: #5FAF65;
+  --ring: #087F8C;
 
-  --chart-1: #2F7A44;
-  --chart-2: #5FAF65;
+  --chart-1: #087F8C;
+  --chart-2: #42AAB2;
   --chart-3: #A8E06D;
   --chart-4: #C87F55;
   --chart-5: #7B5A3A;
@@ -50,12 +50,12 @@
 
   --sidebar: #F9FCF7;
   --sidebar-foreground: #1E3B28;
-  --sidebar-primary: #2F7A44;
+  --sidebar-primary: #087F8C;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E6F1E7;
-  --sidebar-accent-foreground: #2F7A44;
+  --sidebar-accent: #E4F1F2;
+  --sidebar-accent-foreground: #17646C;
   --sidebar-border: #DDEBDD;
-  --sidebar-ring: #5FAF65;
+  --sidebar-ring: #087F8C;
 
   /* Workspace-specific tokens defined by the Supplier Workspace design — table
      chrome, hairlines and the "stale list" warning colours. */
@@ -132,22 +132,21 @@
   --sidebar-foreground: #E8E8E8;
   --sidebar-border: #414141;
 
-  /* The Supplier Workspace design overrides the base dark theme's purple accent
-     back to green, so dark mode stays the same product as light mode. */
-  --primary: #4DD67D;
-  --primary-foreground: #0A0A0A;
-  --ring: #4DD67D;
-  --secondary: #193823;
-  --secondary-foreground: #9BEAB2;
-  --accent: #A8E06D;
-  --accent-foreground: #0A0A0A;
-  --chart-1: #4DD67D;
-  --chart-2: #8FE3A8;
-  --sidebar-primary: #4DD67D;
-  --sidebar-primary-foreground: #0A0A0A;
-  --sidebar-accent: #193823;
-  --sidebar-accent-foreground: #9BEAB2;
-  --sidebar-ring: #4DD67D;
+  /* Edge Teal remains bright enough to read as an accent on the dark ground. */
+  --primary: #42C7C9;
+  --primary-foreground: #07191B;
+  --ring: #42C7C9;
+  --secondary: #153235;
+  --secondary-foreground: #9CE0E1;
+  --accent: #27585B;
+  --accent-foreground: #E8FFFF;
+  --chart-1: #42C7C9;
+  --chart-2: #78DADC;
+  --sidebar-primary: #42C7C9;
+  --sidebar-primary-foreground: #07191B;
+  --sidebar-accent: #153235;
+  --sidebar-accent-foreground: #9CE0E1;
+  --sidebar-ring: #42C7C9;
 
   --lps-headrow: #202020;
   --lps-hair: #353535;

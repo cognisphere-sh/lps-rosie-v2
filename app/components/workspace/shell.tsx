@@ -16,7 +16,12 @@ import {
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import {
-  CHAT_APPEARANCE_STORE, DEFAULT_CHAT_APPEARANCE, isChatTheme, isChatWallpaper,
+  APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentColor, appAccentStyle, readAppAccent,
+  type AppAccentId,
+} from '@/lib/app-appearance'
+import {
+  CHAT_APPEARANCE_STORE, CHAT_EDGE_DEFAULT_MIGRATION_STORE, DEFAULT_CHAT_APPEARANCE,
+  isChatTheme, isChatWallpaper,
   type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
@@ -51,7 +56,10 @@ export const useToast = () => useContext(ToastCtx)
 
 const ChatAppearanceCtx = createContext<{
   appearance: ChatAppearance
+  appAccent: AppAccentId
   save: (next: ChatAppearance) => void
+  saveAppAccent: (next: AppAccentId) => void
+  reset: () => void
 } | null>(null)
 
 export function useChatAppearanceSettings() {
@@ -153,6 +161,7 @@ export function Shell({
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
+  const [appAccent, setAppAccent] = useState<AppAccentId>(DEFAULT_APP_ACCENT)
   const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [pagePull, setPagePull] = useState(0)
@@ -223,7 +232,10 @@ export function Shell({
       const saved = JSON.parse(window.localStorage.getItem(CHAT_APPEARANCE_STORE) ?? 'null') as
         | { themes?: Partial<Record<ChatAgentId, unknown>>; theme?: unknown; wallpaper?: unknown }
         | null
-      if (!saved) return
+      if (!saved) {
+        window.localStorage.setItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE, '1')
+        return
+      }
       const themes = { ...DEFAULT_CHAT_APPEARANCE.themes }
       for (const id of ['daisy', 'rosie', 'nova'] as const) {
         if (isChatTheme(saved.themes?.[id])) themes[id] = saved.themes[id]
@@ -233,6 +245,17 @@ export function Shell({
       if (themes.daisy === 'garden' && themes.rosie === 'desert' && themes.nova === 'agave') {
         Object.assign(themes, DEFAULT_CHAT_APPEARANCE.themes)
       }
+      // The old exact default trio often exists only because choosing a
+      // wallpaper saved the whole appearance object. Move that one combination
+      // to the requested teal once; any custom color combination is preserved,
+      // and choosing Forest Green after this migration remains intentional.
+      if (
+        !window.localStorage.getItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE) &&
+        themes.daisy === 'forest' && themes.rosie === 'rose' && themes.nova === 'violet'
+      ) {
+        Object.assign(themes, DEFAULT_CHAT_APPEARANCE.themes)
+      }
+      window.localStorage.setItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE, '1')
       const wallpaper = isChatWallpaper(saved.wallpaper)
         ? saved.wallpaper
         : saved.wallpaper === true ? 'line-art' : 'none'
@@ -245,7 +268,27 @@ export function Shell({
   const saveChatAppearance = useCallback((next: ChatAppearance) => {
     setChatAppearance(next)
     window.localStorage.setItem(CHAT_APPEARANCE_STORE, JSON.stringify(next))
+    window.localStorage.setItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE, '1')
   }, [])
+
+  useEffect(() => {
+    setAppAccent(readAppAccent(window.localStorage.getItem(APP_APPEARANCE_STORE)))
+  }, [])
+
+  const saveAppAccent = useCallback((next: AppAccentId) => {
+    setAppAccent(next)
+    window.localStorage.setItem(APP_APPEARANCE_STORE, JSON.stringify({ accent: next }))
+  }, [])
+
+  const resetAppearance = useCallback(() => {
+    saveChatAppearance(DEFAULT_CHAT_APPEARANCE)
+    saveAppAccent(DEFAULT_APP_ACCENT)
+  }, [saveAppAccent, saveChatAppearance])
+
+  useEffect(() => {
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+      ?.setAttribute('content', appAccentColor(appAccent, dark))
+  }, [appAccent, dark])
 
   // Close the user menu on any outside click, like the design's data-menu handler.
   useEffect(() => {
@@ -295,12 +338,18 @@ export function Shell({
     )
 
   return (
-    <ChatAppearanceCtx.Provider value={{ appearance: chatAppearance, save: saveChatAppearance }}>
+    <ChatAppearanceCtx.Provider value={{
+      appearance: chatAppearance,
+      appAccent,
+      save: saveChatAppearance,
+      saveAppAccent,
+      reset: resetAppearance,
+    }}>
       <ToastCtx.Provider value={showToast}>
         <div
           data-workspace-shell
           className="fixed inset-x-0 flex flex-col overflow-hidden"
-          style={{ top: viewportFrame.top, height: viewportFrame.height }}
+          style={{ top: viewportFrame.top, height: viewportFrame.height, ...appAccentStyle(appAccent, dark) }}
         >
         {/* Mobile chat supplies its own compact identity header; do not stack
             the underlying page header above it. */}

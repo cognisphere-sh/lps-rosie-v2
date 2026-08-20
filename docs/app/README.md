@@ -38,9 +38,10 @@ the real schema. Two things the design owns that are easy to lose:
   live in `app/app/globals.css`, which is the theme's source of truth. The
   Supplier Workspace design adds the `--lps-*` table-chrome tokens
   (`--lps-headrow`, `--lps-hair`, `--lps-edge`, `--lps-dim`, `--lps-tint`,
-  `--lps-bubble`, `--lps-shadow`, `--lps-warn-*`) **and overrides dark mode's
-  purple accent back to green** (`--primary: #4DD67D`), so dark mode stays the
-  same product as light mode.
+  `--lps-bubble`, `--lps-shadow`, `--lps-warn-*`). The default app accent is
+  **Edge Teal** (`#087F8C` light / `#42C7C9` dark), with contrast-matched
+  foregrounds; signed-in users can replace it in Settings without changing
+  the per-agent chat colors.
 - **Dark-mode contrast.** Muted copy, empty states, borders, input outlines,
   header rows and table hairlines use brighter dark-mode tokens than the design
   mock so the dense search workspace remains legible on typical displays.
@@ -155,7 +156,7 @@ in the desktop rail and through mobile More.
 | `/customers/:id` | client | **One customer.** A details card — the contact routes, a four-figure summary (Active requests, Active request value, Orders, Total order value, the last two reading `—` until order tables exist), **Who they are** and **Address** as editable field grids, **Notes** edited in place and the append-only **Contact log** with its add box — and under it two tabs. **Requests** lists their active requests with status pill, line count, total and date, and each line **opens** into the same body the Job Requests page draws (Order details drawer, editable line-item table, Change history), minus the line checkboxes: this page has no selection bar to act on them. The opened request is fetched on its own from `GET /api/requests/:id` and re-fetched after any write. **Orders** is drawn and empty, saying why. Nothing is behind a second chevron here — this is where a customer is corrected, not scanned. |
 | `/requests` | client | **Job Requests**, from the Order Requests design comp. One **collapsed card per request** carrying everything it is judged on without opening it — `JR-<id>`, **the job's name** (`job_requests.name`, click to rename; blank on an unnamed request, because `JR-<id>` beside it is already its name), status pill, customer/company, contact name, ship-to city/state, the updated date (created is its tooltip), a **one-line demand strip** — subtotal, item count, then **every** line status with its count, zeros included but dimmed, so "nothing is unavailable" and "nobody has looked yet" cannot render alike — and **the newest note on the request, truncated to one line** and tagged with its audience. The head is deliberately spare: the customer's email and phone belong to the customer and are a click away on their card, and one date is enough to triage by. The card head carries **no checkbox**: selection is per line, in the table the card opens. Clicking the card expands it into three things: an **Order details** drawer, the line-item table, and a **Change history** drawer at the foot. The drawer sits directly under the head and is **shut by default** — a second level of expansion — carrying the shipping and billing addresses and the three note blocks, with a one-line summary of what it is hiding while closed. The **sourcing note** block is an ordinary editable field there, like the shared note: it is free text kept current, not a log that grows without bound. Order particulars are read when a request is being actioned, not when it is being scanned, so the head keeps only the destination city and state. The table is Select / Item / Size / Demand / Avail / Unit price / Total / Status / Shared note / Sourcing note, colour-keyed by status down a left edge. Each line's **name carries the customer's note about that line** underneath it, in italics — the ask and what they said about it, read together. **The counts on a collapsed card always describe the whole request**, never the filtered subset the expanded table draws — so a card can honestly read `4 lines` while showing one. A search or an item-level filter auto-expands the cards it matched, since the question was about lines. **Expand all / Collapse all** in the toolbar. The line table scrolls sideways below ~1180px rather than crushing its columns, and each card is `flex-none` so the card list scrolls vertically instead of the card being shrunk and clipping its own contents. **Fields are edited inline**: click a line's name, size, demand, avail or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged value is never written), rename the job from the card head, pick a status from the pill's dropdown, and edit the ship-to/bill-to parts and both note fields in the Order details drawer. Every write goes through `PATCH /api/rows`, and the page refetches afterwards because `total` and every count are derived. **Change history** is the request's whole audit trail — every edit to it or its lines, by this app *and* by the agents, since `job_request_changelog` is trigger-written and neither write path has to cooperate. Each entry names the actor in words (`service_role` → "This app", `postgres` → "An agent script"), says whether it was a create or a change and what it was about, and lists each column as `old → new`. It is fetched only when opened, and re-fetched after any write, so an edit you just made shows up in the history you are looking at. Nothing in it is editable — the rows are immutable by design. **Not editable, deliberately:** `total` (generated) and `customer_notes` (the customer's own words) — see *Row tinting and selection* and *Job requests* below. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, Active / Coming soon badge, and the full profile banner image. |
-| `/settings` | client | Responsive Settings page containing Chat appearance: live preview, per-agent colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
+| `/settings` | client | Responsive Appearance settings with an Edge-inspired default plus four app header/accent palettes, live chat preview, per-agent outgoing-message colors, shared wallpaper and Reset. Available from desktop Settings and mobile More. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
 | `/a/:agent/public/artifacts/:slug` | route | The same page for anyone with the link, and **the app's only ungated path besides `/login`** — served only while the artifact is flagged public. |
 
@@ -900,14 +901,27 @@ pattern, and the same reason, as the table layout. The agent is part of that
 record because every page mounts its own `Shell`: without it, navigating or
 refreshing dropped the panel back to the first agent in `AGENTS`.
 
-### Chat appearance
+### Appearance
 
-**Settings → Chat appearance** is a responsive route, reached from desktop
-Settings or mobile **More → Settings**, with a live bubble preview,
-independently configurable agent colors and
-six scoped chat palettes. Profile-matched defaults are Daisy Forest Green,
-Rosie Coral Rose and Nova Electric Violet; Garden Green, Fuchsia Bloom and
-Agave Blue remain optional choices. Wallpaper choices are None, the original
+**Settings → Appearance** is a responsive route, reached from desktop Settings
+or mobile **More → Settings**. **App header & accent** independently controls
+the browser/PWA title bar, navigation highlights and action controls; the
+Shell's content header remains a neutral surface. Its five contrast-paired light/dark palettes are Edge Teal (the
+default), Ocean Blue, Forest Green, Soft Plum and Warm Coral; the browser/device
+preference persists under `lps.app.appearance.v1`. A missing preference is the
+former implicit Forest Green default and migrates to Edge Teal. Valid explicit
+choices — including Forest Green — are never rewritten, and Reset deliberately
+returns to Edge Teal.
+
+**Outgoing message & agent accent** is the existing per-agent control, named for
+what it actually does rather than duplicated as a second bubble setting. It
+colors that conversation's outgoing bubbles and chat actions only; Daisy,
+Rosie and Nova remain independently configurable with seven scoped chat palettes. New/default devices use Daisy Edge Teal,
+Rosie Coral Rose and Nova Electric Violet; Forest Green, Garden Green, Fuchsia
+Bloom and Agave Blue remain optional choices. The old exact Forest/Coral/Violet
+default trio migrates once to Edge/Coral/Violet—even when a wallpaper caused
+that trio to be persisted—while every custom color combination is preserved.
+Wallpaper choices are None, the original
 light **Desert line art** SVG at `public/desert-plants-chat.svg`, and the dense
 black **Desert Night** cactus/agave pattern at
 `public/desert-night-chat.webp` (a rights-confirmed user-provided image,
@@ -1239,7 +1253,7 @@ screen. No library — a manifest, a service worker, and Chrome's
 
 | Piece | Role |
 |---|---|
-| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, brand green `theme_color`, and versioned 192/512 cactus-logo icons. |
+| `public/manifest.json` | Static manifest: `start_url: /suppliers`, `scope: /`, `display: standalone`, Edge Teal default `theme_color` (updated live by Shell for a saved accent), and versioned 192/512 cactus-logo icons. |
 | `public/sw.js` | Service worker. Its *existence* plus a `fetch` handler is what makes Chrome consider the app installable. |
 | `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
 | `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
