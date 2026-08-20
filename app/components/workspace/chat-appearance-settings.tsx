@@ -41,7 +41,7 @@ export function ChatAppearanceSettings() {
         <section className="flex flex-col gap-2">
           <div>
             <h3 className="text-[11px] font-bold uppercase tracking-[.06em] text-lps-dim">App header &amp; accent</h3>
-            <p className="mt-1 text-[11.5px] text-muted-foreground">Used by the top header, navigation highlights and app actions.</p>
+            <p className="mt-1 text-[11.5px] text-muted-foreground">Used by the browser title bar, navigation highlights and app actions.</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {APP_ACCENTS.map((accent) => {
