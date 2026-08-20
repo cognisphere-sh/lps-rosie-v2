@@ -19,6 +19,12 @@ here).
 
 ### Changed
 
+- **Supplier detail profiles now show and edit Type explicitly.** The existing
+  pencil → staged Save/Cancel gate now exposes a schema-backed Grower / Nursery
+  / Wholesaler / Other dropdown with an unset/NULL option. Server-side write
+  whitelisting and enum validation cover `suppliers.category`, the profile is
+  re-read after saving, and no category is ever inferred from a supplier name.
+
 - **Appearance controls replace the fixed forest-green app accent.** Settings
   now offers five contrast-paired app header/accent palettes with live updates,
   an Edge-inspired teal default, device persistence and Reset. The existing

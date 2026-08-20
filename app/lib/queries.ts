@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { SUPPLIER_CATEGORIES } from '@/lib/columns'
 import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
 import { noteStamp } from '@/lib/notes'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
@@ -976,7 +977,7 @@ const WRITABLE: Record<string, string[]> = {
   // No email/phone: those moved to `contacts` in migration 0016 and the
   // columns are gone. Reaching a supplier is a contacts write now.
   suppliers: [
-    'name', 'city', 'state', 'notes', 'communication_notes',
+    'name', 'category', 'city', 'state', 'notes', 'communication_notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
   ],
   // No `name`: it is derived by the database from the three name parts
@@ -1036,6 +1037,7 @@ const WRITABLE: Record<string, string[]> = {
  * string, and so the server does not depend on the dropdown having been honest.
  */
 const ENUMS: Record<string, readonly string[]> = {
+  'suppliers.category': SUPPLIER_CATEGORIES,
   'job_requests.status': REQUEST_STATUSES,
   'job_request_items.status': ITEM_STATUSES,
 }
@@ -1085,6 +1087,12 @@ export async function updateFields(
 
     const allowed = ENUMS[`${table}.${column}`]
     if (allowed) {
+      // Supplier category is nullable; the request's empty dropdown option
+      // deliberately clears it. Status vocabularies remain non-nullable.
+      if (table === 'suppliers' && column === 'category' && raw.trim() === '') {
+        values[column] = null
+        continue
+      }
       if (!allowed.includes(raw)) {
         throw new Error(`${column} must be one of: ${allowed.join(', ')}`)
       }

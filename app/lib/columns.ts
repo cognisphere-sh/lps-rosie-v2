@@ -7,6 +7,9 @@
 
 import type { CellValue } from '@/lib/rows'
 
+/** `suppliers.category` CHECK vocabulary. Blank is stored as NULL. */
+export const SUPPLIER_CATEGORIES = ['Grower', 'Nursery', 'Wholesaler', 'Other']
+
 export type FilterKind = 'text' | 'range' | 'multiselect' | 'none'
 /**
  * `link` = opens the supplier profile; `list` = the scrollable source-file

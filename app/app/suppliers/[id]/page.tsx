@@ -15,7 +15,10 @@ import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/searc
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { FilterControl, badgeFor } from '@/components/workspace/table-parts'
 import { Badge } from '@/components/ui/badge'
-import { AVAILABILITY_SOURCE_TYPES, PLANT_COLS, plantEditPatch, websiteHref, type ColumnDef } from '@/lib/columns'
+import {
+  AVAILABILITY_SOURCE_TYPES, PLANT_COLS, SUPPLIER_CATEGORIES,
+  plantEditPatch, websiteHref, type ColumnDef,
+} from '@/lib/columns'
 import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { formatDate, money, num } from '@/lib/format'
@@ -44,6 +47,7 @@ const FARM_PANEL_W = 260
 // supplier can have several.
 // `options` swaps the text input for a dropdown; blank clears the column.
 const FIELDS: { key: string; label: string; column?: string; options?: string[] }[] = [
+  { key: 'category', label: 'Type', column: 'category', options: SUPPLIER_CATEGORIES },
   { key: 'website', label: 'Website' },
   { key: 'city', label: 'City', column: 'city' },
   { key: 'state', label: 'State', column: 'state' },
@@ -739,6 +743,9 @@ export default function SupplierProfilePage() {
       editingRow.id,
       Object.fromEntries(Object.entries(changes).map(([column, value]) => [column, value.trim() || null])),
     )
+    // Re-read the authoritative profile after a type change (and every other
+    // staged edit), so the header/detail state cannot drift from Supabase.
+    await loadProfile()
     setEditingId(null)
     setFieldDraft({})
     toast(`${Object.keys(changes).length} supplier field${Object.keys(changes).length === 1 ? '' : 's'} updated`)
