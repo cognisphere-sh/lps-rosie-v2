@@ -51,11 +51,11 @@ Blocked: DELETE, DROP, TRUNCATE, ALTER, GRANT, REVOKE, VACUUM, CLUSTER,
 REINDEX, REFRESH, COMMENT, REASSIGN, COPY, DO, LOCK, LOAD, PREPARE,
 DEALLOCATE, EXECUTE, CALL, LISTEN, NOTIFY, UNLISTEN, CHECKPOINT, DISCARD,
 IMPORT, and any CREATE form other than FUNCTION/PROCEDURE (TABLE, INDEX,
-VIEW, TRIGGER, etc.). Forbidden words are detected after stripping comments
-and string literals, so hiding them in a comment or a CTE body still trips
-the guard. Function bodies (dollar-quoted or single-quoted) are stripped
-before the scan — runtime behavior of any function you create is your
-responsibility.
+VIEW, TRIGGER, etc.). Forbidden words are detected in SQL code after lexically masking comments,
+quoted strings, and quoted identifiers, so harmless source-note text does not
+trip the guard while a forbidden command after or around it still does.
+Function bodies (dollar-quoted or single-quoted) are masked before the scan —
+runtime behavior of any function you create is your responsibility.
 `;
 
 const ALLOWED_FIRST = new Set([
@@ -149,23 +149,115 @@ function die(msg, code) {
 }
 
 /**
- * Strip comments and string literals so the keyword scan doesn't trip on
- * SQL embedded in user data (e.g. `INSERT INTO logs VALUES ('we dropped X')`)
- * or in `/* ... *\/` blocks.
+ * Mask non-code regions with spaces while preserving newlines and statement
+ * separators in SQL code. A single lexical pass matters: regexes run in
+ * sequence can mistake `--` or `/*` inside a source-note string for a real
+ * comment and accidentally hide a later forbidden statement.
  */
 function stripCommentsAndStrings(sql) {
-	let s = sql;
-	// Block comments — non-greedy, multiline.
-	s = s.replace(/\/\*[\s\S]*?\*\//g, " ");
-	// Line comments to end-of-line.
-	s = s.replace(/--[^\n]*/g, " ");
-	// Dollar-quoted strings: $tag$...$tag$ (tag may be empty).
-	s = s.replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g, " '<dq>' ");
-	// Single-quoted strings, '' is the doubled-quote escape.
-	s = s.replace(/'(?:[^']|'')*'/g, " '<s>' ");
-	// Double-quoted identifiers, "" doubled-quote escape.
-	s = s.replace(/"(?:[^"]|"")*"/g, ' "<id>" ');
-	return s;
+	const out = sql.split("");
+	const mask = (start, end) => {
+		for (let j = start; j < end; j++) {
+			if (out[j] !== "\n" && out[j] !== "\r") out[j] = " ";
+		}
+	};
+	let i = 0;
+	while (i < sql.length) {
+		const start = i;
+
+		if (sql.startsWith("--", i)) {
+			i += 2;
+			while (i < sql.length && sql[i] !== "\n" && sql[i] !== "\r") i++;
+			mask(start, i);
+			continue;
+		}
+		if (sql.startsWith("/*", i)) {
+			let depth = 1;
+			i += 2;
+			while (i < sql.length && depth > 0) {
+				if (sql.startsWith("/*", i)) {
+					depth++;
+					i += 2;
+				} else if (sql.startsWith("*/", i)) {
+					depth--;
+					i += 2;
+				} else {
+					i++;
+				}
+			}
+			if (depth > 0) throw new Error("unterminated block comment");
+			mask(start, i);
+			continue;
+		}
+
+		const dollar = sql.slice(i).match(/^\$([A-Za-z_][A-Za-z0-9_]*)?\$/);
+		const dollarHasBoundary = i === 0 || !/[A-Za-z0-9_$]/.test(sql[i - 1]);
+		if (dollar && dollarHasBoundary) {
+			const delimiter = dollar[0];
+			const end = sql.indexOf(delimiter, i + delimiter.length);
+			if (end === -1) throw new Error("unterminated dollar-quoted string");
+			i = end + delimiter.length;
+			mask(start, i);
+			continue;
+		}
+
+		if (sql[i] === "'") {
+			// Backslash escapes are SQL syntax only in E'...' strings. Treating
+			// them as escapes in ordinary strings could mask real code when
+			// standard_conforming_strings is on (Postgres's default).
+			const prefix = sql[i - 1];
+			const beforePrefix = sql[i - 2];
+			const escapeString =
+				(prefix === "E" || prefix === "e") &&
+				(i < 2 || !/[A-Za-z0-9_$]/.test(beforePrefix));
+			i++;
+			let closed = false;
+			while (i < sql.length) {
+				if (escapeString && sql[i] === "\\") {
+					i += Math.min(2, sql.length - i);
+					continue;
+				}
+				if (sql[i] !== "'") {
+					i++;
+					continue;
+				}
+				if (sql[i + 1] === "'") {
+					i += 2;
+					continue;
+				}
+				i++;
+				closed = true;
+				break;
+			}
+			if (!closed) throw new Error("unterminated single-quoted string");
+			mask(start, i);
+			continue;
+		}
+
+		if (sql[i] === '"') {
+			i++;
+			let closed = false;
+			while (i < sql.length) {
+				if (sql[i] !== '"') {
+					i++;
+					continue;
+				}
+				if (sql[i + 1] === '"') {
+					i += 2;
+					continue;
+				}
+				i++;
+				closed = true;
+				break;
+			}
+			if (!closed) throw new Error("unterminated quoted identifier");
+			mask(start, i);
+			continue;
+		}
+
+		i++;
+	}
+	return out.join("");
 }
 
 function validate(sql) {

@@ -19,6 +19,16 @@ here).
 
 ### Changed
 
+- **Daisy's Supabase query guard now lexically distinguishes SQL code from
+  evidence text.** A single PostgreSQL-aware masking pass handles ordinary and
+  escape strings, tagged/untagged dollar quotes, quoted identifiers, line
+  comments, and nested block comments before the forbidden-command scan.
+  Source notes containing words such as `DO` or `DROP` are accepted verbatim;
+  real destructive syntax remains visible, malformed regions fail closed, and
+  identifier-adjacent dollar markers cannot hide later SQL. Twenty-six
+  positive/adversarial cases cover the policy and close an older regex-ordering
+  bypass in which a comment marker inside a string could hide later code.
+
 - **Supplier detail profiles now show and edit Type explicitly.** The existing
   pencil → staged Save/Cancel gate now exposes a schema-backed Grower / Nursery
   / Wholesaler / Other dropdown with an unset/NULL option. Server-side write

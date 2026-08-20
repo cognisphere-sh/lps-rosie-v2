@@ -140,8 +140,10 @@ written later doesn't reintroduce procedure.
 `scripts/agent/` (shared toolset) plus:
 
 - `scripts/agent/supabase/` — `query` (psql; SELECT/INSERT/UPDATE/WITH/EXPLAIN
-  only, **DDL blocked by design**), `sign-url` (pre-signed Storage URL),
-  `upload` (upload to a Storage bucket).
+  plus function/procedure creation; destructive SQL and other DDL are blocked
+  by a lexical guard that masks PostgreSQL strings, quoted identifiers, and
+  comments without mistaking source-note words such as `DO`/`DROP` for code),
+  `sign-url` (pre-signed Storage URL), `upload` (upload to a Storage bucket).
 - `scripts/agent-msg/send` — inter-/intra-agent messaging CLI (seeded by
   agent-messaging).
 - `scripts/gws/` — `email` CLI (`read`/`thread`/`search`/`labels`/`label`) +
