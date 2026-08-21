@@ -1,0 +1,725 @@
+import 'server-only'
+
+import type {
+  ARDetail,
+  ARItem,
+  ARSummary,
+  MessageChannel,
+  SupplierLink,
+  SupplierMessage,
+} from '@/lib/availability'
+import { AR_RESPONSES } from '@/lib/availability'
+import { supabase } from '@/lib/supabase'
+
+// The reads and writes behind availability requests and the supplier
+// conversation threads (migration 0062). Server-only for the same reason every
+// other query module is: the client holds the project's secret key.
+
+interface ARRecord {
+  id: number
+  job_request_id: number
+  supplier_id: number
+  share_customer_details: boolean
+  status: string
+  submitted_at: string | null
+  created_at: string
+}
+
+interface ARItemRecord {
+  id: number
+  availability_request_id: number
+  job_request_item_id: number | null
+  name: string
+  size: string | null
+  quantity: number | null
+  status: string | null
+  available_quantity: number | null
+  unit_price: number | null
+  notes: string | null
+}
+
+interface MessageRecord {
+  id: number
+  supplier_id: number
+  job_request_id: number | null
+  availability_request_id: number | null
+  sender: 'broker' | 'supplier'
+  sender_name: string | null
+  channel: MessageChannel
+  body: string
+  created_at: string
+}
+
+const AR_COLUMNS = 'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at'
+const AR_ITEM_COLUMNS =
+  'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes'
+const MSG_COLUMNS =
+  'id, supplier_id, job_request_id, availability_request_id, sender, sender_name, channel, body, created_at'
+
+const toARItem = (r: ARItemRecord): ARItem => ({
+  id: r.id,
+  jobRequestItemId: r.job_request_item_id,
+  name: r.name,
+  size: r.size,
+  quantity: r.quantity == null ? null : Number(r.quantity),
+  status: r.status,
+  availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
+  unitPrice: r.unit_price == null ? null : Number(r.unit_price),
+  notes: r.notes,
+})
+
+const toMessage = (r: MessageRecord): SupplierMessage => ({
+  id: r.id,
+  supplierId: r.supplier_id,
+  jobRequestId: r.job_request_id,
+  availabilityRequestId: r.availability_request_id,
+  sender: r.sender,
+  senderName: r.sender_name,
+  channel: r.channel,
+  body: r.body,
+  createdAt: r.created_at,
+})
+
+/** id → display name for a set of suppliers, one query. */
+async function supplierNames(ids: number[]): Promise<Map<number, string>> {
+  if (!ids.length) return new Map()
+  const { data, error } = await supabase.from('suppliers').select('id, name').in('id', ids)
+  if (error) throw new Error(`suppliers: ${error.message}`)
+  return new Map((data ?? []).map((s) => [(s as { id: number }).id, (s as { name: string }).name]))
+}
+
+/** id → job name for a set of requests, one query. */
+async function jobNames(ids: number[]): Promise<Map<number, string | null>> {
+  if (!ids.length) return new Map()
+  const { data, error } = await supabase.from('job_requests').select('id, name').in('id', ids)
+  if (error) throw new Error(`job_requests: ${error.message}`)
+  return new Map(
+    (data ?? []).map((r) => [(r as { id: number }).id, (r as { name: string | null }).name]),
+  )
+}
+
+async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
+  if (!records.length) return []
+  const suppliers = await supplierNames([...new Set(records.map((r) => r.supplier_id))])
+  const jobs = await jobNames([...new Set(records.map((r) => r.job_request_id))])
+
+  // Counts over every request at once — a list of forty must not be forty queries.
+  const { data, error } = await supabase
+    .from('availability_request_items')
+    .select('availability_request_id, status')
+    .in('availability_request_id', records.map((r) => r.id))
+    .eq('is_active', true)
+  if (error) throw new Error(`availability_request_items: ${error.message}`)
+  const counts = new Map<number, { items: number; answered: number }>()
+  for (const row of (data ?? []) as { availability_request_id: number; status: string | null }[]) {
+    const c = counts.get(row.availability_request_id) ?? { items: 0, answered: 0 }
+    c.items += 1
+    if (row.status != null) c.answered += 1
+    counts.set(row.availability_request_id, c)
+  }
+
+  return records.map((r) => ({
+    id: r.id,
+    jobRequestId: r.job_request_id,
+    jobName: jobs.get(r.job_request_id) ?? null,
+    supplierId: r.supplier_id,
+    supplierName: suppliers.get(r.supplier_id) ?? `Supplier ${r.supplier_id}`,
+    shareCustomerDetails: r.share_customer_details,
+    status: r.status,
+    submittedAt: r.submitted_at,
+    createdAt: r.created_at,
+    itemCount: counts.get(r.id)?.items ?? 0,
+    answeredCount: counts.get(r.id)?.answered ?? 0,
+  }))
+}
+
+/** Availability requests for a set of supplier locations or one job, newest first. */
+export async function listAvailabilityRequests(scope: {
+  supplierIds?: number[]
+  jobRequestId?: number
+}): Promise<ARSummary[]> {
+  if (!scope.supplierIds?.length && scope.jobRequestId == null) return []
+  let q = supabase
+    .from('availability_requests')
+    .select(AR_COLUMNS)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (scope.supplierIds?.length) q = q.in('supplier_id', scope.supplierIds)
+  if (scope.jobRequestId != null) q = q.eq('job_request_id', scope.jobRequestId)
+  const { data, error } = await q
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  return summarize((data ?? []) as ARRecord[])
+}
+
+/**
+ * One availability request, whole: the shared lines, the answers, and — where
+ * disclosure allows — who the job is for. No messages: the conversation is one
+ * thread per supplier, never per request (2026-08-19).
+ *
+ * `forSupplierId` is the portal's scope check: a portal URL names its supplier,
+ * and a request belonging to anyone else answers "not found" rather than
+ * existing-but-forbidden. `null` disclosure = admin, who sees everything.
+ */
+export async function availabilityRequest(
+  id: number,
+  opts: { forSupplierId?: number } = {},
+): Promise<ARDetail | null> {
+  const { data, error } = await supabase
+    .from('availability_requests')
+    .select(AR_COLUMNS)
+    .eq('id', id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  if (!data) return null
+  const ar = data as ARRecord
+  if (opts.forSupplierId != null && ar.supplier_id !== opts.forSupplierId) return null
+
+  const [summary] = await summarize([ar])
+
+  const { data: itemData, error: itemErr } = await supabase
+    .from('availability_request_items')
+    .select(AR_ITEM_COLUMNS)
+    .eq('availability_request_id', id)
+    .eq('is_active', true)
+    .order('id', { ascending: true })
+  if (itemErr) throw new Error(`availability_request_items: ${itemErr.message}`)
+
+  // Who the job is for — only crosses the line to the supplier when the
+  // request was created with `share_customer_details`.
+  let customer: ARDetail['customer'] = null
+  let shipping: ARDetail['shipping'] = null
+  const disclose = opts.forSupplierId == null || ar.share_customer_details
+  if (disclose) {
+    const { data: job, error: jobErr } = await supabase
+      .from('job_requests')
+      .select('customer_id, shipping_address, shipping_city, shipping_state, shipping_zip')
+      .eq('id', ar.job_request_id)
+      .maybeSingle()
+    if (jobErr) throw new Error(`job_requests: ${jobErr.message}`)
+    if (job) {
+      const j = job as {
+        customer_id: number | null
+        shipping_address: string | null
+        shipping_city: string | null
+        shipping_state: string | null
+        shipping_zip: string | null
+      }
+      shipping = {
+        address: j.shipping_address,
+        city: j.shipping_city,
+        state: j.shipping_state,
+        zip: j.shipping_zip,
+      }
+      if (j.customer_id != null) {
+        const { data: cust, error: custErr } = await supabase
+          .from('customers')
+          .select('name, company, email, phone')
+          .eq('id', j.customer_id)
+          .maybeSingle()
+        if (custErr) throw new Error(`customers: ${custErr.message}`)
+        customer = (cust as ARDetail['customer']) ?? null
+      }
+    }
+  }
+
+  return {
+    ...summary,
+    items: ((itemData ?? []) as ARItemRecord[]).map(toARItem),
+    customer,
+    shipping,
+  }
+}
+
+/**
+ * What our own catalogue already says a line costs at this supplier, keyed by
+ * job-request item id — seeded into the request so they confirm or correct a
+ * number instead of typing one from scratch.
+ *
+ * Deliberately narrow. The look-up runs in `search_inventory`'s **exact
+ * identity mode** (the quoted query, migration 0057 — no fuzzy tail), scoped
+ * to this supplier's own rows and to the size asked for, and a price is taken
+ * only when every surviving row agrees on one. Anything less certain goes out
+ * blank: an empty box costs the supplier a moment, a wrong number in front of
+ * them costs more. A failed look-up is never a failed request.
+ */
+async function catalogPrices(
+  supplierId: number,
+  items: { id: number; name: string; size: string | null }[],
+): Promise<Map<number, number>> {
+  const found = new Map<number, number>()
+  await Promise.all(
+    items.map(async (item) => {
+      const name = item.name.replace(/"/g, '').trim()
+      if (!name) return
+      const { data, error } = await supabase
+        .rpc('search_inventory', { search: `"${name}"` })
+        .eq('supplier_id', supplierId)
+        .gt('unit_price', 0)
+      if (error) return
+      const size = item.size?.trim().toLowerCase()
+      const rows = (data ?? []) as {
+        size: string | null
+        size_std: string | null
+        unit_price: number | string
+      }[]
+      const prices = new Set<number>(
+        rows
+          .filter((row) =>
+            !size ? true : (row.size_std ?? row.size ?? '').trim().toLowerCase() === size,
+          )
+          .map((row) => Number(row.unit_price)),
+      )
+      if (prices.size === 1) {
+        const [price] = [...prices]
+        if (Number.isFinite(price) && price > 0) found.set(item.id, price)
+      }
+    }),
+  )
+  return found
+}
+
+/**
+ * Create one availability request from a job request's lines.
+ *
+ * The lines are snapshotted — name, size, quantity copied at share time — so
+ * the question the supplier answers is the one that was asked, whatever the
+ * job request looks like later. `unit_price` is seeded from the catalogue
+ * where we already know it (`catalogPrices`); `status` stays NULL, which is
+ * the only thing that says a line has been answered.
+ */
+export async function createAvailabilityRequest(input: {
+  jobRequestId: number
+  supplierId: number
+  shareCustomerDetails: boolean
+  itemIds: number[]
+  /** Who sent it — opens the request's task thread in the transcript. */
+  senderName?: string | null
+}): Promise<number> {
+  const { data: sup, error: supErr } = await supabase
+    .from('suppliers')
+    .select('id, is_onboarded, is_active')
+    .eq('id', input.supplierId)
+    .maybeSingle()
+  if (supErr) throw new Error(`suppliers: ${supErr.message}`)
+  const supplier = sup as { is_onboarded: boolean; is_active: boolean } | null
+  if (!supplier?.is_active) throw new Error('supplier not found')
+  if (!supplier.is_onboarded) {
+    throw new Error('supplier is not onboarded — reach them through their conversation thread')
+  }
+
+  if (!input.itemIds.length) throw new Error('at least one line is required')
+  const { data: items, error: itemErr } = await supabase
+    .from('job_request_items')
+    .select('id, name, size, quantity')
+    .in('id', input.itemIds)
+    .eq('job_request_id', input.jobRequestId)
+    .eq('is_active', true)
+  if (itemErr) throw new Error(`job_request_items: ${itemErr.message}`)
+  if (!items?.length) throw new Error('no active lines of this request match the selection')
+
+  const { data: created, error: arErr } = await supabase
+    .from('availability_requests')
+    .insert({
+      job_request_id: input.jobRequestId,
+      supplier_id: input.supplierId,
+      share_customer_details: input.shareCustomerDetails,
+    })
+    .select('id')
+    .single()
+  if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
+  const arId = (created as { id: number }).id
+
+  const lines = items as {
+    id: number
+    name: string
+    size: string | null
+    quantity: number | null
+  }[]
+  const prices = await catalogPrices(input.supplierId, lines)
+
+  const { error: insErr } = await supabase.from('availability_request_items').insert(
+    lines.map((it) => ({
+      availability_request_id: arId,
+      job_request_item_id: it.id,
+      name: it.name,
+      size: it.size,
+      quantity: it.quantity,
+      unit_price: prices.get(it.id) ?? null,
+    })),
+  )
+  if (insErr) {
+    // Don't leave a request with no lines behind the failure.
+    await supabase.from('availability_requests').delete().eq('id', arId)
+    throw new Error(`availability_request_items: ${insErr.message}`)
+  }
+
+  // Open the request's task thread in the transcript — the same note daisy
+  // leaves when she creates one, so the chat view never shows a request that
+  // appeared from nowhere. Best-effort: the request exists either way.
+  await addSupplierMessage({
+    supplierId: input.supplierId,
+    sender: 'broker',
+    senderName: input.senderName ?? null,
+    channel: 'internal',
+    body: `Sent availability request AR-${arId} (${items.length} ${items.length === 1 ? 'line' : 'lines'}).`,
+    jobRequestId: input.jobRequestId,
+  }).catch(() => {})
+
+  return arId
+}
+
+/** The response columns a supplier may write; everything else is the ask. */
+const AR_ITEM_WRITABLE = ['status', 'available_quantity', 'unit_price', 'notes'] as const
+
+/**
+ * Write one line's answer, scoped: the item must belong to the request, and —
+ * from the portal — the request to that supplier, still open.
+ */
+export async function updateARItem(
+  arId: number,
+  itemId: number,
+  changes: Record<string, string>,
+  opts: { forSupplierId?: number } = {},
+): Promise<void> {
+  const ar = await arForWrite(arId, opts.forSupplierId)
+
+  const values: Record<string, string | number | null> = {}
+  for (const [column, raw] of Object.entries(changes)) {
+    if (!(AR_ITEM_WRITABLE as readonly string[]).includes(column)) {
+      throw new Error(`refusing to write availability_request_items.${column}`)
+    }
+    const trimmed = raw.trim()
+    if (column === 'status') {
+      if (trimmed === '') values.status = null
+      else if ((AR_RESPONSES as readonly string[]).includes(trimmed)) values.status = trimmed
+      else throw new Error(`status must be one of: ${AR_RESPONSES.join(', ')}`)
+      continue
+    }
+    if (column === 'available_quantity' || column === 'unit_price') {
+      if (trimmed === '') {
+        values[column] = null
+        continue
+      }
+      const n = Number(trimmed)
+      if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
+      values[column] = n
+      continue
+    }
+    values[column] = trimmed === '' ? null : trimmed
+  }
+  if (!Object.keys(values).length) throw new Error('at least one change is required')
+
+  const { data, error } = await supabase
+    .from('availability_request_items')
+    .update(values)
+    .eq('id', itemId)
+    .eq('availability_request_id', ar.id)
+    .eq('is_active', true)
+    .select('id')
+  if (error) throw new Error(`availability_request_items: ${error.message}`)
+  if (!data?.length) throw new Error('line not found')
+}
+
+/** The request, checked for writing: active, the supplier's own, not closed. */
+async function arForWrite(arId: number, forSupplierId?: number): Promise<ARRecord> {
+  const { data, error } = await supabase
+    .from('availability_requests')
+    .select(AR_COLUMNS)
+    .eq('id', arId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  const ar = data as ARRecord | null
+  if (!ar || (forSupplierId != null && ar.supplier_id !== forSupplierId)) {
+    throw new Error('availability request not found')
+  }
+  if (ar.status === 'closed') throw new Error('this request is closed')
+  return ar
+}
+
+/**
+ * The portal home's whole list: every request with its lines embedded, so the
+ * cards expand, search and filter without a fetch per card. Customer details
+ * ride along only where `share_customer_details` says so.
+ */
+export async function listPortalRequests(supplierId: number): Promise<ARDetail[]> {
+  const { data, error } = await supabase
+    .from('availability_requests')
+    .select(AR_COLUMNS)
+    .eq('supplier_id', supplierId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  const records = (data ?? []) as ARRecord[]
+  if (!records.length) return []
+
+  const summaries = await summarize(records)
+
+  const { data: itemData, error: itemErr } = await supabase
+    .from('availability_request_items')
+    .select(AR_ITEM_COLUMNS)
+    .in('availability_request_id', records.map((r) => r.id))
+    .eq('is_active', true)
+    .order('id', { ascending: true })
+  if (itemErr) throw new Error(`availability_request_items: ${itemErr.message}`)
+  const itemsByAr = new Map<number, ARItem[]>()
+  for (const raw of (itemData ?? []) as ARItemRecord[]) {
+    const list = itemsByAr.get(raw.availability_request_id) ?? []
+    list.push(toARItem(raw))
+    itemsByAr.set(raw.availability_request_id, list)
+  }
+
+  // Disclosure: the shared requests' jobs and customers, one batch each.
+  interface SharedJob {
+    id: number
+    customer_id: number | null
+    shipping_address: string | null
+    shipping_city: string | null
+    shipping_state: string | null
+    shipping_zip: string | null
+  }
+  const sharedJobs = [...new Set(records.filter((r) => r.share_customer_details).map((r) => r.job_request_id))]
+  const jobById = new Map<number, SharedJob>()
+  const customerById = new Map<number, ARDetail['customer']>()
+  if (sharedJobs.length) {
+    const { data: jobs, error: jobErr } = await supabase
+      .from('job_requests')
+      .select('id, customer_id, shipping_address, shipping_city, shipping_state, shipping_zip')
+      .in('id', sharedJobs)
+    if (jobErr) throw new Error(`job_requests: ${jobErr.message}`)
+    for (const j of (jobs ?? []) as SharedJob[]) {
+      jobById.set(j.id, j)
+    }
+    const customerIds = [...new Set([...jobById.values()].map((j) => j.customer_id).filter((v): v is number => v != null))]
+    if (customerIds.length) {
+      const { data: custs, error: custErr } = await supabase
+        .from('customers')
+        .select('id, name, company, email, phone')
+        .in('id', customerIds)
+      if (custErr) throw new Error(`customers: ${custErr.message}`)
+      for (const c of (custs ?? []) as ({ id: number } & Exclude<ARDetail['customer'], null>)[]) {
+        customerById.set(c.id, { name: c.name, company: c.company, email: c.email, phone: c.phone })
+      }
+    }
+  }
+
+  return summaries.map((summary) => {
+    const job = summary.shareCustomerDetails ? jobById.get(summary.jobRequestId) : undefined
+    return {
+      ...summary,
+      items: itemsByAr.get(summary.id) ?? [],
+      customer: job?.customer_id != null ? customerById.get(job.customer_id) ?? null : null,
+      shipping: job
+        ? {
+            address: job.shipping_address,
+            city: job.shipping_city,
+            state: job.shipping_state,
+            zip: job.shipping_zip,
+          }
+        : null,
+    }
+  })
+}
+
+/** The supplier pressed Save. Returns context for the notification. */
+export async function submitAvailabilityRequest(
+  arId: number,
+  forSupplierId: number,
+): Promise<{ jobRequestId: number; supplierId: number; supplierName: string }> {
+  const ar = await arForWrite(arId, forSupplierId)
+  const { error } = await supabase
+    .from('availability_requests')
+    .update({ status: 'submitted', submitted_at: new Date().toISOString() })
+    .eq('id', ar.id)
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  const names = await supplierNames([ar.supplier_id])
+  return {
+    jobRequestId: ar.job_request_id,
+    supplierId: ar.supplier_id,
+    supplierName: names.get(ar.supplier_id) ?? `Supplier ${ar.supplier_id}`,
+  }
+}
+
+/** Admin-side status write — the only column the admin edits on the request. */
+export async function setAvailabilityRequestStatus(arId: number, status: string): Promise<void> {
+  if (!['new', 'submitted', 'closed'].includes(status)) {
+    throw new Error('status must be one of: new, submitted, closed')
+  }
+  const { data, error } = await supabase
+    .from('availability_requests')
+    .update({ status })
+    .eq('id', arId)
+    .eq('is_active', true)
+    .select('id')
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  if (!data?.length) throw new Error('availability request not found')
+}
+
+/** Append one message to a supplier's thread. Append-only — there is no edit. */
+export async function addSupplierMessage(input: {
+  supplierId: number
+  sender: 'broker' | 'supplier'
+  senderName: string | null
+  channel: MessageChannel
+  body: string
+  jobRequestId?: number | null
+  availabilityRequestId?: number | null
+}): Promise<SupplierMessage> {
+  let jobRequestId = input.jobRequestId ?? null
+  // A message about an availability request is about its job too; fill the
+  // link in so the job-side supplier links can find the thread.
+  if (input.availabilityRequestId != null && jobRequestId == null) {
+    const { data } = await supabase
+      .from('availability_requests')
+      .select('job_request_id')
+      .eq('id', input.availabilityRequestId)
+      .maybeSingle()
+    jobRequestId = (data as { job_request_id: number } | null)?.job_request_id ?? null
+  }
+
+  const { data, error } = await supabase
+    .from('supplier_messages')
+    .insert({
+      supplier_id: input.supplierId,
+      job_request_id: jobRequestId,
+      availability_request_id: input.availabilityRequestId ?? null,
+      sender: input.sender,
+      sender_name: input.senderName,
+      channel: input.channel,
+      body: input.body,
+    })
+    .select(MSG_COLUMNS)
+    .single()
+  if (error) throw new Error(`supplier_messages: ${error.message}`)
+  return toMessage(data as MessageRecord)
+}
+
+/**
+ * A supplier's whole thread (all its locations at once), oldest first.
+ *
+ * `supplierFacing` is the portal's view: `internal` messages — instructions to
+ * daisy, agents' notes, the migrated log — never cross to the supplier.
+ */
+export async function listSupplierMessages(
+  supplierIds: number[],
+  opts: { supplierFacing?: boolean } = {},
+): Promise<SupplierMessage[]> {
+  if (!supplierIds.length) return []
+  let q = supabase
+    .from('supplier_messages')
+    .select(MSG_COLUMNS)
+    .in('supplier_id', supplierIds)
+    .order('created_at', { ascending: true })
+    .limit(1000)
+  if (opts.supplierFacing) q = q.neq('channel', 'internal')
+  const { data, error } = await q
+  if (error) throw new Error(`supplier_messages: ${error.message}`)
+  return ((data ?? []) as MessageRecord[]).map(toMessage)
+}
+
+/** The suppliers an availability request can be sent to. */
+export async function listOnboardedSuppliers(): Promise<
+  { id: number; name: string; city: string | null; state: string | null }[]
+> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('id, name, city, state')
+    .eq('is_active', true)
+    .eq('is_onboarded', true)
+    .order('name', { ascending: true })
+  if (error) throw new Error(`suppliers: ${error.message}`)
+  return (data ?? []) as { id: number; name: string; city: string | null; state: string | null }[]
+}
+
+/** One supplier's display name — for events that carry it. */
+export async function supplierDisplayName(id: number): Promise<string> {
+  const names = await supplierNames([id])
+  return names.get(id) ?? `Supplier ${id}`
+}
+
+/** The portal's idea of its supplier: must exist, be active, and be onboarded. */
+export async function portalSupplier(id: number): Promise<{ id: number; name: string } | null> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('id, name, is_onboarded')
+    .eq('id', id)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) throw new Error(`suppliers: ${error.message}`)
+  const s = data as { id: number; name: string; is_onboarded: boolean } | null
+  return s?.is_onboarded ? { id: s.id, name: s.name } : null
+}
+
+/**
+ * The suppliers engaged on each of these job requests — availability requests
+ * and thread messages both count as engagement. What the sourcing-note links
+ * are built from.
+ */
+export async function supplierLinksByRequest(
+  jobRequestIds: number[],
+): Promise<Record<number, SupplierLink[]>> {
+  if (!jobRequestIds.length) return {}
+
+  const [{ data: ars, error: arErr }, { data: msgs, error: msgErr }] = await Promise.all([
+    supabase
+      .from('availability_requests')
+      .select('id, job_request_id, supplier_id, created_at')
+      .in('job_request_id', jobRequestIds)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('supplier_messages')
+      .select('job_request_id, supplier_id')
+      .in('job_request_id', jobRequestIds),
+  ])
+  if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
+  if (msgErr) throw new Error(`supplier_messages: ${msgErr.message}`)
+
+  // job → supplier → newest AR id (the AR list is newest-first).
+  const engaged = new Map<number, Map<number, number | null>>()
+  const touch = (job: number, supplier: number, arId: number | null) => {
+    const bySupplier = engaged.get(job) ?? new Map<number, number | null>()
+    if (!bySupplier.has(supplier) || (bySupplier.get(supplier) == null && arId != null)) {
+      bySupplier.set(supplier, arId)
+    }
+    engaged.set(job, bySupplier)
+  }
+  for (const r of (ars ?? []) as { id: number; job_request_id: number; supplier_id: number }[]) {
+    touch(r.job_request_id, r.supplier_id, r.id)
+  }
+  for (const m of (msgs ?? []) as { job_request_id: number | null; supplier_id: number }[]) {
+    if (m.job_request_id != null) touch(m.job_request_id, m.supplier_id, null)
+  }
+
+  const supplierIds = [...new Set([...engaged.values()].flatMap((m) => [...m.keys()]))]
+  if (!supplierIds.length) return {}
+  const { data: sups, error: supErr } = await supabase
+    .from('suppliers')
+    .select('id, name, is_onboarded')
+    .in('id', supplierIds)
+  if (supErr) throw new Error(`suppliers: ${supErr.message}`)
+  const meta = new Map(
+    ((sups ?? []) as { id: number; name: string; is_onboarded: boolean }[]).map((s) => [s.id, s]),
+  )
+
+  const out: Record<number, SupplierLink[]> = {}
+  for (const [job, bySupplier] of engaged) {
+    out[job] = [...bySupplier.entries()]
+      .map(([supplierId, arId]) => {
+        const s = meta.get(supplierId)
+        return s
+          ? {
+              supplierId,
+              name: s.name,
+              onboarded: s.is_onboarded,
+              availabilityRequestId: arId,
+            }
+          : null
+      })
+      .filter(Boolean) as SupplierLink[]
+  }
+  return out
+}

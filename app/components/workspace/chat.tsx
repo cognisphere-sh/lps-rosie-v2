@@ -828,7 +828,17 @@ function Composer({
   big?: boolean
 }) {
   const picker = useRef<HTMLInputElement>(null)
+  const box = useRef<HTMLTextAreaElement>(null)
   const canSend = Boolean(draft.trim() || composer.files.length)
+
+  // Grow the textarea with its content up to max-h, then scroll inside it.
+  // Runs on every draft change so pastes and the post-send clear resize too.
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [draft])
 
   return (
     <div className="flex-none border-t border-border bg-background">
@@ -906,7 +916,7 @@ function Composer({
           </button>
         </div>
       ) : (
-      <div className="flex items-center gap-2 px-3.5 py-3">
+      <div className="flex items-end gap-2 px-3.5 py-3">
         <input
           ref={picker}
           type="file"
@@ -922,7 +932,7 @@ function Composer({
           onClick={() => picker.current?.click()}
           title="Attach a file"
           aria-label="Attach a file"
-          className="flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Paperclip size={big ? 17 : 15} />
         </button>
@@ -931,25 +941,30 @@ function Composer({
           onClick={composer.record}
           title="Record a voice note"
           aria-label="Record a voice note"
-          className="flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Mic size={big ? 17 : 15} />
         </button>
 
-        <input
+        <textarea
+          ref={box}
           value={draft}
+          rows={1}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={composer.onPaste}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // `big` is the mobile sheet: there Enter inserts a newline and
+            // only the Send button sends. On desktop Enter sends, Shift+Enter
+            // inserts a newline.
+            if (e.key === 'Enter' && !e.shiftKey && !big) {
               e.preventDefault()
               onSend()
             }
           }}
           placeholder={composer.busy ? 'Uploading…' : `Ask ${agent.name}…`}
           className={cn(
-            'font-chat min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-[16px] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-            big ? 'h-10' : 'h-9',
+            'font-chat max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+            big ? 'min-h-10 py-2' : 'min-h-9 py-1.5',
           )}
         />
         <button

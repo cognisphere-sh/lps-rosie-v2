@@ -15,7 +15,13 @@ import { resolveUser } from '@/lib/session'
 // asking the harness who it belongs to.
 //
 // `proxy` is Next 16's replacement for the `middleware` file convention.
-const PUBLIC_PREFIXES = ['/login', '/api/auth']
+//
+// `/portal` and `/api/portal` are the supplier portal: suppliers are not
+// harness users, and portal auth is a deliberately deferred step (Bhoumik,
+// 2026-08-19), so for now the routes are open and scope themselves to the
+// supplier id in the URL — onboarded suppliers only, customer details only
+// where `share_customer_details` says so. Revisit this line when auth lands.
+const PUBLIC_PREFIXES = ['/login', '/api/auth', '/portal', '/api/portal']
 
 // A published artifact is meant to be readable by anyone with the link — that
 // is the whole point of its public flag — so this one path shape is exempt from

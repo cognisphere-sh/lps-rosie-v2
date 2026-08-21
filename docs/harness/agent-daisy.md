@@ -52,6 +52,13 @@ reference docs and memory.
   Send via `scripts/agent-msg/send --to-agent <id> --thread-id <id> --message …`;
   identity is harness-set (not spoofable); a disallowed sender gets HTTP 403.
   No inbox restriction configured here.
+- **supplier-events** (config `{}`) — user-space plugin
+  ([doc](plugin-supplier-events.md)), added 2026-08-19: the app wakes her on
+  supplier activity — a portal availability Save or chat message, and
+  chat-view instructions — all on the supplier's one thread
+  (`supplier-<id>`).
+  Secret `daisy.supplier-events.SUPPLIER_EVENTS_APP_SECRET`, wired by
+  `scripts/app/secrets.sh`.
 - **gws** (Google Workspace/Gmail) — polls Gmail server-side, emits one
   `email_received` per inbound message. Since harness 0.8.22 that notification
   is a **preview** — header, first two lines of the sender's own text, and
@@ -473,15 +480,38 @@ something changed and stay true.
   the encoder settings change. Also ships `scripts/reclaim-orphans`, the storage
   sweep over `plant_photo_reclaimable()` — dry run by default, `--reason orphan`
   for the half that cannot cost anyone a photo they wanted back.
+- **availability-requests** — the supplier-portal channel (2026-08-19): the
+  never-available-before-confirmation rule (a listing is not an answer — lines
+  stay pending until the supplier or Chris confirms), the `is_onboarded` gate
+  and **Chris's go-ahead before a request is raised** (she asks; he decides,
+  unless he asked for it or created it in the app) — carrying the two questions
+  a request cannot default, **does every line go** and **are the customer's
+  details shared** — creating a request from a job request's lines (**every
+  active one by default**, the ones no price list matched included)
+  (snapshotting the ask — reading the customer tables, never writing them —
+  and **prefilling `unit_price`** from that supplier's own inventory row where
+  it answers the line, so they confirm or correct a number rather than typing
+  one; `status` stays the only column that says a line was answered),
+  handling `availability_submitted` (the supplier's Save) /
+  `supplier_message` events on the supplier's thread, replying in their portal
+  chat as Daisy on the `app` channel, relaying answers to rosie in her
+  sourcing-notes shape, and the `new`/`submitted`/`closed` lifecycle (the
+  `submitted` status renders as *Answered* — the portal's button is Save).
 - **supplier-communications** — one skill for talking to a supplier and
   recording it (merges the former `supplier-communication-log` and
-  `supplier-email-reply`): the never-reply-unbidden rule, the main-thread
-  redirect, the draft-and-approve step, sending as Chris in the existing Gmail
-  thread, the Gmail-thread-scoped `gws` routing rule that brings the reply back
-  (never a sender-wide one — it would swallow their next availability drop),
-  appending to `suppliers.communication_notes`, and which of
-  `communication_notes` / `notes` / workspace `notes.md` a fact belongs in. A
-  routine availability drop is **not** logged as a contact.
+  `supplier-email-reply`; 2.0.0 on 2026-08-19): the never-email-unbidden rule
+  (raising an availability request needs Chris's go-ahead too; only replying
+  within an open request thread is approval-free), the
+  **one-thread-per-supplier** convention (`supplier-<id>`, availability
+  requests included — no per-request sub-threads; redirect work there), the draft-and-approve
+  step, sending as Chris in the existing Gmail thread, the Gmail-thread-scoped
+  `gws` routing rule that brings the reply back to the supplier thread (never
+  a sender-wide one — it would swallow their next availability drop), the
+  **`supplier_messages` transcript** that replaced `communication_notes`
+  (migration 0063; one row per message, both directions, `internal` for what
+  the supplier never sees; the old column is a frozen archive nothing writes),
+  and which of the transcript / `notes` / workspace `notes.md` a fact belongs
+  in. A routine availability drop is **not** a transcript event.
 - **create-skill** — shipped with the harness; how to author or bump one
   of the above. **Changes to any LPS skill need Chris's or Bhoumik's approval**
   first, then a version bump.

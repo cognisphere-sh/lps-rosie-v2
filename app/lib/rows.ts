@@ -2,9 +2,10 @@
 // keys in lib/columns.ts; `ref` carries the extra fields the UI needs but does
 // not show as a column.
 
+import type { SupplierLink } from '@/lib/availability'
 import type { NoteEntry } from '@/lib/notes'
 
-export type CellValue = string | number | string[] | null
+export type CellValue = string | number | boolean | string[] | null
 
 export interface SupplierRef {
   id: number
@@ -262,6 +263,11 @@ export interface JobRequestRow {
   itemCount: number
   statusCounts: StatusCounts
   lineTotal: number
+  /**
+   * The suppliers engaged on this request — availability requests and thread
+   * messages both count. What the sourcing-note supplier links render from.
+   */
+  supplierLinks: SupplierLink[]
   items: JobRequestItem[]
   createdAt: string | null
   updatedAt: string | null

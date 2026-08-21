@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { supplierLinksByRequest } from '@/lib/availability-queries'
 import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
@@ -136,6 +137,7 @@ function toRow(
   all: ItemRecord[],
   customer: JobRequestRow['customer'],
   visible: ItemRecord[],
+  supplierLinks: JobRequestRow['supplierLinks'] = [],
 ): JobRequestRow {
   const statusCounts: StatusCounts = {}
   let lineTotal = 0
@@ -158,6 +160,7 @@ function toRow(
     itemCount: all.length,
     statusCounts,
     lineTotal,
+    supplierLinks,
     items: visible.map(toItem),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -296,9 +299,10 @@ export async function listJobRequests(
   if (error) throw new Error(`job_requests: ${error.message}`)
 
   const records = (data ?? []) as RequestRecord[]
-  const [itemMap, customerMap] = await Promise.all([
+  const [itemMap, customerMap, linkMap] = await Promise.all([
     itemsByRequest(records.map((r) => r.id)),
     customersById(records.map((r) => r.customer_id).filter((v): v is number => v != null)),
+    supplierLinksByRequest(records.map((r) => r.id)),
   ])
 
   const requests: JobRequestRow[] = records.map((r) => {
@@ -317,7 +321,7 @@ export async function listJobRequests(
     })
 
     const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
-    return toRow(r, all, customer, visible)
+    return toRow(r, all, customer, visible, linkMap[r.id] ?? [])
   })
 
   const total = count ?? requests.length
@@ -345,13 +349,14 @@ export async function jobRequest(id: number): Promise<JobRequestRow | null> {
   if (!data) return null
 
   const r = data as RequestRecord
-  const [itemMap, customerMap] = await Promise.all([
+  const [itemMap, customerMap, linkMap] = await Promise.all([
     itemsByRequest([r.id]),
     customersById(r.customer_id == null ? [] : [r.customer_id]),
+    supplierLinksByRequest([r.id]),
   ])
   const all = itemMap.get(r.id) ?? []
   const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
-  return toRow(r, all, customer, all)
+  return toRow(r, all, customer, all, linkMap[r.id] ?? [])
 }
 
 async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['customer']>> {

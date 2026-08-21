@@ -22,14 +22,21 @@ statuses the Job Requests UI reads. The
 division of labor with daisy is the database's own line: rosie writes the
 customer tables and only reads the supplier tables; daisy the reverse.
 
-Three hard policies, stated in `system_prompts/1-agent.md` and detailed in the
+Four hard policies, stated in `system_prompts/1-agent.md` and detailed in the
 skills:
 
-1. **Never contacts a supplier.** Every supplier-side question the database
-   can't answer goes as an agent-message to daisy (subject `sourcing: JR <id> — …`). Daisy's
-   `1-agent.md` has a matching section: rosie's ask is task input, not
-   authorization — supplier contact still runs through daisy's
-   `supplier-communications` approval rules.
+1. **Never contacts a supplier** — not by email, not through the supplier
+   portal (2026-08-19: the portal briefly looked like her channel and Bhoumik
+   ruled it is daisy's). Every supplier-side question the database can't
+   answer goes as an agent-message to daisy **on that supplier's own thread**
+   (`supplier-<id>` — one conversation per supplier, availability-request
+   follow-ups included; `main` only when no supplier is in play yet), with the
+   ask mirrored into the
+   `supplier_messages` transcript as an `internal` row so the app's chat view
+   shows it. Daisy's `1-agent.md` has a matching section: rosie's ask is task
+   input, not authorization — whether and how a supplier gets contacted (email
+   or their portal) is daisy's `supplier-communications` /
+   `availability-requests` rules and Chris's approval.
 2. **Never emails a customer unbidden** — draft first, Chris approves the
    specific draft, and (until she has a mailbox) Chris sends it himself. Every
    contact is logged in `customers.communication_notes`.
@@ -38,6 +45,28 @@ skills:
    immediately before UPDATE, guarded status transitions, append-only notes,
    and the last-5 `job_request_changelog` entries loaded with every
    request/item she acts on.
+4. **A listing is not availability** (Chris, 2026-08-19, after JR-5 — she
+   priced eleven lines off the Austin Plant Supply list and marked them
+   `available`, which the skill told her to do). The inventory tables are
+   published price lists, Austin Plant Supply's included; a hit fills
+   `unit_price` and a `sourcing_notes` line and leaves the item **`pending`**.
+   Only two things move it: the supplier's own answer relayed by daisy
+   (normally an availability request in their portal — her channel, Chris's
+   call), or Chris explicitly saying to treat the line as confirmed. **The ask
+   carries every line of the request** — priced, substituted and unmatched
+   alike, since a line missing from a price list is the one a supplier is most
+   likely to surprise us on; only a line Chris explicitly excluded is left off.
+   The confirmation flow is `job-requests` §5.3; daisy's
+   `availability-requests` states the same rule from her side, and puts the two
+   questions to Chris before a request goes out (all lines or a subset, and
+   whether the customer's details are shared).
+
+**She runs each job request's sourcing round in a task thread** —
+`main-§-[TASK]-§-jr-<id>-sourcing`, spawned as the last step of intake. The
+look-ups, the item writes and the asks to daisy live there (daisy's answers
+come back to it via `--from-thread-id`); `main` keeps the conversation with
+Chris and the `## Tasks` tracking line. A quote build and any long read get
+their own task threads the same way.
 
 Two conventions the same prompt carries, added 2026-08-18 on Chris's
 instruction and detailed in the `job-requests` skill:
@@ -51,7 +80,8 @@ instruction and detailed in the `job-requests` skill:
   Plant Supply, which supplier quoted and what they quoted. Chris or the
   customer naming — or excluding — a supplier overrides the ladder, and a
   supplier named that way is the only one whose price she writes into
-  `unit_price`.
+  `unit_price`. **Pricing a line is not confirming it** (policy 4): every rung
+  of the ladder leaves the item `pending`.
 - **`sourcing_notes` is a working sheet, not a log.** Free text she edits in
   place: on an item, a terse line per supplier in one shape — the row that
   supplier has, then `@ $N/unit`, with `Substitute:` in front when the row
@@ -110,7 +140,7 @@ daisy already reads `chris.r@localplantsupply.com`), the enable procedure is:
    and the README comparison table.
 
 Until then, the customer-email flow ends with Chris sending the approved text
-himself (`job-requests` skill, §8).
+himself (`job-requests` skill, §7).
 
 ## Knowledge (`knowledge/`)
 
@@ -151,7 +181,7 @@ deliberately not repeated here, where it would only go stale.
 
 | Skill | What it is |
 |---|---|
-| `job-requests` | The core operating procedure: intake (incl. anonymous), concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends), the free-text `sourcing_notes` (a line per supplier in one shape — the row priced, then its price, `Substitute:`-prefixed when it isn't the ask; renamed from `internal_notes` by migration 0061) against the stamped, append-only contact log, the last-5-changelog fetch rule, the three-notes split — including that `customer_notes` holds only what no structured column already does — and the customer-visibility rule (qty changes / substitutions **named** in `external_notes`, never explained, sizes as `XX G`, and no supplier, supplier price or price list in the shared note at all unless someone explicitly asks for it), the Austin-Plant-Supply-first pricing and sourcing ladder (`unit_price` is the only column she fills, and it carries an Austin Plant Supply price — another supplier's stays in `sourcing_notes` unless Chris or the customer sourced the line there), sourcing via daisy, the four-word item status vocabulary — the only thing that says a line needs a person, since `needs_attention` was dropped by migration 0060 — and the request lifecycle, the Chris-approved customer-contact flow |
-| `plant-and-supplier-search` | Adapted from daisy's — same RPC guidance, plus the read-only framing (findings go to item `sourcing_notes`; data problems get reported to daisy, not fixed) and the sourcing look-up scoped to Austin Plant Supply. Fold daisy-side search changes in on approval |
-| `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule (same explicitly-asked-for exception as the shared note), agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate |
+| `job-requests` | The core operating procedure: intake (incl. anonymous), concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends), the free-text `sourcing_notes` (a line per supplier in one shape — the row priced, then its price, `Substitute:`-prefixed when it isn't the ask; renamed from `internal_notes` by migration 0061) against the stamped, append-only contact log, the last-5-changelog fetch rule, the three-notes split — including that `customer_notes` holds only what no structured column already does — and the customer-visibility rule (qty changes / substitutions **named** in `external_notes`, never explained, sizes as `XX G`, and no supplier, supplier price or price list in the shared note at all unless someone explicitly asks for it), the Austin-Plant-Supply-first pricing and sourcing ladder (`unit_price` is the only column she fills, and it carries an Austin Plant Supply price — another supplier's stays in `sourcing_notes` unless Chris or the customer sourced the line there), sourcing via daisy on the supplier's own thread (she owns every supplier conversation, portal included; the ask is mirrored into the `supplier_messages` transcript), the confirmation gate — a catalogue hit prices a line and leaves it `pending`; only a supplier's answer or Chris's word makes it `available`/`alternative_proposed` (§5.3) — the per-request sourcing task thread spawned at intake, the four-word item status vocabulary — the only thing that says a line needs a person, since `needs_attention` was dropped by migration 0060 — and the request lifecycle, the Chris-approved customer-contact flow |
+| `plant-and-supplier-search` | Adapted from daisy's — same RPC guidance, plus the read-only framing (findings go to item `sourcing_notes`; data problems get reported to daisy, not fixed; a hit is a listing, never an availability) and the sourcing look-up scoped to Austin Plant Supply. Fold daisy-side search changes in on approval |
+| `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule (same explicitly-asked-for exception as the shared note), agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate. A filled `unit_price` is not permission to quote: a priced `pending` line is unconfirmed |
 | `create-skill` | Installed by `cognisphere agent new` (template) |

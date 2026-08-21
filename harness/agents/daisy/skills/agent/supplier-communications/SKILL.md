@@ -1,15 +1,16 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never contact one unbidden), the main-thread redirect, composing and sending as Chris on the email's own thread, routing the reply back with a thread-scoped rule, logging the contact in `suppliers.communication_notes`, and which of the three note homes a supplier fact belongs in. Use when asked to reply to, chase or question a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v1.1.1)
+description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden; raising an availability request needs Chris's go-ahead too — the availability-requests skill), the one-thread-per-supplier convention (`supplier-<id>` — availability requests included, no per-request sub-threads), composing and sending as Chris, routing the reply back with a thread-scoped rule, the supplier_messages transcript that replaced the old communication_notes log, instructions arriving from the app's chat view, and which home a supplier fact belongs in. Use when asked to reply to, chase or question a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v2.2.0)
 metadata:
   author: lps
-  version: "1.1.1"
+  version: "2.2.0"
 ---
 
 # Supplier communications
 
-Two halves: **replying to a supplier** (only when told to), and **logging the
-contact** (always).
+Two halves: **replying to a supplier** (only when told to — email; the portal
+channel is the `availability-requests` skill), and **keeping the transcript**
+(always).
 
 ## Authorization
 
@@ -17,25 +18,35 @@ Never respond to a supplier's availability email, and never ask a supplier a
 follow-up question, unless Chris or Bhoumik explicitly instructs you to. Silently
 read and ingest availability by default. A missing price, unclear size, or
 incomplete availability is **not** permission to email the supplier — surface it
-to Chris/Bhoumik instead.
+to Chris/Bhoumik instead. (The **portal** follows the same rule: raising an
+availability request needs Chris's go-ahead — confirm with him first unless he
+asked for it or created it himself in the app. Replying within an already-open
+request's portal thread is answering, not outreach, and needs no per-message
+approval — the `availability-requests` skill has the details.)
 
-## When Chris asks on the main thread
+## One thread per supplier
 
-Don't send the reply from `main` — the email's own thread has the full context.
-Look up that email's ThreadId (`workspace/index.md` maps `Subject[ThreadId]`;
-`workspace/threads/<ThreadId>/` has the summary) and redirect the request there:
+**Each supplier's conversation is one thread: `supplier-<supplierId>`.** That
+is where the app's chat-view instructions and the portal's availability events
+arrive (the `supplier-events` plugin), where rosie sends supplier-specific
+asks, and where your own work on that supplier belongs — availability requests
+included; there are no per-request sub-threads. Older email-subject threads
+still exist as history; new work goes to the supplier thread.
+
+When a request lands somewhere else (`main`, an old email thread), redirect it
+rather than working it there:
 
 ```bash
-bash scripts/agent-msg/send --to-agent daisy --thread-id <emailThreadId> \
-  --from-agent daisy --from-thread-id main \
+bash scripts/agent-msg/send --to-agent daisy --thread-id "supplier-<supplierId>" \
+  --from-agent daisy --from-thread-id <ThreadId> \
   --subject "reply request from Chris" \
   --message "<exactly what Chris wants said / conveyed>"
 ```
 
-That thread composes and sends the reply, then reports what it sent back to
-`main` via agent-messaging so Chris can be told.
+The supplier thread composes and sends the reply, then reports what it sent
+back via agent-messaging so Chris can be told.
 
-## Composing and sending (on the email's own thread)
+## Composing and sending (on the supplier's thread)
 
 1. **Reread the most recent messages in the Gmail thread** so the reply fits the
    latest sender and conversation state.
@@ -47,7 +58,7 @@ That thread composes and sends the reply, then reports what it sent back to
 4. Keep it plain-text and short.
 5. **Reply in the same Gmail thread** — never start a new thread for an existing
    topic.
-6. Log the contact (below) in the same task.
+6. Insert the transcript rows (below) in the same task.
 7. Report what was sent back to `main` so Chris can be told.
 
 Sending as Chris rather than Daisy is Chris's instruction (2026-07-14); the
@@ -55,13 +66,14 @@ Sending as Chris rather than Daisy is Chris's instruction (2026-07-14); the
 
 ### Routing the supplier's reply back to this thread
 
-If you want their answer to land here instead of opening a new harness thread,
-add a `gws` routing rule — **keyed on the Gmail thread id, never on the sender
-alone**:
+To make their answer land on the supplier's thread instead of opening a new
+harness thread,
+add a `gws` routing rule pointing at the **supplier's thread** — keyed on the
+Gmail thread id, never on the sender alone:
 
 ```bash
 tid="$(gws gmail +reply … | jq -r .threadId)"   # or the Channel of the mail you answered
-scripts/gws/routes add --name <supplier>-<topic> --thread-id "<ThreadId>" \
+scripts/gws/routes add --name <supplier>-<topic> --thread-id "supplier-<supplierId>" \
   --gmail-thread-id "$tid"
 scripts/gws/routes remove --name <supplier>-<topic>   # once the exchange is done
 ```
@@ -72,52 +84,51 @@ this one thread. Sender + exact subject is a fallback only when no Gmail thread
 id exists yet. Remove the rule when the exchange closes; a rule left behind keeps
 misrouting.
 
-## Logging the contact
+## The transcript — `supplier_messages`
 
-**Whenever you contact a supplier — or one contacts you with actual
-correspondence — append an entry to `suppliers.communication_notes` for that
-supplier, in the same task.** Not at the end of the day, not only when something
-notable happened. This column is the answer to "have we chased them about this
-yet, and when?", and it is only worth reading if it is complete.
-
-**A routine availability drop is not a contact event.** A supplier's price
-list / availability email, or a drop Chris hands you from a website, image or
-attachment, gets ingested and labelled — it does **not** get an entry in
-`communication_notes`. Log the correspondence around it (a reply you sent, a
-question they asked, a call), never the drop itself.
-
-### Entry format
-
-A timestamp line plus a short prose summary:
-
-```
-[YYYY-MM-DD HH:MM America/Chicago] <channel> · <identifier>
-<What you sent or received, and why. Outcome or what you're waiting on.>
-```
-
-- **channel** — `email`, `telegram`, `phone`, `web form`.
-- **identifier** — whatever lets someone find the conversation again:
-  `gmailThreadId=<Channel>` for email (the raw Gmail thread id), the harness
-  `ThreadId`, or the number called.
-- **why** — the reason you reached out, not just the fact that you did. "Asked
-  for the July list" is weak; "asked for the July list — theirs is 3 weeks old
-  and the 15G Live Oak price looked stale" is the useful version.
-
-### Append, never overwrite
-
-It is plain text, so this is a read-modify-write:
+**Every exchange with a supplier is rows in `supplier_messages`, inserted in
+the same task it happens.** One row per message, both directions; the app
+renders the table as the supplier's chat view, and it replaced
+`suppliers.communication_notes` on 2026-08-19 (migration 0063) — that column
+is a frozen archive now. **Never write it again.**
 
 ```sql
-UPDATE suppliers
-SET communication_notes = coalesce(communication_notes || E'\n\n', '') || $entry
-WHERE id = $supplierId;
+INSERT INTO supplier_messages
+  (supplier_id, job_request_id, availability_request_id, sender, sender_name, channel, body)
+VALUES
+  ($supplierId, $jobOrNull, $arOrNull, 'broker',   'Daisy',            'email', $whatYouSent),
+  ($supplierId, $jobOrNull, $arOrNull, 'supplier', $contactNameOrNull, 'email', $whatTheyReplied);
 ```
 
-Never rewrite past entries.
+- **`sender`** is the side — `broker` (us: you, Chris, another agent) or
+  `supplier`. **`sender_name`** is who on that side: `Daisy`, `Chris`, or the
+  supplier contact's name when known (never guessed; null otherwise).
+- **`channel`** is where it actually happened: `email` or `text` for a
+  supplier-facing exchange, `app` for the portal thread, and **`internal`**
+  for what the supplier never sees — an instruction from the app's chat view
+  (the app inserts those itself), rosie's mirrored ask, or your own note on
+  the thread. After acting on something, leave a short `internal` note
+  (`sender 'broker'`, `sender_name 'Daisy'`) summarizing what you did — that
+  is the chat view's "agent note" bubble.
+- **`body` is the substance of the message** (the ask, the answer), not the
+  whole MIME artifact. Keep the thread identifier retrievable: for email, put
+  `gmailThreadId=<id>` on the internal note (or the message body's last line)
+  so the conversation can be found again.
+- Link `job_request_id` when the exchange is about one job. Leave
+  `availability_request_id` NULL on new rows — the conversation is one thread
+  per supplier, never per request (older rows keep their linkage as history).
+- **Append-only.** Never edit or delete a row; a correction is a new message.
+
+**A routine availability drop is still not a contact event.** A supplier's
+price list / availability email gets ingested and labelled — it does **not**
+get transcript rows. Record the correspondence around it (a reply you sent, a
+question they asked), never the drop itself.
 
 ## Which place does this fact belong?
 
-- **`suppliers.communication_notes`** — what was *said to* them. Append-only.
+- **`supplier_messages`** — what was *said* (both directions), one row per
+  message, append-only. (`suppliers.communication_notes` is its frozen
+  pre-2026-08-19 archive — read-only, never written.)
 - **`suppliers.notes`** — what is *true about* them: quirks, preferences,
   price-list format, ordering constraints, anything durable with no dedicated
   column. Edited in place as facts change. Never put contact history here, and

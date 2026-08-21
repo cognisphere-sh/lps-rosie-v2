@@ -19,30 +19,93 @@ here).
 
 ### Changed
 
-- **Job Request details now follow Chris's compact workspace reference.** An
-  opened request leads with schema-backed request/contact/delivery/billing
-  blocks, one horizontal status/count/item/subtotal strip, and a denser editable
-  line table. Unsupported PO, delivery-schedule and payment-method values are
-  labelled unrecorded rather than invented; complete addresses, audience notes,
-  supplier links, selection actions and immutable history remain in their
-  existing drawers and controls. The same shared body serves customer detail,
-  stays responsive, and retains the real Shell chat instead of duplicating it.
+- Job Request details now follow the supplied compact workspace reference: an expanded request opens with schema-honest request/contact/delivery/billing-payment blocks, one horizontal status/count/item/subtotal strip, and a denser editable line table. Unsupported delivery schedule and payment-method values are called out as unrecorded rather than invented; complete addresses, audience-specific notes, supplier links, selection actions, and immutable change history remain available in their existing drawers and controls, including on the shared customer request view.
+- Supplier detail profiles now show **Type** as an explicit field and edit it through the schema-backed Grower / Nursery / Wholesaler / Other dropdown (with an unset/NULL option). The server write whitelist and enum validation now cover `suppliers.category`; values are never inferred from supplier names, and the profile is re-read after saving.
+- Daisy's Supabase query guard now lexically masks PostgreSQL strings, quoted identifiers, and nested comments. Forbidden words in ordinary source-note evidence (including doubled quotes and `E'…'` escapes) no longer cause false rejections, while real destructive statements remain visible; malformed quoted regions fail closed.
 
-- **Daisy's Supabase query guard now lexically distinguishes SQL code from
-  evidence text.** A single PostgreSQL-aware masking pass handles ordinary and
-  escape strings, tagged/untagged dollar quotes, quoted identifiers, line
-  comments, and nested block comments before the forbidden-command scan.
-  Source notes containing words such as `DO` or `DROP` are accepted verbatim;
-  real destructive syntax remains visible, malformed regions fail closed, and
-  identifier-adjacent dollar markers cannot hide later SQL. Twenty-six
-  positive/adversarial cases cover the policy and close an older regex-ordering
-  bypass in which a comment marker inside a string could hide later code.
+## 2026-08-19
 
-- **Supplier detail profiles now show and edit Type explicitly.** The existing
-  pencil → staged Save/Cancel gate now exposes a schema-backed Grower / Nursery
-  / Wholesaler / Other dropdown with an unset/NULL option. Server-side write
-  whitelisting and enum validation cover `suppliers.category`, the profile is
-  re-read after saving, and no category is ever inferred from a supplier name.
+### Added
+
+- **Supplier portal, availability requests and the per-supplier chat
+  transcript** (migrations `0062_availability_requests_and_supplier_messages`
+  and `0063_supplier_chat_transcript`). The second way to verify availability,
+  beside daisy's email: an **onboarded** supplier (`suppliers.is_onboarded` —
+  Austin Plant Supply is the first) answers a structured ask in their own
+  portal, and everything said with any supplier is one chat transcript.
+  - **Database** — `availability_requests` (job request → supplier, with
+    `share_customer_details` and a `new`/`submitted`/`closed` lifecycle),
+    `availability_request_items` (the shared lines **snapshotted** at share
+    time plus the supplier's answer: `available` | `unavailable` | `can_order`
+    | `substitute`, avail qty, price, notes) and `supplier_messages` — **the
+    supplier transcript**: one append-only row per message, `sender`
+    broker/supplier, `sender_name`, channel `email` | `text` | `app` |
+    `internal`, optionally tied to a job request and/or availability request.
+    **`suppliers.communication_notes` is retired**: 0063 migrated its 196
+    entries (92 suppliers) into the transcript as internal notes (stamps →
+    `created_at`, the literal-`\n` writing defect normalized) and froze the
+    column as a read-only archive. `customers.communication_notes` is
+    untouched.
+  - **Supplier portal** (`/portal/<supplierId>`, ungated — supplier auth is a
+    deliberately deferred step, so every route scopes itself to the onboarded
+    supplier in the URL and discloses customer details only where the request
+    shares them): the admin Shell's design language — collapsible nav rail on
+    desktop, bottom tabs on mobile, theme toggle, Settings/Log out drawn
+    disabled until sign-in exists — over a request list, a request detail with
+    the four-status line editor and Submit, per-request conversation threads,
+    and an empty-on-purpose Orders tab.
+  - **Admin app** — the supplier profile's **Communications tab is gone**;
+    **Conversation** renders the whole transcript as one flat chat after the
+    reference design: legend row; bubbles coloured by channel (text green,
+    email teal, portal lime, internal grey/dashed); our side right — agents
+    solid, staff outlined — supplier left; `time · sender` captions; messages
+    from the brief per-request era keep an `AR-<id>` jump chip. The composer
+    is mode-first: **Daisy** (records an `internal` instruction and wakes
+    her), **Portal** (onboarded farms — reaches the supplier's portal chat),
+    **Text**/**Email** (record an exchange that happens outside the app).
+    **Availability requests** tab lists and opens requests inline (deep link
+    `?tab=requests&ar=<id>`) with a Portal view link and Close/Reopen — no
+    per-request chat. The
+    Job Requests selection bar gains **Availability request** (onboarded
+    supplier + share-details flag, one request per job involved); sourcing
+    notes render **supplier link chips** built from the request's engagement;
+    the profile gains **Portal onboarded** and the **LPS tag**; the nav rail
+    gains **Supplier view**, a stand-in picker until supplier sign-in.
+  - The portal home is shaped like the admin Job Requests page — a stats
+    header (X new jobs · Y rows pending · Z rows unavailable), the admin's
+    own Toolbar (search; **multi-select chips** for job status, item status
+    and customer — the customer chip fed only by requests that share one; a
+    Requested date range; sort; Expand all) over **cards that expand in
+    place** (the per-request page is gone), each card head carrying a status
+    strip (X pending · available · can order · substitute · unavailable,
+    zeros dimmed), with a **Save** button per request that stamps `submitted`
+    (rendered *Answered* — a supplier can save partial answers and refine)
+    and wakes daisy on every save. **The chat is one thread per supplier,
+    never per availability request**: the per-request threads (and their
+    daisy task threads) lasted hours before Bhoumik settled on a single
+    conversation; the portal docks that one chat as a right sidebar the way
+    the admin app docks its agent panel — starts as the 46px rail, click to
+    open, 10-second poll, `internal` messages never cross — and creating a
+    request drops a "Sent availability request AR-n" internal note into the
+    thread, so no request appears from nowhere.
+  - **Harness** — one supplier = one **daisy** thread (`supplier-<id>`),
+    availability requests included. New user-space plugin
+    **`supplier-events`** on daisy (`POST /webhook/daisy/supplier-events/notify`,
+    gated by `SUPPLIER_EVENTS_APP_SECRET`, wired app↔harness by
+    `scripts/app/secrets.sh`): portal Saves, portal chat messages and chat-view
+    **instructions** all wake her there. **Daisy owns every
+    supplier conversation, the portal included** — her new
+    `availability-requests` skill (1.0.0) creates requests and answers events;
+    `supplier-communications` 2.0.0 replaces the retired log with the
+    transcript and the thread convention. **Rosie never touches the supplier
+    channel**: `job-requests` 1.13.0 routes every ask to daisy on the
+    supplier's thread (task thread for AR follow-ups) and mirrors it into the
+    transcript as an internal note. (Earlier the same day the portal was
+    briefly wired as rosie's channel — 1.12.0 and a rosie-side skill — before
+    Bhoumik settled the ownership; the intermediate state never shipped beyond
+    this repo.)
+
+### Changed
 
 - **Appearance controls replace the fixed forest-green app accent.** Settings
   now offers five contrast-paired app header/accent palettes with live updates,
@@ -57,9 +120,102 @@ here).
   Browser/PWA theme chrome follows the selected accent, including dark mode;
   the app's internal content header remains a neutral surface.
 
-## 2026-08-19
+- **Portal cards and chat take the admin design wholesale** (portal home,
+  `availability.tsx`, `portal.tsx`). The availability-request card head now
+  follows the Job Requests card exactly — `AR-<id>` ref in primary bold, job
+  name, status pill, right-aligned date, the shared customer on its own line,
+  and the status strip restyled to the admin demand strip (small dots,
+  tabular counts, hairline divider). The shared line table takes the admin
+  item table's row treatment: each line's answer paints a 3px left accent bar
+  and a row tint (grey while unanswered), under the admin's header
+  typography — on the portal and on the admin's read-only view alike. And the
+  supplier chat now looks identical on both sides: the portal sidebar gains
+  the same legend row the Conversation tab draws, flipped to the supplier's
+  side ("You (right)", Internal omitted since it never crosses), over the
+  already-shared bubbles and composer.
 
-### Changed
+- **Chat composer is multi-line** (`chat.tsx`). The message box is now a
+  textarea: on desktop Shift+Enter inserts a newline (Enter still sends), on
+  mobile Enter always inserts a newline and the Send button sends, pasted text
+  keeps its line breaks, and the box grows with its content up to ~6 lines
+  before scrolling internally.
+
+- **Daisy: nothing is "available" before confirmation, and Chris gates
+  availability requests** (`availability-requests` 1.1.0,
+  `supplier-communications` 2.1.0). A published listing is not an answer:
+  until the supplier submits in their portal (or replies over email/text) — or
+  Chris explicitly says to treat a line as confirmed — daisy relays it to
+  rosie as a listing ("listed at $X on their <date> sheet, awaiting
+  confirmation") and the line stays pending. And the portal is no longer
+  standing-authorized per request: unless Chris asked for one or created it
+  himself in the app, daisy confirms with him (supplier, job, lines) before
+  raising an availability request; replying within an already-open request
+  thread remains approval-free.
+
+- **An availability request covers the whole job, and Chris answers two
+  questions before it goes** (`job-requests` 1.16.0, daisy's
+  `availability-requests` 1.4.0). Rosie's §5.2 opened on "you ask her only for
+  what your own look-up couldn't settle", which made the priced lines invisible
+  to the step that confirms them and quietly dropped every line no price list
+  matched — the ones a supplier is most likely to surprise us on, since a
+  published list is what they published, not what is standing in their yard. The
+  ask now carries **every line of the request**, with what the look-up found
+  stated per line ("nothing on their list" included), and daisy's snapshot
+  defaults to every active line rather than a chosen few. A subset is Chris's
+  instruction, recorded in the excluded line's `sourcing_notes`, never an
+  inference. And the two things a request cannot default now go to him in the
+  same message as the go-ahead, answered before anything is inserted: **does
+  every line go** (named by count) and **are the customer's name and shipping
+  address shared** (`share_customer_details`, still false unless he says
+  otherwise).
+
+- **An availability request goes out with the price we already know**
+  (`availability-queries.ts`, the portal's request card, daisy's
+  `availability-requests` 1.3.0). `availability_request_items.unit_price` is
+  seeded at share time from that supplier's own `inventory` row, so the
+  supplier confirms or corrects a number instead of typing one and a price
+  that has moved since their last list reads as a correction. The app's
+  look-up is deliberately narrow — `search_inventory`'s exact identity mode
+  (no fuzzy tail), scoped to that supplier and the size asked for, and only
+  when every surviving row agrees on one price; anything less certain goes out
+  blank, because a wrong number in front of a supplier costs more than an
+  empty box. Daisy prefills from the row she can point at (usually the one
+  rosie's sourcing note names). `status`, `available_quantity` and `notes` are
+  never seeded: **`status` remains the only column that says a line was
+  answered**, and the portal says as much under the table while a request is
+  still `new`.
+
+- **Rosie: same rule, her side of the line** (`job-requests` 1.15.0,
+  `plant-and-supplier-search` 1.1.3, `quote-generation` 1.2.2,
+  `system_prompts/1-agent.md`). The rule above was written for daisy only, so
+  on JR-5 rosie priced eleven lines off the Austin Plant Supply catalogue and
+  marked them `available` — which `job-requests` §5 rung 1 told her to do in
+  as many words ("Fill the price from their row, status `available`. Nothing
+  goes to daisy."). The ladder now settles **which row prices a line, not
+  whether it can be filled**: every rung leaves the item `pending`, and the
+  new §5.3 names the only two things that move it — the supplier's own answer
+  relayed by daisy (a table maps their four answers onto the item statuses),
+  or Chris explicitly saying to treat the line as confirmed, recorded on the
+  line. §6 restates `available` and `alternative_proposed` as answers rather
+  than findings, so a priced `pending` line is now the correct shape of a
+  sourced-but-unconfirmed one; the `Substitute:` sourcing line still goes in
+  on proposal, but the customer-visible `Quoted for …` note waits for the
+  status move. A search skill hit is reported as a listing ("listed at $X on
+  their Aug 18 sheet") and a catalogue stock count as what that sheet claimed
+  on ingest day; a filled `unit_price` is no longer permission to quote.
+  Rosie's prompt carries it as a fourth never-bent rule.
+
+- **Rosie runs a job request's sourcing round in a task thread**
+  (`1-agent.md`, `job-requests` §1.4/§5). One per request —
+  `main-§-[TASK]-§-jr-<id>-sourcing` — spawned as the last step of intake and
+  kept for the request's life: the catalogue look-ups (a screen of rows per
+  line), the item writes and the asks to daisy live there, with
+  `--from-thread-id` set to itself so her answers come back to it. `main`
+  keeps what a person sees — questions for Chris, customer drafts, quotes —
+  plus the `## Tasks` tracking line. Quote builds and long reads get their own
+  the same way. The base prompt has said "delegate aggressively" all along;
+  nothing in rosie's own prompt or skills had ever named a case, and JR-5's
+  eleven-line sourcing round ran end to end on `main`.
 
 - **The shared note never names a supplier or a price list unless someone
   asks for it.** `job-requests` §4.2 ended on a single sentence — "Supplier

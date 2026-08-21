@@ -1,5 +1,28 @@
 # availability-ingestion — changelog
 
+## 1.7.0
+
+2026-08-20 — Bhoumik superseded the complex historical-backfill gate. Explicit historical/email-backlog work now resolves each actual farm numeric supplier id, identifies the incoming effective/received date, and performs one cheap read-only later-date check for that **same farm only**. Any later availability/list date skips that farm with concise durable evidence; otherwise it ingests normally. Company/head-branch evidence, offering batches, authority classifications, preflight and immediate revalidation are retired. Purtis (one farm), Everde (farm-by-farm), and partial-earlier-source regressions are explicit. The retained gate script is deprecated for old records, not new work.
+
+
+## 1.6.0
+
+2026-08-20 — Approved by Bhoumik: the historical-backfill gate now safely
+handles large parsed lists. `historical-backfill-gate` uses stdin for database
+SQL rather than passing a giant `-c` argument (the Everde 2,611-offering input
+had hit Node `E2BIG`) and compares offerings in bounded 50-item batches
+(`--batch-size 1..100` only when explicitly needed). It records the complete
+count, every batch range/result and aggregate counts; it never decides from a
+partial run. Revalidation reruns every batch and fails closed if the landscape,
+evidence, authority coverage or comparison changes.
+
+`SKIP` is tightened: a later reviewer-attested full current source with active
+offerings must exist for **every target supplier/location**, not merely another
+location under the same head branch. Any authority gap, claimed-full empty
+source, incomplete evidence, failed/incomplete batch or changed revalidation
+blocks every write. A synthetic 2,611-offering read-only Everde test completed
+53 batches and both preflight/revalidation returned ALLOW.
+
 ## 1.5.1
 
 2026-08-18 — Approved by Bhoumik: the post-write identity QA no longer treats

@@ -1,5 +1,14 @@
 # supplier-onboarding — changelog
 
+## 1.2.0
+
+2026-08-20 — Chris-approved category guidance now classifies a supplier location
+by evidenced primary operating model and customer reach. It defines `Grower`,
+`Nursery`, `Wholesaler`, and evidence-only `Other`; requires multiple consistent
+facts; forbids name/single-clue inference; preserves null for uncertainty and
+one-row-per-location/head-branch behavior. The onboarding report and QA now
+carry the category rationale.
+
 ## 1.1.2
 
 2026-08-18. **Description rewritten short** — coverage in a clause or two, then

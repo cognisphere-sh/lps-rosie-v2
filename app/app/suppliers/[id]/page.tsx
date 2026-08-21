@@ -7,18 +7,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+  ARLineTable, ARStatusPill, ChatLegend, Composer, MessageBubble, Thread,
+} from '@/components/workspace/availability'
+import {
   ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
   MapPinIcon, PencilIcon, PhoneIcon, TrashIcon, UploadIcon,
 } from '@/components/workspace/icons'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { FilterControl, badgeFor } from '@/components/workspace/table-parts'
+import { FilterControl, LpsTag, badgeFor } from '@/components/workspace/table-parts'
 import { Badge } from '@/components/ui/badge'
+import type {
+  ARDetail, ARSummary, MessageChannel, SupplierMessage,
+} from '@/lib/availability'
 import {
   AVAILABILITY_SOURCE_TYPES, PLANT_COLS, SUPPLIER_CATEGORIES,
   plantEditPatch, websiteHref, type ColumnDef,
 } from '@/lib/columns'
+import { requestRef } from '@/lib/job-requests'
 import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { formatDate, money, num } from '@/lib/format'
@@ -29,7 +36,9 @@ import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
-type Tab = 'notes' | 'comms' | 'contacts' | 'inventory' | 'files' | 'farms'
+type Tab =
+  | 'notes' | 'contacts' | 'inventory' | 'files' | 'farms'
+  | 'requests' | 'conversation'
 const DIMENSION_FILTERS = [
   { key: 'h', label: 'Height (ft)' },
   { key: 'w', label: 'Width (in)' },
@@ -57,6 +66,9 @@ const FIELDS: { key: string; label: string; column?: string; options?: string[] 
   },
   { key: 'availability_update_days', label: 'Update every (days)', column: 'availability_update_days' },
   { key: 'hosted_availability_url', label: 'Hosted availability', column: 'hosted_availability_url' },
+  // The portal flag (migration 0062): onboarded suppliers answer availability
+  // requests at /portal/<id>; everyone else is reached through daisy's channels.
+  { key: 'is_onboarded', label: 'Portal onboarded', column: 'is_onboarded', options: ['true', 'false'] },
   { key: 'item_count', label: 'Active items' },
   { key: 'last_ingestion_date', label: 'Last inventory ingestion' },
   { key: 'updated', label: 'Profile last updated' },
@@ -130,6 +142,7 @@ function fieldDisplay(row: SupplierRow, key: string, itemCount?: number | null):
   if (key === 'updated' || key === 'created_at' || key === 'last_ingestion_date') {
     return formatDate(value as string | null)
   }
+  if (key === 'is_onboarded') return value ? 'Yes' : 'No'
   if (key === 'item_count') return value == null ? '—' : num(value)
   return Array.isArray(value) ? value.join(', ') : value == null || value === '' ? '—' : String(value)
 }
@@ -470,13 +483,18 @@ export default function SupplierProfilePage() {
   const [contactDraft, setContactDraft] = useState<Record<string, string>>({})
   const [savingContact, setSavingContact] = useState(false)
 
+  // The supplier-side engagement (migration 0062): availability requests and
+  // the conversation thread, both spanning every location of the company.
+  const [ars, setArs] = useState<ARSummary[]>([])
+  const [messages, setMessages] = useState<SupplierMessage[]>([])
+  /** The availability request open in the Requests tab; null = the list. */
+  const [openArId, setOpenArId] = useState<number | null>(null)
+  const [openAr, setOpenAr] = useState<ARDetail | null>(null)
+  /** The farm a conversation message goes to; null = the page's subject. */
+  const [convTarget, setConvTarget] = useState<number | null>(null)
+
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({})
   const [savingNote, setSavingNote] = useState<number | null>(null)
-  const [commsDraft, setCommsDraft] = useState('')
-  const [commsChannel, setCommsChannel] = useState('email')
-  /** Which farm the log entry is about; a contact is always with a location. */
-  const [commsTarget, setCommsTarget] = useState<number | null>(null)
-  const [savingComms, setSavingComms] = useState(false)
 
   const locations = useMemo(() => profile?.locations ?? [], [profile])
   // Every location of the company on a company page, this farm alone on a farm
@@ -496,14 +514,55 @@ export default function SupplierProfilePage() {
   const scopeItemCount = locations.reduce((n, l) => n + Number(l.row.values.item_count ?? 0), 0)
 
   useEffect(() => {
-    const requested = new URL(window.location.href).searchParams.get('tab')
+    const url = new URL(window.location.href)
+    const requested = url.searchParams.get('tab')
     if (
-      requested === 'notes' || requested === 'comms' || requested === 'contacts' ||
-      requested === 'inventory' || requested === 'files' || requested === 'farms'
+      requested === 'notes' || requested === 'contacts' ||
+      requested === 'inventory' || requested === 'files' || requested === 'farms' ||
+      requested === 'requests' || requested === 'conversation'
     ) {
       setTab(requested)
     }
+    // `?tab=requests&ar=<id>` deep-links one availability request — where a
+    // sourcing-note supplier link lands.
+    const ar = Number.parseInt(url.searchParams.get('ar') ?? '', 10)
+    if (Number.isInteger(ar)) setOpenArId(ar)
   }, [])
+
+  /** The engagement lists, refetched after every write to either. */
+  const loadEngagement = useCallback(async () => {
+    if (!scopeKey) return
+    const [arRes, msgRes] = await Promise.all([
+      fetch(`/api/availability-requests?supplier=${scopeKey}`),
+      fetch(`/api/supplier-messages?supplier=${scopeKey}`),
+    ])
+    if (arRes.ok) setArs(((await arRes.json()) as { requests: ARSummary[] }).requests)
+    if (msgRes.ok) setMessages(((await msgRes.json()) as { messages: SupplierMessage[] }).messages)
+  }, [scopeKey])
+
+  useEffect(() => {
+    void loadEngagement().catch(() => {})
+  }, [loadEngagement])
+
+  /** The open availability request, whole. */
+  const loadOpenAr = useCallback(async () => {
+    if (openArId == null) {
+      setOpenAr(null)
+      return
+    }
+    const res = await fetch(`/api/availability-requests/${openArId}`)
+    if (!res.ok) {
+      setOpenAr(null)
+      setOpenArId(null)
+      return
+    }
+    setOpenAr(((await res.json()) as { request: ARDetail }).request)
+  }, [openArId])
+
+  useEffect(() => {
+    void loadOpenAr().catch(() => setOpenAr(null))
+  }, [loadOpenAr])
+
 
   const editingRow = useMemo(
     () => locations.find((l) => l.row.id === editingId)?.row ?? null,
@@ -771,39 +830,6 @@ export default function SupplierProfilePage() {
     toast('Notes saved')
   }
 
-  // `communication_notes` is an append-only contact log — one timestamped entry
-  // per contact, never a rewrite. Same shape the agents write (see
-  // docs/supabase-schema.md), so both sides stay readable to each other.
-  const logContact = async () => {
-    const text = commsDraft.trim()
-    const target = commsTarget ?? subject?.row.id
-    const row = locations.find((l) => l.row.id === target)?.row
-    if (!text || !row) return
-    setSavingComms(true)
-
-    const now = new Date()
-    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-    const entry = `[${stamp}] ${commsChannel} · logged in app\n${text}`
-    const existing = (row.values.communication_notes as string | null) ?? ''
-    const next = existing ? `${existing}\n\n${entry}` : entry
-
-    const res = await fetch('/api/rows', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        table: 'suppliers', id: row.id, column: 'communication_notes', value: next,
-      }),
-    })
-    setSavingComms(false)
-    if (!res.ok) {
-      toast('Could not log contact')
-      return
-    }
-    patchLocation(row.id, { communication_notes: next })
-    setCommsDraft('')
-    toast('Contact logged')
-  }
-
   const contactRequest = async (
     input: RequestInfo,
     init: RequestInit,
@@ -878,6 +904,35 @@ export default function SupplierProfilePage() {
     )
   }
 
+  /** One broker-side message into the supplier's thread. */
+  const sendBrokerMessage = async (
+    body: string,
+    channel: MessageChannel,
+    target: { supplierId: number },
+  ) => {
+    const res = await fetch('/api/supplier-messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...target, channel, body }),
+    })
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string }
+      toast(err.error ?? 'Could not send message')
+      throw new Error('send failed')
+    }
+    await Promise.all([loadEngagement(), loadOpenAr()])
+  }
+
+  const setArStatus = async (arId: number, status: string) => {
+    const res = await fetch(`/api/availability-requests/${arId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) toast('Could not update the request')
+    await Promise.all([loadEngagement(), loadOpenAr()])
+  }
+
   // Filtering and sorting already happened in SQL; what is left here is
   // view-local — rows the user hid, rows deleted in this session, and the
   // columns SQL cannot order (Size, Source, Ingested; see PLANT_SORTS).
@@ -924,22 +979,6 @@ export default function SupplierProfilePage() {
   }
 
   const values = subject?.row.values ?? {}
-  /** Every log entry across the scope, newest first, each tagged with its farm. */
-  const commsEntries = locations
-    .flatMap((location) =>
-      ((location.row.values.communication_notes as string | null) ?? '')
-        .split(/\n{2,}/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((body, index) => ({ body, location, index })),
-    )
-    // Entries open with `[YYYY-MM-DD HH:MM …]`, so the stamp sorts as text.
-    // Unstamped ones have no position to claim and fall to the end.
-    .sort(
-      (a, b) =>
-        (b.body.match(/^\[([^\]]+)\]/)?.[1] ?? '').localeCompare(a.body.match(/^\[([^\]]+)\]/)?.[1] ?? '') ||
-        b.index - a.index,
-    )
   const fileCount = locations.reduce((n, location) => n + location.sources.length, 0)
   const contactCount = locations.reduce((n, location) => n + location.row.contacts.length, 0)
 
@@ -970,7 +1009,8 @@ export default function SupplierProfilePage() {
     ['inventory', `Inventory (${num(scopeItemCount)})`],
     ['contacts', `Contacts (${contactCount})`],
     ...(multi ? ([['farms', `Farms (${locations.length})`]] as [Tab, string][]) : []),
-    ['comms', `Communications (${commsEntries.length})`],
+    ['requests', `Availability requests (${ars.length})`],
+    ['conversation', `Conversation (${messages.length})`],
     ['notes', 'Notes'],
     ['files', `Files (${fileCount})`],
   ]
@@ -1067,6 +1107,7 @@ export default function SupplierProfilePage() {
               >
                 ← All suppliers
               </Link>
+              {!!values.is_onboarded && <LpsTag />}
               {/* A farm's own page. Its company is where the whole picture is. */}
               {profile && subject && profile.company.id !== subject.row.id && (
                 <Link
@@ -1431,95 +1472,191 @@ export default function SupplierProfilePage() {
           </div>
         )}
 
-        {activeTab === 'comms' && (
-          <div className="flex max-w-[720px] flex-col gap-2.5 p-4">
-            <p className="text-[12px] text-muted-foreground">
-              Every contact with {multi ? 'any farm of this company' : 'this supplier'}, newest first.
-              Append-only — entries are never rewritten. Daisy logs here automatically whenever she emails
-              or is emailed by them.
-            </p>
-
-            <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
-              {multi && (
-                <label className="flex flex-col gap-0.5">
-                  <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Farm</span>
-                  <select
-                    value={commsTarget ?? subject?.row.id ?? ''}
-                    onChange={(e) => setCommsTarget(Number(e.target.value))}
-                    className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
-                  >
-                    {locations.map((location) => (
-                      <option key={location.row.id} value={location.row.id}>
-                        {String(location.row.values.name ?? '')}
-                        {location.is_head ? ' · head office' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {['email', 'phone', 'telegram', 'in person'].map((c) => (
+        {activeTab === 'requests' && (
+          <div className="flex max-w-[980px] flex-col gap-2.5 p-4">
+            {openAr == null ? (
+              <>
+                <p className="text-[12px] text-muted-foreground">
+                  Availability requests sent to {multi ? 'this company' : 'this supplier'} from job
+                  requests — they answer them in their portal. Create one from the Job Requests page
+                  by selecting lines.
+                </p>
+                {ars.length === 0 && (
+                  <p className="text-[12.5px] text-muted-foreground">No availability requests yet.</p>
+                )}
+                {ars.map((r) => (
                   <button
-                    key={c}
+                    key={r.id}
                     type="button"
-                    onClick={() => setCommsChannel(c)}
-                    className={cn(
-                      'cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-semibold',
-                      commsChannel === c
-                        ? 'border-primary bg-secondary text-primary'
-                        : 'border-border bg-card text-muted-foreground',
-                    )}
+                    onClick={() => setOpenArId(r.id)}
+                    className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-card px-3.5 py-3 text-left shadow-sm transition-shadow hover:shadow-md"
                   >
-                    {c}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={commsDraft}
-                onChange={(e) => setCommsDraft(e.target.value)}
-                placeholder="What was said, and why — e.g. Asked for the July availability list; theirs is 3 weeks old and the 15G Live Oak price looked stale."
-                rows={3}
-                className="w-full resize-y rounded-lg border border-input bg-background p-2.5 text-[12.5px] leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              />
-              <Button
-                size="sm"
-                className="self-start"
-                onClick={() => void logContact()}
-                disabled={savingComms || !commsDraft.trim()}
-              >
-                {savingComms ? 'Logging…' : 'Log contact'}
-              </Button>
-            </div>
-
-            {commsEntries.length === 0 && (
-              <p className="text-[12.5px] text-muted-foreground">
-                No contact logged with {multi ? 'any of these farms' : 'this supplier'} yet.
-              </p>
-            )}
-            {commsEntries.map(({ body, location, index }) => {
-              const [head, ...rest] = body.split('\n')
-              const isHeader = head.startsWith('[')
-              return (
-                <div
-                  key={`${location.row.id}:${index}`}
-                  className="flex flex-col gap-1.5 rounded-xl border border-lps-hair bg-lps-bubble p-[11px_13px]"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    {multi && (
-                      <LocationTag name={String(location.row.values.name ?? '')} head={location.is_head} />
-                    )}
-                    {isHeader && (
-                      <span className="font-mono text-[11px] font-semibold text-muted-foreground">
-                        {head}
+                    <ARStatusPill status={r.status} />
+                    <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-foreground">
+                      {r.jobName ?? requestRef(r.jobRequestId)}
+                    </span>
+                    {multi && <LocationTag name={r.supplierName} head={false} />}
+                    {r.shareCustomerDetails && (
+                      <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
+                        customer shared
                       </span>
                     )}
+                    <span className="text-[11.5px] text-muted-foreground">
+                      {r.answeredCount}/{r.itemCount} answered
+                    </span>
+                    <span className="whitespace-nowrap text-[11px] text-lps-dim">
+                      {formatDate(r.createdAt)}
+                    </span>
+                    <ChevronRight size={15} />
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setOpenArId(null)}
+                  className="inline-flex w-fit cursor-pointer items-center gap-1 border-none bg-transparent text-[12px] font-semibold text-primary hover:underline"
+                >
+                  <ChevronLeft size={13} /> All availability requests
+                </button>
+
+                <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
+                  <ARStatusPill status={openAr.status} />
+                  <span className="text-[14px] font-bold text-foreground">
+                    {openAr.jobName ?? requestRef(openAr.jobRequestId)}
+                  </span>
+                  {multi && <LocationTag name={openAr.supplierName} head={false} />}
+                  {openAr.shareCustomerDetails && (
+                    <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
+                      customer shared
+                    </span>
+                  )}
+                  <span className="text-[11px] text-lps-dim">
+                    Sent {formatDate(openAr.createdAt)}
+                    {openAr.submittedAt && ` · Submitted ${formatDate(openAr.submittedAt)}`}
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <a
+                      href={`/portal/${openAr.supplierId}/requests/${openAr.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11.5px] font-semibold text-primary underline"
+                      title="The request as the supplier sees it"
+                    >
+                      Portal view
+                    </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void setArStatus(openAr.id, openAr.status === 'closed' ? 'new' : 'closed')
+                      }
+                    >
+                      {openAr.status === 'closed' ? 'Reopen' : 'Close'}
+                    </Button>
                   </div>
-                  <p className="m-0 whitespace-pre-wrap text-[12.5px] leading-relaxed">
-                    {isHeader ? rest.join('\n') : body}
-                  </p>
                 </div>
+
+                <ARLineTable items={openAr.items} editable={false} />
+
+                {/* No per-request chat — the conversation is one thread per
+                    supplier (the Conversation tab), never per request. */}
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'conversation' && (
+          <div className="flex max-w-[760px] flex-col gap-2.5 p-4">
+            <p className="text-[12px] text-muted-foreground">
+              The whole transcript with {multi ? 'this company' : 'this supplier'} — every channel,
+              one thread per supplier, rendered as chat. Portal messages reach their portal chat;
+              email and text bubbles record exchanges that happen outside the app; internal notes
+              never reach the supplier.
+            </p>
+            <ChatLegend supplierLabel="Supplier" />
+
+            <Thread
+              messages={messages}
+              ownSide="broker"
+              emptyText={`No conversation with ${multi ? 'this company' : 'this supplier'} yet.`}
+              metaOf={(m) => (
+                <>
+                  {multi && <LocationTag name={nameOf(m.supplierId)} head={false} />}
+                  {m.availabilityRequestId != null && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenArId(m.availabilityRequestId)
+                        setTab('requests')
+                      }}
+                      title="Open this availability request"
+                      className="cursor-pointer rounded-full border border-border bg-transparent px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-primary"
+                    >
+                      AR-{m.availabilityRequestId}
+                    </button>
+                  )}
+                </>
+              )}
+            />
+
+            {multi && (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+                  Farm
+                </span>
+                <select
+                  value={convTarget ?? subject?.row.id ?? ''}
+                  onChange={(e) => setConvTarget(Number(e.target.value))}
+                  className="h-8 w-fit cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
+                >
+                  {locations.map((location) => (
+                    <option key={location.row.id} value={location.row.id}>
+                      {String(location.row.values.name ?? '')}
+                      {location.is_head ? ' · head office' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {(() => {
+              const targetId = convTarget ?? subject?.row.id
+              const target = locations.find((l) => l.row.id === targetId)
+              const onboarded = !!target?.row.values.is_onboarded
+              return targetId == null ? null : (
+                <Composer
+                  modes={[
+                    {
+                      channel: 'internal',
+                      label: 'Daisy',
+                      placeholder:
+                        'Instruct Daisy (you \u2192 agent) \u2014 she picks it up on this supplier\u2019s thread\u2026',
+                    },
+                    ...(onboarded
+                      ? [{
+                          channel: 'app' as const,
+                          label: 'Portal',
+                          placeholder: 'Message the supplier \u2014 appears in their portal chat\u2026',
+                        }]
+                      : []),
+                    {
+                      channel: 'text',
+                      label: 'Text',
+                      placeholder:
+                        'Record a text exchange with the supplier \u2014 sending still happens outside the app\u2026',
+                    },
+                    {
+                      channel: 'email',
+                      label: 'Email',
+                      placeholder:
+                        'Record an email exchange with the supplier \u2014 sending still happens outside the app\u2026',
+                    },
+                  ]}
+                  onSend={(body, channel) => sendBrokerMessage(body, channel, { supplierId: targetId })}
+                />
               )
-            })}
+            })()}
           </div>
         )}
 

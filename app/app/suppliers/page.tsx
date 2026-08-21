@@ -6,7 +6,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { Cell, ColumnHead, ColumnPicker, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
+import { Cell, ColumnHead, ColumnPicker, LpsTag, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { Badge } from '@/components/ui/badge'
 import { SUPPLIER_COLS, type ColumnDef } from '@/lib/columns'
@@ -298,7 +298,10 @@ export default function SuppliersPage() {
       >
         <div className="flex items-start justify-between gap-2.5">
           <div className="min-w-0">
-            <div className="text-[14.5px] font-bold leading-tight">{String(row.values.name ?? '')}</div>
+            <div className="flex items-center gap-1.5 text-[14.5px] font-bold leading-tight">
+              <span className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
+              {!!row.values.is_onboarded && <LpsTag />}
+            </div>
             <div className="text-[11.5px] text-muted-foreground">
               {[row.values.city, row.values.state].filter(Boolean).join(', ') || 'No address on file'}
             </div>
@@ -389,6 +392,7 @@ export default function SuppliersPage() {
                   ? formatDate(row.values[col.key] as string | null)
                   : row.values[col.key] ?? null
               }
+              tag={col.kind === 'link' && row.values.is_onboarded ? <LpsTag /> : undefined}
               onOpen={col.kind === 'link' ? () => router.push(`/suppliers/${row.id}`) : undefined}
               onSave={col.edit ? (next) => saveCell(row, col, next) : undefined}
             />

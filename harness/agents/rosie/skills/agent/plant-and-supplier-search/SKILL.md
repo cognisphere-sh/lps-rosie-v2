@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. daisy's skill, narrowed — the same RPCs and search discipline, plus scoping a sourcing look-up to Austin Plant Supply and when to widen past it, and the read-only framing — findings go into a job request's `sourcing_notes`, and data problems get reported to daisy rather than fixed. Use for any price or availability question against the database. (v1.1.2)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. daisy's skill, narrowed — the same RPCs and search discipline, plus scoping a sourcing look-up to Austin Plant Supply and when to widen past it, and the read-only framing — findings go into a job request's `sourcing_notes`, data problems get reported to daisy rather than fixed, and a hit is a listing rather than an availability. Use for any price or sourcing question against the database. (v1.1.3)
 metadata:
   author: lps
-  version: "1.1.2"
+  version: "1.1.3"
 ---
 
 # Looking up a plant or supplier
@@ -14,6 +14,13 @@ Read `knowledge/files/SCHEMA.md` before writing any query.
 findings go into the job-request item's `sourcing_notes` (see `job-requests`);
 anything that looks wrong in the data — a bad alias pair, a stale price — gets
 reported to daisy by agent-message, never fixed by you.
+
+**A search answers what a plant costs, not whether it can be had.** Every row
+is a line off a price list someone published — Austin Plant Supply's included —
+and its `quantity` is what that sheet claimed on the day it was ingested.
+Report a hit as the listing it is ("listed at $X on their Aug 18 sheet"), never
+as availability. What makes a job-request line `available` is the supplier's
+own answer or Chris's word, never a look-up (`job-requests` §5.3).
 
 ## 1. Search with the RPC, not a hand-written query
 

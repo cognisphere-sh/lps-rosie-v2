@@ -1,5 +1,76 @@
 # job-requests — changelog
 
+## 1.16.0
+
+2026-08-19, from Chris, same day as 1.15.0. **The availability check takes
+every line of the request, not the ones the catalogue couldn't answer.** §5.2
+opened on "you ask her only for what your own look-up couldn't settle" — which
+made the priced lines invisible to the very step that confirms them, and quietly
+dropped the lines no price list matched. All of them go now: priced,
+substituted and unmatched alike, with what the look-up found stated per line
+(including "nothing on their list"), so daisy can raise one request for the
+job. The only line left out is one Chris explicitly excluded, and his
+instruction goes in its `sourcing_notes`. §5.3 names the two questions daisy
+puts to him before it goes out — whether every line goes, and whether the
+customer's name and address are shared — and the round's closing message to
+Chris carries both.
+
+## 1.15.0
+
+2026-08-19, from Chris, after JR-5: rosie priced eleven lines off the Austin
+Plant Supply list and marked them `available` — which 1.13.0's §5 rung 1 told
+her to do in as many words. **A listing is not a confirmation.**
+
+- **§5 opens on the rule.** The inventory tables are price lists someone
+  published, Austin Plant Supply's included; a catalogue stock count is what
+  the sheet claimed on ingest day. The ladder now settles which row *prices* a
+  line, not whether it can be filled — every rung leaves the item `pending`.
+- **New §5.3, "Confirming a line."** The only two things that move a line off
+  `pending`: the supplier's own answer relayed by daisy (an availability
+  request in their portal, or email/text — her channel, Chris's call), read
+  through a table mapping their four answers onto the item statuses; or Chris
+  saying to treat it as confirmed, recorded on the line. Ends on telling Chris
+  what is waiting once the round is done.
+- **§6 restates the vocabulary.** `available` and `alternative_proposed` are
+  answers, not findings; a priced `pending` line is the correct shape of a
+  sourced-but-unconfirmed line. §4.1/§4.2 follow: the `Substitute:` line goes
+  in on proposal, the customer-visible `Quoted for …` note waits for the
+  status move.
+- **The round runs in a task thread** (`1-agent.md`), one per job request,
+  spawned as the last step of intake (§1.4) — the look-ups, the item writes
+  and the asks to daisy, off the thread Chris is on.
+
+A third 1.14.0 was drafted earlier the same day — "availability requests are
+rosie's, back from daisy" — and never applied: SKILL.md stayed at 1.13.0, the
+skill stayed on daisy, and both agents' prompts and docs describe it there. It
+is dropped.
+
+## 1.14.0
+
+2026-08-19, same-day follow-up: daisy's per-request task threads are gone —
+every ask about a supplier, availability-request follow-ups included, goes to
+the one `supplier-<id>` thread (§5.2).
+
+## 1.13.0
+
+2026-08-19, superseding 1.12.0's fork the same day: **rosie does not use the
+portal channel herself** — daisy owns every supplier conversation, portal
+included (Bhoumik). §5 rung 3 and §5.2 now route every supplier-side ask to
+daisy, on the supplier's own thread (`supplier-<id>`, or the availability
+request's task thread `supplier-<id>-§-[TASK]-§-ar-<arId>` for follow-ups;
+`main` only when no supplier is in play yet), with the ask mirrored into
+`supplier_messages` as an internal transcript row. The `availability-requests`
+skill moved to daisy.
+
+## 1.12.0
+
+2026-08-19, alongside migration 0062 and the supplier portal. The sourcing
+ladder's last rung forks on `suppliers.is_onboarded`: an onboarded supplier is
+asked through an in-database availability request (the new
+`availability-requests` skill), everyone else through daisy as before. §5
+rung 3 and §5.2 name the fork; nothing else changes — pricing rules, the
+sourcing-note line shape and the status vocabulary are untouched.
+
 ## 1.11.0
 
 2026-08-19, from Bhoumik. **The shared note never mentions a supplier or a

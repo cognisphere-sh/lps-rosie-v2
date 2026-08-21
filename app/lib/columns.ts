@@ -7,9 +7,6 @@
 
 import type { CellValue } from '@/lib/rows'
 
-/** `suppliers.category` CHECK vocabulary. Blank is stored as NULL. */
-export const SUPPLIER_CATEGORIES = ['Grower', 'Nursery', 'Wholesaler', 'Other']
-
 export type FilterKind = 'text' | 'range' | 'multiselect' | 'none'
 /**
  * `link` = opens the supplier profile; `list` = the scrollable source-file
@@ -52,6 +49,9 @@ export interface ColumnDef {
   writes?: { table: 'suppliers' | 'inventory' | 'customers'; column: string }
 }
 
+/** `suppliers.category` CHECK vocabulary. Blank is stored as NULL. */
+export const SUPPLIER_CATEGORIES = ['Grower', 'Nursery', 'Wholesaler', 'Other']
+
 /** `suppliers.availability_source_type` — how a supplier's list reaches us. */
 export const AVAILABILITY_SOURCE_TYPES = ['Email', 'Hosted']
 
@@ -89,14 +89,14 @@ export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'city' } },
   { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
   // `notes` = durable profile facts (quirks, preferences, anything the schema
-  // has no column for). `communication_notes` = an append-only contact log.
-  // See docs/supabase-schema.md — they are not interchangeable.
+  // has no column for). What was *said* with a supplier is the chat transcript
+  // (`supplier_messages`), on the profile's Conversation tab — the old
+  // `communication_notes` column was retired by migration 0063.
   { key: 'notes', label: 'Notes', width: 230, edit: true, writes: { table: 'suppliers', column: 'notes' } },
-  { key: 'communication_notes', label: 'Communication notes', width: 260, edit: true, writes: { table: 'suppliers', column: 'communication_notes' } },
   { key: 'created_at', label: 'Created at', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },
 ]
-export const SUPPLIER_HIDDEN = ['created_at', 'notes', 'communication_notes']
+export const SUPPLIER_HIDDEN = ['created_at', 'notes']
 
 // Plant search — master rows are suppliers with a plant count.
 export const MASTER_COLS: ColumnDef[] = [

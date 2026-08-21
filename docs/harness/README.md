@@ -31,10 +31,10 @@ Comparison:
 | `devAgent` | — | — | **true** |
 | `maxConcurrentSlots` | 10 | 10 | — |
 | `secretsSchema` | Supabase (4 keys) | Supabase (4 keys, same values) | — |
-| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram (token pending), **webchat** (+ core: agent-messaging); **gws pending** a mailbox | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
+| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat**, **supplier-events** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging); **gws pending** a mailbox | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
 | Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `files/`: SCHEMA (symlink), templates; `memory.md` | `memory.md` only |
 | Migrations | 0001–0055 (the deployment's record; 0055's tables are rosie-owned) | — (recorded in daisy's dir) | — |
-| Skills | 5 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill |
+| Skills | 6 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
@@ -102,11 +102,12 @@ These are byte-identical in every agent dir:
 
 ## Plugins
 
-One user-space plugin lives in `harness/plugins/`:
+Two user-space plugins live in `harness/plugins/`:
 
 | Plugin | Purpose | Enabled on |
 |---|---|---|
 | [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova, rosie |
+| [`supplier-events`](plugin-supplier-events.md) | The app wakes daisy on supplier activity — portal availability Saves, portal chat messages and chat-view instructions, all on the supplier's one thread — `POST /webhook/daisy/supplier-events/notify`, gated by a shared app secret | daisy |
 
 No catalog plugins are forked. Every other plugin an agent uses is a bundled
 core/catalog plugin enabled by an empty `agents/<id>/plugins/<plugin>/` dir;

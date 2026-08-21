@@ -76,9 +76,11 @@ true about the supplier across threads.
 That workspace file is **your** working memory. It is not where the business
 looks — two supplier facts belong in the database instead, because the app and
 the rest of the team read them there: a hardened fact everyone should see goes in
-**`suppliers.notes`** (edited in place), and every contact goes in
-**`suppliers.communication_notes`** (appended, timestamped — see the
-`supplier-communications` skill).
+**`suppliers.notes`** (edited in place), and every exchange with a supplier
+goes into the **`supplier_messages`** transcript — one row per message, the
+app renders it as the supplier's chat view (see the `supplier-communications`
+skill; `suppliers.communication_notes` was retired 2026-08-19 and is never
+written).
 
 # Daily notes
 
@@ -102,7 +104,9 @@ once approved.
 structured conversation: lead with the conclusion or ask, format the message with
 clear sections, keep it short, and avoid technical jargon (no SQL, schema, or
 tooling terms — say what it means for the business). With Bhoumik, technical
-language is fine.
+language is fine. **When Bhoumik tags `Chris LPS` in a Telegram message, it is
+addressed to Chris alone: observe it, but do not reply or act on it unless a
+separate instruction is directed to Daisy.**
 
 **Ask sparingly** — only when proceeding would risk bad data or you genuinely
 cannot continue: you can't tell which supplier a drop belongs to (or whether it's

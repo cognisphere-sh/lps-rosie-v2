@@ -70,7 +70,8 @@ export function useChatAppearanceSettings() {
 
 // ------------------------------------------------------------------- theme
 
-function useTheme() {
+/** Shared with the supplier portal, so both read one `lps.theme` preference. */
+export function useTheme() {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
@@ -156,6 +157,10 @@ export function Shell({
   const [desktopChatFull, setDesktopChatFull] = useState(false)
   const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
+  // The temporary "see the portal as a supplier" picker — a stand-in until
+  // supplier sign-in exists. Lists onboarded suppliers, lazily on first open.
+  const [supplierViewMenu, setSupplierViewMenu] = useState(false)
+  const [portalSuppliers, setPortalSuppliers] = useState<{ id: number; name: string }[] | null>(null)
   const [mobileAgentsOpen, setMobileAgentsOpen] = useState(false)
   const [mobileChat, setMobileChat] = useState(false)
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
@@ -300,6 +305,16 @@ export function Shell({
     return () => document.removeEventListener('mousedown', close)
   }, [userMenu])
 
+  // Same treatment for the supplier-view picker.
+  useEffect(() => {
+    if (!supplierViewMenu) return
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-menu]')) setSupplierViewMenu(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [supplierViewMenu])
+
   // Same treatment for the mobile ⋯ menu.
   useEffect(() => {
     if (!moreMenu) return
@@ -422,6 +437,57 @@ export function Shell({
                   <span className="flex size-4 flex-none items-center justify-center"><AgentsIcon /></span>
                   {navOpen && <span>Know your Agents</span>}
                 </Link>
+
+                <div data-menu className="relative">
+                  <button
+                    type="button"
+                    title="Supplier view — open the portal as an onboarded supplier"
+                    onClick={() => {
+                      setSupplierViewMenu((v) => !v)
+                      if (portalSuppliers == null) {
+                        fetch('/api/availability-requests/suppliers')
+                          .then(async (res) => {
+                            const body = res.ok
+                              ? ((await res.json()) as { suppliers: { id: number; name: string }[] })
+                              : { suppliers: [] }
+                            setPortalSuppliers(body.suppliers)
+                          })
+                          .catch(() => setPortalSuppliers([]))
+                      }
+                    }}
+                    className={railBtn(false)}
+                  >
+                    <span className="flex size-4 flex-none items-center justify-center"><SuppliersIcon /></span>
+                    {navOpen && <span>Supplier view</span>}
+                  </button>
+                  {supplierViewMenu && (
+                    <div className="lps-pop absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+                      <div className="border-b border-lps-hair px-2.5 pb-1.5 pt-1 text-[11px] text-muted-foreground">
+                        See the portal as a supplier — a stand-in until supplier sign-in exists.
+                      </div>
+                      {portalSuppliers == null && (
+                        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
+                      )}
+                      {portalSuppliers?.length === 0 && (
+                        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">
+                          No onboarded suppliers yet.
+                        </div>
+                      )}
+                      {portalSuppliers?.map((s) => (
+                        <a
+                          key={s.id}
+                          href={`/portal/${s.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setSupplierViewMenu(false)}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                        >
+                          {s.name}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div data-menu className="relative">
                   <button

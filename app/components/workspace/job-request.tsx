@@ -26,6 +26,7 @@ import {
   toneTint,
   type Tone,
 } from '@/lib/job-requests'
+import type { SupplierLink } from '@/lib/availability'
 import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
@@ -319,6 +320,45 @@ function NoteThread({ entries, empty }: { entries: JobNote[]; empty: string }) {
 }
 
 /**
+ * The suppliers a sourcing note talks about, as links.
+ *
+ * A sourcing note names its suppliers in free text ("APS: Substitute: …"), and
+ * free text cannot be a hyperlink target on its own — so the links are built
+ * from the request's actual engagement (availability requests and thread
+ * messages, `JobRequestRow.supplierLinks`), which is also exactly the set of
+ * suppliers there is anything to open: an onboarded supplier's chip lands on
+ * their availability-request view, anyone else's on their conversation thread.
+ */
+export function SupplierNoteLinks({ links }: { links: SupplierLink[] }) {
+  if (!links.length) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {links.map((link) => (
+        <a
+          key={link.supplierId}
+          href={
+            link.onboarded
+              ? `/suppliers/${link.supplierId}?tab=requests${
+                  link.availabilityRequestId != null ? `&ar=${link.availabilityRequestId}` : ''
+                }`
+              : `/suppliers/${link.supplierId}?tab=conversation`
+          }
+          onClick={(e) => e.stopPropagation()}
+          title={
+            link.onboarded
+              ? `Open ${link.name}'s availability request`
+              : `Open the conversation with ${link.name}`
+          }
+          className="rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-lps-tint"
+        >
+          {link.name}
+        </a>
+      ))}
+    </div>
+  )
+}
+
+/**
  * One note column: a line of it inline, the whole thing in a popover.
  *
  * Both columns are free text edited whole. `kind` still decides what the
@@ -333,6 +373,7 @@ function NoteCell({
   title,
   value,
   onSaved,
+  supplierLinks,
 }: {
   kind: 'shared' | 'internal'
   table: string
@@ -342,6 +383,8 @@ function NoteCell({
   /** Raw column text — both audiences are one editable field. */
   value: string | null
   onSaved: () => void
+  /** Sourcing popovers only: the engaged suppliers, as links. */
+  supplierLinks?: SupplierLink[]
 }) {
   const [open, setOpen] = useState(false)
   const pop = useOutsideClose(open, () => setOpen(false))
@@ -403,14 +446,17 @@ function NoteCell({
               />
             </>
           ) : (
-            <EditableTextarea
-              table={table}
-              id={id}
-              column="sourcing_notes"
-              value={value}
-              onSaved={onSaved}
-              placeholder="Add a sourcing note…"
-            />
+            <>
+              <EditableTextarea
+                table={table}
+                id={id}
+                column="sourcing_notes"
+                value={value}
+                onSaved={onSaved}
+                placeholder="Add a sourcing note…"
+              />
+              {!!supplierLinks?.length && <SupplierNoteLinks links={supplierLinks} />}
+            </>
           )}
         </div>
       )}
@@ -423,12 +469,15 @@ function ItemRow({
   selected,
   onSelect,
   onSaved,
+  supplierLinks,
 }: {
   item: JobRequestItem
   selected: boolean
   /** Omitted where the page has nothing to do with a selection. */
   onSelect?: () => void
   onSaved: () => void
+  /** The request's engaged suppliers, for the sourcing-note popover's links. */
+  supplierLinks?: SupplierLink[]
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
@@ -541,6 +590,7 @@ function ItemRow({
         title={title}
         value={item.sourcingNotes}
         onSaved={onSaved}
+        supplierLinks={supplierLinks}
       />
     </div>
   )
@@ -946,6 +996,7 @@ export function RequestBody({
                   value={request.sourcingNotes}
                   placeholder="Add a sourcing note…"
                 />
+                <SupplierNoteLinks links={request.supplierLinks} />
               </NoteBlock>
             </div>
           </div>
@@ -983,6 +1034,7 @@ export function RequestBody({
                 selected={selected?.has(item.id) ?? false}
                 onSelect={onSelect && (() => onSelect([item.id], !selected?.has(item.id)))}
                 onSaved={onSaved}
+                supplierLinks={request.supplierLinks}
               />
             ))
           ) : (

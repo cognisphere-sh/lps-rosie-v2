@@ -1,5 +1,10 @@
 # availability-drop-intake — changelog
 
+## 2.6.0
+
+2026-08-20 — Bhoumik superseded the historical-backfill gate. Historical email/backlog briefs now carry an ISO incoming date/evidence and require the simple exact-farm later-date check: skip only that numeric farm if it already has a later availability/list date; otherwise ingest normally. The dispatch contract forbids head/company or sister-farm proxies and treats unresolved farm/date as a safe stop.
+
+
 ## 2.5.0
 
 2026-08-18 — Bhoumik clarified that material Chris or Bhoumik manually hands

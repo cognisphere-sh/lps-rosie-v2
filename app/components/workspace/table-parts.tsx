@@ -426,6 +426,21 @@ export function ColumnHead({
 /** Source files open through /api/file, which signs them on click. */
 export const fileHref = (path: string) => `/api/file?path=${encodeURIComponent(path)}`
 
+/**
+ * Marks a portal-onboarded supplier — they answer availability requests in
+ * the LPS supplier portal (`suppliers.is_onboarded`, migration 0062).
+ */
+export function LpsTag() {
+  return (
+    <span
+      title="Onboarded on the LPS supplier portal"
+      className="inline-flex flex-none items-center rounded-[5px] bg-primary px-1 py-px text-[9px] font-black tracking-wide text-primary-foreground"
+    >
+      LPS
+    </span>
+  )
+}
+
 export function Cell({
   col,
   value,
@@ -433,6 +448,7 @@ export function Cell({
   small,
   links,
   href,
+  tag,
   onOpen,
   onSave,
 }: {
@@ -444,6 +460,8 @@ export function Cell({
   links?: { label: string; path: string }[]
   /** For kind="file": the raw file_path this cell links to. */
   href?: string | null
+  /** For kind="link": a small marker drawn after the text (e.g. the LPS tag). */
+  tag?: React.ReactNode
   onOpen?: () => void
   onSave?: (next: string) => Promise<void> | void
 }) {
@@ -619,9 +637,10 @@ export function Cell({
         type="button"
         onClick={onOpen}
         title={text}
-        className="block w-full cursor-pointer truncate border-none bg-transparent px-1.5 py-1 text-left text-[13px] font-bold text-primary"
+        className="flex w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1.5 py-1 text-left text-[13px] font-bold text-primary"
       >
-        {text}
+        <span className="min-w-0 truncate">{text}</span>
+        {tag}
       </button>
     )
   }

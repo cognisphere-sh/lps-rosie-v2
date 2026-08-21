@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including a new location of a known company), browser enrichment and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and report block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v1.1.2)
+description: Create and enrich a supplier and its people — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including a new location of a known company), evidence-based category classification, browser enrichment and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and report block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v1.2.0)
 metadata:
   author: lps
-  version: "1.1.2"
+  version: "1.2.0"
 ---
 
 # Supplier onboarding
@@ -113,13 +113,51 @@ present) and **capture the returned `id`**.
 
 - `suppliers` has **no `email` or `phone` column** — the company's own
   switchboard is a `contacts` row like any other (§3).
-- Set `category` to one of `Wholesaler`/`Grower`/`Nursery` **only if you actually
-  know it — otherwise leave it null; never guess.**
+- Set `category` only under **Category classification** below. The allowed values
+  are exactly `Wholesaler`, `Grower`, `Nursery`, and `Other`; otherwise leave it
+  null.
 - If this is a **new location of a company already in the database**, set
   `head_branch_id` to that company's head branch and name the row for the site
   (`<Company> - <City or farm name>`). Leave `head_branch_id` alone otherwise — a
   new supplier is its own head branch by default. If it is a new company that
   turns out to run several sites, report it (§1).
+
+### Category classification
+
+Classify the **location's primary operating model and customer reach**, not its
+name. Collect and weigh multiple, consistent pieces of evidence from the
+supplier's site, catalog, delivery/service area, stated customers, and direct
+supplier materials. Record the evidence in the report. A company-wide statement
+can support a location only when it explicitly applies to that location or all
+locations; otherwise classify each location from its own evidence.
+
+- **`Grower`** — evidence shows production at scale *and* a broad wholesale
+  market: for example, substantial greenhouse production or tree fields, with
+  nurseries/wholesalers as the main customers and customers or delivery across
+  states. A site called “Green Valley Nursery” that documents 200 acres of tree
+  production and supplies wholesale nurseries in several states is a `Grower`.
+- **`Nursery`** — evidence shows a regional nursery operation whose primary
+  customers are regional contractors or landscape professionals. It may grow
+  material itself; growing alone does not make it a `Grower`. For example, a
+  business with propagation houses that primarily serves landscape contractors
+  in its metro area is a `Nursery`.
+- **`Wholesaler`** — evidence shows a regional wholesale/distribution supplier
+  whose primary customers are regional contractors or landscape professionals,
+  rather than production at scale for a broad wholesale market. For example, a
+  regional landscape supply yard sourcing stock from growers and selling to
+  local trade accounts is a `Wholesaler`.
+- **`Other`** — use only when reliable evidence establishes that the supplier's
+  primary business fits none of the three definitions (for example, a retail
+  garden center serving homeowners). It is not a catch-all for uncertainty.
+- **Ambiguous or insufficient evidence** — leave `category` null and report the
+  competing/missing evidence. Never infer a category from a company name (words
+  such as “Nursery,” “Farms,” or “Wholesale”) or from one clue alone (one
+  greenhouse, one field, one interstate shipment, or one customer type).
+
+These are operating classifications, not legal labels. A nursery name on a
+large interstate grower remains `Grower`; a grower-branded business that serves
+regional landscape professionals remains `Nursery` or `Wholesaler` according to
+its documented primary model.
 
 ## 3. Enrich the row
 
@@ -262,6 +300,10 @@ every farm, while a yard manager answers for one site only.
 - **A new location points at the right head branch**, and the company's location
   set now reads the way you expect: re-run §1's sister-location query and confirm
   the new row appears once, under the head branch you intended.
+- **Category is defensible**: it is one of the four allowed values only when
+  multiple consistent facts support the location's primary model/customer reach;
+  otherwise it is null. A category does not alter the one-row-per-location,
+  shared-head-branch model.
 
 ## Timestamps
 
@@ -280,7 +322,9 @@ transcript.
 
 - **Onboarding**: new `supplier_id`, its `head_branch_id` when the row is a
   location of a known company, and — when you decided a farm was new rather than
-  an existing row — the evidence for that call.
+  an existing row — the evidence for that call. State the category set (or that
+  it was left null/why) and the multiple facts supporting it; `Other` needs the
+  evidence that excluded the three defined categories.
 - **Enrichment**: fields set via browser research, including which of the
   availability-source columns you set and on what evidence, and which you left
   null. Newsletter subscribed (or why not). **A plant-photo gallery on their

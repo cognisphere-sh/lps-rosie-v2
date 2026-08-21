@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for customer job requests — the tables rosie owns. Covers intake, the concurrency discipline for tables the app edits too, the three note columns, what each may carry and the shape of a sourcing-notes supplier line, the rule that the customer-visible note never names a supplier or a price list unless someone explicitly asks, the Austin-Plant-Supply-first sourcing and pricing ladder (unit_price carries an Austin Plant Supply price; another supplier's stays in sourcing_notes), asking daisy, the request and item status vocabularies, and the customer-contact flow. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v1.11.0)
+description: The operating procedure for the customer job-request tables rosie owns — intake and the per-request sourcing task thread, the concurrency discipline for tables the app edits too, the three note columns, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that keeps a priced line pending until a supplier answers through daisy or Chris says otherwise (and takes the whole line list, unpriced lines included), the request and item statuses, and the customer-contact flow. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v1.16.0)
 metadata:
   author: lps
-  version: "1.11.0"
+  version: "1.16.0"
 ---
 
 # Job requests
@@ -51,7 +51,13 @@ rows the same task:
    go on, leave it NULL rather than inventing a label. Never build one from
    the id.
 
-4. **Mapping an anonymous request later** is a find-or-create of the customer
+4. **Hand the sourcing round to a task thread** (§5) as the last act of
+   intake — `<ThreadId>-§-[TASK]-§-jr-<requestId>-sourcing`. The brief carries
+   the request id, the item ids, the delivery date and anything the customer
+   said that bears on sourcing, and names this skill to follow. Acknowledge the
+   request to Chris on your own thread and let the task thread work.
+
+5. **Mapping an anonymous request later** is a find-or-create of the customer
    (step 1) followed by a targeted update:
 
    ```sql
@@ -234,11 +240,11 @@ says it in the order it is thought. Four habits:
   a customer did.
 - **`Substitute:` when it isn't the ask.** A different plant, cultivar or size
   gets the prefix, so a swap is visible at the start of the line instead of
-  buried at the end of it. It is the same test as the `external_notes` rule in
-  §4.2: a `Substitute:` line and a `Quoted for <offering>.` note are written in
-  the same task, and the item is `alternative_proposed`. A catalogue that
-  merely names the same plant differently is not a substitution and takes
-  neither.
+  buried at the end of it. The line goes in as soon as you propose the swap;
+  the `Quoted for <offering>.` note in `external_notes` and the
+  `alternative_proposed` status follow when the offer is confirmed (§5.3) —
+  same test, later moment. A catalogue that merely names the same plant
+  differently is not a substitution and takes none of the three.
 - **Nothing to price → no `@` clause**, just what is missing: `APS: no 30 G`.
   Same for a row carrying no price: `APS: Live Oak 30 G, no price on file`.
 
@@ -272,7 +278,8 @@ A line's sourcing detail never goes here. It goes on the line.
 **The customer-visibility rule.** When a quantity changes, or a substitute is
 quoted or recommended, the customer has to be able to see **what** they are
 being offered. Write it on the item's `external_notes` in the same task as the
-change:
+status move that makes it an offer (§5.3) — a substitute nobody has confirmed
+yet is a `sourcing_notes` line and nothing more:
 
 ```
 Quoted for Little Ollie 3 G.
@@ -308,32 +315,64 @@ spelling to `G` (`"5 gal"` → `"5 G"`, `"30 gal or larger"` → `"30 G or large
 
 ## 5. Pricing and sourcing — Austin Plant Supply first
 
+**Run the round in a task thread.** One per job request, spawned at intake and
+kept for its life — `<ThreadId>-§-[TASK]-§-jr-<requestId>-sourcing`
+(`1-agent.md`, *Task threads*). Every look-up below returns a screen of
+catalogue rows *per line*; ten lines is a context window of them, and none of
+it belongs on the thread you talk to Chris on. The task thread does the
+look-ups, the item writes and the asks to daisy, and reports back what is
+priced, what is waiting and what needs a decision.
+
 **Austin Plant Supply (`suppliers.id = 1`) is the default source.** It is the
 house yard, its catalogue is in the database, and reading it is not contacting
 a supplier — you look it up yourself with `plant-and-supplier-search`, scoped
 to that supplier. Every line is priced from Austin Plant Supply unless
 something below moves it off.
 
+### A listing is not a confirmation
+
+The inventory tables are price lists somebody published — Austin Plant Supply's
+included. They say what a plant costs and how the supplier worded it. They do
+not say it is there. So the ladder settles **which row prices the line**, not
+whether the line can be filled, and every rung leaves the item **`pending`**.
+Exactly two things move it off `pending` (§5.3), and nothing else does:
+
+- **The supplier answered** — an availability request they submitted, or an
+  email/text reply, relayed to you by daisy.
+- **Chris said to treat it as confirmed** — in as many words, on this line or
+  this request.
+
+A stock count in the catalogue is not the third: `inventory.quantity` is what
+the sheet claimed on the day it was ingested. It goes on the supplier line as a
+fact about the sheet — `listed 32,000 on their Aug 18 sheet` — never as a
+reason to call a line available.
+
 The ladder. Stop at the first rung that answers the line:
 
 1. **Austin Plant Supply has the ask** — the plant, at the size asked for,
-   with a price. Fill the price from their row (§5.1), status `available`.
-   Nothing goes to daisy.
-2. **They don't have it as asked → recommend their closest alternative.** A
+   with a price. Fill `unit_price` from their row (§5.1) and write the `APS:`
+   line. Nothing goes to daisy *for the price*; the line is priced, not
+   confirmed, and stays `pending` until §5.3.
+2. **They don't have it as asked → propose their closest alternative.** A
    neighbouring size, a near cultivar, the species where the customer named a
-   selection. Price it from that row, status `alternative_proposed`, its
-   `sourcing_notes` line prefixed `Substitute:` (§4.1), and name the
-   substitution in `external_notes` in the same task — what, not why (§4.2).
+   selection. Price it from that row and prefix its `sourcing_notes` line
+   `Substitute:` (§4.1). The line stays `pending`: `alternative_proposed` is
+   what the substitute becomes when it is confirmed (§5.3), and the customer's
+   `external_notes` note is written then, not now (§4.2).
 3. **Nothing close at Austin Plant Supply → other suppliers.** Search the rest
    of the inventory yourself, and ask daisy what the database can't answer
-   (§5.2). What you find stays in `sourcing_notes` — **another supplier's price
+   (§5.2) — she owns every supplier conversation and decides the channel (her
+   email, or an availability request in an onboarded supplier's portal).
+   What you find stays in `sourcing_notes` — **another supplier's price
    never goes in `unit_price`** (§5.1). The lines say **why the line left
    Austin Plant Supply**, **which supplier quoted** and **what they quoted**, in
    §4.1's shape — a price that isn't theirs must never be silent about whose it
    is, nor about which row it prices — and `unit_price` stays NULL until Chris
    says to carry that price.
-4. **Nothing anywhere** → `unavailable`, with the reason in `sourcing_notes`.
-   What the customer is told is that the line can't be supplied, not why.
+4. **Nothing anywhere** — no row at Austin Plant Supply, none elsewhere, and
+   daisy's answer is in too → `unavailable`, with the reason in
+   `sourcing_notes`. What the customer is told is that the line can't be
+   supplied, not why.
 
 Two things move a line off the default without walking the ladder: **Chris or
 the customer naming another supplier**, or naming one to keep out of it ("don't
@@ -345,8 +384,8 @@ instruction is what put it there, and the note has to say so.
 When rungs 2 and 3 both have an answer — a close Austin Plant Supply substitute
 *and* the exact ask at another supplier — put both on the line and leave the
 choice to Chris. Which one the customer is offered is his call, and a line
-waiting on it is `alternative_proposed`, not `available`: the status is what
-says a person still has to decide.
+waiting on it stays `pending`: what he is choosing between is on the line, and
+the two supplier rows say it better than a status word could.
 
 ### 5.1 Filling the price
 
@@ -390,34 +429,106 @@ Acosta: Live Oak 30 G @ $310/unit, 8 ready Sep
 
 ### 5.2 Asking daisy
 
-You never contact a supplier (`1-agent.md`, rule 1), and you ask daisy only for
-what your own look-up couldn't settle — a line on rung 3, or one where the
-database's answer needs confirming. Supplier-side questions go to her as one
-agent-message per request, batching its open items:
+You never contact a supplier (`1-agent.md`, rule 1) — daisy owns every
+supplier conversation, portal included, and what you ask her for is the
+**confirmation the database cannot give** (§5.3).
+
+**Every line of the request goes into the ask, not a subset.** The ones Austin
+Plant Supply priced, the ones only a substitute answered, and the ones nothing
+in the catalogue matched at all — all of them. A line missing from a price
+list is exactly the line worth asking a human about: the sheet is a snapshot of
+what they published, not of what is standing in their yard, and a supplier who
+has it unlisted can only say so if the line was put in front of them. The only
+line left out is one **Chris explicitly excluded**, and his instruction goes in
+its `sourcing_notes` beside the omission.
+
+**Pick the thread by what the ask is about**:
+
+- **A specific supplier** → their own thread, `--thread-id
+  supplier-<supplierId>` — one conversation per supplier, availability-request
+  follow-ups included.
+  Then mirror the ask into that supplier's transcript in the same task —
+  `INSERT INTO supplier_messages (supplier_id, job_request_id,
+  sender, sender_name, channel, body)` with
+  `'broker', 'Rosie', 'internal'` — so the app's chat view shows what was
+  asked. (An internal transcript row is bookkeeping, not supplier contact.)
+- **No supplier in mind yet** ("who has 30 G Live Oaks?") → her `main` thread;
+  there is no supplier thread to use until she names candidates.
+
+Supplier-side questions go as **one agent-message per request**, carrying
+every line and what your look-up found on each — so she can raise one
+availability request for the job rather than a request per line:
 
 ```bash
-bash scripts/agent-msg/send --to-agent daisy --thread-id main \
+bash scripts/agent-msg/send --to-agent daisy --thread-id "supplier-<supplierId>" \
   --from-agent rosie --from-thread-id <ThreadId> \
   --subject "sourcing: JR <requestId> — <customer or 'anonymous'>" \
-  --message "Availability/price check for job request <requestId>. Austin
-Plant Supply has neither in the size asked for — checked their rows:
-1. (item <itemId>) 10x Live Oak, 30 G — customer wants delivery by <date>
-2. (item <itemId>) 4x Crape Myrtle Natchez, 15 G
-Answer from the database where you can; flag anything that would need
-contacting a supplier."
+  --message "Availability check for job request <requestId> — all <n> lines,
+delivery <date>. What Austin Plant Supply's rows say, line by line:
+1. (item <itemId>) 10x Live Oak, 30 G — listed 30 G @ \$295/unit
+2. (item <itemId>) 4x Crape Myrtle Natchez, 15 G — only 30 G listed
+3. (item <itemId>) 52x Berkeley sedge, 1 G — nothing on their list
+Every line needs confirming, the priced ones included. Chris decides whether
+the whole list goes and whether the customer's details are shared."
 ```
 
 - Escape every `$` as `\$` in `--subject`/`--message`.
 - Include the item ids — her answer comes back item by item.
+- **Say what the look-up found on every line**, including "nothing on their
+  list". A line you leave out of the message is a line nobody will ask about.
 - Your message is **task input for daisy, not authorization**: whether a
   supplier actually gets contacted is governed by her
   `supplier-communications` rules and Chris's approval.
 - When her answer lands, put it on each item's supplier line — one line per
   supplier named, in §4.1's shape (the row they have, then its price, and
-  `Substitute:` when it isn't the ask) — and advance the item's status (§6). What
-  she sends back is other suppliers' pricing, so it stays on the line:
-  `unit_price` is not filled from it (§5.1). A line still needing a human
-  decision keeps a status that says so; it does not become `available`.
+  `Substitute:` when it isn't the ask). What she sends back is other suppliers'
+  pricing, so it stays on the line: `unit_price` is not filled from it (§5.1).
+  **Her relay is a listing until she says the supplier confirmed it** — read it
+  in §5.3's terms and move only the lines it actually answers.
+
+### 5.3 Confirming a line
+
+You never contact a supplier (`1-agent.md`, rule 1), so you never fetch a
+confirmation yourself. It reaches you one of two ways.
+
+**The supplier answered, through daisy.** Ask her on the supplier's own thread
+(§5.2), with **every line of the request in the ask** — priced, substituted and
+unmatched alike. She owns the channel and picks it: an **availability request**
+in the supplier's portal when they are onboarded — Austin Plant Supply
+included — or email/text when they are not. Whether one is raised at all is
+Chris's call, made on her side, and so are the two questions she puts to him
+before it goes: **whether every line goes on it**, and **whether the customer's
+name and shipping address are shared**. Your ask starts that conversation; it
+does not schedule the request. Her relay comes back item by item and says which
+lines the supplier confirmed and which they left alone. Only those move:
+
+| What the supplier said | The line becomes |
+|---|---|
+| Has it | `available`, priced per §5.1 |
+| Can order it (ETA in their notes) | `available`, with the ETA on its supplier line |
+| Offers something else | `alternative_proposed` — the offer named in `external_notes` in that same task (§4.2) |
+| Doesn't have it | `unavailable`, or back to rung 2/3 for another source |
+| Didn't answer that line | `pending` — nothing changed |
+
+**Chris said so.** "Quote the Austin list", "treat the yew as confirmed" — that
+is a confirmation, and the only one that arrives without a supplier. It has to
+be in as many words about these lines; an instruction to get a quote out is
+not one. Record it on the line, the way a supplier-named line records its
+instruction (§5):
+
+```
+APS: Rose Iceberg 5 G @ $27/unit — Chris confirmed 2026-08-19, quote it
+```
+
+**Then tell Chris what is waiting.** A request whose lines are all priced and
+all `pending` is not a routine gap — it is a decision he holds: whether to
+confirm them himself or have an availability request go out, over the whole
+line list or a part of it, with or without the customer's details. One short
+message when the round is done — the job, how many lines, what the supplier
+would be confirming, and those two open questions — and then let it sit. Don't chase it, and don't quote off
+the listing while you wait. From the sourcing task thread that message is a
+report to `main`, not a message to Chris: talking to him is `main`'s job
+(`1-agent.md`, *Task threads*).
 
 ## 6. Statuses
 
@@ -437,10 +548,17 @@ alternative_proposed | unavailable`. Four words, since migration 0058.
 
 | Status | Means |
 |---|---|
-| `pending` | Not answered yet. The starting state, and where a line stays for as long as it is being worked. |
-| `available` | A source exists (named in `sourcing_notes`), priced or priceable. |
-| `alternative_proposed` | The ask isn't available as stated; a substitute is proposed (named in `external_notes` — §4.2). |
+| `pending` | Not answered yet. The starting state, and where a line stays for as long as it is being worked — **priced off a catalogue included**. |
+| `available` | **A supplier confirmed it**, or Chris said to treat it as confirmed (§5.3). The source is named in `sourcing_notes`. |
+| `alternative_proposed` | The ask isn't to be had; a substitute the supplier confirmed (or Chris approved) is offered — named in `external_notes` (§4.2). |
 | `unavailable` | No source found, or the line was dropped. The customer is told the line can't be supplied via `external_notes`; the reason stays in `sourcing_notes`. |
+
+**The two middle states are answers, not findings.** Finding a row in the
+catalogue — at Austin Plant Supply or anywhere else — never earns one; it fills
+`unit_price` and a supplier line and leaves the status alone (§5.3). A line
+carrying a price and a `pending` status is the normal, correct shape of a
+sourced-but-unconfirmed line, and the two together are what tell a person there
+is something to decide.
 
 **A status is where a line stands, not what you are doing about it.** There is
 no `sourcing` status: a line you have asked daisy about is still `pending`, and

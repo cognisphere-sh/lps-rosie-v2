@@ -10,6 +10,35 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0063_supplier_chat_transcript.sql`
+
+Applied 2026-08-19, one step. The supplier communication log becomes a chat
+transcript: `supplier_messages.channel` gains `internal` (a thread message
+that is not supplier-facing — an instruction to daisy, another agent's note),
+and every `suppliers.communication_notes` entry was migrated in as an
+`internal` broker-side note (196 entries from 92 suppliers; stamps →
+`created_at` in America/Chicago, header lines kept as the body's first line,
+literal `\n` sequences normalized). The column is retired but **not
+dropped** — commented as a frozen archive so the migration stays auditable.
+`customers.communication_notes` is untouched.
+
+## `0062_availability_requests_and_supplier_messages.sql`
+
+Applied 2026-08-19, one step. Adds the supplier side of sourcing a job
+request: `suppliers.is_onboarded` (answers availability requests in the
+supplier portal; portal auth deliberately deferred), `availability_requests`
+(one ask, job request → supplier, with `share_customer_details` and a
+`new`/`submitted`/`closed` lifecycle), `availability_request_items` (the
+shared lines, **snapshotted** name/size/quantity at share time, plus the
+supplier's per-line answer: `available` | `unavailable` | `can_order` |
+`substitute`, avail qty, price, notes), and `supplier_messages` (the
+broker↔supplier thread, channels `email`/`text`/`app`, append-only — no
+updated_at, no is_active).
+
+RLS enabled on all three with the standard `authenticated full access`
+policy; `handle_updated_at` on the two mutable tables; indexes on the
+supplier/request lookups. Additive only — no data touched.
+
 ## `0061_rename_internal_notes_to_sourcing_notes.sql`
 
 Applied 2026-08-18 at Bhoumik's request, one step. Renames `internal_notes` →

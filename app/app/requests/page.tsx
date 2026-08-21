@@ -221,24 +221,191 @@ function RequestCard({
   )
 }
 
+/** The selected lines of one request — an availability request is per job. */
+interface ARGroup {
+  requestId: number
+  label: string
+  itemIds: number[]
+}
+
+/**
+ * Send the selected lines to an onboarded supplier as an availability request.
+ *
+ * One request per job: a selection spanning several jobs creates one per job,
+ * because `availability_requests` ties a supplier's answer to the job it is
+ * for. Only onboarded suppliers are offered — everyone else is reached through
+ * their conversation thread (via daisy), not a portal they will never open.
+ */
+function AvailabilityRequestDialog({
+  groups,
+  onClose,
+  onCreated,
+}: {
+  groups: ARGroup[]
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const toast = useToast()
+  const [suppliers, setSuppliers] = useState<
+    { id: number; name: string; city: string | null; state: string | null }[]
+  >([])
+  const [loaded, setLoaded] = useState(false)
+  const [supplierId, setSupplierId] = useState<number | null>(null)
+  const [share, setShare] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch('/api/availability-requests/suppliers')
+      if (res.ok) {
+        const body = (await res.json()) as { suppliers: typeof suppliers }
+        setSuppliers(body.suppliers)
+      }
+      setLoaded(true)
+    })().catch(() => setLoaded(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const create = async () => {
+    if (supplierId == null) return
+    setBusy(true)
+    const results = await Promise.allSettled(
+      groups.map((g) =>
+        fetch('/api/availability-requests', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            jobRequestId: g.requestId,
+            supplierId,
+            shareCustomerDetails: share,
+            itemIds: g.itemIds,
+          }),
+        }).then(async (res) => {
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as { error?: string }
+            throw new Error(body.error ?? 'failed')
+          }
+        }),
+      ),
+    )
+    setBusy(false)
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed) {
+      toast(`${groups.length - failed} of ${groups.length} sent · ${failed} failed`)
+    } else {
+      toast(
+        groups.length === 1
+          ? 'Availability request sent'
+          : `${groups.length} availability requests sent`,
+      )
+    }
+    onCreated()
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-[440px] flex-col gap-3 rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
+      >
+        <span className="text-[14px] font-bold text-foreground">Send availability request</span>
+        <div className="flex flex-col gap-1 rounded-lg border border-lps-hair bg-lps-bubble p-2.5">
+          {groups.map((g) => (
+            <span key={g.requestId} className="text-[12px] text-foreground">
+              <strong>{g.label}</strong> · {g.itemIds.length}{' '}
+              {g.itemIds.length === 1 ? 'line' : 'lines'}
+            </span>
+          ))}
+          {groups.length > 1 && (
+            <span className="text-[11px] text-muted-foreground">
+              One request per job will be created.
+            </span>
+          )}
+        </div>
+
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+            Supplier
+          </span>
+          <select
+            value={supplierId ?? ''}
+            onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : null)}
+            className="h-9 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
+          >
+            <option value="">Choose a supplier…</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+                {s.city ? ` — ${[s.city, s.state].filter(Boolean).join(', ')}` : ''}
+              </option>
+            ))}
+          </select>
+          {loaded && suppliers.length === 0 && (
+            <span className="text-[11.5px] text-muted-foreground">
+              No onboarded suppliers yet — mark one as{' '}
+              <em>Portal onboarded</em> on their profile first.
+            </span>
+          )}
+        </label>
+
+        <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+          <input
+            type="checkbox"
+            checked={share}
+            onChange={(e) => setShare(e.target.checked)}
+            className="size-4 accent-[var(--primary)]"
+          />
+          Share customer details with the supplier
+        </label>
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void create()}
+            disabled={busy || supplierId == null}
+            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /**
  * What can be done to a set of selected lines.
  *
  * Every action here is a write this app already owns. The design also offers
- * Email quote, Text quote, PDF quote, Place order and Send availability
- * request; none of those are wired, because none of them exist yet — rosie has
- * no mailbox and may not contact a customer unbidden (`docs/harness/agent-rosie.md`),
- * and the order tables are deferred by migration 0055. Buttons that only looked
- * like they sent something would be worse than their absence.
+ * Email quote, Text quote, PDF quote and Place order; none of those are wired,
+ * because none of them exist yet — rosie has no mailbox and may not contact a
+ * customer unbidden (`docs/harness/agent-rosie.md`), and the order tables are
+ * deferred by migration 0055. Buttons that only looked like they sent
+ * something would be worse than their absence. Send availability request *is*
+ * wired since migration 0062 — it writes `availability_requests`, which is a
+ * database row an onboarded supplier reads in their portal, not outreach.
  */
 function SelectionBar({
   ids,
   onClear,
   onSaved,
+  onAvailabilityRequest,
 }: {
   ids: number[]
   onClear: () => void
   onSaved: () => void
+  onAvailabilityRequest: () => void
 }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
@@ -300,6 +467,14 @@ function SelectionBar({
       </div>
       <button
         type="button"
+        disabled={busy}
+        onClick={onAvailabilityRequest}
+        className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-foreground disabled:opacity-50"
+      >
+        Availability request
+      </button>
+      <button
+        type="button"
         onClick={onClear}
         className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-full border-none bg-transparent px-2 py-[5px] text-[12px] font-semibold text-muted-foreground hover:text-foreground"
       >
@@ -328,6 +503,7 @@ export default function RequestsPage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   /** Selected line ids, across every card on the page. */
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [arDialogOpen, setArDialogOpen] = useState(false)
   /** Bumped after a write, to refetch the page and everything derived from it. */
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
@@ -571,6 +747,24 @@ export default function RequestsPage() {
             ids={[...selected]}
             onClear={() => setSelected(new Set())}
             onSaved={reload}
+            onAvailabilityRequest={() => setArDialogOpen(true)}
+          />
+        )}
+        {arDialogOpen && (
+          <AvailabilityRequestDialog
+            // Selected lines grouped by their request — an availability
+            // request is per job, so a cross-job selection creates one each.
+            groups={requests.flatMap((r) => {
+              const itemIds = r.items.filter((it) => selected.has(it.id)).map((it) => it.id)
+              return itemIds.length
+                ? [{ requestId: r.id, label: r.name ?? requestRef(r.id), itemIds }]
+                : []
+            })}
+            onClose={() => setArDialogOpen(false)}
+            onCreated={() => {
+              setSelected(new Set())
+              reload()
+            }}
           />
         )}
         {requests.map((request) => (

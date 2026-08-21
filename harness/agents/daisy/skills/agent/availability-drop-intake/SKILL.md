@@ -1,9 +1,9 @@
 ---
 name: availability-drop-intake
-description: Coordinate one availability drop without writing rows. Covers supplier identification, task-thread dispatch, manual/current-receipt versus email/backfill classification, images/body handoff, the historical-backfill gate handoff, report digestion and Gmail labels. Use for supplier drops, historical backfill, Chris-requested ingests, or ingest reports. (v2.5.0)
+description: Coordinate one availability drop without writing rows. Covers supplier identification, task-thread dispatch, manual/current-receipt versus email/backfill classification, images/body handoff, exact-farm historical-date skip handoff, report digestion and Gmail labels. Use for supplier drops, historical backfill, Chris-requested ingests, or ingest reports. (v2.6.0)
 metadata:
   author: lps
-  version: "2.5.0"
+  version: "2.6.0"
 ---
 
 # Availability drop intake
@@ -119,15 +119,18 @@ points back at it rather than restating it. The brief carries:
   (image, attachment, or website) is **manual/current-receipt**: give the
   inbound handoff timestamp as its received/retrieved time, preserve any printed
   old or non-ISO date verbatim, and state that availability/pricing is
-  **confirmation-required**. It does **not** need the historical gate unless
-  Chris/Bhoumik or the brief explicitly calls it historical/backfill. This is
-  true even when the material displays only an old year.
+  **confirmation-required**. It does **not** need the exact-farm historical
+  date check unless Chris/Bhoumik or the brief explicitly calls it
+  historical/backfill. This is true even when the material displays only an old
+  year.
 - **For email/backlog historical/backfill only:** state that it is historical,
-  give the exact ISO source effective/received timestamp, and require the task
-  to run `availability-ingestion`'s mandatory historical-backfill pre-write
-  gate. Do not dispatch a source whose supplier/location cannot be resolved by
-  numeric id first; that is a fail-closed gate blocker, not an invitation to
-  onboard.
+  give the exact ISO source effective/received timestamp and its evidence, and
+  require the task to follow `availability-ingestion`'s exact-farm later-date
+  check. The task must resolve each actual farm numeric `supplier_id`; it must
+  skip only a farm with a later availability/list date for that same id, retain
+  concise evidence, and otherwise ingest normally. Never use `head_branch_id`,
+  company membership, or a sister farm as the later-date proxy. An unresolved
+  farm or date fails safely and is reported, not guessed or auto-onboarded.
 
 Don't restate the skill's steps in the brief. The task thread is you and has the
 same skills installed; naming the skill is what keeps both threads on the same

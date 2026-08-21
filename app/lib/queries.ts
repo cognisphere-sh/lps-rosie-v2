@@ -40,6 +40,8 @@ interface SupplierRecord {
   availability_source_type: string | null
   availability_update_days: number | null
   hosted_availability_url: string | null
+  /** Migration 0062. Only `select('*')` reads carry it; search projections don't. */
+  is_onboarded?: boolean
   is_active?: boolean
   created_at: string | null
   updated_at: string | null
@@ -114,6 +116,7 @@ function toSupplierRow(
       availability_source_type: s.availability_source_type,
       availability_update_days: s.availability_update_days,
       hosted_availability_url: s.hosted_availability_url,
+      is_onboarded: s.is_onboarded ?? null,
       item_count: extras.itemCount ?? null,
       city: s.city,
       state: s.state,
@@ -404,12 +407,19 @@ export async function listSuppliers(
   // responsibility. Read the one missing key from suppliers and keep every
   // location record otherwise byte-for-byte from the ranked/filtered RPC.
   const headByLocation = new Map<number, number>()
+  // Piggybacked on the same read: `is_onboarded` (migration 0062), which
+  // search_suppliers doesn't project — it draws the LPS tag on farm rows.
+  const onboardedByLocation = new Map<number, boolean>()
   for (let at = 0; at < records.length; at += 500) {
     const ids = records.slice(at, at + 500).map((record) => record.id)
-    const { data, error } = await supabase.from('suppliers').select('id, head_branch_id').in('id', ids)
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('id, head_branch_id, is_onboarded')
+      .in('id', ids)
     if (error) throw new Error(`supplier company keys: ${error.message}`)
-    for (const row of (data ?? []) as { id: number; head_branch_id: number }[]) {
+    for (const row of (data ?? []) as { id: number; head_branch_id: number; is_onboarded: boolean }[]) {
       headByLocation.set(row.id, row.head_branch_id)
+      onboardedByLocation.set(row.id, row.is_onboarded)
     }
   }
 
@@ -417,6 +427,7 @@ export async function listSuppliers(
   for (const record of records) {
     const headId = headByLocation.get(record.id) ?? record.id
     record.head_branch_id = headId
+    record.is_onboarded = onboardedByLocation.get(record.id) ?? false
     grouped.set(headId, [...(grouped.get(headId) ?? []), record])
   }
 
@@ -976,9 +987,13 @@ export async function signedSourceUrl(path: string): Promise<string | null> {
 const WRITABLE: Record<string, string[]> = {
   // No email/phone: those moved to `contacts` in migration 0016 and the
   // columns are gone. Reaching a supplier is a contacts write now.
+  // No `communication_notes`: retired by migration 0063 — the supplier record
+  // is the `supplier_messages` transcript now, and the old column is a frozen
+  // archive nothing may write.
   suppliers: [
-    'name', 'category', 'city', 'state', 'notes', 'communication_notes',
+    'name', 'category', 'city', 'state', 'notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
+    'is_onboarded',
   ],
   // No `name`: it is derived by the database from the three name parts
   // (migration 0040), so writing it here would be silently overwritten by
@@ -1054,6 +1069,9 @@ const ARRAY = new Set(['tags'])
 // `availability_update_days` is an integer column, so a fractional value would
 // be rejected by Postgres rather than rounded. Say so here instead.
 const INTEGER = new Set(['availability_update_days'])
+// Boolean columns arrive as the strings a dropdown produces. `is_onboarded` is
+// NOT NULL DEFAULT false, so anything but a literal 'true' means false.
+const BOOLEAN = new Set(['is_onboarded'])
 
 /**
  * Update one cell. The table/column pair is checked against a whitelist here,
@@ -1103,6 +1121,11 @@ export async function updateFields(
     if (ARRAY.has(column)) {
       // `tags` is NOT NULL, so an emptied field is an empty array, not null.
       values[column] = raw.split(',').map((part) => part.trim()).filter(Boolean)
+      continue
+    }
+
+    if (BOOLEAN.has(column)) {
+      values[column] = raw.trim() === 'true'
       continue
     }
 

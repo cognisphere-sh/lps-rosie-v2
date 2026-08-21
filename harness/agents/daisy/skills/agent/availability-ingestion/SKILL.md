@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop into Supabase — every inventory-side write belongs here. Covers location mapping, source conversion, identity/size/price normalization, aliases, provenance, current-receipt manual intake, match/update/insert rules, photo triage, and a fail-closed historical-backfill gate with durable evidence and immediate revalidation before any business write. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v1.5.1)
+description: Ingest one availability drop into Supabase — every inventory-side write belongs here. Covers location mapping, source conversion, identity/size/price normalization, aliases, provenance, current-receipt/manual intake, exact-farm historical backfill date skips, match/update/insert rules, photo triage and QA. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v1.7.0)
 metadata:
   author: lps
-  version: "1.5.1"
+  version: "1.7.0"
 ---
 
 # Availability ingestion
@@ -51,7 +51,7 @@ brief rather than re-deriving any of it. **A Chris/Bhoumik manual handoff
 historical backfill merely because its material prints an old or non-ISO date.**
 Use the handoff timestamp as received/retrieved time and follow *Manual
 current-receipt intake* below. Only an explicit `historical/backfill`
-classification invokes the historical gate. Two things to read before you write
+classification invokes the exact-farm historical date check below. Two things to read before you write
 anything:
 
 - **`knowledge/files/SCHEMA.md`** — before any query.
@@ -67,62 +67,66 @@ same session. Ask early rather than guessing.
 Any contact with the supplier during the ingest gets a timestamped entry in
 `suppliers.communication_notes` — follow the `supplier-communications` skill.
 
-## Historical backfill: mandatory pre-write supersession gate
+## Historical backfill: exact-farm later-date check
 
 **Applies only when the brief explicitly says historical/backfill (the
-email/backlog path). This comes before every write path in this skill —
-onboarding, source upload/provenance, inventory, aliases and photos.** A
-historical source that fails the gate writes nothing. An old/non-ISO date printed
-on a Chris/Bhoumik manual handoff does not itself make it historical; use
-*Manual current-receipt intake* instead.
-Do not create a provenance-only source, catalogue a photo, add a contact, or
-onboard a location as a workaround.
+email/backlog path).** It is a simple read-only skip check, not a gate: do not
+run `historical-backfill-gate`, collect company-wide authority evidence, batch
+parsed offerings, or revalidate before commit. An old/non-ISO date printed on a
+Chris/Bhoumik manual handoff does not itself make it historical; use *Manual
+current-receipt intake* instead.
 
-1. Resolve each target by numeric `supplier_id` and read its `head_branch_id`,
-never a display name. You may use §0's mapping evidence **read-only** to build
-locations and parse offerings. A new/ambiguous supplier or location fails
-closed: onboarding cannot precede this gate.
-2. Review **all active later `inventory_sources` across each resolved head
-branch**, not an arbitrary horizon. For every source attest and quote evidence
-for one disposition: `authoritative-current` (a full current availability with
-actual active offerings), `historical-static`, `withheld`, or
-`escalated-partial`. A campaign label, Gmail label, timestamp or row count alone
-is not authority. Static, future/prebook, withheld and partial/Escalated content
-cannot supersede the historical source.
-3. Create `/tmp/<thread>-backfill-gate-input.json` with `schema_version: 1`, an
-`incoming` object containing ISO `effective_at`, `source_scope: "availability"`,
-target `supplier_ids`, and parsed per-location `offerings` (supplier_id, printed
-identity parts, size); plus `later_evidence`, one entry for **every** source the
-script finds: source_id, disposition, nonempty reason and quoted evidence. An
-`authoritative-current` entry also requires `scope: "full"`.
-4. Before any business write run:
+1. Resolve the actual farm(s) from §0 to active numeric `supplier_id`s. A
+company/head id, sender, or sister location is **not** a farm proxy. If a target
+farm is unresolved/ambiguous, or the incoming availability effective/received
+instant cannot be identified as an ISO timestamp, stop safely and report the
+blocker; do not guess a date or farm.
+2. For each resolved farm, identify the incoming source's effective date when it
+states one; otherwise use its received timestamp supplied in the brief. Record
+which was used and the source evidence. Then cheaply check that **same numeric
+supplier id** for a later availability/list source date. `inventory_sources`
+`created_at` is the durable received/ingested timestamp to query where it
+represents the source receipt; use a separately quoted effective/list date when
+one is recorded in source evidence. Never fan this check out through
+`head_branch_id`.
 
-```bash
-skills/agent/availability-ingestion/scripts/historical-backfill-gate preflight \
-  --input /tmp/<thread>-backfill-gate-input.json \
-  --record workspace/threads/<parent>/tasks/<slug>/files/backfill-gate.json
+```sql
+SELECT id, supplier_id, created_at, file_path, notes
+FROM inventory_sources
+WHERE supplier_id = <exact_farm_id>
+  AND is_active
+  AND created_at > '<incoming ISO timestamp>'::timestamptz
+ORDER BY created_at DESC;
 ```
 
-`SKIP` means a later full authoritative source has active offerings: make no
-business write. `ALLOW` permits normal ingestion. `FAIL` is fail-closed: correct
-evidence or report the blocker. The durable record captures resolved
-supplier/head identities, all later sources, classifications, actual offering
-counts and a direct normalized offering comparison.
-5. After staging/QA but **immediately before `BEGIN` or the first write**, run
-that command with `revalidate`. A changed landscape, mapping, input, decision,
-or incomplete evidence fails closed; preflight/review again. This applies even
-when the proposed write is only a photo, source, supplier, contact or alias.
+3. If **any** later availability/list source date is found for that exact farm,
+`SKIP` that farm's incoming offerings: make no source, inventory, alias, photo,
+contact, onboarding, or upload write for that farm. Preserve concise durable
+evidence in the task report/notes: incoming date and basis, farm id, later source
+id/date/path, and `Skipped — later availability already exists for this farm`.
+A later source for Purtis's company (one farm) skips Purtis; a later Everde source
+for one farm skips only that farm, not Mill Creek, Escondido, or any other sister.
+4. If no later source date exists for the exact farm, ingest that farm normally
+under §§1–6 and normal source matching/QA. A mixed multi-farm drop may therefore
+skip some farms and ingest the others. No provenance-only workaround is needed
+for a skipped farm. Never retire inventory or sources as part of either outcome.
 
-Report the decision, record path, source dispositions, offering comparison and
-revalidation result.
+The retired `scripts/historical-backfill-gate` remains on disk only for old
+records; it is not an operational path for new work.
+
+**Regression examples.** Purtis supplier 24 is one farm: a later Purtis list
+skips an older Purtis list. Everde is farm-by-farm: a later Mill Creek (1231)
+source skips only Mill Creek, never Escondido (1395) or another sister farm
+without a later date. A partial or earlier source never skips the incoming list;
+only a strictly later availability/list date at the same numeric farm does.
 
 ## Manual current-receipt intake
 
 When Chris or Bhoumik manually hands over an image, attachment, or website and
 the brief classifies it `manual/current-receipt`, ingest it as received now —
 **not** as a historical backfill merely because it displays `2023`, another old
-date, or a non-ISO year. No historical-backfill gate is required unless the
-brief explicitly calls the source historical/backfill.
+date, or a non-ISO year. No exact-farm historical date check is required unless
+the brief explicitly calls the source historical/backfill.
 
 - Use the inbound handoff timestamp from the brief as the source's
   received/retrieved timestamp. `inventory_sources.created_at` remains the
@@ -887,7 +891,7 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   identifies the manual channel/identifier and inbound handoff timestamp, and
   every affected row preserves the printed date/currentness caveat with
   confirmation required in the correct notes column. An old or non-ISO printed
-  year alone must not have triggered the historical gate.
+  year alone must not have triggered the exact-farm historical date check.
 - **Record QA evidence in the report contract:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
 ## 6. Catalogue any plant photos in the drop
@@ -1021,8 +1025,9 @@ and it cannot read your transcript. Include:
   added. Nothing was retired — if you believe something should be, it goes under
   *Flags needing Chris* instead. For a manual/current-receipt intake, also state
   the handoff timestamp, printed date(s), and that all availability/pricing is
-  confirmation-required; for an explicit historical/backfill, state the gate
-  decision/record/revalidation instead.
+  confirmation-required; for an explicit historical/backfill, state the incoming
+  date/basis, exact farm id, later-source evidence and per-farm `SKIP` or
+  normal-ingest result instead.
 - **Photos** (when the drop carried any): every image accounted for, in the two
   halves §6 splits them into.
   - **Attached files**, one of: catalogued (with the `plant_photos` ids, plant,

@@ -1,5 +1,12 @@
 # quote-generation — changelog
 
+## 1.2.2
+
+2026-08-19, alongside `job-requests` 1.14.0. A filled `unit_price` no longer
+means a line may be quoted: priced-and-`pending` is what a sourced but
+unconfirmed line looks like now, so §2 says so where it handles `pending`, and
+the description asks for a request that is priced *and confirmed*.
+
 ## 1.2.1
 
 2026-08-19, from Bhoumik. The customer-safe-fields rule names price lists

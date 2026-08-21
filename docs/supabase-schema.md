@@ -122,44 +122,32 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `website` | text | yes | Usually a bare domain (`acostafarms.com`) — prepend `https://` when linking |
 | `latitude` / `longitude` | double precision | yes | Google Maps link: `google.com/maps?q=lat,lng` |
 | `notes` | text | yes | **Durable profile facts** — see below |
-| `communication_notes` | text | yes | **Append-only contact log** — see below |
+| `communication_notes` | text | yes | **RETIRED** (migration 0063, 2026-08-19): frozen archive of the old contact log, migrated into `supplier_messages` as internal notes. Never written again — see below |
 | `availability_source_type` | text | yes | **CHECK**: `Email` \| `Hosted` — how the availability list reaches us. Null = not established yet |
 | `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
 | `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
+| `is_onboarded` | boolean | no, default false | Answers **availability requests in the supplier portal** (`/portal/<id>`, migration 0062). FALSE = reached only through daisy's channels; their thread still lives in `supplier_messages`. Not a login — portal auth is a deliberately deferred step |
 | `is_active` | boolean | no, default true | Soft delete; deactivation cascades (see triggers) |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
-#### `notes` vs `communication_notes` — don't mix them
+#### `notes` vs the transcript — don't mix them
 
-These two are easy to confuse and the distinction is the whole point of having
-both. Putting contact history in `notes` buries the quirks; rewriting `notes`
-loses the history.
+What is **true about** a supplier and what was **said with** them live in
+different places, and the distinction is the whole point:
 
-| | `notes` | `communication_notes` |
+| | `notes` | `supplier_messages` |
 |---|---|---|
-| Holds | What is **true about** the supplier | What was **said to** the supplier |
-| Examples | "Won't quote under 10 units", "prices exclude freight", "sends XLSX with two header rows", "closed Fridays" | "Emailed asking for the July availability list" |
-| Shape | Free prose, **edited in place** as facts change | **Append-only**, newest entry last, never rewrite past entries |
-| Use it for | Anything that has no dedicated column and stays true across conversations | One entry per contact, every time |
+| Holds | What is **true about** the supplier | What was **said** — both directions, every channel |
+| Examples | "Won't quote under 10 units", "prices exclude freight", "sends XLSX with two header rows", "closed Fridays" | An email exchange, a portal message, an instruction to daisy, an agent's note |
+| Shape | Free prose, **edited in place** as facts change | **Append-only rows**, one per message — see the table below |
+| Use it for | Anything that has no dedicated column and stays true across conversations | Every exchange, every time |
 
-**Every entry in `communication_notes` starts with a timestamp and records the
-channel, what was sent/received, why, and the identifier needed to find the
-conversation again** (Gmail thread id, harness ThreadId, phone number). Format:
-
-```
-[2026-07-27 14:32 America/Chicago] email · gmailThreadId=19f378a886691d3c
-Asked for the July availability list — their last one is 3 weeks old and the
-15G Live Oak price looked stale against the June sheet. Awaiting reply.
-```
-
-Append with a read-modify-write; there is no `array_append` here, it is plain
-text:
-
-```sql
-UPDATE suppliers
-SET communication_notes = coalesce(communication_notes || E'\n\n', '') || $1
-WHERE id = $2;
-```
+Until 2026-08-19 the said-with half was `suppliers.communication_notes`, an
+append-only prose log. Migration 0063 migrated its entries into
+`supplier_messages` (as `internal` notes, stamps → `created_at`) and froze the
+column: it still holds the pre-migration text as an archive, and **nothing may
+write it again**. (`customers.communication_notes` is untouched — the customer
+side keeps its log convention.)
 
 Live category distribution: Grower 569, Nursery 185, Other 151, Wholesaler 1,
 NULL 3.
@@ -826,6 +814,74 @@ changed under you since you last looked.
 | `changes` | jsonb | no | On insert: the row's non-null fields. On update: `{col: {"old": …, "new": …}}` per changed column, `updated_at` excluded. Generated `total` appears with its real values (the trigger is AFTER). A no-op update writes no row |
 | `created_at` | timestamptz | no, default `now()` | |
 
+### `availability_requests`
+
+One availability ask, from one job request to one **onboarded** supplier
+(`suppliers.is_onboarded`). Added 2026-08-19 by migration 0062. Created by the
+app (Job Requests page → selection bar) or by daisy (her
+`availability-requests` skill — she owns every supplier conversation, the
+portal included; rosie never writes these tables); answered by the supplier in
+their portal; the conversation is the supplier's one thread.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK. Rendered `AR-<id>` |
+| `job_request_id` | bigint → `job_requests.id` ON DELETE CASCADE | no | |
+| `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
+| `share_customer_details` | boolean | no, default false | Whether the portal shows the supplier who the job is for (customer name/company/contact routes and shipping address). Default is not to |
+| `status` | text | no, default `new` | **CHECK**: `new` \| `submitted` \| `closed`. `submitted` = the supplier pressed **Save** in the portal (`submitted_at` stamps the first one; the apps label it *Answered*); `closed` = we are done with it (an admin act) |
+| `submitted_at` | timestamptz | yes | Stamped by the portal's Submit |
+| `is_active` | boolean | no, default true | Soft delete |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `availability_request_items`
+
+The lines shared with the supplier — one or more of the job request's lines,
+**snapshotted at share time**: `name`, `size`, `quantity` are *copied*, not
+joined, because what we asked a supplier is evidence — a later edit to the job
+request must not silently rewrite the question they are answering. `unit_price`
+is seeded the same moment, from that supplier's own `inventory` row where it
+answers the line unambiguously; the other three answer columns are never
+seeded.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `availability_request_id` | bigint → `availability_requests.id` ON DELETE CASCADE | no | |
+| `job_request_item_id` | bigint → `job_request_items.id` ON DELETE SET NULL | yes | The traceback; SET NULL so a deleted line doesn't take the supplier's answer with it |
+| `name` / `size` / `quantity` | text / text / numeric | no / yes / yes | **The ask, snapshotted.** `quantity` CHECK: null or `> 0` |
+| `status` | text | yes | **The supplier's answer** — CHECK: `available` \| `unavailable` \| `can_order` (ETA in `notes`) \| `substitute` (what instead, in `notes`). **NULL = not answered yet** (renders as "Set status", never a guess). The **only** column that says a line was answered — `unit_price` may be ours (below) |
+| `available_quantity` | numeric | yes | CHECK: null or `>= 0` |
+| `unit_price` | numeric(10,2) | yes | CHECK: null or `> 0` — same never-0 rule as everywhere. **Seeded at share time** where our own catalogue already answers the line for that supplier at that size, so they confirm or correct a number rather than typing one; ours until `status` is theirs |
+| `notes` | text | yes | The supplier's note about this line — substitute, ETA, conditions |
+| `is_active` | boolean | no, default true | Soft delete |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `supplier_messages`
+
+The broker↔supplier conversation — **the supplier transcript**, one thread per
+supplier, added by migration 0062 and made the sole record by 0063 (which
+migrated the old `communication_notes` entries in). **Append-only**: no
+`updated_at`, no `is_active`, nothing edits or retires a message. Written by
+the app (portal, admin chat view), daisy (her email/text exchanges and her own
+notes — `supplier-communications` skill) and rosie (**`internal` rows only** —
+mirrors of her asks to daisy; she never writes a supplier-facing channel).
+`availability_request_id` is **historical linkage only** (rows from the few
+hours per-request threads existed on 2026-08-19): the conversation is one
+thread per supplier, and new rows leave it NULL.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | The thread key |
+| `job_request_id` | bigint → `job_requests.id` ON DELETE SET NULL | yes | What it is about, when known |
+| `availability_request_id` | bigint → `availability_requests.id` ON DELETE SET NULL | yes | Historical only — per-request threads lasted hours on 2026-08-19; new rows leave it NULL (the admin chat still chips old rows with `AR-<id>`) |
+| `sender` | text | no | **CHECK**: `broker` \| `supplier` — which side spoke |
+| `sender_name` | text | yes | Who on that side — `Chris`, `Rosie`, `Daisy`, or the supplier contact's name when known. Never guessed |
+| `channel` | text | no | **CHECK**: `email` \| `text` \| `app` \| `internal` (0063). `app` = typed in the portal or admin thread; `email`/`text` = a supplier-facing exchange that happened outside and is recorded here; `internal` = what the supplier never sees — an instruction to daisy, another agent's note, a broker-side note |
+| `body` | text | no | |
+| `created_at` | timestamptz | no, default `now()` | |
+
 ---
 
 ## Views
@@ -1085,7 +1141,7 @@ by default.
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
 | `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
-| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`) |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `supplier_messages` — messages are append-only and never updated |
 
 ## Indexes that matter
 
@@ -1188,6 +1244,9 @@ Gmail OAuth tokens) included.
 | `job_requests` | enabled | `authenticated` full access (added 2026-08-17, migration 0055) |
 | `job_request_items` | enabled | `authenticated` full access (added 2026-08-17, migration 0055) |
 | `job_request_changelog` | enabled | `authenticated` full access (added 2026-08-17, migration 0055). Its real write-protection is that only the trigger writes it in practice |
+| `availability_requests` | enabled | `authenticated` full access (added 2026-08-19, migration 0062) |
+| `availability_request_items` | enabled | `authenticated` full access (added 2026-08-19, migration 0062) |
+| `supplier_messages` | enabled | `authenticated` full access (added 2026-08-19, migration 0062). The supplier portal has no browser key either — its ungated routes still read through the app's server-side secret key, scoped by the supplier id in the URL |
 
 **`anon` now reaches no application table at all** — verified against the live
 REST API, every table and both views return `[]`.

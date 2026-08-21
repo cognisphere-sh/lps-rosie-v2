@@ -1,5 +1,13 @@
 # plant-and-supplier-search — changelog
 
+## 1.1.3
+
+2026-08-19, alongside `job-requests` 1.14.0. **A search answers price, not
+availability** — every row is a line off a published price list and its
+`quantity` is what that sheet claimed on ingest day, so a hit is reported as a
+listing and never as availability. The description drops "availability
+question" for "sourcing question" for the same reason.
+
 ## 1.1.2
 
 2026-08-18. **Description rewritten short** — coverage in a clause or two, then
