@@ -19,6 +19,7 @@ import {
   coverColor,
   coverOf,
   itemPill,
+  requestRef,
   requestStatusTone,
   toneDot,
   toneStyle,
@@ -38,7 +39,7 @@ import { cn } from '@/lib/utils'
  * a single cell cannot honestly edit both.
  */
 const LINE_COLUMNS =
-  'minmax(200px,1.5fr) 78px 74px 74px 92px 100px 132px minmax(170px,1fr) minmax(170px,1fr)'
+  'minmax(170px,1.4fr) 72px 66px 66px 86px 92px 124px minmax(145px,.9fr) minmax(145px,.9fr)'
 
 /** The select column only exists where something can act on a selection. */
 const SELECT_COLUMN = 36
@@ -46,7 +47,7 @@ const gridOf = (selectable: boolean) =>
   selectable ? `${SELECT_COLUMN}px ${LINE_COLUMNS}` : LINE_COLUMNS
 
 /** Under this the columns would crush, so the card scrolls sideways instead. */
-const GRID_MIN = 1180
+const GRID_MIN = 1050
 
 /** "1240 SE Ankeny St · Portland, OR · 97214" on one line. */
 export const addressLine = (a: JobAddress) =>
@@ -222,33 +223,40 @@ export function DemandSummary({
   counts: Record<string, number>
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11.5px]">
-      <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-foreground">
-        {money(lineTotal) || '$0.00'}
-      </span>
-      <span className="whitespace-nowrap text-muted-foreground">
-        {itemCount} {itemCount === 1 ? 'item' : 'items'}
-      </span>
-      <span className="h-3 w-px flex-none bg-lps-hair" />
-      {ITEM_STATUS_OPTIONS.map((o) => {
-        const count = counts[o.value] ?? 0
-        return (
-          <span
-            key={o.value}
-            className={cn(
-              'inline-flex items-center gap-1 whitespace-nowrap',
-              count === 0 && 'opacity-45',
-            )}
-          >
-            <span
-              className="size-[6px] flex-none rounded-full"
-              style={{ background: toneDot(itemPill(o.value, null, null).tone) }}
-            />
-            <span className="font-semibold tabular-nums text-foreground">{count}</span>
-            <span className="text-muted-foreground">{o.label}</span>
+    <div className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
+      <div className="grid min-w-[630px] grid-cols-[repeat(4,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
+        {ITEM_STATUS_OPTIONS.map((o) => {
+          const count = counts[o.value] ?? 0
+          return (
+            <div
+              key={o.value}
+              className={cn(
+                'flex items-center justify-center gap-1.5 px-2 py-2',
+                count === 0 && 'opacity-45',
+              )}
+            >
+              <span
+                className="size-[6px] flex-none rounded-full"
+                style={{ background: toneDot(itemPill(o.value, null, null).tone) }}
+              />
+              <span className="text-[12px] font-bold tabular-nums text-foreground">{count}</span>
+              <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">{o.label}</span>
+            </div>
+          )
+        })}
+        <div className="flex items-center justify-center gap-1.5 px-2 py-2">
+          <span className="text-[12px] font-bold tabular-nums text-foreground">{itemCount}</span>
+          <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">
+            Total {itemCount === 1 ? 'item' : 'items'}
           </span>
-        )
-      })}
+        </div>
+        <div className="flex items-center justify-center gap-1.5 px-2 py-2">
+          <span className="text-[10.5px] text-muted-foreground">Subtotal</span>
+          <span className="whitespace-nowrap text-[12.5px] font-bold tabular-nums text-foreground">
+            {money(lineTotal) || '$0.00'}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -438,8 +446,8 @@ function ItemRow({
       className="grid items-center border-b border-lps-hair last:border-b-0"
       style={{
         gridTemplateColumns: gridOf(!!onSelect),
-        minHeight: '56px',
-        padding: '7px 0',
+        minHeight: '48px',
+        padding: '4px 0',
         borderLeft: `3px solid ${toneDot(pill.tone)}`,
         background,
       }}
@@ -508,7 +516,7 @@ function ItemRow({
       >
         {money(item.total) || '—'}
       </div>
-      <div className="px-2.5">
+      <div className="px-1.5">
         <StatusPill
           {...edit}
           column="status"
@@ -580,6 +588,65 @@ function AddressCard({
         <DetailField {...edit} label="ZIP" column={`${prefix}_zip`}
           value={address.zip} placeholder="—" />
       </div>
+    </div>
+  )
+}
+
+/** The screenshot's compact top summary, limited to fields this schema owns. */
+function RequestOverview({ request }: { request: JobRequestRow }) {
+  const customerName = request.customer?.company || request.customer?.name
+  const contactName = request.customer?.company ? request.customer.name : null
+  const shipping = addressLine(request.shipping)
+  const billing = addressLine(request.billing)
+
+  const blocks = [
+    {
+      label: 'Request',
+      primary: request.name || requestRef(request.id),
+      secondary: request.name ? requestRef(request.id) : 'Unnamed job',
+    },
+    {
+      label: 'Contact',
+      primary: customerName || 'No customer assigned',
+      secondary: contactName,
+      detail: request.customer
+        ? [request.customer.phone, request.customer.email].filter(Boolean).join(' · ')
+        : null,
+    },
+    {
+      label: 'Delivery',
+      primary: shipping || 'No shipping address recorded',
+      secondary: 'Delivery schedule not recorded',
+    },
+    {
+      label: 'Billing & payment',
+      primary: billing || 'No billing address recorded',
+      secondary: 'Payment method not recorded',
+    },
+  ]
+
+  return (
+    <div className="grid gap-px overflow-hidden rounded-lg border border-lps-hair bg-lps-hair sm:grid-cols-2 xl:grid-cols-4">
+      {blocks.map((block) => (
+        <div key={block.label} className="flex min-w-0 flex-col gap-0.5 bg-card px-3 py-2.5">
+          <span className="text-[9.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">
+            {block.label}
+          </span>
+          <span className="truncate text-[12px] font-semibold text-foreground" title={block.primary}>
+            {block.primary}
+          </span>
+          {block.secondary && (
+            <span className="truncate text-[10.5px] text-muted-foreground" title={block.secondary}>
+              {block.secondary}
+            </span>
+          )}
+          {block.detail && (
+            <span className="truncate text-[10.5px] text-muted-foreground" title={block.detail}>
+              {block.detail}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -815,10 +882,17 @@ export function RequestBody({
 
   return (
     <>
-      {/* Level two. The order's own particulars — where it ships, where it
-          bills, and the three notes — sit directly under the head and stay
-          shut until asked for: they are read when a request is being
-          actioned, not when it is being scanned. */}
+      <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
+        <RequestOverview request={request} />
+        <DemandSummary
+          lineTotal={request.lineTotal}
+          itemCount={request.itemCount}
+          counts={request.statusCounts}
+        />
+      </div>
+
+      {/* Addresses and audience-specific notes remain editable and complete,
+          but sit behind one compact secondary-information drawer. */}
       <div className="border-t border-border">
         <button
           type="button"
@@ -830,7 +904,7 @@ export function RequestBody({
             {detailsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </span>
           <span className="flex-none text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-            Order details
+            More details & notes
           </span>
           {!detailsOpen && (
             <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
@@ -891,15 +965,15 @@ export function RequestBody({
             {/* Deliberately unlabelled: the column selects lines, and a
                 header control here would only mean "all of them". */}
             {onSelect && <div />}
-            <div className="px-2.5 py-2">Item</div>
-            <div className="px-2.5 py-2">Size</div>
-            <div className="px-2.5 py-2 text-right">Demand</div>
-            <div className="px-2.5 py-2 text-right">Avail</div>
-            <div className="px-2.5 py-2 text-right">Unit price</div>
-            <div className="px-2.5 py-2 text-right">Total</div>
-            <div className="px-2.5 py-2">Status</div>
-            <div className="px-2.5 py-2">Shared note</div>
-            <div className="px-2.5 py-2">Sourcing note</div>
+            <div className="px-2 py-1.5">Item</div>
+            <div className="px-2 py-1.5">Size</div>
+            <div className="px-2 py-1.5 text-right">Demand</div>
+            <div className="px-2 py-1.5 text-right">Avail</div>
+            <div className="px-2 py-1.5 text-right">Unit price</div>
+            <div className="px-2 py-1.5 text-right">Total</div>
+            <div className="px-2 py-1.5">Status</div>
+            <div className="px-2 py-1.5">Shared note</div>
+            <div className="px-2 py-1.5">Sourcing note</div>
           </div>
           {request.items.length ? (
             request.items.map((item) => (

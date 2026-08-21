@@ -169,18 +169,21 @@ function RequestCard({
           )}
         </div>
 
-        <div className="pl-[30px]">
-          <DemandSummary
-            lineTotal={request.lineTotal}
-            itemCount={request.itemCount}
-            counts={request.statusCounts}
-          />
-        </div>
+        {/* Collapsed cards keep the same scan strip. The expanded body owns the
+            single full-width strip so counts and subtotal are never repeated. */}
+        {!expanded && (
+          <div className="pl-[30px]">
+            <DemandSummary
+              lineTotal={request.lineTotal}
+              itemCount={request.itemCount}
+              counts={request.statusCounts}
+            />
+          </div>
+        )}
 
-        {/* The newest thing anyone wrote, on one line. Enough to tell a card
-            that is waiting on a reply from one that is simply open; the whole
-            thread is a chevron away. */}
-        {latest && (
+        {/* The expanded body gives notes their complete secondary drawer; the
+            collapsed card keeps only the latest line for triage. */}
+        {!expanded && latest && (
           <div
             className="flex min-w-0 items-baseline gap-2 border-t border-lps-hair pl-[30px] pt-2"
             title={latest.text}

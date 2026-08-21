@@ -19,6 +19,15 @@ here).
 
 ### Changed
 
+- **Job Request details now follow Chris's compact workspace reference.** An
+  opened request leads with schema-backed request/contact/delivery/billing
+  blocks, one horizontal status/count/item/subtotal strip, and a denser editable
+  line table. Unsupported PO, delivery-schedule and payment-method values are
+  labelled unrecorded rather than invented; complete addresses, audience notes,
+  supplier links, selection actions and immutable history remain in their
+  existing drawers and controls. The same shared body serves customer detail,
+  stays responsive, and retains the real Shell chat instead of duplicating it.
+
 - **Daisy's Supabase query guard now lexically distinguishes SQL code from
   evidence text.** A single PostgreSQL-aware masking pass handles ordinary and
   escape strings, tagged/untagged dollar quotes, quoted identifiers, line
