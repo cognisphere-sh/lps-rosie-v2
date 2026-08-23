@@ -1,5 +1,13 @@
 # supplier-communications — changelog
 
+## 2.3.0
+
+2026-08-21 — Chris approved a reusable, light-touch initial-outreach template
+for **Texas wholesale nurseries**. It is stored as
+`artifacts/texas-wholesale-nursery-initial-outreach.txt`; it expressly is not
+an availability-list demand and does not change the requirement for
+supplier-specific Chris/Bhoumik authorization before contact.
+
 ## 2.2.0
 
 2026-08-19, same-day follow-up: one chat per supplier — the per-request task

@@ -1,9 +1,9 @@
 ---
 name: daily-supplier-availability-onboarding
-description: Run the approved daily review of up to 100 active suppliers without availability data. Covers durable cohort/cursor state and idempotency, read-only discovery, 2026 Gmail checks, safe public-site review and bounded current-receipt ingestion, best-effort newsletter/signup outcomes including consent/CAPTCHA attempts, unsent Gmail drafts, private batch artifacts, and main-thread reporting. Use when the 3 AM supplier-availability onboarding schedule fires or when asked to run/review this daily cohort. (v1.2.0)
+description: Run the approved daily review of up to 100 active suppliers without availability data. Covers durable cohort/cursor state and idempotency, the Texas-first read-only outreach-eligibility gate, 2026 Gmail checks, safe public-site review and bounded current-receipt ingestion, subscription/draft holds and audit, retained future-market reporting, private batch artifacts, and main-thread reporting. Use when the 3 AM supplier-availability onboarding schedule fires or when asked to run/review this daily cohort. (v1.3.0)
 metadata:
   author: daisy
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Daily supplier availability onboarding
@@ -33,6 +33,11 @@ not turn a lack of data into supplier contact or inventory claims.
    and location scope are unambiguous, and must retain the currentness/confirmation
    caveat required by `availability-ingestion`. Never infer that a static catalog
    is live availability.
+5. LPS's addressable market is Texas. This coordinator's market gate is
+   **read-only** and does not override the standing no-send authorization: a
+   supplier can be outreach-eligible only for the later, still-unsent discovery
+   steps in this skill. It is not permission to send email, submit an order, or
+   claim availability.
 
 ## 1. Durable state and a deterministic cohort
 
@@ -57,12 +62,13 @@ draft, signup, source, or ingest for a supplier whose result records that action
 and evidence. Update a result immediately after each irreversible action.
 
 Read-only discovery query: select **active** suppliers that have no active
-`inventory` and no active `inventory_sources`, ordering first by those absent
-from `reviewed_supplier_ids`, then by the least-recent reviewed timestamp held in
-state, then `id`; select 100. The database is the eligibility authority; state
-only supplies rotation. Do not assume null availability columns mean no data.
-Record the exact query result IDs in the run file before any review. If fewer than
-100 qualify, process the smaller set and say so.
+`inventory` and no active `inventory_sources`, ordering Growers first, then those
+absent from `reviewed_supplier_ids`, then by the least-recent reviewed timestamp
+held in state, then `id`; select 100. Category supplies a priority, not evidence
+that a supplier can serve Texas. The database is the cohort authority; state only
+supplies rotation. Do not assume null availability columns mean no data. Record
+the exact query result IDs in the run file before any review. If fewer than 100
+qualify, process the smaller set and say so.
 
 After every final supplier result, update the run file. At successful completion,
 advance `last_supplier_id`/review history and set `last_completed_run`; keep a
@@ -70,10 +76,44 @@ bounded recent history sufficient to avoid immediate re-cohorting (at least the
 most recent full rotation). A crash must therefore be safely resumable and an
 already-created Gmail draft must be discovered/recorded rather than recreated.
 
-## 2. Per-supplier evidence loop
+## 2. Texas-first read-only outreach-eligibility gate
 
-For each selected supplier, record supplier id/name, website, active contact
-emails, and all evidence/URLs checked.
+Run this gate and record its terminal result **before** any Gmail availability
+search, availability-page parsing/ingest handoff, POC lookup, newsletter attempt,
+or new supplier-email draft.
+
+1. Record the supplier's actual category and location evidence already held, but
+   do not turn a state, city, ZIP, or the supplied Texas market names into a
+   service-area conclusion. The Texas market names are business context only;
+   never derive coverage from a guessed ZIP/city mapping.
+2. An **out-of-state supplier classified `Wholesaler` or `Nursery`** is the one
+   approved categorical exception: classify it `retained-future-market`, with
+   the category/state evidence. Do no routine availability, POC, newsletter,
+   signup, draft, or other contact effort in this run. Retain it in the cohort
+   state and report it for future expansion; do not delete, retire, or mark it
+   ineligible in the database.
+3. For every other supplier, establish Texas service evidence from an explicit
+   public delivery/service-area statement, sales terms, a documented direct
+   business fact, or equivalent evidence. A Texas address alone is not proof of
+   service. If evidence is absent or conflicting, classify
+   `held-service-to-Texas-unverified`; do only the bounded read-only research
+   needed to record that gap, then stop. Do not search availability, seek a POC,
+   subscribe, create a draft, or dispatch ingestion.
+4. If explicit evidence supports serving Texas, classify
+   `eligible-Texas-service` and proceed to §3. Growers are reviewed first;
+   Texas wholesale nurseries are relevant regional prospects after that priority.
+   This priority does not make their stock actionable until the same service
+   evidence is recorded.
+5. Existing drafts are audit records, not a workaround: never send, delete,
+   duplicate, or revive one because of this gate. For a held or retained supplier,
+   record its draft id, recipient, subject, and why it is `draft-held-market-gate`.
+   Only a later eligible run plus Chris's separate authorization can move it
+   toward correspondence.
+
+## 3. Per-supplier evidence loop
+
+For each supplier that passed §2, record supplier id/name, website, active
+contact emails, Texas-service evidence, and all evidence/URLs checked.
 
 ### A. Search 2026 email, not notifications
 
@@ -145,17 +185,24 @@ body in run state. Before creating, search existing drafts/state for the same
 supplier and purpose; reuse/report it rather than duplicate it. If no safe
 recipient exists, do not draft; report that as a blocker.
 
-## 3. Complete, publish, notify
+## 4. Complete, publish, notify
 
 Build a responsive, self-contained **private** artifact per `publish-artifact`,
 using a stable slug such as `supplier-availability-onboarding-daily`. Include
 as-of time and exact cohort IDs/count, with these sections:
 
+- Texas-service gate outcomes and evidence, separately counting Growers,
+  eligible Texas wholesale-nursery prospects, `held-service-to-Texas-unverified`,
+  and `retained-future-market` out-of-state wholesale nurseries;
+- retained future-market suppliers (supplier/category/state evidence and an
+  explicit confirmation that no routine availability, POC, newsletter, draft,
+  or contact effort was made);
 - availability emailed in 2026 (message/thread/date/evidence; no replay claim);
 - hosted data (URL, currentness/scope assessment, change check, ingest/source
   evidence or why held);
-- precise unsent drafts eligible for Chris approval (supplier, recipient, draft
-  id, subject, full body, and confirmation that none was sent);
+- precise unsent drafts eligible for Chris approval, **and** market-gate-held
+  drafts (supplier, recipient, draft id, subject, full body, hold reason, and
+  confirmation that none was sent);
 - human-intervention URLs and blockers (CAPTCHA, verification, login, etc.);
 - processed, skipped and errors, plus source/ingest evidence and counts.
 
@@ -164,11 +211,11 @@ send **only** that private URL plus a one-line batch summary through agent
 messaging to `daisy` thread `main`. Never contact Telegram/Chris directly from
 this thread. Update this thread's notes and the daily note with the batch result.
 
-## Failure handling
+## 5. Failure handling
 
 - Gmail/browser/auth failure: record supplier-level error, continue the cohort,
   and report it; do not loop or claim a check occurred.
-- Any uncertain supplier/location/currentness or write risk: hold it, report
-  exact evidence and reason; do not ingest.
+- Any uncertain supplier/location/currentness, Texas-service eligibility, or
+  write risk: hold it, report exact evidence and reason; do not ingest.
 - If a task thread reports a blocker, retain its evidence in the run record and
   include it in the artifact. Do not substitute a guess or contact a supplier.

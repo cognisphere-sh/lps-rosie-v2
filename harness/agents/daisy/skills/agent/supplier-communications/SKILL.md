@@ -1,9 +1,9 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden; raising an availability request needs Chris's go-ahead too — the availability-requests skill), the one-thread-per-supplier convention (`supplier-<id>` — availability requests included, no per-request sub-threads), composing and sending as Chris, routing the reply back with a thread-scoped rule, the supplier_messages transcript that replaced the old communication_notes log, instructions arriving from the app's chat view, and which home a supplier fact belongs in. Use when asked to reply to, chase or question a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v2.2.0)
+description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden; raising an availability request needs Chris's go-ahead too — the availability-requests skill), the approved light-touch initial-outreach template for a Texas wholesale nursery, the one-thread-per-supplier convention (`supplier-<id>` — availability requests included, no per-request sub-threads), composing and sending as Chris, routing replies, the supplier_messages transcript, app-chat instructions, and where supplier facts belong. Use when asked to reply to, chase or initially contact a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v2.3.0)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # Supplier communications
@@ -23,6 +23,27 @@ availability request needs Chris's go-ahead — confirm with him first unless he
 asked for it or created it himself in the app. Replying within an already-open
 request's portal thread is answering, not outreach, and needs no per-message
 approval — the `availability-requests` skill has the details.)
+
+## Approved light-touch initial outreach — Texas wholesale nursery only
+
+Chris approved this reusable **initial relationship-outreach** template on
+2026-08-21. It is **not an availability-list demand**. Use it only for a
+**Texas wholesale nursery**, and only after Chris or Bhoumik explicitly
+authorizes contacting that particular supplier; template approval does not
+replace the standing no-unbidden-email rule. Keep the approved wording except
+for `[Name]`, and use the artifact
+[`artifacts/texas-wholesale-nursery-initial-outreach.txt`](artifacts/texas-wholesale-nursery-initial-outreach.txt):
+
+```text
+Hi [Name],
+
+We’d love to keep you in mind for upcoming projects. What’s the best way to learn about your availability or send plant requests to your team, and is there anything we should know about your delivery areas, minimums, or materials you specialize in?
+
+Thank you,
+Chris
+```
+
+Follow the composing/sending and transcript steps below for any authorized use.
 
 ## One thread per supplier
 

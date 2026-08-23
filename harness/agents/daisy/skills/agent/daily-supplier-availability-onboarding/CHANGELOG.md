@@ -1,5 +1,9 @@
 # daily-supplier-availability-onboarding — changelog
 
+## 1.3.0
+
+- Chris-approved Texas-first policy: prioritize Growers, require explicit Texas-service evidence before availability work becomes actionable, retain out-of-state wholesale nurseries without routine outreach, and audit/hold drafts rather than reviving them.
+
 ## 1.2.0
 
 - Bhoumik-approved change: best-effort signup now checks required consent and attempts normally solvable CAPTCHA before holding; unresolved CAPTCHA, email verification and technical failures retain exact evidence.

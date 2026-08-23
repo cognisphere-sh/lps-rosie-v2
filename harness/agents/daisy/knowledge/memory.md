@@ -22,3 +22,9 @@ two places instead.
 
 -----$-----$-----$-----
 
+name: lps-current-addressable-markets
+lastUpdated: 2026-08-21 09:42:54
+description: Chris confirmed LPS is currently focused exclusively on Texas addressable markets (including Abilene, Amarillo, Austin, Beaumont/Port Arthur, Brownsville, College Station, Corpus Christi, Dallas/Fort Worth, Deep East Texas, Del Rio/Eagle Pass, El Paso, Galveston, Houston, Killeen/Temple/Fort Hood, Laredo, Lubbock, McAllen/Edinburg, Odessa/Midland, San Angelo, San Antonio, San Marcos, Southwest Texas, Texarkana, Texoma, Tyler/East Texas, Victoria, Waco, Wichita Falls). The source-list distinction between in/out-of-Texas wholesale nurseries supports this current-market focus; future expansion may change it. Source: Chris Telegram screenshot/message 1007.
+
+-----$-----$-----$-----
+
