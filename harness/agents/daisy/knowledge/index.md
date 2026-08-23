@@ -10,7 +10,7 @@ everywhere) or in the skill for that procedure, never here.
 ## Files
 
 - [files/SCHEMA.md](files/SCHEMA.md) — live Supabase schema. Read before any query. Tables you write: `suppliers`, `inventory`, `inventory_sources`, `plant_aliases`, `plant_photos`. This is a **symlink** to `docs/supabase-schema.md` at the repo root — the single source of truth shared by every agent and by the web app; edit it through the symlink, don't replace it with a copy.
-- [files/suppliers.md](files/suppliers.md) — pointer only: per-supplier notes live in `workspace/suppliers/[<supplierId>]:<Name>/notes.md` (directory list in `workspace/suppliers/index.md`).
+- [files/suppliers.md](files/suppliers.md) — pointer only: supplier quirks live in `suppliers.notes` in Supabase (the `workspace/suppliers/` dirs are read-only legacy since 2026-08-23).
 - [files/supplier-segmentation-and-account-development.md](files/supplier-segmentation-and-account-development.md) — **restricted internal strategy/training IP**: Chris’s complete 2026-08-21 morning working strategy covering original sourcing/outreach cohorts, the unknown app-enum origin, supplier-model distinctions, Texas market focus, account development, retail operations, and the Southwest Wholesale Nursery benchmark lead. Not for external sharing or wholesale copying into supplier profiles.
 - `files/brand/` — LPS logo assets (`lps-logo.png`, `lps-logo-transparent.png`).
 - `files/credentials/` — **sensitive.** Supplier portal logins (currently Garden Center Plants LLC / Buchholz, supplier 22). Directory is mode `0700`; never print or forward the values.
@@ -21,7 +21,7 @@ everywhere) or in the skill for that procedure, never here.
 Procedures are **not** knowledge — they are skills. The ingestion SOP is the
 `availability-ingestion` skill in `skills/agent/`, which follows
 `supplier-onboarding` when a drop needs a supplier or a farm created, alongside
-`availability-drop-intake`, `plant-and-supplier-search`,
+`supplier-email-routing`, `plant-and-supplier-search`,
 `plant-photo-catalogue` and `supplier-communications`. Read them from
 `<available_skills>`; changes to any of them require Chris's/Bhoumik's approval,
 then a version bump.
@@ -29,5 +29,5 @@ then a version bump.
 **A lookup table only one skill reads is not knowledge either** — it travels
 with that skill under `artifacts/`. The Gmail label IDs moved out of here on
 2026-08-16 for exactly that reason and now live at
-`skills/agent/availability-drop-intake/artifacts/gmail-labels.md`. Don't add
+`skills/agent/availability-ingestion/artifacts/gmail-labels.md`. Don't add
 them back.

@@ -1,0 +1,41 @@
+-- 0065: inventory.notes boilerplate cleanup (data-only; applied 2026-08-23 by
+-- Bhoumik via Supabase MCP, per Chris's direction: notes must not restate what
+-- other columns/tables already record — no "available as of"/received dates,
+-- no source-file names, no verbatim source-row restatements; keep only
+-- supplier-stated facts a sourcing person needs).
+--
+-- Backup first: CREATE TABLE inventory_notes_backup_20260823 AS
+--   SELECT id, notes, internal_notes FROM inventory
+--   WHERE is_active AND notes IS NOT NULL AND notes <> '';   -- 48,771 rows
+--
+-- Then staged regexp passes over active rows (the exact statements are in this
+-- file's history; summary):
+--   1. Weekly-schedule family: provenance + Crop/Container restatement dropped,
+--      the schedule kept as 'Weekly availability (YYYYWW=qty): …'.
+--   2. '[date availability] PRODUCT ID=…' dumps: only a NOTES= tail kept.
+--   3. 'Source row (verbatim)': / 'Full source description:' tails dropped.
+--   4. Dated field/fulfillment-location labels lose their dates.
+--   5. Leading provenance sentences stripped (×3 iterations): Available as
+--      of/received/retrieved, Availability (schedule/list/sheet) dated,
+--      Item Price List entry, Supplier-stated availability, Booking
+--      list/status, Inventory Availability, Updated m/d/y, [ISO-date],
+--      Price list as of, PlantANT/hosted-page/Supplier-page/Website-reviewed
+--      retrievals, Supplier email <date>:, Available for week/WK, Supplier
+--      Week N, Christmas pre-order/booking-list receipt dates, 'Supplier
+--      source: <year> CATALOG.', 'Availability and pricing require
+--      confirmation.', etc.
+--   6. Bare 'Supplier source:' label stripped (content kept).
+--   7. Verbatim pipe-table restatements (name | size | price | …) → NULL.
+--   8. Identity-restating labels ('Source description:', 'Verbatim listing:',
+--      'Supplier description:', 'Source row N:') and 'Supplier Downloads page
+--      labels…' provenance tails dropped; residue trimmed; empty → NULL.
+--
+-- Result: 48,771 active noted rows → 30,661 (18,162 cleared to NULL);
+-- total notes text 7,980,722 → 3,897,040 chars. Kept content: supplier-stated
+-- qualifiers (condition, form/grade, plant-type codes), yard/field/fulfillment
+-- locations, supplier item codes, ordering constraints and validity windows,
+-- future-availability schedules. `updated_at` was bumped by trigger on every
+-- touched row. inventory.internal_notes untouched.
+--
+-- Rollback: UPDATE inventory i SET notes = b.notes
+--           FROM inventory_notes_backup_20260823 b WHERE i.id = b.id;

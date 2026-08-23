@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
-import { PortalChat, PortalFrame } from '@/components/workspace/portal'
+import { PortalFrame } from '@/components/workspace/portal'
 import {
   AR_RESPONSES,
   AR_RESPONSE_META,
@@ -421,8 +421,6 @@ export default function PortalHomePage() {
       supplierId={supplierId}
       supplierName={supplierName}
       tab="requests"
-      chat={state === 'ready' ? <PortalChat supplierId={supplierId} /> : undefined}
-      chatSubtitle="Chat with Local Plant Supply"
     >
       {/* Overall stats — over everything, not the filtered view. */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1">

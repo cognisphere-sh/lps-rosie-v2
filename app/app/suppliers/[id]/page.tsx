@@ -6,9 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  ARLineTable, ARStatusPill, ChatLegend, Composer, MessageBubble, Thread,
-} from '@/components/workspace/availability'
+import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import {
   ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
   MapPinIcon, PencilIcon, PhoneIcon, TrashIcon, UploadIcon,
@@ -18,9 +16,7 @@ import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/searc
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { FilterControl, LpsTag, badgeFor } from '@/components/workspace/table-parts'
 import { Badge } from '@/components/ui/badge'
-import type {
-  ARDetail, ARSummary, MessageChannel, SupplierMessage,
-} from '@/lib/availability'
+import type { ARDetail, ARSummary } from '@/lib/availability'
 import {
   AVAILABILITY_SOURCE_TYPES, PLANT_COLS, SUPPLIER_CATEGORIES,
   plantEditPatch, websiteHref, type ColumnDef,
@@ -38,7 +34,7 @@ import { cn } from '@/lib/utils'
 
 type Tab =
   | 'notes' | 'contacts' | 'inventory' | 'files' | 'farms'
-  | 'requests' | 'conversation'
+  | 'requests'
 const DIMENSION_FILTERS = [
   { key: 'h', label: 'Height (ft)' },
   { key: 'w', label: 'Width (in)' },
@@ -483,15 +479,12 @@ export default function SupplierProfilePage() {
   const [contactDraft, setContactDraft] = useState<Record<string, string>>({})
   const [savingContact, setSavingContact] = useState(false)
 
-  // The supplier-side engagement (migration 0062): availability requests and
-  // the conversation thread, both spanning every location of the company.
+  // The supplier-side engagement (migration 0062): availability requests,
+  // spanning every location of the company.
   const [ars, setArs] = useState<ARSummary[]>([])
-  const [messages, setMessages] = useState<SupplierMessage[]>([])
   /** The availability request open in the Requests tab; null = the list. */
   const [openArId, setOpenArId] = useState<number | null>(null)
   const [openAr, setOpenAr] = useState<ARDetail | null>(null)
-  /** The farm a conversation message goes to; null = the page's subject. */
-  const [convTarget, setConvTarget] = useState<number | null>(null)
 
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({})
   const [savingNote, setSavingNote] = useState<number | null>(null)
@@ -519,7 +512,7 @@ export default function SupplierProfilePage() {
     if (
       requested === 'notes' || requested === 'contacts' ||
       requested === 'inventory' || requested === 'files' || requested === 'farms' ||
-      requested === 'requests' || requested === 'conversation'
+      requested === 'requests'
     ) {
       setTab(requested)
     }
@@ -529,15 +522,11 @@ export default function SupplierProfilePage() {
     if (Number.isInteger(ar)) setOpenArId(ar)
   }, [])
 
-  /** The engagement lists, refetched after every write to either. */
+  /** The request list, refetched after every write to it. */
   const loadEngagement = useCallback(async () => {
     if (!scopeKey) return
-    const [arRes, msgRes] = await Promise.all([
-      fetch(`/api/availability-requests?supplier=${scopeKey}`),
-      fetch(`/api/supplier-messages?supplier=${scopeKey}`),
-    ])
+    const arRes = await fetch(`/api/availability-requests?supplier=${scopeKey}`)
     if (arRes.ok) setArs(((await arRes.json()) as { requests: ARSummary[] }).requests)
-    if (msgRes.ok) setMessages(((await msgRes.json()) as { messages: SupplierMessage[] }).messages)
   }, [scopeKey])
 
   useEffect(() => {
@@ -904,25 +893,6 @@ export default function SupplierProfilePage() {
     )
   }
 
-  /** One broker-side message into the supplier's thread. */
-  const sendBrokerMessage = async (
-    body: string,
-    channel: MessageChannel,
-    target: { supplierId: number },
-  ) => {
-    const res = await fetch('/api/supplier-messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...target, channel, body }),
-    })
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string }
-      toast(err.error ?? 'Could not send message')
-      throw new Error('send failed')
-    }
-    await Promise.all([loadEngagement(), loadOpenAr()])
-  }
-
   const setArStatus = async (arId: number, status: string) => {
     const res = await fetch(`/api/availability-requests/${arId}`, {
       method: 'PATCH',
@@ -1010,7 +980,6 @@ export default function SupplierProfilePage() {
     ['contacts', `Contacts (${contactCount})`],
     ...(multi ? ([['farms', `Farms (${locations.length})`]] as [Tab, string][]) : []),
     ['requests', `Availability requests (${ars.length})`],
-    ['conversation', `Conversation (${messages.length})`],
     ['notes', 'Notes'],
     ['files', `Files (${fileCount})`],
   ]
@@ -1560,103 +1529,10 @@ export default function SupplierProfilePage() {
 
                 <ARLineTable items={openAr.items} editable={false} />
 
-                {/* No per-request chat — the conversation is one thread per
-                    supplier (the Conversation tab), never per request. */}
+                {/* No per-request chat — supplier conversations live outside
+                    the app (the transcript table was dropped 2026-08-23). */}
               </>
             )}
-          </div>
-        )}
-
-        {activeTab === 'conversation' && (
-          <div className="flex max-w-[760px] flex-col gap-2.5 p-4">
-            <p className="text-[12px] text-muted-foreground">
-              The whole transcript with {multi ? 'this company' : 'this supplier'} — every channel,
-              one thread per supplier, rendered as chat. Portal messages reach their portal chat;
-              email and text bubbles record exchanges that happen outside the app; internal notes
-              never reach the supplier.
-            </p>
-            <ChatLegend supplierLabel="Supplier" />
-
-            <Thread
-              messages={messages}
-              ownSide="broker"
-              emptyText={`No conversation with ${multi ? 'this company' : 'this supplier'} yet.`}
-              metaOf={(m) => (
-                <>
-                  {multi && <LocationTag name={nameOf(m.supplierId)} head={false} />}
-                  {m.availabilityRequestId != null && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOpenArId(m.availabilityRequestId)
-                        setTab('requests')
-                      }}
-                      title="Open this availability request"
-                      className="cursor-pointer rounded-full border border-border bg-transparent px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-primary"
-                    >
-                      AR-{m.availabilityRequestId}
-                    </button>
-                  )}
-                </>
-              )}
-            />
-
-            {multi && (
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                  Farm
-                </span>
-                <select
-                  value={convTarget ?? subject?.row.id ?? ''}
-                  onChange={(e) => setConvTarget(Number(e.target.value))}
-                  className="h-8 w-fit cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none"
-                >
-                  {locations.map((location) => (
-                    <option key={location.row.id} value={location.row.id}>
-                      {String(location.row.values.name ?? '')}
-                      {location.is_head ? ' · head office' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {(() => {
-              const targetId = convTarget ?? subject?.row.id
-              const target = locations.find((l) => l.row.id === targetId)
-              const onboarded = !!target?.row.values.is_onboarded
-              return targetId == null ? null : (
-                <Composer
-                  modes={[
-                    {
-                      channel: 'internal',
-                      label: 'Daisy',
-                      placeholder:
-                        'Instruct Daisy (you \u2192 agent) \u2014 she picks it up on this supplier\u2019s thread\u2026',
-                    },
-                    ...(onboarded
-                      ? [{
-                          channel: 'app' as const,
-                          label: 'Portal',
-                          placeholder: 'Message the supplier \u2014 appears in their portal chat\u2026',
-                        }]
-                      : []),
-                    {
-                      channel: 'text',
-                      label: 'Text',
-                      placeholder:
-                        'Record a text exchange with the supplier \u2014 sending still happens outside the app\u2026',
-                    },
-                    {
-                      channel: 'email',
-                      label: 'Email',
-                      placeholder:
-                        'Record an email exchange with the supplier \u2014 sending still happens outside the app\u2026',
-                    },
-                  ]}
-                  onSend={(body, channel) => sendBrokerMessage(body, channel, { supplierId: targetId })}
-                />
-              )
-            })()}
           </div>
         )}
 

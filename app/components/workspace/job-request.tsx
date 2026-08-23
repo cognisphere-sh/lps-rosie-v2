@@ -341,13 +341,13 @@ export function SupplierNoteLinks({ links }: { links: SupplierLink[] }) {
               ? `/suppliers/${link.supplierId}?tab=requests${
                   link.availabilityRequestId != null ? `&ar=${link.availabilityRequestId}` : ''
                 }`
-              : `/suppliers/${link.supplierId}?tab=conversation`
+              : `/suppliers/${link.supplierId}`
           }
           onClick={(e) => e.stopPropagation()}
           title={
             link.onboarded
               ? `Open ${link.name}'s availability request`
-              : `Open the conversation with ${link.name}`
+              : `Open ${link.name}'s profile`
           }
           className="rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-lps-tint"
         >

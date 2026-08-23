@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { portalSupplier, submitAvailabilityRequest } from '@/lib/availability-queries'
-import { notifySupplierEvent } from '@/lib/notify-supplier-events'
 
-/** The supplier pressed Save: stamp the request, wake daisy. Saving again
- * re-notifies — a supplier refining answers is news daisy wants. */
+/** The supplier pressed Save: stamp the request. (The agent notification was
+ * retired 2026-08-23 with the supplier-events plugin; it returns with rosie.) */
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ supplierId: string; arId: string }> },
@@ -19,14 +18,7 @@ export async function POST(
     if (!(await portalSupplier(supplierId))) {
       return NextResponse.json({ error: 'not found' }, { status: 404 })
     }
-    const ctx = await submitAvailabilityRequest(arId, supplierId)
-    await notifySupplierEvent({
-      type: 'availability_submitted',
-      supplierId: ctx.supplierId,
-      supplierName: ctx.supplierName,
-      availabilityRequestId: arId,
-      jobRequestId: ctx.jobRequestId,
-    })
+    await submitAvailabilityRequest(arId, supplierId)
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })

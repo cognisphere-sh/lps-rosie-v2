@@ -1,23 +1,22 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop into Supabase — every inventory-side write belongs here. Covers location mapping, source conversion, identity/size/price normalization, aliases, provenance, current-receipt/manual intake, exact-farm historical backfill date skips, match/update/insert rules, photo triage and QA. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v1.7.0)
+description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading a routed email/file, location mapping, source conversion, identity/size/price normalization, the lean notes rule, aliases, provenance, current-receipt/manual intake, exact-farm historical backfill date skips, match/update/insert rules, photo triage, QA and Gmail labelling. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v2.1.0)
 metadata:
   author: lps
-  version: "1.7.0"
+  version: "2.1.0"
 ---
 
 # Availability ingestion
 
 Ingest one availability drop (price list, availability sheet, website catalog, or
-photo) into Supabase. This procedure is normally run by a **task thread**
-dispatched from the `availability-drop-intake` skill, and it owns **every
-inventory-side database write** — parsing and all `inventory`,
-`inventory_sources` and `plant_aliases` rows.
+photo) into Supabase. This procedure runs on the **supplier's dedicated
+thread** — the `suppliers.daisy_thread_id` value; drops reach it as forwards
+from the `email-router` thread (the `supplier-email-routing` skill) or as
+handoffs from `main` — and it owns **every inventory-side database write** —
+parsing and all `inventory`, `inventory_sources` and `plant_aliases` rows.
 
-**Where the boundary is.** Four skills meet here, and each owns one thing:
+**Where the boundary is.** Three skills meet here, and each owns one thing:
 
-- **`availability-drop-intake`** coordinates: it identifies the supplier, briefs
-  you, digests your report, and talks to Chris. It never writes a row.
 - **this skill** parses the drop and writes every `inventory`,
   `inventory_sources` and `plant_aliases` row.
 - **`supplier-onboarding`** writes every `suppliers`, `contacts` and
@@ -32,9 +31,11 @@ inventory-side database write** — parsing and all `inventory`,
   yourself — and don't download one: a photo that exists only as a URL is
   captured as a URL, never fetched into our bucket.
 
-You **never talk to Chris, Telegram or the supplier directly** — anything you
-need from a human goes in your report and the main agent relays it. If you find
-yourself deciding *whether* to reply to someone, you are in the wrong skill.
+You **never talk to Telegram or the supplier directly** — replying to a
+supplier is the `supplier-communications` skill, and anything that genuinely
+needs Chris or Bhoumik goes to your `main` thread by agent message. **Make the
+call yourself wherever you defensibly can** — see *Judgment calls and
+escalation* below; `main` is for critical blockers, never routine questions.
 
 **Don't change this skill on your own.** If you find something wrong, missing, or
 inefficient in it, put the suggested change in the *Learnings* part of your
@@ -43,10 +44,14 @@ bump per the `create-skill` skill.
 
 ## Your inputs
 
-Your brief follows the **dispatch contract in the `availability-drop-intake`
-skill (§2)** — the supplier the main agent resolved, the source material, the
-ThreadId, current timestamp, and its explicit intake classification. Read the
-brief rather than re-deriving any of it. **A Chris/Bhoumik manual handoff
+A drop arrives as a **forward from the email-router thread** — MessageId,
+Gmail thread id, sender, subject, attachment names, and the supplier rows it
+matched — or as a handoff from `main` (file paths, a URL, an image). **Read
+the source yourself**: for an email, `bash scripts/gws/email read <MessageId>
+--attachments` gives the full body and writes the attachments to
+`plugins/gws/inbox/<MessageId>/`. The body text is part of the source — it can
+amend the attachment, name a farm, or identify a photo. The default
+classification is a **current drop**. **A Chris/Bhoumik manual handoff
 (image, attachment, or web source) classified `manual/current-receipt` is not a
 historical backfill merely because its material prints an old or non-ISO date.**
 Use the handoff timestamp as received/retrieved time and follow *Manual
@@ -55,17 +60,27 @@ classification invokes the exact-farm historical date check below. Two things to
 anything:
 
 - **`knowledge/files/SCHEMA.md`** — before any query.
-- **`workspace/suppliers/[<supplierId>]:<Name>/notes.md`** if it exists — this
-  supplier's known quirks and parsing tricks. Apply them.
+- **The supplier's `suppliers.notes`** — their known quirks and parsing
+  tricks live there. Apply them. (A legacy
+  `workspace/suppliers/[<supplierId>]:<Name>/notes.md` may also exist for an
+  established supplier — read it too, promote anything durable to
+  `suppliers.notes`, write nothing new there.)
 
-**If any input is missing or ambiguous** — you can't tell which supplier or
-location the drop belongs to, a credential is needed, the source is unreadable —
-**ask the main agent**: put your question(s) in the *Follow-up questions* part of
-your report and stop at a safe point. You will be re-invoked with answers in the
-same session. Ask early rather than guessing.
+Any contact with the supplier during the ingest is recorded per the
+`supplier-communications` skill (a dated pointer in this thread's notes).
 
-Any contact with the supplier during the ingest gets a timestamped entry in
-`suppliers.communication_notes` — follow the `supplier-communications` skill.
+## Judgment calls and escalation
+
+Resolve conflicts and confusion yourself wherever a defensible reading exists:
+pick the best-supported interpretation, write it, and record the reasoning in
+the row's `internal_notes` or the thread's notes. Routine gaps — a missing
+price, an unclear size, a plant that fits no obvious section — are never
+questions: record what the source says and keep going; they surface in the
+daily note. Humans are for **critical blockers only** — the supplier or
+location can't be determined at all, two readings would write materially
+different data with nothing to choose between them, a credential is needed.
+Those go to your `main` thread by agent message with full context; park the
+affected part at a safe point and keep processing what isn't blocked.
 
 ## Historical backfill: exact-farm later-date check
 
@@ -134,8 +149,9 @@ the brief explicitly calls the source historical/backfill.
   `inventory_sources.notes`, record the manual channel/identifier, the handoff
   timestamp, and every printed source date verbatim.
 - Preserve the printed historical date and the currentness caveat rather than
-  laundering it into a current claim. Put supplier-stated dated availability or
-  price text in `inventory.notes`; append a dated `internal_notes` statement
+  laundering it into a current claim — both are **your** conclusions about the
+  source, so they belong in `internal_notes`, never in `notes`: append a dated
+  `internal_notes` statement
   that the source was manually received at the handoff time, quote the printed
   date, and says **currentness/availability and pricing require confirmation**.
   This is a meaningful currentness caveat, not a duplicate of `created_at`.
@@ -174,9 +190,10 @@ this **before parsing** — it decides where every row goes.
    One row back — the supplier itself — → single location, every offering maps
    to that one `supplier_id`. Carry on at §1.
 
-   **If the brief says the sender matched no supplier at all**, there is nothing
-   to map to yet: follow the **`supplier-onboarding`** skill to create the
-   supplier, then come back here with the id it returns.
+   **If the router's forward said nothing matched** — this thread was minted
+   for a brand-new supplier — there is nothing to map to yet: follow the
+   **`supplier-onboarding`** skill to create the supplier (it sets
+   `daisy_thread_id` to this thread), then come back here with the id.
 
 2. **Where does the file say a location?** Look in the sheet header, a tab or
    page per farm, a "Ship from" / "Grown at" / "Farm" column, a section heading,
@@ -220,7 +237,8 @@ this **before parsing** — it decides where every row goes.
 3. **Never guess a location from the sender's address or the file name.** If the
    mapping is ambiguous — a location name that matches no row, two plausible
    matches, a sheet that looks per-farm but isn't labelled, some rows labelled
-   and some not — **ask the main agent** and stop. Don't fall back to "all
+   and some not — **that is a critical blocker: message `main` and park those
+   rows.** Don't fall back to "all
    locations" to resolve an ambiguity; that is a different claim from "the file
    named none". A row written to the wrong farm claims stock at a nursery that
    never offered it, and nothing downstream can tell.
@@ -433,11 +451,21 @@ One logical row per **plant × size offering**. Normalize every line:
 - **Price**: `unit_price` is nullable; use the lower bound if the source gives a range. Store `NULL` when the supplier provides no price, and preserve a numeric zero only when the source explicitly prints zero. Never coerce a missing/blank price to `0`, and never silently reinterpret legacy zero rows without source-level review. Missing price does not make an inventory row invalid or free. Don't note the absence in `internal_notes` — a `NULL` `unit_price` already says it; if the supplier themselves printed "price on request", that is their text and belongs in `notes`. Stock counts go in `quantity`.
 - **Combined sizes with one shared quantity**: create one inventory row for each printed size (for example, a `3 G/5 G` offer becomes separate `3 G` and `5 G` rows). Copy the source's shared quantity to both rows; quantities are tentative sourcing signals. State in each row's dated `internal_notes` that the quantity is the supplier's shared/tentative count across the combined sizes and that you split the offering, so reviewers do not add the copied values together as guaranteed stock. (Approved by Bhoumik, 2026-07-31.)
 - **Two note columns, and they are not interchangeable.** Every row can carry
-  both; keep each one's content in its own column.
-  - **`notes` — what the supplier said.** Their verbatim row description,
-    availability status, lead time, per-row qualifier ("limited", "coming soon",
-    "B&B only"). Date it: `Available as of 2026-07-01. Lead time 2 wks.` This is
-    evidence, so it is written from the source and nothing else.
+  both; keep each one's content in its own column — and keep both **lean**.
+  - **`notes` — what the supplier said that no column captures.** A per-row
+    qualifier ("limited", "coming soon", "B&B only"), a lead time, an ordering
+    constraint, the supplier's own item code or yard location, a stated
+    future-availability window — supplier-stated facts a person sourcing that
+    plant should know. **Never write what the database already records**: no
+    "available as of <date>" / "ingested on" / received or retrieved dates
+    (the row's `source_id` and its `inventory_sources` row carry when we got
+    the list), no source file or page names, and no verbatim restatement of
+    the row itself (name, size, price, quantity and dimensions live in their
+    columns). **Most rows need no `notes` at all** — a plain line item on a
+    current list says nothing beyond its columns. It is written from the
+    source and nothing else. (Rule tightened 2026-08-23, per Chris; the old
+    provenance boilerplate in existing rows was mechanically cleaned the same
+    day.)
   - **`internal_notes` — what you concluded.** Why you split a combined size,
     that a quantity is the supplier's shared/tentative count, a parse caveat, a
     QA exception, anything a later reader would otherwise have to re-derive from
@@ -749,10 +777,11 @@ captured URL lands (§6); a photo we were *given* as a file goes to
 `plant_photos` instead, and the two never describe the same image. Notes follow
 §2's split:
 
-- **`notes` is replaced** with this drop's supplier text, dated. The row now
-  describes the current offering, and the previous drop's file is still in
-  storage as evidence. If this drop says nothing about the row, leave `notes` as
-  it is rather than blanking it.
+- **`notes` is replaced** with this drop's supplier text under §2's lean rule —
+  usually `NULL`, since a plain line item says nothing beyond its columns, and
+  a qualifier the drop no longer prints comes off the row. The previous drop's
+  file is still in storage as evidence. If this drop doesn't mention the row at
+  all, leave `notes` as it is rather than blanking it.
 - **`internal_notes` is appended to**, never clobbered — your earlier caveats
   about this row are still true.
 
@@ -797,8 +826,8 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
 - **Reconcile counts:** source offering count versus rows **updated + inserted**, totals by page/section, priced/unpriced rows, quantities, photos, and distinct source ids. The two numbers should account for every source offering between them. Explain every exclusion, deduplication, split combined size, and ambiguous multi-match you skipped; a matching grand total alone is insufficient.
 - **Sanity-check the update/insert split.** A repeat drop from an established supplier should be mostly updates with a few inserts. **Mostly inserts means you took `match-candidates` at face value on entries you should have looked at** — a supplier who respelled or re-sized their list produces exactly that shape — and you have just duplicated the catalogue. Stop and investigate before committing: re-run `match-candidates` on a handful of the inserted entries, read the candidates you passed over, and re-run the §4 step 1 `search_inventory` check scoped to this supplier — an insert that search would have matched is a duplicate you just created.
 - **Check source coverage:** review representative rows from every page/section and **100% of risky rows** — wrapped/multi-line names or descriptions, blank prices, continuation lines, repeated names/sizes, SALE/COMING SOON/LIMITED/READY statuses, dimensions, calipers, quantities, footnotes, and page breaks.
-- **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. Until a dedicated raw-description column exists, preserve the supplier's full verbatim row description in dated `inventory.notes`, then derive `height`, `width`, `caliper`, `quantity`, and availability status separately without replacing the raw evidence.
-- **Check the note split:** nothing you concluded ended up in `notes`, no supplier text ended up in `internal_notes`, and no row's `internal_notes` was clobbered by this drop. Also check that nothing you appended to `internal_notes` merely restates the row — a missing price or quantity, when it was last updated or ingested, the size, the dimensions, the name. Delete those before committing rather than publishing them.
+- **Verify row boundaries:** each raw description/status/spec belongs to the correct plant row and no neighboring cell was crossed, truncated, or silently dropped. The uploaded source file is the raw evidence — **never copy verbatim row descriptions into `inventory.notes`**; derive `height`, `width`, `caliper`, `quantity` and status into their columns and keep in `notes` only what §2's lean rule allows.
+- **Check the note split and the lean rule:** nothing you concluded ended up in `notes`, no supplier text ended up in `internal_notes`, and no row's `internal_notes` was clobbered by this drop. No `notes` value this drop wrote carries a receipt/ingest date, a source-file or page name, or a restatement of the row's own columns (§2). Also check that nothing you appended to `internal_notes` merely restates the row — a missing price or quantity, when it was last updated or ingested, the size, the dimensions, the name. Delete those before committing rather than publishing them.
 - **Validate normalization:** no malformed names/sizes, no zero price presented as free, no guessed missing values, no unsafe cultivar/species alias edges, and no source dimensions left only in notes when they can be mapped unambiguously to structured fields. For every populated human-readable dimension, verify its `*_std` companion uses the approved unit/lower-bound rule or is deliberately `NULL` with an ambiguity reason; never publish a stale standard value after changing its source string.
 - **Every row with a `size` has a `size_std`**, and it is one the standard
   allows. Run it and expect zero rows:
@@ -892,7 +921,7 @@ Treat extraction and writing as untrusted until the drop passes source-to-databa
   every affected row preserves the printed date/currentness caveat with
   confirmation required in the correct notes column. An old or non-ISO printed
   year alone must not have triggered the exact-farm historical date check.
-- **Record QA evidence in the report contract:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
+- **Record QA evidence in the outcome record:** converter used, source counts versus updated/inserted counts, pages/sections checked, risky-row count and result, ambiguous multi-matches skipped, search spot-checks, and whether the transaction committed or rolled back. Do not report an ingest as Catalogued without this QA summary.
 
 ## 6. Catalogue any plant photos in the drop
 
@@ -985,32 +1014,57 @@ which is why it has to be written down.
 
 ## Recording availability status
 
-`inventory.notes` carries the supplier's per-row qualifiers and their
-**last-known availability** — always with a date, e.g. `Available as of
-2026-07-01. Lead time 2 wks.` §4 replaces it with the current drop's text, so
-the date on it is the date of the drop it came from; a row nobody refreshed keeps
-its older dated status, which is the point. Stock counts go in `quantity`, and
-your own reading of the row goes in `internal_notes`.
+**Staleness is answered by the row's `source_id`** — its source's
+`created_at` says when we last saw the row — never by a date written into
+`notes`. So `notes` carries no "available as of" line; what it does carry is
+the supplier's own per-row qualifier a sourcing person needs ("limited", "sold
+out until fall", "lead time 2 wks"), and §4 replaces that with each new drop's
+text. Stock counts go in `quantity`, and your own reading of the row goes in
+`internal_notes`.
 
 If the supplier says an item is **out or discontinued**, record that in `notes`
 and raise it under *Flags needing Chris*. **Don't flip `is_active = false`
 yourself** — retiring an offering is a deliberate act outside an ingest (§4).
 
+## 7. Label the email
+
+After processing an email drop, apply one **sub-label under `Daisy`** for the
+status (the router already applied the primary `Daisy` label when it forwarded
+the email — re-adding it is harmless):
+
+| Sub-label | When |
+| --- | --- |
+| `Daisy/Catalogued` | ingested successfully — **or the email carried no availability but did carry plant photos that were catalogued.** Something went into the database either way |
+| `Daisy/Failed` | couldn't process — parse error, blocked |
+| `Daisy/Not Availability` | wasn't an availability/price-list drop and had no plant photos either |
+| `Daisy/Escalated` | needs human review — unsure, or fits none of the above |
+
+Gmail nests labels by the `/` separator. Known label IDs are in
+`artifacts/gmail-labels.md` (relative to this skill dir); look them up live if
+that file is stale, and create any missing label first:
+
+```
+gws gmail users labels list --params '{"userId":"me"}'
+gws gmail users threads modify --params '{"userId":"me","id":"<gmailThreadId>"}' \
+  --json '{"addLabelIds":["<DaisyLabelId>","<StatusLabelId>"]}'
+```
+
 ## Timestamps
 
-ISO 8601, America/Chicago. "Now" is the timestamp the main agent gives you.
+ISO 8601, America/Chicago. "Now" is the latest inbound message's Timestamp.
 `updated_at` is maintained by trigger on UPDATE.
 
-## Report contract — what you return to the main agent
+## Record the outcome
 
-This is the **canonical definition** of the report; the
-`availability-drop-intake` skill (§4) says what the main agent does with each
-part. Return a **compact structured report**, not a transcript — the main agent
-uses it for the thread summary, the daily note, and anything Chris needs to see,
-and it cannot read your transcript. Include:
+When the ingest finishes, write a **compact structured record**: the outcome
+and row counts into this thread's `notes.md` under `## Context`, the reasoning
+under `## Decisions`, and a brief entry in the daily note — that is what the
+9 AM summary reads, and routine successful ingests are messaged to no one.
+When a coordinator thread or `main` asked for this ingest by agent message,
+send the same record back to the requesting thread. It covers:
 
 - **Onboarding** (when any was performed): the block `supplier-onboarding`
-  returns, folded in here so the main agent reads one report — the new
+  returns, folded in here so there is one record — the new
   `supplier_id` and its `head_branch_id`, enrichment and newsletter, contacts and
   links. Say what sent you there: a sender that matched nothing, or a farm the
   file named that had no row.
@@ -1043,16 +1097,17 @@ and it cannot read your transcript. Include:
 - **Duplicates found**: keys where several active rows carried the same price and
   printed name (§4 step 1). Give the plant, size and row ids, and say which one
   you updated. These are a cleanup backlog, not something to fix mid-ingest.
-- **Follow-up questions**: anything you need from the main agent to finish
+- **Escalations**: anything you sent to `main` (or the requesting thread) to finish
   (missing/ambiguous inputs, credentials, a decision). If you stopped early
   because of one, say exactly where you stopped and what remains.
 - **Flags needing Chris**: missing prices, unclear sizes/specs, plants that
   didn't map, suspected duplicates/typos in the source.
 - **Errors/issues faced** and how you resolved them.
-- **Learnings**: supplier quirks or parsing tricks not yet in the supplier's
-  `notes.md`; anything incorrect/redundant found in SCHEMA.md, this skill, or
-  other docs; **suggested skill/script/database changes** (you never change this
-  skill — they go to the daily summary for Chris's/Bhoumik's approval).
-- **Suggested status label**: `Catalogued` / `Failed` / `Not Availability` /
-  `Escalated` — the four sub-labels defined in `availability-drop-intake` §5,
-  which is where the main agent applies them.
+- **Learnings**: supplier quirks or parsing tricks not yet in
+  `suppliers.notes` — write them there (the supplier-side update per
+  `supplier-onboarding`) or flag them here; anything incorrect/redundant found
+  in SCHEMA.md, this skill, or other docs; **suggested skill/script/database
+  changes** (you never change this skill — they go to the daily summary for
+  Chris's/Bhoumik's approval).
+- **Status label applied** (email drops): which `Daisy/…` sub-label you
+  applied under §7.

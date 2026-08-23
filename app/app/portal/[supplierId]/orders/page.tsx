@@ -8,7 +8,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-import { PortalChat, PortalFrame } from '@/components/workspace/portal'
+import { PortalFrame } from '@/components/workspace/portal'
 
 export default function PortalOrdersPage() {
   const params = useParams<{ supplierId: string }>()
@@ -31,8 +31,6 @@ export default function PortalOrdersPage() {
       supplierId={supplierId}
       supplierName={supplierName}
       tab="orders"
-      chat={supplierName ? <PortalChat supplierId={supplierId} /> : undefined}
-      chatSubtitle="Chat with Local Plant Supply"
     >
       <p className="py-10 text-center text-[13px] text-muted-foreground">
         No orders yet — confirmed orders will appear here.

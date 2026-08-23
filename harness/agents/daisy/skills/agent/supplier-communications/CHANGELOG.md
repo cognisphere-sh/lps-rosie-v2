@@ -1,6 +1,45 @@
 # supplier-communications — changelog
 
-## 2.3.0
+## 4.1.0
+
+2026-08-23 (Bhoumik, same day as 4.0.0) — the fact-placement section now says
+**every supplier quirk lives in `suppliers.notes`**; the
+`workspace/suppliers/…/notes.md` working-memory bullet became a read-only
+legacy note, and a new "Nowhere" bullet bars persisting task updates, progress
+notes and minor observations — only what long-term consistency depends on gets
+written down.
+
+## 4.0.0
+
+2026-08-23 (same day as 3.0.0) — Bhoumik dropped the `supplier_messages`
+transcript table (migration 0066; rows snapshotted to
+`supplier_messages_backup_20260823`) along with the app's Conversation tab and
+portal chat. Recording a contact is now a dated pointer (substance + Gmail
+thread id) in the supplier thread's `notes.md` plus a daily-note entry — Gmail
+holds the full text. The Portal chat section is gone with the feature;
+`suppliers.communication_notes` remains the frozen pre-0063 archive nothing
+writes.
+
+## 3.0.0
+
+2026-08-23 — Bhoumik's agent restructure plus Chris's 2026-08-20/21 feedback:
+
+- The one-thread-per-supplier convention now names the
+  `suppliers.daisy_thread_id` thread (`supplier-<slug>`, one per head branch,
+  migration 0064); older `supplier-<id>` threads are history.
+- Per-exchange `gws` routing rules retired: a catch-all route pins all inbound
+  email to the `email-router` thread, which forwards replies here
+  (`supplier-email-routing` skill) — a rule added after the catch-all would
+  never fire.
+- New sections from Chris's feedback: his email style (2–3 short casual
+  lines, never wordy, no Texas mention to Texas-only suppliers), the stored
+  Sales & Use Tax permit as an approved-send attachment, and the standing
+  **learning mode** (per-supplier go-ahead even for the approved template;
+  Chris personally handles gated buyer applications).
+- The availability-requests portal-request procedure left Daisy's scope, and
+  the supplier-events plugin was dropped with it (to return with rosie); the
+  portal-chat reply rule now lives here as its own section — portal messages
+  no longer wake Daisy, she answers when pointed at one.
 
 2026-08-21 — Chris approved a reusable, light-touch initial-outreach template
 for **Texas wholesale nurseries**. It is stored as

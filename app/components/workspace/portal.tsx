@@ -9,83 +9,14 @@
 // deliberately deferred step — see docs/app/README.md (Supplier portal).
 
 import Link from 'next/link'
-import { Leaf, MessagesSquare } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Leaf } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
-import { ChatLegend, Composer, Thread } from '@/components/workspace/availability'
 import {
   ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { useIsMobile, useTheme } from '@/components/workspace/shell'
-import type { SupplierMessage } from '@/lib/availability'
 import { cn } from '@/lib/utils'
-
-/**
- * The supplier's ONE chat thread with Local Plant Supply, self-contained: it
- * fetches, polls (daisy answers this thread), auto-scrolls and sends. Pages
- * hand it to the frame's `chat` slot; the frame owns the docked chrome.
- */
-export function PortalChat({ supplierId }: { supplierId: number }) {
-  const [messages, setMessages] = useState<SupplierMessage[]>([])
-  const [error, setError] = useState('')
-  const scroller = useRef<HTMLDivElement>(null)
-
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/portal/${supplierId}/messages`)
-    if (res.ok) {
-      setMessages(((await res.json()) as { messages: SupplierMessage[] }).messages)
-    }
-  }, [supplierId])
-
-  useEffect(() => {
-    if (!Number.isInteger(supplierId)) return
-    void load().catch(() => {})
-    const timer = setInterval(() => {
-      void load().catch(() => {})
-    }, 10_000)
-    return () => clearInterval(timer)
-  }, [supplierId, load])
-
-  useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight })
-  }, [messages.length])
-
-  const send = async (body: string) => {
-    setError('')
-    const res = await fetch(`/api/portal/${supplierId}/messages`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ body }),
-    })
-    if (!res.ok) {
-      const b = (await res.json().catch(() => ({}))) as { error?: string }
-      setError(b.error ?? 'Could not send')
-    }
-    await load()
-  }
-
-  return (
-    <>
-      <div ref={scroller} className="flex min-h-[220px] flex-1 flex-col gap-2.5 overflow-auto p-3">
-        <p className="m-0 text-[12px] text-muted-foreground">
-          Anything at all — availability, substitutes, timing, delivery. Your message goes straight
-          to the Local Plant Supply team.
-        </p>
-        {/* The same legend the admin's Conversation tab draws, flipped to this
-            side of the thread — the two views are one chat. */}
-        <ChatLegend ownSide="supplier" />
-        <Thread messages={messages} ownSide="supplier" emptyText="No messages yet." />
-        {error && <p className="m-0 text-[11.5px] text-destructive">{error}</p>}
-      </div>
-      <div className="flex-none border-t border-border p-2.5">
-        <Composer
-          modes={[{ channel: 'app', label: 'Message', placeholder: 'Write a message…' }]}
-          onSend={(body) => send(body)}
-        />
-      </div>
-    </>
-  )
-}
 
 export type PortalTab = 'requests' | 'orders'
 
@@ -95,56 +26,17 @@ export function PortalFrame({
   supplierId,
   supplierName,
   tab,
-  chat,
-  chatSubtitle,
   children,
 }: {
   supplierId: number
   /** Null while loading — the frame draws before the fetch answers. */
   supplierName: string | null
   tab: PortalTab
-  /**
-   * The availability chat, docked on the right like the admin app's agent
-   * panel — collapsible to the same 46px rail on desktop, rendered under the
-   * content on mobile. The page supplies the thread + composer; the frame
-   * owns the chrome.
-   */
-  chat?: React.ReactNode
-  /** What the chat is about — "Availability request AR-3". */
-  chatSubtitle?: string
   children: React.ReactNode
 }) {
   const isMobile = useIsMobile()
   const { dark, toggle } = useTheme()
   const [navOpen, setNavOpen] = useState(true)
-  // Starts as the rail — clicking it opens the sidebar (Bhoumik, 2026-08-19).
-  const [chatOpen, setChatOpen] = useState(false)
-
-  const chatHeader = (
-    <div className="flex flex-none items-center gap-2.5 border-b border-border px-3 py-2.5">
-      <span className="flex size-8 flex-none items-center justify-center rounded-full bg-accent">
-        <Leaf className="size-4 text-accent-foreground" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-bold leading-tight text-foreground">
-          Local Plant Supply
-        </span>
-        <span className="block truncate text-[10.5px] text-muted-foreground">
-          {chatSubtitle ?? 'Availability chat'}
-        </span>
-      </span>
-      <button
-        type="button"
-        onClick={() => setChatOpen(false)}
-        aria-label="Hide chat"
-        title="Hide chat"
-        className="flex size-7 flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <ChevronRight size={15} />
-      </button>
-    </div>
-  )
-
   const nav: { id: PortalTab; label: string; href: string; Icon: typeof RequestsIcon }[] = [
     { id: 'requests', label: 'Availability Requests', href: `/portal/${supplierId}`, Icon: RequestsIcon },
     { id: 'orders', label: 'Orders', href: `/portal/${supplierId}/orders`, Icon: FileIcon },
@@ -184,26 +76,6 @@ export function PortalFrame({
         </header>
         <main className="flex flex-1 flex-col gap-3 overflow-auto px-3 py-3">
           {children}
-          {chat && (
-            <section className="mt-1 flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-              {/* Mobile gets the same chat under the content; only the hide
-                  button makes no sense where there is no rail to reopen from. */}
-              <div className="flex flex-none items-center gap-2.5 border-b border-border px-3 py-2.5">
-                <span className="flex size-8 flex-none items-center justify-center rounded-full bg-accent">
-                  <Leaf className="size-4 text-accent-foreground" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-bold leading-tight text-foreground">
-                    Local Plant Supply
-                  </span>
-                  <span className="block truncate text-[10.5px] text-muted-foreground">
-                    {chatSubtitle ?? 'Availability chat'}
-                  </span>
-                </span>
-              </div>
-              {chat}
-            </section>
-          )}
         </main>
         <nav className="sticky bottom-0 flex flex-none items-stretch gap-0.5 overflow-hidden border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
           {nav.map(({ id, label, href, Icon }) => (
@@ -311,29 +183,6 @@ export function PortalFrame({
         </div>
       </main>
 
-      {/* The availability chat, docked right like the admin app's agent panel. */}
-      {chat &&
-        (chatOpen ? (
-          <aside className="sticky top-0 flex h-dvh w-[360px] flex-none flex-col border-l border-border bg-card">
-            {chatHeader}
-            <div className="flex min-h-0 flex-1 flex-col">{chat}</div>
-          </aside>
-        ) : (
-          <div className="sticky top-0 flex h-dvh w-[46px] flex-none flex-col items-center border-l border-border bg-card py-3.5">
-            <button
-              type="button"
-              onClick={() => setChatOpen(true)}
-              aria-label="Show chat"
-              title="Availability chat"
-              className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground hover:text-foreground"
-            >
-              <MessagesSquare className="size-[20px]" />
-              <span className="text-[11px] font-bold uppercase tracking-[.08em] [writing-mode:vertical-rl]">
-                Chat
-              </span>
-            </button>
-          </div>
-        ))}
     </div>
   )
 }

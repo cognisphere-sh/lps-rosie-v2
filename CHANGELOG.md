@@ -15,6 +15,98 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-23
+
+### Changed
+
+- **Supplier Type tags replaced and every supplier reclassified** (Chris's
+  2026-08-21 direction, applied by Bhoumik). Migration
+  `0067_supplier_type_tags` narrows `suppliers.category` to **Grower /
+  Wholesale Supplier / Retail / Broker/Platform** (NULL = insufficient
+  evidence), retiring `Nursery`, `Wholesaler` and `Other`. The 697-row
+  reclassification was a reviewed pass, not a bulk mapping: evidence is the
+  original supplier workbook's outreach cohorts cross-checked per company,
+  plus a web review of all 73 companies whose cohorts conflicted, were
+  ambiguous or matched nothing — per-supplier rationale in
+  `harness/agents/daisy/migrations/artifacts/0067_supplier_type_review.csv`,
+  pre-change values in `supplier_category_backup_20260823`. Notable
+  corrections: Calloway's, Moon Valley stores, Premier Nursery and The Growers
+  Outlet are `Retail`; Devil Mountain is a `Wholesale Supplier`; the workbook's
+  luxury-builder and non-plant cohorts are NULL with a note saying they are
+  not plant suppliers. App: `SUPPLIER_CATEGORIES` and the badge styling carry
+  the new vocabulary (filters, Type editors and edit validation follow from
+  it). Daisy: `supplier-onboarding` and
+  `daily-supplier-availability-onboarding` updated to the new tags. Texas-first
+  outreach logic stays separate from the Type field, per the direction.
+
+- **Daisy restructured to supplier discovery, onboarding and availability
+  ingestion only** (Bhoumik). Work is now organised as **one dedicated thread
+  per supplier company**: migration `0064_supplier_daisy_thread_id` adds
+  `suppliers.daisy_thread_id` (`supplier-<slug of head-branch name>`, one per
+  head branch, 1,395 rows backfilled), a catch-all `gws` route pins every
+  inbound email to a new **`email-router`** thread, and the new
+  `supplier-email-routing` skill has it identify the supplier from
+  sender/subject/attachment names alone (reading a body only when that fails)
+  and forward a pointer to the supplier's dedicated thread — minting the
+  thread and briefing onboarding+ingestion for a brand-new supplier. `main` is
+  coordination with Chris/Bhoumik only. Skills: `availability-ingestion` 2.0.0
+  runs on the supplier thread (absorbing the retired
+  `availability-drop-intake`'s Gmail labelling and outcome recording),
+  `supplier-onboarding` 2.0.0 sets `daisy_thread_id` and makes newsletter
+  signup explicitly best-effort, `supplier-communications` 3.0.0 carries the
+  new thread convention plus Chris's 2026-08-20/21 feedback (short casual
+  email style, the stored Sales & Use Tax permit as an approved-send
+  attachment, standing learning mode), and
+  `daily-supplier-availability-onboarding` 2.0.0 dispatches ingestion to
+  dedicated threads and honours placeholder-supplier holds. Escalation policy
+  throughout: make the defensible judgment call; `main` only for critical
+  blockers.
+- **`inventory.notes` boilerplate cleanup** (migration
+  `0065_inventory_notes_boilerplate_cleanup`, data-only, per Chris): notes no
+  longer carry "available as of"/receipt dates, source-file names or verbatim
+  source-row restatements — that lives in `source_id`/`inventory_sources`.
+  18,162 of 48,771 active noted rows cleared, total notes text halved;
+  supplier qualifiers, item codes, yard locations and future-availability
+  windows kept. Backup in `inventory_notes_backup_20260823`; the ingestion
+  skill's lean-notes rule keeps new rows clean.
+
+### Removed
+
+- **Daisy's availability management** — the `availability-requests` and
+  `availability-drop-intake` skills are deleted; request management moves to
+  rosie in a later phase (rosie unchanged for now — her sourcing asks and
+  `job-requests` thread targets are aligned then).
+- **The `supplier-events` plugin** (user-space app→daisy webhook for portal
+  activity and chat-view instructions), dropped with its app plumbing
+  (`app/lib/notify-supplier-events.ts`, the three notify call sites, the
+  `scripts/app/secrets.sh` secret block) — to be recreated, re-targeted, when
+  rosie takes over request management. Portal writes still land in the
+  database; nothing wakes an agent for them in the interim.
+- **The supplier chat transcript** (`supplier_messages`, migration
+  `0066_drop_supplier_messages` — 213 rows snapshotted to
+  `supplier_messages_backup_20260823`; `suppliers.communication_notes` stays
+  the frozen pre-0063 archive), together with its UI and API: the supplier
+  profile's Conversation tab and composer, the portal's docked chat pane,
+  `GET·POST /api/supplier-messages`, `GET·POST /api/portal/:supplierId/messages`,
+  and the chat components/vocabulary in `lib/availability*` /
+  `components/workspace/availability.tsx`. Availability requests and their
+  portal answering flow are untouched; job-request sourcing links now count
+  only availability requests as engagement, and a non-onboarded supplier's
+  chip links to their profile. Daisy's `supplier-communications` 4.0.0 records
+  a contact as a dated pointer (substance + Gmail thread id) in the supplier
+  thread's notes instead.
+- **Daisy's memory model tightened** (same day): every supplier quirk lives in
+  `suppliers.notes` in Supabase — the `workspace/suppliers/…/notes.md` dirs
+  are read-only legacy (read, promote anything durable, write nothing new) —
+  and only what long-term consistency depends on gets persisted at all: no
+  task updates, progress notes, or minor observations. `1-agent.md` plus
+  `availability-ingestion` 2.1.0, `supplier-onboarding` 2.1.0 and
+  `supplier-communications` 4.1.0. `1-agent.md` was also simplified (217 → 143
+  lines): everything the base prompt already covers (thread-directory and
+  workspace conventions, task threads, bash quoting) and every procedure a
+  skill owns (router behaviour, ingest-retirement and head-branch rules) now
+  lives only in its owning file.
+
 ## 2026-08-20
 
 ### Changed

@@ -1,6 +1,6 @@
 # Gmail label IDs (Daisy's gws label taxonomy)
 
-Reference IDs only — *which* label to apply and how is **§5 Label the email**
+Reference IDs only — *which* label to apply and how is **§7 Label the email**
 in this skill's `SKILL.md`, which this file sits beside.
 
 Look these up live with `gws gmail users labels list --params '{"userId":"me"}'`

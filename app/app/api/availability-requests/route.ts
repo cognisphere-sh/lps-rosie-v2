@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 
 import { createAvailabilityRequest, listAvailabilityRequests } from '@/lib/availability-queries'
-import { resolveUser } from '@/lib/session'
 
 /** Ids out of `?supplier=1,2,3` — anything non-numeric is simply dropped. */
 const idsOf = (raw: string | null): number[] =>
@@ -57,14 +56,11 @@ export async function POST(req: Request) {
         { status: 400 },
       )
     }
-    const user = await resolveUser(req.headers.get('cookie') ?? '')
     const id = await createAvailabilityRequest({
       jobRequestId: body.jobRequestId!,
       supplierId: body.supplierId!,
       shareCustomerDetails: !!body.shareCustomerDetails,
       itemIds: body.itemIds.filter((n) => Number.isInteger(n)),
-      // The harness username, given its display casing ("chris" → "Chris").
-      senderName: user ? user.charAt(0).toUpperCase() + user.slice(1) : null,
     })
     return NextResponse.json({ id })
   } catch (e) {

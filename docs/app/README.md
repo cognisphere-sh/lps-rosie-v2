@@ -80,7 +80,7 @@ fidelity", start here rather than reverting one of these by accident:
 | Chat composer adds attach / voice / paste; panel has a ⋯ → Clear conversation | The mock's composer was a text box and a send button; a real agent channel needs to carry files and be resettable. |
 | No "list is 7+ days old" staleness flag anywhere | Removed at the owner's request, along with the panel tint that went with it. |
 | Signed-in user read from `/api/auth/me` | The mock hardcoded a name and initials into the markup. |
-| **Notes** edits in place; supplier profile fields require explicit edit mode | Tap-anywhere field editing is unsafe on touch screens; profile changes are staged and saved together. **Type** is shown explicitly in that grid and uses only the schema vocabulary (Grower / Nursery / Wholesaler / Other, or unset); it is never inferred from the supplier name. (The mock-era **Communications** tab existed until 2026-08-19, when migration 0063 replaced the supplier log with the Conversation transcript.) |
+| **Notes** edits in place; supplier profile fields require explicit edit mode | Tap-anywhere field editing is unsafe on touch screens; profile changes are staged and saved together. **Type** is shown explicitly in that grid and uses only the schema vocabulary (Grower / Wholesale Supplier / Retail / Broker/Platform, or unset); it is never inferred from the supplier name. (The mock-era **Communications** tab existed until 2026-08-19, when migration 0063 replaced the supplier log with the Conversation transcript.) |
 | Suppliers, Plant search and the profile present **one company**, not one `suppliers` row | A company with several sites is several rows in the database (`head_branch_id`), and the mock draws one row per row — so Everde filled fifteen lines of a fifty-line page and a buyer had to reconcile them by eye. Asked for directly. The farm is never lost: it expands under the company row, names itself in the plant table's **Branch** column, and tags every entry on the profile. See *Companies and farms*. |
 | Profile inventory is paginated | The mock had a fixed list; real suppliers carry thousands of rows. |
 | Column reorder is direction-aware | The mock's algorithm makes an adjacent rightward drag a no-op. See *Column layout*. |
@@ -150,7 +150,7 @@ in the desktop rail and through mobile More.
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Supplier Search, **one row per company** — see *Companies and farms*. The row is the head office's own record; only `# Items` and the ingestion columns speak for the whole company. A leading chevron expands the farms that answered the query beneath it, as full rows with their own profile links. Type/city/state and column filters still run on locations before grouping, so a company can appear because one farm matched and its expander reads `2 of 5 farms`. Company pagination is 50 results at a time. Rows retain the column picker, sort, resize, inline edit and view-only hiding; compact cards serve mobile. |
-| `/suppliers/:id` | client | Profile — **one page per company** on a head-branch id, one farm on a farm id (*Companies and farms*). One Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Farms** / **Availability requests** / **Conversation** / Notes / Files (the old Communications tab is gone — migration 0063 folded its log into the Conversation transcript); on a company page every one of them covers all the company's locations and **tags each entry with the farm it belongs to**. **Farms** lists each location as a card with the same editable field grid the header has — including the **Type** dropdown (Grower / Nursery / Wholesaler / Other / unset) — plus a link to that farm's own page, and is offered only where there is more than one location (`?tab=farms` on a single-site supplier falls back to Inventory). **Availability requests** lists every request sent to the company's locations and opens one inline (deep-linkable as `?tab=requests&ar=<id>` — where a sourcing-note supplier chip lands): the same line table the portal shows, read-only, with a **Portal view** link, a Close/Reopen button, and no per-request chat — the conversation is one thread per supplier, on the Conversation tab. **Conversation** is the supplier's whole transcript rendered as chat, after the reference design: a legend row, bubbles coloured by channel (text green, email teal, portal lime, internal grey/dashed), our side right — an agent (Daisy/Rosie) solid, a person (Chris) outlined — the supplier left, a `time · sender` caption under each bubble, One flat thread — a message from the per-request era carries an `AR-<id>` chip that jumps to the request, but there are no sub-threads. The composer is mode-first: **Daisy** records an `internal` instruction and wakes her on the supplier's thread (`supplier-events`); **Portal** (onboarded farms only) reaches the supplier's portal chat; **Text**/**Email** record an exchange that happens outside the app. The profile field grid gains **Portal onboarded** (migration 0062's flag, a Yes/No dropdown in edit mode), and an onboarded supplier shows the **LPS tag** beside its breadcrumb and on the Suppliers list. Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Mobile inventory cards also show the supplier's raw caliper text when present. Desktop keeps details expanded, its back link visible and its pencil in the header. |
+| `/suppliers/:id` | client | Profile — **one page per company** on a head-branch id, one farm on a farm id (*Companies and farms*). One Shell header carries supplier name/category; the duplicate in-page title is removed. On mobile, a compact **Supplier details** summary with call/email/web/map actions is collapsed by default; expanding it reveals the field grid and its bottom-right pencil, making expand → edit an intentional safety gate. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Farms** / **Availability requests** / Notes / Files (the old Communications tab is gone — migration 0063 folded its log into a transcript that was itself dropped 2026-08-23, migration 0066); on a company page every one of them covers all the company's locations and **tags each entry with the farm it belongs to**. **Farms** lists each location as a card with the same editable field grid the header has — including the **Type** dropdown (Grower / Wholesale Supplier / Retail / Broker/Platform / unset) — plus a link to that farm's own page, and is offered only where there is more than one location (`?tab=farms` on a single-site supplier falls back to Inventory). **Availability requests** lists every request sent to the company's locations and opens one inline (deep-linkable as `?tab=requests&ar=<id>` — where a sourcing-note supplier chip lands): the same line table the portal shows, read-only, with a **Portal view** link and a Close/Reopen button; there is no per-request chat. The profile field grid gains **Portal onboarded** (migration 0062's flag, a Yes/No dropdown in edit mode), and an onboarded supplier shows the **LPS tag** beside its breadcrumb and on the Suppliers list. Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Mobile inventory cards also show the supplier's raw caliper text when present. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search, **one card per company**, with every matching row from every one of its farms beside it and a **Branch** column naming the farm each row is at. Every plant retains its original `supplier_id` and source; the card links to the company page. The generic Shell title is hidden on mobile; the search toolbar carries natural size tokens, available-size/cultivar/type/city/state controls and pagination through the whole match set 300 plants at a time. Desktop keeps the resizable company panel and plant columns; mobile starts each company collapsed and lets each plant expose its branch, notes, dates and source inline. |
 | `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size, **cultivar** and tag. **50 photos at a time behind a Load more button**, which appends rather than flipping pages — a wall of photos is scanned downwards, and a pager loses everything already looked at. The button carries the remaining count so it isn't a mystery box. Each card carries a **delete** control in its top corner (always visible, not hover-only — this grid is used on touch screens): it confirms, then soft-deletes through `DELETE /api/rows`, and says plainly that the image file itself is kept in storage. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. The lightbox's pencil turns that panel into a **form**: the three name parts, size, height/width/caliper, tags (comma separated) and caption/notes, staged locally and written as one atomic update on Save, exactly as the supplier profile does. While editing, Esc backs out of the form rather than closing the lightbox and the arrows belong to the text fields, so a draft can't be lost by reaching for the next photo. |
 | `/customers` | client | **Customers** — a table, one row per person, in the same shape Suppliers uses: sticky header with per-column sort, filter, resize and drag-to-reorder, a column picker at the right edge, and the layout persisted per table. Columns are Name (opens their page), Company, Email, Phone, **Active requests**, **Active request value**, **Orders**, **Total order value**, City, State, Street, ZIP, Notes, Added, Last updated — Street, ZIP, Notes and Added hidden by default. The two request figures are summed **in the browser** from the rollup each customer already carries (`sourcing` + `quoted`); the two order figures are **empty on purpose** — there are no order tables (migration 0055 defers them), and a column reading a request figure under an order's name would be a lie. Every cell but the four figures and the two dates is **edited in place** through `PATCH /api/rows`. Search matches name, company, email or phone; a **State** chip and a **With requests · N** toggle narrow further, both server-side. The **column header's** sort and filters run over the page in view rather than the whole table — two of the columns are summed in the browser and have no database column to order on. On mobile the table gives way to one card per customer, opening the same page. Cards no longer expand here: everything the old drawer held moved to `/customers/:id`. **No create form, deliberately** — see the deviations table. |
@@ -184,11 +184,9 @@ in the desktop rail and through mobile More.
 | `POST /api/availability-requests` | Create one from a job request's selected lines (`{jobRequestId, supplierId, shareCustomerDetails, itemIds}`). Refuses a non-onboarded supplier; snapshots the lines' name/size/quantity at share time and prefills each line's `unit_price` where our catalogue answers it for that supplier at that size. |
 | `GET·PATCH /api/availability-requests/:id` | One request whole (admin view — no disclosure filter), and the one admin write: `{status}` (usually → `closed`). |
 | `GET /api/availability-requests/suppliers` | The onboarded suppliers — the create dialog's dropdown and the nav rail's Supplier view picker. |
-| `GET·POST /api/supplier-messages` | A supplier's transcript (`?supplier=1,2,3`, all locations at once, oldest first), and a broker-side message into it — `sender_name` is the **signed-in user**, never self-reported. `email`/`text` record an exchange that happened outside the app; `internal` records an instruction and **wakes daisy** on the supplier's thread; `app` reaches the supplier's portal chat — the conversation is one thread per supplier, never per availability request. |
 | `GET /api/portal/:supplierId` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not onboarded, which is the scoping rule every portal route starts with. |
 | `GET·PATCH /api/portal/:supplierId/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A request belonging to another supplier answers 404, not 403. (The home GET embeds every request with its lines, so the page itself only PATCHes here.) |
-| `POST /api/portal/:supplierId/requests/:arId/submit` | The card's **Save**: stamps `submitted`/`submitted_at` and notifies daisy (`lib/notify-supplier-events.ts` → her `supplier-events` webhook — best-effort, the write has already committed). Saving again re-notifies — a supplier refining answers is news daisy wants. |
-| `GET·POST /api/portal/:supplierId/messages` | The supplier's ONE chat thread, as they may see it — `internal` messages never cross to the portal. POST is a supplier-side message (`channel='app'`, `sender_name` = the supplier's name), then the same daisy notification. |
+| `POST /api/portal/:supplierId/requests/:arId/submit` | The card's **Save**: stamps `submitted`/`submitted_at`. (The daisy notification was retired 2026-08-23 with the supplier-events plugin; it returns with rosie's restructure.) |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
 | `POST /api/rows` | Append one stamped entry to an append-only note column — `customers.communication_notes`, the only one left. A separate verb because it is a different operation: PATCH *replaces* what a column holds, and a contact log must never be replaced. The job-request note columns moved off this route on 2026-08-18 — they are `sourcing_notes` now (migration 0061) and are edited through PATCH like any other field. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
@@ -208,17 +206,11 @@ and two destinations, not the operator's pages or agent chat.
 The chrome (`components/workspace/portal.tsx`) mirrors the admin Shell on
 purpose: a collapsible left nav rail on desktop (Availability Requests /
 Orders, with the theme toggle, Settings and Log out at its foot), a bottom tab
-bar on mobile — and the supplier's chat docked right the way the admin app
-docks its agent panel: it starts as the 46px rail and clicking opens it (same
-chat under the content on mobile). The chat is **one thread per supplier** —
-never per availability request — polled every 10s for daisy's replies, and
-`internal` messages never reach it. It draws exactly what the admin's
-Conversation tab draws — the same legend row (flipped to the supplier's side:
-our side left, theirs right, Internal omitted because it never crosses), the
-same channel-coloured bubbles and the same composer — the two views are one
-chat, each reader with their own words on the right. Settings and Log out are drawn **disabled** — both belong to
+bar on mobile. Settings and Log out are drawn **disabled** — both belong to
 supplier sign-in, which doesn't exist yet; a control that pretended otherwise
-would misrepresent the system.
+would misrepresent the system. (The portal chat that used to dock on the right
+went with the `supplier_messages` transcript, dropped 2026-08-23 by migration
+0066.)
 
 Three things to keep straight:
 
@@ -234,13 +226,11 @@ Three things to keep straight:
 - **The ask is a snapshot.** A portal request's lines carry the name/size/
   quantity copied at share time — editing the job request afterwards does not
   rewrite the question the supplier is answering.
-- **Daisy is woken, not polled.** A request's Save and the supplier's chat
-  messages POST to her `supplier-events` plugin webhook
-  (`lib/notify-supplier-events.ts`, best-effort — the database write has
-  already committed, so a down harness costs freshness, not data), all on the
-  supplier's one thread (`supplier-<id>`). Daisy owns every supplier
-  conversation, the portal included; rosie is reached by daisy, never by this
-  webhook. What daisy does with an event is her `availability-requests` skill.
+- **No agent is woken by portal activity** (since 2026-08-23). The
+  supplier-events webhook and `lib/notify-supplier-events.ts` were removed
+  with daisy's restructure — the database rows carry everything, and the
+  notification path returns, re-targeted at rosie, when she takes over
+  request management.
 
 The supplier's four-word answer vocabulary (`available` / `can_order` /
 `substitute` / `unavailable`, NULL = unanswered) is `lib/availability.ts`,
@@ -1055,28 +1045,19 @@ template at `app/artifacts-routes/` — see that directory's `LOCAL.md` for what
 was changed and what to re-check on a harness upgrade. Deploy wiring (the
 shared secret, the agent allowlist) is `scripts/app/secrets.sh`.
 
-## Notes vs the Conversation transcript
+## Notes hold facts, not contact history
 
-The profile keeps durable facts and the conversation apart (see
-[the schema doc](../supabase-schema.md#notes-vs-the-transcript--dont-mix-them)):
-
-| Tab | Backing | Behaviour |
-|---|---|---|
-| **Notes** | `suppliers.notes` | What is **true about** the supplier — quirks, preferences, ordering constraints. A textarea, **edited in place**. |
-| **Conversation** | `supplier_messages` | What was **said** — both directions, every channel, rendered as chat. **Append-only rows**; the composer inserts, nothing edits. |
-
-Notes are per location, so on a company page the tab renders one tagged editor
-per farm; the Conversation merges every farm's messages into one thread,
-tagging each bubble with its farm and asking which farm a new message is about.
+The profile's **Notes** tab backs onto `suppliers.notes` — what is **true
+about** the supplier (quirks, preferences, ordering constraints), a textarea
+edited in place, one tagged editor per farm on a company page. Contact history
+does not live in the app: the Conversation tab and its `supplier_messages`
+transcript were dropped 2026-08-23 (migration 0066) — supplier exchanges are
+recorded by the agents.
 
 `suppliers.communication_notes` — the old append-only prose log — was retired
-on 2026-08-19: migration 0063 migrated its entries into `supplier_messages` as
-internal notes (they render in the chat as broker-side internal bubbles, their
-`[stamp] channel · identifier` header preserved as the first line) and froze
-the column. The app neither reads nor writes it anywhere; daisy writes the
-transcript instead, so app-entered and agent-entered history read as one chat.
-`customers.communication_notes` is untouched — the customer page keeps its
-Contact log.
+on 2026-08-19 (migration 0063) and stays a frozen archive the app neither
+reads nor writes. `customers.communication_notes` is untouched — the customer
+page keeps its Contact log.
 
 ### The same split on inventory rows
 
@@ -1383,9 +1364,8 @@ app/
   api/           suppliers, suppliers/[id], plants, photos, photos/[id]/image,
                  customers, customers/[id], requests, requests/[id],
                  requests/[id]/changelog, availability-requests (+/[id],
-                 /suppliers), supplier-messages, portal/[supplierId] (+
-                 requests/[arId], /submit, /messages), file, rows,
-                 chat/[...path]
+                 /suppliers), portal/[supplierId] (+ requests/[arId],
+                 /submit), file, rows, chat/[...path]
   a/[agent]/     agent artifacts: public/ pass-through, private/ page +
                  ShareToggle + raw + share
   suppliers/     list (one row per company) + [id] profile (one page per company)
@@ -1452,8 +1432,8 @@ lib/
                    request rollup, one customer by id, the state facet and the
                    header totals
   notes.ts         the append-only note convention (customers.communication_notes)
-  availability.ts  AR/transcript vocabulary + types; availability-queries.ts the
-                   server reads/writes; notify-supplier-events.ts wakes daisy
+  availability.ts  availability-request vocabulary + types;
+                   availability-queries.ts the server reads/writes
                    /shortStamp(), one definition of the format the agents' skills
                    and this app both write
   photos.ts        the photo catalogue's reads, facets and image signing

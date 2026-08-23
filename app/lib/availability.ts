@@ -43,24 +43,6 @@ export const AR_RESPONSE_OPTIONS = AR_RESPONSES.map((v) => ({
   label: AR_RESPONSE_META[v].label,
 }))
 
-/**
- * The channels a supplier-thread message can carry. `email`/`text` = a
- * supplier-facing exchange that happened outside the app and is recorded
- * here; `app` = typed in the portal or admin thread; `internal` = what the
- * supplier never sees — an instruction to daisy, another agent's note, or a
- * broker-side note (migration 0063).
- */
-export const MESSAGE_CHANNELS = ['app', 'email', 'text', 'internal'] as const
-export type MessageChannel = (typeof MESSAGE_CHANNELS)[number]
-
-/** How each channel reads and colours in the chat view. */
-export const CHANNEL_META: Record<MessageChannel, { label: string; tone: Tone }> = {
-  text: { label: 'Text', tone: 'green' },
-  email: { label: 'Email', tone: 'teal' },
-  app: { label: 'Portal', tone: 'lime' },
-  internal: { label: 'Internal', tone: 'grey' },
-}
-
 /** One line shared with the supplier, with their answer. */
 export interface ARItem {
   id: number
@@ -74,20 +56,6 @@ export interface ARItem {
   availableQuantity: number | null
   unitPrice: number | null
   notes: string | null
-}
-
-/** One `supplier_messages` row — append-only, never edited. */
-export interface SupplierMessage {
-  id: number
-  supplierId: number
-  jobRequestId: number | null
-  availabilityRequestId: number | null
-  sender: 'broker' | 'supplier'
-  /** Chris, Rosie, Daisy, or the supplier contact — null when unrecorded. */
-  senderName: string | null
-  channel: MessageChannel
-  body: string
-  createdAt: string
 }
 
 /** An availability request as a list shows it. */
@@ -108,8 +76,7 @@ export interface ARSummary {
 
 /**
  * The whole request, as the portal's expanded card and the admin tab render
- * it. No messages: the conversation is one thread per supplier, never per
- * request (2026-08-19).
+ * it. No messages — the transcript table was dropped 2026-08-23.
  */
 export interface ARDetail extends ARSummary {
   items: ARItem[]
@@ -122,7 +89,7 @@ export interface ARDetail extends ARSummary {
 /**
  * The suppliers engaged on one job request — what the sourcing-note supplier
  * links are built from. Onboarded suppliers link to their availability-request
- * view, the rest to their conversation thread.
+ * view, the rest to their profile.
  */
 export interface SupplierLink {
   supplierId: number

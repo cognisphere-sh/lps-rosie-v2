@@ -14,7 +14,7 @@ import type { ColFilter, ColFilters, Sort } from '@/lib/table-config'
 import { cn } from '@/lib/utils'
 
 export const badgeFor = (category: string) =>
-  category === 'Grower' ? 'secondary' : category === 'Wholesaler' ? 'default' : 'outline'
+  category === 'Grower' ? 'secondary' : category === 'Wholesale Supplier' ? 'default' : 'outline'
 
 /**
  * Close a popover when the pointer goes down outside it.

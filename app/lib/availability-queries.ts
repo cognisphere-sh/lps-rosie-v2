@@ -4,16 +4,14 @@ import type {
   ARDetail,
   ARItem,
   ARSummary,
-  MessageChannel,
   SupplierLink,
-  SupplierMessage,
 } from '@/lib/availability'
 import { AR_RESPONSES } from '@/lib/availability'
 import { supabase } from '@/lib/supabase'
 
-// The reads and writes behind availability requests and the supplier
-// conversation threads (migration 0062). Server-only for the same reason every
-// other query module is: the client holds the project's secret key.
+// The reads and writes behind availability requests (migration 0062).
+// Server-only for the same reason every other query module is: the client
+// holds the project's secret key.
 
 interface ARRecord {
   id: number
@@ -38,23 +36,10 @@ interface ARItemRecord {
   notes: string | null
 }
 
-interface MessageRecord {
-  id: number
-  supplier_id: number
-  job_request_id: number | null
-  availability_request_id: number | null
-  sender: 'broker' | 'supplier'
-  sender_name: string | null
-  channel: MessageChannel
-  body: string
-  created_at: string
-}
 
 const AR_COLUMNS = 'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at'
 const AR_ITEM_COLUMNS =
   'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes'
-const MSG_COLUMNS =
-  'id, supplier_id, job_request_id, availability_request_id, sender, sender_name, channel, body, created_at'
 
 const toARItem = (r: ARItemRecord): ARItem => ({
   id: r.id,
@@ -68,17 +53,6 @@ const toARItem = (r: ARItemRecord): ARItem => ({
   notes: r.notes,
 })
 
-const toMessage = (r: MessageRecord): SupplierMessage => ({
-  id: r.id,
-  supplierId: r.supplier_id,
-  jobRequestId: r.job_request_id,
-  availabilityRequestId: r.availability_request_id,
-  sender: r.sender,
-  senderName: r.sender_name,
-  channel: r.channel,
-  body: r.body,
-  createdAt: r.created_at,
-})
 
 /** id → display name for a set of suppliers, one query. */
 async function supplierNames(ids: number[]): Promise<Map<number, string>> {
@@ -294,8 +268,6 @@ export async function createAvailabilityRequest(input: {
   supplierId: number
   shareCustomerDetails: boolean
   itemIds: number[]
-  /** Who sent it — opens the request's task thread in the transcript. */
-  senderName?: string | null
 }): Promise<number> {
   const { data: sup, error: supErr } = await supabase
     .from('suppliers')
@@ -306,7 +278,7 @@ export async function createAvailabilityRequest(input: {
   const supplier = sup as { is_onboarded: boolean; is_active: boolean } | null
   if (!supplier?.is_active) throw new Error('supplier not found')
   if (!supplier.is_onboarded) {
-    throw new Error('supplier is not onboarded — reach them through their conversation thread')
+    throw new Error('supplier is not onboarded')
   }
 
   if (!input.itemIds.length) throw new Error('at least one line is required')
@@ -355,17 +327,6 @@ export async function createAvailabilityRequest(input: {
     throw new Error(`availability_request_items: ${insErr.message}`)
   }
 
-  // Open the request's task thread in the transcript — the same note daisy
-  // leaves when she creates one, so the chat view never shows a request that
-  // appeared from nowhere. Best-effort: the request exists either way.
-  await addSupplierMessage({
-    supplierId: input.supplierId,
-    sender: 'broker',
-    senderName: input.senderName ?? null,
-    channel: 'internal',
-    body: `Sent availability request AR-${arId} (${items.length} ${items.length === 1 ? 'line' : 'lines'}).`,
-    jobRequestId: input.jobRequestId,
-  }).catch(() => {})
 
   return arId
 }
@@ -558,68 +519,6 @@ export async function setAvailabilityRequestStatus(arId: number, status: string)
   if (!data?.length) throw new Error('availability request not found')
 }
 
-/** Append one message to a supplier's thread. Append-only — there is no edit. */
-export async function addSupplierMessage(input: {
-  supplierId: number
-  sender: 'broker' | 'supplier'
-  senderName: string | null
-  channel: MessageChannel
-  body: string
-  jobRequestId?: number | null
-  availabilityRequestId?: number | null
-}): Promise<SupplierMessage> {
-  let jobRequestId = input.jobRequestId ?? null
-  // A message about an availability request is about its job too; fill the
-  // link in so the job-side supplier links can find the thread.
-  if (input.availabilityRequestId != null && jobRequestId == null) {
-    const { data } = await supabase
-      .from('availability_requests')
-      .select('job_request_id')
-      .eq('id', input.availabilityRequestId)
-      .maybeSingle()
-    jobRequestId = (data as { job_request_id: number } | null)?.job_request_id ?? null
-  }
-
-  const { data, error } = await supabase
-    .from('supplier_messages')
-    .insert({
-      supplier_id: input.supplierId,
-      job_request_id: jobRequestId,
-      availability_request_id: input.availabilityRequestId ?? null,
-      sender: input.sender,
-      sender_name: input.senderName,
-      channel: input.channel,
-      body: input.body,
-    })
-    .select(MSG_COLUMNS)
-    .single()
-  if (error) throw new Error(`supplier_messages: ${error.message}`)
-  return toMessage(data as MessageRecord)
-}
-
-/**
- * A supplier's whole thread (all its locations at once), oldest first.
- *
- * `supplierFacing` is the portal's view: `internal` messages — instructions to
- * daisy, agents' notes, the migrated log — never cross to the supplier.
- */
-export async function listSupplierMessages(
-  supplierIds: number[],
-  opts: { supplierFacing?: boolean } = {},
-): Promise<SupplierMessage[]> {
-  if (!supplierIds.length) return []
-  let q = supabase
-    .from('supplier_messages')
-    .select(MSG_COLUMNS)
-    .in('supplier_id', supplierIds)
-    .order('created_at', { ascending: true })
-    .limit(1000)
-  if (opts.supplierFacing) q = q.neq('channel', 'internal')
-  const { data, error } = await q
-  if (error) throw new Error(`supplier_messages: ${error.message}`)
-  return ((data ?? []) as MessageRecord[]).map(toMessage)
-}
-
 /** The suppliers an availability request can be sent to. */
 export async function listOnboardedSuppliers(): Promise<
   { id: number; name: string; city: string | null; state: string | null }[]
@@ -632,12 +531,6 @@ export async function listOnboardedSuppliers(): Promise<
     .order('name', { ascending: true })
   if (error) throw new Error(`suppliers: ${error.message}`)
   return (data ?? []) as { id: number; name: string; city: string | null; state: string | null }[]
-}
-
-/** One supplier's display name — for events that carry it. */
-export async function supplierDisplayName(id: number): Promise<string> {
-  const names = await supplierNames([id])
-  return names.get(id) ?? `Supplier ${id}`
 }
 
 /** The portal's idea of its supplier: must exist, be active, and be onboarded. */
@@ -654,29 +547,21 @@ export async function portalSupplier(id: number): Promise<{ id: number; name: st
 }
 
 /**
- * The suppliers engaged on each of these job requests — availability requests
- * and thread messages both count as engagement. What the sourcing-note links
- * are built from.
+ * The suppliers engaged on each of these job requests — an availability
+ * request counts as engagement. What the sourcing-note links are built from.
  */
 export async function supplierLinksByRequest(
   jobRequestIds: number[],
 ): Promise<Record<number, SupplierLink[]>> {
   if (!jobRequestIds.length) return {}
 
-  const [{ data: ars, error: arErr }, { data: msgs, error: msgErr }] = await Promise.all([
-    supabase
-      .from('availability_requests')
-      .select('id, job_request_id, supplier_id, created_at')
-      .in('job_request_id', jobRequestIds)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('supplier_messages')
-      .select('job_request_id, supplier_id')
-      .in('job_request_id', jobRequestIds),
-  ])
+  const { data: ars, error: arErr } = await supabase
+    .from('availability_requests')
+    .select('id, job_request_id, supplier_id, created_at')
+    .in('job_request_id', jobRequestIds)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
   if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
-  if (msgErr) throw new Error(`supplier_messages: ${msgErr.message}`)
 
   // job → supplier → newest AR id (the AR list is newest-first).
   const engaged = new Map<number, Map<number, number | null>>()
@@ -689,9 +574,6 @@ export async function supplierLinksByRequest(
   }
   for (const r of (ars ?? []) as { id: number; job_request_id: number; supplier_id: number }[]) {
     touch(r.job_request_id, r.supplier_id, r.id)
-  }
-  for (const m of (msgs ?? []) as { job_request_id: number | null; supplier_id: number }[]) {
-    if (m.job_request_id != null) touch(m.job_request_id, m.supplier_id, null)
   }
 
   const supplierIds = [...new Set([...engaged.values()].flatMap((m) => [...m.keys()]))]

@@ -55,34 +55,6 @@ console.error(`>> artifacts: wired for ${agents.join(", ")} at https://${process
 NODE
 fi
 
-# ---- supplier-events: the app→agent webhook secret --------------------------
-# The app POSTs to the `supplier-events` plugin when a supplier acts in their
-# portal (rosie owns availability requests) or someone instructs an agent
-# from a supplier's chat view
-# (app/lib/notify-agent.ts). Same trust split as artifacts: ONE secret value
-# shared by every enabled agent, written to each agent's plugin bucket in
-# secrets.json and once to app/.env.local. Generated once, then reused so a
-# re-run never rotates it out from under a running app.
-if [[ -f "$ROOT/app/.env.local" ]]; then
-  ROOT="$ROOT" node <<'NODE' >> "$ROOT/app/.env.local"
-const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
-const root = process.env.ROOT;
-const agents = ["daisy", "rosie"];
-const secretsPath = path.join(root, "harness/.secrets/secrets.json");
-let secrets = {};
-try { secrets = JSON.parse(fs.readFileSync(secretsPath, "utf8")); } catch {}
-const shared =
-  agents.map((a) => secrets[a]?.["supplier-events"]?.SUPPLIER_EVENTS_APP_SECRET).find(Boolean) ||
-  crypto.randomBytes(24).toString("hex");
-for (const agent of agents) {
-  secrets[agent] = {
-    ...(secrets[agent] ?? {}),
-    "supplier-events": { ...(secrets[agent]?.["supplier-events"] ?? {}), SUPPLIER_EVENTS_APP_SECRET: shared },
-  };
-}
-fs.writeFileSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n");
-fs.chmodSync(secretsPath, 0o600);
-process.stdout.write(`SUPPLIER_EVENTS_APP_SECRET=${shared}\n`);
-console.error(`>> supplier-events: app→agent webhook secret wired for ${agents.join(", ")}`);
-NODE
-fi
+# (The supplier-events webhook secret block lived here until 2026-08-23 —
+# removed with the plugin; recreate the wiring when the plugin returns with
+# rosie's restructure.)

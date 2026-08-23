@@ -1,9 +1,9 @@
 ---
 name: daily-supplier-availability-onboarding
-description: Run the approved daily review of up to 100 active suppliers without availability data. Covers durable cohort/cursor state and idempotency, the Texas-first read-only outreach-eligibility gate, 2026 Gmail checks, safe public-site review and bounded current-receipt ingestion, subscription/draft holds and audit, retained future-market reporting, private batch artifacts, and main-thread reporting. Use when the 3 AM supplier-availability onboarding schedule fires or when asked to run/review this daily cohort. (v1.3.0)
+description: Run the approved daily review of up to 100 active suppliers without availability data. Covers durable cohort/cursor state and idempotency, the Texas-first read-only outreach-eligibility gate, placeholder-supplier holds, 2026 Gmail checks, safe public-site review with ingestion dispatched to each supplier's dedicated thread, subscription/draft holds and audit, retained future-market reporting, private batch artifacts, and main-thread reporting. Use when the 3 AM supplier-availability onboarding schedule fires or when asked to run/review this daily cohort. (v2.1.0)
 metadata:
   author: daisy
-  version: "1.3.0"
+  version: "2.1.0"
 ---
 
 # Daily supplier availability onboarding
@@ -20,14 +20,16 @@ not turn a lack of data into supplier contact or inventory claims.
    owned steps. This skill coordinates; supplier-side writes belong exclusively to
    `supplier-onboarding`, inventory/source/alias writes exclusively to
    `availability-ingestion`.
-2. Never send supplier email. A Gmail **draft** is not correspondence: do not add
-   a `supplier_messages` row for it. Do add transcript rows only if actual
-   correspondence ever occurs, following `supplier-communications`.
+2. Never send supplier email. A Gmail **draft** is not correspondence: do not
+   record it as a contact. Record contact only if actual correspondence ever
+   occurs, following `supplier-communications`.
 3. Use `workspace/threads/supplier-availability-onboarding/files/` for durable
    run state and reports. Keep temporary page conversions and email MIME work in
-   `/tmp`. Use task threads for meaningful email/site batches; their briefs name
-   the applicable skill, preserve the no-send rule, and report structured
-   evidence back.
+   `/tmp`. Use task threads for meaningful email/site research batches; their
+   briefs name the applicable skill, preserve the no-send rule, and report
+   structured evidence back. **Any actual ingestion or supplier-side write goes
+   to that supplier's dedicated thread** (`suppliers.daisy_thread_id`), never a
+   generic task thread.
 4. This is not a historical backfill. A usable public page reviewed today is a
    **manual/current-receipt** handoff only. It can be ingested only where supplier
    and location scope are unambiguous, and must retain the currentness/confirmation
@@ -86,7 +88,7 @@ or new supplier-email draft.
    do not turn a state, city, ZIP, or the supplied Texas market names into a
    service-area conclusion. The Texas market names are business context only;
    never derive coverage from a guessed ZIP/city mapping.
-2. An **out-of-state supplier classified `Wholesaler` or `Nursery`** is the one
+2. An **out-of-state supplier classified `Wholesale Supplier`** is the one
    approved categorical exception: classify it `retained-future-market`, with
    the category/state evidence. Do no routine availability, POC, newsletter,
    signup, draft, or other contact effort in this run. Retain it in the cohort
@@ -109,6 +111,10 @@ or new supplier-email draft.
    record its draft id, recipient, subject, and why it is `draft-held-market-gate`.
    Only a later eligible run plus Chris's separate authorization can move it
    toward correspondence.
+6. **Respect placeholder holds.** A supplier Chris has designated a placeholder
+   for special material (e.g. Devil Mountain, 2026-08-20 — big specimen trees
+   only) gets no routine availability, POC or newsletter effort: record the
+   hold and move on.
 
 ## 3. Per-supplier evidence loop
 
@@ -127,9 +133,10 @@ Gmail thread id, received date, sender and why it is/is not usable availability.
 
 If an actual 2026 availability drop is found, mark **email availability found**;
 do not replay it merely because this cohort found it. Report it for review. If a
-newly found, previously unprocessed current drop truly needs ingestion, hand it
-through the ordinary `availability-drop-intake` / `availability-ingestion` path
-with correct classification, not this coordinator's own SQL.
+newly found, previously unprocessed current drop truly needs ingestion, forward
+it to the supplier's dedicated thread (`daisy_thread_id`) to run
+`availability-ingestion` with correct classification, not this coordinator's
+own SQL.
 
 ### B. Review only ordinary public website material
 
@@ -141,9 +148,10 @@ A public file/page is usable only when it clearly represents live or current
 supplier availability/pricing and its supplier/location scope is safe. Before
 any ingest, cheaply compare URL/page timestamp, HTTP metadata or a content hash
 against evidence already recorded in state/source records; skip unchanged data.
-Dispatch an `availability-ingestion` task only for changed, usable data, with a
+Dispatch changed, usable data to the supplier's dedicated thread
+(`daisy_thread_id`) to run `availability-ingestion`, with a
 manual/current-receipt classification, retrieval timestamp, exact URL/file,
-location evidence and confirmation-required caveat. The ingestion task owns all
+location evidence and confirmation-required caveat. That thread owns all
 writes and may stop on ambiguity. Record its report/source IDs in the run state.
 Otherwise mark hosted data as found-but-not-ingested and state why (static,
 undated, gated, ambiguous, unchanged, or unusable).
@@ -210,6 +218,9 @@ Publish privately; record returned URL in the run state, mark it completed, then
 send **only** that private URL plus a one-line batch summary through agent
 messaging to `daisy` thread `main`. Never contact Telegram/Chris directly from
 this thread. Update this thread's notes and the daily note with the batch result.
+If a correction pass changes any result, **regenerate the whole artifact from
+final state** (Bhoumik, 2026-08-20) — never publish an incremental patch over a
+stale report.
 
 ## 5. Failure handling
 

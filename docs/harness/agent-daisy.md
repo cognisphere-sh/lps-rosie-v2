@@ -1,17 +1,21 @@
 # Agent: daisy
 
-**Supplier management & availability-ingestion agent for LPS.** Keeps supplier
-and inventory data current in Supabase. Reachable on the Telegram main thread
-and in the web app's chat panel — **both route to the same `main` thread**, so
-they are one conversation, not two — and has its own Gmail inbox.
+**Supplier discovery, onboarding & availability-ingestion agent for LPS.**
+Keeps supplier and inventory data current in Supabase. Reachable on the
+Telegram main thread and in the web app's chat panel — **both route to the
+same `main` thread**, so they are one conversation, not two — and has its own
+Gmail inbox. Restructured 2026-08-23 (Bhoumik): request management and
+availability validation left her scope (rosie's, in a later phase), and work
+is organised as **one dedicated thread per supplier company**.
 
 ## agent.json
 
 - **name**: `daisy`
-- **description**: "Supplier management and coordination agent for LPS —
-  onboards new suppliers and keeps availability/inventory data current in
-  Supabase. Reachable on the Telegram main thread and in the web app's chat
-  panel, which route to the same thread."
+- **description**: "Supplier discovery, onboarding and availability-ingestion
+  agent for LPS — one dedicated thread per supplier company
+  (suppliers.daisy_thread_id), fed by an email-router thread. Reachable on the
+  Telegram main thread and in the web app's chat panel, which route to the
+  same thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
 - **threadIdStrategy**: `plugin_channel`
 - **maxConcurrentSlots**: 10 · **maxAttempts**: 3 · **runtime**: `subprocess`
@@ -24,26 +28,38 @@ they are one conversation, not two — and has its own Gmail inbox.
 
 ## Purpose
 
-Daisy is the supplier management & coordination agent for LPS (Local Plant
-Supply), a wholesale plant-supply platform. It works for Chris (admin) and
-Bhoumik (developer), reachable on the Telegram main thread (`main` — the
-admin group chat `-1003988082603` routes there via a telegram routing rule),
-with its own Gmail inbox
-(`chris.r@localplantsupply.com`). Two standing jobs:
+Daisy is the supplier discovery, onboarding and availability-ingestion agent
+for LPS (Local Plant Supply), a wholesale plant-supply platform. It works for
+Chris (admin) and Bhoumik (developer), reachable on the Telegram main thread
+(`main` — the admin group chat `-1003988082603` routes there via a telegram
+routing rule), with its own Gmail inbox (`chris.r@localplantsupply.com`).
+Three jobs: **discover suppliers** (availability channels, POCs,
+newsletters), **onboard suppliers** (create/enrich `suppliers` records and
+contacts, record how availability reaches us), and **ingest availability**
+(email body, PDF, spreadsheet, image, or website → Supabase `inventory`, with
+provenance in `inventory_sources` and aliases in `plant_aliases`). Customer
+and job-request work is rosie's, not hers.
 
-1. **Onboard new suppliers** — create/enrich a `suppliers` record via browser
-   research, record how that supplier's availability reaches us
-   (`availability_source_type` / `availability_update_days` /
-   `hosted_availability_url`), and subscribe to availability newsletters.
-2. **Keep availability current** — ingest supplier price lists / availability
-   (email body, PDF, spreadsheet, image, or website) into Supabase `inventory`,
-   with provenance in `inventory_sources` and name aliases in
-   `plant_aliases`.
+### Thread architecture (2026-08-23)
 
-Availability arrives via supplier emails (the **gws** plugin wakes it) or
-ad-hoc admin requests. Everything persists in **Supabase**; `workspace/` holds
-its per-thread notes and daily notes, and `knowledge/` its cross-thread
-reference docs and memory.
+- **`main`** — coordination with Chris/Bhoumik only; every piece of work is
+  assigned out, and even a file Chris drops there is forwarded on.
+- **`email-router`** — a catch-all `gws` route
+  (`plugins/gws/state/routes.json`, rule `email-router-all`) pins **every**
+  inbound email here. It identifies the supplier from
+  sender/subject/attachment names without reading bodies or attachments
+  (reading only when identification fails) and forwards a pointer to the
+  supplier's dedicated thread; for a brand-new supplier it mints the thread
+  and briefs it to onboard + ingest (`supplier-email-routing` skill).
+- **One dedicated thread per supplier company** — `suppliers.daisy_thread_id`
+  (`supplier-<slug of head-branch name>`, one per head branch, every location
+  row shares it; migration 0064). That thread runs `supplier-onboarding`,
+  `availability-ingestion` (which now also labels the email) and
+  `supplier-communications`, reads full bodies/attachments itself, makes
+  judgment calls, and reaches `main` only for critical blockers.
+
+Everything persists in **Supabase**; `workspace/` holds per-thread notes and
+daily notes, and `knowledge/` cross-thread reference docs and memory.
 
 ## Plugins
 
@@ -52,13 +68,10 @@ reference docs and memory.
   Send via `scripts/agent-msg/send --to-agent <id> --thread-id <id> --message …`;
   identity is harness-set (not spoofable); a disallowed sender gets HTTP 403.
   No inbox restriction configured here.
-- **supplier-events** (config `{}`) — user-space plugin
-  ([doc](plugin-supplier-events.md)), added 2026-08-19: the app wakes her on
-  supplier activity — a portal availability Save or chat message, and
-  chat-view instructions — all on the supplier's one thread
-  (`supplier-<id>`).
-  Secret `daisy.supplier-events.SUPPLIER_EVENTS_APP_SECRET`, wired by
-  `scripts/app/secrets.sh`.
+- **supplier-events** — *dropped 2026-08-23* (was: the app waking her on
+  portal activity and chat-view instructions, added 2026-08-19). Returns,
+  re-targeted, when rosie takes over request management; the app's notify
+  helper and the secrets wiring were removed with it.
 - **gws** (Google Workspace/Gmail) — polls Gmail server-side, emits one
   `email_received` per inbound message. Since harness 0.8.22 that notification
   is a **preview** — header, first two lines of the sender's own text, and
@@ -76,7 +89,11 @@ reference docs and memory.
   operator config for `pollIntervalSec` (`-1` silences email entirely),
   `gmailQuery`, `allowedSenders` and `requireAgentInTo` — re-read every poll,
   and re-announced to her as a `gws_settings` message on each harness start.
-  `firstOfThreadOnly` stays operator-only.
+  `firstOfThreadOnly` stays operator-only. Since 2026-08-23 the routing state
+  (`plugins/gws/state/routes.json`) holds a single catch-all rule
+  (`email-router-all`, `from: "."`) pinning every inbound email to the
+  `email-router` thread; per-exchange rules are retired — first match wins and
+  `routes add` appends after the catch-all, so they would never fire.
 - **artifacts** — publishes self-contained HTML pages on the app's domain.
   Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/daisy"}` — the `/a/daisy`
   prefix is what keeps its links distinct from Nova's, since the plugin appends
@@ -107,8 +124,9 @@ reference docs and memory.
   the single source of truth for the Supabase schema shared by every agent and
   the web app. Daisy reads and corrects it through the symlink; it must never be
   replaced with a copy.
-- `files/suppliers.md` — pointer stub: per-supplier notes now live under
-  `workspace/suppliers/[<id>]:<Name>/notes.md` (see `workspace/suppliers/index.md`).
+- `files/suppliers.md` — pointer stub: supplier quirks live in
+  `suppliers.notes` in Supabase; the `workspace/suppliers/[<id>]:<Name>/`
+  dirs are read-only legacy since 2026-08-23.
 - `files/brand/` — LPS logo assets.
 - `files/credentials/` — **sensitive**, mode `0700`: supplier portal logins
   (currently Garden Center Plants LLC / Buchholz, supplier 22). Values are never
@@ -360,6 +378,21 @@ and when; the summaries below are one line each.
   active photo's object is never a candidate — lives in the database rather than
   in a script's arguments.
 
+- `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
+  `suppliers.daisy_thread_id` — the company's one dedicated daisy thread
+  (`supplier-<slug of head-branch name>`, one per head branch, every location
+  row carries the head's value). 1,395 rows backfilled, 1,335 threads.
+- `0065_inventory_notes_boilerplate_cleanup.sql` — applied 2026-08-23,
+  data-only. Strips provenance boilerplate ("available as of" dates,
+  source-file names, verbatim row restatements) from active `inventory.notes`
+  per Chris's lean-notes rule; 18,162 of 48,771 noted rows cleared, text
+  halved. Backup: `inventory_notes_backup_20260823`.
+- `0066_drop_supplier_messages.sql` — applied 2026-08-23. Drops the
+  `supplier_messages` chat transcript (its UI left the supplier page and
+  portal the same day); 213 rows snapshotted to
+  `supplier_messages_backup_20260823`, `communication_notes` stays as the
+  frozen pre-0063 archive.
+
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
 ## Skills (`skills/agent/`)
@@ -369,8 +402,23 @@ her prompt, so `1-agent.md` no longer lists them — it carries
 identity/persona/behaviour only, and points at skills by name where a rule needs
 one.
 
-- **availability-ingestion** — the procedure a task thread runs to ingest one
-  availability drop, and the owner of **every inventory-side database write**:
+- **supplier-email-routing** — the email-router thread's dispatcher procedure
+  (2026-08-23, replacing the main-thread half of the retired
+  `availability-drop-intake`): identify the supplier from
+  sender/subject/attachment names alone — the `contacts` join, domain
+  widening, `search_suppliers` — reading the body (and attachments last) only
+  when that fails; forward a pointer (MessageId, Gmail thread id, matched
+  rows) to the supplier's `daisy_thread_id` thread; mint `supplier-<slug>` and
+  brief onboarding+ingestion for a brand-new supplier; forward
+  non-availability mail that needs human review to `main`
+  (`Daisy/Escalated`), and only label (`Daisy/Not Availability`) mail that
+  needs none and is from no supplier. Every processed email gets the primary
+  `Daisy` label from the router; a forwarded drop's status sub-label is the
+  dedicated thread's (`availability-ingestion` §7). No parsing, no database
+  writes.
+- **availability-ingestion** — the procedure the supplier's dedicated thread
+  runs to ingest one availability drop, and the owner of **every
+  inventory-side database write**:
   mapping each availability row to its location within the company's head branch,
   source conversion (including the tab-per-farm workbook, whose sheet headings
   are what the location mapping reads), parsing and normalization (the three name parts with
@@ -419,38 +467,23 @@ one.
   retiring rather than deleting. It parses no plant row — and notes a supplier's
   plant-photo gallery in its report rather than cataloguing it, since harvesting
   one is scheduled work rather than a side effect of onboarding.
-- **availability-drop-intake** — the coordinator loop, and **no database
-  writes at all**: identify which *company* a drop came from — the exact
-  `contacts` join for a sender address, `search_suppliers` for a name Chris gives
-  — and pass every matched row plus the `head_branch_id`, dispatch the task
-  thread against the canonical brief contract (**every image and the verbatim
-  body included**, since sorting plants from logos is the thread's job and a
-  photo left out of the brief is one nobody sees again), answer its follow-ups,
-  digest its report — now including its *Photos* and *Overrides withheld*
-  blocks — apply the Gmail status labels, where `Catalogued` also covers an email
-  that carried no availability but did carry photos worth keeping. It deliberately does **not** enumerate
-  the company's locations: `availability-ingestion` §0 fans out from the head
-  branch itself, and its query carries the city/state that resolving a farm name
-  depends on.
-
 These are deliberately mutually exclusive, split by what each one writes:
-intake coordinates and talks to humans, `availability-ingestion` writes
-`inventory` / `inventory_sources` / `plant_aliases`, `supplier-onboarding` writes
+`supplier-email-routing` dispatches and writes nothing,
+`availability-ingestion` writes `inventory` / `inventory_sources` /
+`plant_aliases` (and labels the email), `supplier-onboarding` writes
 `suppliers` / `contacts` / `supplier_contacts`, `plant-photo-catalogue` writes
-`plant_photos`, and no worker talks to anyone. They point at each other for the
-shared contracts (the brief, the report) rather than restating them.
+`plant_photos`. They point at each other for the shared contracts rather than
+restating them.
 
-**The worker skills call each other, and the main agent dispatches one
-thread.** `availability-ingestion` §0 decides which location every parsed row
-belongs to; when the sender matches no supplier at all, or the file names a farm
-the company has no row for, it follows `supplier-onboarding` to create it and
-comes back with the id. In the other direction, a supplier onboarded directly
-that arrives with availability attached is handed to `availability-ingestion`.
-So intake's brief names `availability-ingestion` only — whether onboarding is in
-scope is discovered during the ingest, not decided when the brief is written —
-and the *Onboarding* block folds into the ingestion report so one report reaches
-the main agent. Intake's brief names the skill **without a version**; the task
-thread resolves the name against its own `<available_skills>`.
+**The worker skills call each other on the supplier's one thread.**
+`availability-ingestion` §0 decides which location every parsed row belongs
+to; when the router's forward matched no supplier, or the file names a farm
+the company has no row for, it follows `supplier-onboarding` to create it
+(setting `daisy_thread_id`) and comes back with the id. In the other
+direction, a supplier onboarded directly that arrives with availability
+attached is handed to `availability-ingestion`. The router's forward names a
+skill **without a version**; the thread resolves the name against its own
+`<available_skills>`.
 
 Skill versions are deliberately absent from the list above: a version belongs in
 the skill's own frontmatter and `CHANGELOG.md`, never in a document that
@@ -480,38 +513,25 @@ something changed and stay true.
   the encoder settings change. Also ships `scripts/reclaim-orphans`, the storage
   sweep over `plant_photo_reclaimable()` — dry run by default, `--reason orphan`
   for the half that cannot cost anyone a photo they wanted back.
-- **availability-requests** — the supplier-portal channel (2026-08-19): the
-  never-available-before-confirmation rule (a listing is not an answer — lines
-  stay pending until the supplier or Chris confirms), the `is_onboarded` gate
-  and **Chris's go-ahead before a request is raised** (she asks; he decides,
-  unless he asked for it or created it in the app) — carrying the two questions
-  a request cannot default, **does every line go** and **are the customer's
-  details shared** — creating a request from a job request's lines (**every
-  active one by default**, the ones no price list matched included)
-  (snapshotting the ask — reading the customer tables, never writing them —
-  and **prefilling `unit_price`** from that supplier's own inventory row where
-  it answers the line, so they confirm or correct a number rather than typing
-  one; `status` stays the only column that says a line was answered),
-  handling `availability_submitted` (the supplier's Save) /
-  `supplier_message` events on the supplier's thread, replying in their portal
-  chat as Daisy on the `app` channel, relaying answers to rosie in her
-  sourcing-notes shape, and the `new`/`submitted`/`closed` lifecycle (the
-  `submitted` status renders as *Answered* — the portal's button is Save).
 - **supplier-communications** — one skill for talking to a supplier and
   recording it (merges the former `supplier-communication-log` and
   `supplier-email-reply`; 2.0.0 on 2026-08-19): the never-email-unbidden rule
-  (raising an availability request needs Chris's go-ahead too; only replying
-  within an open request thread is approval-free), the
-  **one-thread-per-supplier** convention (`supplier-<id>`, availability
-  requests included — no per-request sub-threads; redirect work there), the draft-and-approve
-  step, sending as Chris in the existing Gmail thread, the Gmail-thread-scoped
-  `gws` routing rule that brings the reply back to the supplier thread (never
-  a sender-wide one — it would swallow their next availability drop), the
-  **`supplier_messages` transcript** that replaced `communication_notes`
-  (migration 0063; one row per message, both directions, `internal` for what
-  the supplier never sees; the old column is a frozen archive nothing writes),
-  and which of the transcript / `notes` / workspace `notes.md` a fact belongs
-  in. A routine availability drop is **not** a transcript event.
+  and the standing **learning mode** (per-supplier go-ahead even for the
+  approved Texas wholesale-nursery template; Chris personally handles gated
+  buyer applications), Chris's email style (2–3 short casual lines, never
+  wordy, no Texas mention to Texas-only suppliers), the stored Sales & Use Tax
+  permit as an approved-send attachment, the **one-thread-per-supplier**
+  convention (the `daisy_thread_id` thread — no per-topic sub-threads;
+  redirect work there), the draft-and-approve step, sending as Chris in the
+  existing Gmail thread (replies come back through the email router — no
+  per-exchange routing rules), recording each contact as a dated pointer in
+  the supplier thread's notes (the `supplier_messages` transcript that had
+  replaced `communication_notes` was dropped 2026-08-23, migration 0066; the
+  old column stays a frozen archive nothing writes), and where a fact
+  belongs: exchanges in the thread notes, **every supplier quirk in
+  `suppliers.notes`** (the `workspace/suppliers/` dirs are read-only legacy),
+  and task updates / minor observations nowhere at all. A routine
+  availability drop is **not** a contact event.
 - **create-skill** — shipped with the harness; how to author or bump one
   of the above. **Changes to any LPS skill need Chris's or Bhoumik's approval**
   first, then a version bump.

@@ -1,6 +1,40 @@
 # supplier-onboarding — changelog
 
-## 1.2.0
+## 2.2.0
+
+2026-08-23 — Chris's target tag set is live (migration 0067): the `category`
+vocabulary is now `Grower`, `Wholesale Supplier`, `Retail`, `Broker/Platform`
+(or null on insufficient evidence). The classification definitions were
+rewritten to Chris's 2026-08-21 direction — primary operating model and main
+customer market decide, and the old `Nursery`/`Wholesaler`/`Other` values are
+gone. The pending-migration note from 2.0.0 is removed.
+
+## 2.1.0
+
+2026-08-23 (Bhoumik, same day as 2.0.0) — existing-supplier quirks are read
+from **`suppliers.notes`** rather than `workspace/suppliers/…/notes.md`
+(read-only legacy: promote anything durable, write nothing new there); the
+Learnings block records what was written to `suppliers.notes`.
+
+## 2.0.0
+
+2026-08-23 — Bhoumik's agent restructure (one dedicated thread per supplier
+company, `suppliers.daisy_thread_id`, migration 0064):
+
+- Runs on the supplier's dedicated thread instead of an ad-hoc task thread;
+  the retired `availability-drop-intake` reference became the
+  `supplier-email-routing` skill. §2 now sets `daisy_thread_id` (new company →
+  this thread's id; new location → the head branch's value) and §5 QA checks it.
+- Escalation policy per Bhoumik: make the defensible judgment call and record
+  it; `main` only for critical blockers — identity-corrupting ambiguity (new
+  location vs existing row, suspected unrecorded company) stays escalation-worthy.
+- Newsletter signup is now explicitly **best effort** (Bhoumik, 2026-08-20):
+  consent, ordinary fields, solvable CAPTCHA attempted; a terminal outcome
+  recorded every time; human handoff only after the attempt fails.
+- Notes Chris's pending tag migration (Grower, Wholesale Supplier, Retail,
+  Broker/Platform) beside the current category enum; stale
+  `communication_notes` reference replaced with `supplier_messages`; report
+  section reframed as the outcome record (thread notes + daily note).
 
 2026-08-20 — Chris-approved category guidance now classifies a supplier location
 by evidenced primary operating model and customer reach. It defines `Grower`,

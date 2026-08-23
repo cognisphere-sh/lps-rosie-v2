@@ -31,12 +31,15 @@ skills:
    answer goes as an agent-message to daisy **on that supplier's own thread**
    (`supplier-<id>` — one conversation per supplier, availability-request
    follow-ups included; `main` only when no supplier is in play yet), with the
-   ask mirrored into the
-   `supplier_messages` transcript as an `internal` row so the app's chat view
-   shows it. Daisy's `1-agent.md` has a matching section: rosie's ask is task
-   input, not authorization — whether and how a supplier gets contacted (email
-   or their portal) is daisy's `supplier-communications` /
-   `availability-requests` rules and Chris's approval.
+   ask mirrored into the `supplier_messages` transcript as an `internal` row
+   so the app's chat view shows it. **Interim (2026-08-23):** daisy's
+   restructure dropped that transcript table (migration 0066), daisy's supplier
+   threads moved to `suppliers.daisy_thread_id` ids, and her
+   `availability-requests` skill is gone — rosie's mirror-INSERT will fail and
+   her asks land on legacy thread ids until her own restructure phase aligns
+   this. Rosie's ask remains task input, not authorization — whether and how a
+   supplier gets contacted is daisy's `supplier-communications` rules and
+   Chris's approval.
 2. **Never emails a customer unbidden** — draft first, Chris approves the
    specific draft, and (until she has a mailbox) Chris sends it himself. Every
    contact is logged in `customers.communication_notes`.

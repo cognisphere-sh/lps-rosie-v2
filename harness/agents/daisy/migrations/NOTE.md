@@ -10,6 +10,64 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0067_supplier_type_tags.sql`
+
+Applied 2026-08-23 (Bhoumik), implementing Chris's 2026-08-21 supplier-type
+direction. `suppliers.category` CHECK narrowed to `Grower` | `Wholesale
+Supplier` | `Retail` | `Broker/Platform` (NULL = insufficient evidence),
+retiring `Nursery`, `Wholesaler` and `Other`; 697 of 1,395 rows reclassified.
+
+**Reviewed, not bulk-mapped.** Evidence per company (head branch): the original
+supplier workbook's outreach cohorts (Wholesale Growers / Wholesale Nurseries /
+Retail Nurseries / Platform & Brokers / Luxury Builders / Non-Plant, TX and
+out-of-TX — matched by normalized name + state and by website domain, shared
+platform domains excluded), and a web review of all 73 companies whose cohorts
+conflicted, sat on an ambiguous sheet (Wholesale Color, Turf, Disqualified) or
+matched no cohort. Per-supplier rationale:
+`artifacts/0067_supplier_type_review.csv`. Low-confidence web verdicts were
+left NULL rather than guessed.
+
+Corrections worth remembering: Calloway's (retail chain — the workbook shelves
+it under Wholesale Growers TX), Premier Nursery, The Growers Outlet and
+Whitfill are `Retail`; Moon Valley is split per location (Glen Flora farm
+`Grower`, the 17 stores `Retail`); Devil Mountain is `Wholesale Supplier`;
+Agri-Starts (ex-"disqualified") is a `Grower` (tissue-culture propagator). The
+88 luxury-builder and 5 non-plant rows are NULL with a `notes` line saying they
+are not plant suppliers. Grower rows kept their tag except the 7 where review
+contradicted it (3 → Retail, 2 → Wholesale Supplier via company tag, 2 → NULL
+on insufficient evidence).
+
+Pre-change snapshot: `supplier_category_backup_20260823` (id, category).
+Post-apply distribution: Grower 810, Wholesale Supplier 400, Retail 79,
+Broker/Platform 6, NULL 100; the new CHECK validated every row (no NOT VALID).
+
+## `0066_drop_supplier_messages.sql`
+
+Applied 2026-08-23 (Bhoumik). Drops the `supplier_messages` chat transcript —
+the transcript UI left the supplier page and portal the same day, and the
+supplier-events plugin that fed it was removed. 213 rows snapshotted to
+`supplier_messages_backup_20260823`; `suppliers.communication_notes` stays as
+the frozen pre-0063 archive. Availability-request tables untouched.
+
+## `0065_inventory_notes_boilerplate_cleanup.sql`
+
+Applied 2026-08-23 (Bhoumik), data-only. Strips provenance boilerplate from
+active `inventory.notes` per Chris's rule that notes never restate what other
+columns/tables record: "available as of"/received dates, source-file names and
+verbatim source-row restatements dropped; supplier qualifiers, yard/field
+locations, item codes, ordering constraints and future-availability schedules
+kept. 48,771 noted rows → 30,661 (18,162 cleared); 7.98M → 3.90M chars.
+Backup: `inventory_notes_backup_20260823` (id, notes, internal_notes).
+
+## `0064_supplier_daisy_thread_id.sql`
+
+Applied 2026-08-23 (Bhoumik). Adds `suppliers.daisy_thread_id` — the dedicated
+daisy harness thread per company, one per head branch (every location row
+carries its head branch's value). Format `supplier-<slug of head-branch name>`,
+`-<head id>` appended only on a slug collision between distinct companies. The
+slug (not the id) lets the email-router thread mint the same id for a brand-new
+supplier before its row exists. Backfill: 1,395 rows, 1,335 distinct threads.
+
 ## `0063_supplier_chat_transcript.sql`
 
 Applied 2026-08-19, one step. The supplier communication log becomes a chat

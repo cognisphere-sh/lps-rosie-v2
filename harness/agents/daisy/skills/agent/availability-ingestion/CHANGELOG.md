@@ -1,6 +1,39 @@
 # availability-ingestion — changelog
 
-## 1.7.0
+## 2.1.0
+
+2026-08-23 (Bhoumik, same day as 2.0.0) — supplier quirks and parsing tricks
+are read from and persisted to **`suppliers.notes`**, not
+`workspace/suppliers/…/notes.md` (those dirs are read-only legacy: promote
+anything durable, write nothing new there). The Learnings block points at
+`suppliers.notes` accordingly.
+
+## 2.0.0
+
+2026-08-23 — Bhoumik's agent restructure: Daisy is supplier discovery,
+onboarding and availability ingestion only, with **one dedicated thread per
+supplier company** (`suppliers.daisy_thread_id`, migration 0064).
+
+- The skill now runs on the supplier's dedicated thread. Drops arrive as
+  forwards from the `email-router` thread (the new `supplier-email-routing`
+  skill) or handoffs from `main`; the thread reads the full email body and
+  attachments itself. The `availability-drop-intake` skill is retired — its
+  Gmail labelling moved here as §7 (with `artifacts/gmail-labels.md`), its
+  report contract became the *Record the outcome* section (thread notes +
+  daily note; a message back only when a coordinator asked).
+- Escalation policy per Bhoumik: make the defensible judgment call and record
+  it; `main` is for critical blockers only (undeterminable supplier/location,
+  materially divergent readings, credentials). Routine gaps stay daily-note
+  material.
+- **Lean `notes` rule per Chris**: `inventory.notes` carries only
+  supplier-stated facts no column captures ("limited", lead time, ordering
+  constraints, item codes/yard locations, future-availability windows). No
+  "available as of"/receipt dates, no source-file names, no verbatim row
+  restatements — provenance lives in `source_id`/`inventory_sources`. Most
+  rows get no `notes` at all; QA checks it. Existing rows' boilerplate was
+  mechanically cleaned the same day (migration 0065).
+- Stale `suppliers.communication_notes` reference replaced with
+  `supplier_messages`.
 
 2026-08-20 — Bhoumik superseded the complex historical-backfill gate. Explicit historical/email-backlog work now resolves each actual farm numeric supplier id, identifies the incoming effective/received date, and performs one cheap read-only later-date check for that **same farm only**. Any later availability/list date skips that farm with concise durable evidence; otherwise it ingests normally. Company/head-branch evidence, offering batches, authority classifications, preflight and immediate revalidation are retired. Purtis (one farm), Everde (farm-by-farm), and partial-earlier-source regressions are explicit. The retained gate script is deprecated for old records, not new work.
 

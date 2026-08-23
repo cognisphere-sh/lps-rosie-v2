@@ -987,9 +987,9 @@ export async function signedSourceUrl(path: string): Promise<string | null> {
 const WRITABLE: Record<string, string[]> = {
   // No email/phone: those moved to `contacts` in migration 0016 and the
   // columns are gone. Reaching a supplier is a contacts write now.
-  // No `communication_notes`: retired by migration 0063 — the supplier record
-  // is the `supplier_messages` transcript now, and the old column is a frozen
-  // archive nothing may write.
+  // No `communication_notes`: retired by migration 0063, and the
+  // `supplier_messages` transcript that replaced it was dropped 2026-08-23 —
+  // the frozen column archive remains, and nothing may write it.
   suppliers: [
     'name', 'category', 'city', 'state', 'notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',

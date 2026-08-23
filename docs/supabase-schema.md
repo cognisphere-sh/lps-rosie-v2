@@ -117,40 +117,44 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `id` | bigint identity | no | PK |
 | `name` | text | no | Display name, e.g. "Acosta Farms Nursery, Inc" |
 | `head_branch_id` | bigint → `suppliers.id` | no | The company's head branch. **A head branch, and every single-site supplier, points at itself** — never null, never a chain. See below |
-| `category` | text | yes | **CHECK**: `Wholesaler` \| `Grower` \| `Nursery` \| `Other` |
+| `category` | text | yes | **CHECK**: `Grower` \| `Wholesale Supplier` \| `Retail` \| `Broker/Platform` (migration 0067, from Chris's 2026-08-21 tag direction). Null = evidence insufficient — an unclassified supplier, **or a row that is not a plant supplier at all** (the workbook's luxury-builder and non-plant cohorts; their `notes` say so) |
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
 | `website` | text | yes | Usually a bare domain (`acostafarms.com`) — prepend `https://` when linking |
 | `latitude` / `longitude` | double precision | yes | Google Maps link: `google.com/maps?q=lat,lng` |
 | `notes` | text | yes | **Durable profile facts** — see below |
-| `communication_notes` | text | yes | **RETIRED** (migration 0063, 2026-08-19): frozen archive of the old contact log, migrated into `supplier_messages` as internal notes. Never written again — see below |
+| `communication_notes` | text | yes | **RETIRED** (migration 0063, 2026-08-19): frozen archive of the old contact log. Its `supplier_messages` successor was itself dropped 2026-08-23 (migration 0066). Never written again — see below |
 | `availability_source_type` | text | yes | **CHECK**: `Email` \| `Hosted` — how the availability list reaches us. Null = not established yet |
 | `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
 | `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
-| `is_onboarded` | boolean | no, default false | Answers **availability requests in the supplier portal** (`/portal/<id>`, migration 0062). FALSE = reached only through daisy's channels; their thread still lives in `supplier_messages`. Not a login — portal auth is a deliberately deferred step |
+| `is_onboarded` | boolean | no, default false | Answers **availability requests in the supplier portal** (`/portal/<id>`, migration 0062). FALSE = reached only through daisy's channels. Not a login — portal auth is a deliberately deferred step |
+| `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the email router forwards supplier traffic here. Added 2026-08-23 (migration 0064) |
 | `is_active` | boolean | no, default true | Soft delete; deactivation cascades (see triggers) |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
-#### `notes` vs the transcript — don't mix them
+#### `notes` holds facts, never contact history
 
-What is **true about** a supplier and what was **said with** them live in
-different places, and the distinction is the whole point:
-
-| | `notes` | `supplier_messages` |
-|---|---|---|
-| Holds | What is **true about** the supplier | What was **said** — both directions, every channel |
-| Examples | "Won't quote under 10 units", "prices exclude freight", "sends XLSX with two header rows", "closed Fridays" | An email exchange, a portal message, an instruction to daisy, an agent's note |
-| Shape | Free prose, **edited in place** as facts change | **Append-only rows**, one per message — see the table below |
-| Use it for | Anything that has no dedicated column and stays true across conversations | Every exchange, every time |
+`notes` is what is **true about** a supplier — "won't quote under 10 units",
+"prices exclude freight", "sends XLSX with two header rows", "closed Fridays":
+free prose, edited in place as facts change, for anything that has no
+dedicated column. What was **said with** a supplier does not belong here: the
+agents record each exchange in their own thread notes
+(daisy's `supplier-communications` skill).
 
 Until 2026-08-19 the said-with half was `suppliers.communication_notes`, an
-append-only prose log. Migration 0063 migrated its entries into
-`supplier_messages` (as `internal` notes, stamps → `created_at`) and froze the
-column: it still holds the pre-migration text as an archive, and **nothing may
-write it again**. (`customers.communication_notes` is untouched — the customer
-side keeps its log convention.)
+append-only prose log. Migration 0063 migrated its entries into the
+`supplier_messages` transcript and froze the column; migration 0066
+(2026-08-23) dropped that transcript again (rows snapshotted to
+`supplier_messages_backup_20260823`). The column still holds the pre-0063 text
+as an archive, and **nothing may write it again**.
+(`customers.communication_notes` is untouched — the customer side keeps its
+log convention.)
 
-Live category distribution: Grower 569, Nursery 185, Other 151, Wholesaler 1,
-NULL 3.
+Live category distribution (post-0067 reclassification, 2026-08-23): Grower
+810, Wholesale Supplier 400, Retail 79, Broker/Platform 6, NULL 100. The NULLs
+are mostly the workbook's luxury-builder (88) and non-plant (5) cohorts — not
+plant suppliers, said on each row's `notes` — plus a handful with insufficient
+evidence. Per-supplier rationale for the reclassification:
+`harness/agents/daisy/migrations/artifacts/0067_supplier_type_review.csv`.
 
 #### The three availability columns
 
@@ -370,7 +374,7 @@ availability files.
 | `height` / `width` / `caliper` | text | yes | Human-readable measurement as printed in the source; preserved for display/evidence |
 | `height_std` | double precision | yes | Standardized height in **feet**; lower bound for a range; `NULL` when unknown/ambiguous |
 | `width_std` / `caliper_std` | double precision | yes | Standardized width/caliper in **inches**; lower bound for a range; `NULL` when unknown/ambiguous |
-| `notes` | text | yes | **Supplier-stated** notes for this offering, from the availability data: their verbatim row description, dated availability status, lead time, per-row qualifiers ("limited", "B&B only"). Not our commentary |
+| `notes` | text | yes | **Supplier-stated** facts no other column captures: per-row qualifiers ("limited", "B&B only"), lead times, ordering constraints, supplier item codes / yard locations, future-availability windows. **Never** receipt/ingest dates ("available as of" — staleness is the row's `source_id`), source-file names, or verbatim row restatements; most rows carry none (rule tightened + old boilerplate cleaned 2026-08-23, migration 0065). Not our commentary |
 | `internal_notes` | text | yes | **Ours.** Parse caveats, why a combined size was split, that a quantity is the supplier's shared/tentative count, QA exceptions. Never what the row already answers (a missing price or quantity, `updated_at`, when the drop was ingested). Appended, not clobbered. Added 2026-08-14 (migration 0039) |
 | `image_url` | text | yes | Optional product image, as a **link on someone else's server** — the address of a photo on the supplier's own page, written as-is. Never a copy: a photo we were *given* as a file goes to `plant_photos`, and the two never describe the same image |
 | `is_active` | boolean | no, default true | Soft delete |
@@ -857,30 +861,14 @@ seeded.
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
-### `supplier_messages`
+### `supplier_messages` — removed
 
-The broker↔supplier conversation — **the supplier transcript**, one thread per
-supplier, added by migration 0062 and made the sole record by 0063 (which
-migrated the old `communication_notes` entries in). **Append-only**: no
-`updated_at`, no `is_active`, nothing edits or retires a message. Written by
-the app (portal, admin chat view), daisy (her email/text exchanges and her own
-notes — `supplier-communications` skill) and rosie (**`internal` rows only** —
-mirrors of her asks to daisy; she never writes a supplier-facing channel).
-`availability_request_id` is **historical linkage only** (rows from the few
-hours per-request threads existed on 2026-08-19): the conversation is one
-thread per supplier, and new rows leave it NULL.
-
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| `id` | bigint identity | no | PK |
-| `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | The thread key |
-| `job_request_id` | bigint → `job_requests.id` ON DELETE SET NULL | yes | What it is about, when known |
-| `availability_request_id` | bigint → `availability_requests.id` ON DELETE SET NULL | yes | Historical only — per-request threads lasted hours on 2026-08-19; new rows leave it NULL (the admin chat still chips old rows with `AR-<id>`) |
-| `sender` | text | no | **CHECK**: `broker` \| `supplier` — which side spoke |
-| `sender_name` | text | yes | Who on that side — `Chris`, `Rosie`, `Daisy`, or the supplier contact's name when known. Never guessed |
-| `channel` | text | no | **CHECK**: `email` \| `text` \| `app` \| `internal` (0063). `app` = typed in the portal or admin thread; `email`/`text` = a supplier-facing exchange that happened outside and is recorded here; `internal` = what the supplier never sees — an instruction to daisy, another agent's note, a broker-side note |
-| `body` | text | no | |
-| `created_at` | timestamptz | no, default `now()` | |
+The broker↔supplier chat transcript (added 2026-08-19 by migrations 0062/0063)
+was **dropped 2026-08-23 by migration 0066**, together with the app's
+Conversation tab and portal chat — supplier exchanges are recorded by the
+agents (daisy's `supplier-communications` skill) rather than in a table. The
+213 rows live on in `supplier_messages_backup_20260823`;
+`suppliers.communication_notes` remains the frozen pre-0063 archive.
 
 ---
 
@@ -1246,7 +1234,6 @@ Gmail OAuth tokens) included.
 | `job_request_changelog` | enabled | `authenticated` full access (added 2026-08-17, migration 0055). Its real write-protection is that only the trigger writes it in practice |
 | `availability_requests` | enabled | `authenticated` full access (added 2026-08-19, migration 0062) |
 | `availability_request_items` | enabled | `authenticated` full access (added 2026-08-19, migration 0062) |
-| `supplier_messages` | enabled | `authenticated` full access (added 2026-08-19, migration 0062). The supplier portal has no browser key either — its ungated routes still read through the app's server-side secret key, scoped by the supplier id in the URL |
 
 **`anon` now reaches no application table at all** — verified against the live
 REST API, every table and both views return `[]`.

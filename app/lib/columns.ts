@@ -50,7 +50,7 @@ export interface ColumnDef {
 }
 
 /** `suppliers.category` CHECK vocabulary. Blank is stored as NULL. */
-export const SUPPLIER_CATEGORIES = ['Grower', 'Nursery', 'Wholesaler', 'Other']
+export const SUPPLIER_CATEGORIES = ['Grower', 'Wholesale Supplier', 'Retail', 'Broker/Platform']
 
 /** `suppliers.availability_source_type` — how a supplier's list reaches us. */
 export const AVAILABILITY_SOURCE_TYPES = ['Email', 'Hosted']
@@ -89,9 +89,9 @@ export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'city' } },
   { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
   // `notes` = durable profile facts (quirks, preferences, anything the schema
-  // has no column for). What was *said* with a supplier is the chat transcript
-  // (`supplier_messages`), on the profile's Conversation tab — the old
-  // `communication_notes` column was retired by migration 0063.
+  // has no column for). Contact history lives with the agents, not here — the
+  // old `communication_notes` column was retired by migration 0063 and the
+  // `supplier_messages` transcript that replaced it was dropped 2026-08-23.
   { key: 'notes', label: 'Notes', width: 230, edit: true, writes: { table: 'suppliers', column: 'notes' } },
   { key: 'created_at', label: 'Created at', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },

@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including a new location of a known company), evidence-based category classification, browser enrichment and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and report block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v1.2.0)
+description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including its daisy_thread_id and a new location of a known company), evidence-based category classification, browser enrichment, best-effort newsletter signup and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and record block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v2.2.0)
 metadata:
   author: lps
-  version: "1.2.0"
+  version: "2.2.0"
 ---
 
 # Supplier onboarding
@@ -13,10 +13,14 @@ Create a supplier, enrich its row, and get its people on file. This skill owns
 `supplier_contacts`. It writes no `inventory`, `inventory_sources` or
 `plant_aliases` row.
 
-**Where the boundary is.** You are a task thread. You write supplier-side rows
-and **never talk to Chris, Telegram or the supplier directly** — anything you
-need from a human goes in your report and the main agent relays it. If you find
-yourself deciding *whether* to reply to someone, you are in the wrong skill.
+**Where the boundary is.** This runs on the **supplier's dedicated thread**
+(the `suppliers.daisy_thread_id` value — for a brand-new supplier, the thread
+the email router minted, or one `main` spun up for a Chris request). You write
+supplier-side rows and **never talk to Telegram or the supplier directly** —
+replying to a supplier is the `supplier-communications` skill, and anything
+that genuinely needs Chris or Bhoumik goes to your `main` thread by agent
+message. Make the defensible judgment call yourself and record it; `main` is
+for critical blockers, never routine questions.
 
 **Don't change this skill on your own.** If you find something wrong, missing or
 inefficient in it, put the suggested change in the *Learnings* part of your
@@ -33,7 +37,9 @@ Two ways in:
   the new `supplier_id`(s); the drop still has to be ingested and that is its
   job, not yours.
 - **Directly** — Chris asks for a nursery to be added, or a supplier's contacts
-  need adding or correcting, with no drop attached.
+  need adding or correcting, with no drop attached; `main` routes the ask to
+  the supplier's dedicated thread (minting `supplier-<slug>` per the
+  `supplier-email-routing` skill when the supplier has no thread yet).
 
 **If a supplier you onboard came with availability to ingest — an attached
 sheet, a price list, a catalog page — that ingest is the
@@ -44,19 +50,22 @@ row here.
 
 - **`knowledge/files/SCHEMA.md`** — before any query, in particular the
   `head_branch_id` and `supplier_contacts` sections.
-- **`workspace/suppliers/[<supplierId>]:<Name>/notes.md`** if it exists — known
-  quirks for an existing supplier. Apply them.
+- **The supplier's `suppliers.notes`** — known quirks for an existing
+  supplier live there. Apply them. (A legacy
+  `workspace/suppliers/[<supplierId>]:<Name>/notes.md` may also exist — read
+  it too, promote anything durable to `suppliers.notes`, write nothing new
+  there.)
 
-**If any input is missing or ambiguous** — you can't tell whether a farm is a new
-location or an existing one, a credential is needed, the source is unreadable —
-**ask** rather than guessing: put your question(s) in the *Follow-up questions*
-part of your report and stop at a safe point. If `availability-ingestion` sent
-you, the question goes back through it. You will be re-invoked with answers in
-the same session. Ask early rather than guessing.
+**If an input is missing or ambiguous, make the best defensible call and
+record the reasoning** — a wrong-but-recorded enrichment field is cheap to
+fix. The exception is anything that would corrupt identity data: you can't
+tell whether a farm is a new location or an existing row, or two rows look
+like one company. Those are **critical blockers** — message `main` with the
+evidence and stop that part at a safe point; keep going on what is clear.
 
 **Two rules that hold for every write below.** Any contact with the supplier
-during onboarding gets a timestamped entry in `suppliers.communication_notes` —
-follow the `supplier-communications` skill. And **people go in `contacts`, never
+during onboarding is recorded per the `supplier-communications` skill (a dated
+pointer in the supplier thread's notes). And **people go in `contacts`, never
 on the supplier row and never in prose**: one row per person plus a
 `supplier_contacts` link per location they cover (§4), and `contacts.notes`
 describes the *person*. Never write a name, email or phone into `suppliers.notes`
@@ -68,8 +77,9 @@ company's switchboard, not a person: leave its `name` null and mark it
 ## 1. Confirm the supplier is genuinely new
 
 **Don't re-run the whole search — be the second pair of eyes.** Whoever sent you
-here already looked: the main agent in `availability-drop-intake` §1, or
-`availability-ingestion` §0 resolving a location. One call to `search_suppliers`
+here already looked: the email-router thread identifying the sender
+(`supplier-email-routing` §1), or `availability-ingestion` §0 resolving a
+location. One call to `search_suppliers`
 with the name and the sender's domain is enough (the `plant-and-supplier-search`
 skill covers reading a result set).
 
@@ -113,9 +123,15 @@ present) and **capture the returned `id`**.
 
 - `suppliers` has **no `email` or `phone` column** — the company's own
   switchboard is a `contacts` row like any other (§3).
+- **Set `daisy_thread_id`** — the company's one dedicated daisy thread. A new
+  company gets **this thread's own id** (the router minted it as
+  `supplier-<slug of the company name>`; if you are onboarding from a thread
+  that isn't shaped that way, mint the value per `supplier-email-routing` §3).
+  A **new location of a known company copies its head branch's existing
+  value** — one thread per head branch, never one per location.
 - Set `category` only under **Category classification** below. The allowed values
-  are exactly `Wholesaler`, `Grower`, `Nursery`, and `Other`; otherwise leave it
-  null.
+  are exactly `Grower`, `Wholesale Supplier`, `Retail`, and `Broker/Platform`;
+  otherwise leave it null.
 - If this is a **new location of a company already in the database**, set
   `head_branch_id` to that company's head branch and name the row for the site
   (`<Company> - <City or farm name>`). Leave `head_branch_id` alone otherwise — a
@@ -131,24 +147,21 @@ supplier materials. Record the evidence in the report. A company-wide statement
 can support a location only when it explicitly applies to that location or all
 locations; otherwise classify each location from its own evidence.
 
-- **`Grower`** — evidence shows production at scale *and* a broad wholesale
-  market: for example, substantial greenhouse production or tree fields, with
-  nurseries/wholesalers as the main customers and customers or delivery across
-  states. A site called “Green Valley Nursery” that documents 200 acres of tree
-  production and supplies wholesale nurseries in several states is a `Grower`.
-- **`Nursery`** — evidence shows a regional nursery operation whose primary
-  customers are regional contractors or landscape professionals. It may grow
-  material itself; growing alone does not make it a `Grower`. For example, a
-  business with propagation houses that primarily serves landscape contractors
-  in its metro area is a `Nursery`.
-- **`Wholesaler`** — evidence shows a regional wholesale/distribution supplier
-  whose primary customers are regional contractors or landscape professionals,
-  rather than production at scale for a broad wholesale market. For example, a
-  regional landscape supply yard sourcing stock from growers and selling to
-  local trade accounts is a `Wholesaler`.
-- **`Other`** — use only when reliable evidence establishes that the supplier's
-  primary business fits none of the three definitions (for example, a retail
-  garden center serving homeowners). It is not a catch-all for uncertainty.
+- **`Grower`** — evidence shows plant production at scale — fields, growing
+  grounds, or greenhouse production — for wholesale trade, often a
+  broader/multi-state market. A site called “Green Valley Nursery” that
+  documents 200 acres of tree production and supplies wholesale nurseries in
+  several states is a `Grower`.
+- **`Wholesale Supplier`** — evidence shows a business primarily supplying a
+  regional trade market from a nursery, sales yard, or distribution operation.
+  It may grow some material, but primarily serves landscapers, contractors, and
+  regional trade buyers; growing alone does not make it a `Grower`.
+- **`Retail`** — evidence shows a business primarily serving retail/end
+  customers: higher-touch operations, pricing, staffing, and buying patterns
+  generally not aligned with recurring wholesale sourcing.
+- **`Broker/Platform`** — a broker, marketplace/platform, or similar
+  intermediary rather than a primary grower or wholesale supplier. Do not
+  classify one as a `Grower` solely because it lists plant inventory.
 - **Ambiguous or insufficient evidence** — leave `category` null and report the
   competing/missing evidence. Never infer a category from a company name (words
   such as “Nursery,” “Farms,” or “Wholesale”) or from one clue alone (one
@@ -156,7 +169,7 @@ locations; otherwise classify each location from its own evidence.
 
 These are operating classifications, not legal labels. A nursery name on a
 large interstate grower remains `Grower`; a grower-branded business that serves
-regional landscape professionals remains `Nursery` or `Wholesaler` according to
+regional landscape professionals remains a `Wholesale Supplier` according to
 its documented primary model.
 
 ## 3. Enrich the row
@@ -167,12 +180,15 @@ its documented primary model.
   **latitude / longitude** (read coords off their Google Maps listing or geocode
   the address). UPDATE the row with what you confirm — **never invent values you
   couldn't verify.**
-- **Subscribe to their availability newsletter.** While on their website, look
-  for an availability / price-list newsletter signup (footer form, "join our
-  mailing list", Mailchimp/Constant Contact embed). If found, subscribe with
-  Daisy's email **`chris.r@localplantsupply.com`** and record in your report that
-  you subscribed (the main agent tells Chris). If signup needs approval or human
-  steps, note that instead.
+- **Subscribe to their availability newsletter — best effort** (Bhoumik,
+  2026-08-20). While on their website, look for an availability / price-list
+  newsletter signup (footer form, "join our mailing list", Mailchimp/Constant
+  Contact embed). If found, subscribe with Daisy's email
+  **`chris.r@localplantsupply.com`**: check a required marketing-consent box,
+  complete ordinary fields, attempt a CAPTCHA the browser can normally solve.
+  Record the terminal outcome — subscribed, held for a human (with the exact
+  URL and blocker), or technical failure — never a bare "form found". Hand it
+  to a human only after the attempt fails.
 - **Record how their availability reaches us.** Three columns on `suppliers`
   capture it, and each is filled only from something you actually saw:
   - `availability_source_type` — `'Email'` when they send the list (a drop
@@ -297,6 +313,8 @@ every farm, while a yard manager answers for one site only.
   ```
 - **No person landed in `suppliers.notes`** — no name, email or phone in prose on
   the supplier row.
+- **`daisy_thread_id` is set** — a new company carries this thread's id; a new
+  location carries its head branch's value, identical across the company's rows.
 - **A new location points at the right head branch**, and the company's location
   set now reads the way you expect: re-run §1's sister-location query and confirm
   the new row appears once, under the head branch you intended.
@@ -307,18 +325,18 @@ every farm, while a yard manager answers for one site only.
 
 ## Timestamps
 
-ISO 8601, America/Chicago. "Now" is the timestamp the main agent gives you.
+ISO 8601, America/Chicago. "Now" is the latest inbound message's Timestamp.
 `updated_at` is maintained by trigger on UPDATE.
 
-## Report
+## Record the outcome
 
-**When `availability-ingestion` sent you**, return this as its *Onboarding*
-block — it folds your output into its own report and the main agent reads one
-report, not two.
+**When `availability-ingestion` sent you**, this becomes its *Onboarding*
+block — folded into that skill's outcome record so there is one record.
 
-**When you were dispatched directly**, this is your whole report: a **compact
-structured report**, not a transcript, because the main agent cannot read your
-transcript.
+**Otherwise** write it as a **compact structured record** into this thread's
+`notes.md` plus a brief daily-note entry (that is what the 9 AM summary
+reads); message it back to `main` or a coordinator only when one of them asked
+for the onboarding.
 
 - **Onboarding**: new `supplier_id`, its `head_branch_id` when the row is a
   location of a known company, and — when you decided a farm was new rather than
@@ -339,7 +357,8 @@ transcript.
 - **Flags needing Chris**: a suspected unrecorded company or head-branch problem,
   two existing rows that look like one route, anything that needs a human call.
 - **Errors/issues faced** and how you resolved them.
-- **Learnings**: supplier quirks not yet in the supplier's `notes.md`; anything
+- **Learnings**: supplier quirks you wrote into `suppliers.notes` (or still
+  need to); anything
   incorrect or redundant found in SCHEMA.md, this skill, or other docs;
   **suggested skill/script/database changes** (you never change this skill — they
   go to the daily summary for Chris's/Bhoumik's approval).
