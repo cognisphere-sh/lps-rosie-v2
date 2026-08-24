@@ -51,11 +51,23 @@ const FARM_PANEL_W = 260
 // included — lives in `contacts` and is managed on the Contacts tab, since a
 // supplier can have several.
 // `options` swaps the text input for a dropdown; blank clears the column.
-const FIELDS: { key: string; label: string; column?: string; options?: string[] }[] = [
-  { key: 'category', label: 'Type', column: 'category', options: SUPPLIER_CATEGORIES },
-  { key: 'website', label: 'Website' },
+type ProfileFieldDefinition = {
+  key: string
+  label: string
+  column?: string
+  options?: string[]
+}
+
+const ADDRESS_FIELDS: ProfileFieldDefinition[] = [
+  { key: 'address', label: 'Street address', column: 'address' },
   { key: 'city', label: 'City', column: 'city' },
   { key: 'state', label: 'State', column: 'state' },
+  { key: 'zip', label: 'ZIP', column: 'zip' },
+]
+
+const FIELDS: ProfileFieldDefinition[] = [
+  { key: 'category', label: 'Type', column: 'category', options: SUPPLIER_CATEGORIES },
+  { key: 'website', label: 'Website' },
   {
     key: 'availability_source_type', label: 'Availability source',
     column: 'availability_source_type', options: AVAILABILITY_SOURCE_TYPES,
@@ -70,7 +82,7 @@ const FIELDS: { key: string; label: string; column?: string; options?: string[] 
   { key: 'updated', label: 'Profile last updated' },
 ]
 
-const EDITABLE_FIELDS = FIELDS.filter((field) => field.column)
+const EDITABLE_FIELDS = [...ADDRESS_FIELDS, ...FIELDS].filter((field) => field.column)
 
 /** Profile fields are inert until the whole card enters deliberate edit mode. */
 function ProfileField({
@@ -144,9 +156,9 @@ function fieldDisplay(row: SupplierRow, key: string, itemCount?: number | null):
 }
 
 /**
- * The whole `FIELDS` grid for one location — the profile header and every card
- * on the Farms tab are the same grid over a different row, so a farm's fields
- * are as editable as the head office's.
+ * The address and detail grids for one location — the profile header and every
+ * card on the Farms tab use the same fields over a different row, so a farm's
+ * address is as visible and editable as the head office's.
  */
 function ProfileFieldGrid({
   row,
@@ -162,27 +174,47 @@ function ProfileFieldGrid({
   itemCount?: number | null
   onChange: (column: string, next: string) => void
 }) {
+  const renderFields = (fields: ProfileFieldDefinition[]) => fields.map((f) => (
+    <ProfileField
+      key={f.key}
+      label={f.label}
+      display={fieldDisplay(row, f.key, f.key === 'item_count' ? itemCount : undefined)}
+      value={f.column ? draft[f.column] ?? '' : ''}
+      editing={editing && !!f.column}
+      href={
+        row.values[f.key] && (f.key === 'website' || f.key === 'hosted_availability_url')
+          ? websiteHref(String(row.values[f.key]))
+          : undefined
+      }
+      options={f.options}
+      onChange={f.column ? (next) => onChange(f.column!, next) : undefined}
+    />
+  ))
+
   return (
-    <div
-      className="grid min-w-[250px] max-w-[760px] flex-1 gap-x-5 gap-y-2.5"
-      style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(178px,1fr))' }}
-    >
-      {FIELDS.map((f) => (
-        <ProfileField
-          key={f.key}
-          label={f.label}
-          display={fieldDisplay(row, f.key, f.key === 'item_count' ? itemCount : undefined)}
-          value={f.column ? draft[f.column] ?? '' : ''}
-          editing={editing && !!f.column}
-          href={
-            row.values[f.key] && (f.key === 'website' || f.key === 'hosted_availability_url')
-              ? websiteHref(String(row.values[f.key]))
-              : undefined
-          }
-          options={f.options}
-          onChange={f.column ? (next) => onChange(f.column!, next) : undefined}
-        />
-      ))}
+    <div className="flex min-w-[250px] max-w-[760px] flex-1 flex-col gap-4">
+      <section className="flex flex-col gap-2" aria-labelledby={`supplier-${row.id}-address`}>
+        <h3 id={`supplier-${row.id}-address`} className="text-[12px] font-bold text-foreground">
+          Address
+        </h3>
+        <div
+          className="grid gap-x-5 gap-y-2.5"
+          style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}
+        >
+          {renderFields(ADDRESS_FIELDS)}
+        </div>
+      </section>
+      <section className="flex flex-col gap-2" aria-labelledby={`supplier-${row.id}-details`}>
+        <h3 id={`supplier-${row.id}-details`} className="text-[12px] font-bold text-foreground">
+          Details
+        </h3>
+        <div
+          className="grid gap-x-5 gap-y-2.5"
+          style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(178px,1fr))' }}
+        >
+          {renderFields(FIELDS)}
+        </div>
+      </section>
     </div>
   )
 }
@@ -582,7 +614,7 @@ export default function SupplierProfilePage() {
   // so every mutation re-reads it rather than reimplementing the rules here.
   const loadProfile = useCallback(async () => {
     if (!Number.isInteger(id)) return
-    const res = await fetch(`/api/suppliers/${id}`)
+    const res = await fetch(`/api/suppliers/${id}`, { cache: 'no-store' })
     if (res.status === 404) {
       setNotFound(true)
       return
@@ -598,6 +630,13 @@ export default function SupplierProfilePage() {
   useEffect(() => {
     void loadProfile().catch(() => setNotFound(true))
   }, [loadProfile])
+
+  // Contacts can be added by Daisy while this profile remains mounted. Opening
+  // the tab re-reads every active link so the user never needs a browser refresh
+  // to see a newly linked person or shared inbox.
+  useEffect(() => {
+    if (tab === 'contacts') void loadProfile().catch(() => {})
+  }, [loadProfile, tab])
 
   // A new search, filter or sort starts again at page 1 — page 3 of one
   // ordering means nothing under another. Reset while rendering, not in an

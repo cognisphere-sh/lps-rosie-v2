@@ -118,8 +118,10 @@ function toSupplierRow(
       hosted_availability_url: s.hosted_availability_url,
       is_onboarded: s.is_onboarded ?? null,
       item_count: extras.itemCount ?? null,
+      address: s.address,
       city: s.city,
       state: s.state,
+      zip: s.zip,
       notes: s.notes,
       communication_notes: s.communication_notes,
       created_at: s.created_at,
@@ -991,7 +993,7 @@ const WRITABLE: Record<string, string[]> = {
   // `supplier_messages` transcript that replaced it was dropped 2026-08-23 —
   // the frozen column archive remains, and nothing may write it.
   suppliers: [
-    'name', 'category', 'city', 'state', 'notes',
+    'name', 'category', 'address', 'city', 'state', 'zip', 'notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
     'is_onboarded',
   ],

@@ -18,7 +18,7 @@ export async function GET(
     // getSupplierProfile — the tabs tag their entries from `locations`.
     const profile = await getSupplierProfile(id)
     if (!profile) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    return NextResponse.json(profile)
+    return NextResponse.json(profile, { headers: { 'cache-control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

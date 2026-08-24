@@ -33,6 +33,17 @@ here).
   checkmark. It copies the plain text users see, including normalized line
   breaks, on mobile and desktop alike.
 
+- **Supplier profiles now show and edit the full address.** The head-office
+  profile and every Farms card have a clearly labelled Address section with
+  separate stored street, city, state and ZIP values. All four participate in
+  the existing staged pencil / Save / Cancel update, preserving blanks and
+  partial addresses rather than composing or inferring missing information.
+
+- **Supplier Contacts refresh when opened.** The profile API and browser fetch
+  are explicitly no-store, and entering the Contacts tab re-reads all active
+  supplier-contact links. Contacts Daisy linked while the profile remained
+  mounted now appear without a manual browser refresh.
+
 - **Upgraded `cognisphere-harness` 0.9.2 → 0.10.2.**
   - **Main threads are coordinators, not workers** (0.10.2, base prompt,
     refreshed wholesale in all three agents). A non-task thread understands the
