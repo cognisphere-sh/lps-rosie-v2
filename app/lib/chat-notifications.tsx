@@ -7,24 +7,31 @@ import {
 import { CHAT_AGENTS } from '@/lib/agents'
 
 /**
- * Unread-message tracking for the agent chats, entirely client-side.
+ * Unread-message tracking for the agent chats.
  *
- * The webchat plugin has no per-user read state, so "read" lives in this
- * browser's localStorage: the last message id seen per (agent, thread). A
- * thread is unread when its newest message is newer than that AND wasn't the
- * operator's own panel send — an agent reply and a supplier's portal message
- * both count, quiet threads don't.
+ * "Read" lives in the webchat plugin (`state/read.json`), not in this browser:
+ * every thread carries a `readId`, the newest message id the team has seen,
+ * and a thread is unread when `lastId > readId`. Opening a thread is what
+ * moves it — the chat panel polls with `read=1` while it's open — so reading
+ * on a phone clears the dot on the desktop too. Sending marks your own message
+ * read plugin-side, which is why nothing here has to special-case the
+ * operator's own panel sends any more.
  *
  * One provider (mounted by the Shell) polls every agent's `api/threads`; the
  * rail avatars, the thread picker, the mobile Agents list and the header bell
- * all read the same context. Opening a thread marks it read via the chat
- * panel's own poll (`markThreadRead`), which also fires a window event so
- * every dot updates without waiting for the next poll.
+ * all read the same context. `markThreadRead` is the optimistic half: the
+ * panel calls it after each poll so the dots clear immediately instead of
+ * waiting up to `POLL_MS` for the next threads sweep to report the new cursor.
  */
 
-const READ_STORE = 'lps.chat.read.v1'
 const READ_EVENT = 'lps:chat-read'
 const POLL_MS = 15_000
+
+/**
+ * Ids marked read locally but not yet reflected by a `api/threads` response —
+ * purely a latency shim over the server cursors, dropped on reload.
+ */
+const localRead = new Map<string, number>()
 
 export interface ChatNotification {
   agentId: string
@@ -36,30 +43,14 @@ export interface ChatNotification {
   lastText: string
 }
 
-type ReadMap = Record<string, number>
-
 const keyOf = (agentId: string, threadId: string) => `${agentId}/${threadId}`
 
-function readMap(): ReadMap {
-  try {
-    return JSON.parse(window.localStorage.getItem(READ_STORE) ?? '{}') as ReadMap
-  } catch {
-    return {}
-  }
-}
-
-/** Record the newest message id seen on a thread; no-op if nothing is newer. */
+/** Note locally that a thread has been seen up to `lastId`; the server already knows. */
 export function markThreadRead(agentId: string, threadId: string, lastId: number): void {
   if (!Number.isInteger(lastId) || lastId <= 0) return
-  const map = readMap()
   const key = keyOf(agentId, threadId)
-  if ((map[key] ?? 0) >= lastId) return
-  map[key] = lastId
-  try {
-    window.localStorage.setItem(READ_STORE, JSON.stringify(map))
-  } catch {
-    /* storage full or blocked — dots degrade, nothing breaks */
-  }
+  if ((localRead.get(key) ?? 0) >= lastId) return
+  localRead.set(key, lastId)
   window.dispatchEvent(new Event(READ_EVENT))
 }
 
@@ -70,6 +61,8 @@ interface ThreadRow {
   lastRole: 'user' | 'agent'
   lastSender?: string
   lastText: string
+  /** Newest id the team has seen, from the plugin's read.json. */
+  readId: number
 }
 
 interface ChatNotificationsValue {
@@ -121,25 +114,16 @@ export function ChatNotificationsProvider({ children }: { children: React.ReactN
   useEffect(() => {
     const bump = () => setReadVersion((v) => v + 1)
     window.addEventListener(READ_EVENT, bump)
-    window.addEventListener('storage', bump) // another tab marked something read
-    return () => {
-      window.removeEventListener(READ_EVENT, bump)
-      window.removeEventListener('storage', bump)
-    }
+    return () => window.removeEventListener(READ_EVENT, bump)
   }, [])
 
   const unread = useMemo<ChatNotification[]>(() => {
     void readVersion
-    if (typeof window === 'undefined') return []
-    const map = readMap()
     const out: ChatNotification[] = []
     for (const agent of CHAT_AGENTS) {
       for (const t of rows[agent.id] ?? []) {
-        // The operator's own panel sends carry role 'user' and no sender —
-        // those never count. Agent replies and portal messages do.
-        const notable = t.lastRole === 'agent' || Boolean(t.lastSender)
-        if (!notable) continue
-        if (t.lastId <= (map[keyOf(agent.id, t.threadId)] ?? 0)) continue
+        const seen = Math.max(t.readId ?? 0, localRead.get(keyOf(agent.id, t.threadId)) ?? 0)
+        if (t.lastId <= seen) continue
         out.push({
           agentId: agent.id,
           threadId: t.threadId,
@@ -165,8 +149,19 @@ export function ChatNotificationsProvider({ children }: { children: React.ReactN
     [unread],
   )
 
+  // The one place that marks threads read without opening them, so it needs
+  // the plugin's explicit endpoint rather than a panel poll.
   const markAllRead = useCallback(() => {
-    for (const n of unread) markThreadRead(n.agentId, n.threadId, n.lastId)
+    for (const n of unread) {
+      markThreadRead(n.agentId, n.threadId, n.lastId)
+      void fetch(`/api/chat/${n.agentId}/read`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ threadId: n.threadId, lastId: n.lastId }),
+      }).catch(() => {
+        /* agent unreachable — the dot comes back on the next threads poll */
+      })
+    }
   }, [unread])
 
   const value = useMemo(

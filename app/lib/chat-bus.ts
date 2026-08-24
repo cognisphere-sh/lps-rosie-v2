@@ -35,3 +35,26 @@ export function onOpenAvailabilityRequest(handler: (arId: number) => void): () =
   window.addEventListener('lps:open-ar', listener)
   return () => window.removeEventListener('lps:open-ar', listener)
 }
+
+export interface RenameThreadDetail {
+  threadId: string
+  /** What the thread is called now — the panel header and picker follow it. */
+  label: string
+}
+
+/**
+ * A thread's subject was renamed elsewhere (a job request's name, today).
+ *
+ * The picker reads its titles from the database on every open, so it needs no
+ * telling; this is for the panel that is *already* looking at the thread, whose
+ * header would otherwise keep the name the thread was opened under.
+ */
+export function renameThread(detail: RenameThreadDetail): void {
+  window.dispatchEvent(new CustomEvent<RenameThreadDetail>('lps:rename-thread', { detail }))
+}
+
+export function onRenameThread(handler: (detail: RenameThreadDetail) => void): () => void {
+  const listener = (e: Event) => handler((e as CustomEvent<RenameThreadDetail>).detail)
+  window.addEventListener('lps:rename-thread', listener)
+  return () => window.removeEventListener('lps:rename-thread', listener)
+}

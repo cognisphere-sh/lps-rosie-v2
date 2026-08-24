@@ -17,8 +17,72 @@ here).
 
 ## 2026-08-24
 
+### Changed
+
+- **Mobile Agents and the supplier chat are pages, not overlays.** Both drew
+  over the route they were opened from with nothing but component state behind
+  them, so the device Back button skipped past them and left the route
+  entirely. Each view now pushes a history entry — the same URL, so the app
+  router treats the popstate as a no-op restore — and what is open is read back
+  out of `history.state` (`app/lib/history-view.ts`). Back pops one view at a
+  time: conversation → Agents list → the page underneath, and in the portal the
+  chat → the requests underneath. A conversation opened from a card
+  (`openChat`) pushes both entries, so backing out of it still lands on the
+  Agents list, matching its own Back arrow. Returning to an entry after
+  navigating away restores the view it was opened on. An open view also holds
+  the bottom bar's highlight rather than sharing it with the page underneath,
+  and a page tab tapped while one is open returns to that page — the tab you
+  are already on has no route change to make, so it unwinds the views in
+  place instead of leaving the tap doing nothing. One behaviour change
+  falls out of it: the portal's remembered open/closed chat panel
+  (`lps.portal.chat.v1`) is now the *desktop* panel's only — a mobile chat you
+  navigate to should not be open when you arrive.
+
+- **Chat read state moved from the browser to the webchat plugin.** Unread
+  dots used to be per-browser localStorage (`lps.chat.read.v1`,
+  `lps.portal.chat.read.v1`), so reading a thread on a phone left it shouting
+  unread on the desktop. The plugin now owns it in
+  `harness/agents/<id>/plugins/webchat/state/read.json` — **two cursors per
+  thread**, `web` for the team's panel and `portal` for the supplier, because
+  one thread has two audiences with opposite views of it. An open panel's
+  existing poll carries `&read=1` and marks the whole thread; `api/send` /
+  `api/app-send` mark your own message; the new `POST api/read` backs the
+  bell's "Mark all read". `api/threads` and `api/app-messages` now return
+  `readId`, so the app just compares `lastId > readId` and no longer
+  special-cases the operator's own sends. **`read=1` is opt-in on purpose:**
+  the portal's bell polls `api/app-messages` precisely while the chat is
+  *closed*, and marking on any GET would have cleared the alert unseen. On
+  first start every thread already on disk is seeded read, so switching this
+  on lit up nothing; `api/reset` drops that thread's cursors with its
+  transcript. Docs:
+  [plugin-webchat](docs/harness/plugin-webchat.md#read-state).
+
 ### Added
 
+- **New job request** on the Job Requests page — a button beside the
+  notification bell on desktop, a floating button above the tab bar on mobile
+  (that page draws no header there). It **creates no row**: `POST
+  /api/requests/reserve` takes only the id the request will have, through the
+  new `reserve_job_request_id()` (migration 0072 — `nextval` on the identity
+  sequence, `service_role` only), and the panel opens on `jr-<id>`. Writing
+  the row is rosie's, from that conversation, which is also how her `main`
+  thread now works: **migration 0072 comes with `job-requests` v3.0.0 and a
+  new threads section in her system prompt — `main` creates nothing, it
+  reserves an id and hands the ask to the request's own thread, which does the
+  customer find-or-create and inserts the request under its own thread's id
+  (`OVERRIDING SYSTEM VALUE`) before the lines.** An abandoned start leaves a
+  gap in the numbering and nothing else.
+- **A job request and its Rosie thread share one name.** Renaming a job on
+  `/requests` now retitles `jr-<id>` in the chat panel: the card's rename
+  dispatches a new `lps:rename-thread` bus event (`lib/chat-bus.ts`) that the
+  panel header follows, and the thread picker already reads its titles from
+  `job_requests.name` on each open. The picker renames in the other direction
+  too — each **Job requests** card carries a pencil that edits the title in
+  place and writes `job_requests.name` through the existing whitelisted
+  `PATCH /api/rows`, so the page, the card and the panel header agree. Only
+  job cards are renamable; an emptied field abandons rather than unnaming the
+  job. `EditableText` now hands the committed value to `onSaved`, which is how
+  the rename travels without a refetch.
 - **Supplier portal file attachments and voice notes.** The portal composer now matches main chat’s Paperclip + Mic / input / Send order, stages allowlisted images, documents and audio through Rosie’s webchat inbox, records browser-native voice notes (`webm` or Safari/iPhone `m4a`), sends attachment-only messages, and renders portal-visible images, audio and downloads. New app-secret `app-upload`/`app-file` plugin endpoints enforce the existing 25MB cap, fixed-length opaque stored names, sanitized labels/types, HMAC tickets bound to the exact supplier thread and file, transcript-scoped downloads, audio byte ranges, one-hour orphan expiry, a 20-file/100MB pending quota and a 10-file/50MB message cap; the app always derives the supplier thread server-side.
 - **Line totals and subtotals on availability requests.** `ARLineTable`
   (`components/workspace/availability.tsx`, shared by the supplier portal and
@@ -32,13 +96,85 @@ here).
 
 ### Changed
 
+- **A working thread's web chat is the only webchat channel to Chris about
+  its work** (Bhoumik). Rosie's questions, approvals and round reports about
+  a job request post on that `jr-<id>` thread's own web chat — never on
+  `main`'s, and never relayed to `main` by agent message; supplier and
+  customer threads ask their own Chris questions (share-details preference,
+  draft approvals) the same way. The `main` relay survives only as the
+  Telegram escalation for critical blockers. `1-agent.md`, `job-requests`,
+  `supplier-coordination` and `customer-coordination` updated.
+
+- **A refresh keeps the chat panel on its open thread.** `lps.chat.v1` now
+  records the thread alongside the agent (`{ agent, id, label }`), and the
+  panel restores it on mount instead of dropping every reload back to Main —
+  so a `jr-` job thread or a supplier conversation survives a page refresh or
+  a navigation between pages. The thread is only restored when the panel comes
+  back on the agent it was saved for, so rosie's threads never appear under
+  Daisy, and switching agents by hand still lands on Main.
+
 - **Supplier portal mobile navigation now matches the main app.** The redundant supplier identity header is gone; Alerts and Chat are fixed at the bottom edges around a three-visible scroll strip for Requests / Orders / More. Alerts shows real new-request counts, and More carries the desktop footer actions in the same Theme / Settings / Log out order without relaxing the disabled supplier-auth gates.
 - **Supplier availability cards now follow the admin Job Request hierarchy.** Collapsed and expanded cards use the same bordered horizontal count/subtotal summary and tinted open body; shared customer/delivery locality stays in the scan header while supplier answer states retain their own vocabulary.
 - **Supplier chat now reuses the main agent-chat design.** The portal keeps its isolated, portal-visible transport while adopting the saved Rosie accent/wallpaper, mobile glass identity pill, matching bubbles and timestamps, typing dots, top/latest controls and composer treatment.
+- **Substitute answers now take a quantity and a price.** The status-answer
+  pop-up (`components/workspace/availability.tsx`) showed those two fields for
+  Available and Can order only, so a substitute could never carry a line total
+  and never reached the request's subtotal — even though a substitute is still
+  something being supplied at a price, and the line table's own cells always
+  accepted both. Substitute now opens with the demand-prefilled quantity and an
+  **empty** price: the price on file belongs to the plant being replaced, and
+  carrying it over would quote a different plant at the wrong number. Its
+  `What instead` note keeps focus (naming the substitute comes before pricing
+  it) and drops `@ price $/unit` from its hint, which the price field now owns.
+- **The supplier portal now uses the admin app's layout.** `PortalFrame`
+  (`components/workspace/portal.tsx`) holds itself in the Shell's fixed
+  visual-viewport frame — keyboard-panned pages no longer clip, and the mobile
+  bottom bar hides while a field has focus — and gains the Shell's own slots:
+  a **page header on desktop and mobile** (21px serif title, muted subtitle,
+  action slot), a **toolbar slot** pinned under it, and children handed a fixed
+  `overflow-hidden` box they scroll themselves. Both portal pages moved onto
+  those slots, so the Availability Requests page now matches the admin Job
+  Requests page down to the empty state and content padding; its title and
+  stats line moved out of the page body into the header.
+- **A notification bell in the portal header.** `PortalNotificationBell` is the
+  admin bell's design and behaviour, over the supplier's own two sources:
+  availability requests still at `new` (clicking one expands that card and
+  scrolls to it) and an unopened reply from Local Plant Supply — polled every
+  20s with the read marker in `lps.portal.chat.read.v1`, and mirrored as a warn
+  dot on the chat rail and the mobile Chat tab. It replaces the mobile bottom
+  bar's Alerts slot, so the bar is now Requests / Orders / More with Chat fixed
+  right: the admin keeps its mobile bell in the bottom bar, but two bells on
+  one screen reads worse than one.
+- **The supplier portal's chat sidebar is now the same components as the agent
+  panel.** The pieces both chats had been keeping their own copies of moved
+  into `components/workspace/chat-kit.tsx` — markdown bubbles, the voice-note
+  player, attachments, `useComposer` (upload / record / paste), the
+  `Transcript`, the `Composer` and the width `SizePill` — and each surface now
+  supplies only its transport (file href, upload call) and its copy. The
+  portal gains what only the agent panel had: markdown replies instead of flat
+  text, the seekable waveform player instead of a bare `<audio controls>`, a
+  live recording meter and timer, microphone errors that say which problem it
+  is, paste-to-attach, optimistic sends, pull-to-refresh, **Load earlier
+  messages** paging (the portal route already forwarded `before`/`limit`),
+  starter suggestions, and the panel chrome — a drag handle, **Full / 50% /
+  30%** presets and the fold-to-rail chevron, with open state and width kept
+  in `lps.portal.chat.v1`. Deliberately not carried over: the ⋯ **Clear
+  conversation** menu, which would let a supplier wipe a thread the team also
+  reads. Both chats also pick up an upload-failure message (previously the
+  agent panel dropped failed uploads silently) and release the microphone if
+  the panel closes mid-recording.
 
 ### Fixed
 
 - **Supplier cards no longer collapse into horizontal lines on mobile.** The fixed-height result column was allowed to shrink all 27–50 direct card children, while each card’s `overflow-hidden` clipped the content; company wrappers are now `flex-none`, so the list scrolls and every card keeps its intrinsic height.
+- **The chat composer opened two rows tall.** Its auto-grow set the textarea's
+  height from `scrollHeight`, and Chrome counts a wrapped *placeholder* in that
+  measurement while the box is empty — so the portal's long placeholder opened
+  the composer at two rows (the agent panel's short "Ask Rosie…" never wrapped,
+  which is why it never showed). An empty box now sizes itself from `rows`, and
+  a non-empty one adds the border back that `scrollHeight` stops short of, so
+  the last line is no longer cropped. The portal's placeholder is short now too
+  — the panel narrows to 280px.
 - **Agent reply attachment containment uses a real path boundary.** The webchat plugin now checks `relative()` rather than a string prefix, so a sibling directory whose name merely begins with the agent directory can never pass as an in-agent attachment path.
 - **Supplier portal mobile editing stays contained.** The availability line table now constrains its own horizontal scroller so the Notes input cannot escape the card, and the status-answer dialog tracks the live browser visual viewport with internal scrolling so Notes and Save remain reachable above Android/iOS keyboards.
 - **The per-status answer pop-up's data wasn't reaching the row.** Saving it
@@ -47,6 +183,10 @@ here).
   seeded its draft from `value` only on mount, so the refetched answer never
   displayed — the write had landed, the row just kept showing what it held
   before. The cell now takes a freshly committed `value` when one arrives.
+
+### Removed
+
+- **Order-side data reset, take two.** Hard-deleted (no backup) everything in `customers`, `job_requests`, `job_request_items`, `job_request_changelog`, `availability_requests` and `availability_request_items` on the live Supabase project, restarting all id sequences — same pattern as the 0069 reset.
 
 ## 2026-08-23
 

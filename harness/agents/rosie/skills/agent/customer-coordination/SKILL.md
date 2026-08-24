@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → Chris sends flow (rosie has no mailbox), logging every contact in customers.communication_notes, customer quirks in customers.notes, and relaying what the customer said back to the jr thread it concerns. Use on every message a jr thread (or main) sends about contacting this customer, and whenever something comes back from them. (v1.0.0)
+description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → Chris sends flow (rosie has no mailbox), logging every contact in customers.communication_notes, customer quirks in customers.notes, and relaying what the customer said back to the jr thread it concerns. Use on every message a jr thread (or main) sends about contacting this customer, and whenever something comes back from them. (v1.1.0)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Customer coordination
@@ -37,8 +37,9 @@ Rule 2 (`1-agent.md`) in full:
 1. Draft the message from **customer-safe fields only** (`job-requests` §4.2):
    what they are getting, never how we sourced it — no supplier names, no
    supplier pricing, no `[AGENT MESSAGE]` content.
-2. Send the draft to `main` for **Chris's approval of that specific draft**,
-   short and non-technical.
+2. Present the draft for **Chris's approval of that specific draft** on this
+   thread's own web chat (`webchat-cli send` — the notification reaches him;
+   never via `main`), short and non-technical.
 3. Only on his approval does it go out — and until you have a mailbox, Chris
    sends it himself.
 4. Log the contact in the same task — append-only, stamped:
@@ -64,7 +65,8 @@ your own): log it in `communication_notes`, put durable preferences in
 `customers.notes` (edited in place — delivery constraints, how they like to be
 contacted, pickiness worth remembering), and **relay the substance to the
 `jr-<id>` thread it concerns** — that thread owns the request's rows and next
-steps. A message about no particular job goes to `main`.
+steps. A message about no particular job stays here, on this thread's web
+chat, unless it needs another thread's owner.
 
 ## Keep the thread's web chat current
 

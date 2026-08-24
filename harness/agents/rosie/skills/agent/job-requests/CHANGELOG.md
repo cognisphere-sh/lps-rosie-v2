@@ -1,5 +1,27 @@
 # job-requests — changelog
 
+## 3.0.0
+
+2026-08-24 (Bhoumik). **`main` creates nothing; the jr thread writes the
+rows.** §1 is restructured around that: `main` reserves the id
+(`nextval('public.job_requests_id_seq')` — `id` is GENERATED ALWAYS, and an
+unused reservation is a gap in the numbering, not a fault) and hands the ask
+whole to `jr-<id>`; that thread reads its own row first, does the customer
+find-or-create, then inserts the request **under its own thread's id**
+(`OVERRIDING SYSTEM VALUE`) before the lines. The app's new **New job
+request** button enters the same flow from the other end — it reserves an id
+through `reserve_job_request_id()` (migration 0072) and opens the thread with
+nothing behind it, so a thread whose `SELECT` comes back empty is a
+reservation waiting for its ask, not an error.
+
+## 2.1.0
+
+2026-08-24 (Bhoumik). **The jr thread's web chat is the only webchat channel
+to Chris about its job — nothing goes to `main`.** §5's round report and
+§5.3's what-is-waiting message post on the jr thread itself (`webchat-cli
+send`), where the notification reaches Chris; the `main` relay stays only as
+the rare Telegram escalation for a critical blocker.
+
 ## 2.0.0
 
 2026-08-23 (Bhoumik's rosie restructure). **Each request lives on its own

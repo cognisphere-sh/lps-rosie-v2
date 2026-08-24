@@ -10,6 +10,16 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0072_reserve_job_request_id.sql`
+
+Applied 2026-08-24 (Bhoumik). Adds `public.reserve_job_request_id()` —
+`nextval` on the `job_requests` identity sequence and nothing else, so the
+app's **New job request** button can name a request's `jr-<id>` conversation
+before the row exists. The row is rosie's to write, from that conversation
+(`INSERT ... OVERRIDING SYSTEM VALUE`, since `id` is GENERATED ALWAYS); an
+abandoned start leaves a gap in the numbering. Executable by `service_role`
+only, so no anonymous caller can burn ids.
+
 ## `0071_ar_request_lps_notes.sql`
 
 Applied 2026-08-23 (Bhoumik), same day as 0070. Adds

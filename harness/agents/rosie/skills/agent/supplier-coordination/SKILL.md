@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (onboarded → availability request in their portal; not onboarded → drafted outreach through Chris or daisy's mailbox), creating an availability request from a jr thread's ask (every line by default, snapshotting, prefilling prices, lps_notes at both levels), the per-supplier coordination preferences remembered in suppliers.notes (share customer details, channel, framing — ask Chris only when none is remembered), handling the availability_submitted notification and relaying the answers to the jr thread, answering the supplier's portal chat (Channel: portal — reply with webchat-cli --portal), and follow-ups. Use on every message a jr thread sends about this supplier and on every supplier-events notification. (v1.0.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (onboarded → availability request in their portal; not onboarded → drafted outreach through Chris or daisy's mailbox), creating an availability request from a jr thread's ask (every line by default, snapshotting, prefilling prices, lps_notes at both levels), the per-supplier coordination preferences remembered in suppliers.notes (share customer details, channel, framing — ask Chris only when none is remembered), handling the availability_submitted notification and relaying the answers to the jr thread, answering the supplier's portal chat (Channel: portal — reply with webchat-cli --portal), and follow-ups. Use on every message a jr thread sends about this supplier and on every supplier-events notification. (v1.1.0)
 metadata:
   author: lps
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Supplier coordination
@@ -27,7 +27,9 @@ Before acting, read the supplier's row — `is_onboarded`, `notes`, and its
 locations (`head_branch_id`). **`suppliers.notes` is where this supplier's
 coordination preferences live**: whether customer details are shared with
 them, preferred channel, how they like asks framed, ordering constraints.
-Apply what is remembered; ask Chris (via `main`) only for a preference nothing
+Apply what is remembered; ask Chris **on this thread's own web chat**
+(`webchat-cli send` — the notification reaches him; never via `main`) only
+for a preference nothing
 records yet — and **write his answer back into `suppliers.notes`** in the same
 task, so the next job doesn't re-ask. Personalize to the supplier and their
 `category`; a remembered per-supplier preference always wins over a
@@ -64,7 +66,8 @@ WHERE job_request_id = $job AND is_active;
 - **`share_customer_details`** shows the supplier the customer's name,
   company, contacts and shipping address. It follows the **remembered
   preference in `suppliers.notes`** (§0); with none remembered, ask Chris —
-  one short message via `main` naming the supplier and the job — and record
+  one short message on this thread's web chat naming the supplier and the
+  job — and record
   his answer as the preference. Default while unanswered: `false`, and the
   request waits.
 - A line missing from their published list still goes on — it is the one they
@@ -125,8 +128,9 @@ half of this thread's web transcript reaches them back. Reply with
 carry it). A portal reply is external supplier contact: routine
 clarifications about an active availability request — which line, what size
 meant, when the list updates — are the channel's purpose and yours to answer;
-anything committing LPS — pricing, terms, new business — goes to Chris via
-`main` first. Relay anything that answers a job's lines to the jr thread, and
+anything committing LPS — pricing, terms, new business — is asked of Chris on
+this thread's own web chat first (never `main`). Relay anything that answers
+a job's lines to the jr thread, and
 put durable preferences in `suppliers.notes`.
 
 ## 4. Not an LPS Partner
@@ -137,7 +141,8 @@ one:
 1. Draft the ask — short, casual, concrete (the supplier answers a question,
    not a form). Apply anything `suppliers.notes` remembers about how they like
    to be approached.
-2. Send draft + channel proposal to `main` for **Chris's approval**. The
+2. Present draft + channel proposal for **Chris's approval on this thread's
+   web chat**. The
    channels: Chris sends it himself, or — when he says so — **daisy's
    supplier thread sends it from the shared mailbox** (message
    `--to-agent daisy --thread-id <suppliers.daisy_thread_id>` with the
@@ -161,8 +166,9 @@ gates. Batch follow-ups; don't ping a supplier line by line.
 
 ## Judgment calls
 
-Make the defensible call and record it; `main` is for approvals and critical
-blockers only, never routine questions. Relays to jr threads are not
+Make the defensible call and record it; approvals are asked on this thread's
+own web chat, and `main` is only the Telegram escalation for a critical
+blocker — never routine questions. Relays to jr threads are not
 Chris-gated — only things that *reach the supplier* are. **Post this thread's
 milestones to its own web chat** (`webchat-cli send`, no `--portal` — ask
 received, AR out, answers in) so the team follows the supplier in the app.

@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 1.3.0
+
+2026-08-24, approved by Chris. The approved modern Austin Plant Supply branded template (logo and current header) is now the default for APS quotes; the unbranded LPS template is legacy and the older APS template remains stale.
+
 ## 1.2.2
 
 2026-08-19, alongside `job-requests` 1.14.0. A filled `unit_price` no longer

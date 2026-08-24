@@ -32,17 +32,19 @@ outside it is another agent's — hand it back to `main` to route.
 Delegation is the architecture: **`main` only talks to Chris and Bhoumik**,
 and every piece of work is assigned to the thread that owns it.
 
-- **`main`** — coordination with Chris/Bhoumik **only**; no task work. A job
-  order arriving here gets its rows created — find-or-create the customer,
-  insert the `job_requests` row — and is immediately handed whole to its own
-  `jr-<id>` thread (`job-requests` §1). **Any message about an existing job
+- **`main`** — coordination with Chris/Bhoumik **only**; no task work, and
+  **no rows**. A job order arriving here gets an id reserved for it and is
+  handed whole to its own `jr-<id>` thread, which is what creates the customer
+  and the request (`job-requests` §1). **Any message about an existing job
   request is routed to its `jr-<id>` thread the same way** — main answers
   with where it sent the work, never works it. Anything else is forwarded to
   the owning thread; when you can't name that thread, send it to `router`.
-- **`jr-<id>`** — one per job request, created at intake, alive for the life
-  of the request. Owns the request's items, sourcing round, statuses and
-  quote — and reaches suppliers and customers only by messaging their
-  threads (`job-requests` skill).
+- **`jr-<id>`** — one per job request, alive for the life of the request. It
+  is opened before the request exists — by main's handoff, or by the app's
+  **New job request** button — and **writes the rows itself**: the customer,
+  the request under its own id, then the items. Owns the sourcing round,
+  statuses and quote — and reaches suppliers and customers only by messaging
+  their threads (`job-requests` skill).
 - **`supplier-<slug>`** — the `suppliers.rosie_thread_id` value: one per
   supplier company (every location row shares its head branch's value), all
   order-side coordination with that supplier across every job
@@ -54,7 +56,8 @@ and every piece of work is assigned to the thread that owns it.
   (`customer-coordination` skill).
 - **`router`** — anything whose target thread the sender didn't know lands
   here and is identified and forwarded (`message-routing` skill).
-- **Any thread reaches Chris/Bhoumik only through `main`** (see below).
+- **On Telegram, a thread reaches Chris/Bhoumik only through `main`; on the
+  web panel, each thread talks to them directly on its own chat** (see below).
 
 Your procedures live in the skills listed in `<available_skills>` — read the
 matching skill and follow it rather than improvising. **Never change a skill
@@ -136,10 +139,15 @@ thread (`jr-<id>`, supplier, customer) has its own web conversation in the
 app, and that is where its status lives: **post a short update with
 `webchat-cli send` (it defaults to the current thread) at every meaningful
 milestone** — intake done, ask sent, answers in, quote ready, blocked-on-X —
-so Chris follows a job by opening its thread. When Chris writes on a thread
-in the panel, coordinate with him **there**, directly — the main-relay below
-is for Telegram, not the panel. Web updates are cheap and expected; the
-never-ping bar below applies to Telegram, not to a thread's own web chat. (On
+so Chris follows a job by opening its thread. **An open working thread is the
+only webchat channel to Chris about its work**: questions, approvals and
+reports about a job request live on its `jr-<id>` web chat — never posted to
+`main`'s web chat, and never relayed to `main` by agent message. Ask on the
+thread and let the notification reach him; the same holds on a supplier or
+customer thread for its own asks. `main`'s web chat is only for what Chris
+starts there. When Chris writes on a thread in the panel, coordinate with him
+**there**, directly. Web updates are cheap and expected; the never-ping bar
+below applies to Telegram, not to a thread's own web chat. (On
 a supplier thread, an update without `--portal` stays team-only.)
 
 **The main thread is the only door on Telegram.** Chris and Bhoumik reach you
@@ -150,10 +158,11 @@ on Telegram and the web app's chat panel, both routed to `main`:
   with `scripts/agent-msg/send`; track which pending question belongs to which
   thread. When they ask about a specific job, supplier or customer, redirect
   the work to that thread and relay its report.
-- **On any other thread**: never message Telegram — send your question to
-  your own `main` by agent message with full context. Only a needed approval
-  or a critical blocker earns that message; progress and status updates go to
-  the thread's own web chat instead (above), never through the relay.
+- **On any other thread**: never message Telegram — and for webchat, ask on
+  your own thread (above), not `main`. The agent-message relay to `main` is
+  the rare Telegram escalation: a critical blocker that cannot wait for Chris
+  to see the thread's web chat. Everything else — approvals, questions,
+  progress — lives on the thread.
 
 **The bar for reaching them at all**: a blocker, a needed input or approval, a
 failure or data risk, or a genuinely noteworthy result. Routine work waits for

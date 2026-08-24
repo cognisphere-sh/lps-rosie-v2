@@ -35,16 +35,18 @@ pattern as the artifacts and supplier-events secrets); without it they answer
 |---|---|---|
 | `POST api/upload` | browser | Raw body + `x-file-name` → stores in `inbox/`, returns `{name, label, size, mime}`. |
 | `POST api/send` | browser | `{text, attachments[], threadId?}` → records the message on that thread and wakes the agent there. |
-| `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor}` — everything newer than `<id>` on that thread. Polled every 2s while the panel is open. |
+| `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor, readId}` — everything newer than `<id>` on that thread. Polled every 2s while the panel is open. |
 | `GET api/messages?before=<id>` | browser | The page of history *older* than `<id>`, for the panel's "Load earlier messages". |
 | &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
-| `GET api/threads` | browser | `{threads:[{threadId,lastId,lastAt,lastRole,lastSender?,lastText}]}` — every thread with a transcript, newest first (`lastSender` only on portal messages). The panel's picker merges this with the app's `/api/chat-directory`; the app's unread tracking (`lib/chat-notifications.tsx`) compares `lastId` against per-browser read state. |
+| &nbsp;&nbsp;`&read=1` | browser | Marks the whole thread read on the `web` side (see [Read state](#read-state)). The open panel's poll sends it; nothing else does. |
+| `GET api/threads` | browser | `{threads:[{threadId,lastId,lastAt,lastRole,lastSender?,lastText,readId}]}` — every thread with a transcript, newest first (`lastSender` only on portal messages). The panel's picker merges this with the app's `/api/chat-directory`; the app's unread tracking (`lib/chat-notifications.tsx`) just compares `lastId > readId`. |
+| `POST api/read` | browser | `{threadId?, lastId?}` → moves the `web` cursor without opening the thread. The bell's "Mark all read" is the only caller; `lastId` defaults to the thread's newest. |
 | `GET api/file?name=<stored>` | browser | The bytes of one attachment (any thread, inbox or outbox). |
 | `POST api/reset` | browser | `{threadId?}` — wipes that thread's context **and** its transcript. |
 | `POST api/reply` | the agent | `{text, attachments[], threadId?, portal?}` → the reply, defaulting to the config thread (the CLI defaults `threadId` to `$PI_THREAD_ID`); clears that thread's half of `pending`. |
 | `POST api/app-upload?thread=<id>` | app server | Raw body + `x-file-name` + `X-App-Secret` → stages an allowlisted file (25MB by default) under a fixed-length opaque name and returns metadata plus an HMAC ticket bound to that exact thread/file. |
 | `POST api/app-send` | app server | `{threadId, text?, attachments?, senderName}` + `X-App-Secret` → a supplier-portal message: verifies every staged attachment ticket and disk size, records it portal-visible, and delivers it with `Channel: portal`. Attachment-only messages are valid. |
-| `GET api/app-messages?thread=<id>` | app server | `X-App-Secret` → the **portal-visible half** of that thread only: portal-sent messages and `--portal` replies. The team's internal panel traffic never crosses this endpoint. |
+| `GET api/app-messages?thread=<id>` | app server | `X-App-Secret` → the **portal-visible half** of that thread only: portal-sent messages and `--portal` replies. The team's internal panel traffic never crosses this endpoint. Carries `readId` (the `portal` cursor); `&read=1` marks it, and only the portal's open chat panel sends that. |
 | `GET api/app-file?thread=<id>&name=<stored>` | app server | `X-App-Secret` → an inbox/outbox attachment only when that exact name occurs on a portal-visible row in that exact thread. |
 
 ### Auth — two callers, two mechanisms
@@ -99,6 +101,7 @@ Three places, each with a different job — the plugin adds **no new database**:
 | What | Where |
 |---|---|
 | The transcripts the panel renders | `agents/<id>/plugins/webchat/state/threads/<threadId>.jsonl` (append-only, one file per thread; the pre-multi-thread `transcript.jsonl` is migrated to the default thread's file on first start) |
+| Who has read what | `agents/<id>/plugins/webchat/state/read.json` — two cursors per thread, see [Read state](#read-state) |
 | Uploaded files | `agents/<id>/plugins/webchat/inbox/` |
 | Files the agent sends back | `agents/<id>/plugins/webchat/state/outbox/` |
 | The event that wakes the agent | `agents/<id>/sessions/.events.db` — the harness's own queue |
@@ -109,6 +112,42 @@ the browser polls memory rather than the file. `historyLimit` therefore also
 bounds how far "Load earlier messages" can walk back — paging reads the same
 in-memory window, not the file. It is deliberately separate from
 the pi session jsonl, which holds tool calls and reasoning and is not a chat log.
+
+## Read state
+
+Since 2026-08-24 "read" is **plugin state, not browser state** — a phone and a
+laptop looking at the same thread agree, which per-browser `localStorage` could
+never do. It lives in `state/read.json`, `{threadId: {web, portal}}`, written
+through a temp file and `rename` so a crash can't leave half a map.
+
+Two cursors per thread, each the newest message id that side has seen, because
+one thread has two audiences with opposite views of it: a supplier's message is
+unread for the **team**, an agent's reply is unread for the **supplier**.
+
+| Cursor | Moved by |
+|---|---|
+| `web` | `GET api/messages…&read=1` (the team's panel, open on the thread) · `POST api/send` (your own message) · `POST api/read` |
+| `portal` | `GET api/app-messages…&read=1` (the portal's open chat) · `POST api/app-send` |
+
+**`read=1` is opt-in for a reason.** Marking on any `GET` would break the
+portal: its notification bell polls `api/app-messages?since=0&limit=1`
+precisely *while the chat is closed*, so an implicit mark would clear the alert
+before the supplier ever saw it. Panels that are open ask for the mark; pollers
+that are peeking don't. Marking covers the whole thread (`cursor`), not the
+page fetched — an open panel has seen the thread, not just its delta.
+
+Two edges worth knowing:
+
+- **First start after this landed** — no `read.json`, so every thread already
+  on disk is seeded read (`web` = newest id, `portal` = newest portal-visible
+  id). Without that, turning read state on would have lit up every thread at
+  once. A corrupt/unreadable file re-seeds the same way: marking everything
+  read is the harmless direction, the other one leaves the dots stuck on.
+- **`api/reset`** deletes the thread's cursors along with its transcript —
+  ids restart at 1, and a stale cursor would hide the new conversation.
+
+An agent's `api/reply` moves **neither** cursor: that is the message the dots
+exist to announce.
 
 ## The "working…" indicator
 

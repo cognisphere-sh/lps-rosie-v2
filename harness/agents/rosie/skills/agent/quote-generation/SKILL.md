@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, how a line total is arrived at, rendering and uploading the PDF, publishing the HTML, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.2.2)
+description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, how a line total is arrived at, rendering and uploading the PDF, publishing the HTML, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.3.0)
 metadata:
   author: lps
-  version: "1.2.2"
+  version: "1.3.0"
 ---
 
 # Quote generation
@@ -20,8 +20,12 @@ sourcing sheet belongs in the quote, put the customer-safe version in
 
 ## 1. Templates
 
-Templates live in `knowledge/files/templates/`; `lps-quote-template.html` is
-the default. A template is a complete HTML document with `{{PLACEHOLDER}}`
+Templates live in `knowledge/files/templates/`; use
+`austin-plant-supply-modern-quote-template.html` as the default for every APS
+quote. It is the approved editable APS-branded layout, including logo and
+current header. `lps-quote-template.html` is legacy and must not be selected
+for APS quotes; `austin-plant-supply-quote-template.html` is stale and must
+not be used. A template is a complete HTML document with `{{PLACEHOLDER}}`
 slots (`{{DATE}}`, `{{QUOTE_NUMBER}}`, `{{CUSTOMER_NAME_AND_ADDRESS}}`,
 `{{SHIP_TO}}`, `{{ITEM_ROWS}}`, `{{TOTAL}}`, `{{QUOTE_NOTES}}`, …) and
 print-ready CSS (`@page size: letter`).

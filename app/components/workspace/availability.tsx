@@ -148,25 +148,44 @@ function AnswerCell({
 /** What the pop-up collects for each answer, and the hint its notes carry. */
 const ANSWER_FIELDS: Record<
   string,
-  { title: string; qtyPrice: boolean; notesLabel: string; notesHint: string }
+  {
+    title: string
+    qtyPrice: boolean
+    /** Whether the price on file is the right prefill for this answer. */
+    prefillPrice?: boolean
+    /** Which field opens focused — the first thing this answer needs. */
+    focus?: 'qty' | 'notes'
+    notesLabel: string
+    notesHint: string
+  }
 > = {
   available: {
     title: 'Available',
     qtyPrice: true,
+    prefillPrice: true,
     notesLabel: 'Notes (optional)',
     notesHint: 'Anything else about this line…',
   },
   can_order: {
     title: 'Can order',
     qtyPrice: true,
+    prefillPrice: true,
     notesLabel: 'ETA / notes',
     notesHint: 'When can you have it? e.g. ready mid-Sep',
   },
   substitute: {
     title: 'Substitute',
-    qtyPrice: false,
+    // A substitute is still something being supplied at a price, so it takes
+    // the same quantity and price the other two do — that is what puts it in
+    // the line total and the request's subtotal.
+    qtyPrice: true,
+    // But NOT the on-file price: that one belongs to the plant being replaced,
+    // and carrying it over would quote a different plant at the wrong price.
+    prefillPrice: false,
+    // Naming the substitute comes first; the numbers follow it.
+    focus: 'notes',
     notesLabel: 'What instead',
-    notesHint: 'Name, Size @ price $/unit — e.g. Muskogee Crape Myrtle, 30 G @ 265 $/unit',
+    notesHint: 'Name and size — e.g. Muskogee Crape Myrtle, 30 G',
   },
   unavailable: {
     title: 'Unavailable',
@@ -204,7 +223,9 @@ function StatusAnswerDialog({
         ? String(item.quantity)
         : '',
   )
-  const [price, setPrice] = useState(item.unitPrice != null ? String(item.unitPrice) : '')
+  const [price, setPrice] = useState(
+    spec.prefillPrice && item.unitPrice != null ? String(item.unitPrice) : '',
+  )
   const [notes, setNotes] = useState(item.notes ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
 
@@ -263,7 +284,7 @@ function StatusAnswerDialog({
                 onChange={(e) => setQty(e.target.value)}
                 inputMode="decimal"
                 placeholder="Qty"
-                autoFocus
+                autoFocus={spec.focus !== 'notes'}
                 className={cn(field, 'text-right tabular-nums')}
               />
             </label>
@@ -287,7 +308,7 @@ function StatusAnswerDialog({
             onChange={(e) => setNotes(e.target.value)}
             placeholder={spec.notesHint}
             rows={2}
-            autoFocus={!spec.qtyPrice}
+            autoFocus={!spec.qtyPrice || spec.focus === 'notes'}
             className="min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring"
           />
         </label>

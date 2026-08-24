@@ -93,19 +93,10 @@ export function AvailabilityRequestDrawer() {
                   customer shared
                 </span>
               )}
-              <span className="text-[11px] text-lps-dim">
+              <span className="ml-auto text-[11px] text-lps-dim">
                 Sent {formatDate(ar.createdAt)}
                 {ar.submittedAt && ` · Submitted ${formatDate(ar.submittedAt)}`}
               </span>
-              <a
-                href={`/portal/${ar.supplierId}/requests/${ar.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-auto text-[11.5px] font-semibold text-primary underline"
-                title="The request as the supplier sees it"
-              >
-                Portal view
-              </a>
             </div>
             {ar.lpsNotes && (
               <p className="m-0 rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] text-foreground">

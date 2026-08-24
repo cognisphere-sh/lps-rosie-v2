@@ -14,15 +14,25 @@
  * Endpoints
  *   POST api/upload   raw body + `x-file-name`  → stores in inbox/, returns {name}
  *   POST api/send     {text, attachments?, threadId?} → transcript + notify(agent)
- *   GET  api/messages ?since=<id>|?before=<id>&thread=<id> → {messages, hasMore, pending, cursor}
- *   GET  api/threads  → {threads:[{threadId,lastAt,lastRole,lastText}]}
+ *   GET  api/messages ?since=<id>|?before=<id>&thread=<id>&read=1 → {messages, hasMore, pending, cursor, readId}
+ *   GET  api/threads  → {threads:[{threadId,lastId,lastAt,lastRole,lastText,readId}]}
  *   GET  api/file     ?name=<stored name>       → the bytes
+ *   POST api/read     {threadId?, lastId?}      → mark that thread read (web side)
  *   POST api/reset    {threadId?}               → wipe that thread's context + transcript
  *   POST api/reply    {text, attachments?, threadId?} → agent's reply (CLI only)
  *   POST api/app-upload   raw body + thread/name headers → server-to-server (portal)
  *   POST api/app-send     {threadId, text, attachments?, senderName} → server-to-server (portal)
- *   GET  api/app-messages ?thread=<id>&since=<id>         → server-to-server (portal)
+ *   GET  api/app-messages ?thread=<id>&since=<id>&read=1  → server-to-server (portal)
  *   GET  api/app-file     ?thread=<id>&name=<stored>      → server-to-server (portal)
+ *
+ * Read state lives here, in `state/read.json`, not in a browser: two cursors
+ * per thread — `web` for the team's panel, `portal` for the supplier — each
+ * the id of the newest message that side has seen. A poll carrying `read=1`
+ * comes from a panel that is open on the thread, so it marks everything in
+ * that thread read; sending marks your own message read. Any device sees the
+ * same dots, which is the point. The two cursors are deliberately separate:
+ * a supplier's message is unread for the team, an agent's reply is unread for
+ * the supplier, and both live on one thread.
  *
  * Auth is three-sided, because the callers differ:
  *   - browser routes (upload/send/messages/threads/file/reset) require a valid
@@ -36,7 +46,7 @@
  *     all four answer 404.
  *
  * ponytail: transcripts are append-only JSONL per thread, read into memory at
- *   start, and the browser polls. No SSE, no DB.
+ *   start, and the browser polls. No SSE, no DB — read.json included.
  */
 import { createReadStream } from "node:fs";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -80,6 +90,12 @@ interface ChatMessage {
    *  api/app-messages serves ONLY these — the team's internal panel traffic
    *  on a supplier thread never reaches the supplier's portal. */
   portal?: boolean;
+}
+
+/** The newest message id each side has seen on a thread. */
+interface ReadCursors {
+  web: number;
+  portal: number;
 }
 
 interface Thread {
@@ -207,6 +223,10 @@ export default class WebchatPlugin {
   private ctx?: any;
   private cfg!: WebchatConfig;
   private threads = new Map<string, Thread>();
+  private read = new Map<string, ReadCursors>();
+  private readPath = "";
+  /** Serializes read.json writes so two marks can't interleave. */
+  private readWrite: Promise<void> = Promise.resolve();
   private threadsDir = "";
   private outboxDir = "";
   private apiBase = "";
@@ -223,6 +243,41 @@ export default class WebchatPlugin {
 
   private transcriptPath(threadId: string): string {
     return join(this.threadsDir, `${safeThreadId(threadId)}.jsonl`);
+  }
+
+  private cursors(threadId: string): ReadCursors {
+    return this.read.get(threadId) ?? { web: 0, portal: 0 };
+  }
+
+  /** Newest portal-visible message — the portal cursor's ceiling. */
+  private portalCursor(t: Thread): number {
+    for (let i = t.messages.length - 1; i >= 0; i--) {
+      if (t.messages[i].portal) return t.messages[i].id;
+    }
+    return 0;
+  }
+
+  /** Move one side's cursor forward. No-op when it already covers `lastId`. */
+  private markRead(threadId: string, side: keyof ReadCursors, lastId: number): void {
+    if (!Number.isInteger(lastId) || lastId <= 0) return;
+    const cursors = this.cursors(threadId);
+    if (cursors[side] >= lastId) return;
+    cursors[side] = lastId;
+    this.read.set(threadId, cursors);
+    this.persistRead();
+  }
+
+  /** Write read.json through a temp file, so a crash can't leave half a map. */
+  private persistRead(): void {
+    const snapshot = JSON.stringify(Object.fromEntries(this.read));
+    this.readWrite = this.readWrite
+      .then(async () => {
+        await writeFile(`${this.readPath}.tmp`, snapshot + "\n");
+        await rename(`${this.readPath}.tmp`, this.readPath);
+      })
+      .catch((e) => {
+        this.ctx?.log.error({ err: String(e) }, "webchat: read.json write failed");
+      });
   }
 
   async start(ctx: any): Promise<void> {
@@ -285,6 +340,33 @@ export default class WebchatPlugin {
         /* one corrupt transcript must not take the plugin down */
       }
     }
+    this.readPath = join(ctx.stateDir, "read.json");
+    let seeded = false;
+    try {
+      const raw = JSON.parse(await readFile(this.readPath, "utf8")) as Record<
+        string,
+        Partial<ReadCursors>
+      >;
+      for (const [threadId, c] of Object.entries(raw ?? {})) {
+        this.read.set(threadId, { web: Number(c?.web ?? 0), portal: Number(c?.portal ?? 0) });
+      }
+      seeded = true;
+    } catch {
+      /* no file yet, or unreadable — seed below. Re-seeding marks everything
+         read, which is the harmless direction; the other one would leave every
+         thread shouting unread forever. */
+    }
+    if (!seeded) {
+      // Turning read state on must not light up every thread that already has
+      // a transcript: whatever is on disk now counts as seen by both sides.
+      for (const [threadId, t] of this.threads) {
+        const last = t.messages[t.messages.length - 1];
+        if (last) this.read.set(threadId, { web: last.id, portal: this.portalCursor(t) });
+      }
+      this.persistRead();
+      ctx.log.info({ threads: this.read.size }, "webchat: seeded read state from transcripts");
+    }
+
     await this.cleanupPortalOrphans();
     ctx.log.info(
       { defaultThread: this.cfg.threadId, threads: this.threads.size },
@@ -512,7 +594,16 @@ export default class WebchatPlugin {
             nextId: t.nextId,
             pendingSince: t.pendingSince,
           };
-          return json(200, { ...this.window(view, url), pending: this.isPending(t) });
+          const page = this.window(view, url);
+          // `read=1` comes from the portal's open chat panel. The bell's peek
+          // poll runs while that panel is CLOSED and omits it — marking there
+          // would clear the alert before the supplier ever saw it.
+          if (url.searchParams.get("read") === "1") this.markRead(threadId, "portal", page.cursor);
+          return json(200, {
+            ...page,
+            readId: this.cursors(threadId).portal,
+            pending: this.isPending(t),
+          });
         }
 
         if (req.method === "POST" && path === "/api/app-upload") {
@@ -601,6 +692,7 @@ export default class WebchatPlugin {
             files.push({ ...file, dir: "inbox" });
           }
           const msg = await this.deliver(threadId, text, files, senderName, "portal");
+          this.markRead(threadId, "portal", msg.id);
           return json(200, { ok: true, id: msg.id });
         }
 
@@ -670,8 +762,13 @@ export default class WebchatPlugin {
       if (req.method === "GET" && path === "/api/messages") {
         const threadId = String(url.searchParams.get("thread") ?? "").trim() || this.cfg.threadId;
         const t = this.thread(threadId);
+        const page = this.window(t, url);
+        // Only the panel that is open on this thread asks with `read=1`, and an
+        // open panel has seen the whole thread — not just the page it fetched.
+        if (url.searchParams.get("read") === "1") this.markRead(threadId, "web", page.cursor);
         return json(200, {
-          ...this.window(t, url),
+          ...page,
+          readId: this.cursors(threadId).web,
           pending: this.isPending(t) || (await this.hasInFlightEvent(cookie)),
         });
       }
@@ -690,6 +787,7 @@ export default class WebchatPlugin {
               // supplier's message from the operator's own panel sends.
               ...(last.senderName ? { lastSender: last.senderName } : {}),
               lastText: last.text.slice(0, 120),
+              readId: this.cursors(threadId).web,
             };
           })
           .sort((a, b) => b.lastAt - a.lastAt);
@@ -773,7 +871,18 @@ export default class WebchatPlugin {
         }
 
         const msg = await this.deliver(threadId, text, files, user, "web");
+        this.markRead(threadId, "web", msg.id);
         return json(200, { ok: true, id: msg.id });
+      }
+
+      // Marking read without opening the thread — the bell's "mark all read".
+      if (req.method === "POST" && path === "/api/read") {
+        const b = await this.readJson(req).catch(() => ({}) as Record<string, unknown>);
+        const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
+        const t = this.thread(threadId);
+        const lastId = Number(b.lastId ?? 0) || (t.messages[t.messages.length - 1]?.id ?? 0);
+        this.markRead(threadId, "web", lastId);
+        return json(200, { ok: true, readId: this.cursors(threadId).web });
       }
 
       if (req.method === "POST" && path === "/api/reset") {
@@ -781,6 +890,8 @@ export default class WebchatPlugin {
         const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
         ctx.resetThread("web", threadId);
         this.threads.set(threadId, { messages: [], nextId: 1, pendingSince: null });
+        this.read.delete(threadId); // ids restart at 1 — a stale cursor would hide the new transcript
+        this.persistRead();
         await writeFile(this.transcriptPath(threadId), "");
         return json(200, { ok: true });
       }

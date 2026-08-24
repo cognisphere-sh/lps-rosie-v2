@@ -7,7 +7,7 @@ import { MessagesSquare } from 'lucide-react'
 import {
   ChevronDown, ChevronRight, CloseIcon, MapPinIcon,
 } from '@/components/workspace/icons'
-import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
+import { onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { EditableText, patchRow } from '@/components/workspace/editable'
 import {
   DemandSummary,
@@ -150,6 +150,16 @@ function RequestCard({
               value={request.name}
               placeholder="Name this job"
               title="Click to rename this job"
+              // The job's thread is called after the job, so a rename here is
+              // a rename there — the picker rereads the name on its next open,
+              // and this tells a panel already sitting on the thread.
+              onSaved={(next) => {
+                onSaved()
+                renameThread({
+                  threadId: `jr-${request.id}`,
+                  label: next?.trim() || requestRef(request.id),
+                })
+              }}
             />
           </span>
           <StatusPill
@@ -572,6 +582,13 @@ export default function RequestsPage() {
   /** Bumped after a write, to refetch the page and everything derived from it. */
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
+
+  // A job renamed from the chat panel's thread picker wrote the same column
+  // this page edits, so the cards behind it are one refetch out of date.
+  useEffect(
+    () => onRenameThread(({ threadId }) => { if (threadId.startsWith('jr-')) reload() }),
+    [reload],
+  )
 
   const customerIds = useMemo(() => {
     const map = new Map<string, number>()

@@ -126,6 +126,23 @@ const REQUEST_COLUMNS =
   'id, customer_id, name, status, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, customer_notes, sourcing_notes, external_notes, created_at, updated_at'
 
 /**
+ * Take the next job-request id without creating the row.
+ *
+ * The request's conversation is named after the row (`jr-<id>`), and rosie
+ * writes the row from that conversation — so the id has to exist before the
+ * row does. `reserve_job_request_id()` (migration 0072) is `nextval` on the
+ * identity sequence and nothing else: an abandoned start leaves a gap in the
+ * numbering, which is what a sequence is for.
+ */
+export async function reserveJobRequestId(): Promise<number> {
+  const { data, error } = await supabase.rpc('reserve_job_request_id')
+  if (error) throw new Error(`reserve_job_request_id: ${error.message}`)
+  const id = Number(data)
+  if (!Number.isInteger(id)) throw new Error('reserve_job_request_id returned no id')
+  return id
+}
+
+/**
  * One request as the cards render it.
  *
  * `all` is every active line, which is what the rollups are computed over;

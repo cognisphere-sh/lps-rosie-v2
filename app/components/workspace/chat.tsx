@@ -2,30 +2,22 @@
 
 import Image from 'next/image'
 import {
-  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
 } from 'react'
-import { ArrowDown, ArrowUp, MessagesSquare, Mic, Pause, Paperclip, Play, RefreshCw, Search, Send, Trash2, X } from 'lucide-react'
+import { MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 
-import { CheckIcon, ChevronLeft, ChevronRight } from '@/components/workspace/icons'
-import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
-import { onOpenChat, openAvailabilityRequest, openChat } from '@/lib/chat-bus'
+import {
+  Composer, SizePill, StatusDot, Transcript, useComposer,
+  type ChatFile, type ChatMessage,
+} from '@/components/workspace/chat-kit'
+import { ChevronLeft, ChevronRight } from '@/components/workspace/icons'
+import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
+import { onOpenChat, onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
 import {
-  chatThemeForAgent, chatThemeStyle, chatWallpaperStyle,
-  type ChatAppearance, type ChatWallpaperId,
+  chatThemeForAgent, chatThemeStyle, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
-
-// --------------------------------------------------------------------- types
-
-type ChatFile = { name: string; label: string; mime: string; size: number }
-type ChatMessage = {
-  id: number
-  at: number
-  role: 'user' | 'agent'
-  text: string
-  files: ChatFile[]
-}
 
 const POLL_MS = 2000
 const PAGE = 50
@@ -40,245 +32,6 @@ function fullDesktopChatWidth(peekOpen = false) {
 
 function clampDesktopChatWidth(width: number) {
   return Math.min(Math.max(width, MIN_W), fullDesktopChatWidth())
-}
-
-// ------------------------------------------------------------------ markdown
-
-/**
- * The agent writes markdown; this renders the subset that actually shows up in
- * a chat bubble — bold, inline code, links, and bullet lists.
- *
- * ponytail: ~30 lines instead of a markdown dependency. If tables or nested
- * lists ever matter, swap in `marked` + a sanitizer rather than growing this.
- */
-function inline(text: string, key: string, agentId?: string) {
-  const parts: React.ReactNode[] = []
-  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\((?:(thread|ar):([^)\s]+)|(https?:\/\/[^)\s]+))\)|(https?:\/\/[^\s<]+)/g
-  let last = 0
-  let m: RegExpExecArray | null
-  let i = 0
-  while ((m = re.exec(text))) {
-    if (m.index > last) parts.push(text.slice(last, m.index))
-    const k = `${key}-${i++}`
-    if (m[1]) parts.push(<strong key={k}>{m[1]}</strong>)
-    else if (m[2]) parts.push(<code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{m[2]}</code>)
-    else if (m[4]) {
-      // Agent-rendered action buttons: `thread:<id>` switches the panel to
-      // that thread, `ar:<id>` opens the availability-request drawer.
-      const scheme = m[4]
-      const target = m[5]
-      const label = m[3]
-      const arId = Number.parseInt(target, 10)
-      const valid = scheme === 'thread' ? target.length > 0 : Number.isInteger(arId)
-      if (!valid) parts.push(label)
-      else {
-        parts.push(
-          <button
-            key={k}
-            type="button"
-            onClick={() =>
-              scheme === 'thread'
-                ? openChat({ agentId: agentId ?? 'rosie', threadId: target })
-                : openAvailabilityRequest(arId)
-            }
-            className="my-0.5 inline-flex cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2.5 py-1 text-[12px] font-bold text-primary hover:bg-secondary"
-          >
-            {scheme === 'thread' ? <MessagesSquare size={12} /> : <ChevronRight size={12} />}
-            {label}
-          </button>,
-        )
-      }
-    }
-    else if (m[3]) parts.push(<a key={k} href={m[6]} target="_blank" rel="noreferrer" className="underline">{m[3]}</a>)
-    else parts.push(<a key={k} href={m[7]} target="_blank" rel="noreferrer" className="underline">{m[7]}</a>)
-    last = re.lastIndex
-  }
-  if (last < text.length) parts.push(text.slice(last))
-  return parts
-}
-
-function Markdown({ text, agentId }: { text: string; agentId?: string }) {
-  const blocks: React.ReactNode[] = []
-  // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
-  // Normalize them here so existing transcript entries render correctly too.
-  const lines = text.replace(/\\r\\n|\\n|\\r/g, '\n').split('\n')
-  let bullets: string[] = []
-  const flush = (key: string) => {
-    if (!bullets.length) return
-    blocks.push(
-      <ul key={`ul-${key}`} className="my-1 list-disc space-y-0.5 pl-4">
-        {bullets.map((b, i) => <li key={i}>{inline(b, `${key}-${i}`, agentId)}</li>)}
-      </ul>,
-    )
-    bullets = []
-  }
-  lines.forEach((line, i) => {
-    const bullet = /^\s*[-*]\s+(.*)$/.exec(line)
-    if (bullet) { bullets.push(bullet[1]); return }
-    flush(String(i))
-    if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i), agentId)}</p>)
-  })
-  flush('end')
-  return <div className="flex flex-col gap-1">{blocks}</div>
-}
-
-// ---------------------------------------------------------------- audio bits
-
-const BARS = 40
-
-const fmtTime = (s: number) =>
-  Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '0:00'
-
-/** One AudioContext for the whole panel — browsers cap how many you may open. */
-let audioCtx: AudioContext | null = null
-function sharedAudioContext(): AudioContext {
-  const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-  if (!audioCtx) audioCtx = new Ctor()
-  return audioCtx
-}
-
-/**
- * RMS amplitude per bucket, for the waveform.
- *
- * Also returns the decoded duration, which is load-bearing: MediaRecorder
- * writes a webm with no duration in the container, so `<audio>.duration` is
- * `Infinity` until the file has fully played. The decoded buffer always knows.
- */
-async function loadWaveform(url: string): Promise<{ peaks: number[]; duration: number }> {
-  const raw = await (await fetch(url)).arrayBuffer()
-  const buf = await sharedAudioContext().decodeAudioData(raw)
-  const data = buf.getChannelData(0)
-  const size = Math.max(1, Math.floor(data.length / BARS))
-  const peaks: number[] = []
-  for (let i = 0; i < BARS; i++) {
-    let sum = 0
-    for (let j = 0; j < size; j++) {
-      const v = data[i * size + j] ?? 0
-      sum += v * v
-    }
-    peaks.push(Math.sqrt(sum / size))
-  }
-  const max = Math.max(...peaks, 1e-4)
-  // Floor at 0.08 so silence still reads as a waveform rather than a flat line.
-  return { peaks: peaks.map((p) => Math.max(0.08, p / max)), duration: buf.duration }
-}
-
-/** Play / pause, a seekable waveform, and elapsed-vs-total — the WhatsApp bubble. */
-function VoicePlayer({ src, mine }: { src: string; mine: boolean }) {
-  const audio = useRef<HTMLAudioElement>(null)
-  const [peaks, setPeaks] = useState<number[]>([])
-  const [duration, setDuration] = useState(0)
-  const [at, setAt] = useState(0)
-  const [playing, setPlaying] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    loadWaveform(src)
-      .then((w) => {
-        if (!alive) return
-        setPeaks(w.peaks)
-        setDuration(w.duration)
-      })
-      // Decode can fail on an unsupported codec; a flat bar set still plays.
-      .catch(() => alive && setPeaks(Array<number>(BARS).fill(0.35)))
-    return () => { alive = false }
-  }, [src])
-
-  const progress = duration > 0 ? Math.min(1, at / duration) : 0
-
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = audio.current
-    if (!el || !duration) return
-    const box = e.currentTarget.getBoundingClientRect()
-    const t = ((e.clientX - box.left) / box.width) * duration
-    el.currentTime = t
-    setAt(t)
-  }
-
-  return (
-    <div
-      className={cn(
-        'flex w-[232px] max-w-full items-center gap-2.5 rounded-full px-2.5 py-2',
-        mine ? 'bg-primary text-primary-foreground' : 'border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
-      )}
-    >
-      <audio
-        ref={audio}
-        src={src}
-        preload="metadata"
-        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setAt(0) }}
-      />
-      <button
-        type="button"
-        onClick={() => (playing ? audio.current?.pause() : audio.current?.play())}
-        aria-label={playing ? 'Pause' : 'Play'}
-        className={cn(
-          'flex size-7 flex-none cursor-pointer items-center justify-center rounded-full',
-          mine ? 'bg-primary-foreground/20' : 'bg-primary text-primary-foreground',
-        )}
-      >
-        {playing ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" className="ml-px" />}
-      </button>
-
-      <div onClick={seek} className="flex h-6 flex-1 cursor-pointer items-center gap-[2px]" role="presentation">
-        {(peaks.length ? peaks : Array<number>(BARS).fill(0.35)).map((p, i) => (
-          <span
-            key={i}
-            className={cn(
-              'w-full flex-1 rounded-full transition-opacity',
-              i / BARS <= progress ? 'opacity-100' : 'opacity-35',
-              mine ? 'bg-primary-foreground' : 'bg-primary',
-            )}
-            style={{ height: `${Math.round(p * 100)}%` }}
-          />
-        ))}
-      </div>
-
-      <span className="w-8 flex-none text-right text-[10.5px] tabular-nums opacity-80">
-        {fmtTime(at > 0 ? at : duration)}
-      </span>
-    </div>
-  )
-}
-
-// --------------------------------------------------------------- attachments
-
-function Attachment({
-  agent, file, mine, onLoad,
-}: {
-  agent: string
-  file: ChatFile
-  mine: boolean
-  onLoad?: () => void
-}) {
-  const href = `/api/chat/${agent}/file?name=${encodeURIComponent(file.name)}`
-  if (file.mime.startsWith('image/')) {
-    return (
-      <a href={href} target="_blank" rel="noreferrer" className="block">
-        {/* Plain <img>: these come from the agent's inbox at runtime, so there
-            is nothing for next/image to optimise at build time. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={href} alt={file.label} onLoad={onLoad} className="max-h-52 w-auto rounded-lg border border-lps-hair" />
-      </a>
-    )
-  }
-  if (file.mime.startsWith('audio/')) {
-    return <VoicePlayer src={href} mine={mine} />
-  }
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-lg border border-lps-hair bg-card px-2.5 py-1.5 text-[11.5px] font-semibold text-foreground hover:bg-muted"
-    >
-      <Paperclip size={12} />
-      <span className="max-w-[180px] truncate">{file.label}</span>
-    </a>
-  )
 }
 
 // ------------------------------------------------------------------ the chat
@@ -311,7 +64,9 @@ function useChat(agentId: string, active: boolean, threadId: string) {
     const first = cursor.current === 0
     try {
       const res = await fetch(
-        `/api/chat/${agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}${threadQ}`,
+        // `read=1`: this poll only runs while the panel is open on the thread,
+        // so it doubles as "the team has seen this" — plugin-side, any device.
+        `/api/chat/${agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}${threadQ}&read=1`,
         { cache: 'no-store' },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -326,8 +81,8 @@ function useChat(agentId: string, active: boolean, threadId: string) {
       if (first) setHasMore(body.hasMore)
       setPending(body.pending)
       setError('')
-      // The panel is open on this thread, so whatever is here is seen —
-      // clears its dot everywhere (the poll only runs while visible).
+      // The request above already moved the server cursor; this only clears
+      // the dot now instead of at the next threads poll.
       markThreadRead(agentId, threadId, body.cursor)
     } catch {
       setError('Can’t reach the agent.')
@@ -407,626 +162,6 @@ function useChat(agentId: string, active: boolean, threadId: string) {
   return { messages, pending, error, hasMore, loadingMore, send, reset, loadMore, refresh: poll }
 }
 
-/**
- * Containers in preference order. Safari (iOS included) cannot produce webm —
- * it records mp4/AAC — so asking for webm unconditionally is how voice notes
- * break on iPhones. `isTypeSupported` picks whatever this browser can actually
- * write, and the extension follows the real `mimeType` rather than a guess.
- */
-const REC_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
-
-function pickRecordingType(): string {
-  if (typeof MediaRecorder === 'undefined') return ''
-  return REC_TYPES.find((t) => MediaRecorder.isTypeSupported(t)) ?? ''
-}
-
-function extForAudio(mime: string): string {
-  if (mime.includes('mp4') || mime.includes('aac')) return 'm4a'
-  if (mime.includes('ogg')) return 'ogg'
-  if (mime.includes('wav')) return 'wav'
-  return 'webm'
-}
-
-/** Upload + record + paste — the composer's attachment plumbing. */
-function useComposer(agentId: string) {
-  const [files, setFiles] = useState<ChatFile[]>([])
-  const [busy, setBusy] = useState(false)
-  const [recording, setRecording] = useState(false)
-  const [levels, setLevels] = useState<number[]>([])
-  const [seconds, setSeconds] = useState(0)
-  const [micError, setMicError] = useState('')
-  const recorder = useRef<MediaRecorder | null>(null)
-  const cancelled = useRef(false)
-
-  const upload = useCallback(
-    async (list: File[]) => {
-      if (!list.length) return
-      setBusy(true)
-      for (const f of list) {
-        try {
-          const res = await fetch(`/api/chat/${agentId}/upload`, {
-            method: 'POST',
-            // Header values must be ASCII; the display name travels in the
-            // send payload instead, so mangling here is harmless.
-            headers: { 'x-file-name': encodeURIComponent(f.name), 'content-type': f.type || 'application/octet-stream' },
-            body: f,
-          })
-          if (!res.ok) continue
-          const stored = (await res.json()) as { name: string }
-          setFiles((prev) => [
-            ...prev,
-            { name: stored.name, label: f.name, mime: f.type || 'application/octet-stream', size: f.size },
-          ])
-        } catch {
-          /* one failed upload shouldn't drop the rest */
-        }
-      }
-      setBusy(false)
-    },
-    [agentId],
-  )
-
-  const stopRecording = useCallback((discard: boolean) => {
-    cancelled.current = discard
-    recorder.current?.stop()
-  }, [])
-
-  const record = useCallback(async () => {
-    if (recorder.current) {
-      stopRecording(false)
-      return
-    }
-    setMicError('')
-
-    // Why this check exists: `navigator.mediaDevices` is undefined outside a
-    // secure context, so on a phone hitting this app over plain http:// the old
-    // code threw, was swallowed by the catch, and the button did nothing at all.
-    // Say which of the two it is rather than failing silently.
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setMicError(
-        window.isSecureContext
-          ? 'This browser can’t record audio.'
-          : 'Voice notes need an HTTPS connection — attach an audio file instead.',
-      )
-      return
-    }
-    const type = pickRecordingType()
-    if (typeof MediaRecorder === 'undefined') {
-      setMicError('This browser can’t record audio.')
-      return
-    }
-
-    let stream: MediaStream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (e) {
-      const name = (e as DOMException)?.name
-      setMicError(
-        name === 'NotAllowedError' || name === 'SecurityError'
-          ? 'Microphone permission denied.'
-          : name === 'NotFoundError'
-            ? 'No microphone found.'
-            : 'Could not start recording.',
-      )
-      return
-    }
-
-    const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined)
-    const chunks: Blob[] = []
-
-    // Live amplitude for the waveform, straight off the stream.
-    const ctx = sharedAudioContext()
-    if (ctx.state === 'suspended') await ctx.resume()
-    const analyser = ctx.createAnalyser()
-    analyser.fftSize = 512
-    const source = ctx.createMediaStreamSource(stream)
-    source.connect(analyser)
-    const frame = new Uint8Array(analyser.frequencyBinCount)
-    const started = Date.now()
-    const tick = setInterval(() => {
-      analyser.getByteTimeDomainData(frame)
-      let sum = 0
-      for (const v of frame) sum += (v - 128) ** 2
-      const rms = Math.sqrt(sum / frame.length) / 128
-      setLevels((prev) => [...prev, Math.min(1, Math.max(0.06, rms * 3.2))].slice(-56))
-      setSeconds(Math.floor((Date.now() - started) / 1000))
-    }, 90)
-
-    const teardown = () => {
-      clearInterval(tick)
-      source.disconnect()
-      stream.getTracks().forEach((t) => t.stop())
-      recorder.current = null
-      setRecording(false)
-      setLevels([])
-      setSeconds(0)
-    }
-
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
-    rec.onstop = async () => {
-      const discard = cancelled.current
-      cancelled.current = false
-      teardown()
-      if (discard || !chunks.length) return
-      const mime = rec.mimeType || type || 'audio/webm'
-      const blob = new Blob(chunks, { type: mime })
-      await upload([new File([blob], `voice-note.${extForAudio(mime)}`, { type: mime })])
-    }
-
-    recorder.current = rec
-    rec.start()
-    setLevels([])
-    setSeconds(0)
-    setRecording(true)
-  }, [upload, stopRecording])
-
-  const onPaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const pasted = Array.from(e.clipboardData.files)
-      if (pasted.length) {
-        e.preventDefault()
-        upload(pasted)
-      }
-    },
-    [upload],
-  )
-
-  return {
-    files,
-    busy,
-    recording,
-    levels,
-    seconds,
-    micError,
-    upload,
-    record,
-    cancelRecording: () => stopRecording(true),
-    dismissMicError: () => setMicError(''),
-    onPaste,
-    clear: () => setFiles([]),
-    drop: (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name)),
-  }
-}
-
-// ------------------------------------------------------------------ subviews
-
-function StatusDot({ pending }: { pending: boolean }) {
-  return (
-    <span
-      className={cn(
-        'size-1.5 flex-none rounded-full',
-        pending ? 'animate-pulse bg-[var(--lps-warn-dot)]' : 'bg-[#5FAF65]',
-      )}
-    />
-  )
-}
-
-/** `2026-08-18 21:26` — the message's own date and time, in the reader's zone.
- *  Fixed shape rather than a locale format: the transcript spans days, and a
- *  bare clock leaves yesterday's message reading as today's. */
-const fmtStamp = (ms: number) => {
-  const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function Transcript({
-  agent, messages, pending, error, hasMore, loadingMore, onSuggest, onRefresh, onLoadMore,
-  mobile, wallpaper,
-}: {
-  agent: Agent
-  messages: ChatMessage[]
-  pending: boolean
-  error: string
-  hasMore: boolean
-  loadingMore: boolean
-  onSuggest: (s: string) => void
-  onRefresh: () => Promise<void>
-  onLoadMore: () => Promise<void>
-  mobile?: boolean
-  wallpaper: ChatWallpaperId
-}) {
-  const box = useRef<HTMLDivElement>(null)
-  const pullStart = useRef<number | null>(null)
-  // Height before an older page is prepended, so the layout effect below can
-  // hold the reader's place instead of letting the new bubbles push it down.
-  const anchor = useRef<number | null>(null)
-  // Stay pinned to the newest message, but never yank the user back down while
-  // they are scrolled up reading history.
-  const pinned = useRef(true)
-  const [atTop, setAtTop] = useState(true)
-  const [atBottom, setAtBottom] = useState(true)
-  const [pull, setPull] = useState(0)
-  const [refreshing, setRefreshing] = useState(false)
-
-  const updateEdges = useCallback((el: HTMLDivElement) => {
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    pinned.current = bottom < 40
-    setAtTop(el.scrollTop < 40)
-    setAtBottom(bottom < 40)
-  }, [])
-
-  const toBottom = useCallback((smooth = false) => {
-    const el = box.current
-    el?.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
-  }, [])
-
-  const toTop = useCallback(() => {
-    box.current?.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
-  // Layout effect, not effect: the jump happens before paint, so a reload opens
-  // at the bottom instead of flashing the top of the transcript first.
-  useLayoutEffect(() => {
-    const el = box.current
-    if (el && anchor.current !== null) {
-      el.scrollTop += el.scrollHeight - anchor.current
-      anchor.current = null
-    } else if (pinned.current) {
-      toBottom()
-    }
-    if (el) updateEdges(el)
-  }, [messages.length, pending, toBottom, updateEdges])
-
-  const loadMore = useCallback(async () => {
-    if (loadingMore) return
-    anchor.current = box.current?.scrollHeight ?? 0
-    await onLoadMore()
-  }, [loadingMore, onLoadMore])
-
-  const finishPull = useCallback(async () => {
-    pullStart.current = null
-    if (pull < 54 || refreshing) {
-      setPull(0)
-      return
-    }
-    setRefreshing(true)
-    setPull(48)
-    try {
-      await onRefresh()
-    } finally {
-      setRefreshing(false)
-      setPull(0)
-    }
-  }, [onRefresh, pull, refreshing])
-
-  return (
-    <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <div
-      ref={box}
-      onScroll={(e) => updateEdges(e.currentTarget)}
-      onTouchStart={(e) => {
-        if (e.touches.length === 1 && e.currentTarget.scrollTop <= 0) {
-          pullStart.current = e.touches[0].clientY
-        }
-      }}
-      onTouchMove={(e) => {
-        if (pullStart.current === null || e.touches.length !== 1) return
-        const distance = e.touches[0].clientY - pullStart.current
-        if (distance <= 0) {
-          setPull(0)
-          return
-        }
-        e.preventDefault()
-        setPull(Math.min(72, distance * 0.45))
-      }}
-      onTouchEnd={() => { void finishPull() }}
-      onTouchCancel={() => { pullStart.current = null; setPull(0) }}
-      className={cn(
-        'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background',
-        mobile ? 'px-4 pb-4 pt-[72px]' : 'p-4',
-      )}
-      style={chatWallpaperStyle(wallpaper)}
-    >
-      {hasMore && (
-        <button
-          type="button"
-          onClick={() => { void loadMore() }}
-          disabled={loadingMore}
-          className="mx-auto cursor-pointer rounded-full border border-lps-edge bg-card px-3 py-1.5 text-[12px] font-semibold text-primary hover:bg-secondary disabled:cursor-default disabled:opacity-60"
-        >
-          {loadingMore ? 'Loading…' : 'Load earlier messages'}
-        </button>
-      )}
-
-      {messages.length === 0 && !pending && (
-        <div className="m-auto max-w-[260px] text-center text-[14px] leading-[1.4] text-muted-foreground">
-          <Image src={agent.avatar} alt="" width={56} height={56} className="mx-auto mb-3 rounded-full" />
-          {agent.intro}
-        </div>
-      )}
-
-      {messages.map((m) => (
-        <div
-          key={m.id}
-          className={cn(
-            'flex max-w-[88%] flex-col gap-[3px]',
-            m.role === 'user' ? 'items-end self-end' : 'items-start self-start',
-          )}
-        >
-          {m.files.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {m.files.map((f) => (
-                <Attachment
-                  key={f.name}
-                  agent={agent.id}
-                  file={f}
-                  mine={m.role === 'user'}
-                  // An image finishing after layout pushes the transcript taller,
-                  // which would otherwise leave the newest message off-screen.
-                  onLoad={() => pinned.current && toBottom()}
-                />
-              ))}
-            </div>
-          )}
-          {m.text && (
-            <div
-              className={cn(
-                'px-3 py-2.5 text-[16px] leading-[1.35]',
-                m.role === 'user'
-                  ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
-                  : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
-              )}
-            >
-              <Markdown text={m.text} agentId={agent.id} />
-            </div>
-          )}
-          <span className={cn('text-[11px] leading-none text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
-            {fmtStamp(m.at)}
-          </span>
-        </div>
-      ))}
-
-      {pending && (
-        <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
-          <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
-            <span className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="size-1.5 animate-bounce rounded-full bg-lps-dim"
-                  style={{ animationDelay: `${i * 140}ms` }}
-                />
-              ))}
-            </span>
-            {agent.name} is working…
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[11.5px] font-semibold text-lps-warn-fg">
-          {error}
-        </div>
-      )}
-
-      {messages.length === 0 && (
-        <div className={cn('flex flex-wrap gap-1.5', mobile ? '' : 'pl-0.5')}>
-          {agent.suggestions.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => onSuggest(s)}
-              className="cursor-pointer rounded-full border border-lps-edge bg-card px-3 py-1.5 text-[12px] font-semibold text-primary hover:bg-secondary"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
-      </div>
-
-      {(pull > 0 || refreshing) && (
-        <div
-          className="pointer-events-none absolute left-1/2 top-2 z-20 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)]"
-          style={{ transform: `translate(-50%, ${Math.max(0, pull - 18)}px)` }}
-          aria-live="polite"
-        >
-          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-          <span className="sr-only">{refreshing ? 'Refreshing conversation' : 'Pull to refresh'}</span>
-        </div>
-      )}
-
-      {(!atTop || !atBottom) && (
-        <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-2">
-          {!atTop && (
-            <button
-              type="button"
-              onClick={toTop}
-              aria-label="Jump to top of conversation"
-              title="Jump to top"
-              className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--lps-shadow)] hover:bg-muted"
-            >
-              <ArrowUp size={17} />
-            </button>
-          )}
-          {!atBottom && (
-            <button
-              type="button"
-              onClick={() => toBottom(true)}
-              aria-label="Jump to latest message"
-              title="Jump to latest"
-              className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)] hover:bg-muted"
-            >
-              <ArrowDown size={17} />
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Composer({
-  agent, composer, onSend, draft, setDraft, big,
-}: {
-  agent: Agent
-  composer: ReturnType<typeof useComposer>
-  onSend: () => void
-  draft: string
-  setDraft: (v: string) => void
-  big?: boolean
-}) {
-  const picker = useRef<HTMLInputElement>(null)
-  const box = useRef<HTMLTextAreaElement>(null)
-  const canSend = Boolean(draft.trim() || composer.files.length)
-
-  // Grow the textarea with its content up to max-h, then scroll inside it.
-  // Runs on every draft change so pastes and the post-send clear resize too.
-  useLayoutEffect(() => {
-    const el = box.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [draft])
-
-  return (
-    <div className="flex-none border-t border-border bg-background">
-      {composer.files.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-3.5 pt-2.5">
-          {composer.files.map((f) => (
-            <span
-              key={f.name}
-              className="inline-flex items-center gap-1.5 rounded-full border border-lps-edge bg-card py-1 pl-2.5 pr-1.5 text-[11px] font-semibold"
-            >
-              <span className="max-w-[140px] truncate">{f.label}</span>
-              <button
-                type="button"
-                onClick={() => composer.drop(f.name)}
-                aria-label={`Remove ${f.label}`}
-                className="flex cursor-pointer items-center rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {composer.micError && (
-        <div className="flex items-start gap-2 px-3.5 pt-2.5 text-[11.5px] font-semibold text-lps-warn-fg">
-          <span className="flex-1">{composer.micError}</span>
-          <button
-            type="button"
-            onClick={composer.dismissMicError}
-            aria-label="Dismiss"
-            className="flex cursor-pointer items-center rounded p-0.5 hover:bg-muted"
-          >
-            <X size={11} />
-          </button>
-        </div>
-      )}
-
-      {composer.recording ? (
-        <div className="flex items-center gap-2.5 px-3.5 py-3">
-          <button
-            type="button"
-            onClick={composer.cancelRecording}
-            title="Discard recording"
-            aria-label="Discard recording"
-            className="flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
-          >
-            <Trash2 size={big ? 17 : 15} />
-          </button>
-          <span className="size-2 flex-none animate-pulse rounded-full bg-destructive" />
-          <span className="w-8 flex-none text-[11.5px] font-semibold tabular-nums">{fmtTime(composer.seconds)}</span>
-
-          {/* Live level meter — newest sample on the right, like WhatsApp. */}
-          <div className="flex h-7 min-w-0 flex-1 items-center justify-end gap-[2px] overflow-hidden">
-            {composer.levels.map((l, i) => (
-              <span
-                key={i}
-                className="w-[3px] flex-none rounded-full bg-primary"
-                style={{ height: `${Math.round(l * 100)}%`, opacity: 0.35 + (i / Math.max(1, composer.levels.length)) * 0.65 }}
-              />
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={composer.record}
-            title="Stop and attach"
-            aria-label="Stop recording and attach"
-            className={cn(
-              'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90',
-              big ? 'size-10' : 'size-9',
-            )}
-          >
-            <CheckIcon size={big ? 17 : 15} />
-          </button>
-        </div>
-      ) : (
-      <div className="flex items-end gap-2 px-3.5 py-3">
-        <input
-          ref={picker}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            composer.upload(Array.from(e.target.files ?? []))
-            e.target.value = ''
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => picker.current?.click()}
-          title="Attach a file"
-          aria-label="Attach a file"
-          className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Paperclip size={big ? 17 : 15} />
-        </button>
-        <button
-          type="button"
-          onClick={composer.record}
-          title="Record a voice note"
-          aria-label="Record a voice note"
-          className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Mic size={big ? 17 : 15} />
-        </button>
-
-        <textarea
-          ref={box}
-          value={draft}
-          rows={1}
-          onChange={(e) => setDraft(e.target.value)}
-          onPaste={composer.onPaste}
-          onKeyDown={(e) => {
-            // `big` is the mobile sheet: there Enter inserts a newline and
-            // only the Send button sends. On desktop Enter sends, Shift+Enter
-            // inserts a newline.
-            if (e.key === 'Enter' && !e.shiftKey && !big) {
-              e.preventDefault()
-              onSend()
-            }
-          }}
-          placeholder={composer.busy ? 'Uploading…' : `Ask ${agent.name}…`}
-          className={cn(
-            'font-chat max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-            big ? 'min-h-10 py-2' : 'min-h-9 py-1.5',
-          )}
-        />
-        <button
-          type="button"
-          onClick={onSend}
-          disabled={!canSend}
-          aria-label="Send"
-          className={cn(
-            'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50',
-            big ? 'size-10' : 'size-9',
-          )}
-        >
-          <Send size={big ? 16 : 15} />
-        </button>
-      </div>
-      )}
-    </div>
-  )
-}
-
-// ------------------------------------------------------------- thread picker
 
 interface ThreadEntry {
   threadId: string
@@ -1048,6 +183,119 @@ const GENERAL_THREADS: ThreadEntry[] = [
 /** `2026-08-23 14:05` → `Aug 23` — the picker's last-activity hint. */
 const fmtLastAt = (ms: number) =>
   new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+/**
+ * One conversation in the list.
+ *
+ * Job cards can be renamed from here: the thread is called after its job
+ * request, so the pencil writes `job_requests.name` — the same field the Job
+ * Requests page edits, through the same whitelisted endpoint. The pencil is a
+ * sibling of the card, not a child: a button inside a button is invalid HTML.
+ */
+function ThreadCard({
+  entry, active, unread, at, onPick, onRename,
+}: {
+  entry: ThreadEntry
+  active: boolean
+  unread: boolean
+  at?: number
+  onPick: () => void
+  /** Job threads only. Resolves to what went wrong, or null when it landed. */
+  onRename?: (name: string) => Promise<string | null>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const done = useRef(false)
+
+  const commit = async () => {
+    if (done.current || !onRename) return
+    done.current = true
+    const next = draft.trim()
+    setEditing(false)
+    // An emptied field abandons rather than clearing the job's name: unnaming a
+    // job is not what someone reaching for the pencil meant.
+    if (!next || next === entry.title) return
+    setBusy(true)
+    setError((await onRename(next)) ?? '')
+    setBusy(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            void commit()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            done.current = true
+            setEditing(false)
+          }
+        }}
+        aria-label={`Rename ${entry.title}`}
+        className="w-full min-w-0 rounded-xl border border-primary bg-card px-3 py-2 text-[13px] font-semibold text-foreground outline-none"
+      />
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div
+        className={cn(
+          'flex items-center rounded-xl border',
+          active ? 'border-primary bg-secondary' : 'border-border bg-card hover:bg-muted',
+          busy && 'opacity-50',
+        )}
+      >
+        <button
+          type="button"
+          onClick={onPick}
+          className="flex min-w-0 flex-1 cursor-pointer flex-col gap-px border-none bg-transparent px-3 py-2 text-left"
+        >
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+              {entry.title}
+            </span>
+            {unread && (
+              <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+            )}
+            {at != null && (
+              <span className="flex-none text-[10.5px] text-lps-dim">{fmtLastAt(at)}</span>
+            )}
+          </span>
+          {entry.subtitle && (
+            <span className="truncate text-[11px] text-muted-foreground">{entry.subtitle}</span>
+          )}
+        </button>
+        {onRename && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setDraft(entry.title)
+              setError('')
+              done.current = false
+              setEditing(true)
+            }}
+            title="Rename this job"
+            aria-label={`Rename ${entry.title}`}
+            className="mr-2 flex size-6 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100"
+          >
+            <Pencil size={12} />
+          </button>
+        )}
+      </div>
+      {error && <span className="px-1 text-[10.5px] text-[#C24C2E]">{error}</span>}
+    </div>
+  )
+}
 
 /**
  * The thread sidebar (#4): the threads rosie is talked to on — main, job
@@ -1105,7 +353,33 @@ function ThreadPicker({
     (t.subtitle ?? '').toLowerCase().includes(needle) ||
     t.threadId.toLowerCase().includes(needle)
 
-  const section = (label: string, entries: ThreadEntry[]) => {
+  /**
+   * Rename a job from its card — the write the pencil performs.
+   *
+   * `jr-<id>` names the row, so the thread's title and the job's name are the
+   * same value; this writes it, corrects the list in place rather than
+   * refetching the directory, and tells the panel behind the picker.
+   */
+  const renameJob = async (entry: ThreadEntry, name: string): Promise<string | null> => {
+    const id = Number.parseInt(entry.threadId.slice('jr-'.length), 10)
+    const res = await fetch('/api/rows', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ table: 'job_requests', id, column: 'name', value: name }),
+    }).catch(() => null)
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => ({}))) as { error?: string } | undefined
+      return body?.error ?? 'Could not rename this job'
+    }
+    setDir((d) => ({
+      ...d,
+      jobs: d.jobs.map((j) => (j.threadId === entry.threadId ? { ...j, title: name } : j)),
+    }))
+    renameThread({ threadId: entry.threadId, label: name })
+    return null
+  }
+
+  const section = (label: string, entries: ThreadEntry[], renamable = false) => {
     const hits = entries.filter(matches)
     if (!hits.length) return null
     return (
@@ -1113,37 +387,17 @@ function ThreadPicker({
         <span className="px-1 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">
           {label}
         </span>
-        {hits.map((t) => {
-          const at = t.lastAt ?? lastAt.get(t.threadId)
-          return (
-            <button
-              key={t.threadId}
-              type="button"
-              onClick={() => onPick({ id: t.threadId, label: t.title })}
-              className={cn(
-                'flex cursor-pointer flex-col gap-px rounded-xl border px-3 py-2 text-left',
-                t.threadId === current
-                  ? 'border-primary bg-secondary'
-                  : 'border-border bg-card hover:bg-muted',
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
-                  {t.title}
-                </span>
-                {isUnread(agentId, t.threadId) && (
-                  <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
-                )}
-                {at != null && (
-                  <span className="flex-none text-[10.5px] text-lps-dim">{fmtLastAt(at)}</span>
-                )}
-              </span>
-              {t.subtitle && (
-                <span className="truncate text-[11px] text-muted-foreground">{t.subtitle}</span>
-              )}
-            </button>
-          )
-        })}
+        {hits.map((t) => (
+          <ThreadCard
+            key={t.threadId}
+            entry={t}
+            active={t.threadId === current}
+            unread={isUnread(agentId, t.threadId)}
+            at={t.lastAt ?? lastAt.get(t.threadId)}
+            onPick={() => onPick({ id: t.threadId, label: t.title })}
+            onRename={renamable ? (name) => renameJob(t, name) : undefined}
+          />
+        ))}
       </div>
     )
   }
@@ -1173,7 +427,7 @@ function ThreadPicker({
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
         {section('General', GENERAL_THREADS)}
-        {section('Job requests', dir.jobs)}
+        {section('Job requests', dir.jobs, true)}
         {section('Suppliers', dir.suppliers)}
         {section('Customers', dir.customers)}
         {loaded &&
@@ -1229,8 +483,53 @@ export function AgentChat({
   const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === activeId) ?? CHAT_AGENTS[0], [activeId])
   const visible = isMobile ? mobileOpen : open
   const chat = useChat(agent.id, visible, thread.id)
-  const composer = useComposer(agent.id)
+  const uploadOne = useCallback(
+    async (file: File): Promise<ChatFile> => {
+      const res = await fetch(`/api/chat/${agent.id}/upload`, {
+        method: 'POST',
+        // Header values must be ASCII; the display name travels in the send
+        // payload instead, so mangling here is harmless.
+        headers: {
+          'x-file-name': encodeURIComponent(file.name),
+          'content-type': file.type || 'application/octet-stream',
+        },
+        body: file,
+      })
+      if (!res.ok) throw new Error(`Couldn’t upload ${file.name}.`)
+      const stored = (await res.json()) as { name: string }
+      return {
+        name: stored.name,
+        label: file.name,
+        mime: file.type || 'application/octet-stream',
+        size: file.size,
+      }
+    },
+    [agent.id],
+  )
+  const composer = useComposer(uploadOne)
   const { unreadByAgent } = useChatNotifications()
+
+  const fileHref = useCallback(
+    (file: ChatFile) => `/api/chat/${agent.id}/file?name=${encodeURIComponent(file.name)}`,
+    [agent.id],
+  )
+
+  // The buttons the agent writes into a bubble: `thread:` moves this panel,
+  // `ar:` opens the availability-request drawer.
+  const onMarkdownAction = useCallback(
+    (scheme: 'thread' | 'ar', target: string) => {
+      if (scheme === 'thread') openChat({ agentId: agent.id, threadId: target })
+      else openAvailabilityRequest(Number.parseInt(target, 10))
+    },
+    [agent.id],
+  )
+
+  const emptyState = (
+    <>
+      <Image src={agent.avatar} alt="" width={56} height={56} className="mx-auto mb-3 rounded-full" />
+      {agent.intro}
+    </>
+  )
 
   // Deep links from the workspace: a job card's Rosie icon, a supplier or
   // customer chat chip, a `thread:` button in a transcript. The Shell handles
@@ -1248,6 +547,16 @@ export function AgentChat({
         if (!isMobile) setOpen(true)
       }),
     [isMobile],
+  )
+
+  // A job renamed anywhere — its card on the Job Requests page, the pencil in
+  // the picker — is the same thread this header is naming.
+  useEffect(
+    () =>
+      onRenameThread(({ threadId, label }) =>
+        setThread((t) => (t.id === threadId ? { ...t, label } : t)),
+      ),
+    [],
   )
 
   // An agent switch from anywhere else (header avatars, rail, the mobile
@@ -1268,12 +577,33 @@ export function AgentChat({
     try {
       const raw = window.localStorage.getItem(STORE)
       const saved = raw
-        ? (JSON.parse(raw) as { open?: boolean; width?: number; agent?: string })
+        ? (JSON.parse(raw) as {
+            open?: boolean
+            width?: number
+            agent?: string
+            thread?: { agent?: string; id?: string; label?: string }
+          })
         : null
       setOpen(saved?.open ?? window.innerWidth >= 1180)
+      // `useIsMobile()` begins false until its media-query effect runs. Check
+      // the real viewport before restoring desktop-only Shell state, or a
+      // saved Full width can zero out the mobile workspace during hydration.
+      const desktopViewport = window.matchMedia('(min-width: 900px)').matches
       // Every page mounts its own Shell, so without this the panel would drop
       // back to the first agent on each navigation or refresh.
-      if (saved?.agent && CHAT_AGENTS.some((a) => a.id === saved.agent)) setAgentId(saved.agent)
+      const restoredAgent =
+        saved?.agent && CHAT_AGENTS.some((a) => a.id === saved.agent) ? saved.agent : agentId
+      // …and the thread it was on, so a refresh doesn't drop a job or supplier
+      // conversation back to Main. Only for the agent that thread belongs to:
+      // on mobile the panel comes back on the Agents list's agent, not the
+      // docked one. When the restore also moves the agent, `keepThread` stops
+      // the switch reset above from putting the panel back on Main.
+      const savedThread = saved?.thread
+      if (savedThread?.id && savedThread.agent === (desktopViewport ? restoredAgent : activeId)) {
+        keepThread.current = restoredAgent !== agentId
+        setThread({ id: savedThread.id, label: savedThread.label ?? savedThread.id })
+      }
+      if (restoredAgent !== agentId) setAgentId(restoredAgent)
       if (saved?.width) {
         // Migrate the previous Full preset (viewport minus rail + 240px peek)
         // into the new true-Full layout instead of restoring it as an arbitrary
@@ -1281,10 +611,6 @@ export function AgentChat({
         const wasFull = saved.width >= window.innerWidth - 340
         const restored = wasFull ? fullDesktopChatWidth() : clampDesktopChatWidth(saved.width)
         setWidth(restored)
-        // `useIsMobile()` begins false until its media-query effect runs. Check
-        // the real viewport before restoring desktop-only Shell state, or a
-        // saved Full width can zero out the mobile workspace during hydration.
-        const desktopViewport = window.matchMedia('(min-width: 900px)').matches
         if (desktopViewport && (wasFull || restored >= fullDesktopChatWidth() - 8)) onDesktopFull?.()
       }
     } catch {
@@ -1295,8 +621,16 @@ export function AgentChat({
 
   useEffect(() => {
     if (!hydrated.current) return
-    window.localStorage.setItem(STORE, JSON.stringify({ open, width, agent: agentId }))
-  }, [open, width, agentId])
+    window.localStorage.setItem(
+      STORE,
+      JSON.stringify({
+        open,
+        width,
+        agent: agentId,
+        thread: { agent: activeId, id: thread.id, label: thread.label },
+      }),
+    )
+  }, [open, width, agentId, activeId, thread])
 
   useEffect(() => {
     if (isMobile) return
@@ -1451,19 +785,23 @@ export function AgentChat({
           />
         )}
         <Transcript
-          agent={agent}
           messages={chat.messages}
           pending={chat.pending}
           error={chat.error}
           hasMore={chat.hasMore}
           loadingMore={chat.loadingMore}
+          fileHref={fileHref}
+          empty={emptyState}
+          pendingLabel={`${agent.name} is working…`}
+          suggestions={agent.suggestions}
           onSuggest={setDraft}
+          onAction={onMarkdownAction}
           onRefresh={chat.refresh}
           onLoadMore={chat.loadMore}
           mobile
           wallpaper={appearance.wallpaper}
         />
-        <Composer agent={agent} composer={composer} onSend={send} draft={draft} setDraft={setDraft} big />
+        <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} big />
       </div>
     )
   }
@@ -1592,45 +930,22 @@ export function AgentChat({
       </div>
 
       <Transcript
-        agent={agent}
         messages={chat.messages}
         pending={chat.pending}
         error={chat.error}
         hasMore={chat.hasMore}
         loadingMore={chat.loadingMore}
+        fileHref={fileHref}
+        empty={emptyState}
+        pendingLabel={`${agent.name} is working…`}
+        suggestions={agent.suggestions}
         onSuggest={setDraft}
+        onAction={onMarkdownAction}
         onRefresh={chat.refresh}
         onLoadMore={chat.loadMore}
         wallpaper={appearance.wallpaper}
       />
-      <Composer agent={agent} composer={composer} onSend={send} draft={draft} setDraft={setDraft} />
+      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} />
     </div>
-  )
-}
-
-/** One of the Full / 50% / 30% width presets, lit when the panel matches it. */
-function SizePill({
-  label, width, target, onPick,
-}: {
-  label: string
-  width: number
-  target: () => number
-  onPick: (w: number) => void
-}) {
-  const [active, setActive] = useState(false)
-  // window isn't there during the server render, so compare after mount.
-  useEffect(() => { setActive(Math.abs(width - target()) < 8) }, [width, target])
-  return (
-    <button
-      type="button"
-      onClick={() => onPick(target())}
-      title="Resize panel"
-      className={cn(
-        'cursor-pointer rounded-full border px-2 py-[3px] text-[10.5px] font-bold',
-        active ? 'border-primary bg-secondary text-primary' : 'border-border bg-transparent text-muted-foreground',
-      )}
-    >
-      {label}
-    </button>
   )
 }

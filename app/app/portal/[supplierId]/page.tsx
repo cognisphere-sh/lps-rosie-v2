@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
-import { PortalFrame } from '@/components/workspace/portal'
+import { PortalFrame, type PortalAlert } from '@/components/workspace/portal'
 import {
   AR_RESPONSES,
   AR_RESPONSE_META,
@@ -114,7 +114,10 @@ function RequestCard({
   const locality = [request.shipping?.city, request.shipping?.state].filter(Boolean).join(', ')
 
   return (
-    <div className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <div
+      id={`ar-${request.id}`}
+      className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
+    >
       {/* The head, in the admin Job Requests card's shape: ref · name ·
           status pill · date right, the customer on its own line, then the
           demand strip. Same rows, same weights — a supplier's card and the
@@ -337,6 +340,29 @@ export default function PortalHomePage() {
     return { newJobs, pendingRows, unavailableRows }
   }, [requests])
 
+  /** What the header bell lists: every request still waiting to be answered. */
+  const alerts: PortalAlert[] = useMemo(
+    () =>
+      requests
+        .filter((r) => r.status === 'new')
+        .map((r) => ({
+          id: r.id,
+          ref: `AR-${r.id}`,
+          label: r.jobName || `AR-${r.id}`,
+          at: Date.parse(r.createdAt),
+        })),
+    [requests],
+  )
+
+  /** A bell row opens its request in place, the way the drawer does upstream. */
+  const openAlert = useCallback((id: number) => {
+    setExpanded((current) => new Set(current).add(id))
+    // The card has to exist before it can be scrolled to.
+    requestAnimationFrame(() => {
+      document.getElementById(`ar-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
+
   /** The customer chip's options — only shared requests carry a customer. */
   const customerOptions = useMemo(
     () => [...new Set(requests.map(customerLabel).filter((v): v is string => !!v))].sort(),
@@ -425,10 +451,17 @@ export default function PortalHomePage() {
 
   if (state === 'missing') {
     return (
-      <PortalFrame supplierId={supplierId} supplierName={supplierName} tab="requests">
-        <p className="py-10 text-center text-[13px] text-muted-foreground">
-          This portal link isn&apos;t active. Please check with your Local Plant Supply contact.
-        </p>
+      <PortalFrame
+        supplierId={supplierId}
+        supplierName={supplierName}
+        tab="requests"
+        title="Availability Requests"
+      >
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-5 md:p-4">
+          <p className="py-10 text-center text-[13px] text-muted-foreground">
+            This portal link isn&apos;t active. Please check with your Local Plant Supply contact.
+          </p>
+        </div>
       </PortalFrame>
     )
   }
@@ -438,24 +471,15 @@ export default function PortalHomePage() {
       supplierId={supplierId}
       supplierName={supplierName}
       tab="requests"
-      notificationCount={stats.newJobs}
-    >
-      {/* Overall stats — over everything, not the filtered view. */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1">
-        <h1 className="m-0 font-serif text-[17px] font-bold text-foreground">
-          Availability Requests
-        </h1>
-        <span className="text-[12px] text-muted-foreground">
-          <strong className="text-foreground">{stats.newJobs}</strong>{' '}
-          {stats.newJobs === 1 ? 'new job' : 'new jobs'} ·{' '}
-          <strong className="text-foreground">{stats.pendingRows}</strong> rows pending ·{' '}
-          <strong className="text-foreground">{stats.unavailableRows}</strong> rows unavailable
-        </span>
-      </div>
-
-      {/* The admin Job Requests toolbar, reused: search, multi-select chips
-          (job status, item status, customer, requested-date), sort, Expand all. */}
-      <div className="overflow-hidden rounded-xl border border-border">
+      title="Availability Requests"
+      // The header's running total, over everything — filters don't change it.
+      subtitle={`${stats.newJobs} ${stats.newJobs === 1 ? 'new job' : 'new jobs'} · ${stats.pendingRows} rows pending · ${stats.unavailableRows} rows unavailable`}
+      alerts={alerts}
+      onOpenAlert={openAlert}
+      toolbar={
+        /* The admin Job Requests toolbar, in the admin's own slot: search,
+           multi-select chips (job status, item status, customer, requested
+           date), sort, Expand all. */
         <Toolbar
           placeholder="Search plants, jobs, customers…"
           query={query}
@@ -488,44 +512,54 @@ export default function PortalHomePage() {
             </>
           }
         />
+      }
+    >
+      {/* The frame hands its children a fixed, overflow-hidden box, so this is
+          the scroll container — the same shape the admin Job Requests page
+          builds inside the Shell. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
+        {error && (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+            {error}
+          </div>
+        )}
+
+        {state === 'ready' && shown.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <span className="text-[14px] font-semibold text-foreground">
+              {hasFilters ? 'No availability requests match these filters' : 'No availability requests yet'}
+            </span>
+            <span className="text-[12.5px] text-muted-foreground">
+              {hasFilters
+                ? 'Try clearing the status, customer, or search filters.'
+                : 'Requests appear here as Local Plant Supply sends them.'}
+            </span>
+          </div>
+        )}
+
+        {shown.map((r) => (
+          <RequestCard
+            key={r.id}
+            request={r}
+            expanded={expanded.has(r.id)}
+            onToggle={() =>
+              setExpanded((current) => {
+                const next = new Set(current)
+                if (next.has(r.id)) next.delete(r.id)
+                else next.add(r.id)
+                return next
+              })
+            }
+            onPatch={patchItem}
+            onSave={save}
+            saving={savingId === r.id}
+          />
+        ))}
+
+        {state === 'loading' && (
+          <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+        )}
       </div>
-
-
-      {error && (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
-          {error}
-        </p>
-      )}
-
-      {state === 'loading' && (
-        <p className="py-10 text-center text-[13px] text-muted-foreground">Loading…</p>
-      )}
-      {state === 'ready' && shown.length === 0 && (
-        <p className="py-10 text-center text-[13px] text-muted-foreground">
-          {requests.length === 0
-            ? 'No availability requests yet — new ones will appear here.'
-            : 'Nothing matches these filters.'}
-        </p>
-      )}
-
-      {shown.map((r) => (
-        <RequestCard
-          key={r.id}
-          request={r}
-          expanded={expanded.has(r.id)}
-          onToggle={() =>
-            setExpanded((current) => {
-              const next = new Set(current)
-              if (next.has(r.id)) next.delete(r.id)
-              else next.add(r.id)
-              return next
-            })
-          }
-          onPatch={patchItem}
-          onSave={save}
-          saving={savingId === r.id}
-        />
-      ))}
     </PortalFrame>
   )
 }

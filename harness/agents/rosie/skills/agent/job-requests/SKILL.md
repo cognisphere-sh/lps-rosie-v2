@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns — intake on main and the dedicated jr-<id> thread that owns each request, the concurrency discipline for tables the app edits too, the three note columns, the Austin-Plant-Supply-first sourcing and pricing ladder, availability checks through the supplier's own thread, the confirmation gate that keeps a priced line pending until the supplier answers or Chris says otherwise (and takes the whole line list, unpriced lines included), the request and item statuses, and handing customer contact to the customer's thread. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v2.0.0)
+description: The operating procedure for the customer job-request tables rosie owns — intake as a reserved id handed to the dedicated jr-<id> thread that writes the rows and owns the request, the concurrency discipline for tables the app edits too, the three note columns, the Austin-Plant-Supply-first sourcing and pricing ladder, availability checks through the supplier's own thread, the confirmation gate that keeps a priced line pending until the supplier answers or Chris says otherwise (and takes the whole line list, unpriced lines included), the request and item statuses, and handing customer contact to the customer's thread. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v3.0.0)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "3.0.0"
 ---
 
 # Job requests
@@ -16,10 +16,61 @@ section below is not optional.
 
 ## 1. Intake
 
-A request arrives as text from Chris/Bhoumik or (later) a channel. Create the
-rows the same task:
+An intake starts one of two ways, and **neither of them writes a row on
+`main`**:
 
-1. **Find the customer before creating one.** Match in this order: `email`,
+- **An ask arrives as text** — Chris/Bhoumik on `main`, later a channel.
+  `main` reserves the id and forwards the ask whole. That is all it does.
+- **Someone clicks New job request in the app.** The button reserves the id
+  and opens `jr-<id>` with nothing behind it; the ask is typed straight into
+  that chat.
+
+Either way **the rows are the jr thread's to create** — the customer, the
+request and its lines. The thread that owns the request for its life is the
+thread that writes it into existence, and `main` never creates a row it will
+not be working on.
+
+### On `main` — reserve, hand over
+
+1. **Take the id without creating anything.**
+
+   ```sql
+   SELECT nextval('public.job_requests_id_seq');
+   ```
+
+   `job_requests.id` is `GENERATED ALWAYS`, so this is the only way to know
+   the number before the row exists — and the number is what the thread is
+   named by. (The app's button does the same through
+   `reserve_job_request_id()`, migration 0072.) An ask that never becomes a
+   request leaves a gap in the numbering: that is what a sequence is for, not
+   something to repair.
+
+2. **Hand the ask whole to `jr-<id>`.** The agent message carries the
+   customer's full original words, the reserved id, the delivery date, and
+   names this skill as the procedure to follow. Then acknowledge on `main` and
+   let the thread work — a webchat acknowledgement includes the panel button
+   `[Continue in JR-<id> chat](thread:jr-<id>)`.
+
+   **The same handoff applies later**: any message `main` receives about an
+   existing job request — a change, a question, a chase — is forwarded to its
+   `jr-<id>` thread, never worked on `main` (and on webchat, answered with
+   the same `thread:` button).
+
+### On `jr-<id>` — write the rows
+
+3. **Read your own row first.** The thread is named after the request, so the
+   id is in your thread name:
+
+   ```sql
+   SELECT id, customer_id, name, status FROM job_requests WHERE id = $threadId;
+   ```
+
+   Nothing back means this thread is still a reservation — you are at step 4.
+   A row back means the request exists (a thread reopened later, or a person
+   started it in the app): read it, and take the ask as a change to it rather
+   than creating anything.
+
+4. **Find the customer before creating one.** Match in this order: `email`,
    then `phone`, then `name` + `company`. Never guess a person's name from an
    email address; if all you have is `jalvarez@…`, the name stays unknown until
    someone tells you.
@@ -29,18 +80,24 @@ rows the same task:
    WHERE is_active AND (email = lower($email) OR phone = $phone);
    ```
 
-2. **No customer identifiable? Create the request anonymous.** `customer_id`
+5. **No customer identifiable? Create the request anonymous.** `customer_id`
    is nullable by design. Put every identity clue you do have (a first name, a
    phone fragment, "the landscaper Chris met Tuesday") into the request's
    `customer_notes` so mapping is possible later.
 
-3. Create the request (status defaults to `sourcing`); the overall message
-   goes in the request's `customer_notes` — **only what no other column
-   already holds** (§4). The item rows are the jr thread's to create (step 4):
-   one per asked-for plant, `name` and `size` carrying the customer's ask with
-   gallon notation normalized to `G` in the table (`"30 gal or larger"`
-   becomes `"30 G or larger"`), and what they said about an item in the item's
-   `customer_notes` — same remainder rule.
+6. **Create the request under your own thread's id.** The id is not the
+   sequence's to choose here — it was reserved before this thread existed, and
+   the thread is named after it, so state it and override the identity:
+
+   ```sql
+   SET app.actor TO 'rosie';
+   INSERT INTO job_requests (id, customer_id, name, customer_notes)
+   OVERRIDING SYSTEM VALUE
+   VALUES ($threadId, $customerId, $name, $customerNotes);
+   ```
+
+   `status` defaults to `sourcing`. The overall message goes in
+   `customer_notes` — **only what no other column already holds** (§4).
 
    **Name the request as you create it.** `job_requests.name` is what the job
    gets called out loud — the site or project if they gave one ("Riverbend
@@ -49,25 +106,20 @@ rows the same task:
    (shown beside it already) and the id (that is `JR-<id>`). It is a
    judgement, so a person may retype it — and if you genuinely have nothing to
    go on, leave it NULL rather than inventing a label. Never build one from
-   the id.
+   the id. It is also what the request's conversation is called in the app's
+   thread list, so it is worth getting right early.
 
-4. **Hand the request whole to its own `jr-<requestId>` thread** as the last
-   act of intake on `main` (which does only steps 1–3 — enough to have the id
-   the thread is named by). The agent message carries the customer's full
-   original ask, the request and customer ids, the delivery date, and names
-   this skill to follow. The jr thread creates the item rows and runs the
-   sourcing round (§5); it owns the request for its life. Acknowledge the
-   request to Chris on `main` and let the jr thread work — a webchat
-   acknowledgement includes the panel button
-   `[Continue in JR-<id> chat](thread:jr-<id>)`.
+   `INSERT 0 1` is the check that matters: a duplicate-key error means the row
+   already exists (step 3 raced you) — re-read it and continue from there.
 
-   **The same handoff applies later**: any message `main` receives about an
-   existing job request — a change, a question, a chase — is forwarded to its
-   `jr-<id>` thread, never worked on `main` (and on webchat, answered with
-   the same `thread:` button).
+7. **Then the lines**, one per asked-for plant: `name` and `size` carrying the
+   customer's ask with gallon notation normalized to `G` in the table (`"30
+   gal or larger"` becomes `"30 G or larger"`), and what they said about an
+   item in the item's `customer_notes` — same remainder rule. Then run the
+   sourcing round (§5); this thread owns the request for its life.
 
-5. **Mapping an anonymous request later** is a find-or-create of the customer
-   (step 1) followed by a targeted update:
+8. **Mapping an anonymous request later** is a find-or-create of the customer
+   (step 4) followed by a targeted update:
 
    ```sql
    UPDATE job_requests SET customer_id = $customerId
@@ -328,8 +380,8 @@ spelling to `G` (`"5 gal"` → `"5 G"`, `"30 gal or larger"` → `"30 G or large
 request at intake, kept for its life (`1-agent.md`, *Threads*). Every look-up
 below returns a screen of catalogue rows *per line*; none of it belongs on
 `main`. The jr thread does the look-ups and the item writes, sends the
-availability asks to each supplier's thread (§5.2), and reports to `main`
-what is priced, what is waiting and what needs a decision. A genuinely long
+availability asks to each supplier's thread (§5.2), and reports on its own
+web chat what is priced, what is waiting and what needs a decision. A genuinely long
 read (a whole price list, a wide changelog sweep) can still go to a task
 thread per the base prompt.
 
@@ -524,15 +576,16 @@ instruction (§5):
 APS: Rose Iceberg 5 G @ $27/unit — Chris confirmed 2026-08-19, quote it
 ```
 
-**Then report what is waiting.** When the round is done, one short report to
-`main` — the job, how many lines are priced, which asks are out with which
-suppliers, and anything only Chris can settle (a subset he might want cut, an
-unremembered share-details preference the supplier thread has raised). Then
-let it sit: don't chase, and don't quote off the listing while you wait.
-Talking to Chris on Telegram is `main`'s job (`1-agent.md`, *Threads*) — but
-**this thread's own web chat gets the milestones as they happen**
-(`webchat-cli send`, defaulting here): intake done, asks out, answers in,
-quote ready. That is where Chris follows the job in the app.
+**Then report what is waiting — on this thread's own web chat.** When the
+round is done, one short webchat message here (`webchat-cli send`, defaulting
+to this thread): the job, how many lines are priced, which asks are out with
+which suppliers, and anything only Chris can settle (a subset he might want
+cut, an unremembered share-details preference the supplier thread has
+raised). **This thread is the only webchat channel to Chris about this job —
+nothing goes to `main`** (`1-agent.md`); the notification brings him here.
+Then let it sit: don't chase, and don't quote off the listing while you wait.
+The milestones post the same way as they happen: intake done, asks out,
+answers in, quote ready.
 
 ## 6. Statuses
 

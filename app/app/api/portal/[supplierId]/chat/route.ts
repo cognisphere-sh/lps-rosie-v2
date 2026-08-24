@@ -55,7 +55,7 @@ export async function GET(
     }
 
     const qs = new URLSearchParams({ thread: t.threadId })
-    for (const k of ['since', 'before', 'limit']) {
+    for (const k of ['since', 'before', 'limit', 'read']) {
       const v = search.get(k)
       if (v) qs.set(k, v)
     }

@@ -9,5 +9,7 @@
   "threadIdStrategy": {
     "type": "single"
   },
-  "devAgent": true
+  "devAgent": true,
+  "maxConcurrentSlots": 5,
+  "maxAttempts": 5
 }

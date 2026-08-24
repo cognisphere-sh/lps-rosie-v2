@@ -1,5 +1,12 @@
 # supplier-coordination — changelog
 
+## 1.1.0
+
+2026-08-24 (Bhoumik). Chris is asked **on this thread's own web chat** — the
+share-details preference (§0/§2) and the non-Partner draft approval (§4) no
+longer route via `main`; `main` remains only the Telegram escalation for a
+critical blocker.
+
 ## 1.0.0
 
 2026-08-23 — Initial version (Bhoumik's rosie restructure). Rosie takes over

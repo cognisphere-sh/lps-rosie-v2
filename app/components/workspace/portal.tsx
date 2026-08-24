@@ -10,11 +10,15 @@
 // docs/app/README.md (Supplier portal).
 
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, Bell, Leaf, MessagesSquare, Mic, Paperclip, Send, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Bell, Leaf, MessagesSquare, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
-  CheckIcon, ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
+  Composer, SizePill, Transcript, useComposer,
+  type ChatFile, type ChatMessage,
+} from '@/components/workspace/chat-kit'
+import {
+  ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { useIsMobile, useTheme } from '@/components/workspace/shell'
 import {
@@ -22,11 +26,11 @@ import {
   DEFAULT_CHAT_APPEARANCE,
   chatThemeForAgent,
   chatThemeStyle,
-  chatWallpaperStyle,
   isChatTheme,
   isChatWallpaper,
   type ChatAppearance,
 } from '@/lib/chat-appearance'
+import { useHistoryView } from '@/lib/history-view'
 import { cn } from '@/lib/utils'
 
 export type PortalTab = 'requests' | 'orders'
@@ -35,58 +39,144 @@ const AUTH_LATER = 'Available once supplier sign-in lands'
 
 // ------------------------------------------------------------------ the chat
 
-interface PortalMessage {
-  id: number
-  at: number
-  role: 'user' | 'agent'
-  text: string
-  files: PortalFile[]
-  senderName?: string
-}
-
-interface PortalFile {
-  name: string
-  label: string
-  mime: string
-  size: number
-  /** Present only while a freshly uploaded file is waiting to be sent. */
-  ticket?: string
-}
-
-function PortalAttachment({ supplierId, file }: { supplierId: number; file: PortalFile }) {
-  const href = `/api/portal/${supplierId}/chat?file=${encodeURIComponent(file.name)}`
-  if (file.mime.startsWith('image/')) {
-    return (
-      <a href={href} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-border bg-card">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={href} alt={file.label} className="max-h-64 w-full object-contain" />
-      </a>
-    )
-  }
-  if (file.mime.startsWith('audio/')) {
-    return <audio controls preload="metadata" src={href} className="max-w-full" aria-label={file.label} />
-  }
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex max-w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[12px] font-semibold text-foreground hover:bg-muted"
-    >
-      <Paperclip size={14} className="flex-none" />
-      <span className="truncate">{file.label}</span>
-    </a>
-  )
-}
-
 const CHAT_POLL_MS = 5000
+const CHAT_PAGE = 50
+const CHAT_MIN_W = 280
+const CHAT_STORE = 'lps.portal.chat.v1'
+
+/** What the portal's file picker offers — the plugin rejects the rest anyway. */
+const CHAT_ACCEPT =
+  'image/png,image/jpeg,image/gif,image/webp,.pdf,.txt,.csv,.md,.json,.xlsx,.docx,audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav'
+
+const PORTAL_INTRO =
+  'Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply.'
+
+const PORTAL_SUGGESTIONS = [
+  'I have an update on availability',
+  'Can we change a delivery date?',
+  'I can offer a substitute',
+]
 
 /**
  * The supplier's chat with Local Plant Supply — the portal-visible half of
  * the supplier's rosie thread. Their messages reach the team; the team's
  * internal traffic on the same thread never reaches here (the plugin only
  * serves portal-visible rows).
+ *
+ * Transport only: the bubbles, composer, recorder and voice player are the
+ * same components the operator's agent panel draws (`chat-kit.tsx`), so both
+ * chats gain a feature at once.
  */
+function usePortalChat(supplierId: number) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [pending, setPending] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
+  const [error, setError] = useState('')
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const cursor = useRef(0)
+  // Oldest id held, so "load earlier" knows where the page it has starts.
+  const oldest = useRef(0)
+
+  useEffect(() => {
+    cursor.current = 0
+    oldest.current = 0
+    setMessages([])
+    setPending(false)
+    setHasMore(false)
+  }, [supplierId])
+
+  const poll = useCallback(async () => {
+    // First fetch takes only the newest page; every poll after it is a delta,
+    // where `limit` would be free to drop a message.
+    const first = cursor.current === 0
+    try {
+      const res = await fetch(
+        // `read=1`: this hook is mounted only while the chat is open, so the
+        // poll is the supplier's "seen it" — kept plugin-side, not per browser.
+        `/api/portal/${supplierId}/chat?since=${cursor.current}${first ? `&limit=${CHAT_PAGE}` : ''}&read=1`,
+        { cache: 'no-store' },
+      )
+      if (res.status === 404) {
+        setUnavailable(true)
+        return
+      }
+      if (!res.ok) throw new Error(String(res.status))
+      const body = (await res.json()) as {
+        messages: ChatMessage[]; hasMore: boolean; pending: boolean
+      }
+      if (body.messages.length) {
+        setMessages((prev) => [...prev, ...body.messages])
+        cursor.current = body.messages[body.messages.length - 1].id
+        if (!oldest.current) oldest.current = body.messages[0].id
+      }
+      if (first) setHasMore(body.hasMore)
+      setPending(body.pending)
+      setError('')
+    } catch {
+      setError('Can’t reach Local Plant Supply right now.')
+    }
+  }, [supplierId])
+
+  const loadMore = useCallback(async () => {
+    if (!oldest.current) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(
+        `/api/portal/${supplierId}/chat?before=${oldest.current}&limit=${CHAT_PAGE}`,
+        { cache: 'no-store' },
+      )
+      if (!res.ok) throw new Error(String(res.status))
+      const body = (await res.json()) as { messages: ChatMessage[]; hasMore: boolean }
+      if (body.messages.length) {
+        setMessages((prev) => [...body.messages, ...prev])
+        oldest.current = body.messages[0].id
+      }
+      setHasMore(body.hasMore)
+      setError('')
+    } catch {
+      setError('Can’t load earlier messages.')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [supplierId])
+
+  useEffect(() => {
+    void poll()
+    const t = setInterval(() => void poll(), CHAT_POLL_MS)
+    return () => clearInterval(t)
+  }, [poll])
+
+  const send = useCallback(
+    async (text: string, files: ChatFile[]) => {
+      // Optimistic: the poll picks up the canonical row, but the supplier
+      // should see their own message land now rather than seconds later.
+      const optimistic: ChatMessage = { id: -Date.now(), at: Date.now(), role: 'user', text, files }
+      setMessages((prev) => [...prev, optimistic])
+      setPending(true)
+      try {
+        const res = await fetch(`/api/portal/${supplierId}/chat`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text, attachments: files }),
+        })
+        if (!res.ok) throw new Error(String(res.status))
+        const { id } = (await res.json()) as { id: number }
+        // Adopt the real id so the poll's copy doesn't duplicate this message.
+        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...m, id } : m)))
+        cursor.current = Math.max(cursor.current, id)
+      } catch {
+        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
+        setPending(false)
+        setError('Message failed to send.')
+      }
+    },
+    [supplierId],
+  )
+
+  return { messages, pending, unavailable, error, hasMore, loadingMore, send, loadMore, refresh: poll }
+}
+
 function PortalChat({
   supplierId,
   mobile = false,
@@ -96,182 +186,46 @@ function PortalChat({
   mobile?: boolean
   wallpaper: ChatAppearance['wallpaper']
 }) {
-  const [messages, setMessages] = useState<PortalMessage[]>([])
-  const [pending, setPending] = useState(false)
-  const [unavailable, setUnavailable] = useState(false)
-  const [error, setError] = useState('')
+  const chat = usePortalChat(supplierId)
   const [draft, setDraft] = useState('')
-  const [uploads, setUploads] = useState<PortalFile[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [recording, setRecording] = useState(false)
-  const [atTop, setAtTop] = useState(true)
-  const [atBottom, setAtBottom] = useState(true)
-  const cursor = useRef(0)
-  const scroller = useRef<HTMLDivElement>(null)
-  const composer = useRef<HTMLTextAreaElement>(null)
-  const picker = useRef<HTMLInputElement>(null)
-  const recorder = useRef<MediaRecorder | null>(null)
-  const recordingStream = useRef<MediaStream | null>(null)
-  const recordingChunks = useRef<Blob[]>([])
-  const cancelRecording = useRef(false)
-  const pinned = useRef(true)
 
-  const poll = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/portal/${supplierId}/chat?since=${cursor.current}`, {
-        cache: 'no-store',
-      })
-      if (res.status === 404) {
-        setUnavailable(true)
-        return
-      }
-      if (!res.ok) throw new Error(String(res.status))
-      const body = (await res.json()) as { messages: PortalMessage[]; pending: boolean }
-      if (body.messages.length) {
-        setMessages((prev) => [...prev, ...body.messages])
-        cursor.current = body.messages[body.messages.length - 1].id
-      }
-      setPending(body.pending)
-      setError('')
-    } catch {
-      setError('Can’t reach Local Plant Supply right now.')
-    }
-  }, [supplierId])
-
-  useEffect(() => {
-    cursor.current = 0
-    setMessages([])
-    void poll()
-    const t = setInterval(() => void poll(), CHAT_POLL_MS)
-    return () => clearInterval(t)
-  }, [poll])
-
-  const updateEdges = useCallback((element: HTMLDivElement) => {
-    const bottom = element.scrollHeight - element.scrollTop - element.clientHeight
-    pinned.current = bottom < 40
-    setAtTop(element.scrollTop < 40)
-    setAtBottom(bottom < 40)
-  }, [])
-
-  const toBottom = useCallback((smooth = false) => {
-    const element = scroller.current
-    element?.scrollTo({ top: element.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
-  }, [])
-
-  useEffect(() => {
-    if (pinned.current) toBottom()
-    if (scroller.current) updateEdges(scroller.current)
-  }, [messages.length, pending, toBottom, updateEdges])
-
-  useLayoutEffect(() => {
-    const element = composer.current
-    if (!element) return
-    element.style.height = 'auto'
-    element.style.height = `${element.scrollHeight}px`
-  }, [draft])
-
-  const uploadFiles = useCallback(async (selected: File[]) => {
-    if (!selected.length) return
-    setUploading(true)
-    try {
-      for (const file of selected) {
-        const res = await fetch(`/api/portal/${supplierId}/chat?upload=1`, {
-          method: 'POST',
-          headers: {
-            'content-type': file.type || 'application/octet-stream',
-            'x-file-name': encodeURIComponent(file.name),
-          },
-          body: file,
-        })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string }
-          throw new Error(body.error || `Upload failed (${res.status})`)
-        }
-        const staged = (await res.json()) as PortalFile
-        // Keep each successful file even if a later selection fails.
-        setUploads((current) => [...current, staged])
-      }
-      setError('')
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'File failed to upload.')
-    } finally {
-      setUploading(false)
-      if (picker.current) picker.current.value = ''
-    }
-  }, [supplierId])
-
-  const finishRecording = useCallback((discard: boolean) => {
-    cancelRecording.current = discard
-    const active = recorder.current
-    if (active?.state === 'recording') active.stop()
-  }, [])
-
-  const startRecording = useCallback(async () => {
-    try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-        throw new Error('Voice recording is not supported by this browser.')
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      recordingStream.current = stream
-      const candidates = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm']
-      const mimeType = candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate))
-      const active = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-      recorder.current = active
-      recordingChunks.current = []
-      cancelRecording.current = false
-      active.ondataavailable = (event) => {
-        if (event.data.size) recordingChunks.current.push(event.data)
-      }
-      active.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop())
-        recordingStream.current = null
-        recorder.current = null
-        setRecording(false)
-        if (cancelRecording.current || !recordingChunks.current.length) return
-        const type = active.mimeType || mimeType || 'audio/webm'
-        const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm'
-        const voice = new File(recordingChunks.current, `voice-note.${extension}`, { type })
-        void uploadFiles([voice])
-      }
-      active.start()
-      setRecording(true)
-      setError('')
-    } catch (cause) {
-      recordingStream.current?.getTracks().forEach((track) => track.stop())
-      recordingStream.current = null
-      setError(cause instanceof Error ? cause.message : 'Couldn’t start voice recording.')
-    }
-  }, [uploadFiles])
-
-  useEffect(() => () => {
-    cancelRecording.current = true
-    if (recorder.current?.state === 'recording') recorder.current.stop()
-    recordingStream.current?.getTracks().forEach((track) => track.stop())
-  }, [])
-
-  const send = async () => {
-    const text = draft.trim()
-    const attachments = uploads
-    if ((!text && !attachments.length) || uploading || recording) return
-    setDraft('')
-    setUploads([])
-    try {
-      const res = await fetch(`/api/portal/${supplierId}/chat`, {
+  const uploadOne = useCallback(
+    async (file: File): Promise<ChatFile> => {
+      const res = await fetch(`/api/portal/${supplierId}/chat?upload=1`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, attachments }),
+        headers: {
+          'content-type': file.type || 'application/octet-stream',
+          // Header values must be ASCII; the display name travels in the send
+          // payload instead, so mangling here is harmless.
+          'x-file-name': encodeURIComponent(file.name),
+        },
+        body: file,
       })
-      if (!res.ok) throw new Error(String(res.status))
-      setPending(true)
-      await poll()
-    } catch {
-      setError('Message failed to send.')
-      setDraft(text)
-      setUploads(attachments)
-    }
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error || `Upload failed (${res.status})`)
+      }
+      // The plugin answers with the staged attachment, ticket included.
+      return (await res.json()) as ChatFile
+    },
+    [supplierId],
+  )
+  const composer = useComposer(uploadOne)
+
+  const fileHref = useCallback(
+    (file: ChatFile) => `/api/portal/${supplierId}/chat?file=${encodeURIComponent(file.name)}`,
+    [supplierId],
+  )
+
+  const send = () => {
+    const text = draft.trim()
+    if (!text && !composer.files.length) return
+    void chat.send(text, composer.files)
+    setDraft('')
+    composer.clear()
   }
 
-  if (unavailable) {
+  if (chat.unavailable) {
     return (
       <div className="flex flex-1 items-center justify-center p-4 text-center text-[12.5px] text-muted-foreground">
         Chat isn’t switched on for this portal yet.
@@ -279,237 +233,202 @@ function PortalChat({
     )
   }
 
-  const stamp = (ms: number) => {
-    const date = new Date(ms)
-    const pad = (value: number) => String(value).padStart(2, '0')
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-  }
-
   return (
     <>
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        <div
-          ref={scroller}
-          onScroll={(event) => updateEdges(event.currentTarget)}
-          className={cn(
-            'font-chat flex min-h-[220px] flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background px-4 pb-4',
-            mobile ? 'pt-[72px]' : 'pt-4',
-          )}
-          style={chatWallpaperStyle(wallpaper)}
-        >
-          {messages.length === 0 && !pending && (
-            <div className="m-auto flex max-w-[280px] flex-col items-center text-center text-[14px] leading-[1.4] text-muted-foreground">
-              <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-accent">
-                <Leaf className="size-6 text-accent-foreground" />
-              </span>
-              Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply.
-            </div>
-          )}
-
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                'flex max-w-[88%] flex-col gap-[3px]',
-                message.role === 'user' ? 'items-end self-end' : 'items-start self-start',
-              )}
-            >
-              {!!message.files?.length && (
-                <div className={cn('flex max-w-full flex-col gap-2', message.role === 'user' ? 'items-end' : 'items-start')}>
-                  {message.files.map((file) => (
-                    <PortalAttachment key={file.name} supplierId={supplierId} file={file} />
-                  ))}
-                </div>
-              )}
-              {message.text && (
-                <div
-                  className={cn(
-                    'whitespace-pre-wrap px-3 py-2.5 text-[16px] leading-[1.35]',
-                    message.role === 'user'
-                      ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
-                      : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
-                  )}
-                >
-                  {message.text}
-                </div>
-              )}
-              <span className={cn('text-[11px] leading-none text-lps-dim', message.role === 'user' ? 'pr-1' : 'pl-1')}>
-                {stamp(message.at)}
-              </span>
-            </div>
-          ))}
-
-          {pending && (
-            <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
-              <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
-                <span className="flex gap-1">
-                  {[0, 1, 2].map((index) => (
-                    <span
-                      key={index}
-                      className="size-1.5 animate-bounce rounded-full bg-lps-dim"
-                      style={{ animationDelay: `${index * 140}ms` }}
-                    />
-                  ))}
-                </span>
-                Local Plant Supply is working…
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[11.5px] font-semibold text-lps-warn-fg">
-              {error}
-            </div>
-          )}
-        </div>
-
-        {(!atTop || !atBottom) && (
-          <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-2">
-            {!atTop && (
-              <button
-                type="button"
-                onClick={() => scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-                aria-label="Jump to top of conversation"
-                className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--lps-shadow)] hover:bg-muted"
-              >
-                <ArrowUp size={17} />
-              </button>
-            )}
-            {!atBottom && (
-              <button
-                type="button"
-                onClick={() => toBottom(true)}
-                aria-label="Jump to latest message"
-                className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)] hover:bg-muted"
-              >
-                <ArrowDown size={17} />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex-none border-t border-border bg-background">
-        {!!uploads.length && (
-          <div className="flex flex-wrap gap-1.5 px-3.5 pt-2.5">
-            {uploads.map((file) => (
-              <span key={file.name} className="inline-flex items-center gap-1.5 rounded-full border border-lps-edge bg-card py-1 pl-2.5 pr-1.5 text-[11px] font-semibold">
-                <span className="max-w-[140px] truncate">{file.label}</span>
-                <button
-                  type="button"
-                  onClick={() => setUploads((current) => current.filter((candidate) => candidate.name !== file.name))}
-                  aria-label={`Remove ${file.label}`}
-                  className="flex cursor-pointer items-center rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <X size={11} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {recording ? (
-          <div className="flex items-center gap-2.5 px-3.5 py-3">
-            <button
-              type="button"
-              onClick={() => finishRecording(true)}
-              aria-label="Discard recording"
-              className="flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
-            >
-              <Trash2 size={mobile ? 17 : 15} />
-            </button>
-            <span className="size-2 flex-none animate-pulse rounded-full bg-destructive" />
-            <span className="min-w-0 flex-1 text-[11.5px] font-semibold">Recording voice note…</span>
-            <button
-              type="button"
-              onClick={() => finishRecording(false)}
-              aria-label="Stop recording and attach"
-              className={cn(
-                'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90',
-                mobile ? 'size-10' : 'size-9',
-              )}
-            >
-              <CheckIcon size={mobile ? 17 : 15} />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-end gap-2 px-3.5 py-3">
-            <input
-              ref={picker}
-              type="file"
-              multiple
-              hidden
-              accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.txt,.csv,.md,.json,.xlsx,.docx,audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav"
-              onChange={(event) => void uploadFiles(Array.from(event.target.files ?? []))}
-            />
-            <button
-              type="button"
-              onClick={() => picker.current?.click()}
-              disabled={uploading}
-              title="Attach a file"
-              aria-label="Attach a file"
-              className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-            >
-              <Paperclip size={mobile ? 17 : 15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => void startRecording()}
-              disabled={uploading}
-              title="Record a voice note"
-              aria-label="Record a voice note"
-              className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-            >
-              <Mic size={mobile ? 17 : 15} />
-            </button>
-            <textarea
-              ref={composer}
-              value={draft}
-              rows={1}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey && !mobile) {
-                  event.preventDefault()
-                  void send()
-                }
-              }}
-              placeholder={uploading ? 'Uploading…' : 'Message Local Plant Supply…'}
-              className={cn(
-                'font-chat max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                mobile ? 'min-h-10 py-2' : 'min-h-9 py-1.5',
-              )}
-            />
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={(!draft.trim() && !uploads.length) || uploading}
-              aria-label="Send"
-              className={cn(
-                'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50',
-                mobile ? 'size-10' : 'size-9',
-              )}
-            >
-              <Send size={mobile ? 16 : 15} />
-            </button>
-          </div>
-        )}
-      </div>
+      <Transcript
+        messages={chat.messages}
+        pending={chat.pending}
+        error={chat.error}
+        hasMore={chat.hasMore}
+        loadingMore={chat.loadingMore}
+        fileHref={fileHref}
+        empty={
+          <>
+            <span className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-accent">
+              <Leaf className="size-6 text-accent-foreground" />
+            </span>
+            {PORTAL_INTRO}
+          </>
+        }
+        pendingLabel="Local Plant Supply is working…"
+        suggestions={PORTAL_SUGGESTIONS}
+        onSuggest={setDraft}
+        onRefresh={chat.refresh}
+        onLoadMore={chat.loadMore}
+        mobile={mobile}
+        wallpaper={wallpaper}
+      />
+      <Composer
+        composer={composer}
+        onSend={send}
+        draft={draft}
+        setDraft={setDraft}
+        // Short on purpose: the panel narrows to 280px, and Chrome wraps a
+        // long placeholder onto a second line the one-row composer clips.
+        placeholder="Type a message…"
+        accept={CHAT_ACCEPT}
+        big={mobile}
+      />
     </>
   )
 }
+
+// ---------------------------------------------------------- notifications
+
+/** One thing worth telling the supplier about, as the bell lists it. */
+export interface PortalAlert {
+  id: number
+  /** `AR-12` — the request's ref, shown as the row's subtitle. */
+  ref: string
+  /** The job name, or the ref again when the request has none. */
+  label: string
+  /** `createdAt` in ms, for the row's right-hand time. */
+  at: number
+}
+
+/** `14:05` today, `Aug 23` before that — the same shape the admin bell uses. */
+function fmtAlertAt(ms: number): string {
+  const d = new Date(ms)
+  return Date.now() - ms < 86_400_000
+    ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/**
+ * The portal header's bell — the supplier's twin of the admin Shell's, and
+ * the same popover design. Two sources: availability requests still sitting
+ * at `new`, and a reply from Local Plant Supply the supplier hasn't opened
+ * the chat on. Both clear by being acted on, so there is no "mark all read".
+ */
+function PortalNotificationBell({
+  requests, chat, onOpenRequest, onOpenChat,
+}: {
+  requests: PortalAlert[]
+  chat: { at: number; text: string } | null
+  onOpenRequest?: (id: number) => void
+  onOpenChat: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const count = requests.length + (chat ? 1 : 0)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest('[data-portal-bell]')) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div data-portal-bell className="relative flex-none">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Notifications"
+        aria-label={count ? `Notifications — ${count} new` : 'Notifications'}
+        aria-expanded={open}
+        className="relative flex size-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <span className="relative flex items-center justify-center">
+          <Bell size={16} />
+          {count > 0 && (
+            <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[9px] font-bold leading-none text-white">
+              {count > 9 ? '9+' : count}
+            </span>
+          )}
+        </span>
+      </button>
+
+      {open && (
+        <div className="lps-pop absolute right-0 top-[calc(100%+6px)] z-[96] flex max-h-[70vh] w-[min(320px,calc(100vw-24px))] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]">
+          <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
+            <span className="text-[12.5px] font-bold text-foreground">Notifications</span>
+          </div>
+          <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
+            {count === 0 && (
+              <p className="m-0 px-2 py-3 text-center text-[12px] text-muted-foreground">
+                You’re all caught up.
+              </p>
+            )}
+
+            {chat && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onOpenChat() }}
+                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left hover:bg-muted"
+              >
+                <span className="mt-0.5 flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
+                  <Leaf className="size-3.5 text-accent-foreground" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="truncate text-[12.5px] font-bold text-foreground">Local Plant Supply</span>
+                    <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtAlertAt(chat.at)}</span>
+                  </span>
+                  <span className="block truncate text-[11.5px] text-muted-foreground">
+                    {chat.text || 'Sent an attachment'}
+                  </span>
+                </span>
+              </button>
+            )}
+
+            {requests.map((alert) => (
+              <button
+                key={alert.id}
+                type="button"
+                onClick={() => { setOpen(false); onOpenRequest?.(alert.id) }}
+                className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left hover:bg-muted"
+              >
+                <span className="mt-0.5 flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-primary">
+                  <span className="flex size-3.5"><RequestsIcon /></span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="truncate text-[12.5px] font-bold text-foreground">{alert.label}</span>
+                    <span className="flex-none text-[10.5px] text-muted-foreground">{alert.ref}</span>
+                    <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtAlertAt(alert.at)}</span>
+                  </span>
+                  <span className="block truncate text-[11.5px] text-muted-foreground">
+                    New availability request — needs your answer.
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ------------------------------------------------------------------- frame
 
 export function PortalFrame({
   supplierId,
   supplierName,
   tab,
-  notificationCount = 0,
+  title,
+  subtitle,
+  toolbar,
+  headerAction,
+  alerts = [],
+  onOpenAlert,
   children,
 }: {
   supplierId: number
   /** Null while loading — the frame draws before the fetch answers. */
   supplierName: string | null
   tab: PortalTab
-  /** New availability requests shown by the supplier's Alerts control. */
-  notificationCount?: number
+  /** The header's page name, in the admin Shell's serif line. */
+  title: string
+  subtitle?: string
+  /** Sits under the header, above the scrolling page — the Shell's slot. */
+  toolbar?: React.ReactNode
+  headerAction?: React.ReactNode
+  /** Availability requests still at `new`, as the bell lists them. */
+  alerts?: PortalAlert[]
+  onOpenAlert?: (id: number) => void
   children: React.ReactNode
 }) {
   const isMobile = useIsMobile()
@@ -517,11 +436,20 @@ export function PortalFrame({
   const [navOpen, setNavOpen] = useState(true)
   // The chat with Local Plant Supply, opened from the right-hand rail
   // (desktop) or its bottom tab (mobile) — the portal's sibling of the admin
-  // agent panel.
-  const [chatOpen, setChatOpen] = useState(false)
+  // agent panel. On mobile it takes the whole column, so it is a page rather
+  // than an overlay: a history entry Back pops, instead of leaving the portal.
+  const [desktopChatOpen, setDesktopChatOpen] = useState(false)
+  const mobileChatView = useHistoryView<'chat'>()
+  const chatOpen = isMobile ? mobileChatView.view === 'chat' : desktopChatOpen
+  const openChatPanel = () => (isMobile ? mobileChatView.open('chat') : setDesktopChatOpen(true))
+  const closeChatPanel = () => (isMobile ? mobileChatView.back() : setDesktopChatOpen(false))
+  const [chatWidth, setChatWidth] = useState(340)
+  const chatHydrated = useRef(false)
   const [moreOpen, setMoreOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
+  const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const [chatAlert, setChatAlert] = useState<{ at: number; text: string } | null>(null)
 
   useEffect(() => {
     try {
@@ -542,17 +470,140 @@ export function PortalFrame({
     }
   }, [])
 
+  // Android standalone PWAs can report 100dvh as the full physical display,
+  // including system bars outside the usable visual viewport. Anchoring to the
+  // visual viewport is what keeps a keyboard-panned page from clipping — the
+  // same frame the admin Shell holds itself in.
   useEffect(() => {
-    if (!moreOpen && !notificationsOpen) return
-    const close = (event: MouseEvent) => {
-      if (!(event.target as HTMLElement).closest('[data-portal-popover]')) {
-        setMoreOpen(false)
-        setNotificationsOpen(false)
+    const viewport = window.visualViewport
+    const update = () => {
+      const height = Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)
+      setViewportFrame({
+        top: `${Math.round(viewport?.offsetTop ?? 0)}px`,
+        height: `${Math.round(height)}px`,
+      })
+      const active = document.activeElement
+      const typing = active instanceof HTMLInputElement
+        || active instanceof HTMLTextAreaElement
+        || (active instanceof HTMLElement && active.isContentEditable)
+      setKeyboardOpen(window.matchMedia('(max-width: 899px)').matches && typing)
+    }
+    update()
+    window.addEventListener('resize', update)
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
+    viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update)
+      viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
+    }
+  }, [])
+
+  // Unread replies for the bell. The chat panel is closed by default, so
+  // without this poll a supplier would never learn the team answered. Reading
+  // one message is enough: `readId` says what has been seen either way.
+  //
+  // Deliberately no `read=1` here: this poll is the one that runs while the
+  // panel is CLOSED, so marking on it would clear the alert unseen.
+  useEffect(() => {
+    if (!Number.isInteger(supplierId)) return
+    let alive = true
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/portal/${supplierId}/chat?since=0&limit=1`, { cache: 'no-store' })
+        if (!res.ok || !alive) return
+        const body = (await res.json()) as {
+          messages: { id: number; at: number; role: string; text: string }[]
+          readId: number
+        }
+        if (!alive) return
+        const last = body.messages[body.messages.length - 1]
+        setChatAlert(
+          last && last.role === 'agent' && last.id > (body.readId ?? 0)
+            ? { at: last.at, text: last.text }
+            : null,
+        )
+      } catch {
+        // Offline or chat not wired — the bell simply doesn't update.
       }
+    }
+    void tick()
+    const t = setInterval(() => void tick(), 20_000)
+    return () => { alive = false; clearInterval(t) }
+  }, [supplierId])
+
+  // Opening the panel is what marks the conversation read.
+  useEffect(() => {
+    if (chatOpen) setChatAlert(null)
+  }, [chatOpen])
+
+  // Full is the viewport minus the nav rail — the portal has no workspace to
+  // fold away, so the rail stays put and the chat takes everything else.
+  const fullChatWidth = useCallback(
+    () => Math.max(CHAT_MIN_W, window.innerWidth - (navOpen ? 232 : 56)),
+    [navOpen],
+  )
+  const clampChatWidth = useCallback(
+    (width: number) => Math.min(Math.max(width, CHAT_MIN_W), fullChatWidth()),
+    [fullChatWidth],
+  )
+
+  // Restore after mount, so the server render and the first client render
+  // agree — the same guard the operator's panel uses.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(CHAT_STORE) ?? 'null') as
+        | { open?: boolean; width?: number }
+        | null
+      if (saved?.open) setDesktopChatOpen(true)
+      if (saved?.width) setChatWidth(clampChatWidth(saved.width))
+    } catch {
+      // Malformed local panel state just leaves the defaults in place.
+    }
+    chatHydrated.current = true
+    // Restoring once on mount; a later nav-rail toggle must not reopen it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!chatHydrated.current) return
+    // The remembered panel is the desktop one; on mobile the chat is a page
+    // you navigate to, so it opens closed and Back closes it.
+    window.localStorage.setItem(CHAT_STORE, JSON.stringify({ open: desktopChatOpen, width: chatWidth }))
+  }, [desktopChatOpen, chatWidth])
+
+  useEffect(() => {
+    if (isMobile) return
+    const clamp = () => setChatWidth((current) => clampChatWidth(current))
+    window.addEventListener('resize', clamp)
+    return () => window.removeEventListener('resize', clamp)
+  }, [isMobile, clampChatWidth])
+
+  const startChatResize = (event: React.MouseEvent) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startW = chatWidth
+    const move = (moved: MouseEvent) => setChatWidth(clampChatWidth(startW + (startX - moved.clientX)))
+    const up = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+  }
+
+  useEffect(() => {
+    if (!moreOpen) return
+    const close = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest('[data-portal-popover]')) setMoreOpen(false)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
-  }, [moreOpen, notificationsOpen])
+  }, [moreOpen])
 
   const chatHeader = (floating = false) => (
     <div
@@ -577,15 +628,18 @@ export function PortalFrame({
           <span>Online</span>
         </span>
       </span>
-      <button
-        type="button"
-        onClick={() => setChatOpen(false)}
-        aria-label="Hide chat"
-        title="Hide chat"
-        className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <X size={16} />
-      </button>
+      {/* Mobile has no toolbar row under the header, so it closes from here. */}
+      {floating && (
+        <button
+          type="button"
+          onClick={closeChatPanel}
+          aria-label="Hide chat"
+          title="Hide chat"
+          className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   )
 
@@ -607,7 +661,7 @@ export function PortalFrame({
       <span className="flex size-9 flex-none items-center justify-center rounded-full bg-accent">
         <Leaf className="size-4.5 text-accent-foreground" />
       </span>
-      {(!isMobile ? navOpen : true) && (
+      {navOpen && (
         <span className="min-w-0">
           <span className="block truncate font-serif text-[14.5px] font-bold leading-tight text-foreground">
             {supplierName ?? '…'}
@@ -620,112 +674,209 @@ export function PortalFrame({
     </div>
   )
 
-  if (isMobile) {
-    return (
-      <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">
-        <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-3 py-3">
-          {children}
+  const bell = (
+    <PortalNotificationBell
+      requests={alerts}
+      chat={chatAlert}
+      onOpenRequest={onOpenAlert}
+      onOpenChat={openChatPanel}
+    />
+  )
+
+  // The chat overlays the page column only, so global navigation stays put —
+  // the same rule the admin Shell's mobile sheet follows.
+  const mobileChat = chatOpen && isMobile && (
+    <div
+      className="absolute inset-0 z-40 flex flex-col bg-background"
+      style={chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie'))}
+    >
+      {chatHeader(true)}
+      <PortalChat supplierId={supplierId} mobile wallpaper={chatAppearance.wallpaper} />
+    </div>
+  )
+
+  return (
+    <div
+      className="fixed inset-x-0 flex flex-col overflow-hidden bg-background"
+      style={{ top: viewportFrame.top, height: viewportFrame.height }}
+    >
+      {/* The admin Shell's header, on both breakpoints: the page name in the
+          serif line, its running total beside it, then the bell. */}
+      <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
+        <div className="flex min-w-0 flex-1 items-baseline gap-3">
+          <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
+          {subtitle && (
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
+          )}
+        </div>
+        {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
+        {bell}
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        {/* Desktop nav rail */}
+        {!isMobile && (
+          <nav
+            className="flex flex-none flex-col gap-0.5 border-r border-border bg-card"
+            style={{ width: navOpen ? 232 : 56, padding: navOpen ? '12px 10px' : '12px 8px' }}
+          >
+            <div className={cn('mb-2', navOpen ? 'px-1' : 'flex justify-center')}>{identity}</div>
+
+            {nav.map(({ id, label, href, Icon }) => (
+              <Link key={id} href={href} title={label} className={railBtn(tab === id)}>
+                <span className="flex size-4 flex-none items-center justify-center"><Icon /></span>
+                {navOpen && <span>{label}</span>}
+              </Link>
+            ))}
+
+            <div className="flex-1" />
+
+            <div className="flex flex-col gap-0.5 border-t border-lps-hair pt-2">
+              <button type="button" onClick={toggle} title={dark ? 'Dark mode' : 'Light mode'} className={railBtn(false)}>
+                <span className="flex size-4 flex-none items-center justify-center">
+                  {dark ? <MoonIcon /> : <SunIcon />}
+                </span>
+                {navOpen && (
+                  <>
+                    <span>{dark ? 'Dark mode' : 'Light mode'}</span>
+                    <span className={cn('relative ml-auto h-[17px] w-[30px] flex-none rounded-full', dark ? 'bg-primary' : 'bg-muted')}>
+                      <span
+                        className="absolute top-[2px] size-[13px] rounded-full bg-card transition-all"
+                        style={{ left: dark ? 15 : 2 }}
+                      />
+                    </span>
+                  </>
+                )}
+              </button>
+
+              <button type="button" disabled title={`Settings — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
+                <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
+                {navOpen && <span>Settings</span>}
+              </button>
+
+              <button type="button" disabled title={`Log out — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
+                <span className="flex size-4 flex-none items-center justify-center"><LogoutIcon /></span>
+                {navOpen && <span>Log out</span>}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setNavOpen((v) => !v)}
+              aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
+              title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
+              className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <span className="flex size-3.5">{navOpen ? <ChevronLeft /> : <ChevronRight />}</span>
+            </button>
+          </nav>
+        )}
+
+        {/* The page column: toolbar pinned under the header, then the page's
+            own scroller — the shape the admin Shell hands its children. */}
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          {toolbar}
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+          {mobileChat}
         </main>
 
-        {/* Chat replaces only the page pane; global navigation remains visible. */}
-        {chatOpen && (
-          <div
-            className="absolute inset-x-0 top-0 z-40 flex flex-col bg-background"
-            style={{
-              bottom: 'calc(52px + env(safe-area-inset-bottom))',
-              ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')),
-            }}
+        {/* The chat with Local Plant Supply, docked on the right in the admin
+            app's shape: a narrow rail carrying who you'd be talking to, which
+            opens into the panel. */}
+        {!isMobile && (chatOpen ? (
+          <aside
+            className="relative flex min-h-0 flex-none flex-col border-l border-border bg-card"
+            style={{ width: chatWidth, ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')) }}
           >
-            {chatHeader(true)}
-            <PortalChat supplierId={supplierId} mobile wallpaper={chatAppearance.wallpaper} />
-          </div>
-        )}
+            <div
+              onMouseDown={startChatResize}
+              title="Drag to resize"
+              className="absolute -left-[3px] bottom-0 top-0 z-20 w-[7px] cursor-col-resize hover:bg-lps-edge"
+            />
+            {chatHeader()}
 
-        {notificationsOpen && (
-          <div data-portal-popover className="absolute bottom-[calc(58px+env(safe-area-inset-bottom))] left-2 z-[80] w-[min(320px,calc(100vw-16px))] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-            <div className="border-b border-border px-2.5 py-2 text-[12.5px] font-bold text-foreground">
-              Notifications
-            </div>
-            {notificationCount > 0 ? (
-              <Link
-                href={`/portal/${supplierId}`}
-                onClick={() => {
-                  setNotificationsOpen(false)
-                  setChatOpen(false)
-                }}
-                className="flex flex-col gap-0.5 rounded-lg px-2.5 py-2 text-foreground hover:bg-muted"
+            <div className="flex flex-none items-center gap-1 border-b border-border px-3 py-2">
+              {([
+                ['Full', fullChatWidth],
+                ['50%', () => clampChatWidth(Math.round(window.innerWidth * 0.5))],
+                ['30%', () => clampChatWidth(Math.round(window.innerWidth * 0.3))],
+              ] as const).map(([label, w]) => (
+                <SizePill key={label} label={label} width={chatWidth} target={w} onPick={setChatWidth} />
+              ))}
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={closeChatPanel}
+                title="Hide panel"
+                aria-label="Hide panel"
+                className="flex size-6 flex-none cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                <span className="text-[12.5px] font-semibold">
-                  {notificationCount} new availability {notificationCount === 1 ? 'request' : 'requests'}
-                </span>
-                <span className="text-[11px] text-muted-foreground">Open Requests to review and answer.</span>
-              </Link>
-            ) : (
-              <p className="m-0 px-2.5 py-3 text-[12px] text-muted-foreground">No new notifications.</p>
-            )}
-          </div>
-        )}
+                <span className="flex size-3.5"><ChevronRight /></span>
+              </button>
+            </div>
 
-        {/* Desktop rail footer actions live under More on mobile, in the same order. */}
-        {moreOpen && (
-          <div data-portal-popover className="absolute bottom-[calc(58px+env(safe-area-inset-bottom))] right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+            <PortalChat supplierId={supplierId} wallpaper={chatAppearance.wallpaper} />
+          </aside>
+        ) : (
+          <div className="flex w-[46px] flex-none flex-col items-center border-l border-border bg-card py-3.5">
             <button
               type="button"
-              onClick={toggle}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+              onClick={openChatPanel}
+              aria-label="Chat with Local Plant Supply"
+              title="Chat with Local Plant Supply"
+              className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground hover:text-foreground"
             >
-              {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
-              {dark ? 'Dark mode' : 'Light mode'}
-            </button>
-            <button
-              type="button"
-              disabled
-              title={AUTH_LATER}
-              className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
-            >
-              <SettingsIcon size={14} />
-              Settings
-            </button>
-            <button
-              type="button"
-              disabled
-              title={AUTH_LATER}
-              className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
-            >
-              <LogoutIcon size={14} />
-              Log out
+              <span className="relative flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
+                <Leaf className="size-3.5 text-accent-foreground" />
+                {chatAlert && (
+                  <span className="absolute -right-px -top-px size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+                )}
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-[.08em] [writing-mode:vertical-rl]">
+                Local Plant Supply
+              </span>
             </button>
           </div>
-        )}
+        ))}
+      </div>
 
-        {/* Match the main app: fixed global actions at the edges, with three
-            destinations visible in an independently scrollable center strip. */}
-        <nav className="z-50 flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
+      {/* Desktop rail footer actions live under More on mobile, in the same order. */}
+      {isMobile && moreOpen && (
+        <div data-portal-popover className="absolute bottom-[calc(58px+env(safe-area-inset-bottom))] right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
           <button
             type="button"
-            data-portal-popover
-            onClick={() => {
-              setNotificationsOpen((open) => !open)
-              setMoreOpen(false)
-            }}
-            aria-label={notificationCount ? `Notifications — ${notificationCount} new` : 'Notifications'}
-            aria-expanded={notificationsOpen}
-            className={cn(
-              'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-              notificationsOpen ? 'text-primary' : 'text-muted-foreground',
-            )}
+            onClick={toggle}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
           >
-            <span className="relative flex size-[18px] items-center justify-center">
-              <Bell size={17} />
-              {notificationCount > 0 && (
-                <span className="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-1 text-[9px] font-bold leading-4 text-white">
-                  {notificationCount > 99 ? '99+' : notificationCount}
-                </span>
-              )}
-            </span>
-            <span className="text-[10.5px] font-semibold">Alerts</span>
+            {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
+            {dark ? 'Dark mode' : 'Light mode'}
           </button>
+          <button
+            type="button"
+            disabled
+            title={AUTH_LATER}
+            className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
+          >
+            <SettingsIcon size={14} />
+            Settings
+          </button>
+          <button
+            type="button"
+            disabled
+            title={AUTH_LATER}
+            className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
+          >
+            <LogoutIcon size={14} />
+            Log out
+          </button>
+        </div>
+      )}
 
+      {/* Mobile bottom navigation, in the admin app's shape: an independently
+          scrollable strip of destinations with Chat pinned at the right edge.
+          Alerts is not repeated here — the header's bell is the one bell. */}
+      {isMobile && !keyboardOpen && (
+        <nav className="z-50 flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
           <div
             role="group"
             aria-label="Pages"
@@ -736,10 +887,22 @@ export function PortalFrame({
                 key={id}
                 href={href}
                 aria-label={label}
-                onClick={() => {
-                  setChatOpen(false)
+                onClick={(e) => {
                   setMoreOpen(false)
-                  setNotificationsOpen(false)
+                  if (!chatOpen) return
+                  // Already on this tab: the tap means "put the page back",
+                  // and there is no route change to make, so unwind the
+                  // chat's entry rather than push a second one for it.
+                  if (tab === id) {
+                    e.preventDefault()
+                    mobileChatView.close()
+                    return
+                  }
+                  // Leaving: take the chat off the screen now rather than
+                  // when the next page arrives — it covers this column, and
+                  // the outgoing page stays mounted until the route commits.
+                  // Its entry stays, so Back returns to the conversation.
+                  mobileChatView.dismiss()
                 }}
                 className={cn(
                   'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
@@ -755,10 +918,7 @@ export function PortalFrame({
             <button
               type="button"
               data-portal-popover
-              onClick={() => {
-                setMoreOpen((open) => !open)
-                setNotificationsOpen(false)
-              }}
+              onClick={() => setMoreOpen((open) => !open)}
               aria-label="More"
               aria-expanded={moreOpen}
               className={cn(
@@ -774,9 +934,9 @@ export function PortalFrame({
           <button
             type="button"
             onClick={() => {
-              setChatOpen((open) => !open)
+              if (chatOpen) closeChatPanel()
+              else openChatPanel()
               setMoreOpen(false)
-              setNotificationsOpen(false)
             }}
             aria-label="Chat with Local Plant Supply"
             aria-expanded={chatOpen}
@@ -785,105 +945,15 @@ export function PortalFrame({
               chatOpen ? 'text-primary' : 'text-muted-foreground',
             )}
           >
-            <span className="flex size-[18px] items-center justify-center"><MessagesSquare size={17} /></span>
+            <span className="relative flex size-[18px] items-center justify-center">
+              <MessagesSquare size={17} />
+              {chatAlert && !chatOpen && (
+                <span className="absolute -right-1.5 -top-1 size-2 rounded-full bg-[var(--lps-warn-dot)]" />
+              )}
+            </span>
             <span className="text-center text-[10.5px] font-semibold leading-tight">Chat</span>
           </button>
         </nav>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-dvh bg-background">
-      <nav
-        className="sticky top-0 flex h-dvh flex-none flex-col gap-0.5 border-r border-border bg-card"
-        style={{ width: navOpen ? 232 : 56, padding: navOpen ? '12px 10px' : '12px 8px' }}
-      >
-        <div className={cn('mb-2', navOpen ? 'px-1' : 'flex justify-center')}>{identity}</div>
-
-        {nav.map(({ id, label, href, Icon }) => (
-          <Link key={id} href={href} title={label} className={railBtn(tab === id)}>
-            <span className="flex size-4 flex-none items-center justify-center"><Icon /></span>
-            {navOpen && <span>{label}</span>}
-          </Link>
-        ))}
-
-        <div className="flex-1" />
-
-        <div className="flex flex-col gap-0.5 border-t border-lps-hair pt-2">
-          <button type="button" onClick={toggle} title={dark ? 'Dark mode' : 'Light mode'} className={railBtn(false)}>
-            <span className="flex size-4 flex-none items-center justify-center">
-              {dark ? <MoonIcon /> : <SunIcon />}
-            </span>
-            {navOpen && (
-              <>
-                <span>{dark ? 'Dark mode' : 'Light mode'}</span>
-                <span className={cn('relative ml-auto h-[17px] w-[30px] flex-none rounded-full', dark ? 'bg-primary' : 'bg-muted')}>
-                  <span
-                    className="absolute top-[2px] size-[13px] rounded-full bg-card transition-all"
-                    style={{ left: dark ? 15 : 2 }}
-                  />
-                </span>
-              </>
-            )}
-          </button>
-
-          <button type="button" disabled title={`Settings — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
-            <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
-            {navOpen && <span>Settings</span>}
-          </button>
-
-          <button type="button" disabled title={`Log out — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
-            <span className="flex size-4 flex-none items-center justify-center"><LogoutIcon /></span>
-            {navOpen && <span>Log out</span>}
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setNavOpen((v) => !v)}
-          aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
-          title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
-          className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <span className="flex size-3.5">{navOpen ? <ChevronLeft /> : <ChevronRight />}</span>
-        </button>
-      </nav>
-
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-1 flex-col gap-3 px-4 py-4">
-          {children}
-        </div>
-      </main>
-
-      {/* The chat with Local Plant Supply, docked on the right in the admin
-          app's shape: a narrow rail carrying who you'd be talking to, which
-          opens into the panel. */}
-      {chatOpen ? (
-        <aside
-          className="sticky top-0 flex h-dvh w-[340px] flex-none flex-col border-l border-border bg-card"
-          style={chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie'))}
-        >
-          {chatHeader()}
-          <PortalChat supplierId={supplierId} wallpaper={chatAppearance.wallpaper} />
-        </aside>
-      ) : (
-        <div className="sticky top-0 flex h-dvh w-[46px] flex-none flex-col items-center border-l border-border bg-card py-3.5">
-          <button
-            type="button"
-            onClick={() => setChatOpen(true)}
-            aria-label="Chat with Local Plant Supply"
-            title="Chat with Local Plant Supply"
-            className="flex cursor-pointer flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground hover:text-foreground"
-          >
-            <span className="flex size-[26px] flex-none items-center justify-center rounded-full bg-accent">
-              <Leaf className="size-3.5 text-accent-foreground" />
-            </span>
-            <span className="text-[11px] font-bold uppercase tracking-[.08em] [writing-mode:vertical-rl]">
-              Local Plant Supply
-            </span>
-          </button>
-        </div>
       )}
     </div>
   )

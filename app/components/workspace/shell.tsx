@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { Bell, RefreshCw } from 'lucide-react'
+import { Bell, Plus, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
@@ -12,12 +12,14 @@ import { InstallAppButton } from '@/components/pwa/install-app-button'
 import { AvailabilityRequestDrawer } from '@/components/workspace/ar-drawer'
 import { AgentChat } from '@/components/workspace/chat'
 import { onOpenChat, openChat } from '@/lib/chat-bus'
+import { useHistoryView } from '@/lib/history-view'
 import { ChatNotificationsProvider, useChatNotifications } from '@/lib/chat-notifications'
 import {
   AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
   CustomersIcon, MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
-import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
+import { AGENTS } from '@/lib/agents'
+import { requestRef } from '@/lib/job-requests'
 import {
   APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentColor, appAccentStyle, readAppAccent,
   type AppAccentId,
@@ -31,6 +33,9 @@ import { cn } from '@/lib/utils'
 
 export type PageId =
   | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
+
+/** What the mobile Agents tab has open over the page, if anything. */
+type MobileView = { name: 'agents' } | { name: 'chat'; agent: string }
 
 function nearestVerticalScroller(target: EventTarget | null, boundary: HTMLElement): HTMLElement | null {
   let el = target instanceof HTMLElement ? target : null
@@ -164,9 +169,11 @@ export function Shell({
   // supplier sign-in exists. Lists onboarded suppliers, lazily on first open.
   const [supplierViewMenu, setSupplierViewMenu] = useState(false)
   const [portalSuppliers, setPortalSuppliers] = useState<{ id: number; name: string }[] | null>(null)
-  const [mobileAgentsOpen, setMobileAgentsOpen] = useState(false)
-  const [mobileChat, setMobileChat] = useState(false)
-  const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
+  // The Agents list and a conversation are mobile pages, not overlays: each
+  // one is a history entry, so Back pops it instead of leaving the route.
+  const mobileView = useHistoryView<MobileView>()
+  const mobileAgentsOpen = mobileView.view?.name === 'agents'
+  const mobileChat = mobileView.view?.name === 'chat'
   const [moreMenu, setMoreMenu] = useState(false)
   const mobileNavScroll = useRef<HTMLDivElement | null>(null)
   const mobileNavItems = useRef<Partial<Record<PageId | 'more', HTMLElement | null>>>({})
@@ -180,17 +187,17 @@ export function Shell({
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // A card anywhere can ask for a chat thread; on mobile that means opening
-  // the sheet on the right agent (the thread itself is the panel's own state).
+  // the conversation on the right agent (the thread is the panel's own state).
   useEffect(
     () =>
       onOpenChat(({ agentId }) => {
         if (!window.matchMedia('(min-width: 900px)').matches) {
-          setMobileAgent(agentId)
-          setMobileAgentsOpen(false)
-          setMobileChat(true)
+          // Two entries, so Back out of a conversation opened from a card
+          // still lands on the Agents list — the same place its own arrow goes.
+          mobileView.open({ name: 'agents' }, { name: 'chat', agent: agentId })
         }
       }),
-    [],
+    [mobileView.open],
   )
   const pageRefreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pagePullStart = useRef<{ x: number; y: number; scroller: HTMLElement | null } | null>(null)
@@ -365,14 +372,13 @@ export function Shell({
     }
   }
 
-  // Leaving the More menu for another page. The mobile chat sheet is a
-  // full-screen overlay inside the same wrapper as this popover, so it has to
-  // go: a route transition keeps the current page mounted until the new one
-  // arrives, and behind the sheet that reads as the tap having done nothing.
+  // Leaving the More menu for another page — the mobile Agents view has to
+  // come off the screen with it, or the route transition looks like the tap
+  // did nothing. `dismiss` leaves its history entry alone, so Back still
+  // returns to the conversation it was opened on.
   const leaveMoreMenu = () => {
     setMoreMenu(false)
-    setMobileAgentsOpen(false)
-    setMobileChat(false)
+    mobileView.dismiss()
   }
 
   const railBtn = (active: boolean, enabled = true) =>
@@ -410,6 +416,10 @@ export function Shell({
               )}
             </div>
             {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
+            {/* The Job Requests page only — this is that page's action, and
+                mobile carries it as the floating button below instead (this
+                header is not drawn there). */}
+            {!isMobile && page === 'requests' && <NewJobRequestButton />}
             {!isMobile && <NotificationBell />}
           </div>
         )}
@@ -657,6 +667,14 @@ export function Shell({
                 </div>
               )}
 
+              {/* Mobile's New job request. Out of the way of anything that
+                  takes over the column — the chat sheet, the Agents list, the
+                  ⋯ menu it would sit under — and of the keyboard. */}
+              {isMobile && page === 'requests' &&
+                !mobileChat && !mobileAgentsOpen && !moreMenu && !keyboardOpen && (
+                  <NewJobRequestButton fab />
+                )}
+
               {/* Agents is a mobile channel list, not a new route or transport.
                   Each row opens the same existing agent conversation. */}
               {isMobile && mobileAgentsOpen && (
@@ -673,11 +691,7 @@ export function Shell({
                         key={agent.id}
                         type="button"
                         disabled={agent.upcoming}
-                        onClick={() => {
-                          setMobileAgent(agent.id)
-                          setMobileAgentsOpen(false)
-                          setMobileChat(true)
-                        }}
+                        onClick={() => mobileView.open({ name: 'chat', agent: agent.id })}
                         className={cn(
                           'flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-3 text-left hover:bg-muted',
                           agent.upcoming ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
@@ -708,12 +722,9 @@ export function Shell({
                 <AgentChat
                   isMobile
                   mobileOpen={mobileChat}
-                  mobileAgentId={mobileAgent}
+                  mobileAgentId={mobileView.view?.name === 'chat' ? mobileView.view.agent : undefined}
                   appearance={chatAppearance}
-                  onMobileBack={() => {
-                    setMobileChat(false)
-                    setMobileAgentsOpen(true)
-                  }}
+                  onMobileBack={mobileView.back}
                 />
               )}
 
@@ -833,7 +844,9 @@ export function Shell({
                   className="lps-mobile-nav-scroll flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x"
                 >
                   {NAV.map(({ id, label, href, Icon, enabled }) => {
-                    const active = page === id
+                    // A view open over the page owns the highlight — the page
+                    // underneath is not what you are looking at.
+                    const active = page === id && !mobileView.view
                     const inner = (
                       <>
                         <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
@@ -853,6 +866,20 @@ export function Shell({
                         ref={(node) => { mobileNavItems.current[id] = node }}
                         href={href}
                         aria-label={label}
+                        onClick={(e) => {
+                          setMoreMenu(false)
+                          if (!mobileView.view) return
+                          // Tapping the destination you are already on has no
+                          // route change to make, so the tap means "put the
+                          // page back" — unwind the views instead of pushing a
+                          // second entry for the same route.
+                          if (page === id) {
+                            e.preventDefault()
+                            mobileView.close()
+                          } else {
+                            mobileView.dismiss()
+                          }
+                        }}
                         className={klass}
                       >
                         {inner}
@@ -870,7 +897,9 @@ export function Shell({
                     aria-expanded={moreMenu}
                     className={cn(
                       'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                      moreMenu || page === 'settings' ? 'text-primary' : 'text-muted-foreground',
+                      moreMenu || (page === 'settings' && !mobileView.view)
+                        ? 'text-primary'
+                        : 'text-muted-foreground',
                     )}
                   >
                     <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
@@ -881,8 +910,10 @@ export function Shell({
                   type="button"
                   onClick={() => {
                     setMoreMenu(false)
-                    setMobileChat(false)
-                    setMobileAgentsOpen((open) => !open || mobileChat)
+                    // One step at a time, the way Back walks it: a
+                    // conversation returns to the list, the list to the page.
+                    if (mobileView.view) mobileView.back()
+                    else mobileView.open({ name: 'agents' })
                   }}
                   aria-label="Agents"
                   aria-expanded={mobileAgentsOpen || mobileChat}
@@ -939,6 +970,59 @@ function fmtNotifAt(ms: number): string {
   return sameDay
     ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/**
+ * **New job request** — the Job Requests page's action, on both breakpoints.
+ *
+ * It writes nothing. All it takes is the *id* the request will have
+ * (`POST /api/requests/reserve`), because the thread is named after the row —
+ * `jr-<id>`. The row itself is rosie's to create, in that conversation, along
+ * with the customer and the lines (her `job-requests` skill). Start one and
+ * say nothing and nothing exists: an unused id is a gap in a sequence.
+ *
+ * Two shapes, because the page has two chromes: a labelled pill in the desktop
+ * header, and on mobile a floating button above the tab bar — `/requests`
+ * draws no header on mobile (`hideHeaderOnMobile`), so a header-only action
+ * would not exist where it is most wanted.
+ */
+function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+
+  const start = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/requests/reserve', { method: 'POST' })
+      const body = (await res.json().catch(() => ({}))) as { id?: number; error?: string }
+      if (!res.ok || !body.id) throw new Error(body.error ?? 'Could not start a job request')
+      openChat({ agentId: 'rosie', threadId: `jr-${body.id}`, label: requestRef(body.id) })
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={start}
+      title="Start a job request and open its Rosie conversation"
+      aria-label="New job request"
+      className={cn(
+        'flex flex-none items-center border-none bg-primary font-semibold text-primary-foreground',
+        fab
+          ? 'absolute bottom-3 right-3 z-[64] size-12 justify-center rounded-full shadow-[var(--lps-shadow)]'
+          : 'gap-1.5 rounded-full px-3 py-1.5 text-[12.5px]',
+        busy ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-90',
+      )}
+    >
+      <Plus size={fab ? 22 : 14} />
+      {!fab && <span>New job request</span>}
+    </button>
+  )
 }
 
 /**

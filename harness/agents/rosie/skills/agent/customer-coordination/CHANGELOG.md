@@ -1,5 +1,11 @@
 # customer-coordination — changelog
 
+## 1.1.0
+
+2026-08-24 (Bhoumik). Draft approvals are asked **on this thread's own web
+chat**, not via `main`; `main` remains only the Telegram escalation for a
+critical blocker.
+
 ## 1.0.0
 
 2026-08-23 — Initial version (Bhoumik's rosie restructure). One dedicated

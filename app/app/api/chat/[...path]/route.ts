@@ -17,7 +17,7 @@ import { agentById } from '@/lib/agents'
  */
 const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 
-const ACTIONS = new Set(['messages', 'send', 'upload', 'file', 'reset', 'threads'])
+const ACTIONS = new Set(['messages', 'send', 'upload', 'file', 'reset', 'threads', 'read'])
 
 async function forward(req: Request, path: string[]): Promise<Response> {
   const [agentId, action] = path

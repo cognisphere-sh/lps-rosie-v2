@@ -45,8 +45,10 @@ export interface EditProps {
   table: string
   id: number
   column: string
-  /** Refetch after a write: generated totals and every count move with it. */
-  onSaved: () => void
+  /** Refetch after a write: generated totals and every count move with it.
+   *  `EditableText` also hands over what it wrote, for the callers that have
+   *  somewhere else to carry the new value (a rename, into the chat panel). */
+  onSaved: (value?: string) => void
 }
 
 /**
@@ -92,7 +94,7 @@ export function EditableText({
     setBusy(true)
     try {
       await patchRow(table, id, column, next)
-      onSaved()
+      onSaved(next)
     } catch (e) {
       toast((e as Error).message)
     } finally {
