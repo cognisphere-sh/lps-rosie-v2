@@ -26,6 +26,7 @@ import {
   DEFAULT_CHAT_APPEARANCE,
   chatThemeForAgent,
   chatThemeStyle,
+  chatWallpaperStyle,
   isChatTheme,
   isChatWallpaper,
   type ChatAppearance,
@@ -688,7 +689,10 @@ export function PortalFrame({
   const mobileChat = chatOpen && isMobile && (
     <div
       className="absolute inset-0 z-40 flex flex-col bg-background"
-      style={chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie'))}
+      style={{
+        ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')),
+        ...chatWallpaperStyle(chatAppearance.wallpaper),
+      }}
     >
       {chatHeader(true)}
       <PortalChat supplierId={supplierId} mobile wallpaper={chatAppearance.wallpaper} />

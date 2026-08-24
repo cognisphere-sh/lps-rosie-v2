@@ -15,7 +15,7 @@ import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import { onOpenChat, onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
 import {
-  chatThemeForAgent, chatThemeStyle, type ChatAppearance,
+  chatThemeForAgent, chatThemeStyle, chatWallpaperStyle, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
@@ -773,7 +773,10 @@ export function AgentChat({
     return (
       <div
         className="absolute inset-0 z-[70] flex flex-col bg-background"
-        style={chatThemeStyle(chatThemeForAgent(appearance, agent.id))}
+        style={{
+          ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)),
+          ...chatWallpaperStyle(appearance.wallpaper),
+        }}
       >
         {header(true)}
         {picker && (

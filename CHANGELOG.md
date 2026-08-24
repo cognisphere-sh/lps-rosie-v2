@@ -19,6 +19,13 @@ here).
 
 ### Changed
 
+- **Mobile chat identity pills now reveal the wallpaper beneath them.** The
+  operator and supplier-portal conversations paint their wallpaper on the
+  shared mobile chat layer while the transcript stays transparent, so the
+  floating blurred/translucent pill no longer composites over a solid backing
+  surface. Desktop transcript rendering and no-wallpaper light/dark surfaces
+  are unchanged.
+
 - **Chat messages have a one-click copy affordance.** Every text bubble in the
   shared agent-panel / supplier-portal transcript now has an always-visible,
   accessible copy button beside its timestamp and confirms success with a

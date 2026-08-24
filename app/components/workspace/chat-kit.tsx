@@ -618,10 +618,10 @@ export function Transcript({
       onTouchEnd={() => { void finishPull() }}
       onTouchCancel={() => { pullStart.current = null; setPull(0) }}
       className={cn(
-        'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background',
-        mobile ? 'px-4 pb-4 pt-[72px]' : 'p-4',
+        'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain',
+        mobile ? 'bg-transparent px-4 pb-4 pt-[72px]' : 'bg-background p-4',
       )}
-      style={chatWallpaperStyle(wallpaper)}
+      style={mobile ? undefined : chatWallpaperStyle(wallpaper)}
     >
       {hasMore && onLoadMore && (
         <button
