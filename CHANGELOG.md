@@ -15,6 +15,29 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-24
+
+### Added
+
+- **Line totals and subtotals on availability requests.** `ARLineTable`
+  (`components/workspace/availability.tsx`, shared by the supplier portal and
+  the admin supplier profile) gains a **Line total** column — avail qty ×
+  price, an em dash until an answer carries both, so a half-answered line
+  never reads as costing nothing (`lib/availability.ts`'s new `arLineTotal`)
+  — and a **Subtotal** row at the table's foot (`arSubtotal`, summed over
+  lines that carry a total). The portal's collapsed request card
+  (`app/portal/[supplierId]/page.tsx`) shows the same subtotal in its status
+  strip, appearing once any line has both a quantity and a price.
+
+### Fixed
+
+- **The per-status answer pop-up's data wasn't reaching the row.** Saving it
+  writes quantity, price, status and notes in one PATCH and the page
+  refetches, but `AnswerCell` (`components/workspace/availability.tsx`)
+  seeded its draft from `value` only on mount, so the refetched answer never
+  displayed — the write had landed, the row just kept showing what it held
+  before. The cell now takes a freshly committed `value` when one arrives.
+
 ## 2026-08-23
 
 ### Added
@@ -87,6 +110,7 @@ here).
 
 ### Changed
 
+- **Mobile agent chat now uses a Telegram-style glass header.** The active agent's larger avatar and two-line name / role-and-live-status identity float in an inset rounded pill with a translucent blurred surface while the transcript scrolls beneath it; reserved top spacing keeps the oldest visible content clear of the overlay.
 - **Mobile navigation now keeps Alerts and Agents in reach.** The bottom bar
   pins the existing unread-notification bell at the left and Agents at the
   right, with a touch-scrollable middle strip showing three page destinations

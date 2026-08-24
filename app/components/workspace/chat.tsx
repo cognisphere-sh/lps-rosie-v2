@@ -712,7 +712,10 @@ function Transcript({
       }}
       onTouchEnd={() => { void finishPull() }}
       onTouchCancel={() => { pullStart.current = null; setPull(0) }}
-      className="font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background p-4"
+      className={cn(
+        'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background',
+        mobile ? 'px-4 pb-4 pt-[72px]' : 'p-4',
+      )}
       style={chatWallpaperStyle(wallpaper)}
     >
       {hasMore && (
@@ -1340,8 +1343,10 @@ export function AgentChat({
 
   const header = (big?: boolean) => (
     <div className={cn(
-      'flex flex-none items-center gap-2.5 border-b border-border',
-      big ? 'px-3 py-2' : 'px-4 py-3',
+      'flex flex-none items-center gap-2.5',
+      big
+        ? 'absolute inset-x-3 top-2 z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'
+        : 'border-b border-border px-4 py-3',
     )}>
       {big && onMobileBack && (
         <button
@@ -1358,17 +1363,16 @@ export function AgentChat({
         alt=""
         width={30}
         height={30}
-        className={cn('flex-none rounded-full object-cover', big ? 'size-[26px]' : 'size-[30px]')}
+        className={cn('flex-none rounded-full object-cover', big ? 'size-9' : 'size-[30px]')}
       />
       {big ? (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px]">
-          <span className="flex-none text-[14px] font-bold">{agent.name}</span>
-          <span className="text-lps-dim">·</span>
-          <span className="flex-none text-muted-foreground">{agent.role}</span>
-          <span className="text-lps-dim">·</span>
-          <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-muted-foreground">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+          <span className="truncate text-[14.5px] font-bold leading-tight">{agent.name}</span>
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
+            <span className="flex-none">{agent.role}</span>
+            <span className="text-lps-dim">·</span>
             <StatusDot pending={chat.pending} />
-            {chat.pending ? 'Working…' : 'Online'}
+            <span className="flex-none">{chat.pending ? 'Working…' : 'Online'}</span>
             {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
           </span>
         </div>
