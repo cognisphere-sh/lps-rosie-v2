@@ -956,7 +956,9 @@ voice-note player, attachments, `useComposer` (upload/record/paste), the
 scrolling `Transcript`, the `Composer` and the width `SizePill`. The kit is
 transport-agnostic: the caller passes the file href, the upload call, the
 empty state and the copy, which is how the supplier portal's chat column
-(*Supplier portal*) is the same chat as this one.
+(*Supplier portal*) is the same chat as this one. Every text message carries a
+one-click copy button beside its timestamp; it copies the plain text as shown
+(including normalized line breaks) and briefly changes to a check on success.
 Since 2026-08-23 the panel is **per-thread**: each agent opens on its default
 thread — the one its Telegram uses (Daisy's `main`, Nova's `default`) — so
 panel and Telegram stay one conversation there, and rosie's header carries a

@@ -9,7 +9,7 @@
 import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
 } from 'react'
-import { ArrowDown, ArrowUp, MessagesSquare, Mic, Pause, Paperclip, Play, RefreshCw, Send, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Copy, MessagesSquare, Mic, Pause, Paperclip, Play, RefreshCw, Send, Trash2, X } from 'lucide-react'
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { chatWallpaperStyle, type ChatWallpaperId } from '@/lib/chat-appearance'
@@ -90,11 +90,13 @@ function inline(text: string, key: string, onAction?: MarkdownAction) {
   return parts
 }
 
+const messageText = (text: string) => text.replace(/\\r\\n|\\n|\\r/g, '\n')
+
 export function Markdown({ text, onAction }: { text: string; onAction?: MarkdownAction }) {
   const blocks: React.ReactNode[] = []
   // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
   // Normalize them here so existing transcript entries render correctly too.
-  const lines = text.replace(/\\r\\n|\\n|\\r/g, '\n').split('\n')
+  const lines = messageText(text).split('\n')
   let bullets: string[] = []
   const flush = (key: string) => {
     if (!bullets.length) return
@@ -523,6 +525,24 @@ export function Transcript({
   const [atBottom, setAtBottom] = useState(true)
   const [pull, setPull] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
+  const [copied, setCopied] = useState<number | null>(null)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+  }, [])
+
+  const copyMessage = useCallback(async (message: ChatMessage) => {
+    try {
+      await navigator.clipboard.writeText(messageText(message.text))
+      setCopied(message.id)
+      if (copiedTimer.current) clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopied(null), 1600)
+    } catch {
+      // Clipboard access can be denied by the browser; leave the affordance in
+      // its normal state so it never falsely reports success.
+    }
+  }, [])
 
   const updateEdges = useCallback((el: HTMLDivElement) => {
     const bottom = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -655,9 +675,20 @@ export function Transcript({
               <Markdown text={m.text} onAction={onAction} />
             </div>
           )}
-          <span className={cn('text-[11px] leading-none text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
-            {fmtStamp(m.at)}
-          </span>
+          <div className={cn('flex items-center gap-1 text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
+            <span className="text-[11px] leading-none">{fmtStamp(m.at)}</span>
+            {m.text && (
+              <button
+                type="button"
+                onClick={() => { void copyMessage(m) }}
+                title={copied === m.id ? 'Copied' : 'Copy message'}
+                aria-label={copied === m.id ? 'Message copied' : 'Copy message'}
+                className="flex size-6 cursor-pointer items-center justify-center rounded-md text-lps-dim hover:bg-muted hover:text-foreground"
+              >
+                {copied === m.id ? <CheckIcon size={12} /> : <Copy size={12} />}
+              </button>
+            )}
+          </div>
         </div>
       ))}
 

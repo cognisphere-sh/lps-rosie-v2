@@ -19,6 +19,12 @@ here).
 
 ### Changed
 
+- **Chat messages have a one-click copy affordance.** Every text bubble in the
+  shared agent-panel / supplier-portal transcript now has an always-visible,
+  accessible copy button beside its timestamp and confirms success with a
+  checkmark. It copies the plain text users see, including normalized line
+  breaks, on mobile and desktop alike.
+
 - **Upgraded `cognisphere-harness` 0.9.2 → 0.10.2.**
   - **Main threads are coordinators, not workers** (0.10.2, base prompt,
     refreshed wholesale in all three agents). A non-task thread understands the
