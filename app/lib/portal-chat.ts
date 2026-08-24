@@ -3,7 +3,8 @@ import 'server-only'
 import { supabase } from '@/lib/supabase'
 
 // The supplier portal's chat transport: server-to-server against rosie's
-// webchat plugin (`api/app-send` / `api/app-messages`), authed by the shared
+// webchat plugin (`api/app-upload` / `api/app-send` / `api/app-messages` /
+// `api/app-file`), authed by the shared
 // WEBCHAT_APP_SECRET — portal users are not harness users, so the browser
 // endpoints' session check can't serve them. The plugin serves the portal
 // ONLY the portal-visible half of the supplier thread (what the supplier
@@ -38,6 +39,7 @@ export async function portalChatTarget(supplierId: number): Promise<PortalChatTa
 }
 
 export async function portalChatFetch(path: string, init?: RequestInit): Promise<Response> {
+  const streamsFile = path.startsWith('api/app-upload') || path.startsWith('api/app-file')
   return fetch(`${HARNESS_URL}/webhook/rosie/webchat/${path}`, {
     ...init,
     headers: {
@@ -46,6 +48,11 @@ export async function portalChatFetch(path: string, init?: RequestInit): Promise
       ...(init?.headers ?? {}),
     },
     cache: 'no-store',
-    signal: AbortSignal.timeout(8000),
-  })
+    // Upload/download bodies may legitimately exceed a short request timeout on
+    // mobile. JSON control calls stay bounded; stream lifetime follows the
+    // browser request and the app server instead.
+    ...(!streamsFile ? { signal: AbortSignal.timeout(8_000) } : {}),
+    // Node's fetch requires this when the app streams an upload to the plugin.
+    ...(init?.body instanceof ReadableStream ? { duplex: 'half' } : {}),
+  } as RequestInit)
 }

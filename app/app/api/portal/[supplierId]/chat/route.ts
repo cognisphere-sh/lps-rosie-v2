@@ -4,8 +4,9 @@ import { portalChatFetch, portalChatTarget } from '@/lib/portal-chat'
 
 /**
  * The portal's chat with Local Plant Supply (rosie), on the supplier's own
- * thread. GET pages the portal-visible transcript; POST sends the supplier's
- * message. Public like the rest of the portal (supplier sign-in is a
+ * thread. GET pages the portal-visible transcript or streams one scoped file;
+ * POST uploads a file or sends the supplier's text/attachments. Public like
+ * the rest of the portal (supplier sign-in is a
  * deliberately deferred step); the harness side is server-to-server, authed
  * by WEBCHAT_APP_SECRET, and answers 404 here when the chat isn't wired.
  */
@@ -24,6 +25,35 @@ export async function GET(
     const t = await target((await params).supplierId)
     if (!t) return NextResponse.json({ error: 'chat unavailable' }, { status: 404 })
     const search = new URL(req.url).searchParams
+    const file = search.get('file')
+    if (file) {
+      const qs = new URLSearchParams({ thread: t.threadId, name: file })
+      const range = req.headers.get('range')
+      const res = await portalChatFetch(`api/app-file?${qs.toString()}`, {
+        headers: range ? { range } : undefined,
+        signal: req.signal,
+      })
+      return new Response(res.body, {
+        status: res.status,
+        headers: {
+          'content-type': res.headers.get('content-type') ?? 'application/octet-stream',
+          ...(res.headers.get('content-length')
+            ? { 'content-length': res.headers.get('content-length')! }
+            : {}),
+          ...(res.headers.get('content-disposition')
+            ? { 'content-disposition': res.headers.get('content-disposition')! }
+            : {}),
+          ...(res.headers.get('accept-ranges')
+            ? { 'accept-ranges': res.headers.get('accept-ranges')! }
+            : {}),
+          ...(res.headers.get('content-range')
+            ? { 'content-range': res.headers.get('content-range')! }
+            : {}),
+          'x-content-type-options': 'nosniff',
+        },
+      })
+    }
+
     const qs = new URLSearchParams({ thread: t.threadId })
     for (const k of ['since', 'before', 'limit']) {
       const v = search.get(k)
@@ -47,14 +77,38 @@ export async function POST(
   try {
     const t = await target((await params).supplierId)
     if (!t) return NextResponse.json({ error: 'chat unavailable' }, { status: 404 })
-    const b = (await req.json().catch(() => ({}))) as { text?: string }
+    const search = new URL(req.url).searchParams
+    if (search.get('upload') === '1') {
+      const label = req.headers.get('x-file-name')?.trim()
+      if (!label || !req.body) return NextResponse.json({ error: 'file required' }, { status: 400 })
+      const qs = new URLSearchParams({ thread: t.threadId })
+      const res = await portalChatFetch(`api/app-upload?${qs.toString()}`, {
+        method: 'POST',
+        headers: {
+          'content-type': req.headers.get('content-type') ?? 'application/octet-stream',
+          'x-file-name': label,
+        },
+        body: req.body,
+        signal: req.signal,
+      })
+      return NextResponse.json(await res.json(), { status: res.status })
+    }
+
+    const b = (await req.json().catch(() => ({}))) as {
+      text?: string
+      attachments?: { name: string; label: string; mime: string; size: number; ticket: string }[]
+    }
     const text = String(b.text ?? '').trim()
-    if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 })
+    const attachments = Array.isArray(b.attachments) ? b.attachments : []
+    if (!text && attachments.length === 0) {
+      return NextResponse.json({ error: 'text or attachments required' }, { status: 400 })
+    }
     const res = await portalChatFetch('api/app-send', {
       method: 'POST',
       body: JSON.stringify({
         threadId: t.threadId,
         text,
+        attachments,
         senderName: `${t.supplierName} (portal)`,
       }),
     })

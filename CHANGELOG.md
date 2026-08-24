@@ -19,6 +19,7 @@ here).
 
 ### Added
 
+- **Supplier portal file attachments and voice notes.** The portal composer now matches main chat’s Paperclip + Mic / input / Send order, stages allowlisted images, documents and audio through Rosie’s webchat inbox, records browser-native voice notes (`webm` or Safari/iPhone `m4a`), sends attachment-only messages, and renders portal-visible images, audio and downloads. New app-secret `app-upload`/`app-file` plugin endpoints enforce the existing 25MB cap, fixed-length opaque stored names, sanitized labels/types, HMAC tickets bound to the exact supplier thread and file, transcript-scoped downloads, audio byte ranges, one-hour orphan expiry, a 20-file/100MB pending quota and a 10-file/50MB message cap; the app always derives the supplier thread server-side.
 - **Line totals and subtotals on availability requests.** `ARLineTable`
   (`components/workspace/availability.tsx`, shared by the supplier portal and
   the admin supplier profile) gains a **Line total** column — avail qty ×
@@ -33,10 +34,11 @@ here).
 
 - **Supplier portal mobile navigation now matches the main app.** The redundant supplier identity header is gone; Alerts and Chat are fixed at the bottom edges around a three-visible scroll strip for Requests / Orders / More. Alerts shows real new-request counts, and More carries the desktop footer actions in the same Theme / Settings / Log out order without relaxing the disabled supplier-auth gates.
 - **Supplier availability cards now follow the admin Job Request hierarchy.** Collapsed and expanded cards use the same bordered horizontal count/subtotal summary and tinted open body; shared customer/delivery locality stays in the scan header while supplier answer states retain their own vocabulary.
-- **Supplier chat now reuses the main agent-chat design.** The portal keeps its text-only, portal-visible transport while adopting the saved Rosie accent/wallpaper, mobile glass identity pill, matching bubbles and timestamps, typing dots, top/latest controls and composer treatment. Unsupported upload and voice actions remain absent rather than appearing as dead controls.
+- **Supplier chat now reuses the main agent-chat design.** The portal keeps its isolated, portal-visible transport while adopting the saved Rosie accent/wallpaper, mobile glass identity pill, matching bubbles and timestamps, typing dots, top/latest controls and composer treatment.
 
 ### Fixed
 
+- **Agent reply attachment containment uses a real path boundary.** The webchat plugin now checks `relative()` rather than a string prefix, so a sibling directory whose name merely begins with the agent directory can never pass as an in-agent attachment path.
 - **Supplier portal mobile editing stays contained.** The availability line table now constrains its own horizontal scroller so the Notes input cannot escape the card, and the status-answer dialog tracks the live browser visual viewport with internal scrolling so Notes and Save remain reachable above Android/iOS keyboards.
 - **The per-status answer pop-up's data wasn't reaching the row.** Saving it
   writes quantity, price, status and notes in one PATCH and the page

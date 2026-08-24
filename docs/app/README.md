@@ -197,7 +197,7 @@ in the desktop rail and through mobile More.
 | `GET /api/portal/:supplierId` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not onboarded, which is the scoping rule every portal route starts with. |
 | `GET·PATCH /api/portal/:supplierId/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A request belonging to another supplier answers 404, not 403. (The home GET embeds every request with its lines, so the page itself only PATCHes here.) |
 | `POST /api/portal/:supplierId/requests/:arId/submit` | The card's **Save**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
-| `GET·POST /api/portal/:supplierId/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's webchat plugin (`app-messages`/`app-send`, `WEBCHAT_APP_SECRET`), on the supplier's `rosie_thread_id` thread. Serves only the **portal-visible** half of the thread (see *Supplier portal*). 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
+| `GET·POST /api/portal/:supplierId/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
 | `POST /api/rows` | Append one stamped entry to an append-only note column — `customers.communication_notes`, the only one left. A separate verb because it is a different operation: PATCH *replaces* what a column holds, and a contact log must never be replaced. The job-request note columns moved off this route on 2026-08-18 — they are `sourcing_notes` now (migration 0061) and are edited through PATCH like any other field. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
@@ -251,10 +251,15 @@ Three things to keep straight:
   Its transport remains portal-specific, but its presentation reuses the main
   agent-chat language: the same saved Rosie color and wallpaper, floating
   glass identity pill on mobile, outgoing/incoming bubble hierarchy, full
-  timestamps and typing dots, top/latest controls and composer sizing. Upload
-  and voice buttons are deliberately absent because the portal endpoint is
-  text-only; the design is shared without drawing controls that cannot work.
-  **Audience is enforced by the plugin**: the portal sees only portal-visible
+  timestamps and typing dots, top/latest controls and composer sizing. Its
+  paperclip and mic sit together to the left of the input exactly like the main
+  composer. The paperclip stages allowlisted files and the mic records browser-
+  native voice notes (`webm` on Chrome/Firefox, `m4a` on Safari); both remain
+  chips until the supplier presses Send, and portal-visible image/audio/document replies render
+  in place. Upload tickets are HMAC-bound to the supplier thread and file, and
+  downloads require that exact file on a portal-visible transcript row.
+  Unreferenced staging expires after an hour under a 20-file/100MB pending cap;
+  one message is capped at 10 files/50MB. **Audience is enforced by the plugin**: the portal sees only portal-visible
   messages — what the supplier typed, and replies rosie sent with
   `webchat-cli --portal` — never the team's internal traffic on the same
   thread, which the admin panel does see (labeled by sender).
@@ -1476,8 +1481,8 @@ components/
                      table, status pills, the chat (MessageBubble/Thread/legend)
                      and the mode-first Composer
     portal.tsx       the supplier portal's Shell-like chrome (left nav rail /
-                     bottom bar, right-docked chat, theme, disabled
-                     Settings+Log out)
+                     bottom bar, right-docked chat with attachments + voice,
+                     theme, disabled Settings+Log out)
     toolbar.tsx      search box, multi-select filter chips, count summary
     search-loader.tsx  sprouting-seedlings loader + overlay for ongoing searches
     icons.tsx        the design's icon set

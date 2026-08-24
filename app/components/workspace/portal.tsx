@@ -10,11 +10,11 @@
 // docs/app/README.md (Supplier portal).
 
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, Bell, Leaf, MessagesSquare, Send, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Bell, Leaf, MessagesSquare, Mic, Paperclip, Send, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import {
-  ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
+  CheckIcon, ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { useIsMobile, useTheme } from '@/components/workspace/shell'
 import {
@@ -40,7 +40,43 @@ interface PortalMessage {
   at: number
   role: 'user' | 'agent'
   text: string
+  files: PortalFile[]
   senderName?: string
+}
+
+interface PortalFile {
+  name: string
+  label: string
+  mime: string
+  size: number
+  /** Present only while a freshly uploaded file is waiting to be sent. */
+  ticket?: string
+}
+
+function PortalAttachment({ supplierId, file }: { supplierId: number; file: PortalFile }) {
+  const href = `/api/portal/${supplierId}/chat?file=${encodeURIComponent(file.name)}`
+  if (file.mime.startsWith('image/')) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-border bg-card">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={href} alt={file.label} className="max-h-64 w-full object-contain" />
+      </a>
+    )
+  }
+  if (file.mime.startsWith('audio/')) {
+    return <audio controls preload="metadata" src={href} className="max-w-full" aria-label={file.label} />
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex max-w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[12px] font-semibold text-foreground hover:bg-muted"
+    >
+      <Paperclip size={14} className="flex-none" />
+      <span className="truncate">{file.label}</span>
+    </a>
+  )
 }
 
 const CHAT_POLL_MS = 5000
@@ -65,11 +101,19 @@ function PortalChat({
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState('')
+  const [uploads, setUploads] = useState<PortalFile[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [recording, setRecording] = useState(false)
   const [atTop, setAtTop] = useState(true)
   const [atBottom, setAtBottom] = useState(true)
   const cursor = useRef(0)
   const scroller = useRef<HTMLDivElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
+  const recorder = useRef<MediaRecorder | null>(null)
+  const recordingStream = useRef<MediaStream | null>(null)
+  const recordingChunks = useRef<Blob[]>([])
+  const cancelRecording = useRef(false)
   const pinned = useRef(true)
 
   const poll = useCallback(async () => {
@@ -126,15 +170,96 @@ function PortalChat({
     element.style.height = `${element.scrollHeight}px`
   }, [draft])
 
+  const uploadFiles = useCallback(async (selected: File[]) => {
+    if (!selected.length) return
+    setUploading(true)
+    try {
+      for (const file of selected) {
+        const res = await fetch(`/api/portal/${supplierId}/chat?upload=1`, {
+          method: 'POST',
+          headers: {
+            'content-type': file.type || 'application/octet-stream',
+            'x-file-name': encodeURIComponent(file.name),
+          },
+          body: file,
+        })
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string }
+          throw new Error(body.error || `Upload failed (${res.status})`)
+        }
+        const staged = (await res.json()) as PortalFile
+        // Keep each successful file even if a later selection fails.
+        setUploads((current) => [...current, staged])
+      }
+      setError('')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'File failed to upload.')
+    } finally {
+      setUploading(false)
+      if (picker.current) picker.current.value = ''
+    }
+  }, [supplierId])
+
+  const finishRecording = useCallback((discard: boolean) => {
+    cancelRecording.current = discard
+    const active = recorder.current
+    if (active?.state === 'recording') active.stop()
+  }, [])
+
+  const startRecording = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        throw new Error('Voice recording is not supported by this browser.')
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordingStream.current = stream
+      const candidates = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm']
+      const mimeType = candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate))
+      const active = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      recorder.current = active
+      recordingChunks.current = []
+      cancelRecording.current = false
+      active.ondataavailable = (event) => {
+        if (event.data.size) recordingChunks.current.push(event.data)
+      }
+      active.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        recordingStream.current = null
+        recorder.current = null
+        setRecording(false)
+        if (cancelRecording.current || !recordingChunks.current.length) return
+        const type = active.mimeType || mimeType || 'audio/webm'
+        const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm'
+        const voice = new File(recordingChunks.current, `voice-note.${extension}`, { type })
+        void uploadFiles([voice])
+      }
+      active.start()
+      setRecording(true)
+      setError('')
+    } catch (cause) {
+      recordingStream.current?.getTracks().forEach((track) => track.stop())
+      recordingStream.current = null
+      setError(cause instanceof Error ? cause.message : 'Couldn’t start voice recording.')
+    }
+  }, [uploadFiles])
+
+  useEffect(() => () => {
+    cancelRecording.current = true
+    if (recorder.current?.state === 'recording') recorder.current.stop()
+    recordingStream.current?.getTracks().forEach((track) => track.stop())
+  }, [])
+
   const send = async () => {
     const text = draft.trim()
-    if (!text) return
+    const attachments = uploads
+    if ((!text && !attachments.length) || uploading || recording) return
     setDraft('')
+    setUploads([])
     try {
       const res = await fetch(`/api/portal/${supplierId}/chat`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, attachments }),
       })
       if (!res.ok) throw new Error(String(res.status))
       setPending(true)
@@ -142,6 +267,7 @@ function PortalChat({
     } catch {
       setError('Message failed to send.')
       setDraft(text)
+      setUploads(attachments)
     }
   }
 
@@ -188,16 +314,25 @@ function PortalChat({
                 message.role === 'user' ? 'items-end self-end' : 'items-start self-start',
               )}
             >
-              <div
-                className={cn(
-                  'whitespace-pre-wrap px-3 py-2.5 text-[16px] leading-[1.35]',
-                  message.role === 'user'
-                    ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
-                    : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
-                )}
-              >
-                {message.text}
-              </div>
+              {!!message.files?.length && (
+                <div className={cn('flex max-w-full flex-col gap-2', message.role === 'user' ? 'items-end' : 'items-start')}>
+                  {message.files.map((file) => (
+                    <PortalAttachment key={file.name} supplierId={supplierId} file={file} />
+                  ))}
+                </div>
+              )}
+              {message.text && (
+                <div
+                  className={cn(
+                    'whitespace-pre-wrap px-3 py-2.5 text-[16px] leading-[1.35]',
+                    message.role === 'user'
+                      ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
+                      : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
+                  )}
+                >
+                  {message.text}
+                </div>
+              )}
               <span className={cn('text-[11px] leading-none text-lps-dim', message.role === 'user' ? 'pr-1' : 'pl-1')}>
                 {stamp(message.at)}
               </span>
@@ -254,33 +389,109 @@ function PortalChat({
         )}
       </div>
 
-      <div className="flex flex-none items-end gap-2 border-t border-border bg-background px-3.5 py-3">
-        <textarea
-          ref={composer}
-          value={draft}
-          rows={1}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !mobile) {
-              event.preventDefault()
-              void send()
-            }
-          }}
-          placeholder="Message Local Plant Supply…"
-          className="font-chat max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 py-2 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        />
-        <button
-          type="button"
-          onClick={() => void send()}
-          disabled={!draft.trim()}
-          aria-label="Send"
-          className={cn(
-            'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50',
-            mobile ? 'size-10' : 'size-9',
-          )}
-        >
-          <Send size={mobile ? 16 : 15} />
-        </button>
+      <div className="flex-none border-t border-border bg-background">
+        {!!uploads.length && (
+          <div className="flex flex-wrap gap-1.5 px-3.5 pt-2.5">
+            {uploads.map((file) => (
+              <span key={file.name} className="inline-flex items-center gap-1.5 rounded-full border border-lps-edge bg-card py-1 pl-2.5 pr-1.5 text-[11px] font-semibold">
+                <span className="max-w-[140px] truncate">{file.label}</span>
+                <button
+                  type="button"
+                  onClick={() => setUploads((current) => current.filter((candidate) => candidate.name !== file.name))}
+                  aria-label={`Remove ${file.label}`}
+                  className="flex cursor-pointer items-center rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {recording ? (
+          <div className="flex items-center gap-2.5 px-3.5 py-3">
+            <button
+              type="button"
+              onClick={() => finishRecording(true)}
+              aria-label="Discard recording"
+              className="flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+            >
+              <Trash2 size={mobile ? 17 : 15} />
+            </button>
+            <span className="size-2 flex-none animate-pulse rounded-full bg-destructive" />
+            <span className="min-w-0 flex-1 text-[11.5px] font-semibold">Recording voice note…</span>
+            <button
+              type="button"
+              onClick={() => finishRecording(false)}
+              aria-label="Stop recording and attach"
+              className={cn(
+                'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90',
+                mobile ? 'size-10' : 'size-9',
+              )}
+            >
+              <CheckIcon size={mobile ? 17 : 15} />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2 px-3.5 py-3">
+            <input
+              ref={picker}
+              type="file"
+              multiple
+              hidden
+              accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.txt,.csv,.md,.json,.xlsx,.docx,audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav"
+              onChange={(event) => void uploadFiles(Array.from(event.target.files ?? []))}
+            />
+            <button
+              type="button"
+              onClick={() => picker.current?.click()}
+              disabled={uploading}
+              title="Attach a file"
+              aria-label="Attach a file"
+              className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <Paperclip size={mobile ? 17 : 15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void startRecording()}
+              disabled={uploading}
+              title="Record a voice note"
+              aria-label="Record a voice note"
+              className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <Mic size={mobile ? 17 : 15} />
+            </button>
+            <textarea
+              ref={composer}
+              value={draft}
+              rows={1}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !mobile) {
+                  event.preventDefault()
+                  void send()
+                }
+              }}
+              placeholder={uploading ? 'Uploading…' : 'Message Local Plant Supply…'}
+              className={cn(
+                'font-chat max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                mobile ? 'min-h-10 py-2' : 'min-h-9 py-1.5',
+              )}
+            />
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={(!draft.trim() && !uploads.length) || uploading}
+              aria-label="Send"
+              className={cn(
+                'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50',
+                mobile ? 'size-10' : 'size-9',
+              )}
+            >
+              <Send size={mobile ? 16 : 15} />
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
