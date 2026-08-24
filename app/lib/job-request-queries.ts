@@ -60,6 +60,7 @@ interface CustomerRecord {
   company: string | null
   email: string | null
   phone: string | null
+  rosie_thread_id: string | null
 }
 
 export interface JobRequestFilters {
@@ -364,11 +365,14 @@ async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['
   if (!ids.length) return map
   const { data, error } = await supabase
     .from('customers')
-    .select('id, name, company, email, phone')
+    .select('id, name, company, email, phone, rosie_thread_id')
     .in('id', [...new Set(ids)])
   if (error) throw new Error(`customers: ${error.message}`)
   for (const c of (data ?? []) as CustomerRecord[]) {
-    map.set(c.id, { id: c.id, name: c.name, company: c.company, email: c.email, phone: c.phone })
+    map.set(c.id, {
+      id: c.id, name: c.name, company: c.company, email: c.email, phone: c.phone,
+      rosieThreadId: c.rosie_thread_id,
+    })
   }
   return map
 }

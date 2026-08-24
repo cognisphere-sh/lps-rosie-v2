@@ -1,0 +1,23 @@
+# supplier-coordination — changelog
+
+## 1.0.0
+
+2026-08-23 — Initial version (Bhoumik's rosie restructure). Rosie takes over
+order-side supplier coordination on one dedicated thread per supplier
+(`suppliers.rosie_thread_id`, migration 0068): availability requests for LPS
+Partners (`is_onboarded`) — creation absorbed from daisy's retired
+`availability-requests` skill, minus the dropped `supplier_messages` mirror
+and minus the per-request Chris go-ahead (creating the request is now the
+thread's standing responsibility; only unremembered preferences go to Chris) —
+per-supplier coordination preferences remembered in `suppliers.notes`
+(`share_customer_details` first among them), `availability_submitted`
+handling with relay to the `jr-<id>` thread, Chris-gated outreach through
+Chris or daisy's mailbox for non-Partners, the supplier's portal chat
+(§3.5 — `Channel: portal` inbound, `webchat-cli --portal` replies, which are
+the only messages the portal shows), the panel's `ar:`/`thread:` action
+buttons on webchat reports, `lps_notes` at request and line level (migrations
+0070/0071 — the mapped substitute + price, special customer requests, job
+context), and per-thread web-chat milestones.
+
+(Restored 2026-08-23 after rosie's `skills/agent/` directory was wiped on
+disk between harness restarts, same content.)

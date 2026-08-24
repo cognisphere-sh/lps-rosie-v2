@@ -4,16 +4,18 @@
 Keeps supplier and inventory data current in Supabase. Reachable on the
 Telegram main thread and in the web app's chat panel — **both route to the
 same `main` thread**, so they are one conversation, not two — and has its own
-Gmail inbox. Restructured 2026-08-23 (Bhoumik): request management and
-availability validation left her scope (rosie's, in a later phase), and work
-is organised as **one dedicated thread per supplier company**.
+Gmail inbox. Restructured 2026-08-23 (Bhoumik): request management,
+availability validation and order-side supplier coordination left her scope
+(all rosie's — see [agent-rosie.md](agent-rosie.md)), and work is organised
+as **one dedicated thread per supplier company**.
 
 ## agent.json
 
 - **name**: `daisy`
 - **description**: "Supplier discovery, onboarding and availability-ingestion
   agent for LPS — one dedicated thread per supplier company
-  (suppliers.daisy_thread_id), fed by an email-router thread. Reachable on the
+  (suppliers.daisy_thread_id), fed by a router thread and per-supplier gws
+  routing rules. Reachable on the
   Telegram main thread and in the web app's chat panel, which route to the
   same thread."
 - **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
@@ -44,13 +46,17 @@ and job-request work is rosie's, not hers.
 
 - **`main`** — coordination with Chris/Bhoumik only; every piece of work is
   assigned out, and even a file Chris drops there is forwarded on.
-- **`email-router`** — a catch-all `gws` route
-  (`plugins/gws/state/routes.json`, rule `email-router-all`) pins **every**
-  inbound email here. It identifies the supplier from
-  sender/subject/attachment names without reading bodies or attachments
+- **`router`** (renamed from `email-router` 2026-08-23) — the `gws` catch-all
+  route (`plugins/gws/state/routes.json`, rule `router-all`) sends here every
+  inbound email no specific rule already claimed, and `main` hands over
+  anything whose target thread it doesn't know. It identifies the supplier
+  from sender/subject/attachment names without reading bodies or attachments
   (reading only when identification fails) and forwards a pointer to the
   supplier's dedicated thread; for a brand-new supplier it mints the thread
-  and briefs it to onboard + ingest (`supplier-email-routing` skill).
+  and briefs it to onboard + ingest; and it **promotes stable senders to
+  direct gws rules** — adding a `--from` rule pointing at the supplier's
+  thread and always re-adding the catch-all so it stays last
+  (`supplier-email-routing` skill, §5).
 - **One dedicated thread per supplier company** — `suppliers.daisy_thread_id`
   (`supplier-<slug of head-branch name>`, one per head branch, every location
   row shares it; migration 0064). That thread runs `supplier-onboarding`,
@@ -68,10 +74,10 @@ daily notes, and `knowledge/` cross-thread reference docs and memory.
   Send via `scripts/agent-msg/send --to-agent <id> --thread-id <id> --message …`;
   identity is harness-set (not spoofable); a disallowed sender gets HTTP 403.
   No inbox restriction configured here.
-- **supplier-events** — *dropped 2026-08-23* (was: the app waking her on
-  portal activity and chat-view instructions, added 2026-08-19). Returns,
-  re-targeted, when rosie takes over request management; the app's notify
-  helper and the secrets wiring were removed with it.
+- **supplier-events** — *dropped from daisy 2026-08-23* (was: the app waking
+  her on portal activity and chat-view instructions, added 2026-08-19).
+  Recreated the same day, lean, on **rosie** — see
+  [plugin-supplier-events.md](plugin-supplier-events.md).
 - **gws** (Google Workspace/Gmail) — polls Gmail server-side, emits one
   `email_received` per inbound message. Since harness 0.8.22 that notification
   is a **preview** — header, first two lines of the sender's own text, and
@@ -90,10 +96,11 @@ daily notes, and `knowledge/` cross-thread reference docs and memory.
   `gmailQuery`, `allowedSenders` and `requireAgentInTo` — re-read every poll,
   and re-announced to her as a `gws_settings` message on each harness start.
   `firstOfThreadOnly` stays operator-only. Since 2026-08-23 the routing state
-  (`plugins/gws/state/routes.json`) holds a single catch-all rule
-  (`email-router-all`, `from: "."`) pinning every inbound email to the
-  `email-router` thread; per-exchange rules are retired — first match wins and
-  `routes add` appends after the catch-all, so they would never fire.
+  (`plugins/gws/state/routes.json`) holds per-supplier `--from` rules the
+  router adds as senders prove stable, then a catch-all (`router-all`,
+  `from: "."`) sending everything else to the `router` thread. First match
+  wins and `routes add` appends, so the router re-adds the catch-all after
+  every rule it adds to keep it last; per-exchange rules stay retired.
 - **artifacts** — publishes self-contained HTML pages on the app's domain.
   Config `{"appBaseUrl": "https://lps.cognisphere.sh/a/daisy"}` — the `/a/daisy`
   prefix is what keeps its links distinct from Nova's, since the plugin appends
@@ -392,6 +399,17 @@ and when; the summaries below are one line each.
   portal the same day); 213 rows snapshotted to
   `supplier_messages_backup_20260823`, `communication_notes` stays as the
   frozen pre-0063 archive.
+- `0067_supplier_type_tags.sql` — applied 2026-08-23. Chris's supplier Type
+  vocabulary: `category` CHECK narrowed to `Grower` | `Wholesale Supplier` |
+  `Retail` | `Broker/Platform` (NULL = insufficient evidence), 697 of 1,395
+  rows reclassified in a reviewed per-company pass (rationale:
+  `migrations/artifacts/0067_supplier_type_review.csv`). Backup:
+  `supplier_category_backup_20260823`.
+- `0068_rosie_thread_ids.sql` — applied 2026-08-23 (rosie's restructure).
+  Adds `suppliers.rosie_thread_id` (backfilled with the same
+  `supplier-<slug>` values as `daisy_thread_id` — per-agent namespaces) and
+  `customers.rosie_thread_id` (minted by rosie on first contact; table empty
+  on apply). Daisy's onboarding sets both supplier columns.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
 
@@ -402,19 +420,21 @@ her prompt, so `1-agent.md` no longer lists them — it carries
 identity/persona/behaviour only, and points at skills by name where a rule needs
 one.
 
-- **supplier-email-routing** — the email-router thread's dispatcher procedure
+- **supplier-email-routing** — the router thread's dispatcher procedure
   (2026-08-23, replacing the main-thread half of the retired
   `availability-drop-intake`): identify the supplier from
   sender/subject/attachment names alone — the `contacts` join, domain
   widening, `search_suppliers` — reading the body (and attachments last) only
   when that fails; forward a pointer (MessageId, Gmail thread id, matched
   rows) to the supplier's `daisy_thread_id` thread; mint `supplier-<slug>` and
-  brief onboarding+ingestion for a brand-new supplier; forward
-  non-availability mail that needs human review to `main`
+  brief onboarding+ingestion for a brand-new supplier; promote a stable
+  sender to a direct gws rule (re-adding the catch-all so it stays last);
+  forward non-availability mail that needs human review to `main`
   (`Daisy/Escalated`), and only label (`Daisy/Not Availability`) mail that
   needs none and is from no supplier. Every processed email gets the primary
   `Daisy` label from the router; a forwarded drop's status sub-label is the
-  dedicated thread's (`availability-ingestion` §7). No parsing, no database
+  dedicated thread's, and a directly-routed email gets both labels there
+  (`availability-ingestion` §7). No parsing, no database
   writes.
 - **availability-ingestion** — the procedure the supplier's dedicated thread
   runs to ingest one availability drop, and the owner of **every
@@ -479,7 +499,7 @@ restating them.
 `availability-ingestion` §0 decides which location every parsed row belongs
 to; when the router's forward matched no supplier, or the file names a farm
 the company has no row for, it follows `supplier-onboarding` to create it
-(setting `daisy_thread_id`) and comes back with the id. In the other
+(setting `daisy_thread_id` and `rosie_thread_id`) and comes back with the id. In the other
 direction, a supplier onboarded directly that arrives with availability
 attached is handed to `availability-ingestion`. The router's forward names a
 skill **without a version**; the thread resolves the name against its own
@@ -523,8 +543,9 @@ something changed and stay true.
   permit as an approved-send attachment, the **one-thread-per-supplier**
   convention (the `daisy_thread_id` thread — no per-topic sub-threads;
   redirect work there), the draft-and-approve step, sending as Chris in the
-  existing Gmail thread (replies come back through the email router — no
-  per-exchange routing rules), recording each contact as a dated pointer in
+  existing Gmail thread (replies come back through the router thread or a
+  direct per-supplier rule — rule management is the router's job), recording
+  each contact as a dated pointer in
   the supplier thread's notes (the `supplier_messages` transcript that had
   replaced `communication_notes` was dropped 2026-08-23, migration 0066; the
   old column stays a frozen archive nothing writes), and where a fact

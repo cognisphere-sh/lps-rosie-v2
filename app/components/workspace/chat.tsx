@@ -4,10 +4,12 @@ import Image from 'next/image'
 import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from 'react'
-import { ArrowDown, ArrowUp, Mic, Pause, Paperclip, Play, RefreshCw, Send, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, MessagesSquare, Mic, Pause, Paperclip, Play, RefreshCw, Search, Send, Trash2, X } from 'lucide-react'
 
 import { CheckIcon, ChevronLeft, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, type Agent } from '@/lib/agents'
+import { onOpenChat, openAvailabilityRequest, openChat } from '@/lib/chat-bus'
+import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
 import {
   chatThemeForAgent, chatThemeStyle, chatWallpaperStyle,
   type ChatAppearance, type ChatWallpaperId,
@@ -49,9 +51,9 @@ function clampDesktopChatWidth(width: number) {
  * ponytail: ~30 lines instead of a markdown dependency. If tables or nested
  * lists ever matter, swap in `marked` + a sanitizer rather than growing this.
  */
-function inline(text: string, key: string) {
+function inline(text: string, key: string, agentId?: string) {
   const parts: React.ReactNode[] = []
-  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<]+)/g
+  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\((?:(thread|ar):([^)\s]+)|(https?:\/\/[^)\s]+))\)|(https?:\/\/[^\s<]+)/g
   let last = 0
   let m: RegExpExecArray | null
   let i = 0
@@ -60,15 +62,42 @@ function inline(text: string, key: string) {
     const k = `${key}-${i++}`
     if (m[1]) parts.push(<strong key={k}>{m[1]}</strong>)
     else if (m[2]) parts.push(<code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{m[2]}</code>)
-    else if (m[3]) parts.push(<a key={k} href={m[4]} target="_blank" rel="noreferrer" className="underline">{m[3]}</a>)
-    else parts.push(<a key={k} href={m[5]} target="_blank" rel="noreferrer" className="underline">{m[5]}</a>)
+    else if (m[4]) {
+      // Agent-rendered action buttons: `thread:<id>` switches the panel to
+      // that thread, `ar:<id>` opens the availability-request drawer.
+      const scheme = m[4]
+      const target = m[5]
+      const label = m[3]
+      const arId = Number.parseInt(target, 10)
+      const valid = scheme === 'thread' ? target.length > 0 : Number.isInteger(arId)
+      if (!valid) parts.push(label)
+      else {
+        parts.push(
+          <button
+            key={k}
+            type="button"
+            onClick={() =>
+              scheme === 'thread'
+                ? openChat({ agentId: agentId ?? 'rosie', threadId: target })
+                : openAvailabilityRequest(arId)
+            }
+            className="my-0.5 inline-flex cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2.5 py-1 text-[12px] font-bold text-primary hover:bg-secondary"
+          >
+            {scheme === 'thread' ? <MessagesSquare size={12} /> : <ChevronRight size={12} />}
+            {label}
+          </button>,
+        )
+      }
+    }
+    else if (m[3]) parts.push(<a key={k} href={m[6]} target="_blank" rel="noreferrer" className="underline">{m[3]}</a>)
+    else parts.push(<a key={k} href={m[7]} target="_blank" rel="noreferrer" className="underline">{m[7]}</a>)
     last = re.lastIndex
   }
   if (last < text.length) parts.push(text.slice(last))
   return parts
 }
 
-function Markdown({ text }: { text: string }) {
+function Markdown({ text, agentId }: { text: string; agentId?: string }) {
   const blocks: React.ReactNode[] = []
   // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
   // Normalize them here so existing transcript entries render correctly too.
@@ -78,7 +107,7 @@ function Markdown({ text }: { text: string }) {
     if (!bullets.length) return
     blocks.push(
       <ul key={`ul-${key}`} className="my-1 list-disc space-y-0.5 pl-4">
-        {bullets.map((b, i) => <li key={i}>{inline(b, `${key}-${i}`)}</li>)}
+        {bullets.map((b, i) => <li key={i}>{inline(b, `${key}-${i}`, agentId)}</li>)}
       </ul>,
     )
     bullets = []
@@ -87,7 +116,7 @@ function Markdown({ text }: { text: string }) {
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line)
     if (bullet) { bullets.push(bullet[1]); return }
     flush(String(i))
-    if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i))}</p>)
+    if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i), agentId)}</p>)
   })
   flush('end')
   return <div className="flex flex-col gap-1">{blocks}</div>
@@ -255,7 +284,7 @@ function Attachment({
 // ------------------------------------------------------------------ the chat
 
 /** Everything the panel and the mobile sheet share: transport + composer state. */
-function useChat(agentId: string, active: boolean) {
+function useChat(agentId: string, active: boolean, threadId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
@@ -264,15 +293,17 @@ function useChat(agentId: string, active: boolean) {
   const cursor = useRef(0)
   // Oldest id held, so "load earlier" knows where the page it has starts.
   const oldest = useRef(0)
+  const threadQ = `&thread=${encodeURIComponent(threadId)}`
 
-  // Switching agents means a different transcript — reset before the next poll.
+  // Switching agents or threads means a different transcript — reset before
+  // the next poll.
   useEffect(() => {
     cursor.current = 0
     oldest.current = 0
     setMessages([])
     setPending(false)
     setHasMore(false)
-  }, [agentId])
+  }, [agentId, threadId])
 
   const poll = useCallback(async () => {
     // First fetch of a transcript takes only the newest page; every poll after
@@ -280,7 +311,7 @@ function useChat(agentId: string, active: boolean) {
     const first = cursor.current === 0
     try {
       const res = await fetch(
-        `/api/chat/${agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}`,
+        `/api/chat/${agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}${threadQ}`,
         { cache: 'no-store' },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -295,17 +326,20 @@ function useChat(agentId: string, active: boolean) {
       if (first) setHasMore(body.hasMore)
       setPending(body.pending)
       setError('')
+      // The panel is open on this thread, so whatever is here is seen —
+      // clears its dot everywhere (the poll only runs while visible).
+      markThreadRead(agentId, threadId, body.cursor)
     } catch {
       setError('Can’t reach the agent.')
     }
-  }, [agentId])
+  }, [agentId, threadId, threadQ])
 
   const loadMore = useCallback(async () => {
     if (!oldest.current) return
     setLoadingMore(true)
     try {
       const res = await fetch(
-        `/api/chat/${agentId}/messages?before=${oldest.current}&limit=${PAGE}`,
+        `/api/chat/${agentId}/messages?before=${oldest.current}&limit=${PAGE}${threadQ}`,
         { cache: 'no-store' },
       )
       if (!res.ok) throw new Error(String(res.status))
@@ -321,7 +355,7 @@ function useChat(agentId: string, active: boolean) {
     } finally {
       setLoadingMore(false)
     }
-  }, [agentId])
+  }, [agentId, threadQ])
 
   useEffect(() => {
     if (!active) return
@@ -341,7 +375,7 @@ function useChat(agentId: string, active: boolean) {
         const res = await fetch(`/api/chat/${agentId}/send`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text, attachments: files }),
+          body: JSON.stringify({ text, attachments: files, threadId }),
         })
         if (!res.ok) throw new Error(String(res.status))
         const { id } = (await res.json()) as { id: number }
@@ -354,17 +388,21 @@ function useChat(agentId: string, active: boolean) {
         setError('Message failed to send.')
       }
     },
-    [agentId],
+    [agentId, threadId],
   )
 
   const reset = useCallback(async () => {
-    await fetch(`/api/chat/${agentId}/reset`, { method: 'POST' })
+    await fetch(`/api/chat/${agentId}/reset`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ threadId }),
+    })
     cursor.current = 0
     oldest.current = 0
     setMessages([])
     setPending(false)
     setHasMore(false)
-  }, [agentId])
+  }, [agentId, threadId])
 
   return { messages, pending, error, hasMore, loadingMore, send, reset, loadMore, refresh: poll }
 }
@@ -727,7 +765,7 @@ function Transcript({
                   : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
               )}
             >
-              <Markdown text={m.text} />
+              <Markdown text={m.text} agentId={agent.id} />
             </div>
           )}
           <span className={cn('text-[11px] leading-none text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
@@ -985,6 +1023,166 @@ function Composer({
   )
 }
 
+// ------------------------------------------------------------- thread picker
+
+interface ThreadEntry {
+  threadId: string
+  title: string
+  subtitle: string | null
+  lastAt?: number
+}
+
+interface ThreadDirectory {
+  jobs: ThreadEntry[]
+  suppliers: ThreadEntry[]
+  customers: ThreadEntry[]
+}
+
+const GENERAL_THREADS: ThreadEntry[] = [
+  { threadId: 'main', title: 'Main', subtitle: 'Chris & Bhoumik coordination' },
+]
+
+/** `2026-08-23 14:05` → `Aug 23` — the picker's last-activity hint. */
+const fmtLastAt = (ms: number) =>
+  new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+
+/**
+ * The thread sidebar (#4): the threads rosie is talked to on — main, job
+ * requests, suppliers, customers, and nothing else (Bhoumik, 2026-08-23) — as
+ * cards split by category with a search on top. The DB directory supplies the
+ * entities; the plugin's transcript list adds last-activity. Working threads
+ * outside these categories (router, task threads) stay reachable through
+ * deep links but are not offered here.
+ */
+function ThreadPicker({
+  agentId, current, onPick, onClose,
+}: {
+  agentId: string
+  current: string
+  onPick: (t: { id: string; label: string }) => void
+  onClose: () => void
+}) {
+  const [dir, setDir] = useState<ThreadDirectory>({ jobs: [], suppliers: [], customers: [] })
+  const [lastAt, setLastAt] = useState<Map<string, number>>(new Map())
+  const [q, setQ] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const { isUnread } = useChatNotifications()
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const [dirRes, thrRes] = await Promise.allSettled([
+        fetch('/api/chat-directory', { cache: 'no-store' }),
+        fetch(`/api/chat/${agentId}/threads`, { cache: 'no-store' }),
+      ])
+      if (cancelled) return
+      let directory: ThreadDirectory = { jobs: [], suppliers: [], customers: [] }
+      if (dirRes.status === 'fulfilled' && dirRes.value.ok) {
+        const body = (await dirRes.value.json()) as ThreadDirectory & { error?: string }
+        if (!body.error) directory = body
+      }
+      setDir(directory)
+      if (thrRes.status === 'fulfilled' && thrRes.value.ok) {
+        const body = (await thrRes.value.json()) as {
+          threads: { threadId: string; lastAt: number }[]
+        }
+        setLastAt(new Map(body.threads.map((t) => [t.threadId, t.lastAt])))
+      }
+      setLoaded(true)
+    })().catch(() => setLoaded(true))
+    return () => {
+      cancelled = true
+    }
+  }, [agentId])
+
+  const needle = q.trim().toLowerCase()
+  const matches = (t: ThreadEntry) =>
+    !needle ||
+    t.title.toLowerCase().includes(needle) ||
+    (t.subtitle ?? '').toLowerCase().includes(needle) ||
+    t.threadId.toLowerCase().includes(needle)
+
+  const section = (label: string, entries: ThreadEntry[]) => {
+    const hits = entries.filter(matches)
+    if (!hits.length) return null
+    return (
+      <div key={label} className="flex flex-col gap-1">
+        <span className="px-1 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">
+          {label}
+        </span>
+        {hits.map((t) => {
+          const at = t.lastAt ?? lastAt.get(t.threadId)
+          return (
+            <button
+              key={t.threadId}
+              type="button"
+              onClick={() => onPick({ id: t.threadId, label: t.title })}
+              className={cn(
+                'flex cursor-pointer flex-col gap-px rounded-xl border px-3 py-2 text-left',
+                t.threadId === current
+                  ? 'border-primary bg-secondary'
+                  : 'border-border bg-card hover:bg-muted',
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+                  {t.title}
+                </span>
+                {isUnread(agentId, t.threadId) && (
+                  <span className="size-2 flex-none rounded-full bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+                )}
+                {at != null && (
+                  <span className="flex-none text-[10.5px] text-lps-dim">{fmtLastAt(at)}</span>
+                )}
+              </span>
+              {t.subtitle && (
+                <span className="truncate text-[11px] text-muted-foreground">{t.subtitle}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-background">
+      <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2.5">
+        <span className="text-[13px] font-bold text-foreground">Conversations</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close thread list"
+          className="ml-auto flex size-7 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
+        <Search size={13} className="flex-none text-muted-foreground" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search jobs, suppliers, customers…"
+          autoFocus
+          className="min-w-0 flex-1 border-none bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+        {section('General', GENERAL_THREADS)}
+        {section('Job requests', dir.jobs)}
+        {section('Suppliers', dir.suppliers)}
+        {section('Customers', dir.customers)}
+        {loaded &&
+          ![...GENERAL_THREADS, ...dir.jobs, ...dir.suppliers, ...dir.customers].some(matches) && (
+            <p className="px-1 text-[12px] text-muted-foreground">Nothing matches “{q}”.</p>
+          )}
+        {!loaded && <p className="px-1 text-[12px] text-muted-foreground">Loading…</p>}
+      </div>
+    </div>
+  )
+}
+
 // -------------------------------------------------------------------- panels
 
 /**
@@ -1018,13 +1216,48 @@ export function AgentChat({
   const [width, setWidth] = useState(330)
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState(false)
+  // Which of the agent's threads the panel is on. Every agent defaults to
+  // `main`; the picker (rosie) and open-chat events move it.
+  const [thread, setThread] = useState({ id: 'main', label: 'Main' })
+  const [picker, setPicker] = useState(false)
   const hydrated = useRef(false)
 
   const activeId = isMobile ? mobileAgentId ?? CHAT_AGENTS[0].id : agentId
   const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === activeId) ?? CHAT_AGENTS[0], [activeId])
   const visible = isMobile ? mobileOpen : open
-  const chat = useChat(agent.id, visible)
+  const chat = useChat(agent.id, visible, thread.id)
   const composer = useComposer(agent.id)
+  const { unreadByAgent } = useChatNotifications()
+
+  // Deep links from the workspace: a job card's Rosie icon, a supplier or
+  // customer chat chip, a `thread:` button in a transcript. The Shell handles
+  // the mobile sheet's visibility; the thread itself is set here either way.
+  const keepThread = useRef(false)
+  useEffect(
+    () =>
+      onOpenChat(({ agentId: target, threadId, label }) => {
+        if (CHAT_AGENTS.some((a) => a.id === target)) {
+          keepThread.current = true
+          setAgentId(target)
+        }
+        setThread({ id: threadId, label: label ?? threadId })
+        setPicker(false)
+        if (!isMobile) setOpen(true)
+      }),
+    [isMobile],
+  )
+
+  // An agent switch from anywhere else (header avatars, rail, the mobile
+  // Agents list) lands on that agent's main conversation — a jr thread of
+  // rosie's means nothing to daisy.
+  useEffect(() => {
+    if (keepThread.current) {
+      keepThread.current = false
+      return
+    }
+    setThread({ id: 'main', label: 'Main' })
+    setPicker(false)
+  }, [activeId])
 
   // Restore the docked panel's state after mount, so the server render and the
   // first client render agree (same guard the table layout uses).
@@ -1136,6 +1369,7 @@ export function AgentChat({
           <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-muted-foreground">
             <StatusDot pending={chat.pending} />
             {chat.pending ? 'Working…' : 'Online'}
+            {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
           </span>
         </div>
       ) : (
@@ -1143,9 +1377,25 @@ export function AgentChat({
           <span className="text-[13.5px] font-bold">{agent.name}</span>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <StatusDot pending={chat.pending} />
-            {chat.pending ? 'Working…' : 'Online'}
+            <span className="flex-none">{chat.pending ? 'Working…' : 'Online'}</span>
+            {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
           </span>
         </div>
+      )}
+      {/* The thread list — every conversation rosie can be reached on. */}
+      {agent.id === 'rosie' && (
+        <button
+          type="button"
+          onClick={() => setPicker((v) => !v)}
+          title="Conversations"
+          aria-label="Open the conversation list"
+          className={cn(
+            'flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5',
+            picker ? 'bg-muted text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          )}
+        >
+          <MessagesSquare size={16} />
+        </button>
       )}
       {/* The other agents, so the docked panel can switch without being closed
           back to the rail. Mobile switches from its own Agents list instead. */}
@@ -1164,7 +1414,12 @@ export function AgentChat({
                 a.upcoming ? 'cursor-not-allowed opacity-35' : 'cursor-pointer opacity-55 hover:opacity-100',
               )}
             >
-              <Image src={a.avatar} alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
+              <span className="relative inline-flex">
+                <Image src={a.avatar} alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
+                {(unreadByAgent[a.id] ?? 0) > 0 && (
+                  <span className="absolute -right-px -top-px size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+                )}
+              </span>
             </button>
           ))}
         </div>
@@ -1183,6 +1438,14 @@ export function AgentChat({
         style={chatThemeStyle(chatThemeForAgent(appearance, agent.id))}
       >
         {header(true)}
+        {picker && (
+          <ThreadPicker
+            agentId={agent.id}
+            current={thread.id}
+            onPick={(t) => { setThread(t); setPicker(false) }}
+            onClose={() => setPicker(false)}
+          />
+        )}
         <Transcript
           agent={agent}
           messages={chat.messages}
@@ -1223,6 +1486,9 @@ export function AgentChat({
               {a.id === agentId && chat.pending && (
                 <span className="absolute -bottom-px -right-px size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]" />
               )}
+              {(unreadByAgent[a.id] ?? 0) > 0 && (
+                <span className="absolute -right-px -top-px size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]" aria-label="Unread messages" />
+              )}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-[.08em] [writing-mode:vertical-rl]">
               {a.name}
@@ -1255,6 +1521,14 @@ export function AgentChat({
         title="Drag to resize"
         className="absolute -left-[3px] bottom-0 top-0 z-20 w-[7px] cursor-col-resize hover:bg-lps-edge"
       />
+      {picker && (
+        <ThreadPicker
+          agentId={agent.id}
+          current={thread.id}
+          onPick={(t) => { setThread(t); setPicker(false) }}
+          onClose={() => setPicker(false)}
+        />
+      )}
       {header()}
 
       <div className="flex flex-none items-center gap-1 border-b border-border px-3 py-2">

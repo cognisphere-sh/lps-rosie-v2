@@ -1,42 +1,49 @@
 /**
- * webchat — a browser chat channel for an agent.
+ * webchat — a browser chat channel for an agent, one transcript per thread.
  *
  * The app (`app/`) talks to this plugin's inbox at
  * `/webhook/<agent>/webchat/api/*`; the agent talks back through the seeded
- * `scripts/webchat/webchat-cli`. Messages land on the thread named in config
- * (`threadId`, default `main`) — the SAME thread telegram routes to — so the
- * web panel and Telegram are one conversation, not two.
+ * `scripts/webchat/webchat-cli`. Every endpoint takes an optional thread id
+ * and defaults to the configured one (`threadId`, default `main` — the SAME
+ * thread telegram routes to, so the web panel's default conversation and
+ * Telegram are one conversation, not two). Other threads (`jr-12`,
+ * `supplier-<slug>`, `customer-<slug>`, `router`) each get their own
+ * transcript file under `state/threads/`, which is what lets the panel open
+ * any of the agent's threads and the supplier portal join a supplier's own.
  *
  * Endpoints
  *   POST api/upload   raw body + `x-file-name`  → stores in inbox/, returns {name}
- *   POST api/send     {text, attachments?[]}    → transcript + notify(agent)
- *   GET  api/messages ?since=<id>|?before=<id>  → {messages, hasMore, pending, cursor}
- *                     (`pending` = this panel is owed a reply, OR the agent has
- *                      an event in flight from any channel)
- *                     &limit=<n>                (newest n of that window)
+ *   POST api/send     {text, attachments?, threadId?} → transcript + notify(agent)
+ *   GET  api/messages ?since=<id>|?before=<id>&thread=<id> → {messages, hasMore, pending, cursor}
+ *   GET  api/threads  → {threads:[{threadId,lastAt,lastRole,lastText}]}
  *   GET  api/file     ?name=<stored name>       → the bytes
- *   POST api/reset                              → wipe thread context + transcript
- *   POST api/reply    {text, attachments?[]}    → agent's reply (CLI only)
+ *   POST api/reset    {threadId?}               → wipe that thread's context + transcript
+ *   POST api/reply    {text, attachments?, threadId?} → agent's reply (CLI only)
+ *   POST api/app-send     {threadId, text, senderName}   → server-to-server (portal)
+ *   GET  api/app-messages ?thread=<id>&since=<id>        → server-to-server (portal)
  *
- * Auth is two-sided, because the two sides are different callers:
- *   - browser routes (upload/send/messages/file/reset) require a valid harness
- *     session — the plugin forwards the request's cookie to the harness's own
- *     `/api/auth/me`. The webhook prefix is NOT authenticated by the router, so
- *     without this anyone who can reach the port could chat as the operator and
- *     drop files on the agent's disk.
+ * Auth is three-sided, because the callers differ:
+ *   - browser routes (upload/send/messages/threads/file/reset) require a valid
+ *     harness session — the plugin forwards the request's cookie to the
+ *     harness's own `/api/auth/me`.
  *   - `api/reply` requires COGNISPHERE_WEBHOOK_SECRET, which only in-harness
  *     processes (i.e. the agent) have.
+ *   - `api/app-send` / `api/app-messages` require the optional
+ *     WEBCHAT_APP_SECRET (X-App-Secret) — presented by the app's *server*
+ *     routes for the supplier portal, whose users are not harness users.
+ *     Without the secret configured these two answer 404.
  *
- * ponytail: transcript is an append-only JSONL read into memory at start, and
- *   the browser polls `api/messages`. No SSE, no DB. Swap to SSE if a poll
- *   every 2s ever shows up in a profile.
+ * ponytail: transcripts are append-only JSONL per thread, read into memory at
+ *   start, and the browser polls. No SSE, no DB.
  */
 import { createReadStream } from "node:fs";
 import {
   appendFile,
   copyFile,
   mkdir,
+  readdir,
   readFile,
+  rename,
   writeFile,
   stat,
 } from "node:fs/promises";
@@ -63,6 +70,19 @@ interface ChatMessage {
   role: "user" | "agent";
   text: string;
   files: ChatFile[];
+  /** Portal messages carry who typed them; panel messages get it from the session. */
+  senderName?: string;
+  /** Portal-visible: set on portal-sent messages and on `--portal` replies.
+   *  api/app-messages serves ONLY these — the team's internal panel traffic
+   *  on a supplier thread never reaches the supplier's portal. */
+  portal?: boolean;
+}
+
+interface Thread {
+  messages: ChatMessage[];
+  nextId: number;
+  /** When the last user message was handed to the agent; null once answered. */
+  pendingSince: number | null;
 }
 
 const MIME: Record<string, string> = {
@@ -91,11 +111,16 @@ function safeName(raw: string): string {
   return base.replace(/^\.+/, "") || "file";
 }
 
+/** Thread ids become file names; keep them boring and reversible enough. */
+function safeThreadId(raw: string): string {
+  return String(raw).replace(/[^A-Za-z0-9._§\[\]-]+/g, "_").slice(0, 120);
+}
+
 export default class WebchatPlugin {
   manifest = {
     displayName: "Web Chat",
     description:
-      "Browser chat channel. Inbox at /webhook/<agent>/webchat/api/*; the agent replies with scripts/webchat/webchat-cli.",
+      "Browser chat channel, one transcript per thread. Inbox at /webhook/<agent>/webchat/api/*; the agent replies with scripts/webchat/webchat-cli.",
     configSchema: {
       type: "object",
       properties: {
@@ -103,7 +128,7 @@ export default class WebchatPlugin {
           type: "string",
           default: "main",
           description:
-            "Thread web messages are delivered to. Defaults to `main` so the web panel shares context with telegram's main route.",
+            "Default thread when a request names none. Defaults to `main` so the web panel's default conversation shares context with telegram's main route.",
         },
         maxUploadMb: { type: "number", default: 25 },
         pendingTimeoutSec: {
@@ -115,31 +140,52 @@ export default class WebchatPlugin {
         historyLimit: {
           type: "number",
           default: 200,
-          description: "Messages kept in memory / returned to the browser.",
+          description: "Messages kept in memory / returned to the browser, per thread.",
         },
       },
       additionalProperties: false,
     },
-    secretsSchema: { type: "object", properties: {}, additionalProperties: false },
+    secretsSchema: {
+      type: "object",
+      properties: {
+        WEBCHAT_APP_SECRET: {
+          type: "string",
+          description:
+            "Optional shared secret for the app's server-to-server portal endpoints (X-App-Secret). Without it api/app-send and api/app-messages answer 404. Wired by scripts/app/secrets.sh for rosie.",
+        },
+      },
+      additionalProperties: false,
+    },
   };
 
   private ctx?: any;
   private cfg!: WebchatConfig;
-  private messages: ChatMessage[] = [];
-  private nextId = 1;
-  /** When the last user message was handed to the agent; null once answered. */
-  private pendingSince: number | null = null;
-  private transcriptPath = "";
+  private threads = new Map<string, Thread>();
+  private threadsDir = "";
   private outboxDir = "";
   private apiBase = "";
+
+  private thread(id: string): Thread {
+    let t = this.threads.get(id);
+    if (!t) {
+      t = { messages: [], nextId: 1, pendingSince: null };
+      this.threads.set(id, t);
+    }
+    return t;
+  }
+
+  private transcriptPath(threadId: string): string {
+    return join(this.threadsDir, `${safeThreadId(threadId)}.jsonl`);
+  }
 
   async start(ctx: any): Promise<void> {
     this.ctx = ctx;
     this.cfg = ctx.config as WebchatConfig;
-    this.transcriptPath = join(ctx.stateDir, "transcript.jsonl");
+    this.threadsDir = join(ctx.stateDir, "threads");
     this.outboxDir = join(ctx.stateDir, "outbox");
     await mkdir(ctx.inboxDir, { recursive: true });
     await mkdir(this.outboxDir, { recursive: true });
+    await mkdir(this.threadsDir, { recursive: true });
 
     // httpBaseUrl is `<server>/webhook/<agent>/webchat` — the harness's own API
     // sits at the same origin, which is what we need for session checks.
@@ -150,19 +196,50 @@ export default class WebchatPlugin {
       );
     }
 
+    // Migrate the single-thread era: the old flat transcript.jsonl becomes the
+    // default thread's file. One-shot; a re-run finds nothing to move.
+    const legacy = join(ctx.stateDir, "transcript.jsonl");
+    const defaultPath = this.transcriptPath(this.cfg.threadId);
     try {
-      const raw = await readFile(this.transcriptPath, "utf8");
-      this.messages = raw
-        .split("\n")
-        .filter(Boolean)
-        .map((l) => JSON.parse(l) as ChatMessage);
-      this.nextId = (this.messages[this.messages.length - 1]?.id ?? 0) + 1;
-      this.trim();
+      await stat(defaultPath);
     } catch {
-      /* no transcript yet */
+      try {
+        await stat(legacy);
+        await rename(legacy, defaultPath);
+        ctx.log.info("webchat: migrated transcript.jsonl to threads/");
+      } catch {
+        /* no legacy transcript either */
+      }
+    }
+
+    let files: string[] = [];
+    try {
+      files = (await readdir(this.threadsDir)).filter((f) => f.endsWith(".jsonl"));
+    } catch {
+      /* dir just created */
+    }
+    for (const f of files) {
+      try {
+        const raw = await readFile(join(this.threadsDir, f), "utf8");
+        const messages = raw
+          .split("\n")
+          .filter(Boolean)
+          .map((l) => JSON.parse(l) as ChatMessage);
+        const t: Thread = {
+          messages,
+          nextId: (messages[messages.length - 1]?.id ?? 0) + 1,
+          pendingSince: null,
+        };
+        // The file name IS the thread id for every id `safeThreadId` passes
+        // through unchanged — which is all of ours (jr-12, supplier-<slug>…).
+        this.threads.set(f.slice(0, -".jsonl".length), t);
+        this.trim(t);
+      } catch {
+        /* one corrupt transcript must not take the plugin down */
+      }
     }
     ctx.log.info(
-      { threadId: this.cfg.threadId, messages: this.messages.length },
+      { defaultThread: this.cfg.threadId, threads: this.threads.size },
       "webchat started",
     );
   }
@@ -171,24 +248,25 @@ export default class WebchatPlugin {
     this.ctx = undefined;
   }
 
-  private trim() {
-    const extra = this.messages.length - this.cfg.historyLimit;
-    if (extra > 0) this.messages.splice(0, extra);
+  private trim(t: Thread) {
+    const extra = t.messages.length - this.cfg.historyLimit;
+    if (extra > 0) t.messages.splice(0, extra);
   }
 
-  private async record(m: Omit<ChatMessage, "id">): Promise<ChatMessage> {
-    const msg: ChatMessage = { ...m, id: this.nextId++ };
-    this.messages.push(msg);
-    this.trim();
-    await appendFile(this.transcriptPath, JSON.stringify(msg) + "\n");
+  private async record(threadId: string, m: Omit<ChatMessage, "id">): Promise<ChatMessage> {
+    const t = this.thread(threadId);
+    const msg: ChatMessage = { ...m, id: t.nextId++ };
+    t.messages.push(msg);
+    this.trim(t);
+    await appendFile(this.transcriptPath(threadId), JSON.stringify(msg) + "\n");
     return msg;
   }
 
-  /** True while the agent owes an answer to the panel and hasn't timed out. */
-  private isPending(): boolean {
-    if (this.pendingSince === null) return false;
-    if (Date.now() - this.pendingSince > this.cfg.pendingTimeoutSec * 1000) {
-      this.pendingSince = null;
+  /** True while the agent owes an answer on this thread and hasn't timed out. */
+  private isPending(t: Thread): boolean {
+    if (t.pendingSince === null) return false;
+    if (Date.now() - t.pendingSince > this.cfg.pendingTimeoutSec * 1000) {
+      t.pendingSince = null;
       return false;
     }
     return true;
@@ -212,11 +290,9 @@ export default class WebchatPlugin {
 
   /**
    * True while the runner is chewing on ANY event for this agent — a cron
-   * tick, a telegram message, another agent's ping. The panel's own
+   * tick, a telegram message, another agent's ping. A thread's own
    * `pendingSince` only knows about web messages, so without this the
    * indicator reads "Online" while the agent is visibly busy elsewhere.
-   * Reads the harness's queue through its own API (same cookie as the
-   * session check); unreachable or unauthorized answers "not working".
    */
   private async hasInFlightEvent(cookie: string): Promise<boolean> {
     if (!this.apiBase || !this.ctx) return false;
@@ -231,6 +307,60 @@ export default class WebchatPlugin {
     } catch {
       return false;
     }
+  }
+
+  /** The messages window the panel and the portal both page through. */
+  private window(t: Thread, url: URL) {
+    const since = Number(url.searchParams.get("since") ?? 0);
+    const before = Number(url.searchParams.get("before") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 0);
+    const window =
+      before > 0
+        ? t.messages.filter((m) => m.id < before)
+        : t.messages.filter((m) => m.id > since);
+    const messages = limit > 0 ? window.slice(-limit) : window;
+    return {
+      messages,
+      hasMore: messages.length < window.length,
+      cursor: t.messages[t.messages.length - 1]?.id ?? 0,
+    };
+  }
+
+  /** Deliver one inbound user message: transcript row + notify the agent. */
+  private async deliver(
+    threadId: string,
+    text: string,
+    files: ChatFile[],
+    senderName: string,
+    channelId: string,
+  ): Promise<ChatMessage> {
+    const ctx = this.ctx;
+    const msg = await this.record(threadId, {
+      at: Date.now(),
+      role: "user",
+      text,
+      files,
+      ...(channelId === "portal" ? { senderName, portal: true } : {}),
+    });
+
+    // Attachment paths are inlined in the body (same shape telegram uses)
+    // so the agent can `read` them without reconstructing a path.
+    const rel = files.map((f) => join("plugins/webchat/inbox", f.name));
+    const body = text + files.map((f, i) => `\n<${f.label}>[${rel[i]}]`).join("");
+
+    ctx.notify("web_message", {
+      text: body,
+      channelId,
+      threadIdOverride: threadId,
+      metadata: {
+        senderName,
+        messageId: msg.id,
+        webchatThreadId: threadId,
+        ...(rel.length ? { attachments: rel } : {}),
+      },
+    });
+    this.thread(threadId).pendingSince = Date.now();
+    return msg;
   }
 
   async handleHttpRequest(req: any, res: any): Promise<void> {
@@ -251,6 +381,8 @@ export default class WebchatPlugin {
         if (expected && req.headers["x-webhook-secret"] !== expected)
           return json(401, { error: "missing or invalid X-Webhook-Secret" });
         const b = await this.readJson(req);
+        const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
+        const portal = Boolean(b.portal);
         const text = String(b.text ?? "").trim();
         const paths = Array.isArray(b.attachments) ? b.attachments : [];
         if (!text && paths.length === 0)
@@ -272,53 +404,93 @@ export default class WebchatPlugin {
             dir: "outbox",
           });
         }
-        const msg = await this.record({
+        const msg = await this.record(threadId, {
           at: Date.now(),
           role: "agent",
           text,
           files,
+          ...(portal ? { portal: true } : {}),
         });
-        this.pendingSince = null; // answered — drop the "working" indicator
-        return json(200, { ok: true, id: msg.id });
+        this.thread(threadId).pendingSince = null; // answered
+        return json(200, { ok: true, id: msg.id, threadId });
       }
 
-      // --- browser side: everything below needs a real harness session ---
+      // --- app server side: the supplier portal, authed by shared secret ----
+      if (path === "/api/app-send" || path === "/api/app-messages") {
+        const secret = String(ctx.secrets?.WEBCHAT_APP_SECRET ?? "");
+        if (!secret) return json(404, { error: "not found" });
+        if (req.headers["x-app-secret"] !== secret)
+          return json(401, { error: "missing or invalid X-App-Secret" });
+
+        if (req.method === "GET" && path === "/api/app-messages") {
+          const threadId = String(url.searchParams.get("thread") ?? "").trim();
+          if (!threadId) return json(400, { error: "thread required" });
+          const t = this.thread(threadId);
+          // Only the portal-visible half of the thread crosses this endpoint.
+          const view: Thread = {
+            messages: t.messages.filter((m) => m.portal),
+            nextId: t.nextId,
+            pendingSince: t.pendingSince,
+          };
+          return json(200, { ...this.window(view, url), pending: this.isPending(t) });
+        }
+        if (req.method === "POST" && path === "/api/app-send") {
+          const b = await this.readJson(req);
+          const threadId = String(b.threadId ?? "").trim();
+          const text = String(b.text ?? "").trim();
+          const senderName = String(b.senderName ?? "").trim() || "Portal user";
+          if (!threadId || !text) return json(400, { error: "threadId and text required" });
+          const msg = await this.deliver(threadId, text, [], senderName, "portal");
+          return json(200, { ok: true, id: msg.id });
+        }
+        return json(404, { error: "not found" });
+      }
+
+      // --- browser side: everything below needs a real harness session ------
       const cookie = String(req.headers.cookie ?? "");
       const user = await this.sessionUser(cookie);
       if (!user) return json(401, { error: "unauthorized" });
 
       if (req.method === "GET" && path === "/api/messages") {
-        const since = Number(url.searchParams.get("since") ?? 0);
-        const before = Number(url.searchParams.get("before") ?? 0);
-        const limit = Number(url.searchParams.get("limit") ?? 0);
-        // `since` walks forward (the poll); `before` walks backward (the
-        // panel's "load earlier"). `limit` keeps the newest slice of whichever
-        // window was asked for — the poll leaves it off so it can never drop a
-        // message it is the only one delivering.
-        const window =
-          before > 0
-            ? this.messages.filter((m) => m.id < before)
-            : this.messages.filter((m) => m.id > since);
-        const messages = limit > 0 ? window.slice(-limit) : window;
+        const threadId = String(url.searchParams.get("thread") ?? "").trim() || this.cfg.threadId;
+        const t = this.thread(threadId);
         return json(200, {
-          messages,
-          hasMore: messages.length < window.length,
-          pending: this.isPending() || (await this.hasInFlightEvent(cookie)),
-          cursor: this.messages[this.messages.length - 1]?.id ?? 0,
+          ...this.window(t, url),
+          pending: this.isPending(t) || (await this.hasInFlightEvent(cookie)),
         });
+      }
+
+      if (req.method === "GET" && path === "/api/threads") {
+        const threads = [...this.threads.entries()]
+          .filter(([, t]) => t.messages.length > 0)
+          .map(([threadId, t]) => {
+            const last = t.messages[t.messages.length - 1];
+            return {
+              threadId,
+              lastId: last.id,
+              lastAt: last.at,
+              lastRole: last.role,
+              // Present only on portal messages — how the app tells a
+              // supplier's message from the operator's own panel sends.
+              ...(last.senderName ? { lastSender: last.senderName } : {}),
+              lastText: last.text.slice(0, 120),
+            };
+          })
+          .sort((a, b) => b.lastAt - a.lastAt);
+        return json(200, { threads });
       }
 
       if (req.method === "GET" && path === "/api/file") {
         const name = safeName(url.searchParams.get("name") ?? "");
-        const file = this.messages
+        const file = [...this.threads.values()]
+          .flatMap((t) => t.messages)
           .flatMap((m) => m.files)
           .find((f) => f.name === name);
         if (!file) return json(404, { error: "unknown attachment" });
         const dir = file.dir === "outbox" ? this.outboxDir : ctx.inboxDir;
         const path = join(dir, name);
         // Length from the bytes on disk, never from `file.size` — that one is
-        // client-declared for uploads, and a Content-Length that disagrees with
-        // the body truncates or hangs the response.
+        // client-declared for uploads.
         let bytes: number;
         try {
           bytes = (await stat(path)).size;
@@ -362,6 +534,7 @@ export default class WebchatPlugin {
 
       if (req.method === "POST" && path === "/api/send") {
         const b = await this.readJson(req);
+        const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
         const text = String(b.text ?? "").trim();
         const uploads = Array.isArray(b.attachments) ? b.attachments : [];
         if (!text && uploads.length === 0)
@@ -375,43 +548,16 @@ export default class WebchatPlugin {
           dir: "inbox" as const,
         }));
 
-        const msg = await this.record({
-          at: Date.now(),
-          role: "user",
-          text,
-          files,
-        });
-
-        // Attachment paths are inlined in the body (same shape telegram uses)
-        // so the agent can `read` them without reconstructing a path, and also
-        // listed in metadata for anything that wants them structured.
-        const rel = files.map((f) => join("plugins/webchat/inbox", f.name));
-        const body =
-          text +
-          files
-            .map((f, i) => `\n<${f.label}>[${rel[i]}]`)
-            .join("");
-
-        ctx.notify("web_message", {
-          text: body,
-          channelId: "web",
-          threadIdOverride: this.cfg.threadId,
-          metadata: {
-            senderName: user,
-            messageId: msg.id,
-            ...(rel.length ? { attachments: rel } : {}),
-          },
-        });
-        this.pendingSince = Date.now();
+        const msg = await this.deliver(threadId, text, files, user, "web");
         return json(200, { ok: true, id: msg.id });
       }
 
       if (req.method === "POST" && path === "/api/reset") {
-        ctx.resetThread("web", this.cfg.threadId);
-        this.messages = [];
-        this.nextId = 1;
-        this.pendingSince = null;
-        await writeFile(this.transcriptPath, "");
+        const b = await this.readJson(req).catch(() => ({}) as Record<string, unknown>);
+        const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
+        ctx.resetThread("web", threadId);
+        this.threads.set(threadId, { messages: [], nextId: 1, pendingSince: null });
+        await writeFile(this.transcriptPath(threadId), "");
         return json(200, { ok: true });
       }
 

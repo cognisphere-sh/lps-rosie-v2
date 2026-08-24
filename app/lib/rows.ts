@@ -251,7 +251,15 @@ export interface JobRequestRow {
   /** What the job is called. NULL = unnamed; the card falls back to `JR-<id>`. */
   name: string | null
   status: string
-  customer: { id: number; name: string; company: string | null; email: string | null; phone: string | null } | null
+  customer: {
+    id: number
+    name: string
+    company: string | null
+    email: string | null
+    phone: string | null
+    /** `customers.rosie_thread_id` — the customer's chat thread, when minted. */
+    rosieThreadId: string | null
+  } | null
   billing: JobAddress
   shipping: JobAddress
   customerNotes: string | null

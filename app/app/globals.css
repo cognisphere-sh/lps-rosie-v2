@@ -254,6 +254,16 @@ body:has([data-workspace-shell]) {
   overscroll-behavior: none;
 }
 
+/* The mobile page destinations scroll inside the bottom bar, not the document.
+   Hide its platform scrollbar without disabling touch or trackpad scrolling. */
+.lps-mobile-nav-scroll {
+  scrollbar-width: none;
+}
+
+.lps-mobile-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* The pencil affordance only appears on the row you are pointing at. */
 .lps-row:hover .lps-pencil {
   opacity: 1;

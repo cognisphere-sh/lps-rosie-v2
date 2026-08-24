@@ -10,6 +10,44 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0071_ar_request_lps_notes.sql`
+
+Applied 2026-08-23 (Bhoumik), same day as 0070. Adds
+`availability_requests.lps_notes` — LPS's job-level note to the supplier
+(delivery window, site constraints, cross-line context), rendered on the
+portal's request card and never portal-writable — and re-comments the item
+column with its broadened semantics: the mapped substitute + price from
+inventory data, a special customer request, or a customer note worth the
+supplier's eyes.
+
+## `0070_ar_items_lps_notes.sql`
+
+Applied 2026-08-23 (Bhoumik). Adds `availability_request_items.lps_notes` —
+LPS's brief note to the supplier about a line (a few words, typically the
+substitute rosie's sourcing mapped), rendered under the plant name in the
+portal. The reverse direction of `notes` (the supplier's answer), and kept
+out of the portal PATCH whitelist so a supplier can never edit it.
+
+## `0069_order_data_reset.sql`
+
+Applied 2026-08-23 (Bhoumik) — **hard delete, deliberately no backup** (his
+instruction). Truncates the whole order-side data set — `customers`,
+`job_requests` (+ items + changelog), `availability_requests` (+ items) —
+with `RESTART IDENTITY`, clearing the pre-restructure test data (1 job
+request / 11 lines / 27 changelog rows, 1 availability request / 11 lines,
+0 customers) so real orders start clean on the new thread model. Schema
+untouched.
+
+## `0068_rosie_thread_ids.sql`
+
+Applied 2026-08-23 (Bhoumik), part of rosie's restructure. Adds
+`suppliers.rosie_thread_id` (backfilled with the same `supplier-<slug>` values
+as `daisy_thread_id` — thread ids are per-agent namespaces, so the shared
+string names two distinct threads) and `customers.rosie_thread_id`
+(`customer-<slug of name>`, minted by rosie on first contact; the table was
+empty on apply, so no backfill). Rosie coordinates all order-side supplier and
+customer contact on these threads.
+
 ## `0067_supplier_type_tags.sql`
 
 Applied 2026-08-23 (Bhoumik), implementing Chris's 2026-08-21 supplier-type

@@ -6,11 +6,14 @@
 
 The web app's chat panel (`app/components/workspace/chat.tsx`) posts here
 through a thin app-side proxy; the agent answers with the seeded
-`scripts/webchat/webchat-cli`. Messages land on the thread named in config —
-**the same thread telegram routes to** — so the panel and Telegram are one
-conversation, not two. The thread id is per-agent config (`threadId`, table
-below); `threadIdOverride` bypasses the agent's `threadIdStrategy`, so naming
-a thread telegram doesn't route to would split the conversation.
+`scripts/webchat/webchat-cli`. Since 2026-08-23 the plugin is
+**multi-thread**: every endpoint takes an optional thread id and keeps **one
+transcript per thread**. The default (`threadId` config, table below) is the
+thread telegram routes to, so the panel's default conversation and Telegram
+stay one conversation; the panel's thread picker opens any other thread
+(`jr-<id>`, `supplier-<slug>`, `customer-<slug>`, `router`), and the supplier
+portal joins the supplier's own thread through the app-secret endpoints.
+Delivery uses `threadIdOverride` throughout.
 
 ## Config
 
@@ -19,22 +22,28 @@ a thread telegram doesn't route to would split the conversation.
 | `threadId` | `main` | Thread web messages are delivered to (`threadIdOverride`). |
 | `maxUploadMb` | `25` | Per-file upload cap; a bigger body gets HTTP 413. |
 | `pendingTimeoutSec` | `900` | How long an unanswered web message may keep the "working…" indicator up before the panel drops it. Does not bound the queue half of the indicator. |
-| `historyLimit` | `200` | Messages kept in memory and returned to the browser. |
+| `historyLimit` | `200` | Messages kept in memory and returned to the browser, per thread. |
 
-No secrets.
+One **optional** secret: `WEBCHAT_APP_SECRET` — enables the two server-to-server
+portal endpoints below. Wired for rosie by `scripts/app/secrets.sh` (same
+pattern as the artifacts and supplier-events secrets); without it they answer
+404. Daisy and nova don't carry it.
 
 ## Endpoints — `/webhook/<agent>/webchat/api/*`
 
 | Method + path | Caller | Purpose |
 |---|---|---|
 | `POST api/upload` | browser | Raw body + `x-file-name` → stores in `inbox/`, returns `{name, label, size, mime}`. |
-| `POST api/send` | browser | `{text, attachments[]}` → records the message and wakes the agent. |
-| `GET api/messages?since=<id>` | browser | `{messages, hasMore, pending, cursor}` — everything newer than `<id>`. Polled every 2s while the panel is open. |
+| `POST api/send` | browser | `{text, attachments[], threadId?}` → records the message on that thread and wakes the agent there. |
+| `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor}` — everything newer than `<id>` on that thread. Polled every 2s while the panel is open. |
 | `GET api/messages?before=<id>` | browser | The page of history *older* than `<id>`, for the panel's "Load earlier messages". |
 | &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
-| `GET api/file?name=<stored>` | browser | The bytes of one attachment (inbox or outbox). |
-| `POST api/reset` | browser | Wipes the thread's context **and** the transcript. |
-| `POST api/reply` | the agent | `{text, attachments[]}` → the reply, and clears the panel's half of `pending`. |
+| `GET api/threads` | browser | `{threads:[{threadId,lastId,lastAt,lastRole,lastSender?,lastText}]}` — every thread with a transcript, newest first (`lastSender` only on portal messages). The panel's picker merges this with the app's `/api/chat-directory`; the app's unread tracking (`lib/chat-notifications.tsx`) compares `lastId` against per-browser read state. |
+| `GET api/file?name=<stored>` | browser | The bytes of one attachment (any thread, inbox or outbox). |
+| `POST api/reset` | browser | `{threadId?}` — wipes that thread's context **and** its transcript. |
+| `POST api/reply` | the agent | `{text, attachments[], threadId?, portal?}` → the reply, defaulting to the config thread (the CLI defaults `threadId` to `$PI_THREAD_ID`); clears that thread's half of `pending`. |
+| `POST api/app-send` | app server | `{threadId, text, senderName}` + `X-App-Secret` → a supplier-portal message: recorded portal-visible, delivered with `Channel: portal`. |
+| `GET api/app-messages?thread=<id>` | app server | `X-App-Secret` → the **portal-visible half** of that thread only: portal-sent messages and `--portal` replies. The team's internal panel traffic never crosses this endpoint. |
 
 ### Auth — two callers, two mechanisms
 
@@ -48,6 +57,10 @@ one has two kinds of caller, so it has two checks:
   port could chat as the operator and write files into the agent's inbox.
 - **`api/reply`** requires `COGNISPHERE_WEBHOOK_SECRET`, which only in-harness
   processes have (the harness injects it into every agent's env).
+- **`api/app-send` / `api/app-messages`** require `WEBCHAT_APP_SECRET`
+  (`X-App-Secret`) — presented by the app's *server* routes for the supplier
+  portal, whose users are not harness users (portal auth is a deliberately
+  deferred step, so this inherits the portal's public-by-URL posture).
 
 Both directions reject attachment paths that escape their directory —
 `api/file` only serves names it finds in the transcript, and `api/reply`
@@ -73,7 +86,7 @@ Three places, each with a different job — the plugin adds **no new database**:
 
 | What | Where |
 |---|---|
-| The transcript the panel renders | `agents/<id>/plugins/webchat/state/transcript.jsonl` (append-only, one object per message) |
+| The transcripts the panel renders | `agents/<id>/plugins/webchat/state/threads/<threadId>.jsonl` (append-only, one file per thread; the pre-multi-thread `transcript.jsonl` is migrated to the default thread's file on first start) |
 | Uploaded files | `agents/<id>/plugins/webchat/inbox/` |
 | Files the agent sends back | `agents/<id>/plugins/webchat/state/outbox/` |
 | The event that wakes the agent | `agents/<id>/sessions/.events.db` — the harness's own queue |
@@ -116,11 +129,12 @@ Three consequences worth knowing:
 
 ## Inbound event shape
 
-`Plugin: webchat` · `Channel: web` · `ThreadId: <config.threadId>` plus:
+`Plugin: webchat` · `Channel: web` (panel) or `Channel: portal` (supplier
+portal) · `ThreadId: <the message's thread>` plus:
 
 | Field | Meaning |
 |---|---|
-| `SenderName` | The signed-in app user, taken from the harness session — not self-reported. |
+| `SenderName` | The signed-in app user (harness session — not self-reported), or `<Supplier name> (portal)` for portal messages. |
 | `MessageId` | The plugin's own id for the message. |
 | `Attachments` | Agent-dir-relative paths, present only when files were attached. |
 

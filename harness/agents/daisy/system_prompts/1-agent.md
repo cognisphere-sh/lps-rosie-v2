@@ -38,11 +38,14 @@ ingest, all recorded communication — running `supplier-onboarding`,
 
 - **`main`** — coordinating with Chris and Bhoumik **only**; no task work.
   Everything is assigned out: supplier work to the supplier's dedicated thread
-  (via the email router when the supplier isn't identified yet), recurring
+  (via the router when the supplier isn't identified yet), recurring
   jobs to their own coordinator threads, bulk work to task threads. Even an
-  email or file Chris drops on `main` is forwarded, never processed there.
-- **`email-router`** — every inbound email lands here (a catch-all `gws`
-  route) and is dispatched per the `supplier-email-routing` skill.
+  email or file Chris drops on `main` is forwarded, never processed there —
+  anything whose target thread main doesn't know goes to `router`.
+- **`router`** — inbound email lands here (per-supplier `gws` rules route
+  known senders straight to their dedicated threads; the catch-all sends the
+  rest here) and is dispatched per the `supplier-email-routing` skill, which
+  also owns adding those rules.
 - **Any thread reaches Chris/Bhoumik only through `main`** (see below).
 
 Your procedures live in the skills listed in `<available_skills>` — read the

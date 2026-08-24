@@ -6,10 +6,12 @@
 // nothing here knows which page it is drawn on.
 
 import { useEffect, useLayoutEffect, useState } from 'react'
+import { MessagesSquare } from 'lucide-react'
 
 import {
   EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
+import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { CheckIcon, ChevronDown, ChevronRight } from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
@@ -334,25 +336,46 @@ export function SupplierNoteLinks({ links }: { links: SupplierLink[] }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {links.map((link) => (
-        <a
+        <span
           key={link.supplierId}
-          href={
-            link.onboarded
-              ? `/suppliers/${link.supplierId}?tab=requests${
-                  link.availabilityRequestId != null ? `&ar=${link.availabilityRequestId}` : ''
-                }`
-              : `/suppliers/${link.supplierId}`
-          }
-          onClick={(e) => e.stopPropagation()}
-          title={
-            link.onboarded
-              ? `Open ${link.name}'s availability request`
-              : `Open ${link.name}'s profile`
-          }
-          className="rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-lps-tint"
+          className="inline-flex items-stretch overflow-hidden rounded-full border border-border bg-card text-[10.5px] font-semibold"
         >
-          {link.name}
-        </a>
+          <a
+            href={`/suppliers/${link.supplierId}`}
+            onClick={(e) => e.stopPropagation()}
+            title={`Open ${link.name}'s profile`}
+            className="px-2 py-0.5 text-primary hover:bg-lps-tint"
+          >
+            {link.name}
+          </a>
+          {link.rosieThreadId && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                openChat({ agentId: 'rosie', threadId: link.rosieThreadId!, label: link.name })
+              }}
+              title={`Open the ${link.name} conversation`}
+              aria-label={`Open the ${link.name} conversation`}
+              className="flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 text-muted-foreground hover:bg-lps-tint hover:text-primary"
+            >
+              <MessagesSquare size={11} />
+            </button>
+          )}
+          {link.availabilityRequestId != null && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                openAvailabilityRequest(link.availabilityRequestId!)
+              }}
+              title={`Open availability request AR-${link.availabilityRequestId}`}
+              className="flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 text-primary hover:bg-lps-tint"
+            >
+              AR-{link.availabilityRequestId}
+            </button>
+          )}
+        </span>
       ))}
     </div>
   )

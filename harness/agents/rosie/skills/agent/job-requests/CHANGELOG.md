@@ -1,5 +1,27 @@
 # job-requests — changelog
 
+## 2.0.0
+
+2026-08-23 (Bhoumik's rosie restructure). **Each request lives on its own
+`jr-<id>` thread**, created at intake: `main` does only find-or-create the
+customer + insert the request row, then hands the whole ask over; the jr
+thread creates the items and runs the sourcing round (the
+`…-§-[TASK]-§-jr-<id>-sourcing` task thread is retired). **Availability asks
+go to rosie's own per-supplier threads** (`suppliers.rosie_thread_id`, the new
+`supplier-coordination` skill) instead of daisy — she is no longer in the
+order loop, and the ask's `supplier_messages` mirror-INSERT is gone with the
+dropped table. §5.3's Chris gate moved with the channel: the supplier thread
+creates the availability request as its standing job, and only unremembered
+preferences (share customer details) go to Chris. §7 customer contact moved to
+the customer's dedicated thread (`customers.rosie_thread_id`, the new
+`customer-coordination` skill); the jr thread keeps the `quoted` status move.
+Same-day additions: main routes any message about an existing request to its
+jr thread; webchat acknowledgements carry the panel's
+`[…](thread:jr-<id>)` button; §5.2's ask names the mapped `inventory`
+rows (id + catalogued name/size/price) per line, which is what the supplier
+thread seeds the availability request's prefill from; and every milestone is
+posted to the jr thread's own web chat.
+
 ## 1.16.0
 
 2026-08-19, from Chris, same day as 1.15.0. **The availability check takes

@@ -127,7 +127,8 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
 | `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
 | `is_onboarded` | boolean | no, default false | Answers **availability requests in the supplier portal** (`/portal/<id>`, migration 0062). FALSE = reached only through daisy's channels. Not a login — portal auth is a deliberately deferred step |
-| `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the email router forwards supplier traffic here. Added 2026-08-23 (migration 0064) |
+| `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the router thread (and per-supplier gws rules) send supplier traffic here. Added 2026-08-23 (migration 0064) |
+| `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for the company — the **same `supplier-<slug>` value** as `daisy_thread_id` (thread ids are per-agent namespaces, so the shared string names two distinct threads), one per head branch. All order-side coordination with the supplier runs there: availability requests, follow-ups, portal-save notifications. Set with `daisy_thread_id` at onboarding. Added 2026-08-23 (migration 0068) |
 | `is_active` | boolean | no, default true | Soft delete; deactivation cascades (see triggers) |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
@@ -722,8 +723,11 @@ three partial indexes mirroring `inventory_supplier_*_std_idx`.
 ### `customers`
 
 One row per customer — the **person**; their company is an attribute. Added
-2026-08-17 by migration 0055. Owned by the **rosie** agent: rosie writes these
-tables and only reads the supplier side; daisy is the reverse.
+2026-08-17 by migration 0055. Owned by the **rosie** agent: rosie writes the
+customer and job-request tables (and, since 2026-08-23, the
+availability-request pair); daisy writes the supplier and inventory tables.
+Each only reads the other's, with one shared surface: `suppliers.notes`, where
+rosie also records coordination preferences.
 
 Contact routes are **inline** (`email`/`phone` on the row), deliberately unlike
 suppliers — a job request comes from a person, and the `contacts` + link-table
@@ -738,6 +742,7 @@ split can be introduced by migration if multi-contact customers ever appear.
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
 | `notes` | text | yes | **Durable facts**, edited in place — same split as suppliers |
 | `communication_notes` | text | yes | **Append-only contact log**, timestamped entries — same convention as `suppliers.communication_notes` |
+| `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for this customer — `customer-<slug of name>` (`-<id>` on a collision with a different customer), minted by rosie on first contact. One conversation per customer across all their job requests. Added 2026-08-23 (migration 0068) |
 | `is_active` | boolean | no, default true | Soft delete. No deactivation cascade — retiring a customer is a deliberate act, and their requests keep their history |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -821,11 +826,13 @@ changed under you since you last looked.
 ### `availability_requests`
 
 One availability ask, from one job request to one **onboarded** supplier
-(`suppliers.is_onboarded`). Added 2026-08-19 by migration 0062. Created by the
-app (Job Requests page → selection bar) or by daisy (her
-`availability-requests` skill — she owns every supplier conversation, the
-portal included; rosie never writes these tables); answered by the supplier in
-their portal; the conversation is the supplier's one thread.
+(`suppliers.is_onboarded` — an **LPS Partner**). Added 2026-08-19 by migration
+0062. Created by the app (Job Requests page → selection bar) or by rosie's
+per-supplier thread (her `supplier-coordination` skill — since 2026-08-23 she
+owns order-side supplier coordination, the portal included; before that the
+writer was daisy's retired `availability-requests` skill). Answered by the
+supplier in their portal, whose Save wakes rosie via the `supplier-events`
+webhook.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -835,6 +842,7 @@ their portal; the conversation is the supplier's one thread.
 | `share_customer_details` | boolean | no, default false | Whether the portal shows the supplier who the job is for (customer name/company/contact routes and shipping address). Default is not to |
 | `status` | text | no, default `new` | **CHECK**: `new` \| `submitted` \| `closed`. `submitted` = the supplier pressed **Save** in the portal (`submitted_at` stamps the first one; the apps label it *Answered*); `closed` = we are done with it (an admin act) |
 | `submitted_at` | timestamptz | yes | Stamped by the portal's Submit |
+| `lps_notes` | text | yes | **LPS's job-level note to the supplier** — delivery window, site constraints, what matters across the lines. Written by rosie at share time; rendered on the portal's request card; never supplier-writable. Added 2026-08-23 (migration 0071) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -858,6 +866,7 @@ seeded.
 | `available_quantity` | numeric | yes | CHECK: null or `>= 0` |
 | `unit_price` | numeric(10,2) | yes | CHECK: null or `> 0` — same never-0 rule as everywhere. **Seeded at share time** where our own catalogue already answers the line for that supplier at that size, so they confirm or correct a number rather than typing one; ours until `status` is theirs |
 | `notes` | text | yes | The supplier's note about this line — substitute, ETA, conditions |
+| `lps_notes` | text | yes | **LPS's brief note to the supplier about this line** — the substitute and price the inventory data mapped ("Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit"), a special request from the customer, or a customer note worth the supplier's eyes. A few words; written at share time; rendered under the plant name in the portal; not in the portal PATCH whitelist, so never supplier-editable. Added 2026-08-23 (migration 0070; semantics broadened + request-level sibling by 0071) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -1351,10 +1360,9 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
 - Never infer a person's name from an email address. `contacts.name` is
   nullable precisely so you don't have to (and `customers.name` waits for a
   real name rather than a guess).
-- Per-supplier quirks live in daisy's
-  `workspace/suppliers/[<supplierId>]:<Name>/notes.md` (see
-  `workspace/suppliers/index.md` for the name → id map). Per-customer quirks
-  live in rosie's `workspace/customers/[<customerId>]:<Name>/notes.md`.
+- Per-supplier quirks live in **`suppliers.notes`** (edited in place; the old
+  `workspace/suppliers/` dirs are read-only legacy since 2026-08-23), and
+  per-customer quirks in **`customers.notes`** the same way.
 - The job-request tables carry **three notes columns each**: `customer_notes`
   (the customer's words, verbatim, never edited), `internal_notes` (ours,
   append-only, timestamped — on an item it is the sourcing log), and

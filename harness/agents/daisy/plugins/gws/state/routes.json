@@ -1,1 +1,1 @@
-{"routes":[{"name":"email-router-all","threadId":"email-router","from":"."}]}
+{"routes":[{"name":"route-yc-nurseries-ccsend","threadId":"supplier-yc-nurseries-dallas","from":"kristen@ycnursery.ccsend.com"},{"name":"route-acosta-farms-lilly","threadId":"supplier-acosta-farms-nursery-inc","from":"lilly@acostafarms.com"},{"name":"router-all","threadId":"router","from":"."}]}

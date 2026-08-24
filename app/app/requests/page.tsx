@@ -1,10 +1,13 @@
 'use client'
 
+import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { MessagesSquare } from 'lucide-react'
 
 import {
   ChevronDown, ChevronRight, CloseIcon, MapPinIcon,
 } from '@/components/workspace/icons'
+import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { EditableText, patchRow } from '@/components/workspace/editable'
 import {
   DemandSummary,
@@ -87,6 +90,14 @@ function RequestCard({
   const tone = requestStatusTone(request.status)
   const customerName = request.customer?.company || request.customer?.name
   const contact = request.customer?.company && request.customer.name ? request.customer.name : null
+  // The customer's chat thread: the minted id, or the same `customer-<slug>`
+  // rosie's customer-coordination skill mints on first contact.
+  const customerThread = request.customer
+    ? request.customer.rosieThreadId ??
+      (request.customer.name
+        ? `customer-${request.customer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`
+        : null)
+    : null
   const edit = { table: 'job_requests', id: request.id, onSaved }
 
   // The head keeps only where it is going; the street lives in the drawer.
@@ -155,12 +166,43 @@ function RequestCard({
           >
             {formatDate(request.updatedAt)}
           </span>
+          {/* This job's own Rosie conversation — the jr-<id> thread. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              openChat({
+                agentId: 'rosie',
+                threadId: `jr-${request.id}`,
+                label: request.name ?? requestRef(request.id),
+              })
+            }}
+            title={`Chat with Rosie about ${requestRef(request.id)}`}
+            aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
+            className="flex flex-none cursor-pointer items-center border-none bg-transparent p-0 opacity-75 hover:opacity-100"
+          >
+            <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
+          </button>
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-[30px] text-[12px]">
           <span className="font-semibold text-foreground">
             {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
           </span>
+          {request.customer && customerThread && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                openChat({ agentId: 'rosie', threadId: customerThread, label: customerName ?? customerThread })
+              }}
+              title={`Open the ${customerName} conversation`}
+              aria-label={`Open the ${customerName} conversation`}
+              className="flex cursor-pointer items-center border-none bg-transparent p-0.5 text-muted-foreground hover:text-primary"
+            >
+              <MessagesSquare size={12} />
+            </button>
+          )}
           {contact && <span className="text-muted-foreground">· {contact}</span>}
           {locality && (
             <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -168,6 +210,29 @@ function RequestCard({
             </span>
           )}
         </div>
+
+        {/* The job's availability requests — newest per supplier — each
+            opening as a drawer. */}
+        {request.supplierLinks.some((l) => l.availabilityRequestId != null) && (
+          <div className="flex flex-wrap items-center gap-1 pl-[30px]">
+            {request.supplierLinks
+              .filter((l) => l.availabilityRequestId != null)
+              .map((l) => (
+                <button
+                  key={l.availabilityRequestId}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openAvailabilityRequest(l.availabilityRequestId!)
+                  }}
+                  title={`Open availability request AR-${l.availabilityRequestId}`}
+                  className="cursor-pointer rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary"
+                >
+                  AR-{l.availabilityRequestId} · {l.name}
+                </button>
+              ))}
+          </div>
+        )}
 
         {/* Collapsed cards keep the same scan strip. The expanded body owns the
             single full-width strip so counts and subtotal are never repeated. */}
@@ -695,6 +760,7 @@ export default function RequestsPage() {
       page="requests"
       title="Job Requests"
       subtitle={`${summary.requests} open ${summary.requests === 1 ? 'request' : 'requests'} · ${summary.items} line items`}
+      hideHeaderOnMobile
       toolbar={
         <Toolbar
           placeholder="Search plants, customers, JR-…"

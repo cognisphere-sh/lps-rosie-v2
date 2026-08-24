@@ -102,15 +102,12 @@ These are byte-identical in every agent dir:
 
 ## Plugins
 
-One user-space plugin lives in `harness/plugins/`:
+Two user-space plugins live in `harness/plugins/`:
 
 | Plugin | Purpose | Enabled on |
 |---|---|---|
 | [`webchat`](plugin-webchat.md) | Browser chat channel for the web app — inbox at `/webhook/<agent>/webchat/api/*`, replies via `scripts/webchat/webchat-cli` | daisy, nova, rosie |
-
-(`supplier-events` — the app→daisy webhook for portal activity — was dropped
-2026-08-23 in the agent restructure; it returns, re-targeted, when rosie takes
-over request management.)
+| [`supplier-events`](plugin-supplier-events.md) | App→rosie webhook: a supplier saved an availability request in their portal — lands on the supplier's `rosie_thread_id` thread | rosie |
 
 No catalog plugins are forked. Every other plugin an agent uses is a bundled
 core/catalog plugin enabled by an empty `agents/<id>/plugins/<plugin>/` dir;

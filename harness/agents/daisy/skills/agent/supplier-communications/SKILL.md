@@ -1,9 +1,9 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden; learning mode), Chris's email style (short, casual, never wordy), the Sales & Use Tax permit attachment, the approved light-touch initial-outreach template for a Texas wholesale nursery, the one-thread-per-supplier convention (the suppliers.daisy_thread_id thread), composing and sending as Chris, how replies come back through the email router, recording contact in the thread's notes, and where supplier facts belong. Use when asked to reply to, chase or initially contact a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v4.1.0)
+description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden; learning mode), Chris's email style (short, casual, never wordy), the Sales & Use Tax permit attachment, the approved light-touch initial-outreach template for a Texas wholesale nursery, the one-thread-per-supplier convention (the suppliers.daisy_thread_id thread), composing and sending as Chris, how replies come back through the router thread or a direct routing rule, recording contact in the thread's notes, and where supplier facts belong. Use when asked to reply to, chase or initially contact a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v4.1.1)
 metadata:
   author: lps
-  version: "4.1.0"
+  version: "4.1.1"
 ---
 
 # Supplier communications
@@ -104,12 +104,12 @@ Sending as Chris rather than Daisy is Chris's instruction (2026-07-14); the
 
 ### How the supplier's reply comes back
 
-**Don't add `gws` routing rules.** A catch-all rule pins every inbound email
-to the `email-router` thread (first matching rule wins, and new rules are
-appended after it, so a per-exchange rule would never fire). The router
-identifies the sender and forwards the reply to this thread per the
-`supplier-email-routing` skill — mention the Gmail thread id in your notes so
-the forwarded reply is easy to place.
+**Don't add `gws` routing rules from this thread** — rule management is the
+`router` thread's job (`supplier-email-routing` §5: it keeps the catch-all
+last, since first matching rule wins and `routes add` appends). The reply
+reaches this thread either as the router's forward or directly, when a rule
+already routes this supplier's sender here — mention the Gmail thread id in
+your notes so the reply is easy to place.
 
 ## Recording the contact
 

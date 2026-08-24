@@ -1,5 +1,13 @@
 # supplier-onboarding — changelog
 
+## 2.3.0
+
+2026-08-23 (Bhoumik, rosie's restructure) — §2 sets **`rosie_thread_id`
+alongside `daisy_thread_id`** (the same `supplier-<slug>` value; thread ids
+are per-agent namespaces — rosie's thread coordinates orders, this agent's
+does onboarding/ingestion), and the QA block checks both. Migration 0068
+backfilled existing rows.
+
 ## 2.2.0
 
 2026-08-23 — Chris's target tag set is live (migration 0067): the `category`

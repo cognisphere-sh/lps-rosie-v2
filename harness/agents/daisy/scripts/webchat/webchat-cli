@@ -3,7 +3,7 @@
 # plugin; your turn text is internal, so a reply only reaches the user when it
 # goes through here.
 #
-#   webchat-cli send --text "…" [--file <path>]…
+#   webchat-cli send --text "…" [--file <path>]… [--thread-id <id>]
 #
 # --file may be repeated. Paths are relative to the agent dir (or absolute
 # inside it); the plugin copies each into its outbox and the browser renders
@@ -20,12 +20,20 @@ usage() {
 webchat-cli — reply to the web chat panel.
 
 USAGE
-  scripts/webchat/webchat-cli send --text "…" [--file <path>]…
+  scripts/webchat/webchat-cli send --text "…" [--file <path>]… [--thread-id <id>]
   scripts/webchat/webchat-cli --self-check
 
 FLAGS
-  --text <text>   the reply body (markdown)
-  --file <path>   attach a file, relative to the agent dir; repeatable
+  --text <text>       the reply body (markdown)
+  --file <path>       attach a file, relative to the agent dir; repeatable
+  --thread-id <id>    which thread's web transcript the reply lands in.
+                      Defaults to the CURRENT thread ($PI_THREAD_ID), so a
+                      reply from a jr/supplier/customer thread reaches the
+                      panel (and portal) conversation for that same thread.
+  --portal            mark the reply portal-visible: on a supplier thread the
+                      supplier's portal chat shows ONLY portal-visible
+                      messages, so a reply meant for the supplier needs this
+                      flag — and an internal reply must never carry it.
   --self-check    offline payload self-test, no network
   -h, --help      show this help
 
@@ -35,7 +43,8 @@ EOF
 }
 
 agent="${PI_AGENT_ID:-}"
-text="" selfcheck=false
+text="" selfcheck=false portal=false
+thread="${PI_THREAD_ID:-}"
 files=()
 
 cmd="${1:-}"
@@ -51,6 +60,8 @@ while [ $# -gt 0 ]; do
     -h|--help)    usage; exit 0 ;;
     --text)       text="$2"; shift 2 ;;
     --file)       files+=("$2"); shift 2 ;;
+    --thread-id)  thread="$2"; shift 2 ;;
+    --portal)     portal=true; shift ;;
     --self-check) selfcheck=true; shift ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
@@ -61,7 +72,10 @@ payload() {
   if [ ${#files[@]} -gt 0 ]; then
     list="$(printf '%s\n' "${files[@]}" | jq -R . | jq -sc .)"
   fi
-  jq -cn --arg text "$text" --argjson att "$list" '{text:$text, attachments:$att}'
+  jq -cn --arg text "$text" --arg thread "$thread" --argjson portal "$portal" --argjson att "$list" \
+    '{text:$text, attachments:$att}
+     + (if $thread=="" then {} else {threadId:$thread} end)
+     + (if $portal then {portal:true} else {} end)'
 }
 
 if $selfcheck; then

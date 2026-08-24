@@ -1,9 +1,13 @@
 # Plugin: webchat
 
-The webchat plugin connects you to the **chat panel in the LPS web app**. Web
-messages are routed to the same thread as the Telegram main route, so the web
-panel and Telegram are one conversation — the person typing in the browser can
-see what you were told on Telegram, and vice versa.
+The webchat plugin connects you to the **chat panel in the LPS web app**, one
+web transcript **per thread**. The panel's default conversation is your `main`
+thread — the same thread the Telegram main route uses, so panel and Telegram
+are one conversation there. The panel can also open any other of your threads
+(a `jr-<id>`, a supplier's or customer's dedicated thread, `router`), and the
+supplier portal joins the supplier's own thread — a portal message arrives
+with `Channel: portal` and the supplier's name as `SenderName`, and your reply
+on that thread reaches both the portal and the team's panel view.
 
 ## Inbound
 
@@ -41,11 +45,31 @@ internal. Always invoke the CLI to actually deliver a reply.
 ```
 bash scripts/webchat/webchat-cli send --text "..."
 bash scripts/webchat/webchat-cli send --text "..." --file plugins/webchat/inbox/list.pdf
+bash scripts/webchat/webchat-cli send --text "..." --thread-id "jr-12"
 ```
+
+`--thread-id` picks which thread's web conversation the reply lands in; it
+defaults to the **current** thread, which is almost always right — answer
+where you were asked. Cross-post only deliberately (e.g. main confirming a
+hand-off).
+
+**`--portal` controls what the supplier sees.** A supplier thread's transcript
+is shared between the team's panel (which sees everything) and that supplier's
+portal chat (which sees ONLY portal-visible messages: what the supplier typed
+in the portal, and replies you send with `--portal`). So: answering the
+supplier → add `--portal`; anything internal — status for the team, notes,
+relays — → never add it. A portal reply is an external supplier contact and
+follows the same gates as any other (`supplier-coordination`).
 
 - `--text` is markdown. The panel renders paragraphs, `**bold**`, `` `code` ``,
   links and bullet lists; it does **not** render tables, so keep tabular data to
   short bullet lists.
+- Two special link schemes render as **action buttons** in the panel (plain
+  links elsewhere, so use them only in web replies):
+  `[Continue in JR-12 chat](thread:jr-12)` switches the panel to that thread —
+  render one whenever you create a job request or hand work to another thread;
+  `[Open AR-7](ar:7)` opens that availability request in a drawer — render one
+  whenever an availability request is created or answered.
 - `--file` is repeatable and takes a path relative to the agent dir. Images are
   shown inline in the panel; anything else appears as a download.
 - Prints `{"ok":true,"id":<n>}` on success; errors go to stderr, non-zero exit.

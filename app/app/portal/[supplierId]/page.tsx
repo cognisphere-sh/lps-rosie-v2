@@ -21,9 +21,10 @@ import {
   AR_STATUSES,
   arResponseLabel,
   arStatusLabel,
+  arSubtotal,
   type ARDetail,
 } from '@/lib/availability'
-import { formatDate } from '@/lib/format'
+import { formatDate, money } from '@/lib/format'
 import { toneDot } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
 
@@ -76,6 +77,7 @@ function RequestCard({
     }
     return counts
   }, [request.items])
+  const subtotal = useMemo(() => arSubtotal(request.items), [request.items])
 
   return (
     <div className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
@@ -154,11 +156,35 @@ function RequestCard({
               </span>
             )
           })}
+          {/* What the answers add up to so far — the table's subtotal, on the
+              collapsed card. Absent until some line carries both a quantity
+              and a price. */}
+          {subtotal != null && (
+            <>
+              <span className="h-3 w-px flex-none bg-lps-hair" />
+              <span className="whitespace-nowrap">
+                <span className="text-muted-foreground">Subtotal </span>
+                <span className="font-semibold tabular-nums text-foreground">{money(subtotal)}</span>
+              </span>
+            </>
+          )}
         </div>
       </div>
 
       {expanded && (
         <div className="flex flex-col gap-2.5 border-t border-border p-3">
+          {/* LPS's job-level note to the supplier — delivery window, site
+              constraints, what matters across the lines. Ours; read-only. */}
+          {request.lpsNotes && (
+            <div className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+                Note from Local Plant Supply
+              </span>
+              <span className="whitespace-pre-wrap text-[12.5px] text-foreground">
+                {request.lpsNotes}
+              </span>
+            </div>
+          )}
           {(request.customer || request.shipping?.address) && (
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               {request.customer && (

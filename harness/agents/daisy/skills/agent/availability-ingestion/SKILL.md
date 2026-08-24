@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading a routed email/file, location mapping, source conversion, identity/size/price normalization, the lean notes rule, aliases, provenance, current-receipt/manual intake, exact-farm historical backfill date skips, match/update/insert rules, photo triage, QA and Gmail labelling. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v2.1.0)
+description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading a routed email/file, location mapping, source conversion, identity/size/price normalization, the lean notes rule, aliases, provenance, current-receipt/manual intake, exact-farm historical backfill date skips, match/update/insert rules, photo triage, QA and Gmail labelling. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v2.2.0)
 metadata:
   author: lps
-  version: "2.1.0"
+  version: "2.2.0"
 ---
 
 # Availability ingestion
@@ -11,8 +11,8 @@ metadata:
 Ingest one availability drop (price list, availability sheet, website catalog, or
 photo) into Supabase. This procedure runs on the **supplier's dedicated
 thread** — the `suppliers.daisy_thread_id` value; drops reach it as forwards
-from the `email-router` thread (the `supplier-email-routing` skill) or as
-handoffs from `main` — and it owns **every inventory-side database write** —
+from the `router` thread (the `supplier-email-routing` skill), directly via a
+gws routing rule, or as handoffs from `main` — and it owns **every inventory-side database write** —
 parsing and all `inventory`, `inventory_sources` and `plant_aliases` rows.
 
 **Where the boundary is.** Three skills meet here, and each owns one thing:
@@ -44,9 +44,11 @@ bump per the `create-skill` skill.
 
 ## Your inputs
 
-A drop arrives as a **forward from the email-router thread** — MessageId,
+A drop arrives as a **forward from the router thread** — MessageId,
 Gmail thread id, sender, subject, attachment names, and the supplier rows it
-matched — or as a handoff from `main` (file paths, a URL, an image). **Read
+matched — as a **raw `email_received`** when a gws routing rule sends this
+supplier's mail straight here (`supplier-email-routing` §5; same processing,
+no forward block), or as a handoff from `main` (file paths, a URL, an image). **Read
 the source yourself**: for an email, `bash scripts/gws/email read <MessageId>
 --attachments` gives the full body and writes the attachments to
 `plugins/gws/inbox/<MessageId>/`. The body text is part of the source — it can
@@ -1029,8 +1031,9 @@ yourself** — retiring an offering is a deliberate act outside an ingest (§4).
 ## 7. Label the email
 
 After processing an email drop, apply one **sub-label under `Daisy`** for the
-status (the router already applied the primary `Daisy` label when it forwarded
-the email — re-adding it is harmless):
+status, plus the primary `Daisy` label when the email reached this thread
+directly via a gws routing rule (a router forward already carries it —
+re-adding it is harmless):
 
 | Sub-label | When |
 | --- | --- |

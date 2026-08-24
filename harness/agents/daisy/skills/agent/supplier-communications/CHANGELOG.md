@@ -1,5 +1,12 @@
 # supplier-communications — changelog
 
+## 4.1.1
+
+2026-08-23 (Bhoumik) — reply-path paragraph updated for the router rename
+(`email-router` → `router`) and the new per-supplier gws rules: a reply may
+now land on the supplier thread directly instead of as a router forward; rule
+management stays the router's job (`supplier-email-routing` §5).
+
 ## 4.1.0
 
 2026-08-23 (Bhoumik, same day as 4.0.0) — the fact-placement section now says

@@ -1,18 +1,21 @@
 ---
 name: supplier-email-routing
-description: Run the email-router thread — identify which supplier an inbound email (or a file handed over by main) belongs to and forward it to that supplier's dedicated thread, without reading bodies or attachments. Covers identification from sender/subject/attachment names alone, the escalating read-only-if-needed rule, minting a `supplier-<slug>` thread id for a brand-new supplier and briefing it to onboard and ingest, non-availability mail (human review → main + Escalated label; otherwise Not Availability label, no forward), the Daisy label on every routed email, and what the forward message must carry. Use on every `email_received` on the email-router thread and whenever main hands over a file or email to route. (v1.2.0)
+description: Run the router thread — identify which supplier an inbound email (or anything handed over by main) belongs to and forward it to that supplier's dedicated thread, without reading bodies or attachments. Covers identification from sender/subject/attachment names alone, the escalating read-only-if-needed rule, minting a `supplier-<slug>` thread id for a brand-new supplier and briefing it to onboard and ingest, promoting a stable sender to a direct gws routing rule (and keeping the catch-all last), non-availability mail (human review → main + Escalated label; otherwise Not Availability label, no forward), the Daisy label on every routed email, and what the forward message must carry. Use on every `email_received` on the router thread and whenever main hands over anything whose target thread it doesn't know. (v2.0.0)
 metadata:
   author: lps
-  version: "1.2.0"
+  version: "2.0.0"
 ---
 
 # Supplier email routing
 
-Every inbound email lands on the **`email-router`** thread (a catch-all `gws`
-routing rule pins it there). This thread is a **dispatcher, nothing else**: it
-identifies which supplier a message belongs to and forwards a pointer to that
-supplier's **dedicated thread** — the `suppliers.daisy_thread_id` value — which
-does all the actual reading, onboarding and ingestion.
+Inbound email lands on the **`router`** thread — either every email (the
+catch-all `gws` rule) or, once §5 has promoted a sender, only the mail no
+specific rule already claimed. This thread is a **dispatcher, nothing else**:
+it identifies which supplier a message belongs to and forwards a pointer to
+that supplier's **dedicated thread** — the `suppliers.daisy_thread_id` value —
+which does all the actual reading, onboarding and ingestion. It is also
+`main`'s fallback: anything main receives whose target thread it doesn't know
+gets handed here to route.
 
 **Where the boundary is.** You route. You never ingest, never onboard, never
 write a database row, never reply to anyone. Database **reads** for
@@ -122,6 +125,35 @@ id and let that thread do everything:
   `Daisy/Not Availability` and stop. No forward, no note beyond the daily
   note when it was genuinely ambiguous.
 
+## 5. Promote a stable sender to a direct route
+
+When a sender **reliably** maps to one supplier thread — you've routed the
+same address or domain there before, or the match is unambiguous (the
+company's own domain, their newsletter sender) — add a `gws` routing rule so
+future mail skips you and lands straight on the dedicated thread:
+
+```bash
+bash scripts/gws/routes add --name "route-<slug>" \
+  --thread-id "<daisy_thread_id>" --from "<address, or @domain>"
+# The catch-all must stay LAST — first match wins and `add` appends, so
+# re-add it after every rule you add:
+bash scripts/gws/routes add --name "router-all" --thread-id "router" --from "."
+```
+
+- **One rule per sender pattern.** Use `@domain` when the whole domain is the
+  company's own; the exact address when it's a shared service (never route all
+  of `mailchimp.com`). A second pattern for the same supplier gets its own
+  name (`route-<slug>-2`).
+- **Never skip the catch-all re-add** — without it the new rule sits after
+  `router-all` and never fires.
+- A promoted sender's mail arrives on the supplier thread as a raw
+  `email_received`, with no router forward and **no `Daisy` label** — the
+  dedicated thread applies the labels itself (`availability-ingestion` §7).
+- A mis-promoted rule is undone with
+  `bash scripts/gws/routes remove --name "route-<slug>"`. If a supplier
+  thread reports mail that isn't theirs, remove or narrow the rule the same
+  day.
+
 ## Labels
 
 **Every email this thread processes gets the primary `Daisy` label** — that is
@@ -129,7 +161,8 @@ how the inbox shows nothing slipped through. Status sub-labels split by who
 finishes the email: the router applies `Daisy/Escalated` and
 `Daisy/Not Availability` for the terminal cases in §4; a forwarded email's
 status (`Daisy/Catalogued`, `Daisy/Failed`, …) is the dedicated thread's to
-apply after processing. Known label IDs live in
+apply after processing. (Mail a §5 rule routed directly never passed here —
+the dedicated thread applies `Daisy` too.) Known label IDs live in
 `skills/agent/availability-ingestion/artifacts/gmail-labels.md` — look them up
 live if stale, create missing labels first:
 
@@ -147,6 +180,6 @@ address is on file for two unrelated companies, or an email that plainly
 matters and matches nothing even after §1's escalation. Routine ambiguity is
 yours to settle, not Chris's.
 
-Keep this thread's notes lean: `workspace/threads/email-router/notes.md`
+Keep this thread's notes lean: `workspace/threads/router/notes.md`
 records only open oddities (a sender awaiting an answer from main), never a log
 of routine forwards. A one-line daily-note entry covers the day's routing.

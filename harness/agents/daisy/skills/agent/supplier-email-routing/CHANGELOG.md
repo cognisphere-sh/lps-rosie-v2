@@ -1,5 +1,16 @@
 # supplier-email-routing — changelog
 
+## 2.0.0
+
+2026-08-23 (Bhoumik) — the thread is renamed **`email-router` → `router`**
+(catch-all rule now `router-all` → `router`); it is also main's fallback for
+anything whose target thread main doesn't know. New §5: the router **promotes
+a stable sender to a direct gws routing rule** (`routes add` to the supplier's
+thread, then always re-adding the catch-all so it stays last — first match
+wins and `add` appends); directly-routed mail bypasses the router, so the
+dedicated thread applies the `Daisy` label itself. Notes path moved to
+`workspace/threads/router/`.
+
 ## 1.2.0
 
 2026-08-23 (Bhoumik) — the router labels every email it processes: primary

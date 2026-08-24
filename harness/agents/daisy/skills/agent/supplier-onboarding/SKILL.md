@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including its daisy_thread_id and a new location of a known company), evidence-based category classification, browser enrichment, best-effort newsletter signup and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and record block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v2.2.0)
+description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including its daisy_thread_id/rosie_thread_id and a new location of a known company), evidence-based category classification, browser enrichment, best-effort newsletter signup and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and record block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v2.3.0)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # Supplier onboarding
@@ -77,7 +77,7 @@ company's switchboard, not a person: leave its `name` null and mark it
 ## 1. Confirm the supplier is genuinely new
 
 **Don't re-run the whole search — be the second pair of eyes.** Whoever sent you
-here already looked: the email-router thread identifying the sender
+here already looked: the router thread identifying the sender
 (`supplier-email-routing` §1), or `availability-ingestion` §0 resolving a
 location. One call to `search_suppliers`
 with the name and the sender's domain is enough (the `plant-and-supplier-search`
@@ -123,12 +123,15 @@ present) and **capture the returned `id`**.
 
 - `suppliers` has **no `email` or `phone` column** — the company's own
   switchboard is a `contacts` row like any other (§3).
-- **Set `daisy_thread_id`** — the company's one dedicated daisy thread. A new
+- **Set `daisy_thread_id` and `rosie_thread_id`** (the same value in both) —
+  the company's one dedicated thread per agent. A new
   company gets **this thread's own id** (the router minted it as
   `supplier-<slug of the company name>`; if you are onboarding from a thread
   that isn't shaped that way, mint the value per `supplier-email-routing` §3).
   A **new location of a known company copies its head branch's existing
-  value** — one thread per head branch, never one per location.
+  values** — one thread per head branch, never one per location. (Thread ids
+  are per-agent namespaces: the shared string names daisy's thread and rosie's
+  order-coordination thread separately.)
 - Set `category` only under **Category classification** below. The allowed values
   are exactly `Grower`, `Wholesale Supplier`, `Retail`, and `Broker/Platform`;
   otherwise leave it null.
@@ -313,8 +316,9 @@ every farm, while a yard manager answers for one site only.
   ```
 - **No person landed in `suppliers.notes`** — no name, email or phone in prose on
   the supplier row.
-- **`daisy_thread_id` is set** — a new company carries this thread's id; a new
-  location carries its head branch's value, identical across the company's rows.
+- **`daisy_thread_id` and `rosie_thread_id` are set** (same value) — a new
+  company carries this thread's id; a new
+  location carries its head branch's values, identical across the company's rows.
 - **A new location points at the right head branch**, and the company's location
   set now reads the way you expect: re-run §1's sister-location query and confirm
   the new row appears once, under the head branch you intended.

@@ -2,14 +2,17 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { RefreshCw } from 'lucide-react'
+import { Bell, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react'
 
 import { InstallAppButton } from '@/components/pwa/install-app-button'
+import { AvailabilityRequestDrawer } from '@/components/workspace/ar-drawer'
 import { AgentChat } from '@/components/workspace/chat'
+import { onOpenChat, openChat } from '@/lib/chat-bus'
+import { ChatNotificationsProvider, useChatNotifications } from '@/lib/chat-notifications'
 import {
   AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
   CustomersIcon, MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
@@ -165,6 +168,8 @@ export function Shell({
   const [mobileChat, setMobileChat] = useState(false)
   const [mobileAgent, setMobileAgent] = useState(CHAT_AGENTS[0].id)
   const [moreMenu, setMoreMenu] = useState(false)
+  const mobileNavScroll = useRef<HTMLDivElement | null>(null)
+  const mobileNavItems = useRef<Partial<Record<PageId | 'more', HTMLElement | null>>>({})
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [appAccent, setAppAccent] = useState<AppAccentId>(DEFAULT_APP_ACCENT)
   const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
@@ -173,6 +178,20 @@ export function Shell({
   const [pageRefreshing, setPageRefreshing] = useState(false)
   const [toast, setToast] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // A card anywhere can ask for a chat thread; on mobile that means opening
+  // the sheet on the right agent (the thread itself is the panel's own state).
+  useEffect(
+    () =>
+      onOpenChat(({ agentId }) => {
+        if (!window.matchMedia('(min-width: 900px)').matches) {
+          setMobileAgent(agentId)
+          setMobileAgentsOpen(false)
+          setMobileChat(true)
+        }
+      }),
+    [],
+  )
   const pageRefreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pagePullStart = useRef<{ x: number; y: number; scroller: HTMLElement | null } | null>(null)
 
@@ -325,6 +344,18 @@ export function Shell({
     return () => document.removeEventListener('mousedown', close)
   }, [moreMenu])
 
+  // The middle mobile strip deliberately shows only three destinations at a
+  // time. Keep the current route (or More for Settings) in view without using
+  // scrollIntoView, which can also move the page horizontally on mobile.
+  useEffect(() => {
+    if (!isMobile || page === 'agents') return
+    const strip = mobileNavScroll.current
+    const active = mobileNavItems.current[page === 'settings' ? 'more' : page]
+    if (!strip || !active) return
+    const left = active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2
+    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
+  }, [isMobile, page])
+
   const signOut = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
@@ -361,6 +392,8 @@ export function Shell({
       reset: resetAppearance,
     }}>
       <ToastCtx.Provider value={showToast}>
+        <ChatNotificationsProvider>
+        <AvailabilityRequestDrawer />
         <div
           data-workspace-shell
           className="fixed inset-x-0 flex flex-col overflow-hidden"
@@ -377,6 +410,7 @@ export function Shell({
               )}
             </div>
             {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
+            {!isMobile && <NotificationBell />}
           </div>
         )}
 
@@ -653,6 +687,7 @@ export function Shell({
                         <div className="min-w-0 flex-1 border-b border-lps-hair pb-3">
                           <div className="flex items-center gap-2">
                             <span className="text-[14px] font-bold text-foreground">{agent.name}</span>
+                            <AgentUnreadDot agentId={agent.id} />
                             <span className="text-[11px] text-muted-foreground">{agent.role}</span>
                             <span className={cn('ml-auto text-[10.5px] font-semibold', agent.upcoming ? 'text-muted-foreground' : 'text-primary')}>
                               {agent.upcoming ? 'Coming soon' : 'Online'}
@@ -702,14 +737,6 @@ export function Shell({
                     {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
                     {dark ? 'Dark mode' : 'Light mode'}
                   </button>
-                  <Link
-                    href="/agents"
-                    onClick={leaveMoreMenu}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                  >
-                    <AgentsIcon size={14} />
-                    Know your Agents
-                  </Link>
                   <InstallAppButton
                     onMessage={(message) => {
                       setMoreMenu(false)
@@ -720,6 +747,63 @@ export function Shell({
                     <InstallIcon size={14} />
                     Install app
                   </InstallAppButton>
+                  <Link
+                    href="/agents"
+                    onClick={leaveMoreMenu}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                  >
+                    <AgentsIcon size={14} />
+                    Know your Agents
+                  </Link>
+                  <div data-menu>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSupplierViewMenu((open) => !open)
+                        if (portalSuppliers == null) {
+                          fetch('/api/availability-requests/suppliers')
+                            .then(async (res) => {
+                              const body = res.ok
+                                ? ((await res.json()) as { suppliers: { id: number; name: string }[] })
+                                : { suppliers: [] }
+                              setPortalSuppliers(body.suppliers)
+                            })
+                            .catch(() => setPortalSuppliers([]))
+                        }
+                      }}
+                      aria-expanded={supplierViewMenu}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                    >
+                      <SuppliersIcon size={14} />
+                      Supplier view
+                      <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierViewMenu && 'rotate-90')} />
+                    </button>
+                    {supplierViewMenu && (
+                      <div className="ml-5 border-l border-lps-hair pl-1">
+                        {portalSuppliers == null && (
+                          <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
+                        )}
+                        {portalSuppliers?.length === 0 && (
+                          <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No onboarded suppliers yet.</div>
+                        )}
+                        {portalSuppliers?.map((supplier) => (
+                          <a
+                            key={supplier.id}
+                            href={`/portal/${supplier.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => {
+                              setSupplierViewMenu(false)
+                              setMoreMenu(false)
+                            }}
+                            className="block truncate rounded-lg px-2.5 py-[7px] text-[12px] font-semibold text-foreground hover:bg-muted"
+                          >
+                            {supplier.name}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="mb-1 mt-1 border-t border-lps-hair px-2.5 pb-1 pt-2">
                     <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
                     <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
@@ -736,32 +820,63 @@ export function Shell({
               )}
             </div>
 
-            {/* Mobile bottom tab bar. items-stretch, not items-center: a label
-                that wraps to two lines ("Plant search") must not push its icon
-                out of line with the rest. */}
+            {/* Mobile bottom navigation keeps global actions pinned at both
+                edges. The center strip is independently scrollable and sizes
+                each destination to one third of its viewport. */}
             {isMobile && !keyboardOpen && (
-              <nav className="flex flex-none items-stretch gap-0.5 overflow-hidden border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
-                {NAV.map(({ id, label, href, Icon, enabled }) => {
-                  const active = page === id
-                  const inner = (
-                    <>
-                      <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
-                        <Icon />
-                      </span>
-                      <span className="text-center text-[10.5px] font-semibold leading-tight">{label}</span>
-                    </>
-                  )
-                  const klass = cn(
-                    'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                    active ? 'text-primary' : 'text-muted-foreground',
-                    enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
-                  )
-                  return enabled ? (
-                    <Link key={id} href={href} aria-label={label} className={klass}>{inner}</Link>
-                  ) : (
-                    <button key={id} type="button" disabled aria-label={label} className={klass}>{inner}</button>
-                  )
-                })}
+              <nav className="flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
+                <NotificationBell mobile />
+                <div
+                  ref={mobileNavScroll}
+                  role="group"
+                  aria-label="Pages"
+                  className="lps-mobile-nav-scroll flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x"
+                >
+                  {NAV.map(({ id, label, href, Icon, enabled }) => {
+                    const active = page === id
+                    const inner = (
+                      <>
+                        <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
+                          <Icon />
+                        </span>
+                        <span className="text-center text-[10.5px] font-semibold leading-tight">{label}</span>
+                      </>
+                    )
+                    const klass = cn(
+                      'flex min-w-0 basis-1/3 shrink-0 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                      active ? 'text-primary' : 'text-muted-foreground',
+                      enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
+                    )
+                    return enabled ? (
+                      <Link
+                        key={id}
+                        ref={(node) => { mobileNavItems.current[id] = node }}
+                        href={href}
+                        aria-label={label}
+                        className={klass}
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <button key={id} type="button" disabled aria-label={label} className={klass}>{inner}</button>
+                    )
+                  })}
+                  <button
+                    ref={(node) => { mobileNavItems.current.more = node }}
+                    type="button"
+                    data-more-menu
+                    onClick={() => setMoreMenu((v) => !v)}
+                    aria-label="More"
+                    aria-expanded={moreMenu}
+                    className={cn(
+                      'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                      moreMenu || page === 'settings' ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  >
+                    <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
+                    <span className="text-[10.5px] font-semibold">More</span>
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -772,26 +887,15 @@ export function Shell({
                   aria-label="Agents"
                   aria-expanded={mobileAgentsOpen || mobileChat}
                   className={cn(
-                    'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                    'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
                     mobileAgentsOpen || mobileChat || page === 'agents' ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
-                  <span className="flex size-[18px] items-center justify-center"><AgentsIcon /></span>
+                  <span className="relative flex size-[18px] items-center justify-center">
+                    <AgentsIcon />
+                    <AgentUnreadDot className="absolute -right-1 -top-1" />
+                  </span>
                   <span className="text-[10.5px] font-semibold">Agents</span>
-                </button>
-                <button
-                  type="button"
-                  data-more-menu
-                  onClick={() => setMoreMenu((v) => !v)}
-                  aria-label="More"
-                  aria-expanded={moreMenu}
-                  className={cn(
-                    'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                    moreMenu ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                >
-                  <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
-                  <span className="text-[10.5px] font-semibold">More</span>
                 </button>
               </nav>
             )}
@@ -821,7 +925,137 @@ export function Shell({
           )}
         </div>
         </div>
+        </ChatNotificationsProvider>
       </ToastCtx.Provider>
     </ChatAppearanceCtx.Provider>
+  )
+}
+
+/** `14:05` today, `Aug 22` before — the bell list's timestamp. */
+function fmtNotifAt(ms: number): string {
+  const d = new Date(ms)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  return sameDay
+    ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/**
+ * The header's notification bell: unread agent-chat messages across every
+ * agent and thread, newest first. Clicking one opens that agent's panel on
+ * that thread — which is also what marks it read (the panel's own poll).
+ */
+function NotificationBell({ mobile = false }: { mobile?: boolean }) {
+  const { unread, markAllRead } = useChatNotifications()
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-notif-bell]')) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  const agentOf = (id: string) => AGENTS.find((a) => a.id === id)
+
+  return (
+    <div data-notif-bell className={cn('relative flex-none', mobile && 'w-[52px]')}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Notifications"
+        aria-label={unread.length ? `Notifications — ${unread.length} unread` : 'Notifications'}
+        className={cn(
+          'cursor-pointer border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+          mobile
+            ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
+            : 'relative flex size-8 items-center justify-center rounded-full',
+          open && mobile && 'text-primary',
+        )}
+      >
+        <span className={cn('relative flex items-center justify-center', mobile ? 'size-[18px]' : '')}>
+          <Bell size={16} />
+          {unread.length > 0 && (
+            <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[9px] font-bold leading-none text-white">
+              {unread.length > 9 ? '9+' : unread.length}
+            </span>
+          )}
+        </span>
+        {mobile && <span className="text-[10.5px] font-semibold">Alerts</span>}
+      </button>
+      {open && (
+        <div
+          className={cn(
+            'lps-pop absolute z-[96] flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]',
+            mobile ? 'bottom-[calc(100%+6px)] left-0' : 'right-0 top-[calc(100%+6px)] w-[320px]',
+          )}
+          style={mobile ? { width: 'min(320px, calc(100vw - 16px))' } : undefined}
+        >
+          <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
+            <span className="text-[12.5px] font-bold text-foreground">Notifications</span>
+            {unread.length > 0 && (
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="ml-auto cursor-pointer border-none bg-transparent text-[11px] font-semibold text-primary hover:underline"
+              >
+                Mark all read
+              </button>
+            )}
+          </div>
+          <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
+            {unread.length === 0 && (
+              <p className="m-0 px-2 py-3 text-center text-[12px] text-muted-foreground">
+                You’re all caught up.
+              </p>
+            )}
+            {unread.map((n) => {
+              const agent = agentOf(n.agentId)
+              return (
+                <button
+                  key={`${n.agentId}/${n.threadId}`}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    openChat({ agentId: n.agentId, threadId: n.threadId })
+                  }}
+                  className="flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-none bg-transparent px-2 py-2 text-left hover:bg-muted"
+                >
+                  {agent && (
+                    <Image src={agent.avatar} alt="" width={26} height={26} className="mt-0.5 size-[26px] flex-none rounded-full object-cover" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-1.5">
+                      <span className="truncate text-[12.5px] font-bold text-foreground">{n.from}</span>
+                      <span className="truncate text-[10.5px] text-muted-foreground">
+                        {n.threadId === 'main' ? 'Main' : n.threadId}
+                      </span>
+                      <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtNotifAt(n.lastAt)}</span>
+                    </span>
+                    <span className="block truncate text-[11.5px] text-muted-foreground">{n.lastText}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A warn-colored dot shown while an agent has unread chat messages. */
+function AgentUnreadDot({ agentId, className }: { agentId?: string; className?: string }) {
+  const { unread, unreadByAgent } = useChatNotifications()
+  const count = agentId ? (unreadByAgent[agentId] ?? 0) : unread.length
+  if (!count) return null
+  return (
+    <span
+      className={cn('size-2 rounded-full border border-card bg-[var(--lps-warn-dot)]', className)}
+      aria-label="Unread messages"
+    />
   )
 }

@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns — intake and the per-request sourcing task thread, the concurrency discipline for tables the app edits too, the three note columns, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that keeps a priced line pending until a supplier answers through daisy or Chris says otherwise (and takes the whole line list, unpriced lines included), the request and item statuses, and the customer-contact flow. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v1.16.0)
+description: The operating procedure for the customer job-request tables rosie owns — intake on main and the dedicated jr-<id> thread that owns each request, the concurrency discipline for tables the app edits too, the three note columns, the Austin-Plant-Supply-first sourcing and pricing ladder, availability checks through the supplier's own thread, the confirmation gate that keeps a priced line pending until the supplier answers or Chris says otherwise (and takes the whole line list, unpriced lines included), the request and item statuses, and handing customer contact to the customer's thread. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v2.0.0)
 metadata:
   author: lps
-  version: "1.16.0"
+  version: "2.0.0"
 ---
 
 # Job requests
@@ -34,13 +34,13 @@ rows the same task:
    phone fragment, "the landscaper Chris met Tuesday") into the request's
    `customer_notes` so mapping is possible later.
 
-3. Create the request (status defaults to `sourcing`) and one
-   `job_request_items` row per asked-for plant. The item's `name` and `size`
-   carry the customer's ask, with gallon notation normalized to `G` in the table
-   (`"30 gal or larger"` becomes `"30 G or larger"`); what they said about an
-   item goes in the item's `customer_notes`,
-   and the overall message in the request's `customer_notes` — in both cases
-   **only what no other column already holds** (§4).
+3. Create the request (status defaults to `sourcing`); the overall message
+   goes in the request's `customer_notes` — **only what no other column
+   already holds** (§4). The item rows are the jr thread's to create (step 4):
+   one per asked-for plant, `name` and `size` carrying the customer's ask with
+   gallon notation normalized to `G` in the table (`"30 gal or larger"`
+   becomes `"30 G or larger"`), and what they said about an item in the item's
+   `customer_notes` — same remainder rule.
 
    **Name the request as you create it.** `job_requests.name` is what the job
    gets called out loud — the site or project if they gave one ("Riverbend
@@ -51,11 +51,20 @@ rows the same task:
    go on, leave it NULL rather than inventing a label. Never build one from
    the id.
 
-4. **Hand the sourcing round to a task thread** (§5) as the last act of
-   intake — `<ThreadId>-§-[TASK]-§-jr-<requestId>-sourcing`. The brief carries
-   the request id, the item ids, the delivery date and anything the customer
-   said that bears on sourcing, and names this skill to follow. Acknowledge the
-   request to Chris on your own thread and let the task thread work.
+4. **Hand the request whole to its own `jr-<requestId>` thread** as the last
+   act of intake on `main` (which does only steps 1–3 — enough to have the id
+   the thread is named by). The agent message carries the customer's full
+   original ask, the request and customer ids, the delivery date, and names
+   this skill to follow. The jr thread creates the item rows and runs the
+   sourcing round (§5); it owns the request for its life. Acknowledge the
+   request to Chris on `main` and let the jr thread work — a webchat
+   acknowledgement includes the panel button
+   `[Continue in JR-<id> chat](thread:jr-<id>)`.
+
+   **The same handoff applies later**: any message `main` receives about an
+   existing job request — a change, a question, a chase — is forwarded to its
+   `jr-<id>` thread, never worked on `main` (and on webchat, answered with
+   the same `thread:` button).
 
 5. **Mapping an anonymous request later** is a find-or-create of the customer
    (step 1) followed by a targeted update:
@@ -143,7 +152,7 @@ These tables are edited by people in the app while you work. Four rules:
    ```
 
    The name is whose entry it is — `Rosie` for your own, `Chris` / `Bhoumik`
-   for what they decided, `Daisy` for what came back from her.
+   for what they decided.
 
    Update only the columns you mean to change — never write a whole row back.
 
@@ -315,13 +324,14 @@ spelling to `G` (`"5 gal"` → `"5 G"`, `"30 gal or larger"` → `"30 G or large
 
 ## 5. Pricing and sourcing — Austin Plant Supply first
 
-**Run the round in a task thread.** One per job request, spawned at intake and
-kept for its life — `<ThreadId>-§-[TASK]-§-jr-<requestId>-sourcing`
-(`1-agent.md`, *Task threads*). Every look-up below returns a screen of
-catalogue rows *per line*; ten lines is a context window of them, and none of
-it belongs on the thread you talk to Chris on. The task thread does the
-look-ups, the item writes and the asks to daisy, and reports back what is
-priced, what is waiting and what needs a decision.
+**The round runs on the request's own `jr-<requestId>` thread** — handed the
+request at intake, kept for its life (`1-agent.md`, *Threads*). Every look-up
+below returns a screen of catalogue rows *per line*; none of it belongs on
+`main`. The jr thread does the look-ups and the item writes, sends the
+availability asks to each supplier's thread (§5.2), and reports to `main`
+what is priced, what is waiting and what needs a decision. A genuinely long
+read (a whole price list, a wide changelog sweep) can still go to a task
+thread per the base prompt.
 
 **Austin Plant Supply (`suppliers.id = 1`) is the default source.** It is the
 house yard, its catalogue is in the database, and reading it is not contacting
@@ -338,7 +348,7 @@ whether the line can be filled, and every rung leaves the item **`pending`**.
 Exactly two things move it off `pending` (§5.3), and nothing else does:
 
 - **The supplier answered** — an availability request they submitted, or an
-  email/text reply, relayed to you by daisy.
+  email/text reply, relayed by their supplier thread (§5.2).
 - **Chris said to treat it as confirmed** — in as many words, on this line or
   this request.
 
@@ -351,7 +361,7 @@ The ladder. Stop at the first rung that answers the line:
 
 1. **Austin Plant Supply has the ask** — the plant, at the size asked for,
    with a price. Fill `unit_price` from their row (§5.1) and write the `APS:`
-   line. Nothing goes to daisy *for the price*; the line is priced, not
+   line. Nothing leaves this thread *for the price*; the line is priced, not
    confirmed, and stays `pending` until §5.3.
 2. **They don't have it as asked → propose their closest alternative.** A
    neighbouring size, a near cultivar, the species where the customer named a
@@ -360,9 +370,10 @@ The ladder. Stop at the first rung that answers the line:
    what the substitute becomes when it is confirmed (§5.3), and the customer's
    `external_notes` note is written then, not now (§4.2).
 3. **Nothing close at Austin Plant Supply → other suppliers.** Search the rest
-   of the inventory yourself, and ask daisy what the database can't answer
-   (§5.2) — she owns every supplier conversation and decides the channel (her
-   email, or an availability request in an onboarded supplier's portal).
+   of the inventory yourself, and ask each candidate supplier's own thread
+   what the database can't answer (§5.2) — that thread owns the conversation
+   and picks the channel (an availability request in an LPS Partner's portal,
+   or gated outreach otherwise; `supplier-coordination`).
    What you find stays in `sourcing_notes` — **another supplier's price
    never goes in `unit_price`** (§5.1). The lines say **why the line left
    Austin Plant Supply**, **which supplier quoted** and **what they quoted**, in
@@ -370,7 +381,7 @@ The ladder. Stop at the first rung that answers the line:
    is, nor about which row it prices — and `unit_price` stays NULL until Chris
    says to carry that price.
 4. **Nothing anywhere** — no row at Austin Plant Supply, none elsewhere, and
-   daisy's answer is in too → `unavailable`, with the reason in
+   the supplier threads' answers are in too → `unavailable`, with the reason in
    `sourcing_notes`. What the customer is told is that the line can't be
    supplied, not why.
 
@@ -427,11 +438,14 @@ APS: no 30 G
 Acosta: Live Oak 30 G @ $310/unit, 8 ready Sep
 ```
 
-### 5.2 Asking daisy
+### 5.2 Asking the supplier's thread
 
-You never contact a supplier (`1-agent.md`, rule 1) — daisy owns every
-supplier conversation, portal included, and what you ask her for is the
-**confirmation the database cannot give** (§5.3).
+The jr thread never reaches a supplier itself (`1-agent.md`, rule 1) — every
+supplier conversation lives on that supplier's **own dedicated thread**, the
+`suppliers.rosie_thread_id` value, running `supplier-coordination`. What you
+ask it for is the **confirmation the database cannot give** (§5.3); it owns
+the channel — an availability request in an LPS Partner's portal, gated
+outreach otherwise.
 
 **Every line of the request goes into the ask, not a subset.** The ones Austin
 Plant Supply priced, the ones only a substitute answered, and the ones nothing
@@ -442,64 +456,54 @@ has it unlisted can only say so if the line was put in front of them. The only
 line left out is one **Chris explicitly excluded**, and his instruction goes in
 its `sourcing_notes` beside the omission.
 
-**Pick the thread by what the ask is about**:
+A question with no supplier in mind ("who has 30 G Live Oaks?") is a database
+search you run yourself (`plant-and-supplier-search`); finding *new* suppliers
+is daisy's scope, raised through `main`.
 
-- **A specific supplier** → their own thread, `--thread-id
-  supplier-<supplierId>` — one conversation per supplier, availability-request
-  follow-ups included.
-  Then mirror the ask into that supplier's transcript in the same task —
-  `INSERT INTO supplier_messages (supplier_id, job_request_id,
-  sender, sender_name, channel, body)` with
-  `'broker', 'Rosie', 'internal'` — so the app's chat view shows what was
-  asked. (An internal transcript row is bookkeeping, not supplier contact.)
-- **No supplier in mind yet** ("who has 30 G Live Oaks?") → her `main` thread;
-  there is no supplier thread to use until she names candidates.
-
-Supplier-side questions go as **one agent-message per request**, carrying
-every line and what your look-up found on each — so she can raise one
-availability request for the job rather than a request per line:
+Availability asks go as **one agent-message per (request, supplier)**,
+carrying every line, the demand, and **the mapped inventory rows your look-up
+found at that supplier** — id, catalogued name/size, price — so the supplier
+thread prefills from your mapping instead of re-running the search:
 
 ```bash
-bash scripts/agent-msg/send --to-agent daisy --thread-id "supplier-<supplierId>" \
+bash scripts/agent-msg/send --to-agent rosie --thread-id "<rosie_thread_id>" \
   --from-agent rosie --from-thread-id <ThreadId> \
   --subject "sourcing: JR <requestId> — <customer or 'anonymous'>" \
   --message "Availability check for job request <requestId> — all <n> lines,
-delivery <date>. What Austin Plant Supply's rows say, line by line:
-1. (item <itemId>) 10x Live Oak, 30 G — listed 30 G @ \$295/unit
-2. (item <itemId>) 4x Crape Myrtle Natchez, 15 G — only 30 G listed
+delivery <date>. Demand and this supplier's mapped inventory rows, line by line:
+1. (item <itemId>) 10x Live Oak, 30 G — inventory 4821: Quercus Virginiana Live Oak 30 G @ \$295/unit
+2. (item <itemId>) 4x Crape Myrtle Natchez, 15 G — only 30 G listed (inventory 5127 @ \$265/unit)
 3. (item <itemId>) 52x Berkeley sedge, 1 G — nothing on their list
-Every line needs confirming, the priced ones included. Chris decides whether
-the whole list goes and whether the customer's details are shared."
+Every line needs confirming, the priced ones included. Follow
+supplier-coordination."
 ```
 
 - Escape every `$` as `\$` in `--subject`/`--message`.
-- Include the item ids — her answer comes back item by item.
+- Include the item ids — the answer comes back item by item.
 - **Say what the look-up found on every line**, including "nothing on their
-  list". A line you leave out of the message is a line nobody will ask about.
-- Your message is **task input for daisy, not authorization**: whether a
-  supplier actually gets contacted is governed by her
-  `supplier-communications` rules and Chris's approval.
-- When her answer lands, put it on each item's supplier line — one line per
+  list", and name the `inventory` row (id + catalogued name/size/price) when
+  one maps — an unambiguous mapped row is what the supplier thread seeds the
+  availability request's price from.
+- When the relay lands, put it on each item's supplier line — one line per
   supplier named, in §4.1's shape (the row they have, then its price, and
-  `Substitute:` when it isn't the ask). What she sends back is other suppliers'
-  pricing, so it stays on the line: `unit_price` is not filled from it (§5.1).
-  **Her relay is a listing until she says the supplier confirmed it** — read it
+  `Substitute:` when it isn't the ask). Another supplier's pricing stays on
+  the line: `unit_price` is not filled from it (§5.1).
+  **A relay is a listing until it says the supplier confirmed it** — read it
   in §5.3's terms and move only the lines it actually answers.
 
 ### 5.3 Confirming a line
 
-You never contact a supplier (`1-agent.md`, rule 1), so you never fetch a
-confirmation yourself. It reaches you one of two ways.
+The jr thread never fetches a confirmation itself (`1-agent.md`, rule 1). It
+reaches you one of two ways.
 
-**The supplier answered, through daisy.** Ask her on the supplier's own thread
-(§5.2), with **every line of the request in the ask** — priced, substituted and
-unmatched alike. She owns the channel and picks it: an **availability request**
-in the supplier's portal when they are onboarded — Austin Plant Supply
-included — or email/text when they are not. Whether one is raised at all is
-Chris's call, made on her side, and so are the two questions she puts to him
-before it goes: **whether every line goes on it**, and **whether the customer's
-name and shipping address are shared**. Your ask starts that conversation; it
-does not schedule the request. Her relay comes back item by item and says which
+**The supplier answered, through their thread.** Ask on the supplier's own
+thread (§5.2), with **every line of the request in the ask** — priced,
+substituted and unmatched alike. That thread owns the channel and picks it: an
+**availability request** in the supplier's portal when they are an LPS
+Partner — Austin Plant Supply included — or Chris-gated outreach when they are
+not (`supplier-coordination`; whether the customer's details are shared is the
+remembered per-supplier preference, or Chris's answer). The relay comes back
+item by item and says which
 lines the supplier confirmed and which they left alone. Only those move:
 
 | What the supplier said | The line becomes |
@@ -520,15 +524,15 @@ instruction (§5):
 APS: Rose Iceberg 5 G @ $27/unit — Chris confirmed 2026-08-19, quote it
 ```
 
-**Then tell Chris what is waiting.** A request whose lines are all priced and
-all `pending` is not a routine gap — it is a decision he holds: whether to
-confirm them himself or have an availability request go out, over the whole
-line list or a part of it, with or without the customer's details. One short
-message when the round is done — the job, how many lines, what the supplier
-would be confirming, and those two open questions — and then let it sit. Don't chase it, and don't quote off
-the listing while you wait. From the sourcing task thread that message is a
-report to `main`, not a message to Chris: talking to him is `main`'s job
-(`1-agent.md`, *Task threads*).
+**Then report what is waiting.** When the round is done, one short report to
+`main` — the job, how many lines are priced, which asks are out with which
+suppliers, and anything only Chris can settle (a subset he might want cut, an
+unremembered share-details preference the supplier thread has raised). Then
+let it sit: don't chase, and don't quote off the listing while you wait.
+Talking to Chris on Telegram is `main`'s job (`1-agent.md`, *Threads*) — but
+**this thread's own web chat gets the milestones as they happen**
+(`webchat-cli send`, defaulting here): intake done, asks out, answers in,
+quote ready. That is where Chris follows the job in the app.
 
 ## 6. Statuses
 
@@ -561,7 +565,7 @@ sourced-but-unconfirmed line, and the two together are what tell a person there
 is something to decide.
 
 **A status is where a line stands, not what you are doing about it.** There is
-no `sourcing` status: a line you have asked daisy about is still `pending`, and
+no `sourcing` status: a line a supplier thread has been asked about is still `pending`, and
 who has been asked — and what came back — is on the line's supplier rows:
 
 ```
@@ -585,22 +589,14 @@ touch — is §5.1.
 
 ## 7. Contacting the customer
 
-Never unbidden, never unapproved (`1-agent.md`, rule 2):
+Never unbidden, never unapproved (`1-agent.md`, rule 2) — and never from the
+jr thread. Customer contact runs on the **customer's dedicated thread**
+(`customers.rosie_thread_id`, the `customer-coordination` skill): message it
+what needs saying — the quote to deliver, the question to put to them, built
+from customer-safe fields only (§4) — and it handles the draft →
+Chris-approval → send flow and the `communication_notes` log. What the
+customer answers comes back to this thread the same way.
 
-1. Draft the message (from customer-safe fields only — §4).
-2. Present the draft to Chris on `main`, short and non-technical, with the ask
-   ("OK to send?").
-3. Only on his explicit approval of **that draft** does it go out. Until you
-   have your own mailbox, hand the approved text to Chris to send himself.
-4. Log the contact in `customers.communication_notes` in the same task —
-   append-only, same entry format as §2:
-
-   ```sql
-   UPDATE customers
-   SET communication_notes = coalesce(communication_notes || E'\n\n', '') || $entry
-   WHERE id = $customerId;
-   ```
-
-5. If the contact was a quote, move the request to `quoted` (guarded, §2) and
-   note the quote link in the request's `external_notes` (see
-   `quote-generation`).
+When the contact was a quote, move the request to `quoted` (guarded, §2) and
+note the quote link in the request's `external_notes` (see
+`quote-generation`).

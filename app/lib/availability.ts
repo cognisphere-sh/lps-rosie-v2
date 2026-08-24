@@ -56,6 +56,24 @@ export interface ARItem {
   availableQuantity: number | null
   unitPrice: number | null
   notes: string | null
+  /** LPS's brief note to the supplier — e.g. the mapped substitute. Ours, never theirs to edit. */
+  lpsNotes: string | null
+}
+
+/**
+ * What a line comes to — the supplier's quantity × their price. Null until
+ * both halves of the answer exist: a priced line with no quantity, or a
+ * quantity with no price, is an unfinished answer, not a $0 one.
+ */
+export function arLineTotal(item: ARItem): number | null {
+  if (item.availableQuantity == null || item.unitPrice == null) return null
+  return item.availableQuantity * item.unitPrice
+}
+
+/** The request's subtotal, over the lines that carry a total. Null = none do. */
+export function arSubtotal(items: ARItem[]): number | null {
+  const totals = items.map(arLineTotal).filter((t): t is number => t != null)
+  return totals.length ? totals.reduce((sum, t) => sum + t, 0) : null
 }
 
 /** An availability request as a list shows it. */
@@ -72,6 +90,8 @@ export interface ARSummary {
   createdAt: string
   itemCount: number
   answeredCount: number
+  /** LPS's job-level note to the supplier — delivery window, site constraints. Ours, never theirs to edit. */
+  lpsNotes: string | null
 }
 
 /**
@@ -97,4 +117,6 @@ export interface SupplierLink {
   onboarded: boolean
   /** The newest availability request this job has with them, if any. */
   availabilityRequestId: number | null
+  /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
+  rosieThreadId: string | null
 }

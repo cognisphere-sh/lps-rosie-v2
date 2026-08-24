@@ -17,8 +17,130 @@ here).
 
 ## 2026-08-23
 
+### Added
+
+- **Order-management chat UI across the app and portal.** The `webchat`
+  plugin is now **multi-thread** (one transcript per thread under
+  `state/threads/`; the old `transcript.jsonl` migrates to the default
+  thread; `webchat-cli` gained `--thread-id`, defaulting to the current
+  thread, and `--portal`). In the admin app: rosie's chat panel carries a
+  **Conversations** picker (search + cards in exactly four categories — Main,
+  Job requests, Suppliers, Customers — from the new `/api/chat-directory`
+  merged with the plugin's `api/threads`; router and task threads are
+  deliberately not offered); every job-request card gets a
+  **Rosie avatar** opening that job's `jr-<id>` chat, an **AR chip list**
+  opening each availability request in a global right-hand drawer
+  (`ar-drawer.tsx`, mounted by the Shell), and **chat icons** on the supplier
+  chips and the customer line opening those threads; agent markdown schemes
+  `[…](thread:<id>)` / `[…](ar:<id>)` render as action buttons in bubbles —
+  rosie renders them when she creates a job request or an availability
+  request. In the **supplier portal**: a chat with Local Plant Supply docked
+  on the **right** where the admin app's agent panel sits — a 46px rail that
+  opens the panel (bottom tab on mobile) — on the supplier's own rosie
+  thread, over new server-to-server plugin endpoints
+  (`api/app-send`/`api/app-messages`, secret `WEBCHAT_APP_SECRET` wired by
+  `scripts/app/secrets.sh`); the portal sees **only portal-visible**
+  messages — the supplier's own, and replies rosie sends with
+  `webchat-cli --portal` — never the team's internal traffic on the same
+  thread. Rosie's `supplier-coordination` gained §3.5 (portal chat), her
+  `job-requests` intake acknowledges with the `thread:` button and routes any
+  main-thread message about an existing request to its jr thread, and §5.2's
+  ask now names the mapped `inventory` rows the supplier thread prefills
+  from.
+
+### Removed
+
+- **Order data hard-reset** (Bhoumik's instruction, migration
+  `0069_order_data_reset` — deliberately no backup). `customers`,
+  `job_requests` (+ items + changelog) and `availability_requests` (+ items)
+  truncated with identity restart, clearing the pre-restructure test data so
+  real orders start clean on the new thread model.
+
+- **Unread notifications across the chat surfaces.** The webchat `threads`
+  listing now carries `lastId`/`lastSender`; the app tracks read state
+  per-browser (`lib/chat-notifications.tsx`, localStorage) and shows
+  warn-colored dots on agent avatars (rail, panel header, mobile Agents
+  list/tab) and thread-picker cards, plus a **notification bell** in the page
+  header — badge count, unread list (sender, thread, snippet, time,
+  mark-all-read), click-through to the agent and thread. Unread = an agent
+  reply or a supplier's portal message; the open panel marks its thread read.
+- **`availability_request_items.lps_notes`** (migration 0070) — LPS's brief
+  note to the supplier about a line, typically the mapped substitute
+  (`Substitute ok: Muskogee Crape Myrtle 30 G`), written by rosie's supplier
+  thread at share time and rendered under the plant name in the portal's and
+  admin's line tables; not in the portal PATCH whitelist, so never
+  supplier-editable.
+- **Answering a portal line is a pop-up, not bare status.** Picking a status
+  in the portal's line table opens a per-status dialog: Available / Can order
+  collect quantity (prefilled with the demand), price (prefilled where on
+  file) and notes (Can order hints at the ETA); Substitute and Unavailable
+  collect the note with the format hinted (`Name, Size @ price $/unit`;
+  Unavailable invites substitutes). One PATCH saves the whole answer; the
+  inline cells stay for later tweaks; clearing back to "Set status" stays
+  direct.
+- **Per-thread web status updates are now the norm** (rosie): every jr /
+  supplier / customer thread posts short milestones to its own web chat
+  (`webchat-cli send`, defaulting to the current thread) and coordinates with
+  Chris there when he writes on the thread in the panel; the never-ping bar
+  now applies to Telegram only. Stated in `1-agent.md` and the three
+  coordination skills.
+
 ### Changed
 
+- **Mobile navigation now keeps Alerts and Agents in reach.** The bottom bar
+  pins the existing unread-notification bell at the left and Agents at the
+  right, with a touch-scrollable middle strip showing three page destinations
+  at a time and automatically centering the active route. The strip retains all
+  five workspace routes plus More, whose actions mirror the desktop rail's
+  bottom section and order (Settings, theme, install, agent profiles, Supplier
+  view, account and log out), without allowing its horizontal gesture to move
+  the page body.
+  Job Requests now omits its redundant Shell title header on mobile, matching
+  the other mobile-first list pages; desktop headers and navigation are
+  unchanged.
+- **Rosie restructured: she owns all order-side supplier and customer
+  coordination** (Bhoumik's direction, same day as daisy's restructure). Her
+  thread model now mirrors daisy's: `main` (Chris/Bhoumik coordination only —
+  a job order gets its customer + request rows created there and is handed
+  whole to its thread), one **`jr-<id>`** thread per job request (items,
+  sourcing round, statuses, quote), one thread per supplier
+  (**`suppliers.rosie_thread_id`**, migration `0068_rosie_thread_ids` — the
+  same `supplier-<slug>` string daisy uses, in rosie's own thread namespace;
+  backfilled for all 1,395 rows, and set alongside `daisy_thread_id` by
+  daisy's onboarding), one thread per customer
+  (**`customers.rosie_thread_id`**, `customer-<slug>` minted on first
+  contact), and a **`router`** thread for unmapped messages. New skills
+  `supplier-coordination` (availability requests for LPS Partners are the
+  supplier thread's standing job — Chris is asked only for preferences
+  nothing remembers, `share_customer_details` first among them, and his
+  answers are recorded as per-supplier preferences in `suppliers.notes`;
+  non-Partner outreach is drafted, Chris-approved, and sent by Chris or
+  daisy's mailbox), `customer-coordination` (the draft → Chris-approves →
+  Chris-sends flow and the `communication_notes` log, moved out of
+  `job-requests` §7) and `message-routing`; `job-requests` bumped to 2.0.0
+  (asks go to rosie's own supplier threads, not daisy — the dropped
+  `supplier_messages` mirror-INSERT and the legacy `supplier-<id>` targets
+  are gone; the `…-sourcing` task thread is retired in favour of the jr
+  thread). `1-agent.md` rewritten to match (daisy's shape).
+- **The supplier-events plugin is back, lean, on rosie.** Recreated with a
+  single event kind — `availability_submitted` — delivered to the supplier's
+  `rosie_thread_id` thread (`router` fallback when NULL); the daisy-era
+  `supplier_message` / `instruction` kinds died with the portal chat. The
+  app's `lib/notify-supplier-events.ts` is restored and the portal submit
+  route wakes rosie again, passing the thread id it reads at submit time;
+  `scripts/app/secrets.sh` re-wires `SUPPLIER_EVENTS_APP_SECRET` (rosie's
+  bucket + `app/.env.local`).
+- **Daisy's email-router thread renamed to `router`, and it now manages gws
+  routing rules.** The catch-all rule is `router-all` → `router`;
+  `supplier-email-routing` 2.0.0 adds §5: a stable sender/domain is promoted
+  to a direct `routes add` rule pointing at the supplier's dedicated thread,
+  with the catch-all re-added after every rule so it stays last (first match
+  wins, `add` appends). A directly-routed email arrives as a raw
+  `email_received` on the supplier thread, which then applies the primary
+  `Daisy` label itself (`availability-ingestion` 2.2.0); `main` hands
+  anything un-targetable to `router`. `supplier-onboarding` 2.3.0 sets
+  `rosie_thread_id` beside `daisy_thread_id`; `supplier-communications`
+  4.1.1 notes the new reply paths.
 - **Supplier Type tags replaced and every supplier reclassified** (Chris's
   2026-08-21 direction, applied by Bhoumik). Migration
   `0067_supplier_type_tags` narrows `suppliers.category` to **Grower /

@@ -1,5 +1,13 @@
 # availability-ingestion — changelog
 
+## 2.2.0
+
+2026-08-23 (Bhoumik) — the routing thread is now `router` (was
+`email-router`), and a drop can also arrive as a **raw `email_received`** when
+a gws routing rule (`supplier-email-routing` §5) sends the supplier's mail
+straight to the dedicated thread: same processing, and §7 then applies the
+primary `Daisy` label as well as the status sub-label.
+
 ## 2.1.0
 
 2026-08-23 (Bhoumik, same day as 2.0.0) — supplier quirks and parsing tricks

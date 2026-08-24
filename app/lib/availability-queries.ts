@@ -21,6 +21,7 @@ interface ARRecord {
   status: string
   submitted_at: string | null
   created_at: string
+  lps_notes: string | null
 }
 
 interface ARItemRecord {
@@ -34,12 +35,14 @@ interface ARItemRecord {
   available_quantity: number | null
   unit_price: number | null
   notes: string | null
+  lps_notes: string | null
 }
 
 
-const AR_COLUMNS = 'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at'
+const AR_COLUMNS =
+  'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes'
 const AR_ITEM_COLUMNS =
-  'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes'
+  'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes, lps_notes'
 
 const toARItem = (r: ARItemRecord): ARItem => ({
   id: r.id,
@@ -51,6 +54,7 @@ const toARItem = (r: ARItemRecord): ARItem => ({
   availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
   unitPrice: r.unit_price == null ? null : Number(r.unit_price),
   notes: r.notes,
+  lpsNotes: r.lps_notes,
 })
 
 
@@ -104,6 +108,7 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
     createdAt: r.created_at,
     itemCount: counts.get(r.id)?.items ?? 0,
     answeredCount: counts.get(r.id)?.answered ?? 0,
+    lpsNotes: r.lps_notes,
   }))
 }
 
@@ -489,18 +494,30 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
 export async function submitAvailabilityRequest(
   arId: number,
   forSupplierId: number,
-): Promise<{ jobRequestId: number; supplierId: number; supplierName: string }> {
+): Promise<{
+  jobRequestId: number
+  supplierId: number
+  supplierName: string
+  rosieThreadId: string | null
+}> {
   const ar = await arForWrite(arId, forSupplierId)
   const { error } = await supabase
     .from('availability_requests')
     .update({ status: 'submitted', submitted_at: new Date().toISOString() })
     .eq('id', ar.id)
   if (error) throw new Error(`availability_requests: ${error.message}`)
-  const names = await supplierNames([ar.supplier_id])
+  const { data: supplier, error: sErr } = await supabase
+    .from('suppliers')
+    .select('name, rosie_thread_id')
+    .eq('id', ar.supplier_id)
+    .maybeSingle()
+  if (sErr) throw new Error(`suppliers: ${sErr.message}`)
+  const s = supplier as { name: string; rosie_thread_id: string | null } | null
   return {
     jobRequestId: ar.job_request_id,
     supplierId: ar.supplier_id,
-    supplierName: names.get(ar.supplier_id) ?? `Supplier ${ar.supplier_id}`,
+    supplierName: s?.name ?? `Supplier ${ar.supplier_id}`,
+    rosieThreadId: s?.rosie_thread_id ?? null,
   }
 }
 
@@ -580,11 +597,13 @@ export async function supplierLinksByRequest(
   if (!supplierIds.length) return {}
   const { data: sups, error: supErr } = await supabase
     .from('suppliers')
-    .select('id, name, is_onboarded')
+    .select('id, name, is_onboarded, rosie_thread_id')
     .in('id', supplierIds)
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
   const meta = new Map(
-    ((sups ?? []) as { id: number; name: string; is_onboarded: boolean }[]).map((s) => [s.id, s]),
+    (
+      (sups ?? []) as { id: number; name: string; is_onboarded: boolean; rosie_thread_id: string | null }[]
+    ).map((s) => [s.id, s]),
   )
 
   const out: Record<number, SupplierLink[]> = {}
@@ -598,6 +617,7 @@ export async function supplierLinksByRequest(
               name: s.name,
               onboarded: s.is_onboarded,
               availabilityRequestId: arId,
+              rosieThreadId: s.rosie_thread_id,
             }
           : null
       })
