@@ -216,10 +216,16 @@ and two destinations, not the operator's pages or agent chat.
 
 The chrome (`components/workspace/portal.tsx`) mirrors the admin Shell on
 purpose: a collapsible left nav rail on desktop (Availability Requests /
-Orders, with the theme toggle, Settings and Log out at its foot), the chat
-docked on the right, a bottom tab bar on mobile. Settings and Log out are drawn
-**disabled** — both belong to supplier sign-in, which doesn't exist yet; a
-control that pretended otherwise would misrepresent the system.
+Orders, with the theme toggle, Settings and Log out at its foot) and chat docked
+on the right. Mobile has no duplicate supplier-identity header: the page starts
+with its own title and ends in the same five-slot frame as the admin app —
+**Alerts fixed left**, **Chat fixed right**, and a three-visible independently
+scrollable center containing Requests / Orders / More. Alerts reports real
+`new` availability-request counts from the portal payload. More mirrors the
+desktop footer in its exact Theme / Settings / Log out order and stays outside
+the clipped strip. Settings and Log out are drawn **disabled** on both surfaces
+— both belong to supplier sign-in, which doesn't exist yet; a control that
+pretended otherwise would misrepresent the system.
 
 Three things to keep straight:
 
@@ -238,10 +244,16 @@ Three things to keep straight:
 - **The portal has a chat with Local Plant Supply again** (2026-08-23; the
   first incarnation died with `supplier_messages`). It lives where the admin
   app's agent panel does: a column docked on the **right**, a 46px rail
-  carrying the Local Plant Supply mark that opens the panel (bottom tab bar on
-  mobile) — `PortalChat` in `components/workspace/portal.tsx` — that polls
+  carrying the Local Plant Supply mark that opens the panel (fixed Chat action
+  on mobile) — `PortalChat` in `components/workspace/portal.tsx` — that polls
   `GET /api/portal/:supplierId/chat` and posts the supplier's messages to
   rosie's supplier thread (`Channel: portal`, sender `<Supplier> (portal)`).
+  Its transport remains portal-specific, but its presentation reuses the main
+  agent-chat language: the same saved Rosie color and wallpaper, floating
+  glass identity pill on mobile, outgoing/incoming bubble hierarchy, full
+  timestamps and typing dots, top/latest controls and composer sizing. Upload
+  and voice buttons are deliberately absent because the portal endpoint is
+  text-only; the design is shared without drawing controls that cannot work.
   **Audience is enforced by the plugin**: the portal sees only portal-visible
   messages — what the supplier typed, and replies rosie sent with
   `webchat-cli --portal` — never the team's internal traffic on the same
@@ -257,9 +269,16 @@ Three things to keep straight:
 The supplier's four-word answer vocabulary (`available` / `can_order` /
 `substitute` / `unavailable`, NULL = unanswered) is `lib/availability.ts`,
 reconciled with the design tones the same way `lib/job-requests.ts` does for
-job requests. It is deliberately **not** the job-request item vocabulary: what
-a supplier says about their stock and what we decide about a customer's line
-are different judgments, joined only through `sourcing_notes` by rosie.
+job requests. The supplier card now uses the same bordered, horizontally
+scrollable count/subtotal strip and tinted expanded body as the admin Job
+Request card. Its wide editable line grid remains intentionally horizontal on
+narrow screens, but its scroll container is width-constrained so the Notes
+input cannot escape the request card. The per-status answer dialog follows the
+browser's `visualViewport` and scrolls internally, keeping Notes and Save above
+mobile keyboards. The vocabulary is deliberately **not** the job-request item
+vocabulary: what a supplier says about their stock and what we decide about a
+customer's line are different judgments, joined only through `sourcing_notes`
+by rosie.
 
 ## Companies and farms
 

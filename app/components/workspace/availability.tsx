@@ -5,7 +5,7 @@
 // the answers are read). Nothing here knows which side it is on beyond the
 // `editable` prop on the line table.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   AR_RESPONSE_OPTIONS,
@@ -24,8 +24,8 @@ import { cn } from '@/lib/utils'
 /** Need · Size · Plant · Status · Avail qty · Price · Line total · Notes. */
 const LINE_COLUMNS =
   '56px 90px minmax(200px,1.5fr) 150px 90px 100px 100px minmax(200px,1fr)'
-/** Under this the columns would crush, so the table scrolls sideways instead. */
-const GRID_MIN = 960
+/** Track minima + gaps + row padding/left accent; below this the table scrolls. */
+const GRID_MIN = 1070
 
 
 /** The request's lifecycle pill — New / Submitted / Closed. */
@@ -206,6 +206,23 @@ function StatusAnswerDialog({
   )
   const [price, setPrice] = useState(item.unitPrice != null ? String(item.unitPrice) : '')
   const [notes, setNotes] = useState(item.notes ?? '')
+  const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
+
+  // Android/iOS keyboards resize and sometimes pan the visual viewport without
+  // changing the layout viewport used by `position: fixed`. Pin the dialog to
+  // the visible rectangle so its notes and actions stay reachable while typing.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => setViewport({ top: vv.offsetTop, height: vv.height })
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
 
   const save = () => {
     const changes: Record<string, string> = { status, notes: notes.trim() }
@@ -220,10 +237,14 @@ function StatusAnswerDialog({
   const label = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+    <div
+      className="fixed inset-x-0 top-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      style={{ top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }}
+      onClick={onCancel}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-[420px] flex-col gap-3 rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
+        className="flex max-h-full w-full max-w-[420px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
         <div className="flex flex-col gap-0.5">
           <span className="text-[14px] font-bold text-foreground">{spec.title}</span>
@@ -404,14 +425,22 @@ export function ARLineTable({
   items,
   editable,
   onPatch,
+  embedded = false,
 }: {
   items: ARItem[]
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
+  /** Full-bleed inside an already bordered request card. */
+  embedded?: boolean
 }) {
   const subtotal = arSubtotal(items)
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <div
+      className={cn(
+        'w-full min-w-0 max-w-full overflow-x-auto bg-card',
+        embedded ? 'border-y border-border' : 'rounded-xl border border-border',
+      )}
+    >
       <div
         className="grid items-center gap-x-2 border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
         style={{ gridTemplateColumns: LINE_COLUMNS, minWidth: GRID_MIN, padding: '8px 12px' }}

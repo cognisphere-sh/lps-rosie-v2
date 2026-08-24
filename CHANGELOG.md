@@ -29,8 +29,15 @@ here).
   (`app/portal/[supplierId]/page.tsx`) shows the same subtotal in its status
   strip, appearing once any line has both a quantity and a price.
 
+### Changed
+
+- **Supplier portal mobile navigation now matches the main app.** The redundant supplier identity header is gone; Alerts and Chat are fixed at the bottom edges around a three-visible scroll strip for Requests / Orders / More. Alerts shows real new-request counts, and More carries the desktop footer actions in the same Theme / Settings / Log out order without relaxing the disabled supplier-auth gates.
+- **Supplier availability cards now follow the admin Job Request hierarchy.** Collapsed and expanded cards use the same bordered horizontal count/subtotal summary and tinted open body; shared customer/delivery locality stays in the scan header while supplier answer states retain their own vocabulary.
+- **Supplier chat now reuses the main agent-chat design.** The portal keeps its text-only, portal-visible transport while adopting the saved Rosie accent/wallpaper, mobile glass identity pill, matching bubbles and timestamps, typing dots, top/latest controls and composer treatment. Unsupported upload and voice actions remain absent rather than appearing as dead controls.
+
 ### Fixed
 
+- **Supplier portal mobile editing stays contained.** The availability line table now constrains its own horizontal scroller so the Notes input cannot escape the card, and the status-answer dialog tracks the live browser visual viewport with internal scrolling so Notes and Save remain reachable above Android/iOS keyboards.
 - **The per-status answer pop-up's data wasn't reaching the row.** Saving it
   writes quantity, price, status and notes in one PATCH and the page
   refetches, but `AnswerCell` (`components/workspace/availability.tsx`)

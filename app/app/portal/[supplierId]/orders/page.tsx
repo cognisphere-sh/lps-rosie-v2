@@ -14,14 +14,19 @@ export default function PortalOrdersPage() {
   const params = useParams<{ supplierId: string }>()
   const supplierId = Number.parseInt(params.supplierId, 10)
   const [supplierName, setSupplierName] = useState<string | null>(null)
+  const [notificationCount, setNotificationCount] = useState(0)
 
   useEffect(() => {
     if (!Number.isInteger(supplierId)) return
     void (async () => {
       const res = await fetch(`/api/portal/${supplierId}`)
       if (res.ok) {
-        const body = (await res.json()) as { supplier: { name: string } }
+        const body = (await res.json()) as {
+          supplier: { name: string }
+          requests: { status: string }[]
+        }
         setSupplierName(body.supplier.name)
+        setNotificationCount(body.requests.filter((request) => request.status === 'new').length)
       }
     })().catch(() => {})
   }, [supplierId])
@@ -31,6 +36,7 @@ export default function PortalOrdersPage() {
       supplierId={supplierId}
       supplierName={supplierName}
       tab="orders"
+      notificationCount={notificationCount}
     >
       <p className="py-10 text-center text-[13px] text-muted-foreground">
         No orders yet — confirmed orders will appear here.

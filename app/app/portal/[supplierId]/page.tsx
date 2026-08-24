@@ -25,7 +25,7 @@ import {
   type ARDetail,
 } from '@/lib/availability'
 import { formatDate, money } from '@/lib/format'
-import { toneDot } from '@/lib/job-requests'
+import { toneDot, type Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
 
 const SORTS = [
@@ -53,6 +53,48 @@ const itemMatches = (status: string | null, picked: string[]) =>
 const customerLabel = (r: ARDetail) =>
   r.customer ? r.customer.company || r.customer.name : null
 
+/** The supplier-facing twin of the main Job Request card's DemandSummary. */
+function ResponseSummary({ request }: { request: ARDetail }) {
+  const counts: Record<string, number> = {}
+  for (const item of request.items) {
+    if (item.status) counts[item.status] = (counts[item.status] ?? 0) + 1
+  }
+  const pending = request.items.length - request.answeredCount
+  const subtotal = arSubtotal(request.items)
+  const states = [
+    { label: 'Pending', count: pending, tone: 'grey' as Tone },
+    ...AR_RESPONSES.map((status) => ({
+      label: AR_RESPONSE_META[status].label,
+      count: counts[status] ?? 0,
+      tone: AR_RESPONSE_META[status].tone,
+    })),
+  ]
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
+      <div className="grid min-w-[700px] grid-cols-[repeat(5,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
+        {states.map((state) => (
+          <div key={state.label} className={cn('flex flex-col gap-0.5 px-3 py-2', state.count === 0 && 'opacity-45')}>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+              <span className="size-1.5 rounded-full" style={{ background: toneDot(state.tone) }} />
+              {state.label}
+            </span>
+            <span className="text-[13px] font-bold tabular-nums text-foreground">{state.count}</span>
+          </div>
+        ))}
+        <div className="flex flex-col gap-0.5 px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Lines</span>
+          <span className="text-[13px] font-bold tabular-nums text-foreground">{request.items.length}</span>
+        </div>
+        <div className="flex flex-col gap-0.5 px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
+          <span className="text-[13px] font-bold tabular-nums text-foreground">{money(subtotal) || '—'}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RequestCard({
   request,
   expanded,
@@ -69,15 +111,7 @@ function RequestCard({
   saving: boolean
 }) {
   const editable = request.status !== 'closed'
-  const pending = request.items.length - request.answeredCount
-  const responseCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const it of request.items) {
-      if (it.status) counts[it.status] = (counts[it.status] ?? 0) + 1
-    }
-    return counts
-  }, [request.items])
-  const subtotal = useMemo(() => arSubtotal(request.items), [request.items])
+  const locality = [request.shipping?.city, request.shipping?.state].filter(Boolean).join(', ')
 
   return (
     <div className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
@@ -118,141 +152,98 @@ function RequestCard({
           </span>
         </div>
 
-        {customerLabel(request) && (
+        {(customerLabel(request) || locality) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-[30px] text-[12px]">
-            <span className="font-semibold text-foreground">{customerLabel(request)}</span>
+            {customerLabel(request) && <span className="font-semibold text-foreground">{customerLabel(request)}</span>}
+            {locality && <span className="text-muted-foreground">· {locality}</span>}
           </div>
         )}
 
-        {/* The status strip, in the admin demand strip's shape: every state
-            with its count, zeros included but dimmed — "nothing is
-            unavailable" and "you haven't answered yet" must not render alike.
-            Pending = lines the supplier hasn't answered. */}
-        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 pl-[30px] text-[11.5px]">
-          <span className="whitespace-nowrap text-muted-foreground">
-            {request.items.length} {request.items.length === 1 ? 'line' : 'lines'}
-          </span>
-          <span className="h-3 w-px flex-none bg-lps-hair" />
-          <span
-            className={cn('inline-flex items-center gap-1 whitespace-nowrap', pending === 0 && 'opacity-45')}
-          >
-            <span className="size-[6px] flex-none rounded-full" style={{ background: toneDot('grey') }} />
-            <span className="font-semibold tabular-nums text-foreground">{pending}</span>
-            <span className="text-muted-foreground">Pending</span>
-          </span>
-          {AR_RESPONSES.map((s) => {
-            const n = responseCounts[s] ?? 0
-            return (
-              <span
-                key={s}
-                className={cn('inline-flex items-center gap-1 whitespace-nowrap', n === 0 && 'opacity-45')}
-              >
-                <span
-                  className="size-[6px] flex-none rounded-full"
-                  style={{ background: toneDot(AR_RESPONSE_META[s].tone) }}
-                />
-                <span className="font-semibold tabular-nums text-foreground">{n}</span>
-                <span className="text-muted-foreground">{AR_RESPONSE_META[s].label}</span>
-              </span>
-            )
-          })}
-          {/* What the answers add up to so far — the table's subtotal, on the
-              collapsed card. Absent until some line carries both a quantity
-              and a price. */}
-          {subtotal != null && (
-            <>
-              <span className="h-3 w-px flex-none bg-lps-hair" />
-              <span className="whitespace-nowrap">
-                <span className="text-muted-foreground">Subtotal </span>
-                <span className="font-semibold tabular-nums text-foreground">{money(subtotal)}</span>
-              </span>
-            </>
-          )}
-        </div>
+        {!expanded && (
+          <div className="pl-[30px]">
+            <ResponseSummary request={request} />
+          </div>
+        )}
       </div>
 
       {expanded && (
-        <div className="flex flex-col gap-2.5 border-t border-border p-3">
-          {/* LPS's job-level note to the supplier — delivery window, site
-              constraints, what matters across the lines. Ours; read-only. */}
-          {request.lpsNotes && (
-            <div className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2">
-              <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                Note from Local Plant Supply
-              </span>
-              <span className="whitespace-pre-wrap text-[12.5px] text-foreground">
-                {request.lpsNotes}
-              </span>
-            </div>
-          )}
-          {(request.customer || request.shipping?.address) && (
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              {request.customer && (
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                    Customer
-                  </span>
-                  <span className="text-[12.5px] text-foreground">
-                    {[request.customer.company, request.customer.name].filter(Boolean).join(' · ')}
-                  </span>
-                  {(request.customer.phone || request.customer.email) && (
-                    <span className="text-[11.5px] text-muted-foreground">
-                      {[request.customer.phone, request.customer.email].filter(Boolean).join(' · ')}
+        <>
+          <div className="flex min-w-0 flex-col gap-2.5 border-t border-border bg-lps-tint p-2.5 sm:p-3">
+            {/* Supplier-visible operational overview, in the admin request body's order. */}
+            {request.lpsNotes && (
+              <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-lps-hair bg-lps-bubble p-3">
+                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
+                  Note from Local Plant Supply
+                </span>
+                <span className="whitespace-pre-wrap text-[12.5px] text-foreground">{request.lpsNotes}</span>
+              </div>
+            )}
+            {(request.customer || request.shipping?.address) && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {request.customer && (
+                  <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-lps-hair bg-card p-3">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Customer</span>
+                    <span className="text-[12.5px] text-foreground">
+                      {[request.customer.company, request.customer.name].filter(Boolean).join(' · ')}
                     </span>
-                  )}
-                </div>
-              )}
-              {request.shipping?.address && (
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                    Delivery
-                  </span>
-                  <span className="text-[12.5px] text-foreground">
-                    {[
-                      request.shipping.address,
-                      [request.shipping.city, request.shipping.state].filter(Boolean).join(', '),
-                      request.shipping.zip,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+                    {(request.customer.phone || request.customer.email) && (
+                      <span className="text-[11.5px] text-muted-foreground">
+                        {[request.customer.phone, request.customer.email].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {request.shipping?.address && (
+                  <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-lps-hair bg-card p-3">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Delivery</span>
+                    <span className="text-[12.5px] text-foreground">
+                      {[
+                        request.shipping.address,
+                        [request.shipping.city, request.shipping.state].filter(Boolean).join(', '),
+                        request.shipping.zip,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            <ResponseSummary request={request} />
+          </div>
 
           <ARLineTable
             items={request.items}
             editable={editable}
+            embedded
             onPatch={(itemId, changes) => onPatch(request.id, itemId, changes)}
           />
 
-          {editable && request.status === 'new' && request.items.some((i) => i.unitPrice != null) && (
-            <p className="m-0 text-[11.5px] text-muted-foreground">
-              Prices we already have on file are filled in — please correct any that have changed.
-            </p>
-          )}
-
-          {editable ? (
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => void onSave(request.id)}
-                disabled={saving}
-                className="cursor-pointer rounded-full bg-primary px-6 py-2 text-[12.5px] font-bold text-primary-foreground shadow-sm disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <span className="text-[11.5px] text-muted-foreground">
-                Saving sends your answers to Local Plant Supply — you can come back and refine them.
-              </span>
-            </div>
-          ) : (
-            <p className="m-0 text-[12px] text-muted-foreground">
-              This request is closed — the lines are read-only.
-            </p>
-          )}
-        </div>
+          <div className="flex flex-col gap-2.5 bg-card p-2.5 sm:p-3">
+            {editable && request.status === 'new' && request.items.some((item) => item.unitPrice != null) && (
+              <p className="m-0 text-[11.5px] text-muted-foreground">
+                Prices we already have on file are filled in — please correct any that have changed.
+              </p>
+            )}
+            {editable ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => void onSave(request.id)}
+                  disabled={saving}
+                  className="cursor-pointer rounded-full bg-primary px-6 py-2 text-[12.5px] font-bold text-primary-foreground shadow-sm disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <span className="text-[11.5px] text-muted-foreground">
+                  Saving sends your answers to Local Plant Supply — you can come back and refine them.
+                </span>
+              </div>
+            ) : (
+              <p className="m-0 text-[12px] text-muted-foreground">This request is closed — the lines are read-only.</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   )
@@ -447,6 +438,7 @@ export default function PortalHomePage() {
       supplierId={supplierId}
       supplierName={supplierName}
       tab="requests"
+      notificationCount={stats.newJobs}
     >
       {/* Overall stats — over everything, not the filtered view. */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1">

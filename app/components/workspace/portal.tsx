@@ -10,13 +10,23 @@
 // docs/app/README.md (Supplier portal).
 
 import Link from 'next/link'
-import { Leaf, MessagesSquare, Send, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Bell, Leaf, MessagesSquare, Send, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import {
   ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { useIsMobile, useTheme } from '@/components/workspace/shell'
+import {
+  CHAT_APPEARANCE_STORE,
+  DEFAULT_CHAT_APPEARANCE,
+  chatThemeForAgent,
+  chatThemeStyle,
+  chatWallpaperStyle,
+  isChatTheme,
+  isChatWallpaper,
+  type ChatAppearance,
+} from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
 export type PortalTab = 'requests' | 'orders'
@@ -41,14 +51,26 @@ const CHAT_POLL_MS = 5000
  * internal traffic on the same thread never reaches here (the plugin only
  * serves portal-visible rows).
  */
-function PortalChat({ supplierId }: { supplierId: number }) {
+function PortalChat({
+  supplierId,
+  mobile = false,
+  wallpaper,
+}: {
+  supplierId: number
+  mobile?: boolean
+  wallpaper: ChatAppearance['wallpaper']
+}) {
   const [messages, setMessages] = useState<PortalMessage[]>([])
   const [pending, setPending] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState('')
+  const [atTop, setAtTop] = useState(true)
+  const [atBottom, setAtBottom] = useState(true)
   const cursor = useRef(0)
   const scroller = useRef<HTMLDivElement>(null)
+  const composer = useRef<HTMLTextAreaElement>(null)
+  const pinned = useRef(true)
 
   const poll = useCallback(async () => {
     try {
@@ -80,9 +102,29 @@ function PortalChat({ supplierId }: { supplierId: number }) {
     return () => clearInterval(t)
   }, [poll])
 
+  const updateEdges = useCallback((element: HTMLDivElement) => {
+    const bottom = element.scrollHeight - element.scrollTop - element.clientHeight
+    pinned.current = bottom < 40
+    setAtTop(element.scrollTop < 40)
+    setAtBottom(bottom < 40)
+  }, [])
+
+  const toBottom = useCallback((smooth = false) => {
+    const element = scroller.current
+    element?.scrollTo({ top: element.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight })
-  }, [messages.length, pending])
+    if (pinned.current) toBottom()
+    if (scroller.current) updateEdges(scroller.current)
+  }, [messages.length, pending, toBottom, updateEdges])
+
+  useLayoutEffect(() => {
+    const element = composer.current
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${element.scrollHeight}px`
+  }, [draft])
 
   const send = async () => {
     const text = draft.trim()
@@ -111,65 +153,133 @@ function PortalChat({ supplierId }: { supplierId: number }) {
     )
   }
 
+  const stamp = (ms: number) => {
+    const date = new Date(ms)
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+
   return (
     <>
-      <div ref={scroller} className="flex min-h-[220px] flex-1 flex-col gap-2.5 overflow-auto p-3">
-        <p className="m-0 text-[12px] text-muted-foreground">
-          Anything at all — availability, substitutes, timing, delivery. Your message goes straight
-          to the Local Plant Supply team.
-        </p>
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={cn(
-              'flex max-w-[88%] flex-col gap-[3px]',
-              m.role === 'user' ? 'items-end self-end' : 'items-start self-start',
-            )}
-          >
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        <div
+          ref={scroller}
+          onScroll={(event) => updateEdges(event.currentTarget)}
+          className={cn(
+            'font-chat flex min-h-[220px] flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain bg-background px-4 pb-4',
+            mobile ? 'pt-[72px]' : 'pt-4',
+          )}
+          style={chatWallpaperStyle(wallpaper)}
+        >
+          {messages.length === 0 && !pending && (
+            <div className="m-auto flex max-w-[280px] flex-col items-center text-center text-[14px] leading-[1.4] text-muted-foreground">
+              <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-accent">
+                <Leaf className="size-6 text-accent-foreground" />
+              </span>
+              Anything at all — availability, substitutes, timing or delivery. Your message goes straight to Local Plant Supply.
+            </div>
+          )}
+
+          {messages.map((message) => (
             <div
+              key={message.id}
               className={cn(
-                'whitespace-pre-wrap px-3 py-2 text-[13.5px] leading-[1.35]',
-                m.role === 'user'
-                  ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
-                  : 'rounded-[12px_12px_12px_4px] border border-lps-hair bg-lps-bubble text-foreground',
+                'flex max-w-[88%] flex-col gap-[3px]',
+                message.role === 'user' ? 'items-end self-end' : 'items-start self-start',
               )}
             >
-              {m.text}
+              <div
+                className={cn(
+                  'whitespace-pre-wrap px-3 py-2.5 text-[16px] leading-[1.35]',
+                  message.role === 'user'
+                    ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
+                    : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
+                )}
+              >
+                {message.text}
+              </div>
+              <span className={cn('text-[11px] leading-none text-lps-dim', message.role === 'user' ? 'pr-1' : 'pl-1')}>
+                {stamp(message.at)}
+              </span>
             </div>
-            <span className="text-[10.5px] leading-none text-lps-dim">
-              {m.role === 'user' ? 'You' : 'Local Plant Supply'}
-            </span>
+          ))}
+
+          {pending && (
+            <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
+              <div className="flex items-center gap-2 rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble px-3 py-2.5 text-[16px] text-muted-foreground">
+                <span className="flex gap-1">
+                  {[0, 1, 2].map((index) => (
+                    <span
+                      key={index}
+                      className="size-1.5 animate-bounce rounded-full bg-lps-dim"
+                      style={{ animationDelay: `${index * 140}ms` }}
+                    />
+                  ))}
+                </span>
+                Local Plant Supply is working…
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[11.5px] font-semibold text-lps-warn-fg">
+              {error}
+            </div>
+          )}
+        </div>
+
+        {(!atTop || !atBottom) && (
+          <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-2">
+            {!atTop && (
+              <button
+                type="button"
+                onClick={() => scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                aria-label="Jump to top of conversation"
+                className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--lps-shadow)] hover:bg-muted"
+              >
+                <ArrowUp size={17} />
+              </button>
+            )}
+            {!atBottom && (
+              <button
+                type="button"
+                onClick={() => toBottom(true)}
+                aria-label="Jump to latest message"
+                className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)] hover:bg-muted"
+              >
+                <ArrowDown size={17} />
+              </button>
+            )}
           </div>
-        ))}
-        {pending && (
-          <span className="self-start text-[11.5px] text-muted-foreground">
-            Local Plant Supply is typing…
-          </span>
         )}
-        {error && <p className="m-0 text-[11.5px] text-destructive">{error}</p>}
       </div>
-      <div className="flex flex-none items-end gap-2 border-t border-border p-2.5">
+
+      <div className="flex flex-none items-end gap-2 border-t border-border bg-background px-3.5 py-3">
         <textarea
+          ref={composer}
           value={draft}
           rows={1}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !mobile) {
+              event.preventDefault()
               void send()
             }
           }}
-          placeholder="Write a message…"
-          className="max-h-32 min-h-9 min-w-0 flex-1 resize-none rounded-md border border-input bg-card px-3 py-1.5 text-[13.5px] leading-6 outline-none focus-visible:border-ring"
+          placeholder="Message Local Plant Supply…"
+          className="font-chat max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border border-input bg-card px-3 py-2 text-[16px] leading-6 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         />
         <button
           type="button"
           onClick={() => void send()}
           disabled={!draft.trim()}
           aria-label="Send"
-          className="flex size-9 flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+          className={cn(
+            'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50',
+            mobile ? 'size-10' : 'size-9',
+          )}
         >
-          <Send size={15} />
+          <Send size={mobile ? 16 : 15} />
         </button>
       </div>
     </>
@@ -180,12 +290,15 @@ export function PortalFrame({
   supplierId,
   supplierName,
   tab,
+  notificationCount = 0,
   children,
 }: {
   supplierId: number
   /** Null while loading — the frame draws before the fetch answers. */
   supplierName: string | null
   tab: PortalTab
+  /** New availability requests shown by the supplier's Alerts control. */
+  notificationCount?: number
   children: React.ReactNode
 }) {
   const isMobile = useIsMobile()
@@ -195,26 +308,72 @@ export function PortalFrame({
   // (desktop) or its bottom tab (mobile) — the portal's sibling of the admin
   // agent panel.
   const [chatOpen, setChatOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
 
-  const chatHeader = (
-    <div className="flex flex-none items-center gap-2.5 border-b border-border px-3 py-2.5">
-      <span className="flex size-8 flex-none items-center justify-center rounded-full bg-accent">
-        <Leaf className="size-4 text-accent-foreground" />
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(CHAT_APPEARANCE_STORE) ?? 'null') as
+        | { themes?: Partial<Record<'daisy' | 'rosie' | 'nova', unknown>>; wallpaper?: unknown }
+        | null
+      if (!saved) return
+      const themes = { ...DEFAULT_CHAT_APPEARANCE.themes }
+      for (const id of ['daisy', 'rosie', 'nova'] as const) {
+        if (isChatTheme(saved.themes?.[id])) themes[id] = saved.themes[id]
+      }
+      setChatAppearance({
+        themes,
+        wallpaper: isChatWallpaper(saved.wallpaper) ? saved.wallpaper : DEFAULT_CHAT_APPEARANCE.wallpaper,
+      })
+    } catch {
+      // Malformed local appearance data falls back to the shared defaults.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!moreOpen && !notificationsOpen) return
+    const close = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest('[data-portal-popover]')) {
+        setMoreOpen(false)
+        setNotificationsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [moreOpen, notificationsOpen])
+
+  const chatHeader = (floating = false) => (
+    <div
+      className={cn(
+        'flex flex-none items-center gap-2.5',
+        floating
+          ? 'absolute inset-x-3 top-2 z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'
+          : 'border-b border-border px-3 py-2.5',
+      )}
+    >
+      <span className={cn('flex flex-none items-center justify-center rounded-full bg-accent', floating ? 'size-9' : 'size-8')}>
+        <Leaf className={cn('text-accent-foreground', floating ? 'size-[18px]' : 'size-4')} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-bold leading-tight text-foreground">
+        <span className={cn('block truncate font-bold leading-tight text-foreground', floating ? 'text-[14.5px]' : 'text-[13px]')}>
           Local Plant Supply
         </span>
-        <span className="block truncate text-[10.5px] text-muted-foreground">Availability chat</span>
+        <span className="inline-flex items-center gap-1.5 text-[10.5px] leading-tight text-muted-foreground">
+          <span>Availability chat</span>
+          <span className="text-lps-dim">·</span>
+          <span className="size-1.5 rounded-full bg-[#5FAF65]" />
+          <span>Online</span>
+        </span>
       </span>
       <button
         type="button"
         onClick={() => setChatOpen(false)}
         aria-label="Hide chat"
         title="Hide chat"
-        className="flex size-7 flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        <X size={15} />
+        <X size={16} />
       </button>
     </div>
   )
@@ -252,70 +411,171 @@ export function PortalFrame({
 
   if (isMobile) {
     return (
-      <div className="flex min-h-dvh flex-col bg-background">
-        <header className="sticky top-0 z-40 border-b border-border bg-card px-3 py-2.5">
-          {identity}
-        </header>
-        <main className="flex flex-1 flex-col gap-3 overflow-auto px-3 py-3">
+      <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">
+        <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-3 py-3">
           {children}
         </main>
-        {/* The chat overlays the page content; the tab bar stays visible. */}
+
+        {/* Chat replaces only the page pane; global navigation remains visible. */}
         {chatOpen && (
-          <div className="fixed inset-x-0 top-0 z-40 flex flex-col bg-background" style={{ bottom: 'calc(52px + env(safe-area-inset-bottom))' }}>
-            {chatHeader}
-            <PortalChat supplierId={supplierId} />
+          <div
+            className="absolute inset-x-0 top-0 z-40 flex flex-col bg-background"
+            style={{
+              bottom: 'calc(52px + env(safe-area-inset-bottom))',
+              ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')),
+            }}
+          >
+            {chatHeader(true)}
+            <PortalChat supplierId={supplierId} mobile wallpaper={chatAppearance.wallpaper} />
           </div>
         )}
-        <nav className="sticky bottom-0 z-50 flex flex-none items-stretch gap-0.5 overflow-hidden border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
-          {nav.map(({ id, label, href, Icon }) => (
-            <Link
-              key={id}
-              href={href}
-              aria-label={label}
-              onClick={() => setChatOpen(false)}
-              className={cn(
-                'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                tab === id && !chatOpen ? 'text-primary' : 'text-muted-foreground',
-              )}
+
+        {notificationsOpen && (
+          <div data-portal-popover className="absolute bottom-[calc(58px+env(safe-area-inset-bottom))] left-2 z-[80] w-[min(320px,calc(100vw-16px))] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+            <div className="border-b border-border px-2.5 py-2 text-[12.5px] font-bold text-foreground">
+              Notifications
+            </div>
+            {notificationCount > 0 ? (
+              <Link
+                href={`/portal/${supplierId}`}
+                onClick={() => {
+                  setNotificationsOpen(false)
+                  setChatOpen(false)
+                }}
+                className="flex flex-col gap-0.5 rounded-lg px-2.5 py-2 text-foreground hover:bg-muted"
+              >
+                <span className="text-[12.5px] font-semibold">
+                  {notificationCount} new availability {notificationCount === 1 ? 'request' : 'requests'}
+                </span>
+                <span className="text-[11px] text-muted-foreground">Open Requests to review and answer.</span>
+              </Link>
+            ) : (
+              <p className="m-0 px-2.5 py-3 text-[12px] text-muted-foreground">No new notifications.</p>
+            )}
+          </div>
+        )}
+
+        {/* Desktop rail footer actions live under More on mobile, in the same order. */}
+        {moreOpen && (
+          <div data-portal-popover className="absolute bottom-[calc(58px+env(safe-area-inset-bottom))] right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+            <button
+              type="button"
+              onClick={toggle}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
             >
-              <span className="flex size-[18px] items-center justify-center"><Icon /></span>
-              <span className="text-center text-[10.5px] font-semibold leading-tight">
-                {id === 'requests' ? 'Requests' : label}
-              </span>
-            </Link>
-          ))}
+              {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
+              {dark ? 'Dark mode' : 'Light mode'}
+            </button>
+            <button
+              type="button"
+              disabled
+              title={AUTH_LATER}
+              className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
+            >
+              <SettingsIcon size={14} />
+              Settings
+            </button>
+            <button
+              type="button"
+              disabled
+              title={AUTH_LATER}
+              className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45"
+            >
+              <LogoutIcon size={14} />
+              Log out
+            </button>
+          </div>
+        )}
+
+        {/* Match the main app: fixed global actions at the edges, with three
+            destinations visible in an independently scrollable center strip. */}
+        <nav className="z-50 flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
           <button
             type="button"
-            onClick={() => setChatOpen((v) => !v)}
-            aria-label="Chat with Local Plant Supply"
+            data-portal-popover
+            onClick={() => {
+              setNotificationsOpen((open) => !open)
+              setMoreOpen(false)
+            }}
+            aria-label={notificationCount ? `Notifications — ${notificationCount} new` : 'Notifications'}
+            aria-expanded={notificationsOpen}
             className={cn(
-              'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+              'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+              notificationsOpen ? 'text-primary' : 'text-muted-foreground',
+            )}
+          >
+            <span className="relative flex size-[18px] items-center justify-center">
+              <Bell size={17} />
+              {notificationCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-1 text-[9px] font-bold leading-4 text-white">
+                  {notificationCount > 99 ? '99+' : notificationCount}
+                </span>
+              )}
+            </span>
+            <span className="text-[10.5px] font-semibold">Alerts</span>
+          </button>
+
+          <div
+            role="group"
+            aria-label="Pages"
+            className="lps-mobile-nav-scroll flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x"
+          >
+            {nav.map(({ id, label, href, Icon }) => (
+              <Link
+                key={id}
+                href={href}
+                aria-label={label}
+                onClick={() => {
+                  setChatOpen(false)
+                  setMoreOpen(false)
+                  setNotificationsOpen(false)
+                }}
+                className={cn(
+                  'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                  tab === id && !chatOpen ? 'text-primary' : 'text-muted-foreground',
+                )}
+              >
+                <span className="flex size-[18px] items-center justify-center"><Icon /></span>
+                <span className="text-center text-[10.5px] font-semibold leading-tight">
+                  {id === 'requests' ? 'Requests' : label}
+                </span>
+              </Link>
+            ))}
+            <button
+              type="button"
+              data-portal-popover
+              onClick={() => {
+                setMoreOpen((open) => !open)
+                setNotificationsOpen(false)
+              }}
+              aria-label="More"
+              aria-expanded={moreOpen}
+              className={cn(
+                'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                moreOpen ? 'text-primary' : 'text-muted-foreground',
+              )}
+            >
+              <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
+              <span className="text-[10.5px] font-semibold">More</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setChatOpen((open) => !open)
+              setMoreOpen(false)
+              setNotificationsOpen(false)
+            }}
+            aria-label="Chat with Local Plant Supply"
+            aria-expanded={chatOpen}
+            className={cn(
+              'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
               chatOpen ? 'text-primary' : 'text-muted-foreground',
             )}
           >
             <span className="flex size-[18px] items-center justify-center"><MessagesSquare size={17} /></span>
             <span className="text-center text-[10.5px] font-semibold leading-tight">Chat</span>
-          </button>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 text-muted-foreground"
-          >
-            <span className="flex size-[18px] items-center justify-center">
-              {dark ? <MoonIcon /> : <SunIcon />}
-            </span>
-            <span className="text-center text-[10.5px] font-semibold leading-tight">Theme</span>
-          </button>
-          <button
-            type="button"
-            disabled
-            title={AUTH_LATER}
-            aria-label="Log out"
-            className="flex min-w-0 flex-1 cursor-not-allowed flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5 text-muted-foreground opacity-45"
-          >
-            <span className="flex size-[18px] items-center justify-center"><LogoutIcon /></span>
-            <span className="text-center text-[10.5px] font-semibold leading-tight">Log out</span>
           </button>
         </nav>
       </div>
@@ -389,9 +649,12 @@ export function PortalFrame({
           app's shape: a narrow rail carrying who you'd be talking to, which
           opens into the panel. */}
       {chatOpen ? (
-        <aside className="sticky top-0 flex h-dvh w-[340px] flex-none flex-col border-l border-border bg-card">
-          {chatHeader}
-          <PortalChat supplierId={supplierId} />
+        <aside
+          className="sticky top-0 flex h-dvh w-[340px] flex-none flex-col border-l border-border bg-card"
+          style={chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie'))}
+        >
+          {chatHeader()}
+          <PortalChat supplierId={supplierId} wallpaper={chatAppearance.wallpaper} />
         </aside>
       ) : (
         <div className="sticky top-0 flex h-dvh w-[46px] flex-none flex-col items-center border-l border-border bg-card py-3.5">
