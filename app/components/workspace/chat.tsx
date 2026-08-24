@@ -679,7 +679,7 @@ export function AgentChat({
     <div className={cn(
       'flex flex-none items-center gap-2.5',
       big
-        ? 'absolute inset-x-3 top-2 z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'
+        ? 'absolute inset-x-3 top-2 z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/45 px-3 py-2 shadow-lg backdrop-blur-sm supports-[backdrop-filter]:bg-background/35'
         : 'border-b border-border px-4 py-3',
     )}>
       {big && onMobileBack && (

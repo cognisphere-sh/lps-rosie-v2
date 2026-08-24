@@ -1168,10 +1168,11 @@ Neither wallpaper is a Telegram asset. Color variables are scoped
 to `AgentChat`, so changing chat bubbles/buttons does not recolor the workspace.
 Preferences persist per browser/device under `lps.chat.appearance.v1` and also
 apply to the desktop chat panel. On mobile, the wallpaper is painted on the
-shared conversation layer so the floating identity pill visibly blurs and
-tints the artwork beneath it instead of compositing over a solid transcript
-surface; the operator and supplier-portal chats use the same treatment. The
-wallpaper field is an id (`none`,
+shared conversation layer so the floating identity pill lightly blurs and
+tints—rather than hides—the artwork beneath it instead of compositing over a
+solid transcript surface. Its supported backdrop tint is 35% (45% fallback)
+with a small blur; the operator and supplier-portal chats use the same
+treatment. The wallpaper field is an id (`none`,
 `line-art`, or `desert-night`); legacy boolean `true` migrates to `line-art`.
 Agent/incoming bubbles use an 18% accent-tinted card surface with a 28%
 accent-tinted border, separating them from black wallpaper; outgoing bubbles
