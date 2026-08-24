@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns — intake as a reserved id handed to the dedicated jr-<id> thread that writes the rows and owns the request, the concurrency discipline for tables the app edits too, the three note columns, the Austin-Plant-Supply-first sourcing and pricing ladder, availability checks through the supplier's own thread, the confirmation gate that keeps a priced line pending until the supplier answers or Chris says otherwise (and takes the whole line list, unpriced lines included), the request and item statuses, and handing customer contact to the customer's thread. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, and before any contact with a customer. (v3.0.0)
+description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.0.1)
 metadata:
   author: lps
-  version: "3.0.0"
+  version: "3.0.1"
 ---
 
 # Job requests

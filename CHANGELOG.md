@@ -19,6 +19,49 @@ here).
 
 ### Changed
 
+- **Upgraded `cognisphere-harness` 0.9.2 → 0.10.2.**
+  - **Main threads are coordinators, not workers** (0.10.2, base prompt,
+    refreshed wholesale in all three agents). A non-task thread understands the
+    request, splits it, delegates, tracks and assembles — it does not read
+    `SKILL.md`s, read files or do the work. Any skill-driven procedure now
+    goes to a task thread, which reads the skill itself; the main thread only
+    names it. Nova's persona bullet defers to that rule for code reads,
+    searches and implementation.
+  - **The no-version rule moved out of the base prompt.** Since 2026-08-15 the
+    deployment forbade quoting a skill's version when referencing it, as an
+    edit to the harness-owned `0-base_prompt.md`. That file is replaced by the
+    seed on every upgrade, so the rule now lives where deployment behaviour
+    belongs — a bullet in each agent's `1-agent.md` — and all three `0-*` files
+    are byte-identical to the 0.10.2 seed again.
+  - **Skill descriptions rephrased to the tightened spec** (0.10.1,
+    `create-skill` v1.3.0): "what's included" is a brief sketch of the main
+    procedures rather than an exhaustive contents list, partial applicability
+    moved under "use when", and the whole description stays under 1000
+    characters. Patch bumps, no procedural change: daisy's
+    `availability-ingestion` v2.2.1, `daily-supplier-availability-onboarding`
+    v2.1.1, `plant-and-supplier-search` v1.6.2, `plant-photo-catalogue`
+    v1.6.2, `supplier-communications` v4.1.2, `supplier-email-routing` v2.0.1,
+    `supplier-onboarding` v2.3.1; rosie's `customer-coordination` v1.1.1,
+    `job-requests` v3.0.1, `plant-and-supplier-search` v1.1.4,
+    `quote-generation` v1.3.1, `supplier-coordination` v1.1.1. Rosie's
+    `message-routing` and `text-quote-format` already conformed and were left
+    alone. This is the spec Bhoumik asked for on 2026-08-18, now upstream.
+  - **Harness-owned skills refreshed** in the app home (`.claude/skills/`) and
+    in nova's agent dir, where `create-plugin` and `cognisphere-upgrade` had
+    been left at v1.1.0/v1.2.0 by earlier upgrades that only refreshed the
+    home's copies: all three are now v1.3.0. `docs/base-harness/` refreshed;
+    `scripts/`, `config.example` and `app/artifacts-routes/` were already
+    current.
+  - 0.10.0's additions (web-based Google sign-in for gws agents and per-agent
+    OAuth scope selection) need no data migration; daisy's hand-set
+    `gws` credentials path keeps working and is now labelled
+    "operator-managed" in the console's new Settings card.
+  - Nova's `create-skill` listing adopts the shipped persona's wording — the
+    skill authors or updates a skill for **any** agent in this harness, and is
+    what to reach for whenever an agent asks to capture or change a procedure.
+  - `pnpm-workspace.yaml` excludes 0.10.2 from `minimumReleaseAge`, as every
+    prior bump has.
+
 - **Mobile Agents and the supplier chat are pages, not overlays.** Both drew
   over the route they were opened from with nothing but component state behind
   them, so the device Back button skipped past them and left the route

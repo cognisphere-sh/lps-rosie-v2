@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. daisy's skill, narrowed — the same RPCs and search discipline, plus scoping a sourcing look-up to Austin Plant Supply and when to widen past it, and the read-only framing — findings go into a job request's `sourcing_notes`, data problems get reported to daisy rather than fixed, and a hit is a listing rather than an availability. Use for any price or sourcing question against the database. (v1.1.3)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. daisy's skill, narrowed — the same RPCs and search discipline, plus scoping a sourcing look-up to Austin Plant Supply, when to widen past it, and the read-only framing that sends findings to a request's `sourcing_notes` and data problems to daisy. Use for any price or sourcing question against the database. (v1.1.4)
 metadata:
   author: lps
-  version: "1.1.3"
+  version: "1.1.4"
 ---
 
 # Looking up a plant or supplier

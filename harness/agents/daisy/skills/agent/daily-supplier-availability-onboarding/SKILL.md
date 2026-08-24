@@ -1,9 +1,9 @@
 ---
 name: daily-supplier-availability-onboarding
-description: Run the approved daily review of up to 100 active suppliers without availability data. Covers durable cohort/cursor state and idempotency, the Texas-first read-only outreach-eligibility gate, placeholder-supplier holds, 2026 Gmail checks, safe public-site review with ingestion dispatched to each supplier's dedicated thread, subscription/draft holds and audit, retained future-market reporting, private batch artifacts, and main-thread reporting. Use when the 3 AM supplier-availability onboarding schedule fires or when asked to run/review this daily cohort. (v2.1.0)
+description: Run the approved daily review of up to 100 active suppliers without availability data. Covers the durable cohort and cursor state, the read-only outreach-eligibility gate, the safe public-site review, dispatching ingestion to each supplier's dedicated thread, and the batch artifact and main-thread report. Use when the daily supplier-availability onboarding schedule fires, when asked to run or resume the cohort, or when reviewing what a past batch did. (v2.1.1)
 metadata:
   author: daisy
-  version: "2.1.0"
+  version: "2.1.1"
 ---
 
 # Daily supplier availability onboarding

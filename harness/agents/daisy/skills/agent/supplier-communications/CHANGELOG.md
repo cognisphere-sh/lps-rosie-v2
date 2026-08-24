@@ -1,5 +1,11 @@
 # supplier-communications — changelog
 
+## 4.1.2
+
+2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —
+"what's included" is a brief sketch rather than an exhaustive contents list,
+and partial applicability moved under "use when". No procedural change.
+
 ## 4.1.1
 
 2026-08-23 (Bhoumik) — reply-path paragraph updated for the router rename

@@ -1,9 +1,9 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden; learning mode), Chris's email style (short, casual, never wordy), the Sales & Use Tax permit attachment, the approved light-touch initial-outreach template for a Texas wholesale nursery, the one-thread-per-supplier convention (the suppliers.daisy_thread_id thread), composing and sending as Chris, how replies come back through the router thread or a direct routing rule, recording contact in the thread's notes, and where supplier facts belong. Use when asked to reply to, chase or initially contact a supplier, whenever you or they make contact, and when deciding where a supplier fact goes. (v4.1.1)
+description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v4.1.2)
 metadata:
   author: lps
-  version: "4.1.1"
+  version: "4.1.2"
 ---
 
 # Supplier communications

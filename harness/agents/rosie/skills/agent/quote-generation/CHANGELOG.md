@@ -1,5 +1,11 @@
 # quote-generation — changelog
 
+## 1.3.1
+
+2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —
+"what's included" is a brief sketch rather than an exhaustive contents list,
+and partial applicability moved under "use when". No procedural change.
+
 ## 1.3.0
 
 2026-08-24, approved by Chris. The approved modern Austin Plant Supply branded template (logo and current header) is now the default for APS quotes; the unbranded LPS template is legacy and the older APS template remains stale.

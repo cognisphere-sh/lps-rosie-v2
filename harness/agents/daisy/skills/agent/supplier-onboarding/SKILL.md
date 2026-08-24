@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row (including its daisy_thread_id/rosie_thread_id and a new location of a known company), evidence-based category classification, browser enrichment, best-effort newsletter signup and the availability-source columns, contacts and how one person links across locations, retiring versus deleting, and the QA and record block. Use when onboarding a supplier or a new location, when adding or correcting a supplier's contacts, or when another skill reaches a supplier or farm that has no row. (v2.3.0)
+description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row and its thread ids, evidence-based classification and browser enrichment, the availability-source columns, and contacts and how one person links across locations. Use when onboarding a supplier or a new location of a known one, when adding or correcting contacts, when retiring a supplier, or when another skill reaches a supplier or farm that has no row. (v2.3.1)
 metadata:
   author: lps
-  version: "2.3.0"
+  version: "2.3.1"
 ---
 
 # Supplier onboarding

@@ -1,9 +1,9 @@
 ---
 name: plant-photo-catalogue
-description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and its private bucket, normalising and deduping an intake, what a photo's identity and provenance fields may say, the attachments-only rule for where photos come from, the `search_plant_photos` RPC, sharing by signed URL, retiring a photo and reclaiming its bytes, and what app users can change under you. Use when a photo arrives to be catalogued, when someone asks what a plant looks like or what photos we hold, or when the /photos page comes up. (v1.6.1)
+description: Catalogue a plant photo into the searchable photo catalogue, and search it. Covers the `plant_photos` table and its private bucket, normalising and deduping an intake, the `search_plant_photos` RPC, and sharing or retiring a photo. Use when a photo arrives to be catalogued, when someone asks what a plant looks like or what photos we hold, when sharing one out by signed URL, or when the /photos page comes up. (v1.6.2)
 metadata:
   author: lps
-  version: "1.6.1"
+  version: "1.6.2"
 ---
 
 # Cataloguing and searching plant photos

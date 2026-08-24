@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, how a line total is arrived at, rendering and uploading the PDF, publishing the HTML, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.3.0)
+description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, rendering and publishing both formats, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.3.1)
 metadata:
   author: lps
-  version: "1.3.0"
+  version: "1.3.1"
 ---
 
 # Quote generation

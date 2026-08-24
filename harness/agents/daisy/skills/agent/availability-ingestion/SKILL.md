@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading a routed email/file, location mapping, source conversion, identity/size/price normalization, the lean notes rule, aliases, provenance, current-receipt/manual intake, exact-farm historical backfill date skips, match/update/insert rules, photo triage, QA and Gmail labelling. Use for supplier availability, historical backfill, and ingest-row fixes/reviews. (v2.2.0)
+description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading the routed drop, mapping it to locations and sources, normalizing plant identity, size and price, writing rows with provenance, and the QA and Gmail labelling that close it out. Use for a supplier availability drop, a historical backfill, a manual or current-receipt intake, photo triage on a drop, or a fix or review of rows an ingest wrote. (v2.2.1)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.2.1"
 ---
 
 # Availability ingestion

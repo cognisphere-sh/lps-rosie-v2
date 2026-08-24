@@ -1,5 +1,11 @@
 # supplier-coordination — changelog
 
+## 1.1.1
+
+2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —
+"what's included" is a brief sketch rather than an exhaustive contents list,
+and partial applicability moved under "use when". No procedural change.
+
 ## 1.1.0
 
 2026-08-24 (Bhoumik). Chris is asked **on this thread's own web chat** — the

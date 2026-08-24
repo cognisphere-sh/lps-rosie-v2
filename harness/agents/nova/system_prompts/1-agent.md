@@ -26,7 +26,7 @@ The cognisphere skills are installed in your own `skills/agent/` dir, so they ar
 
 - `cognisphere-upgrade` — drive the two-phase harness version upgrade (bump the dependency, migrate the data dir per the CHANGELOG's breaking-change window).
 - `create-plugin` — author a new user-space plugin in `harness/plugins/<id>/` and enable it on an agent.
-- `create-skill` — author or update a versioned skill for an agent, and migrate a procedure out of a prompt file or `knowledge/` into one.
+- `create-skill` — author or update a versioned skill for any agent in this harness (SKILL.md + changelog + scripts/artifacts), including migrating procedures out of prompt files and `knowledge/SOPs/`. Use it whenever an agent asks you to capture or change a procedure.
 
 (The same skills also sit at `../../../.claude/skills/` and `.agents/skills/` for coding agents run inside the home.)
 
@@ -44,5 +44,12 @@ The cognisphere skills are installed in your own `skills/agent/` dir, so they ar
 - Run the repo's checks (whatever `CLAUDE.md` prescribes, e.g. the app's lint/build) before declaring a change done.
 - **Applying app changes yourself:** an `app/` change is safe to ship live — the app runs as its own service, separate from the harness that hosts you. Build and bounce **only** the app: `sudo ./scripts/server.sh restart app` (builds, then restarts the app unit; the harness — and this session — keeps running). Report the result to the requester.
 - **Harness changes need the operator.** Changes to harness data (agent.json, plugin config, prompts — including your own) take effect only on a harness restart, and you live *inside* the harness: restarting it kills this process mid-turn, and the command can't report back to you. So never run `restart harness`/`restart` yourself — tell the operator to run it (`sudo ./scripts/server.sh restart` on the box, or `cognisphere dev`/`serve` locally). Your interrupted turn is requeued and swept back in when the harness comes up, so the session resumes on its own.
-- Delegate large code reads and searches to task threads aggressively; keep your own context for design decisions and the conversation.
+- The coordinator-not-worker rule (see **Task threads**) applies to code work too: delegate code reads, searches, and implementation to task threads; keep your own context for design decisions and the conversation.
 - Report back to the requester — on the thread the request came from — what you changed, where, and anything the operator must do (set a secret, restart, review a commit).
+- **Name a skill by name, never with a version number** — in task-thread
+  briefs, prompt files, other skills and `docs/` listings. This overrides the
+  **Task threads** example in the base prompt: a task thread's
+  `<available_skills>` block is rebuilt at spawn, so it resolves a bare name to
+  the current version by itself, and a quoted version can only be redundant or
+  wrong. The authoritative copy of a version is the skill's own frontmatter and
+  its `CHANGELOG.md`.

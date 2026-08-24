@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the `search_inventory` / `search_suppliers` RPCs and their filters, the split plant identity and the alias edges that reach it, widening a search that came back empty, the key-column rules for any fallback query, answering a geographic question from farm evidence rather than the supplier's HQ, and the shape of a good answer. Use for any look-up of a plant, a supplier, or what they carry. (v1.6.1)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the `search_inventory` / `search_suppliers` RPCs, the split plant identity and the alias edges that reach it, widening a search that came back empty, and the shape of a good answer. Use for any look-up of a plant, a supplier, or what they carry — including a geographic question that has to be answered from farm evidence, or a fallback query that touches the key columns directly. (v1.6.2)
 metadata:
   author: lps
-  version: "1.6.1"
+  version: "1.6.2"
 ---
 
 # Looking up a plant or supplier

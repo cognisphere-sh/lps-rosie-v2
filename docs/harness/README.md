@@ -11,7 +11,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.9.2**, timezone **America/Chicago**.
+- `harness.json` — version **0.10.2**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
   wholesale plant nursery. Three agents split the work: supplier side,
   customer side, and dev.
@@ -89,16 +89,17 @@ These are byte-identical in every agent dir:
   is deployment-owned — identity, persona and behaviour only, no procedures.
   Step-by-step procedures live in `skills/agent/<slug>/` instead.
 
-  **One local edit to `0-base_prompt.md`**, identical in daisy, nova and rosie
-  (2026-08-15; rosie's copy taken from daisy's at creation): the **Task
-  threads** bullet that names the skill to follow now
-  forbids quoting a version number in the brief, where the seed asked for "skill
-  name and its current version". The receiving thread's `<available_skills>` is
-  rebuilt at spawn, so it resolves the name to the current version by itself,
-  and a version copied into a brief is wrong the moment the skill is bumped. As
-  a `0-*` edit this diverges from the seed — the `cognisphere-upgrade` skill's
-  local-edit pass (step 4a/4c) must carry it across upgrades or the seed wording
-  comes back.
+  **One deployment override of the seed's wording**, carried by all three
+  agents: a skill is named by name, **never with a version number** — in a
+  task-thread brief, a prompt, another skill or a `docs/` listing — where the
+  seed's **Task threads** example asks for "skill name and its current
+  version". The receiving thread's `<available_skills>` is rebuilt at spawn, so
+  it resolves the name to the current version by itself, and a version copied
+  into a brief is wrong the moment the skill is bumped. Stated 2026-08-15; it
+  lived as an edit to `0-base_prompt.md` until harness 0.10.2 and now sits
+  where deployment behaviour belongs — a bullet in each agent's `1-agent.md`
+  (*Conventions & discipline*, *Working style* for nova), so the `0-*` files
+  are again byte-identical to the seed and the upgrade refresh cannot lose it.
 
 ## Plugins
 

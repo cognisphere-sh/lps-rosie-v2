@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → Chris sends flow (rosie has no mailbox), logging every contact in customers.communication_notes, customer quirks in customers.notes, and relaying what the customer said back to the jr thread it concerns. Use on every message a jr thread (or main) sends about contacting this customer, and whenever something comes back from them. (v1.1.0)
+description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → Chris sends flow (rosie has no mailbox), and logging contact and quirks on the customer row. Use on every message a jr thread or main sends about contacting this customer, whenever something comes back from them, and when relaying what they said to the request it concerns. (v1.1.1)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.1.1"
 ---
 
 # Customer coordination

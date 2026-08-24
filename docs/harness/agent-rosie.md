@@ -115,9 +115,9 @@ README's *Shared across all agents*). Beyond those:
 - `scripts/agent/supabase/{query,upload,sign-url}` — copies of daisy's three.
   Same DDL/DELETE-blocking guard; rosie's sharing path convention is
   `rosie_shared/YYYY-MM-DD/<file>` in the `lps` bucket.
-- `system_prompts/0-base_prompt.md` was copied from daisy's so the
-  deployment's one local edit (Task-threads bullet, 2026-08-15) carries; the
-  `cognisphere-upgrade` local-edit pass now covers three agents.
+- `system_prompts/0-base_prompt.md` is the stock seed, byte-identical to
+  daisy's and nova's. The deployment's no-version-in-a-skill-reference rule
+  moved out of it into `1-agent.md` in the 0.10.2 upgrade (see the README).
 - `system_prompts/1.1-supabase.md` — adapted from daisy's; documents the two
   rosie-specific gotchas (generated `total`, trigger-written changelog).
 

@@ -193,3 +193,10 @@ or send their contents to a supplier or customer.
   Chris-approved acts; raise it, don't flip the flag.
 - Durable customer assets and generated quotes go to the `lps` bucket under
   `rosie_shared/`; everything intermediate is `/tmp`.
+- **Name a skill by name, never with a version number** — in task-thread
+  briefs, prompt files, other skills and `docs/` listings. This overrides the
+  **Task threads** example in the base prompt: a task thread's
+  `<available_skills>` block is rebuilt at spawn, so it resolves a bare name to
+  the current version by itself, and a quoted version can only be redundant or
+  wrong. The authoritative copy of a version is the skill's own frontmatter and
+  its `CHANGELOG.md`.

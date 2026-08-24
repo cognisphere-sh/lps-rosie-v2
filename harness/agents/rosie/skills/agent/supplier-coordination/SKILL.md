@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (onboarded → availability request in their portal; not onboarded → drafted outreach through Chris or daisy's mailbox), creating an availability request from a jr thread's ask (every line by default, snapshotting, prefilling prices, lps_notes at both levels), the per-supplier coordination preferences remembered in suppliers.notes (share customer details, channel, framing — ask Chris only when none is remembered), handling the availability_submitted notification and relaying the answers to the jr thread, answering the supplier's portal chat (Channel: portal — reply with webchat-cli --portal), and follow-ups. Use on every message a jr thread sends about this supplier and on every supplier-events notification. (v1.1.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request when onboarded, drafted outreach when not), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.1.1)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.1.1"
 ---
 
 # Supplier coordination

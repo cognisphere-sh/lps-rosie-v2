@@ -1,9 +1,9 @@
 ---
 name: supplier-email-routing
-description: Run the router thread — identify which supplier an inbound email (or anything handed over by main) belongs to and forward it to that supplier's dedicated thread, without reading bodies or attachments. Covers identification from sender/subject/attachment names alone, the escalating read-only-if-needed rule, minting a `supplier-<slug>` thread id for a brand-new supplier and briefing it to onboard and ingest, promoting a stable sender to a direct gws routing rule (and keeping the catch-all last), non-availability mail (human review → main + Escalated label; otherwise Not Availability label, no forward), the Daisy label on every routed email, and what the forward message must carry. Use on every `email_received` on the router thread and whenever main hands over anything whose target thread it doesn't know. (v2.0.0)
+description: Run the router thread — identify which supplier an inbound email belongs to and forward it to that supplier's dedicated thread, without reading bodies or attachments. Covers identification from sender, subject and attachment names, the escalating read-only-if-needed rule, minting a `supplier-<slug>` thread for a brand-new supplier, and the labelling every routed email gets. Use on every `email_received` on the router thread, whenever main hands over something whose target thread it doesn't know, when mail turns out not to be availability, and when promoting a stable sender to its own gws routing rule. (v2.0.1)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "2.0.1"
 ---
 
 # Supplier email routing

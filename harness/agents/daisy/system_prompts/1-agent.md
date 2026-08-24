@@ -143,3 +143,10 @@ or send their contents to a supplier or customer.
 - **Don't re-run expensive work on a source that hasn't moved** (Chris,
   2026-07-29): detect change cheaply first — HTTP metadata, a file or text
   hash, the source's own timestamp — and skip the parse when it's unchanged.
+- **Name a skill by name, never with a version number** — in task-thread
+  briefs, prompt files, other skills and `docs/` listings. This overrides the
+  **Task threads** example in the base prompt: a task thread's
+  `<available_skills>` block is rebuilt at spawn, so it resolves a bare name to
+  the current version by itself, and a quoted version can only be redundant or
+  wrong. The authoritative copy of a version is the skill's own frontmatter and
+  its `CHANGELOG.md`.

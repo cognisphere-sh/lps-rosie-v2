@@ -18,6 +18,65 @@ the harness directory, and applies it after user approval. See
 The format is based on [Keep a Changelog](https://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.2]
+
+### Breaking changes
+
+- Base prompt: main (non-task) threads are now coordinators, not workers —
+  they delegate skill-driven procedures, file reads, and sizable work to
+  task threads instead of doing it (or reading `SKILL.md`s) themselves;
+  the **Task threads** section carries the rule. Refreshed wholesale on
+  upgrade   [affects: agents/*/system_prompts/0-base_prompt.md]
+- Nova's persona prompt: the "delegate large code reads" working-style
+  bullet now defers to the base prompt's coordinator-not-worker rule
+  (code reads, searches, and implementation go to task threads). This
+  file is deployment-owned — apply the same edit to existing novas   [affects: agents/nova/system_prompts/1-agent.md]
+
+## [0.10.1]
+
+### Breaking changes
+
+- Skill description spec tightened (`create-skill` v1.3.0): "what's
+  included" is a brief sketch of the main procedures, not an exhaustive
+  contents list; partial applicability moves under "use when"; the whole
+  description stays under 1000 characters. During upgrade, audit every
+  skill and rephrase any description that doesn't conform, with a
+  patch bump and changelog entry per rephrased skill   [affects: agents/*/skills/*/*/SKILL.md]
+
+### Changed
+
+- `docs/base-harness/skills.md` and the `create-skill` skill restate the
+  new description spec (both refreshed wholesale by the upgrade skill).
+
+## [0.10.0]
+
+### Added
+
+- **Web-based Google sign-in/sign-out for gws agents.** New Google
+  Workspace card on the console's Settings page and `/api/gws/oauth/*`
+  routes (`api/gws-oauth.ts`): the operator saves a "Web application"
+  OAuth client from their own GCP project once per harness
+  (`.secrets/gws/oauth-client.json`, redirect URI
+  `<console origin>/api/gws/oauth/callback`), then signs each
+  gws-enabled agent in with a browser consent flow. The callback writes
+  the standard `authorized_user` JSON (the shape
+  `gws auth export --unmasked` produces) to
+  `.secrets/gws/<agentId>/credentials.json`, points the agent's
+  `gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` secret at it, and
+  soft-reloads the agent — replacing the manual `gws auth login` +
+  `gws auth export` dance. Sign-out revokes the refresh token, deletes
+  the managed files, clears the secret, and reloads. Hand-set
+  credentials paths keep working and are labeled "operator-managed" in
+  the card.
+- **Per-agent OAuth scope selection.** New optional gws plugin config
+  key `oauthScopes` (comma-separated scope URLs; read by the sign-in
+  flow, ignored by the plugin at runtime). The Settings card edits it
+  per agent as checkboxes grouped by service (Calendar, Drive, Docs,
+  Sheets, Slides, Contacts, Tasks — full and read-only variants);
+  `gmail.modify` + `openid email` are always requested. Granted scopes
+  are recorded at sign-in and shown per agent; changing the config
+  requires signing in again to take effect.
+
 ## [0.9.2]
 
 ### Fixed
