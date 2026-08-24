@@ -425,7 +425,10 @@ export default function SuppliersPage() {
             return (
               <div
                 key={company.id}
-                className="overflow-hidden rounded-xl border border-border bg-card"
+                // A long result page must scroll; without flex-none, flexbox
+                // shrinks every card to its borders and overflow-hidden clips
+                // all content into the horizontal lines seen on mobile.
+                className="flex-none overflow-hidden rounded-xl border border-border bg-card"
               >
                 {mobileCard(company.head, {
                   company,

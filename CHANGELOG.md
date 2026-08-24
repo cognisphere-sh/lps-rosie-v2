@@ -38,6 +38,7 @@ here).
 
 ### Fixed
 
+- **Supplier cards no longer collapse into horizontal lines on mobile.** The fixed-height result column was allowed to shrink all 27–50 direct card children, while each card’s `overflow-hidden` clipped the content; company wrappers are now `flex-none`, so the list scrolls and every card keeps its intrinsic height.
 - **Agent reply attachment containment uses a real path boundary.** The webchat plugin now checks `relative()` rather than a string prefix, so a sibling directory whose name merely begins with the agent directory can never pass as an in-agent attachment path.
 - **Supplier portal mobile editing stays contained.** The availability line table now constrains its own horizontal scroller so the Notes input cannot escape the card, and the status-answer dialog tracks the live browser visual viewport with internal scrolling so Notes and Save remain reachable above Android/iOS keyboards.
 - **The per-status answer pop-up's data wasn't reaching the row.** Saving it
