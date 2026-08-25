@@ -1,7 +1,23 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { joinLineBrokenMarkdownLinks, splitBareHttpUrl, tokenizeChatInline } from './chat-markdown.ts'
+import {
+  joinLineBrokenMarkdownLinks, splitBareHttpUrl, splitChatMarkdownBlocks, tokenizeChatInline,
+} from './chat-markdown.ts'
+
+test('splits labelled fenced code from surrounding prose', () => {
+  assert.deepEqual(splitChatMarkdownBlocks('Before\n```text\nfirst\nsecond\n```\nAfter'), [
+    { kind: 'prose', text: 'Before' },
+    { kind: 'code', language: 'text', text: 'first\nsecond' },
+    { kind: 'prose', text: 'After' },
+  ])
+})
+
+test('treats an unclosed fence as code through the end of the message', () => {
+  assert.deepEqual(splitChatMarkdownBlocks('```code\nconst answer = 42'), [
+    { kind: 'code', language: 'code', text: 'const answer = 42' },
+  ])
+})
 
 test('joins a Markdown URL placed on the line after its label', () => {
   assert.equal(

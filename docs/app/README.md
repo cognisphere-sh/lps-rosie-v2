@@ -997,8 +997,11 @@ and briefly changes to a check on success.
 HTTP(S) addresses are clickable whether written as ordinary text or Markdown;
 a Markdown label and destination split across adjacent lines are joined for
 rendering while copy keeps the original text. Long labels, URLs and inline code
-wrap inside the bubble, and the transcript never scrolls horizontally. The
-special `thread:` and `ar:` action links retain their button behavior.
+wrap inside the bubble, and the transcript never scrolls horizontally. Fenced
+blocks (including labelled fences such as ` ```text ` and ` ```code `) render
+as scrollable code panels with the label in their header and a dedicated,
+always-visible Copy button that confirms when the block is on the clipboard.
+The special `thread:` and `ar:` action links retain their button behavior.
 Since 2026-08-23 the panel is **per-thread**: each agent opens on its default
 thread — the one its Telegram uses (Daisy's `main`, Nova's `default`) — so
 panel and Telegram stay one conversation there, and rosie's and daisy's
@@ -1198,11 +1201,13 @@ pages back over days, so `9:41` alone left yesterday's message reading as
 today's. It is the browser's zone — unlike the stamps in the agents' note
 columns, which are written in `America/Chicago` because they become stored text.
 
-**Markdown.** Agent replies render through a ~30-line subset renderer (bold,
-inline code, links, bullet lists) rather than a markdown dependency. It also
-normalizes literal `\\n` sequences from CLI replies into line breaks, including
-in existing transcript entries. Tables are not supported — the plugin's seed
-prompt tells Daisy to use bullet lists.
+**Markdown.** Agent replies render through a deliberately small subset renderer
+(bold, inline code, fenced code blocks, links, bullet lists) rather than a
+markdown dependency. Fenced blocks keep their whitespace, show their optional
+language label and carry their own Copy button. The renderer also normalizes
+literal `\\n` sequences from CLI replies into line breaks, including in existing
+transcript entries. Tables are not supported — the plugin's seed prompt tells
+Daisy to use bullet lists.
 
 Panel open/closed, width, the selected agent and the thread it is on persist to
 `localStorage` under `lps.chat.v1`, written from an effect behind a `hydrated`

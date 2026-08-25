@@ -5,6 +5,49 @@ export type ChatInlineToken =
   | { kind: 'action'; scheme: 'thread' | 'ar'; target: string; label: string }
   | { kind: 'link'; href: string; label: string }
 
+export type ChatMarkdownBlock =
+  | { kind: 'prose'; text: string }
+  | { kind: 'code'; language: string; text: string }
+
+/** Split fenced code from prose so code is never interpreted as inline markdown. */
+export function splitChatMarkdownBlocks(text: string): ChatMarkdownBlock[] {
+  const blocks: ChatMarkdownBlock[] = []
+  const prose: string[] = []
+  const code: string[] = []
+  let language: string | null = null
+
+  const flushProse = () => {
+    if (!prose.length) return
+    blocks.push({ kind: 'prose', text: prose.join('\n') })
+    prose.length = 0
+  }
+
+  for (const line of text.split('\n')) {
+    if (language === null) {
+      const opening = /^\s*```([^\s`]*)\s*$/.exec(line)
+      if (!opening) {
+        prose.push(line)
+        continue
+      }
+      flushProse()
+      language = opening[1]
+      continue
+    }
+
+    if (/^\s*```\s*$/.test(line)) {
+      blocks.push({ kind: 'code', language, text: code.join('\n') })
+      code.length = 0
+      language = null
+    } else {
+      code.push(line)
+    }
+  }
+
+  if (language !== null) blocks.push({ kind: 'code', language, text: code.join('\n') })
+  flushProse()
+  return blocks
+}
+
 /** Join the link destination when an agent puts it on the line after its label. */
 export function joinLineBrokenMarkdownLinks(text: string): string {
   return text.replace(

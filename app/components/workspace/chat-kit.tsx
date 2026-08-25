@@ -13,7 +13,9 @@ import { ArrowDown, ArrowUp, Copy, MessagesSquare, Mic, Pause, Paperclip, Play, 
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { chatWallpaperStyle, type ChatWallpaperId } from '@/lib/chat-appearance'
-import { joinLineBrokenMarkdownLinks, tokenizeChatInline, type ChatInlineToken } from '@/lib/chat-markdown'
+import {
+  joinLineBrokenMarkdownLinks, splitChatMarkdownBlocks, tokenizeChatInline, type ChatInlineToken,
+} from '@/lib/chat-markdown'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -82,11 +84,9 @@ function inline(text: string, key: string, onAction?: MarkdownAction) {
 
 const messageText = (text: string) => text.replace(/\\r\\n|\\n|\\r/g, '\n')
 
-export function Markdown({ text, onAction }: { text: string; onAction?: MarkdownAction }) {
+function MarkdownProse({ text, onAction }: { text: string; onAction?: MarkdownAction }) {
   const blocks: React.ReactNode[] = []
-  // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
-  // Normalize them here so existing transcript entries render correctly too.
-  const lines = joinLineBrokenMarkdownLinks(messageText(text)).split('\n')
+  const lines = text.split('\n')
   let bullets: string[] = []
   const flush = (key: string) => {
     if (!bullets.length) return
@@ -104,7 +104,59 @@ export function Markdown({ text, onAction }: { text: string; onAction?: Markdown
     if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i), onAction)}</p>)
   })
   flush('end')
-  return <div className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]">{blocks}</div>
+  return blocks
+}
+
+function FencedCodeBlock({ language, text }: { language: string; text: string }) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopied(false), 1600)
+    } catch {
+      // Clipboard access can be denied; do not falsely report success.
+    }
+  }
+
+  return (
+    <div className="my-1 min-w-0 max-w-full overflow-hidden rounded-lg border border-lps-edge bg-background/80">
+      <div className="flex items-center justify-between gap-3 border-b border-lps-edge bg-muted/70 px-3 py-1.5 text-[11px]">
+        <span className="truncate font-mono text-muted-foreground">{language || 'code'}</span>
+        <button
+          type="button"
+          onClick={() => { void copy() }}
+          className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 font-sans font-semibold text-foreground hover:bg-background"
+          aria-label={copied ? 'Code copied' : 'Copy code'}
+        >
+          {copied ? <CheckIcon size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="max-w-full overflow-x-auto p-3 text-[13px] leading-5"><code className="font-mono">{text}</code></pre>
+    </div>
+  )
+}
+
+export function Markdown({ text, onAction }: { text: string; onAction?: MarkdownAction }) {
+  // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
+  // Normalize them here so existing transcript entries render correctly too.
+  const blocks = splitChatMarkdownBlocks(messageText(text))
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]">
+      {blocks.map((block, i) => block.kind === 'code'
+        ? <FencedCodeBlock key={i} language={block.language} text={block.text} />
+        : <MarkdownProse key={i} text={joinLineBrokenMarkdownLinks(block.text)} onAction={onAction} />)}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------- audio bits

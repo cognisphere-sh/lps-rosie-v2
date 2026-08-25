@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- **Fenced chat markdown renders as copyable code.** Triple-backtick blocks,
+  including language labels such as `text` and `code`, now render as distinct
+  code panels instead of showing their fence markers as prose. Each panel keeps
+  its whitespace, scrolls long lines inside the bubble and has an always-visible
+  Copy button with success feedback.
 - **Chat links are clickable and stay inside their bubbles.** Ordinary HTTP(S)
   text and Markdown links now open safely in a new tab, including agent replies
   that put a Markdown destination on the line after its label or wrap the whole
