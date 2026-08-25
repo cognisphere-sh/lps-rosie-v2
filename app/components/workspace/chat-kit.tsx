@@ -13,6 +13,7 @@ import { ArrowDown, ArrowUp, Copy, MessagesSquare, Mic, Pause, Paperclip, Play, 
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { chatWallpaperStyle, type ChatWallpaperId } from '@/lib/chat-appearance'
+import { joinLineBrokenMarkdownLinks, splitBareHttpUrl } from '@/lib/chat-markdown'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -74,7 +75,7 @@ function inline(text: string, key: string, onAction?: MarkdownAction) {
             key={k}
             type="button"
             onClick={() => onAction(scheme, target)}
-            className="my-0.5 inline-flex cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2.5 py-1 text-[12px] font-bold text-primary hover:bg-secondary"
+            className="my-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 whitespace-normal rounded-full border border-lps-edge bg-card px-2.5 py-1 text-left text-[12px] font-bold text-primary [overflow-wrap:anywhere] hover:bg-secondary"
           >
             {scheme === 'thread' ? <MessagesSquare size={12} /> : <ChevronRight size={12} />}
             {label}
@@ -82,8 +83,12 @@ function inline(text: string, key: string, onAction?: MarkdownAction) {
         )
       }
     }
-    else if (m[3]) parts.push(<a key={k} href={m[6]} target="_blank" rel="noreferrer" className="underline">{m[3]}</a>)
-    else parts.push(<a key={k} href={m[7]} target="_blank" rel="noreferrer" className="underline">{m[7]}</a>)
+    else if (m[3]) parts.push(<a key={k} href={m[6]} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{m[3]}</a>)
+    else {
+      const { href, suffix } = splitBareHttpUrl(m[7])
+      parts.push(<a key={k} href={href} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{href}</a>)
+      if (suffix) parts.push(suffix)
+    }
     last = re.lastIndex
   }
   if (last < text.length) parts.push(text.slice(last))
@@ -96,7 +101,7 @@ export function Markdown({ text, onAction }: { text: string; onAction?: Markdown
   const blocks: React.ReactNode[] = []
   // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
   // Normalize them here so existing transcript entries render correctly too.
-  const lines = messageText(text).split('\n')
+  const lines = joinLineBrokenMarkdownLinks(messageText(text)).split('\n')
   let bullets: string[] = []
   const flush = (key: string) => {
     if (!bullets.length) return
@@ -114,7 +119,7 @@ export function Markdown({ text, onAction }: { text: string; onAction?: Markdown
     if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i), onAction)}</p>)
   })
   flush('end')
-  return <div className="flex flex-col gap-1">{blocks}</div>
+  return <div className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]">{blocks}</div>
 }
 
 // ---------------------------------------------------------------- audio bits
@@ -618,7 +623,7 @@ export function Transcript({
       onTouchEnd={() => { void finishPull() }}
       onTouchCancel={() => { pullStart.current = null; setPull(0) }}
       className={cn(
-        'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain',
+        'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-y-contain',
         mobile ? 'bg-transparent px-4 pb-4 pt-[72px]' : 'bg-background p-4',
       )}
       style={mobile ? undefined : chatWallpaperStyle(wallpaper)}
@@ -644,7 +649,7 @@ export function Transcript({
         <div
           key={m.id}
           className={cn(
-            'flex max-w-[88%] flex-col gap-[3px]',
+            'flex min-w-0 max-w-[88%] flex-col gap-[3px]',
             m.role === 'user' ? 'items-end self-end' : 'items-start self-start',
           )}
         >
@@ -666,7 +671,7 @@ export function Transcript({
           {m.text && (
             <div
               className={cn(
-                'px-3 py-2.5 text-[16px] leading-[1.35]',
+                'max-w-full min-w-0 px-3 py-2.5 text-[16px] leading-[1.35] [overflow-wrap:anywhere]',
                 m.role === 'user'
                   ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
                   : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',

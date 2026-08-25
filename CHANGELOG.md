@@ -19,6 +19,12 @@ here).
 
 ### Changed
 
+- **Chat links are clickable and stay inside their bubbles.** Ordinary HTTP(S)
+  text and Markdown links now open safely in a new tab, including agent replies
+  that put a Markdown destination on the line after its label. Long link text,
+  raw URLs and inline code wrap instead of creating horizontal scrolling on the
+  mobile or desktop transcript; `thread:` / `ar:` action buttons and plain-text
+  message copying keep their existing behavior.
 - **The supplier portal's Item status chip now filters the line rows, not just
   the cards.** It matched a request that had at least one line in the picked
   status and then drew every line of it, so picking *Available* still showed
