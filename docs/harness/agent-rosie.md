@@ -80,20 +80,28 @@ Enabled now (core `admin` / `scheduler` / `agent-messaging` need no dirs):
 ### Pending: email (gws)
 
 **Not enabled** — the gws plugin hard-fails the agent start without its
-required credential, so `plugins/gws/` must not exist until a mailbox does.
+credential, so `plugins/gws/` stays absent until a mailbox exists.
 When rosie gets her own address (an open business decision — daisy already
 reads `chris.r@localplantsupply.com`), the enable procedure is:
 
-1. Obtain credentials for the mailbox (`gws auth login` + `gws auth export`)
-   and place the file (daisy's lives at `harness/.secrets/gws-credentials.json`;
-   use a distinct filename for rosie's).
-2. Add `rosie.gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` → that path to
-   `harness/.secrets/secrets.json`.
-3. `mkdir harness/agents/rosie/plugins/gws` and write `config.json` (daisy's
-   shape).
-4. Restart the harness; confirm the plugin is `running` and update this file
-   and the README comparison table. Her `router` thread is the natural
-   catch-all target, mirroring daisy's routing setup.
+1. `mkdir harness/agents/rosie/plugins/gws` and write `config.json` (daisy's
+   shape) — the dir is what makes her a gws agent in the console. Restart;
+   the plugin fails to start until step 3, which is expected.
+2. If she needs Calendar/Drive as well as mail, set `oauthScopes` in that
+   `config.json` *before* signing in — `gmail.modify` (Google's read/write
+   Gmail tier, which the poll loop needs) is always requested, so no Gmail
+   scope choice is offered.
+3. Sign in as the mailbox: console → **rosie → Settings tab → gws plugin
+   card → Sign in with Google** (since harness 0.11.0 this lives on the
+   agent, not the app-level Settings page, which now only holds the shared
+   OAuth client id/secret already saved for daisy). The callback writes
+   `harness/.secrets/gws/rosie/credentials.json`, points
+   `rosie.gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` at it, and soft-reloads
+   her — no hand-edit of `secrets.json`, and no `gws auth login`/`export`
+   (that path was removed in 0.11.0).
+4. Confirm the plugin is `running` and update this file and the README
+   comparison table. Her `router` thread is the natural catch-all target,
+   mirroring daisy's routing setup.
 
 Until then, customer email ends with Chris sending the approved text himself
 (`customer-coordination`), and non-Partner supplier outreach goes through

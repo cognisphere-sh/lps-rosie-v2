@@ -44,6 +44,28 @@ here).
   supplier-contact links. Contacts Daisy linked while the profile remained
   mounted now appear without a manual browser refresh.
 
+- **Upgraded `cognisphere-harness` 0.10.2 → 0.11.0.** No harness data-dir
+  changes were required — the release is console/API-side. What it means here:
+  - **gws sign-in moved to the agent's Settings tab.** Google sign-in/out and
+    the scope picker now live on the gws plugin card of each agent's own
+    Settings tab; the app-level Settings page keeps only the shared OAuth
+    client id/secret (already saved). The callback returns to
+    `/agents/<agentId>/settings`.
+  - **Legacy `gws auth login` + `gws auth export` is gone.** Nothing here used
+    it — `daisy.gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` is written by the
+    web flow — but the stale `harness/.secrets/gws-credentials.json` (Jul 7)
+    is now dead weight, kept only because deleting a credential file is the
+    operator's call. `docs/harness/agent-rosie.md`'s "Pending: email (gws)"
+    enable procedure was rewritten around the web flow.
+  - **Gmail scope rationalized**: `gmail.modify` is always requested (the poll
+    loop's mark-read needs it) and no narrower Gmail choice is offered.
+    Optional per-service scopes (Calendar, Drive, …) still live in the gws
+    config key `oauthScopes` — unset for daisy, so nothing changed.
+  - Refreshed the harness-owned scaffold: only `docs/base-harness/README.md`
+    and `docs/base-harness/CHANGELOG.md` moved. `scripts/`, `config.example`,
+    `.claude/skills/` and `app/artifacts-routes/` were already byte-identical
+    to the 0.11.0 shipped versions, and no local edits were overwritten.
+
 - **Upgraded `cognisphere-harness` 0.9.2 → 0.10.2.**
   - **Main threads are coordinators, not workers** (0.10.2, base prompt,
     refreshed wholesale in all three agents). A non-task thread understands the
