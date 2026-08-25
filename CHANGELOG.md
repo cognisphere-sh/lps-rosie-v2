@@ -21,7 +21,8 @@ here).
 
 - **Chat links are clickable and stay inside their bubbles.** Ordinary HTTP(S)
   text and Markdown links now open safely in a new tab, including agent replies
-  that put a Markdown destination on the line after its label. Long link text,
+  that put a Markdown destination on the line after its label or wrap the whole
+  link in bold. Long link text,
   raw URLs and inline code wrap instead of creating horizontal scrolling on the
   mobile or desktop transcript; `thread:` / `ar:` action buttons and plain-text
   message copying keep their existing behavior.

@@ -13,7 +13,7 @@ import { ArrowDown, ArrowUp, Copy, MessagesSquare, Mic, Pause, Paperclip, Play, 
 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { chatWallpaperStyle, type ChatWallpaperId } from '@/lib/chat-appearance'
-import { joinLineBrokenMarkdownLinks, splitBareHttpUrl } from '@/lib/chat-markdown'
+import { joinLineBrokenMarkdownLinks, tokenizeChatInline, type ChatInlineToken } from '@/lib/chat-markdown'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -49,50 +49,35 @@ export type MarkdownAction = (scheme: 'thread' | 'ar', target: string) => void
  * lists ever matter, swap in `marked` + a sanitizer rather than growing this.
  */
 function inline(text: string, key: string, onAction?: MarkdownAction) {
-  const parts: React.ReactNode[] = []
-  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\((?:(thread|ar):([^)\s]+)|(https?:\/\/[^)\s]+))\)|(https?:\/\/[^\s<]+)/g
-  let last = 0
-  let m: RegExpExecArray | null
-  let i = 0
-  while ((m = re.exec(text))) {
-    if (m.index > last) parts.push(text.slice(last, m.index))
-    const k = `${key}-${i++}`
-    if (m[1]) parts.push(<strong key={k}>{m[1]}</strong>)
-    else if (m[2]) parts.push(<code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{m[2]}</code>)
-    else if (m[4]) {
-      // Agent-rendered action buttons: `thread:<id>` switches the panel to
-      // that thread, `ar:<id>` opens the availability-request drawer. Readers
-      // with nothing to open (the portal) get the plain label instead.
-      const scheme = m[4] as 'thread' | 'ar'
-      const target = m[5]
-      const label = m[3]
-      const arId = Number.parseInt(target, 10)
-      const valid = scheme === 'thread' ? target.length > 0 : Number.isInteger(arId)
-      if (!valid || !onAction) parts.push(label)
-      else {
-        parts.push(
-          <button
-            key={k}
-            type="button"
-            onClick={() => onAction(scheme, target)}
-            className="my-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 whitespace-normal rounded-full border border-lps-edge bg-card px-2.5 py-1 text-left text-[12px] font-bold text-primary [overflow-wrap:anywhere] hover:bg-secondary"
-          >
-            {scheme === 'thread' ? <MessagesSquare size={12} /> : <ChevronRight size={12} />}
-            {label}
-          </button>,
-        )
-      }
+  const render = (tokens: ChatInlineToken[], prefix: string): React.ReactNode[] => tokens.map((token, i) => {
+    const k = `${prefix}-${i}`
+    if (token.kind === 'text') return token.text
+    if (token.kind === 'strong') return <strong key={k}>{render(token.children, k)}</strong>
+    if (token.kind === 'code') return <code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{token.text}</code>
+    if (token.kind === 'link') {
+      return <a key={k} href={token.href} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{token.label}</a>
     }
-    else if (m[3]) parts.push(<a key={k} href={m[6]} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{m[3]}</a>)
-    else {
-      const { href, suffix } = splitBareHttpUrl(m[7])
-      parts.push(<a key={k} href={href} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{href}</a>)
-      if (suffix) parts.push(suffix)
-    }
-    last = re.lastIndex
-  }
-  if (last < text.length) parts.push(text.slice(last))
-  return parts
+
+    // Agent-rendered action buttons: `thread:<id>` switches the panel to that
+    // thread, `ar:<id>` opens the availability-request drawer. Readers with
+    // nothing to open (the portal) get the plain label instead.
+    const arId = Number.parseInt(token.target, 10)
+    const valid = token.scheme === 'thread' ? token.target.length > 0 : Number.isInteger(arId)
+    if (!valid || !onAction) return token.label
+    return (
+      <button
+        key={k}
+        type="button"
+        onClick={() => onAction(token.scheme, token.target)}
+        className="my-0.5 inline-flex max-w-full cursor-pointer items-center gap-1 whitespace-normal rounded-full border border-lps-edge bg-card px-2.5 py-1 text-left text-[12px] font-bold text-primary [overflow-wrap:anywhere] hover:bg-secondary"
+      >
+        {token.scheme === 'thread' ? <MessagesSquare size={12} /> : <ChevronRight size={12} />}
+        {token.label}
+      </button>
+    )
+  })
+
+  return render(tokenizeChatInline(text), key)
 }
 
 const messageText = (text: string) => text.replace(/\\r\\n|\\n|\\r/g, '\n')
