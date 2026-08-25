@@ -1,9 +1,9 @@
 ---
 name: supplier-onboarding
-description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row and its thread ids, evidence-based classification and browser enrichment, the availability-source columns, and contacts and how one person links across locations. Use when onboarding a supplier or a new location of a known one, when adding or correcting contacts, when retiring a supplier, or when another skill reaches a supplier or farm that has no row. (v2.3.1)
+description: Create and enrich a supplier and its people on the supplier's dedicated thread — every database write on the supplier side belongs here. Covers confirming a supplier is genuinely new, inserting the row and its thread ids, evidence-based classification and browser enrichment, the availability-source columns, and contacts and how one person links across locations. Use when onboarding a supplier or a new location of a known one, when adding or correcting contacts, when retiring a supplier, or when another skill reaches a supplier or farm that has no row. (v2.4.0)
 metadata:
   author: lps
-  version: "2.3.1"
+  version: "2.4.0"
 ---
 
 # Supplier onboarding
@@ -64,10 +64,11 @@ like one company. Those are **critical blockers** — message `main` with the
 evidence and stop that part at a safe point; keep going on what is clear.
 
 **Two rules that hold for every write below.** Any contact with the supplier
-during onboarding is recorded per the `supplier-communications` skill (a dated
-pointer in the supplier thread's notes). And **people go in `contacts`, never
-on the supplier row and never in prose**: one row per person plus a
-`supplier_contacts` link per location they cover (§4), and `contacts.notes`
+during onboarding is recorded per the `supplier-communications` skill — quoted
+in full to this thread's web panel, not written into `notes.md`. And **people
+go in `contacts`, never on the supplier row and never in prose**: one row per
+person plus a `supplier_contacts` link per location they cover (§4), and
+`contacts.notes`
 describes the *person*. Never write a name, email or phone into `suppliers.notes`
 — a 2026-08-05 cleanup had to lift 29 of them back out. A **generic inbox**
 (`sales@`, `orders@`, `avail@`) is a contact row like any other, but it is the

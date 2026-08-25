@@ -1,5 +1,16 @@
 # supplier-email-routing — changelog
 
+## 2.1.0
+
+2026-08-25 (Bhoumik) — §4 gains the **order/job-request hand-off to rosie**.
+She has her own mailbox (`chris@localplantsupply.com`) and owns every
+communication about an order; mail of that kind reaching daisy's inbox goes to
+her `router` by agent message (forwarded when she needs the message itself),
+labelled `Daisy/Not Availability`, never answered here. Supplier **lifecycle**
+mail — onboarding, account setup, paperwork, a changed availability channel or
+format, a record correction — stays daisy's and routes to the supplier thread
+as before. The split is the subject, not the party.
+
 ## 2.0.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

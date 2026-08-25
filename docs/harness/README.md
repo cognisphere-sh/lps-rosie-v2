@@ -13,8 +13,9 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 - `harness.json` — version **0.10.2**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
-  wholesale plant nursery. Three agents split the work: supplier side,
-  customer side, and dev.
+  wholesale plant nursery. Four agents split the work: supplier side,
+  customer side, and dev — plus one, `lily`, whose scope is the whole:
+  Chris's feedback, the picture of the business, and what to improve.
 
 ## Agents
 
@@ -23,18 +24,19 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
 | [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | The app's chat panel and Telegram, both on the `main` thread (see her doc) |
 | [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-sol` | `single` | Telegram (dev) + the app's chat panel |
+| [`lily`](agent-lily.md) | Project manager — records Chris's continuous feedback, keeps the picture of the business, turns what repeats into workflow and app changes | `openai-codex` / `gpt-5.6-terra` | `single` | **Telegram only** |
 
 Comparison:
 
-| | daisy | rosie | nova |
-|---|---|---|---|
-| `devAgent` | — | — | **true** |
-| `maxConcurrentSlots` | 10 | 10 | — |
-| `secretsSchema` | Supabase (4 keys) | Supabase (4 keys, same values) | — |
-| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, **gws** (passive — no polling, awaiting sign-in), scheduler, supplier-events, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
-| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `files/`: SCHEMA (symlink), templates; `memory.md` | `memory.md` only |
-| Migrations | 0001–0055 (the deployment's record; 0055's tables are rosie-owned) | — (recorded in daisy's dir) | — |
-| Skills | 7 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill |
+| | daisy | rosie | nova | lily |
+|---|---|---|---|---|
+| `devAgent` | — | — | **true** | — |
+| `maxConcurrentSlots` | 10 | 10 | — | 5 |
+| `secretsSchema` | Supabase (4 keys) | Supabase (4 keys, same values) | — | — |
+| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, **gws** (`chris@localplantsupply.com` — configured, polling off until sign-in), scheduler, supplier-events, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram (+ core: agent-messaging) — **no webchat, no gws, no artifacts** |
+| Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `files/`: SCHEMA (symlink), templates; `memory.md` | `memory.md` only | `files/`: `feedback.md` (the log), `business/` (the picture), `requirements/` (the backlog); `memory.md` |
+| Migrations | 0001–0055 (the deployment's record; 0055's tables are rosie-owned) | — (recorded in daisy's dir) | — | — |
+| Skills | 7 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill | feedback-loop + create-skill |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
@@ -89,7 +91,7 @@ These are byte-identical in every agent dir:
   is deployment-owned — identity, persona and behaviour only, no procedures.
   Step-by-step procedures live in `skills/agent/<slug>/` instead.
 
-  **One deployment override of the seed's wording**, carried by all three
+  **One deployment override of the seed's wording**, carried by all four
   agents: a skill is named by name, **never with a version number** — in a
   task-thread brief, a prompt, another skill or a `docs/` listing — where the
   seed's **Task threads** example asks for "skill name and its current

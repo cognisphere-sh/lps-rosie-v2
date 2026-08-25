@@ -3,7 +3,7 @@
 import Image from 'next/image'
 
 import { Shell } from '@/components/workspace/shell'
-import { AGENTS } from '@/lib/agents'
+import { AGENTS, chatBlockedReason } from '@/lib/agents'
 import { cn } from '@/lib/utils'
 
 export default function AgentsPage() {
@@ -22,7 +22,7 @@ export default function AgentsPage() {
                   a.upcoming ? 'bg-muted text-muted-foreground' : 'bg-secondary text-secondary-foreground',
                 )}
               >
-                {a.upcoming ? 'Coming soon' : 'Active'}
+                {chatBlockedReason(a) ?? 'Active'}
               </span>
             </div>
             <Image

@@ -852,7 +852,17 @@ export default function RequestsPage() {
   const deleteItem = useCallback(
     async (request: JobRequestRow, item: JobRequestItem) => {
       const label = [item.name, item.size].filter(Boolean).join(' · ') || 'this line'
-      if (!window.confirm(`Delete ${label} from ${requestRef(request.id)} permanently? This cannot be undone.`)) {
+      // The card knows the job has suppliers engaged, not which lines they were
+      // asked about — so this says what happens to an answer if there is one,
+      // and the toast afterwards says how many there actually were.
+      const kept = request.supplierLinks.length
+        ? ' Any supplier answer about it is kept, no longer linked to a line.'
+        : ''
+      if (
+        !window.confirm(
+          `Delete ${label} from ${requestRef(request.id)} permanently?${kept} This cannot be undone.`,
+        )
+      ) {
         return
       }
 
@@ -867,8 +877,8 @@ export default function RequestsPage() {
       }
       const answers = body.deleted?.answers ?? 0
       toast(
-        `Line deleted` +
-          (answers ? ` · ${plural(answers, "supplier answer")} kept, no longer linked` : ''),
+        'Line deleted' +
+          (answers ? ` · ${plural(answers, 'supplier answer')} kept, no longer linked` : ''),
       )
       reload()
     },

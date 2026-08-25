@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → Chris sends flow (rosie has no mailbox), and where a contact and a durable quirk each get recorded. Use on every message a jr thread or main sends about contacting this customer, whenever something comes back from them, and when relaying what they said to the request it concerns. (v2.0.0)
+description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → rosie sends flow from her own mailbox, and where a contact and a durable quirk each get recorded. Use on every message a jr thread or main sends about contacting this customer, whenever something comes back from them, and when relaying what they said to the request it concerns. (v2.1.0)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # Customer coordination
@@ -45,19 +45,32 @@ Rule 2 (`1-agent.md`) in full:
 2. Present the draft for **Chris's approval of that specific draft** on this
    thread's own web chat (`webchat-cli send` — the notification reaches him;
    never via `main`), short and non-technical.
-3. Only on his approval does it go out — and until you have a mailbox, Chris
-   sends it himself.
+3. Only on his approval does it go out — **sent from your own mailbox**
+   (`chris@localplantsupply.com`, as *Christopher Runyon*), plain text, on
+   this thread:
+
+   ```
+   gws gmail +send --to <address> --subject "…" --body "…"
+   gws gmail +reply --message-id <MessageId> --body "…"    # always, for a reply
+   ```
+
+   **Reply in the same Gmail thread**, and route their answer back here:
+   `bash scripts/gws/routes add --name route-<slug> --thread-id <this thread>
+   --gmail-thread-id <the threadId +send printed>`, re-adding `router-all`
+   last (`route-email`). Chris can still send something himself when he
+   prefers to.
 4. Post the contact to this thread's own web chat in the same task
-   (`webchat-cli send`) — what went out, to whom, and who sent it. Say whose
-   act it was: `Chris` for what he sent or decided. That message is the
-   record; there is no column to append to.
+   (`webchat-cli send`) — **the complete text, quoted**, to whom, and who sent
+   it. Say whose act it was: `Chris` for what he sent or decided. That message
+   is the record; there is no column to append to.
 5. If the contact was a quote, tell the jr thread so it moves the request to
    `quoted` and records the quote link (`job-requests` §7, `quote-generation`).
 
 ## When the customer answers
 
-Whatever comes back (relayed by Chris on `main`, or later through a channel of
-your own): post it to this thread's web chat, put durable preferences in
+Whatever comes back — a reply to your own mailbox, routed here or forwarded by
+`router`, or something Chris relays on `main`: quote it in full to this
+thread's web chat, put durable preferences in
 `customers.notes` (edited in place — delivery constraints, how they like to be
 contacted, pickiness worth remembering), and **relay the substance to the
 `jr-<id>` thread it concerns** — that thread owns the request's rows and next

@@ -22,7 +22,8 @@ const ACTIONS = new Set(['messages', 'send', 'upload', 'file', 'reset', 'threads
 async function forward(req: Request, path: string[]): Promise<Response> {
   const [agentId, action] = path
   const agent = agentById(agentId ?? '')
-  if (!agent || agent.upcoming || !ACTIONS.has(action ?? '')) {
+  // `reachOn` agents have no webchat plugin to forward to at all.
+  if (!agent || agent.upcoming || agent.reachOn || !ACTIONS.has(action ?? '')) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 

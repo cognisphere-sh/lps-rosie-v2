@@ -1,5 +1,11 @@
 # supplier-onboarding — changelog
 
+## 2.4.0
+
+2026-08-25 (Bhoumik) — contact during onboarding is recorded to the supplier
+thread's **web panel**, quoted in full, rather than as a dated pointer in
+`notes.md` (`supplier-communications` 5.0.0).
+
 ## 2.3.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

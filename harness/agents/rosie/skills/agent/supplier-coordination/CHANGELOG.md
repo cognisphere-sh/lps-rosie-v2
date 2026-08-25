@@ -1,5 +1,28 @@
 # supplier-coordination — changelog
 
+## 1.3.0
+
+2026-08-25 (Bhoumik) — **rosie has her own mailbox**
+(`chris@localplantsupply.com`, as *Christopher Runyon*): §4 outreach to a
+non-Partner is now drafted, Chris-approved and **sent by her**, replying in
+the same Gmail thread and routing the answer back with a `--gmail-thread-id`
+rule — no longer relayed through Chris or daisy's mailbox. **First contact
+with a brand-new supplier stays daisy's** (part of onboarding); everything
+after it is rosie's.
+
+## 1.2.0
+
+2026-08-25 (Bhoumik) — **the supplier thread's web chat is now its contact
+history**, matching what `customer-coordination` has done for customers since
+migration 0073. Every supplier contact is posted there in the same task:
+direct communication (the ask as sent, their reply, a relayed text) quoted
+**in full** with subject, from/to and a Gmail deep link where a message id is
+known; a forwarded broadcast gets header-only treatment. Portal chat is
+exempt — a supplier's portal message and a `--portal` reply are already rows
+on this thread, so only contact that happened outside the panel gets quoted.
+Milestones keep posting as before. `notes.md` no longer carries dated pointers per exchange —
+only open follow-ups. Never `--portal`.
+
 ## 1.1.2
 
 2026-08-25 (Bhoumik). `suppliers.is_onboarded` is now

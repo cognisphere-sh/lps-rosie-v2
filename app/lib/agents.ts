@@ -1,11 +1,14 @@
 /**
- * The agents the chat panel can talk to. One entry per harness agent that has
- * the `webchat` plugin enabled — the panel's selector, the collapsed rail and
- * the `/api/chat/<id>/*` proxy all read this list.
+ * The AI team — one entry per harness agent, chattable or not. The Know your
+ * Agents page and the settings tabs list all of them; the panel's selector,
+ * the collapsed rail and the `/api/chat/<id>/*` proxy only take the ones that
+ * can actually hold a conversation here (`CHAT_AGENTS`).
  *
- * `upcoming` agents are shown in the rail/selector and on the Know your Agents
- * page, but are not chattable yet — the UI disables them and the chat proxy
- * refuses them.
+ * Two things make an agent unchattable, and they mean different things:
+ * `upcoming` is not wired up yet, while `reachOn` names the channel an agent
+ * lives on instead of this panel — lily has no `webchat` plugin at all and is
+ * reached on Telegram. Either way the UI disables it and the chat proxy
+ * refuses it; only the label differs.
  */
 export type Agent = {
   id: string
@@ -14,9 +17,12 @@ export type Agent = {
   avatar: string
   profile: string
   upcoming?: boolean
+  /** Where this agent is reached, when it isn't this panel — e.g. `Telegram`. */
+  reachOn?: string
   /** Empty-transcript line shown in the panel before the first message. */
   intro: string
-  suggestions: string[]
+  /** Starter prompts for the empty transcript; chattable agents only. */
+  suggestions?: string[]
 }
 
 export const AGENTS: Agent[] = [
@@ -59,10 +65,27 @@ export const AGENTS: Agent[] = [
       'Request a small UI change',
     ],
   },
+  {
+    id: 'lily',
+    name: 'Lily',
+    role: 'Product',
+    avatar: '/lily.png',
+    profile: '/lily_profile.png',
+    reachOn: 'Telegram',
+    intro: 'Tell Lily what’s working and what isn’t — she turns it into changes to the app and the workflow.',
+  },
 ]
 
-/** The agents that can actually be chatted with today. */
-export const CHAT_AGENTS = AGENTS.filter((a) => !a.upcoming)
+/** The agents that can actually be chatted with here. */
+export const CHAT_AGENTS = AGENTS.filter((a) => !a.upcoming && !a.reachOn)
+
+/**
+ * Why an agent can't be opened in the panel, as a label — `null` when it can.
+ * The rail, the selector, the mobile list and the Know your Agents page all
+ * show this in place of "Online"/"Active".
+ */
+export const chatBlockedReason = (agent: Agent): string | null =>
+  agent.upcoming ? 'Coming soon' : agent.reachOn ? `On ${agent.reachOn}` : null
 
 export const agentById = (id: string) => AGENTS.find((a) => a.id === id)
 

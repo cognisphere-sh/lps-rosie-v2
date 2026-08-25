@@ -1387,3 +1387,13 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
 - Never write `job_request_items.total` (generated) and never insert into
   `job_request_changelog` (trigger-written). A writer that wants the changelog
   to name it opens its session with `SET app.actor TO '<name>'`.
+- **Job requests are hard-deleted, not retired.** The app's `/requests` page
+  issues a real `DELETE` on `job_requests` and `job_request_items` rather than
+  clearing `is_active`, because an availability request is read in the supplier
+  portal by supplier id and would outlive a merely retired job. The FKs above do
+  the rest: lines, changelog entries and availability requests (with their items)
+  cascade from the request; a deleted **line** cascades only its changelog,
+  since `availability_request_items.job_request_item_id` is ON DELETE SET NULL
+  so the supplier's answer survives without it. `log_job_request_changes()`
+  fires on INSERT/UPDATE only, so a delete leaves no entry — and would have
+  nothing to leave it on.

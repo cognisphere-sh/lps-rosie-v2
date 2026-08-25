@@ -1,3 +1,8 @@
 {
-  "pollIntervalSec": -1
+  "pollIntervalSec": -1,
+  "gmailQuery": "in:inbox is:unread",
+  "firstOfThreadOnly": false,
+  "allowedSenders": "*",
+  "requireAgentInTo": false,
+  "oauthScopes": ""
 }

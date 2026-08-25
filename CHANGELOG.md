@@ -27,6 +27,153 @@ here).
   assets only: Lily remains Telegram-only and is not added to the app's
   webchat agent list.
 
+- **New agent: `lily`, the project manager** (Chris). A fourth agent, added
+  because Chris's feedback on how the business and the app actually work was
+  landing in whichever conversation he happened to be in and then evaporating.
+  Her job is **to listen, continuously**: record everything he says about how
+  LPS runs and how the software serves it, build a real picture of the
+  business from it, and turn what repeats into changes that improve the
+  workflow and the app. She is the only agent whose scope is the whole rather
+  than a slice. She writes no application code, touches no Supabase table, and
+  contacts no supplier or customer.
+
+  **Telegram only** — no web chat panel, no Gmail, no artifacts, by Chris's
+  instruction — on a `single` thread (`main`), which is also where inbound
+  agent messages land. `openai-codex` / `gpt-5.6-terra`, 5 slots, no
+  `secretsSchema`. Scaffolded with `cognisphere agent new`, so her
+  extensions, `scripts/agent/` toolset and `0-*` prompts are byte-identical to
+  the other agents'. The app's chat panel is unchanged — it lists the three
+  webchat agents, and Lily is not one of them.
+
+  **Three files in her knowledge dir carry the job**, in the order work flows
+  through them, all git-tracked with the rest of `harness/`:
+  **`feedback.md`**, the running log — every input dated and close to Chris's
+  words, **append-only**, because the point is that one remark is noise and
+  three is a requirement, and you only see the third if the first two were
+  written down; **`business/`**, the working picture of LPS (operations,
+  people, seasons, recurring friction) as living documents revised in place,
+  each fact carrying where it came from; and **`requirements/`**, what
+  crystallizes out — one file per change, with the log dates as its evidence,
+  a status (`drafted` → `routed`/`staged` → `shipped`/`dropped`) and a route,
+  plus an `index.md` backlog. A **workflow change counts** — not everything
+  there is software.
+
+  The procedure is the new **`feedback-loop` 1.0.0** skill: capture, then
+  understand, then propose, then route, then close the loop. Capture is
+  deliberately cheap — no interrogating Chris, no making him file things
+  properly — because the failure that actually costs something is feedback
+  that only ever lived in the Telegram scrollback.
+
+  **The routing rule is Chris's** (2026-08-25) and is what shapes the agent:
+  **UI/UX changes go to nova to ship now**; **database and workflow changes
+  are staged for Bhoumik**, never handed to nova to build; **a skill or script
+  goes to the agent that owns it**, which updates its own with Chris's or
+  Bhoumik's approval. Mixed requirements are split, and the file says which
+  slice is which.
+
+  **Brainstorms now converge on her.** When Chris starts designing rather than
+  asking, daisy, rosie and nova tell him to carry it on with Lily *and* send
+  her the context by agent message, so she opens the Telegram conversation
+  herself instead of making him repeat the idea. Lily is the one LPS agent
+  that opens conversations rather than only answering them. Written into
+  daisy's and rosie's `1-agent.md` (*Chris & Bhoumik*) and nova's (new
+  § *Requirements from Lily*, which also tells him to refuse a DB/workflow
+  requirement and send it back to Bhoumik's queue). The same paragraph sends
+  Lily a **standing complaint about how the work goes** — "this always takes
+  forever" — not just a feature idea: that is exactly the raw material her log
+  exists for, and the agent hearing it answers the operational question in
+  front of it either way. The three stale `0.1-agent-directory.md` rosters gained a lily line;
+  hers is generated on first start.
+
+  **Outstanding, both operator-side:** the bot token
+  (`secrets.json → lily.telegram.TELEGRAM_BOT_TOKEN`) and her group's chat id
+  (`plugins/telegram/config.json` → `allowedChatIds`, currently empty =
+  allow all). Without the token the telegram plugin logs
+  `TELEGRAM_BOT_TOKEN not set; telegram plugin disabled` and the agent starts
+  regardless. Docs: [`docs/harness/agent-lily.md`](docs/harness/agent-lily.md).
+
+- **Rosie gets her own mailbox and an email router; the daisy/rosie line is now
+  drawn by subject, not by party.** Her mailbox is
+  **`chris@localplantsupply.com`** (sending as *Christopher Runyon*) — the
+  **correspondence** inbox. Daisy's `chris.r@localplantsupply.com` stays the
+  **lifecycle** inbox (price lists, newsletters, onboarding, account setup),
+  and both are permanent.
+
+  **The split:** daisy owns supplier **lifecycle management** — discovery,
+  onboarding, account setup, paperwork, how availability reaches us, record
+  corrections, availability ingestion — and the communication about it. Rosie
+  owns every communication about an **order or a job request**, supplier and
+  customer alike. A lifecycle matter is daisy's even while rosie is mid-order
+  with that supplier; an order matter is rosie's even on first contact.
+  Neither can read the other's mailbox, so each router hands over what isn't
+  its own — an agent message carrying `MessageId` / `GmailThreadId` / sender /
+  subject, with `gws gmail +forward` when the body itself is needed. An email
+  carrying both halves is split, each side taking its own.
+
+  **Rosie's `router` now dispatches email.** Her `message-routing` skill
+  already routed to `jr-<id>` / supplier / customer threads and anticipated
+  this ("future channels (email, phone) will land their unrouted traffic
+  here"); it gains the email forward shape, cheap identification from
+  sender/subject/attachment names before any body read, promotion of stable
+  senders to their own `--from` rules with the catch-all kept last, and the
+  lifecycle hand-off to daisy. `plugins/gws/state/routes.json` is seeded with
+  the `router-all` catch-all → `router`.
+
+  **Having a mailbox changes both coordination skills.** `supplier-coordination`
+  §4 outreach to a non-Partner and `customer-coordination`'s approved customer
+  message are now **sent by rosie herself** (`gws gmail +send` / `+reply`,
+  replying in the same Gmail thread, routing the answer back with a
+  `--gmail-thread-id` rule) instead of being relayed through Chris or daisy's
+  mailbox. Chris's per-draft approval is unchanged — a template or a past yes
+  is still never standing permission — and he can still send something
+  himself. Daisy's `supplier-communications` keeps its send path, scoped to
+  lifecycle.
+
+  **Not live yet:** `pollIntervalSec` is deliberately left at `-1` and
+  `oauthScopes` at `""` (Gmail only) because the Google credential does not
+  exist. Sign in at console → rosie → Settings → gws → *Sign in with Google*,
+  then set `pollIntervalSec` to `300`. Scopes must be chosen before sign-in;
+  changing them later means signing in again. Skills bumped:
+  `message-routing` **1.1.0**, `supplier-coordination` **1.3.0**,
+  `customer-coordination` **2.1.0**, `supplier-communications` **6.0.0**,
+  `supplier-email-routing` **2.1.0**.
+
+- **A supplier thread's web chat is now that supplier's contact history**, on
+  **both** daisy and rosie — the move the customer side made with migration
+  0073, extended to suppliers. Every contact is posted to the thread's own
+  panel in the same task it happens, inbound and outbound, and the amount
+  depends on its kind. **Direct communication** — their reply or question, an
+  email daisy sends, an ask rosie had Chris or daisy send — is quoted **in
+  full**, headed by subject, sender/recipient and a Gmail deep link. A
+  **broadcast** — availability drop, price list, newsletter — gets the header
+  only: subject link, sender, first line of the body, attachment names, never
+  the body itself. Daisy closes each with a one-or-two-sentence summary
+  carrying the numbers (rows updated/inserted, or what it turned out to be if
+  nothing was written). Nothing carries `--portal`, so the supplier's portal
+  chat never shows any of it, and nothing reaches `main` or Telegram — the bar
+  for actually messaging Chris is unchanged.
+
+  Correspondingly, **`notes.md` no longer holds a communication log** on
+  either agent. An audit found seven places specifying it as the contact
+  record — daisy's `1-agent.md`, `supplier-communications`,
+  `supplier-onboarding` and `availability-ingestion`, and rosie's
+  `supplier-coordination` (twice) — all now point at the panel instead. Notes
+  keep only what outlives the exchange: open loops still owed an answer, and
+  durable supplier facts, which continue to live in `suppliers.notes`.
+  Existing notes are left as they are.
+
+  The Gmail link is
+  `https://mail.google.com/mail/u/0/?authuser=chris.r@localplantsupply.com#all/<MessageId>`:
+  `?authuser=` pins it to the LPS mailbox instead of whichever Google account
+  the reader is signed into, and the `#all/` view keeps it resolving after the
+  `Daisy/*` labelling pulls the mail out of the inbox. (The `/mail/u/<email>/`
+  path form Google appears to accept is not real — it errors — and the Gmail
+  mobile app takes no deep link, so a phone tap lands in Gmail web.) Formats
+  live in each agent's `1-agent.md`; skills bumped:
+  `supplier-communications` **5.0.0**, `supplier-onboarding` **2.4.0**,
+  `availability-ingestion` **2.3.0**, `supplier-coordination` **1.2.0**. No
+  app change — `chat-kit.tsx` already renders markdown links.
+
 - **Every customer and supplier opens its agent conversations from wherever it
   is listed** — the profile header, the table row and the mobile card. A
   customer carries a **Rosie** button: her `customers.rosie_thread_id` thread,
@@ -127,6 +274,28 @@ here).
   draw the LPS tag on a row but not to filter one out. That second read is gone.
   Filtering happens on locations before grouping, as the other filters do, so a
   company can appear because one of its farms is the partner.
+
+- **A job request and each of its lines can be deleted.** A trash button last in
+  the card head on `/requests`, and one at the right end of every line in the
+  table it opens. **Both are permanent** — a real `DELETE`, not the
+  `is_active = false` the suppliers and photos tables use. That is the point
+  rather than an oversight: an availability request is read in the supplier's
+  portal by *supplier id*, not through the job's `is_active`, so retiring a job
+  would leave a supplier answering an ask for a job that no longer exists.
+  Deleting the request takes its lines, its whole change history, and every
+  availability request it produced with their lines — the cascade is the
+  database's own FKs, so one statement does it. Deleting a **line** is narrower:
+  its changelog entries go with it, but a supplier already asked about it keeps
+  their answer, which is unlinked rather than deleted
+  (`availability_request_items.job_request_item_id` is ON DELETE SET NULL, and
+  the answer keeps the name/size/quantity it was asked about). Both confirm
+  first, and the confirm names what goes and says it cannot be undone; the toast
+  afterwards reports what the server actually removed, counted before the
+  statement ran. `DELETE /api/requests/:id` and
+  `DELETE /api/requests/:id/items/:itemId` — the request id is part of the
+  line's lookup, so a wrong id cannot reach into another job. The customer
+  page's request cards get neither button: that page lists a customer's jobs, it
+  does not administer them.
 
 ### Changed
 

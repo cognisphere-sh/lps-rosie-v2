@@ -40,6 +40,17 @@ Chris, and reminds it that group messages are visible to everyone there. Other
 agents are instructed to pass code-change requests to Nova rather than modify
 the platform themselves.
 
+### Requirements from lily (2026-08-25)
+
+Lily, the [project-manager agent](agent-lily.md), routes **UI/UX
+requirements** to nova as approved-to-build work — acceptance criteria in the
+message, ship it and report back to her thread. Two things nova must not do:
+build a **database or workflow** requirement (those are staged for Bhoumik —
+send it back to that queue), and keep Chris's *feature design* or his
+*complaints about how the work goes* to himself (point him at Lily and send her
+the context — the complaint is what her log exists for). `1-agent.md`
+§ *Requirements from Lily*.
+
 ## Plugins
 
 Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write):

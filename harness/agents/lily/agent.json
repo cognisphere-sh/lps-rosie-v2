@@ -1,0 +1,14 @@
+{
+  "name": "lily",
+  "description": "Project-manager agent for LPS — records Chris's continuous feedback on how the business and the app work, builds an understanding of the business in knowledge/files/business/, and turns what repeats into requirements that improve the workflow and the app: UI/UX to nova to ship now, DB/workflow changes staged for Bhoumik, skill/script changes to the agent that owns them. Telegram only — no web chat panel, no mailbox. When Chris starts designing a feature with you, hand it to lily with the context.",
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-5.6-terra",
+    "thinkingLevel": "medium"
+  },
+  "threadIdStrategy": {
+    "type": "single"
+  },
+  "maxConcurrentSlots": 5,
+  "maxAttempts": 3
+}

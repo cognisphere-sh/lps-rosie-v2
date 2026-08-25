@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# agent-msg/send — message another agent's thread (inter-agent) or one of your
+# own other threads (intra-agent). Seeded by the `agent-messaging` plugin.
+#
+#   send --to-agent <agent> --thread-id <threadId> --message "…" [--subject "…"] [--silent]
+#
+# The note lands on <agent>'s thread <threadId> and WAKES that agent there so it
+# acts on it. YOUR identity (from-agent / from-thread) is taken from the trusted
+# env the harness sets — $PI_AGENT_ID and $PI_THREAD_ID — so the receiver can
+# reply straight back to you; you don't pass them. `--silent` logs it for
+# awareness only (no action prompted).
+#
+# Auth: sends $COGNISPHERE_WEBHOOK_SECRET as X-Webhook-Secret (also from env).
+#
+# Routing cheatsheet:
+#   - Yourself, a different thread      → --to-agent <self> --thread-id <otherThread>
+#   - Another agent's thread            → --to-agent <agent> --thread-id <theirThread>
+#
+# Base URL defaults to the local harness; override with HARNESS_BASE_URL.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+send — message another agent's thread (inter-agent) or one of your own other
+threads (intra-agent). Seeded by the `agent-messaging` plugin.
+
+USAGE
+  scripts/agent-msg/send --to-agent <agent> --thread-id <threadId> \
+    --message "…" [--subject "…"] [--silent]
+
+FLAGS
+  --to-agent <id>         receiving agent (your own id for intra-agent)
+  --thread-id <id>        receiving thread on that agent
+  --message <text>        the note text
+  --subject <text>        optional subject line
+  --silent                deliver for awareness only (receiver not woken)
+  --self-check            offline payload self-test, no network
+  -h, --help              show this help
+
+Your own id and thread (so the receiver can reply) come from $PI_AGENT_ID and
+$PI_THREAD_ID — set by the harness, not passed as flags.
+
+ROUTING
+  Yourself, a different thread   → --to-agent <self> --thread-id <otherThread>
+  Another agent's thread         → --to-agent <agent> --thread-id <theirThread>
+
+Base URL defaults to the local harness; override with HARNESS_BASE_URL.
+EOF
+}
+
+base="${HARNESS_BASE_URL:-http://127.0.0.1:3142}"
+to="" thread="" message="" subject="" silent=false selfcheck=false
+# Identity is env-sourced, not flag-sourced (resolved below for the real send).
+from="" from_thread=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)   usage; exit 0 ;;
+    --to-agent)  to="$2"; shift 2 ;;
+    --thread-id) thread="$2"; shift 2 ;;
+    --message)   message="$2"; shift 2 ;;
+    --subject)   subject="$2"; shift 2 ;;
+    --silent)    silent=true; shift ;;
+    --self-check) selfcheck=true; shift ;;
+    *) echo "unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
+
+payload() { # build the JSON body from current vars
+  jq -cn --arg from "$from" --arg fthread "$from_thread" --arg thread "$thread" --arg msg "$message" --arg subj "$subject" --argjson silent "$silent" \
+    '{from_agent:$from, from_thread_id:$fthread, thread_id:$thread, message:$msg, silent:$silent} + (if $subj=="" then {} else {subject:$subj} end)'
+}
+
+if $selfcheck; then
+  from="lexi" from_thread="lead-42" message="ping" subject="" silent=true
+  payload | jq -e '.from_agent=="lexi" and .from_thread_id=="lead-42" and .message=="ping" and .silent==true and (has("subject")|not)' >/dev/null \
+    && { echo "self-check OK"; exit 0; } || { echo "self-check FAILED" >&2; exit 1; }
+fi
+
+[ -n "$to" ] && [ -n "$thread" ] && [ -n "$message" ] || {
+  echo "usage: send --to-agent A --thread-id T --message M [--subject S] [--silent]" >&2; exit 2; }
+
+# Identity from the trusted env the harness sets — not caller-supplied flags.
+from="${PI_AGENT_ID:?PI_AGENT_ID not set — run this from inside an agent}"
+from_thread="${PI_THREAD_ID:?PI_THREAD_ID not set — run this from inside an agent}"
+
+resp="$(curl -sS -X POST -H 'content-type: application/json' \
+  -H "x-webhook-secret: ${COGNISPHERE_WEBHOOK_SECRET:-}" -w $'\n%{http_code}' \
+  --data "$(payload)" "$base/webhook/$to/agent-messaging/api/send")" \
+  || { echo "send failed — could not reach '$to' inbox at $base (is the harness running?)" >&2; exit 1; }
+code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
+if [ "$code" != "200" ]; then
+  echo "send failed (HTTP $code) to '$to' thread=$thread: $body" >&2; exit 1
+fi
+echo "delivered to $to thread=$thread: $body"

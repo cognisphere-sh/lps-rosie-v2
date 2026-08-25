@@ -42,6 +42,20 @@ contacts, record how availability reaches us), and **ingest availability**
 provenance in `inventory_sources` and aliases in `plant_aliases`). Customer
 and job-request work is rosie's, not hers.
 
+**Communication split with rosie (2026-08-25).** Daisy says what needs saying
+about the supplier's **lifecycle** — onboarding, account setup, paperwork, how
+availability reaches us, a record correction, the drop itself — from
+`chris.r@localplantsupply.com`. Rosie owns every communication about an
+**order or a job request**, from her own `chris@localplantsupply.com`. **The
+line is the subject, not the party**: a lifecycle matter is daisy's even while
+rosie is mid-order with that supplier, and an order matter is rosie's even on
+first contact. Order mail reaching daisy's inbox is quoted to the supplier
+thread's panel and handed to rosie's `router` by agent message
+(`supplier-email-routing` §4, `supplier-communications` 6.0.0), never
+answered; `gws gmail +forward` sends the body over when she needs it. The
+reverse hand-off is rosie's `message-routing` §2c. See
+[agent-rosie.md](agent-rosie.md) § *Boundary with daisy*.
+
 ### Thread architecture (2026-08-23)
 
 - **`main`** — coordination with Chris/Bhoumik only; every piece of work is
@@ -66,6 +80,18 @@ and job-request work is rosie's, not hers.
 
 Everything persists in **Supabase**; `workspace/` holds per-thread notes and
 daily notes, and `knowledge/` cross-thread reference docs and memory.
+
+### Feedback and feature ideas go to lily (2026-08-25)
+
+Two things reach [lily](agent-lily.md) from daisy's threads: Chris
+**designing** rather than asking (how the app should behave, a capability that
+doesn't exist, a change to how the work is run), and Chris **complaining about
+how the work goes** — "this always takes forever", a workaround he's invented.
+Both go to her by agent message (`--to-agent lily --thread-id main`) in his own
+words; for a design conversation daisy also tells him to carry it on with
+Lily on Telegram. The complaint is not small talk — it is the raw material her
+log exists for. Either way the operational question in front of daisy still
+gets answered. `1-agent.md` § *Chris & Bhoumik*.
 
 ## Plugins
 
@@ -119,8 +145,31 @@ daily notes, and `knowledge/` cross-thread reference docs and memory.
   strategy so the group chat lands in the `main` thread.
 - **webchat** (user-space, [`plugin-webchat.md`](plugin-webchat.md)) — the web
   app's chat panel. Config `{"threadId": "main"}`, so web messages land on the
-  **same thread as Telegram** and share one context. Outbound via
+  **same thread as Telegram** and share one context. Since 2026-08-25 the
+  panel's **Conversations** picker also opens her per-supplier threads
+  (`suppliers.daisy_thread_id`), the way rosie's has since the restructure;
+  `router` and the per-email threads stay deep-link only. Outbound via
   `scripts/webchat/webchat-cli send`.
+  Since 2026-08-25 a supplier thread's panel transcript **is that supplier's
+  contact history** — the move rosie's customer threads made with migration
+  0073, finally extended to suppliers. Every contact is posted there in the
+  same task, inbound and outbound, and how much depends on its kind:
+  **direct communication** (their reply or question, every email daisy sends)
+  is quoted **in full**, headed by subject / sender / Gmail deep link;
+  a **broadcast** (availability drop, price list, newsletter) gets the header
+  only — subject link, sender, first line, attachment names — and never its
+  body. Either way a one-or-two-sentence numeric summary closes it when the
+  work is done. All of it is internal (**never `--portal`**, so the supplier
+  portal never sees it) and none of it reaches `main` or Telegram, so the bar
+  for messaging Chris is untouched. `notes.md` correspondingly holds **no
+  communication log** any more — only open loops and what outlives the
+  exchange. Format in `1-agent.md` § *Supplier contact → the web panel*;
+  `supplier-communications` 5.0.0, `availability-ingestion` 2.3.0 and
+  `supplier-onboarding` 2.4.0 place it in their procedures. The link is
+  `https://mail.google.com/mail/u/0/?authuser=chris.r@localplantsupply.com#all/<MessageId>`
+  — `authuser` pins the mailbox rather than the reader's default Google
+  account, and `#all/` survives the `Daisy/*` labelling that moves mail out of
+  the inbox (an `#inbox/` link 404s once labelled).
 
 ## Knowledge (`knowledge/`)
 

@@ -1,9 +1,9 @@
 ---
 name: supplier-email-routing
-description: Run the router thread — identify which supplier an inbound email belongs to and forward it to that supplier's dedicated thread, without reading bodies or attachments. Covers identification from sender, subject and attachment names, the escalating read-only-if-needed rule, minting a `supplier-<slug>` thread for a brand-new supplier, and the labelling every routed email gets. Use on every `email_received` on the router thread, whenever main hands over something whose target thread it doesn't know, when mail turns out not to be availability, and when promoting a stable sender to its own gws routing rule. (v2.0.1)
+description: Run the router thread — identify which supplier an inbound email belongs to and forward it to that supplier's dedicated thread, without reading bodies or attachments. Covers identification from sender, subject and attachment names, the escalating read-only-if-needed rule, minting a `supplier-<slug>` thread for a brand-new supplier, and the labelling every routed email gets. Use on every `email_received` on the router thread, whenever main hands over something whose target thread it doesn't know, when mail turns out not to be availability, and when promoting a stable sender to its own gws routing rule. (v2.1.0)
 metadata:
   author: lps
-  version: "2.0.1"
+  version: "2.1.0"
 ---
 
 # Supplier email routing
@@ -116,6 +116,16 @@ id and let that thread do everything:
 
 ## 4. Mail that isn't supplier availability
 
+- **An order or job-request matter** — an availability ask for a specific job,
+  pricing on one, a substitute, a delivery date, a follow-up on an open order:
+  **rosie's, not ours**, whatever it is about the supplier's lifecycle that
+  brought them to this mailbox. Hand the pointer to her `router`
+  (`--to-agent rosie --thread-id router`) with the same identifier block §2
+  uses, saying it reached daisy's inbox; `gws gmail +forward` it to
+  `chris@localplantsupply.com` when she needs the message itself. Label it
+  `Daisy` + `Daisy/Not Availability`. **Supplier lifecycle stays ours** —
+  onboarding, account setup, paperwork, a changed availability channel or
+  format, a record correction — and routes to the supplier's thread as usual.
 - **Needs human review** — an account approval, a bill, a form to fill,
   anything a human should see or decide: forward the pointer to your `main`
   thread by agent message — main talks to Chris/Bhoumik, you don't — and

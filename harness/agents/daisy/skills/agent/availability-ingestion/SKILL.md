@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading the routed drop, mapping it to locations and sources, normalizing plant identity, size and price, writing rows with provenance, and the QA and Gmail labelling that close it out. Use for a supplier availability drop, a historical backfill, a manual or current-receipt intake, photo triage on a drop, or a fix or review of rows an ingest wrote. (v2.2.1)
+description: Ingest one availability drop into Supabase on the supplier's dedicated thread — every inventory-side write belongs here. Covers reading the routed drop, mapping it to locations and sources, normalizing plant identity, size and price, writing rows with provenance, and the QA and Gmail labelling that close it out. Use for a supplier availability drop, a historical backfill, a manual or current-receipt intake, photo triage on a drop, or a fix or review of rows an ingest wrote. (v2.3.0)
 metadata:
   author: lps
-  version: "2.2.1"
+  version: "2.3.0"
 ---
 
 # Availability ingestion
@@ -69,7 +69,14 @@ anything:
   `suppliers.notes`, write nothing new there.)
 
 Any contact with the supplier during the ingest is recorded per the
-`supplier-communications` skill (a dated pointer in this thread's notes).
+`supplier-communications` skill — quoted in full to this thread's web panel,
+not written into `notes.md`.
+
+**When the drop arrived as an email, post its arrival block to this thread's
+web panel before you start parsing** — subject as a Gmail link, sender, first
+line, attachment names. A drop is a **broadcast**, so the block is header-only
+and its body is never quoted (*Supplier contact → the web panel* in your
+prompt). It is internal: no `--portal`.
 
 ## Judgment calls and escalation
 
@@ -1063,6 +1070,10 @@ When the ingest finishes, write a **compact structured record**: the outcome
 and row counts into this thread's `notes.md` under `## Context`, the reasoning
 under `## Decisions`, and a brief entry in the daily note — that is what the
 9 AM summary reads, and routine successful ingests are messaged to no one.
+**Post the web summary too** — one or two sentences with the row counts, to
+this thread's panel (*Supplier contact → the web panel*, again without
+`--portal`). It closes the block this drop opened; the structured record below
+stays in `notes.md`, not the panel.
 When a coordinator thread or `main` asked for this ingest by agent message,
 send the same record back to the requesting thread. It covers:
 

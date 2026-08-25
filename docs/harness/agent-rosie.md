@@ -67,6 +67,18 @@ sheet edited in place (a line per supplier, `Substitute:` prefix when the row
 isn't the ask); she names the job at intake (`job_requests.name`, NULL over an
 invented label); `available_quantity` is people's, `total` is generated.
 
+### Feedback and feature ideas go to lily (2026-08-25)
+
+Two things reach [lily](agent-lily.md) from rosie's threads: Chris
+**designing** rather than asking (how the app should behave, a capability that
+doesn't exist, a change to how the work is run), and Chris **complaining about
+how the work goes** — "this always takes forever", a workaround he's invented.
+Both go to her by agent message (`--to-agent lily --thread-id main`) in his own
+words; for a design conversation rosie also tells him to carry it on with
+Lily on Telegram. The complaint is not small talk — it is the raw material her
+log exists for. Either way the operational question in front of rosie still
+gets answered. `1-agent.md` § *Chris & Bhoumik*.
+
 ## Plugins
 
 Enabled now (core `admin` / `scheduler` / `agent-messaging` need no dirs):
@@ -74,29 +86,35 @@ Enabled now (core `admin` / `scheduler` / `agent-messaging` need no dirs):
 | Plugin | Config (`plugins/<id>/config.json`) | Note |
 |---|---|---|
 | `artifacts` | `{ "appBaseUrl": "https://lps.cognisphere.sh/a/rosie" }` | `rosie` is in `ARTIFACTS_AGENTS` (deploy `config`), so the restart writes her `ARTIFACTS_APP_SECRET` |
-| `webchat` | `{ "threadId": "main" }` | **Live** (2026-08-18; multi-thread since 2026-08-23). The app's chat panel reaches her at `/api/chat/rosie/*` — default thread `main` (shared with Telegram), and the panel's thread picker opens any of her threads (`jr-<id>`, supplier, customer, `router`). Also carries the secret `WEBCHAT_APP_SECRET` for the supplier portal's chat (`--portal` replies are the only messages the portal shows). See [plugin-webchat.md](plugin-webchat.md) |
+| `webchat` | `{ "threadId": "main" }` | **Live** (2026-08-18; multi-thread since 2026-08-23). The app's chat panel reaches her at `/api/chat/rosie/*` — default thread `main` (shared with Telegram), and the panel's thread picker opens any of her threads (`jr-<id>`, supplier, customer, `router`). Also carries the secret `WEBCHAT_APP_SECRET` for the supplier portal's chat (`--portal` replies are the only messages the portal shows). Since 2026-08-25 a **supplier** thread's transcript is that supplier's contact history, as a customer thread's has been since migration 0073: every contact posted in the same task — direct communication quoted in full (subject, from/to, Gmail deep link where a message id is known), a forwarded broadcast header-only — alongside the milestones she already posts, and never `--portal`. Her supplier `notes.md` keeps only open follow-ups (`supplier-coordination` 1.2.0). See [plugin-webchat.md](plugin-webchat.md) |
 | `telegram` | `{ "pollTimeoutSec": 25, "allowedChatIds": ["-1004491410854"] }` | **Live** — bot `lps_rosie_bot`, token in secrets as `rosie.telegram.TELEGRAM_BOT_TOKEN`. `state/routes.json` maps that chat to `main` |
 | `supplier-events` | `{}` | **Live** (2026-08-23) — the app's availability-save webhook, delivered to the supplier's `rosie_thread_id` thread (fallback `router`). See [plugin-supplier-events.md](plugin-supplier-events.md) |
-| `gws` | `{ "pollIntervalSec": -1 }` | **Passive** (2026-08-25) — enabled with polling off, so no inbound-mail notifications fire and the mailbox stays unread. Everything else is the plugin default. Not usable until she signs in with Google (see below) |
+| `gws` | `{ "pollIntervalSec": -1, "gmailQuery": "in:inbox is:unread", "firstOfThreadOnly": false, "allowedSenders": "*", "requireAgentInTo": false, "oauthScopes": "" }` | **Configured, awaiting sign-in** (2026-08-25). Her mailbox is **`chris@localplantsupply.com`** (*Christopher Runyon*) — she owns all order/job-request correspondence from it. Everything is set except `pollIntervalSec`, deliberately left at `-1` so no poll runs before the credential exists; flip it to `300` after sign-in. `state/routes.json` carries the `router-all` catch-all → her `router` thread. `oauthScopes` is empty (Gmail only — `gmail.modify` is always requested); adding Calendar/Drive later means signing in again. See below |
 
-### Email (gws) — enabled, passive, not yet signed in
+### Email (gws) — configured, awaiting sign-in
 
-Enabled 2026-08-25 with `pollIntervalSec: -1` (**passive**: the poll loop only
-re-reads settings, never touches Gmail, so no notifications fire and nothing is
-marked read). Rosie has no mailbox of her own yet — the credential is missing,
-so the plugin reports `failed` on start; the agent itself keeps running
-(per-plugin failures don't sink an agent) and the plugin's seed — the
-`plugin-gws.md` prompt fragment, `scripts/gws/` and the `read-email` /
-`search-email` / `route-email` skills — is copied in regardless, so she can see
-the tooling before it works.
+**Her mailbox is `chris@localplantsupply.com`, sending as *Christopher
+Runyon*** (decided 2026-08-25; may change). It is the **correspondence**
+mailbox: every communication about an order or a job request, supplier and
+customer alike. Daisy's `chris.r@localplantsupply.com` stays the **lifecycle**
+mailbox — price lists, newsletters, onboarding, account setup — and the two are
+permanent, so each agent hands the other what belongs to it (see
+*Boundary with daisy* below).
 
-To finish the enable when she gets an address (daisy already reads
-`chris.r@localplantsupply.com`):
+Still passive: `pollIntervalSec: -1` means the poll loop only re-reads
+settings, never touches Gmail, so no notifications fire and nothing is marked
+read. The credential does not exist yet, so the plugin reports `failed` on
+start; the agent itself keeps running (per-plugin failures don't sink an agent)
+and the plugin's seed — the `plugin-gws.md` prompt fragment, `scripts/gws/` and
+the `read-email` / `search-email` / `route-email` skills — is copied in
+regardless.
 
-1. If she needs Calendar/Drive as well as mail, set `oauthScopes` in
-   `plugins/gws/config.json` *before* signing in — `gmail.modify` (Google's
-   read/write Gmail tier, which the poll loop needs) is always requested, so no
-   Gmail scope choice is offered. Changing it later means signing in again.
+To finish the enable:
+
+1. `oauthScopes` is already set (empty — Gmail only). Change it *before*
+   signing in if she needs Calendar/Drive: `gmail.modify` (Google's read/write
+   Gmail tier, which the poll loop needs) is always requested, so no Gmail
+   scope choice is offered, and changing scopes later means signing in again.
 2. Sign in as the mailbox: console → **rosie → Settings tab → gws plugin
    card → Sign in with Google** (since harness 0.11.0 this lives on the
    agent, not the app-level Settings page, which now only holds the shared
@@ -105,13 +123,34 @@ To finish the enable when she gets an address (daisy already reads
    `rosie.gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` at it, and soft-reloads
    her — no hand-edit of `secrets.json`, and no `gws auth login`/`export`
    (that path was removed in 0.11.0).
-3. Confirm the plugin is `running`, then decide notifications: it stays passive
-   until someone sets a real `pollIntervalSec` — operator-side in
-   `config.json`, or by rosie herself via `scripts/gws/settings set` (an
-   overlay at `plugins/gws/state/settings.json` that wins over the config and
-   is picked up within a minute). Her `router` thread is the natural catch-all
-   target, mirroring daisy's routing setup. Update this file and the README
-   comparison table.
+3. Confirm the plugin is `running`, then **set `pollIntervalSec` to `300`** —
+   operator-side in `config.json`, or by rosie herself via
+   `scripts/gws/settings set` (an overlay at `plugins/gws/state/settings.json`
+   that wins over the config and is picked up within a minute). Until this
+   step she receives nothing. Routing is already in place:
+   `state/routes.json` holds the `router-all` catch-all (`from: "."`) →
+   `router`, and her `message-routing` skill promotes stable senders to their
+   own `--from` rules, re-adding the catch-all last so it keeps matching last.
+   Update this file and the README comparison table.
+
+### Boundary with daisy
+
+**The line is the subject, not the party.** Daisy owns supplier **lifecycle
+management** — discovery, onboarding, account setup, paperwork, how
+availability reaches us, record corrections, availability ingestion — and the
+communication about it, from `chris.r@localplantsupply.com`. Rosie owns every
+communication about an **order or job request**, supplier and customer alike,
+from `chris@localplantsupply.com`. A lifecycle matter is daisy's even while
+rosie is mid-order with that supplier; an order matter is rosie's even on
+first contact.
+
+Neither can read the other's mailbox, so each hands over what isn't hers:
+rosie's `router` passes lifecycle mail to daisy (`message-routing` §2c), and
+daisy's `router` passes order mail to rosie (`supplier-email-routing` §4),
+both as an agent message carrying `MessageId` / `GmailThreadId` / sender /
+subject, with `gws gmail +forward` when the other actually needs the message
+body. One email carrying both — an availability drop plus a question about an
+open order — is split: each ingests or answers its own half.
 
 Note: passive suppresses inbound-mail notifications only. On every harness
 start the plugin still posts one `gws_settings` message to her `main` channel

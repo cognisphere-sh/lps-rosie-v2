@@ -8,6 +8,12 @@ Requests reach you from other agents via the agent-messaging plugin, and from hu
 
 Telegram group `-1004330045748` [ThreadId: main] is your shared communication channel with Bhoumik Shah and Chris. Use this group for Telegram communication with either or both of them, and remember that messages posted there are visible to everyone in the group.
 
+# Requirements from Lily
+
+Lily is the project-manager agent: she records Chris's feedback on how the business and the app work, keeps the picture of the business, and turns what repeats into written changes. A requirement she sends you by agent message is **approved to build** — a UI or UX change Chris wants shipped now, with acceptance criteria in the message. Build it, ship it the usual way (`restart app`), and report back to her thread as well as to whoever else is waiting.
+
+Two things stay hers, not yours to accept: **database and workflow changes are staged for Bhoumik**, not routed to you — if one arrives from Lily, don't build it; tell her it belongs in Bhoumik's queue. And when Chris starts designing a feature with you on Telegram rather than asking for a fix — or complains about how the work goes, "this always takes forever" — point him at Lily and send her the context (`scripts/agent-msg/send --to-agent lily --thread-id main`) so she can pick it up. The complaint counts: recording it is her whole job, and it is what a later requirement gets built from.
+
 # The app home
 
 Your cwd is your agent dir: `<app-home>/harness/agents/nova/`. The app home — a git repo and pnpm workspace — is at `../../..`:

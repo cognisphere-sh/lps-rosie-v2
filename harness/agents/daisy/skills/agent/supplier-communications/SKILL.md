@@ -1,15 +1,48 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier and recording it. Covers the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v4.1.2)
+description: Everything about talking to a supplier about their lifecycle, and recording it. Covers the split with rosie (lifecycle is yours, orders are hers), the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v6.0.0)
 metadata:
   author: lps
-  version: "4.1.2"
+  version: "6.0.0"
 ---
 
 # Supplier communications
 
 Two halves: **replying to a supplier** (only when told to), and **recording
 the contact** (always).
+
+## What is yours to say, and what is rosie's
+
+You own **supplier lifecycle management** and the communication about it:
+onboarding and account setup, credit and tax paperwork, how availability
+reaches us (a new channel, a new format, a new contact for it), corrections to
+the supplier's own record, and anything about a price list or availability
+drop itself. You say those from `chris.r@localplantsupply.com`.
+
+**Rosie owns every communication about an order or a job request** — an
+availability ask for a specific job, pricing on it, a substitute, a delivery
+date, a follow-up — from her own mailbox, `chris@localplantsupply.com`.
+
+**The line is the subject, not the party.** A lifecycle matter is yours even
+while rosie is mid-order with that supplier; an order matter is hers even on
+first contact. When mail reaching your inbox is really an order matter, **do
+not answer it** — quote it to the supplier thread's panel and hand it to rosie:
+
+```bash
+bash scripts/agent-msg/send --to-agent rosie --thread-id router \
+  --subject "email: order matter for you — <supplier>" \
+  --message "Reached daisy's inbox (chris.r@localplantsupply.com); yours to answer.
+MessageId: <MessageId>
+GmailThreadId: <Channel>
+From: <sender>
+Subject: <subject>
+Matched supplier row(s): <id(s) + name(s)>"
+```
+
+She cannot read this mailbox. If she needs the message itself rather than the
+gist, `gws gmail +forward` it to `chris@localplantsupply.com` and say that is
+where it went. When a single email carries both — an availability drop *and* a
+question about an open order — ingest the drop and hand the order half over.
 
 ## Authorization
 
@@ -108,29 +141,42 @@ Sending as Chris rather than Daisy is Chris's instruction (2026-07-14); the
 `router` thread's job (`supplier-email-routing` §5: it keeps the catch-all
 last, since first matching rule wins and `routes add` appends). The reply
 reaches this thread either as the router's forward or directly, when a rule
-already routes this supplier's sender here — mention the Gmail thread id in
-your notes so the reply is easy to place.
+already routes this supplier's sender here.
+
+**A reply is direct communication, so it is quoted in full to this thread's
+web panel** the moment it lands — subject as a Gmail link, sender, complete
+text — and a short numeric close goes up when you have dealt with it
+(*Supplier contact → the web panel* in your prompt). Internal: **no
+`--portal`**, or the supplier reads the team's notes about them.
 
 ## Recording the contact
 
-**Every exchange with a supplier is recorded in the same task it happens**, in
-the supplier thread's `workspace/threads/<daisy_thread_id>/notes.md`: a dated
-one-liner per exchange (who wrote, the substance, the Gmail thread id so the
-conversation can be found again — `gmailThreadId=<id>`), plus a daily-note
-entry. Gmail itself holds the full text — the note is the pointer and the
-gist, not a copy. Never write `suppliers.communication_notes`: it is a frozen
-pre-2026-08-19 archive (its `supplier_messages` successor was dropped
-2026-08-23).
+**Every exchange with a supplier is recorded in the same task it happens — in
+this thread's own web panel, quoted in full**, both directions (*Supplier
+contact → the web panel*). **That transcript is the contact history.** It is
+not a summary of one: a paraphrase never stands in for the text, because the
+panel is where the team reads what was actually said without going to Gmail.
 
-**A routine availability drop is still not a contact event.** A supplier's
-price list / availability email gets ingested and labelled — it does **not**
-get a contact note. Record the correspondence around it (a reply you sent, a
-question they asked), never the drop itself.
+**`notes.md` gets no communication log.** It is for what must outlive the
+exchange — an open loop still owed an answer, a commitment made. A closed
+exchange leaves nothing behind there. Durable facts about the supplier go to
+`suppliers.notes`, and the day's work still gets its daily-note entry. Never
+write `suppliers.communication_notes`: it is a frozen pre-2026-08-19 archive
+(its `supplier_messages` successor was dropped 2026-08-23).
+
+**A routine availability drop is not direct communication.** A price list or
+availability email is a **broadcast** — it gets the header-only panel block
+(subject link, sender, first line, attachment names), never its body quoted,
+and no contact record. The correspondence *around* it — a reply you sent, a
+question they asked — is direct, and is quoted in full.
 
 ## Which place does this fact belong?
 
-- **The supplier thread's `notes.md`** — what was *said*: a dated pointer per
-  exchange, both directions, with its Gmail thread id.
+- **The supplier thread's web panel** — what was *said*: the full text of
+  every direct exchange, both directions, with its Gmail link. The transcript
+  is the contact history; nothing about it is copied into `notes.md`.
+- **The supplier thread's `notes.md`** — only what must outlive the exchange:
+  an open loop still owed an answer, a commitment made. Never a contact log.
 - **`suppliers.notes`** — what is *true about* them: **every supplier quirk
   lives here** — preferences, price-list format, parsing tricks, ordering
   constraints, anything durable with no dedicated column. Edited in place as

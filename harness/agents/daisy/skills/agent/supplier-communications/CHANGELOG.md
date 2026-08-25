@@ -1,5 +1,33 @@
 # supplier-communications — changelog
 
+## 6.0.0
+
+2026-08-25 (Bhoumik) — **scoped to supplier lifecycle.** Rosie now has her own
+mailbox (`chris@localplantsupply.com`) and owns every communication about an
+order or a job request; this skill covers what daisy says about the supplier's
+*lifecycle* — onboarding and account setup, paperwork, how availability
+reaches us, record corrections, the drop itself — from
+`chris.r@localplantsupply.com`. **The line is the subject, not the party**: a
+lifecycle matter is daisy's even while rosie is mid-order with that supplier,
+and an order matter is rosie's even on first contact. Order mail reaching
+daisy's inbox is quoted to the supplier thread's panel and handed to rosie's
+`router` by agent message (forwarded with `gws gmail +forward` when she needs
+the message itself), never answered here.
+
+## 5.0.0
+
+2026-08-25 (Bhoumik) — **the contact history moved out of `notes.md` and into
+the supplier thread's own web panel**, the way rosie's customer threads have
+worked since migration 0073. Every direct exchange is now quoted **in full**
+to the panel, both directions, headed by subject / sender / Gmail deep link;
+`notes.md` keeps only what outlives the exchange (open loops, commitments) and
+no longer carries a dated pointer per exchange. A **broadcast** — an
+availability drop, price list or newsletter — is not direct communication: it
+gets a header-only block (subject link, sender, first line, attachment names)
+and no contact record. Everything is internal, **never `--portal`**. Breaking:
+the old `gmailThreadId=<id>` note pointer is gone; existing notes are left as
+they are. Format lives in `1-agent.md` § *Supplier contact → the web panel*.
+
 ## 4.1.2
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

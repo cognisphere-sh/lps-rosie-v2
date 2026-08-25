@@ -1,5 +1,16 @@
 # availability-ingestion — changelog
 
+## 2.3.0
+
+2026-08-25 (Bhoumik) — the drop's **web panel messages**: post its arrival
+block (subject as a Gmail deep link, sender, first line, attachment names)
+before parsing, and a one-or-two-sentence summary with the row counts when the
+ingest closes. A drop is a **broadcast**, so the block is header-only and the
+body is never quoted — unlike direct correspondence, which
+`supplier-communications` 5.0.0 quotes in full. Contact during an ingest is
+recorded to the panel, no longer as a note pointer. Both internal, never
+`--portal`. Format: `1-agent.md` § *Supplier contact → the web panel*.
+
 ## 2.2.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

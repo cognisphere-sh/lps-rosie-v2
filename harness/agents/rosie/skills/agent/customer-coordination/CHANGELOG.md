@@ -1,5 +1,15 @@
 # customer-coordination — changelog
 
+## 2.1.0
+
+2026-08-25 (Bhoumik) — **rosie has her own mailbox**
+(`chris@localplantsupply.com`, as *Christopher Runyon*), so an approved
+customer message now goes out with `gws gmail +send`/`+reply` from this thread
+instead of waiting for Chris to send it himself; replies route back with a
+`--gmail-thread-id` rule. Chris's per-draft approval is unchanged, and he can
+still send something himself. Contact posted to the thread's web chat is now
+the **complete text, quoted**, not a description of it.
+
 ## 2.0.0
 
 2026-08-25 (Bhoumik). `customers.communication_notes` is **gone** (migration

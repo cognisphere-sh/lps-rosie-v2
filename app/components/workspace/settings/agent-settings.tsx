@@ -5,7 +5,7 @@ import { Cron } from 'croner'
 import { Check, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
-import type { Agent } from '@/lib/agents'
+import { chatBlockedReason, type Agent } from '@/lib/agents'
 import {
   harnessFetch, providerModels, SCHEDULES_PATH, THINKING_LEVELS,
   type AgentJson, type GwsStatus, type HarnessInfo, type ProviderInfo, type Schedule,
@@ -175,7 +175,9 @@ export function AgentSettings({
         </p>
       )}
 
-      <AgentAppearance agent={agent} />
+      {/* Chat theme and wallpaper style this agent's panel conversation —
+          nothing to style for an agent reached on another channel. */}
+      {!chatBlockedReason(agent) && <AgentAppearance agent={agent} />}
 
       <ModelPanel agent={agent} info={info} provider={provider} onSaved={load} />
 

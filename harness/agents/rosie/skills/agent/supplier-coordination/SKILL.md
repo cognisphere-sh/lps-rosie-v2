@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, drafted outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.1.2)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.3.0)
 metadata:
   author: lps
-  version: "1.1.2"
+  version: "1.3.0"
 ---
 
 # Supplier coordination
@@ -135,27 +135,43 @@ put durable preferences in `suppliers.notes`.
 
 ## 4. Not an LPS Partner
 
-You have no mailbox, so outreach is drafted here and sent by someone who has
-one:
+Outreach is drafted here and **sent from your own mailbox**
+(`chris@localplantsupply.com`, as *Christopher Runyon*) once Chris approves
+the specific draft:
 
 1. Draft the ask — short, casual, concrete (the supplier answers a question,
-   not a form). Apply anything `suppliers.notes` remembers about how they like
-   to be approached.
-2. Present draft + channel proposal for **Chris's approval on this thread's
-   web chat**. The
-   channels: Chris sends it himself, or — when he says so — **daisy's
-   supplier thread sends it from the shared mailbox** (message
-   `--to-agent daisy --thread-id <suppliers.daisy_thread_id>` with the
-   approved text; her `supplier-communications` gates still apply on her
-   side).
-3. The reply comes back to this thread — routed by whoever receives it (daisy
-   forwards supplier replies that are about an order; `main`/`router` forward
-   what Chris pastes). Relay the substance to the jr thread, and record the
-   exchange as a dated pointer in this thread's `notes.md`.
+   not a form). Two to three short lines, no preamble, no restating what they
+   already know. Apply anything `suppliers.notes` remembers about how they
+   like to be approached.
+2. Present the draft for **Chris's approval on this thread's web chat**.
+   Approval is per-draft: a template or a past yes is never standing
+   permission.
+3. Send it yourself, plain text, on this thread:
+
+   ```
+   gws gmail +send --to <address> --subject "…" --body "…"
+   gws gmail +reply --message-id <MessageId> --body "…"    # always, for a reply
+   ```
+
+   **Reply in the same Gmail thread** — never open a new one for an existing
+   topic. Then route their answer back here: `bash scripts/gws/routes add
+   --name route-<slug> --thread-id <this thread> --gmail-thread-id <the
+   threadId +send printed>`, and re-add `router-all` last (`route-email`).
+4. Their reply lands on this thread. Relay the substance to the jr thread, and
+   **quote the reply in full to this thread's web chat** (below).
 
 A supplier the database doesn't have at all is daisy's to onboard — ask
-`main` to hand discovery/onboarding to her, and coordinate the order side
-here once the row exists.
+`main` to hand discovery/onboarding to her, and coordinate the order side here
+once the row exists.
+
+**The split with daisy is the subject, not the party.** Anything about this
+supplier's **lifecycle** — onboarding, account setup, how availability reaches
+us, a changed price-list format, correcting their record — is hers, and she
+says it from `chris.r@localplantsupply.com`, even while you are mid-order with
+them. Anything about **an order or a job request** — an availability ask for a
+specific job, pricing on it, a substitute, a delivery date, a follow-up — is
+yours, even on first contact. When mail that reaches you is really a lifecycle
+matter, hand it to daisy rather than answering it (`message-routing` §2c).
 
 ## 5. Follow-ups
 
@@ -169,9 +185,38 @@ gates. Batch follow-ups; don't ping a supplier line by line.
 Make the defensible call and record it; approvals are asked on this thread's
 own web chat, and `main` is only the Telegram escalation for a critical
 blocker — never routine questions. Relays to jr threads are not
-Chris-gated — only things that *reach the supplier* are. **Post this thread's
-milestones to its own web chat** (`webchat-cli send`, no `--portal` — ask
-received, AR out, answers in) so the team follows the supplier in the app.
-Keep this thread's
-`notes.md` to dated pointers for exchanges and open follow-ups; durable facts
-about the supplier go in `suppliers.notes`, task updates nowhere.
+Chris-gated — only things that *reach the supplier* are.
+
+## The web chat is this thread's contact history
+
+**Every supplier contact is posted to this thread's own web chat in the same
+task it happens** (`webchat-cli send`, **never `--portal`** — that flag would
+show it to the supplier), so the team follows the supplier in the app. How
+much you post depends on which of two kinds it is:
+
+- **Direct communication** — anything addressed to us or sent to them, either
+  direction: the ask that went out (the approved text, as Chris or daisy
+  actually sent it), their reply, a relayed text. Post the **complete text,
+  quoted**, headed by subject, who it was from or to, and — when whoever
+  received it gave you a Gmail message id — a link:
+  `https://mail.google.com/mail/u/0/?authuser=chris.r@localplantsupply.com#all/<MessageId>`
+  (`?authuser=` pins the LPS mailbox, `#all/` survives labelling). **A summary
+  never stands in for the text.** Mail you sent and received yourself you have
+  verbatim; something relayed to you by Chris or daisy you quote as received,
+  saying who sent it and when.
+- **Broadcast** — an availability drop, price list or newsletter forwarded
+  here: header only (subject, sender, first line, attachment names), never the
+  body. Those are daisy's to ingest, not yours.
+
+**Portal chat is already in this transcript** — a supplier's portal message
+and your `--portal` reply are rows on this same thread, so they are the
+contact history without being re-posted. Quote only what happened *outside*
+the panel: email and text relayed to you, and asks Chris or daisy sent on your
+behalf.
+
+Keep posting this thread's milestones alongside it — ask received, AR out,
+answers in.
+
+**`notes.md` carries no communication log**: only open follow-ups still owed
+an answer. Durable facts about the supplier go in `suppliers.notes`, task
+updates nowhere.

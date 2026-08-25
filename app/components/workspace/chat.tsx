@@ -7,11 +7,11 @@ import {
 import { MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 
 import {
-  Composer, SizePill, StatusDot, Transcript, useComposer,
+  Composer, SizePill, Transcript, useComposer,
   type ChatFile, type ChatMessage,
 } from '@/components/workspace/chat-kit'
 import { ChevronLeft, ChevronRight } from '@/components/workspace/icons'
-import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
+import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
 import { onOpenChat, onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
 import {
@@ -181,6 +181,9 @@ const GENERAL_THREADS: ThreadEntry[] = [
   { threadId: 'main', title: 'Main', subtitle: 'Chris & Bhoumik coordination' },
 ]
 
+/** The agents whose work runs on dedicated threads, so the picker is theirs. */
+const THREAD_AGENTS = new Set(['rosie', 'daisy'])
+
 /** `2026-08-23 14:05` → `Aug 23` — the picker's last-activity hint. */
 const fmtLastAt = (ms: number) =>
   new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -299,12 +302,13 @@ function ThreadCard({
 }
 
 /**
- * The thread sidebar (#4): the threads rosie is talked to on — main, job
- * requests, suppliers, customers, and nothing else (Bhoumik, 2026-08-23) — as
- * cards split by category with a search on top. The DB directory supplies the
- * entities; the plugin's transcript list adds last-activity. Working threads
- * outside these categories (router, task threads) stay reachable through
- * deep links but are not offered here.
+ * The thread sidebar (#4): the threads the agent is talked to on — main, and
+ * then, for rosie, job requests, suppliers and customers, and nothing else
+ * (Bhoumik, 2026-08-23); for daisy, the supplier companies she onboards and
+ * ingests for. Cards split by category with a search on top. The DB directory
+ * supplies the entities; the plugin's transcript list adds last-activity.
+ * Working threads outside these categories (router, email and task threads)
+ * stay reachable through deep links but are not offered here.
  */
 function ThreadPicker({
   agentId, current, onPick, onClose,
@@ -324,7 +328,7 @@ function ThreadPicker({
     let cancelled = false
     void (async () => {
       const [dirRes, thrRes] = await Promise.allSettled([
-        fetch('/api/chat-directory', { cache: 'no-store' }),
+        fetch(`/api/chat-directory?agent=${agentId}`, { cache: 'no-store' }),
         fetch(`/api/chat/${agentId}/threads`, { cache: 'no-store' }),
       ])
       if (cancelled) return
@@ -421,7 +425,7 @@ function ThreadPicker({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search jobs, suppliers, customers…"
+          placeholder={agentId === 'daisy' ? 'Search suppliers…' : 'Search jobs, suppliers, customers…'}
           autoFocus
           className="min-w-0 flex-1 border-none bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
         />
@@ -477,7 +481,7 @@ export function AgentChat({
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState(false)
   // Which of the agent's threads the panel is on. Every agent defaults to
-  // `main`; the picker (rosie) and open-chat events move it.
+  // `main`; the picker (rosie, daisy) and open-chat events move it.
   const [thread, setThread] = useState({ id: 'main', label: 'Main' })
   const [picker, setPicker] = useState(false)
   const hydrated = useRef(false)
@@ -708,24 +712,19 @@ export function AgentChat({
           <span className="truncate text-[14.5px] font-bold leading-tight">{agent.name}</span>
           <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
             <span className="flex-none">{agent.role}</span>
-            <span className="text-lps-dim">·</span>
-            <StatusDot pending={chat.pending} />
-            <span className="flex-none">{chat.pending ? 'Working…' : 'Online'}</span>
             {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
           </span>
         </div>
       ) : (
         <div className="flex min-w-0 flex-1 flex-col gap-px">
           <span className="text-[13.5px] font-bold">{agent.name}</span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <StatusDot pending={chat.pending} />
-            <span className="flex-none">{chat.pending ? 'Working…' : 'Online'}</span>
-            {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
-          </span>
+          {thread.id !== 'main' && (
+            <span className="truncate text-[11px] text-muted-foreground">{thread.label}</span>
+          )}
         </div>
       )}
-      {/* The thread list — every conversation rosie can be reached on. */}
-      {agent.id === 'rosie' && (
+      {/* The thread list — every conversation this agent can be reached on. */}
+      {THREAD_AGENTS.has(agent.id) && (
         <button
           type="button"
           onClick={() => setPicker((v) => !v)}
@@ -743,17 +742,19 @@ export function AgentChat({
           back to the rail. Mobile switches from its own Agents list instead. */}
       {!big && (
         <div className="flex flex-none items-center gap-1.5">
-          {AGENTS.filter((a) => a.id !== agent.id).map((a) => (
+          {AGENTS.filter((a) => a.id !== agent.id).map((a) => {
+            const blocked = chatBlockedReason(a)
+            return (
             <button
               key={a.id}
               type="button"
-              disabled={a.upcoming}
+              disabled={!!blocked}
               onClick={() => setAgentId(a.id)}
               aria-label={`Switch to ${a.name}`}
-              title={a.upcoming ? `${a.name} · Coming soon` : `Switch to ${a.name} · ${a.role}`}
+              title={blocked ? `${a.name} · ${blocked}` : `Switch to ${a.name} · ${a.role}`}
               className={cn(
                 'flex size-[22px] flex-none border-none bg-transparent p-0',
-                a.upcoming ? 'cursor-not-allowed opacity-35' : 'cursor-pointer opacity-55 hover:opacity-100',
+                blocked ? 'cursor-not-allowed opacity-35' : 'cursor-pointer opacity-55 hover:opacity-100',
               )}
             >
               <span className="relative inline-flex">
@@ -763,7 +764,8 @@ export function AgentChat({
                 )}
               </span>
             </button>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -817,17 +819,19 @@ export function AgentChat({
   if (!open) {
     return (
       <div className="flex w-[46px] flex-none flex-col items-center gap-3.5 border-l border-border bg-card py-3.5">
-        {AGENTS.map((a) => (
+        {AGENTS.map((a) => {
+          const blocked = chatBlockedReason(a)
+          return (
           <button
             key={a.id}
             type="button"
-            disabled={a.upcoming}
+            disabled={!!blocked}
             onClick={() => { setAgentId(a.id); setOpen(true) }}
             aria-label={a.name}
-            title={a.upcoming ? `${a.name} · Coming soon` : `${a.name} · ${a.role}`}
+            title={blocked ? `${a.name} · ${blocked}` : `${a.name} · ${a.role}`}
             className={cn(
               'flex flex-col items-center gap-2.5 border-none bg-transparent p-0 text-muted-foreground',
-              a.upcoming ? 'cursor-not-allowed opacity-45' : 'cursor-pointer hover:text-foreground',
+              blocked ? 'cursor-not-allowed opacity-45' : 'cursor-pointer hover:text-foreground',
             )}
           >
             <span className="relative inline-flex">
@@ -843,7 +847,8 @@ export function AgentChat({
               {a.name}
             </span>
           </button>
-        ))}
+          )
+        })}
       </div>
     )
   }

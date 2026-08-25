@@ -18,7 +18,7 @@ import {
   AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
   CustomersIcon, MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
-import { AGENTS } from '@/lib/agents'
+import { AGENTS, chatBlockedReason } from '@/lib/agents'
 import { requestRef } from '@/lib/job-requests'
 import {
   APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentColor, appAccentStyle, readAppAccent,
@@ -720,15 +720,17 @@ export function Shell({
                     </div>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                    {AGENTS.map((agent) => (
+                    {AGENTS.map((agent) => {
+                      const blocked = chatBlockedReason(agent)
+                      return (
                       <button
                         key={agent.id}
                         type="button"
-                        disabled={agent.upcoming}
+                        disabled={!!blocked}
                         onClick={() => mobileView.open({ name: 'chat', agent: agent.id, from: 'agents' })}
                         className={cn(
                           'flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-3 text-left hover:bg-muted',
-                          agent.upcoming ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
+                          blocked ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
                         )}
                       >
                         <Image src={agent.avatar} alt="" width={44} height={44} className="size-11 flex-none rounded-full object-cover" />
@@ -737,15 +739,16 @@ export function Shell({
                             <span className="text-[14px] font-bold text-foreground">{agent.name}</span>
                             <AgentUnreadDot agentId={agent.id} />
                             <span className="text-[11px] text-muted-foreground">{agent.role}</span>
-                            <span className={cn('ml-auto text-[10.5px] font-semibold', agent.upcoming ? 'text-muted-foreground' : 'text-primary')}>
-                              {agent.upcoming ? 'Coming soon' : 'Online'}
+                            <span className={cn('ml-auto text-[10.5px] font-semibold', blocked ? 'text-muted-foreground' : 'text-primary')}>
+                              {blocked ?? 'Online'}
                             </span>
                           </div>
                           <p className="mt-1 truncate text-[12px] text-muted-foreground">{agent.intro}</p>
                         </div>
-                        {!agent.upcoming && <ChevronRight size={15} className="flex-none text-lps-dim" />}
+                        {!blocked && <ChevronRight size={15} className="flex-none text-lps-dim" />}
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
