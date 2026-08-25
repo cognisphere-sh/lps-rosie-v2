@@ -19,6 +19,14 @@ here).
 
 ### Added
 
+- **Lily gained matching profile artwork** in `app/public/lily.png` (256×256
+  avatar) and `app/public/lily_profile.png` (1672×941 banner). The blue-teal
+  project-management identity complements Daisy's green, Rosie's coral and
+  Nova's purple while retaining the same illustrated character, curved
+  information panel, wordmark and four-capability layout. These are identity
+  assets only: Lily remains Telegram-only and is not added to the app's
+  webchat agent list.
+
 - **Every customer and supplier opens its agent conversations from wherever it
   is listed** — the profile header, the table row and the mobile card. A
   customer carries a **Rosie** button: her `customers.rosie_thread_id` thread,

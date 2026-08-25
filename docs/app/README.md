@@ -1707,9 +1707,14 @@ app/
   login/
   globals.css    design tokens — the theme's source of truth
 public/
-  daisy.png, rosie.png, nova.png    avatars (cropped from the banners) —
+  daisy.png, rosie.png, nova.png    webchat avatars (cropped from the banners) —
                                     panel header, rail, selector, mobile tab
-  *_profile.png                     full profile banners, shown on /agents
+  lily.png                          Lily's matching Telegram identity avatar;
+                                    not in the webchat agent list
+  *_profile.png                     full profile banners; the three webchat
+                                    agents' banners are shown on /agents,
+                                    while lily_profile.png is reserved for
+                                    Lily's external bot/profile identity
   manifest.json, sw.js              PWA manifest + service worker
   lps-cactus-icon-{192,512}.png      install icons (purple flowering cactus)
   lps-cactus-icon-maskable-512.png   Android safe-zone variant
