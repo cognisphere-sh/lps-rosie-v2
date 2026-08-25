@@ -26,6 +26,7 @@ import {
 } from '@/lib/availability'
 import { formatDate, money } from '@/lib/format'
 import { toneDot, type Tone } from '@/lib/job-requests'
+import { redactPortalRequestRefs } from '@/lib/portal-display'
 import { cn } from '@/lib/utils'
 
 const SORTS = [
@@ -128,10 +129,9 @@ function RequestCard({
       id={`ar-${request.id}`}
       className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
     >
-      {/* The head, in the admin Job Requests card's shape: ref · name ·
-          status pill · date right, the customer on its own line, then the
-          demand strip. Same rows, same weights — a supplier's card and the
-          admin's should read as one design. */}
+      {/* The head follows the admin card's shape without exposing its internal
+          request ref: name · status pill · date right, the customer on its own
+          line, then the demand strip. */}
       <div
         onClick={onToggle}
         className="flex cursor-pointer flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint"
@@ -140,7 +140,7 @@ function RequestCard({
           <button
             type="button"
             aria-expanded={expanded}
-            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${request.jobName ?? `request AR-${request.id}`}`}
+            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${request.jobName ? redactPortalRequestRefs(request.jobName) : 'availability request'}`}
             onClick={(e) => {
               e.stopPropagation()
               onToggle()
@@ -149,16 +149,9 @@ function RequestCard({
           >
             {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
-          <span className="text-[13.5px] font-bold tracking-tight text-primary">
-            AR-{request.id}
+          <span className="min-w-0 max-w-[22rem] truncate text-[13.5px] font-semibold text-foreground">
+            {request.jobName ? redactPortalRequestRefs(request.jobName) : 'Availability request'}
           </span>
-          {/* Unnamed requests show nothing here rather than a stand-in:
-              `AR-<id>` beside it is already their name. */}
-          {request.jobName && (
-            <span className="min-w-0 max-w-[22rem] truncate text-[13.5px] font-semibold text-foreground">
-              {request.jobName}
-            </span>
-          )}
           <ARStatusPill status={request.status} />
           <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim" title="Requested">
             {formatDate(request.createdAt)}
@@ -188,7 +181,9 @@ function RequestCard({
                 <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
                   Note from Local Plant Supply
                 </span>
-                <span className="whitespace-pre-wrap text-[12.5px] text-foreground">{request.lpsNotes}</span>
+                <span className="whitespace-pre-wrap text-[12.5px] text-foreground">
+                  {redactPortalRequestRefs(request.lpsNotes)}
+                </span>
               </div>
             )}
             {(request.customer || request.shipping?.address) && (
@@ -230,6 +225,7 @@ function RequestCard({
             editable={editable}
             embedded
             onPatch={(itemId, changes) => onPatch(request.id, itemId, changes)}
+            displayText={redactPortalRequestRefs}
           />
 
           <div className="flex flex-col gap-2.5 bg-card p-2.5 sm:p-3">
@@ -363,8 +359,7 @@ export default function PortalHomePage() {
         .filter((r) => r.status === 'new')
         .map((r) => ({
           id: r.id,
-          ref: `AR-${r.id}`,
-          label: r.jobName || `AR-${r.id}`,
+          label: r.jobName ? redactPortalRequestRefs(r.jobName) : 'Availability request',
           at: Date.parse(r.createdAt),
         })),
     [requests],
@@ -398,7 +393,11 @@ export default function PortalHomePage() {
       if (customerFilter.length && !customerFilter.includes(customerLabel(r) ?? '')) return false
       if (cutoff && r.createdAt < cutoff) return false
       if (q) {
-        const hay = [r.jobName ?? '', `ar-${r.id}`, customerLabel(r) ?? '', ...r.items.map((it) => it.name)]
+        const hay = [
+          redactPortalRequestRefs(r.jobName ?? ''),
+          customerLabel(r) ?? '',
+          ...r.items.map((it) => it.name),
+        ]
           .join('\n')
           .toLowerCase()
         if (!hay.includes(q)) return false

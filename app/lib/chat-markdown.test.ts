@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  joinLineBrokenMarkdownLinks, splitBareHttpUrl, splitChatMarkdownBlocks, tokenizeChatInline,
+  chatMarkdownPlainText, joinLineBrokenMarkdownLinks, splitBareHttpUrl, splitChatMarkdownBlocks,
+  tokenizeChatInline, transformChatInlineText,
 } from './chat-markdown.ts'
+import { redactPortalRequestRefs } from './portal-display.ts'
 
 test('splits labelled fenced code from surrounding prose', () => {
   assert.deepEqual(splitChatMarkdownBlocks('Before\n```text\nfirst\nsecond\n```\nAfter'), [
@@ -43,6 +45,37 @@ test('parses a line-broken Markdown link nested inside bold text', () => {
 test('joins line-broken action links without changing their scheme', () => {
   assert.equal(joinLineBrokenMarkdownLinks('[Open request]\n(ar:27)'), '[Open request](ar:27)')
   assert.equal(joinLineBrokenMarkdownLinks('[Continue]\n(thread:jr-12)'), '[Continue](thread:jr-12)')
+})
+
+test('transforms visible markdown text without changing destinations or action targets', () => {
+  const transform = (value: string) => value.replace(/AR-\d+/g, 'request')
+  assert.deepEqual(
+    transformChatInlineText(
+      tokenizeChatInline('[Open AR-6](ar:6) [AR-7](https://example.com/AR-7) `AR-8`'),
+      transform,
+    ),
+    [
+      { kind: 'action', scheme: 'ar', target: '6', label: 'Open request' },
+      { kind: 'text', text: ' ' },
+      { kind: 'link', href: 'https://example.com/AR-7', label: 'request' },
+      { kind: 'text', text: ' ' },
+      { kind: 'code', text: 'request' },
+    ],
+  )
+})
+
+test('copies redacted visible text without corrupting or leaking an unsafe href', () => {
+  const copied = chatMarkdownPlainText(
+    '[Open AR-7](https://example.com/AR-6) and [safe docs](https://example.com/docs) [Open AR #8](ar:8)',
+    redactPortalRequestRefs,
+  )
+  assert.equal(
+    copied,
+    'Open availability request and safe docs (https://example.com/docs) Open availability request',
+  )
+  assert.equal(copied.includes('AR-6'), false)
+  assert.equal(copied.includes('AR-7'), false)
+  assert.equal(copied.includes('AR #8'), false)
 })
 
 test('does not join unrelated parenthesized text on the next line', () => {

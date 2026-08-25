@@ -14,7 +14,8 @@ import { ArrowDown, ArrowUp, Copy, MessagesSquare, Mic, Pause, Paperclip, Play, 
 import { CheckIcon, ChevronRight } from '@/components/workspace/icons'
 import { chatWallpaperStyle, type ChatWallpaperId } from '@/lib/chat-appearance'
 import {
-  joinLineBrokenMarkdownLinks, splitChatMarkdownBlocks, tokenizeChatInline, type ChatInlineToken,
+  chatMarkdownPlainText, joinLineBrokenMarkdownLinks, splitChatMarkdownBlocks, tokenizeChatInline,
+  transformChatInlineText, type ChatInlineToken,
 } from '@/lib/chat-markdown'
 import { cn } from '@/lib/utils'
 
@@ -50,7 +51,12 @@ export type MarkdownAction = (scheme: 'thread' | 'ar', target: string) => void
  * ponytail: ~30 lines instead of a markdown dependency. If tables or nested
  * lists ever matter, swap in `marked` + a sanitizer rather than growing this.
  */
-function inline(text: string, key: string, onAction?: MarkdownAction) {
+function inline(
+  text: string,
+  key: string,
+  onAction?: MarkdownAction,
+  displayText: (text: string) => string = (value) => value,
+) {
   const render = (tokens: ChatInlineToken[], prefix: string): React.ReactNode[] => tokens.map((token, i) => {
     const k = `${prefix}-${i}`
     if (token.kind === 'text') return token.text
@@ -79,12 +85,20 @@ function inline(text: string, key: string, onAction?: MarkdownAction) {
     )
   })
 
-  return render(tokenizeChatInline(text), key)
+  return render(transformChatInlineText(tokenizeChatInline(text), displayText), key)
 }
 
 const messageText = (text: string) => text.replace(/\\r\\n|\\n|\\r/g, '\n')
 
-function MarkdownProse({ text, onAction }: { text: string; onAction?: MarkdownAction }) {
+function MarkdownProse({
+  text,
+  onAction,
+  displayText,
+}: {
+  text: string
+  onAction?: MarkdownAction
+  displayText?: (text: string) => string
+}) {
   const blocks: React.ReactNode[] = []
   const lines = text.split('\n')
   let bullets: string[] = []
@@ -92,7 +106,7 @@ function MarkdownProse({ text, onAction }: { text: string; onAction?: MarkdownAc
     if (!bullets.length) return
     blocks.push(
       <ul key={`ul-${key}`} className="my-1 list-disc space-y-0.5 pl-4">
-        {bullets.map((b, i) => <li key={i}>{inline(b, `${key}-${i}`, onAction)}</li>)}
+        {bullets.map((b, i) => <li key={i}>{inline(b, `${key}-${i}`, onAction, displayText)}</li>)}
       </ul>,
     )
     bullets = []
@@ -101,7 +115,7 @@ function MarkdownProse({ text, onAction }: { text: string; onAction?: MarkdownAc
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line)
     if (bullet) { bullets.push(bullet[1]); return }
     flush(String(i))
-    if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i), onAction)}</p>)
+    if (line.trim()) blocks.push(<p key={i} className="my-0">{inline(line, String(i), onAction, displayText)}</p>)
   })
   flush('end')
   return blocks
@@ -145,7 +159,15 @@ function FencedCodeBlock({ language, text }: { language: string; text: string })
   )
 }
 
-export function Markdown({ text, onAction }: { text: string; onAction?: MarkdownAction }) {
+export function Markdown({
+  text,
+  onAction,
+  displayText = (value) => value,
+}: {
+  text: string
+  onAction?: MarkdownAction
+  displayText?: (text: string) => string
+}) {
   // Some CLI replies arrive with JSON-style line breaks as literal `\\n`.
   // Normalize them here so existing transcript entries render correctly too.
   const blocks = splitChatMarkdownBlocks(messageText(text))
@@ -153,8 +175,15 @@ export function Markdown({ text, onAction }: { text: string; onAction?: Markdown
   return (
     <div className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]">
       {blocks.map((block, i) => block.kind === 'code'
-        ? <FencedCodeBlock key={i} language={block.language} text={block.text} />
-        : <MarkdownProse key={i} text={joinLineBrokenMarkdownLinks(block.text)} onAction={onAction} />)}
+        ? <FencedCodeBlock key={i} language={block.language} text={displayText(block.text)} />
+        : (
+            <MarkdownProse
+              key={i}
+              text={joinLineBrokenMarkdownLinks(block.text)}
+              onAction={onAction}
+              displayText={displayText}
+            />
+          ))}
     </div>
   )
 }
@@ -534,7 +563,7 @@ export const fmtStamp = (ms: number) => {
  */
 export function Transcript({
   messages, pending, error, hasMore, loadingMore, fileHref, empty, pendingLabel,
-  suggestions = [], onSuggest, onAction, onRefresh, onLoadMore, mobile, wallpaper,
+  suggestions = [], onSuggest, onAction, onRefresh, onLoadMore, mobile, wallpaper, displayText,
 }: {
   messages: ChatMessage[]
   pending: boolean
@@ -550,6 +579,8 @@ export function Transcript({
   suggestions?: string[]
   onSuggest?: (s: string) => void
   onAction?: MarkdownAction
+  /** Supplier-only copy transform; links and action targets stay untouched. */
+  displayText?: (text: string) => string
   onRefresh: () => Promise<void>
   onLoadMore?: () => Promise<void>
   mobile?: boolean
@@ -576,15 +607,18 @@ export function Transcript({
 
   const copyMessage = useCallback(async (message: ChatMessage) => {
     try {
-      await navigator.clipboard.writeText(messageText(message.text))
+      const text = messageText(message.text)
+      await navigator.clipboard.writeText(
+        displayText ? chatMarkdownPlainText(text, displayText) : text,
+      )
       setCopied(message.id)
       if (copiedTimer.current) clearTimeout(copiedTimer.current)
       copiedTimer.current = setTimeout(() => setCopied(null), 1600)
     } catch {
-      // Clipboard access can be denied by the browser; leave the affordance in
-      // its normal state so it never falsely reports success.
+      // Clipboard access can be denied; leave the affordance in its normal
+      // state so it never falsely reports success.
     }
-  }, [])
+  }, [displayText])
 
   const updateEdges = useCallback((el: HTMLDivElement) => {
     const bottom = el.scrollHeight - el.scrollTop - el.clientHeight
@@ -714,7 +748,7 @@ export function Transcript({
                   : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
               )}
             >
-              <Markdown text={m.text} onAction={onAction} />
+              <Markdown text={m.text} onAction={onAction} displayText={displayText} />
             </div>
           )}
           <div className={cn('flex items-center gap-1 text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>

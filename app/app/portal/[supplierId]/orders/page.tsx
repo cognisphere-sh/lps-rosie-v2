@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { PortalFrame, type PortalAlert } from '@/components/workspace/portal'
+import { redactPortalRequestRefs } from '@/lib/portal-display'
 
 export default function PortalOrdersPage() {
   const params = useParams<{ supplierId: string }>()
@@ -33,8 +34,7 @@ export default function PortalOrdersPage() {
             .filter((request) => request.status === 'new')
             .map((request) => ({
               id: request.id,
-              ref: `AR-${request.id}`,
-              label: request.jobName || `AR-${request.id}`,
+              label: request.jobName ? redactPortalRequestRefs(request.jobName) : 'Availability request',
               at: Date.parse(request.createdAt),
             })),
         )

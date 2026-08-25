@@ -19,6 +19,16 @@ here).
 
 ### Changed
 
+- **Supplier-facing availability-request IDs are hidden.** Portal request cards
+  and notification rows now identify work by its job name (or the generic
+  *Availability request*) instead of exposing internal references. A portal-only
+  display transform also covers request/line notes, unread-chat previews and
+  chat prose, links, actions and code (including case, spacing and Unicode-dash
+  variants) without mutating rendered Markdown destinations. Portal message
+  copying serializes redacted labels as plain text, preserves safe HTTP URLs,
+  and omits action or URL targets that would expose a hidden reference. Admin
+  cards, drawers, transcripts, routing keys and API IDs are unchanged; portal
+  search no longer indexes the hidden ID.
 - **Fenced chat markdown renders as copyable code.** Triple-backtick blocks,
   including language labels such as `text` and `code`, now render as distinct
   code panels instead of showing their fence markers as prose. Each panel keeps

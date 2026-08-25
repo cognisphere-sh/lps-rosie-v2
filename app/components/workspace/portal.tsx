@@ -34,6 +34,7 @@ import {
   type ChatWallpaperId,
 } from '@/lib/chat-appearance'
 import { useHistoryView } from '@/lib/history-view'
+import { redactPortalRequestRefs } from '@/lib/portal-display'
 import { cn } from '@/lib/utils'
 
 export type PortalTab = 'requests' | 'orders'
@@ -260,6 +261,7 @@ function PortalChat({
         onLoadMore={chat.loadMore}
         mobile={mobile}
         wallpaper={wallpaper}
+        displayText={redactPortalRequestRefs}
       />
       <Composer
         composer={composer}
@@ -280,10 +282,9 @@ function PortalChat({
 
 /** One thing worth telling the supplier about, as the bell lists it. */
 export interface PortalAlert {
+  /** Kept for opening the request; never shown to the supplier. */
   id: number
-  /** `AR-12` — the request's ref, shown as the row's subtitle. */
-  ref: string
-  /** The job name, or the ref again when the request has none. */
+  /** The job name, or a generic request label when the request has none. */
   label: string
   /** `createdAt` in ms, for the row's right-hand time. */
   at: number
@@ -389,7 +390,6 @@ function PortalNotificationBell({
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-1.5">
                     <span className="truncate text-[12.5px] font-bold text-foreground">{alert.label}</span>
-                    <span className="flex-none text-[10.5px] text-muted-foreground">{alert.ref}</span>
                     <span className="ml-auto flex-none text-[10.5px] text-lps-dim">{fmtAlertAt(alert.at)}</span>
                   </span>
                   <span className="block truncate text-[11.5px] text-muted-foreground">
@@ -531,7 +531,7 @@ export function PortalFrame({
         const last = body.messages[body.messages.length - 1]
         setChatAlert(
           last && last.role === 'agent' && last.id > (body.readId ?? 0)
-            ? { at: last.at, text: last.text }
+            ? { at: last.at, text: redactPortalRequestRefs(last.text) }
             : null,
         )
       } catch {

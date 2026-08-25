@@ -84,6 +84,48 @@ export function splitBareHttpUrl(candidate: string): { href: string; suffix: str
   return { href: candidate.slice(0, end), suffix: candidate.slice(end) }
 }
 
+/** Transform rendered token text without touching link hrefs or action targets. */
+export function transformChatInlineText(
+  tokens: ChatInlineToken[],
+  transform: (text: string) => string,
+): ChatInlineToken[] {
+  return tokens.map((token) => {
+    if (token.kind === 'text' || token.kind === 'code') {
+      return { ...token, text: transform(token.text) }
+    }
+    if (token.kind === 'strong') {
+      return { ...token, children: transformChatInlineText(token.children, transform) }
+    }
+    return { ...token, label: transform(token.label) }
+  })
+}
+
+/**
+ * Serialize rendered Markdown as plain text for audience-filtered copying.
+ * Safe HTTP destinations remain useful; action targets and destinations whose
+ * own text would be redacted are omitted rather than exposed or corrupted.
+ */
+export function chatMarkdownPlainText(
+  text: string,
+  transform: (text: string) => string,
+): string {
+  const plainInline = (tokens: ChatInlineToken[]): string => tokens.map((token) => {
+    if (token.kind === 'text' || token.kind === 'code') return transform(token.text)
+    if (token.kind === 'strong') return plainInline(token.children)
+    if (token.kind === 'action') return transform(token.label)
+
+    const label = transform(token.label)
+    const hrefIsSafe = transform(token.href) === token.href
+    if (!hrefIsSafe || token.label === token.href) return label
+    return `${label} (${token.href})`
+  }).join('')
+
+  return splitChatMarkdownBlocks(text).map((block) => {
+    if (block.kind === 'code') return transform(block.text)
+    return plainInline(tokenizeChatInline(joinLineBrokenMarkdownLinks(block.text)))
+  }).join('\n')
+}
+
 /** Parse the deliberately small inline-markdown subset used by chat bubbles. */
 export function tokenizeChatInline(text: string): ChatInlineToken[] {
   const tokens: ChatInlineToken[] = []

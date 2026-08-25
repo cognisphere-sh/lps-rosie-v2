@@ -364,10 +364,12 @@ function LineRow({
   item,
   editable,
   onPatch,
+  displayText = (text) => text,
 }: {
   item: ARItem
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
+  displayText?: (text: string) => string
 }) {
   /** Which status the pop-up is collecting details for; null = closed. */
   const [answering, setAnswering] = useState<string | null>(null)
@@ -407,9 +409,9 @@ function LineRow({
           // `title` keeps the same text on the pointer.
           <span
             className="block truncate text-[10.5px] text-muted-foreground hover:whitespace-normal"
-            title={item.lpsNotes}
+            title={displayText(item.lpsNotes)}
           >
-            {item.lpsNotes}
+            {displayText(item.lpsNotes)}
           </span>
         )}
       </span>
@@ -480,12 +482,15 @@ export function ARLineTable({
   editable,
   onPatch,
   embedded = false,
+  displayText,
 }: {
   items: ARItem[]
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Full-bleed inside an already bordered request card. */
   embedded?: boolean
+  /** Portal-only transform for LPS notes; admin callers leave it unset. */
+  displayText?: (text: string) => string
 }) {
   const subtotal = arSubtotal(items)
   return (
@@ -514,7 +519,13 @@ export function ARLineTable({
         </p>
       )}
       {items.map((item) => (
-        <LineRow key={item.id} item={item} editable={editable} onPatch={onPatch} />
+        <LineRow
+          key={item.id}
+          item={item}
+          editable={editable}
+          onPatch={onPatch}
+          displayText={displayText}
+        />
       ))}
       {items.length > 0 && (
         <div
