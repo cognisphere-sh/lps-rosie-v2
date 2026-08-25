@@ -1,5 +1,26 @@
 # job-requests — changelog
 
+## 3.4.0
+
+2026-08-25 (Bhoumik, same day as 3.3.0) — generalised from *approval* to
+**everything Chris-facing**: this thread is the **source for its order**
+(`1-agent.md` rule 5). Every job-related approval, decision and question goes
+to him here, never on the customer's or supplier's thread, and those threads
+route their inputs back — supplier answers, customer replies, changed dates,
+cut scope. One thread that knows the order's whole state; one place Chris has
+to look.
+
+## 3.3.0
+
+2026-08-25 (Bhoumik) — **the jr thread is now where Chris is asked to approve
+any communication about its order** (`1-agent.md` rule 5), customer contact
+included. §7 changes from "message the customer thread what needs saying" to
+draft here from customer-safe fields → approve here → route the approved text
+verbatim for the customer thread to send. §5.2 does the same for outreach to a
+non-Partner (a Partner's portal availability request still needs no approval).
+One order, one place Chris is asked; the sending thread never edits an approved
+draft.
+
 ## 3.2.0
 
 2026-08-25 (Bhoumik). Migration 0073 dropped `customers.communication_notes`:

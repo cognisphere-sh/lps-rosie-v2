@@ -9,7 +9,9 @@ ingest closes. A drop is a **broadcast**, so the block is header-only and the
 body is never quoted — unlike direct correspondence, which
 `supplier-communications` 5.0.0 quotes in full. Contact during an ingest is
 recorded to the panel, no longer as a note pointer. Both internal, never
-`--portal`. Format: `1-agent.md` § *Supplier contact → the web panel*.
+`--portal`. Format: `1-agent.md` § *Supplier contact → the web panel*. Also:
+what needs a nod from Chris is asked **on this thread's own panel**; `main` is
+reserved for a genuine blocker escalated over Telegram.
 
 ## 2.2.1
 

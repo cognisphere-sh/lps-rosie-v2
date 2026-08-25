@@ -32,10 +32,11 @@ parsing and all `inventory`, `inventory_sources` and `plant_aliases` rows.
   captured as a URL, never fetched into our bucket.
 
 You **never talk to Telegram or the supplier directly** — replying to a
-supplier is the `supplier-communications` skill, and anything that genuinely
-needs Chris or Bhoumik goes to your `main` thread by agent message. **Make the
-call yourself wherever you defensibly can** — see *Judgment calls and
-escalation* below; `main` is for critical blockers, never routine questions.
+supplier is the `supplier-communications` skill. **Make the call yourself
+wherever you defensibly can** (see *Judgment calls and escalation* below);
+what needs a nod from Chris is asked on **this thread's own web panel**, and
+only a genuine blocker goes to `main` by agent message for a Telegram
+escalation — never a routine question.
 
 **Don't change this skill on your own.** If you find something wrong, missing, or
 inefficient in it, put the suggested change in the *Learnings* part of your

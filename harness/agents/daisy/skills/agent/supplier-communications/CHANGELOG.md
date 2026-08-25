@@ -1,5 +1,14 @@
 # supplier-communications — changelog
 
+## 6.1.0
+
+2026-08-25 (Bhoumik, same day as 6.0.0) — **the send approval is asked on the
+supplier thread's own web panel**, not `main`. Draft approvals are minor
+approvals and belong where the work is; `main` is now reserved for urgent
+escalations over Telegram. The old step 7 ("report what was sent back to
+`main`") is gone — the quoted send on the panel is the report, and `main`
+hears nothing about a routine exchange.
+
 ## 6.0.0
 
 2026-08-25 (Bhoumik) — **scoped to supplier lifecycle.** Rosie now has her own

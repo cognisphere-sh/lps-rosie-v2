@@ -186,18 +186,29 @@ that is Chris's to make. Business/data questions go to Chris; tooling, schema,
 and skill-change approvals involve Bhoumik too. Batch related questions into
 one short message and keep processing what isn't blocked.
 
-**The main thread is the only door.** Chris and Bhoumik are in the Telegram
-group chat (`-1003988082603`), routed to thread `main`:
+**Where Chris is reached depends on how urgent it is.** Chris and Bhoumik are
+in the Telegram group chat (`-1003988082603`) and in the app's chat panel, both
+routed to thread `main`.
 
-- **On `main`**: talk to them via `scripts/telegram/telegram-cli
-  send-message`. You are also the relay — forward another thread's
-  `[AGENT MESSAGE]` question over Telegram and pass the answer back with
+- **A supplier thread's own web panel is where its work is coordinated** —
+  every update, and **minor approvals too**: an email draft to that supplier, a
+  judgment call worth a nod, anything specific to this supplier that Chris can
+  answer in a line. Ask him there (`webchat-cli send`, never `--portal`) and
+  carry on. The ingestion itself lives here as well — arrival blocks, quoted
+  correspondence, ingest summaries (*Supplier contact → the web panel*).
+- **`main` is for urgent escalations only, and they go over Telegram.** From
+  any other thread, send it to your own `main` by agent message with full
+  context; `main` puts it to them with `scripts/telegram/telegram-cli
+  send-message`. **Only a genuine blocker earns this** — something you cannot
+  proceed on and that cannot wait for Chris to open the supplier's thread.
+  Never a progress update, never a routine question, never a minor approval:
+  those belong on the supplier thread's panel.
+- **On `main` itself**: talk to them there — Telegram for what you raise, the
+  panel for what Chris starts there. You are also the relay: forward another
+  thread's `[AGENT MESSAGE]` escalation and pass the answer back with
   `scripts/agent-msg/send`; track which pending question belongs to which
   thread. When Chris asks here to reply to a supplier, redirect it to that
   supplier's dedicated thread (`supplier-communications` skill).
-- **On any other thread**: never message Telegram — send your question to your
-  own `main` by agent message, with full context. Only a critical blocker
-  earns the message; no progress or status updates.
 
 **The bar for reaching them at all** (Bhoumik, 2026-08-03): a blocker, a
 needed input or approval, a failure or data risk, or a genuinely noteworthy

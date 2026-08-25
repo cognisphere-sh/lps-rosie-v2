@@ -17,15 +17,88 @@ here).
 
 ## 2026-08-25
 
+### Changed
+
+- **The supplier portal's Item status chip now filters the line rows, not just
+  the cards.** It matched a request that had at least one line in the picked
+  status and then drew every line of it, so picking *Available* still showed
+  the pending and unavailable rows underneath — the filter looked broken. The
+  expanded table now draws only the lines in the picked statuses, matched
+  requests open themselves (the drill-in the admin Job Requests page already
+  did), and a line under the table says how many of the request's lines are
+  shown. The card's own count strip and the header stats still describe the
+  whole request, as they did.
+- **An availability request line's note to the supplier unfolds on hover.**
+  The grey line under a plant name (`availability_request_items.lps_notes` —
+  e.g. "Confirm White Natchez; generic Lagerstroemia 15 G listed @…") still
+  truncates to one line while the table is scanned, and now wraps to its full
+  text when hovered. It carried a `title` tooltip already; the line table is a
+  horizontal scroll box, so the text is unfolded in place rather than in a
+  panel the box would clip. Applies everywhere `ARLineTable` is drawn — the AR
+  drawer, the supplier profile and the supplier portal.
+- **The supplier portal's nav rail opens collapsed**, to icons, as the admin
+  Shell's rail already did. The chevron at its foot still expands it to
+  labels.
+- **A job request card's supplier strip is hidden on a collapsed phone card.**
+  The engaged-supplier pills (supplier name, its `AR-<id>` links and the
+  conversation segment) had nowhere to sit on a narrow card and wrapped to a
+  right-aligned line of their own, which is what made the collapsed card read as
+  a jumble. Below `md` they now appear only once the card is expanded, and take
+  a full-width line instead of hanging off the right edge. Nothing changes on a
+  wide card.
+- **The chat header no longer shows an agent status line.** The green/amber
+  status dot and its *Online* / *Working…* label are gone from both the docked
+  and full-screen headers, which now carry the agent's name, role and — off the
+  main thread — the thread label. The busy state is still visible where it
+  matters: the bouncing-dot "…is working…" bubble in the transcript and the dot
+  on the collapsed rail avatar. `StatusDot` remains exported from `chat-kit.tsx`
+  but is now unused.
+
 ### Added
 
 - **Lily gained matching profile artwork** in `app/public/lily.png` (256×256
   avatar) and `app/public/lily_profile.png` (1672×941 banner). The blue-teal
   project-management identity complements Daisy's green, Rosie's coral and
   Nova's purple while retaining the same illustrated character, curved
-  information panel, wordmark and four-capability layout. These are identity
-  assets only: Lily remains Telegram-only and is not added to the app's
-  webchat agent list.
+  information panel, wordmark and four-capability layout. Lily stays
+  Telegram-only — she has no `webchat` plugin — but the artwork is used by the
+  app: the banner on **Know your Agents**, and the avatar in the settings tabs
+  and the (disabled) chat rail, per the entry below.
+
+- **Lily is wired up: Telegram route, cropped avatar, and a place in the app.**
+  Three finishing pieces on the new agent.
+
+  **Telegram → `main`.** Her group `-1004474937526` now routes to thread `main`
+  via `state/routes.json`, the rule daisy, rosie and nova each already carry.
+  This is not cosmetic: `threadIdStrategy: single` does **not** put telegram
+  messages on `main` — without a route they land on a thread called `default`,
+  which is where her first messages went in the window between the token being
+  set and the rule being added. (`docs/harness/agent-lily.md` now says so; the
+  nova doc's older wording implied the fall-through was `main`.) The plugin
+  re-reads routes on every poll batch, so it took effect with no restart.
+
+  **Avatar.** `app/public/lily.png`, 256×256, cropped from Nova's banner at
+  (168, 0)–(728, 560). The box was chosen against the existing three, recovered
+  by template-matching each `<agent>.png` back to its own banner: side 560
+  matches daisy's and rosie's, and head-height-over-side lands at 0.56 against
+  daisy's 0.57, so the shoulders read the same. Her eyes sit centred
+  horizontally at 0.50 and 0.45 down, against daisy's 0.47.
+
+  **In the app.** `lib/agents.ts` gains a fourth entry and a second reason an
+  agent can be unchattable: `upcoming` means *not wired up yet*, while the new
+  **`reachOn`** names the channel an agent lives on instead of this panel.
+  Lily is `reachOn: 'Telegram'`, so she appears on **Know your Agents** and gets
+  her own **settings tab** (model, schedules and run state are harness config,
+  not panel features), while the rail, the selector and the mobile list disable
+  her and `/api/chat/lily/*` answers 404. `chatBlockedReason(agent)` is now the
+  one place that label is decided ("Coming soon" / "On Telegram" / `null`),
+  replacing the `upcoming` ternary at each of those sites; `CHAT_AGENTS` filters
+  on both flags. Only `upcoming` fades a banner on `/agents` — an agent reached
+  elsewhere is live, not pending. Her settings tab omits **Appearance**, which
+  styles a panel conversation she doesn't have (`chat-appearance.ts` keys its
+  stored themes to the three chat agents, so `themes['lily']` would be
+  `undefined`), and `suggestions` became optional rather than inventing starter
+  prompts for a chat nobody can open.
 
 - **New agent: `lily`, the project manager** (Chris). A fourth agent, added
   because Chris's feedback on how the business and the app actually work was
@@ -91,6 +164,41 @@ here).
   allow all). Without the token the telegram plugin logs
   `TELEGRAM_BOT_TOKEN not set; telegram plugin disabled` and the agent starts
   regardless. Docs: [`docs/harness/agent-lily.md`](docs/harness/agent-lily.md).
+
+- **Each agent's surfaces are now split by urgency, not by thread type.** For
+  **daisy**: a supplier thread's own web panel carries that supplier's work —
+  updates, the ingestion feed, and **minor approvals** (an email draft, a
+  judgment call worth a nod), asked there and answered there. **`main` is for
+  urgent escalations only, over Telegram**, relayed up by agent message from
+  the thread that hit the blocker; a routine question or progress update never
+  goes there, and `supplier-communications` no longer reports routine sends to
+  it — the quoted send on the panel is the report. For **rosie**: routine
+  Chris-facing work lives on the thread that owns it (a job order's on its
+  `jr-<id>` thread; a non-order supplier or customer matter on that thread),
+  and an **escalation goes to `main` on both surfaces** — its web chat *and*
+  Telegram — so a critical blocker can't be missed by someone watching one.
+  Skills bumped: `supplier-communications` **6.1.0**.
+
+- **The `jr-<id>` thread is now the source for its order** — the one place
+  Chris is asked about it, and the one thread that knows its whole state
+  (rosie `1-agent.md`, new rule 5). Previously each thread asked him on its
+  own web chat, so a single order could ping him in three places and no thread
+  held the full picture. Now every job-related approval, decision and
+  trade-off goes to the jr thread, and the customer's and supplier's threads
+  **route their inputs back to it**: what the supplier answered, what the
+  customer said, a changed date, a cut scope, a question they cannot settle.
+
+  Outbound follows the same path. What is to be said is **drafted on the jr
+  thread**, approved there, and routed verbatim to whichever thread owns that
+  channel, which sends it **exactly as approved** — a sending thread that
+  spots a problem returns it for re-approval instead of editing an approved
+  draft. Moving drafting to the jr thread also puts the customer-safe filter
+  (`job-requests` §4.2 — no supplier names, no supplier pricing) on the thread
+  that actually holds the unsafe data, one hop closer than before. Contact
+  with no order behind it is still owned, decided and approved on the thread
+  it belongs to, and an LPS Partner's portal availability request still needs
+  no approval. Skills bumped: `job-requests` **3.4.0**,
+  `customer-coordination` **2.3.0**, `supplier-coordination` **1.5.0**.
 
 - **Rosie gets her own mailbox and an email router; the daisy/rosie line is now
   drawn by subject, not by party.** Her mailbox is

@@ -436,7 +436,10 @@ export function PortalFrame({
 }) {
   const isMobile = useIsMobile()
   const { dark, toggle } = useTheme()
-  const [navOpen, setNavOpen] = useState(true)
+  // Collapsed to icons on first load, as the admin Shell's rail is: the page
+  // beside it is what the supplier came for, and the labels are one click
+  // away on the rail's own toggle.
+  const [navOpen, setNavOpen] = useState(false)
   // The chat with Local Plant Supply, opened from the right-hand rail
   // (desktop) or its bottom tab (mobile) — the portal's sibling of the admin
   // agent panel. On mobile it takes the whole column, so it is a page rather

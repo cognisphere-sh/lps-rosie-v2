@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.2.0)
+description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.4.0)
 metadata:
   author: lps
-  version: "3.2.0"
+  version: "3.4.0"
 ---
 
 # Job requests
@@ -13,6 +13,16 @@ Read `knowledge/files/SCHEMA.md` before writing any query. The tables here are
 `job_request_changelog`. You own every agent-side write to the first three; the
 app's users edit the same rows from the UI, which is why the concurrency
 section below is not optional.
+
+**This thread is the source for its order** (`1-agent.md`, rule 5). Everything
+job-related that needs Chris — an approval, a decision, a trade-off only he can
+settle — is put to him **here**, on this thread's own web chat, never on the
+customer's or supplier's thread. Those threads own their channel and their
+contact history and they **route their inputs back here**: what the supplier
+answered, what the customer said, a changed date, a cut scope. So this thread
+is the one that knows the order's whole state, and the only place Chris has to
+look to follow it. What goes out is drafted here, approved here, and sent by
+whichever thread owns that channel, exactly as approved.
 
 ## 1. Intake
 
@@ -509,6 +519,14 @@ ask it for is the **confirmation the database cannot give** (§5.3); it owns
 the channel — an availability request in an LPS Partner's portal, gated
 outreach otherwise.
 
+**When the ask needs Chris's approval, it is asked here** (`1-agent.md`, rule
+5) — a Partner's portal availability request does not, but outreach to a
+non-Partner does. Draft it here, applying what `suppliers.notes` remembers
+about how they like to be approached, put it to Chris on this thread's web
+chat, and route the **approved text verbatim** to the supplier thread to send
+exactly as approved (`supplier-coordination` §4). One order, one place Chris
+is asked.
+
 **Every line of the request goes into the ask, not a subset.** The ones Austin
 Plant Supply priced, the ones only a substitute answered, and the ones nothing
 in the catalogue matched at all — all of them. A line missing from a price
@@ -652,13 +670,27 @@ touch — is §5.1.
 
 ## 7. Contacting the customer
 
-Never unbidden, never unapproved (`1-agent.md`, rule 2) — and never from the
-jr thread. Customer contact runs on the **customer's dedicated thread**
-(`customers.rosie_thread_id`, the `customer-coordination` skill): message it
-what needs saying — the quote to deliver, the question to put to them, built
-from customer-safe fields only (§4) — and it handles the draft →
-Chris-approval → send flow, recording the contact on its own web chat. What
-the customer answers comes back to this thread the same way.
+Never unbidden, never unapproved (`1-agent.md`, rules 2 and 5) — and never
+sent from the jr thread. **The approval is asked here; the sending is theirs.**
+
+1. **Draft it here**, from **customer-safe fields only** (§4.2): what they are
+   getting, never how we sourced it — no supplier names, no supplier pricing,
+   no `[AGENT MESSAGE]` content. This thread holds all of that, which is
+   exactly why the filtering happens at the draft, not after it. Read
+   `customers.notes` first and apply what it remembers about how they like to
+   be written to, so the text is **final** before Chris sees it.
+2. **Put the draft to Chris on this thread's own web chat** (`webchat-cli
+   send` — the notification reaches him; never via `main`), short and
+   non-technical. Approval is of **that exact text**.
+3. **Route the approved text to the customer's dedicated thread**
+   (`customers.rosie_thread_id`, `customer-coordination`) — verbatim, in an
+   agent message that says it is Chris-approved and when. That thread sends it
+   **exactly as approved** and quotes it to its own web chat. If it sees a
+   reason to change a word, it comes back here for re-approval rather than
+   editing an approved draft.
+
+What the customer answers comes back to this thread the same way. **Approval
+for anything about this order is asked here**, whoever ends up sending it.
 
 When the contact was a quote, move the request to `quoted` (guarded, §2) and
 note the quote link in the request's `external_notes` (see

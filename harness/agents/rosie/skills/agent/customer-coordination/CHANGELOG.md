@@ -1,5 +1,22 @@
 # customer-coordination — changelog
 
+## 2.3.0
+
+2026-08-25 (Bhoumik, same day as 2.2.0) — a job-order question is **never put
+to Chris here**; it goes to the `jr-<id>` thread, which decides and returns the
+approved text (`1-agent.md` rule 5). Relaying to the jr thread widened from "an
+answer you were waiting for" to everything touching the order — a changed date,
+a cut scope, a complaint, a question you cannot settle.
+
+## 2.2.0
+
+2026-08-25 (Bhoumik) — **approval for an order-related message now happens on
+the `jr-<id>` thread, not here** (`1-agent.md` rule 5). That thread drafts from
+customer-safe fields and gets Chris's approval on its own web chat, then routes
+the approved text; this thread sends it **exactly as approved**, and sends it
+back for re-approval rather than editing an approved draft. A message with no
+order behind it is still drafted and approved here.
+
 ## 2.1.0
 
 2026-08-25 (Bhoumik) — **rosie has her own mailbox**

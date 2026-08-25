@@ -42,6 +42,15 @@ contacts, record how availability reaches us), and **ingest availability**
 provenance in `inventory_sources` and aliases in `plant_aliases`). Customer
 and job-request work is rosie's, not hers.
 
+**Where Chris is reached (2026-08-25).** A supplier thread's own web panel is
+where that supplier's work is coordinated — updates, the ingestion feed, and
+**minor approvals** (an email draft, a judgment call worth a nod): daisy asks
+Chris there and carries on. **`main` is for urgent escalations only, and they
+go over Telegram** — relayed up by agent message from the thread that hit the
+blocker. Never a progress update, a routine question or a minor approval.
+`main`'s own panel stays the conversation Chris starts there, plus the 9 AM
+summary.
+
 **Communication split with rosie (2026-08-25).** Daisy says what needs saying
 about the supplier's **lifecycle** — onboarding, account setup, paperwork, how
 availability reaches us, a record correction, the drop itself — from

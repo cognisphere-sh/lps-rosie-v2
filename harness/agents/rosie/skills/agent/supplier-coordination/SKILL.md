@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.3.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.5.0)
 metadata:
   author: lps
-  version: "1.3.0"
+  version: "1.5.0"
 ---
 
 # Supplier coordination
@@ -135,18 +135,26 @@ put durable preferences in `suppliers.notes`.
 
 ## 4. Not an LPS Partner
 
-Outreach is drafted here and **sent from your own mailbox**
-(`chris@localplantsupply.com`, as *Christopher Runyon*) once Chris approves
-the specific draft:
+Outreach is **sent from your own mailbox** (`chris@localplantsupply.com`, as
+*Christopher Runyon*) once Chris approves the specific draft — drafted on the
+`jr-<id>` thread when an order is behind it, here when none is:
 
-1. Draft the ask — short, casual, concrete (the supplier answers a question,
-   not a form). Two to three short lines, no preamble, no restating what they
-   already know. Apply anything `suppliers.notes` remembers about how they
-   like to be approached.
-2. Present the draft for **Chris's approval on this thread's web chat**.
-   Approval is per-draft: a template or a past yes is never standing
-   permission.
-3. Send it yourself, plain text, on this thread:
+1. **Where the draft and the approval happen depends on whether a job order is
+   behind it** (`1-agent.md`, rule 5):
+   - **Sourcing for a job order** — the `jr-<id>` thread drafts the ask and
+     gets Chris's approval on **its** web chat, then routes you the approved
+     text (`job-requests` §5.2). Send **exactly** that; if it is wrong for
+     this supplier, send it back there for re-approval rather than editing an
+     approved draft.
+   - **Nothing to do with an order** — draft it here: short, casual, concrete
+     (the supplier answers a question, not a form), two to three lines, no
+     preamble, no restating what they already know, applying anything
+     `suppliers.notes` remembers about how they like to be approached. Present
+     it for **Chris's approval on this thread's web chat**.
+
+   Either way approval is **per-draft**: a template or a past yes is never
+   standing permission.
+2. Send it yourself, plain text, on this thread:
 
    ```
    gws gmail +send --to <address> --subject "…" --body "…"
@@ -157,7 +165,7 @@ the specific draft:
    topic. Then route their answer back here: `bash scripts/gws/routes add
    --name route-<slug> --thread-id <this thread> --gmail-thread-id <the
    threadId +send printed>`, and re-add `router-all` last (`route-email`).
-4. Their reply lands on this thread. Relay the substance to the jr thread, and
+3. Their reply lands on this thread. Relay the substance to the jr thread, and
    **quote the reply in full to this thread's web chat** (below).
 
 A supplier the database doesn't have at all is daisy's to onboard — ask
@@ -180,12 +188,19 @@ thread, through the same channel the ask went out on (a new or re-opened
 availability request for a Partner; §4's flow otherwise), with the same
 gates. Batch follow-ups; don't ping a supplier line by line.
 
-## Judgment calls
+## Judgment calls, and where Chris is asked
 
-Make the defensible call and record it; approvals are asked on this thread's
-own web chat, and `main` is only the Telegram escalation for a critical
-blocker — never routine questions. Relays to jr threads are not
-Chris-gated — only things that *reach the supplier* are.
+Make the defensible call and record it. **Anything about a job order that
+needs Chris — an approval, a decision, a trade-off — goes to that order's
+`jr-<id>` thread, not to this thread's web chat** (`1-agent.md`, rule 5): it
+is the one place he is asked about that order, and the one thread that knows
+the order's whole state. Ask here only about matters with no job order behind
+them (this supplier's channel, a preference, standing terms). `main` stays the
+Telegram escalation for a critical blocker — never routine questions.
+
+**Route your inputs to the jr thread**: what the supplier answered, a price or
+a substitute they named, a date they gave, anything that moves the order.
+Those relays are not Chris-gated — only things that *reach the supplier* are.
 
 ## The web chat is this thread's contact history
 

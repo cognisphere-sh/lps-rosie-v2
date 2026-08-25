@@ -97,6 +97,7 @@ function ResponseSummary({ request }: { request: ARDetail }) {
 
 function RequestCard({
   request,
+  itemFilter,
   expanded,
   onToggle,
   onPatch,
@@ -104,6 +105,8 @@ function RequestCard({
   saving,
 }: {
   request: ARDetail
+  /** The item-status chip's picked labels; empty = every line. */
+  itemFilter: string[]
   expanded: boolean
   onToggle: () => void
   onPatch: (arId: number, itemId: number, changes: Record<string, string>) => Promise<void>
@@ -111,6 +114,13 @@ function RequestCard({
   saving: boolean
 }) {
   const editable = request.status !== 'closed'
+  // The item-status chip is a question about lines, so the table answers with
+  // the lines it asked about rather than the whole request behind them. The
+  // card's summary strip above still counts every line, as the admin card's
+  // does — a filtered view must not restate the request's own totals.
+  const lines = itemFilter.length
+    ? request.items.filter((item) => itemMatches(item.status, itemFilter))
+    : request.items
   const locality = [request.shipping?.city, request.shipping?.state].filter(Boolean).join(', ')
 
   return (
@@ -216,13 +226,19 @@ function RequestCard({
           </div>
 
           <ARLineTable
-            items={request.items}
+            items={lines}
             editable={editable}
             embedded
             onPatch={(itemId, changes) => onPatch(request.id, itemId, changes)}
           />
 
           <div className="flex flex-col gap-2.5 bg-card p-2.5 sm:p-3">
+            {lines.length !== request.items.length && (
+              <p className="m-0 text-[11.5px] text-muted-foreground">
+                Showing {lines.length} of {request.items.length} lines — the item status filter.
+                The subtotal above covers the lines shown; answering one takes it out of this view.
+              </p>
+            )}
             {editable && request.status === 'new' && request.items.some((item) => item.unitPrice != null) && (
               <p className="m-0 text-[11.5px] text-muted-foreground">
                 Prices we already have on file are filled in — please correct any that have changed.
@@ -400,6 +416,13 @@ export default function PortalHomePage() {
     })
   }, [requests, query, statusFilter, itemStatusFilter, customerFilter, created, sort])
 
+  // The item-status chip asks about lines, so the requests that matched open
+  // themselves — the same drill-in the admin Job Requests page does, since
+  // otherwise the answer stays behind a chevron.
+  useEffect(() => {
+    if (itemStatusFilter.length) setExpanded(new Set(shown.map((r) => r.id)))
+  }, [itemStatusFilter, shown])
+
   const allShownExpanded = shown.length > 0 && shown.every((r) => expanded.has(r.id))
 
   const chips: Chip[] = [
@@ -541,6 +564,7 @@ export default function PortalHomePage() {
           <RequestCard
             key={r.id}
             request={r}
+            itemFilter={itemStatusFilter}
             expanded={expanded.has(r.id)}
             onToggle={() =>
               setExpanded((current) => {

@@ -133,6 +133,25 @@ To finish the enable:
    own `--from` rules, re-adding the catch-all last so it keeps matching last.
    Update this file and the README comparison table.
 
+### The jr thread is the source for its order (2026-08-25)
+
+**Everything job-related that needs Chris is put to him on that order's
+`jr-<id>` thread** — an approval, a decision, a trade-off — never on the
+customer's or supplier's thread (`1-agent.md` rule 5). Those threads own their
+channel and their contact history, and they **route their inputs back to the jr
+thread**: what the supplier answered, what the customer said, a changed date, a
+cut scope. So one thread knows the order's whole state, and Chris has one place
+to look.
+
+What goes out is **drafted on the jr thread** (customer-safe fields only,
+`job-requests` §4.2 — and it is the thread holding the unsafe data, so the
+filter belongs at the draft), approved there, then routed verbatim to the
+customer's or supplier's thread, which sends it **exactly as approved**. A
+sending thread that spots a problem returns it for re-approval rather than
+editing an approved draft. Contact with no job order behind it is owned,
+decided and approved on the thread it belongs to, and an LPS Partner's portal
+availability request needs no approval at all.
+
 ### Boundary with daisy
 
 **The line is the subject, not the party.** Daisy owns supplier **lifecycle

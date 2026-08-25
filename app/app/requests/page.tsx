@@ -275,10 +275,10 @@ function RequestCard({
         </div>
 
         {/* Who the job is for on the left, everything it opens on the right —
-            the strip rides the empty half of a line the card already draws
-            rather than adding one of its own. The sourcing notes used to carry
-            these links, but a note is free text: the links belong to the job,
-            not to a sentence about it. */}
+            on a wide card the strip rides the empty half of a line the card
+            already draws rather than adding one of its own. The sourcing notes
+            used to carry these links, but a note is free text: the links belong
+            to the job, not to a sentence about it. */}
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pl-[30px] text-[12px]">
           <span className="font-semibold text-foreground">
             {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
@@ -310,7 +310,16 @@ function RequestCard({
             </span>
           )}
           {supplierPills.length > 0 && (
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <div
+              className={cn(
+                // On a phone there is no empty half to ride, so the strip
+                // takes a line of its own — and on a collapsed card it waits,
+                // because who a job's suppliers are is what you open the card
+                // to find out.
+                'flex w-full flex-wrap items-center gap-1 md:ml-auto md:w-auto md:justify-end',
+                !expanded && 'hidden md:flex',
+              )}
+            >
               {supplierPills.map((l) => (
                 <SupplierPill key={l.supplierId} name={l.name}>
                   {l.availabilityRequestIds.map((arId) => (

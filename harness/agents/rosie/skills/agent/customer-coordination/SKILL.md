@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, the draft → Chris approves → rosie sends flow from her own mailbox, and where a contact and a durable quirk each get recorded. Use on every message a jr thread or main sends about contacting this customer, whenever something comes back from them, and when relaying what they said to the request it concerns. (v2.1.0)
+description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, where a draft is approved (the jr thread, for anything about an order) and rosie sending it from her own mailbox, and where a contact and a durable quirk each get recorded. Use on every message a jr thread or main sends about contacting this customer, whenever something comes back from them, and when relaying what they said to the request it concerns. (v2.3.0)
 metadata:
   author: lps
-  version: "2.1.0"
+  version: "2.3.0"
 ---
 
 # Customer coordination
@@ -37,15 +37,24 @@ WHERE id = $customerId AND rosie_thread_id IS NULL;
 
 ## Contacting the customer — never unbidden, never unapproved
 
-Rule 2 (`1-agent.md`) in full:
+Rules 2 and 5 (`1-agent.md`) in full:
 
-1. Draft the message from **customer-safe fields only** (`job-requests` §4.2):
-   what they are getting, never how we sourced it — no supplier names, no
-   supplier pricing, no `[AGENT MESSAGE]` content.
-2. Present the draft for **Chris's approval of that specific draft** on this
-   thread's own web chat (`webchat-cli send` — the notification reaches him;
-   never via `main`), short and non-technical.
-3. Only on his approval does it go out — **sent from your own mailbox**
+1. **Where the draft and the approval happen depends on whether a job order is
+   behind it** (`1-agent.md`, rule 5):
+   - **About a job order** — the `jr-<id>` thread drafts it and gets Chris's
+     approval on **its** web chat, then routes you the approved text
+     (`job-requests` §7). You do not re-draft it and you do not re-ask: send
+     **exactly** what was approved. If something in it is wrong for this
+     customer — a preference `customers.notes` remembers, a name they don't
+     use — send it back to the jr thread for re-approval rather than editing
+     an approved draft.
+   - **Nothing to do with an order** — draft it here from **customer-safe
+     fields only** (`job-requests` §4.2): what they are getting, never how we
+     sourced it — no supplier names, no supplier pricing, no `[AGENT MESSAGE]`
+     content. Present it for **Chris's approval of that specific draft** on
+     this thread's own web chat (`webchat-cli send` — the notification reaches
+     him; never via `main`), short and non-technical.
+2. Only on approval does it go out — **sent from your own mailbox**
    (`chris@localplantsupply.com`, as *Christopher Runyon*), plain text, on
    this thread:
 
@@ -59,11 +68,11 @@ Rule 2 (`1-agent.md`) in full:
    --gmail-thread-id <the threadId +send printed>`, re-adding `router-all`
    last (`route-email`). Chris can still send something himself when he
    prefers to.
-4. Post the contact to this thread's own web chat in the same task
+3. Post the contact to this thread's own web chat in the same task
    (`webchat-cli send`) — **the complete text, quoted**, to whom, and who sent
    it. Say whose act it was: `Chris` for what he sent or decided. That message
    is the record; there is no column to append to.
-5. If the contact was a quote, tell the jr thread so it moves the request to
+4. If the contact was a quote, tell the jr thread so it moves the request to
    `quoted` and records the quote link (`job-requests` §7, `quote-generation`).
 
 ## When the customer answers
@@ -74,8 +83,13 @@ thread's web chat, put durable preferences in
 `customers.notes` (edited in place — delivery constraints, how they like to be
 contacted, pickiness worth remembering), and **relay the substance to the
 `jr-<id>` thread it concerns** — that thread owns the request's rows and next
-steps. A message about no particular job stays here, on this thread's web
-chat, unless it needs another thread's owner.
+steps, and is where Chris is asked about them (`1-agent.md`, rule 5). Route
+everything that touches the order, not just an answer you were waiting for: a
+changed date, a cut scope, a complaint, a question you cannot settle. **Don't
+put a job-order question to Chris here** — it goes to the jr thread, which
+decides and comes back with the approved text. A message about no particular
+job stays here, on this thread's web chat, unless it needs another thread's
+owner.
 
 ## Keep the thread's web chat current
 

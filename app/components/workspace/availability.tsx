@@ -401,7 +401,14 @@ function LineRow({
         {/* LPS's note to the supplier — a few words, e.g. the mapped
             substitute. Ours; the supplier's own note is the Notes cell. */}
         {item.lpsNotes && (
-          <span className="block truncate text-[10.5px] text-muted-foreground" title={item.lpsNotes}>
+          // One line while the table is being scanned; the whole note on
+          // hover, unfolded in place rather than in an overlay — the table is
+          // its own scroll box and would clip a popup at its edges. The
+          // `title` keeps the same text on the pointer.
+          <span
+            className="block truncate text-[10.5px] text-muted-foreground hover:whitespace-normal"
+            title={item.lpsNotes}
+          >
             {item.lpsNotes}
           </span>
         )}

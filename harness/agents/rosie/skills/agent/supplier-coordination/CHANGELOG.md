@@ -1,5 +1,22 @@
 # supplier-coordination — changelog
 
+## 1.5.0
+
+2026-08-25 (Bhoumik, same day as 1.4.0) — *Judgment calls* becomes *Judgment
+calls, and where Chris is asked*: **anything about a job order that needs Chris
+goes to that order's `jr-<id>` thread**, not this thread's web chat — not just
+approvals but decisions and trade-offs. Ask here only about matters with no
+order behind them (channel, preferences, standing terms). Inputs route to the
+jr thread: answers, prices, substitutes, dates — anything that moves the order.
+
+## 1.4.0
+
+2026-08-25 (Bhoumik) — **approval for an order-related ask now happens on the
+`jr-<id>` thread, not here** (`1-agent.md` rule 5). The jr thread drafts and
+gets Chris's approval, then routes the approved text; this thread sends it
+**exactly as approved** and comes back for re-approval rather than editing it.
+Outreach with no order behind it is still drafted and approved here.
+
 ## 1.3.0
 
 2026-08-25 (Bhoumik) — **rosie has her own mailbox**

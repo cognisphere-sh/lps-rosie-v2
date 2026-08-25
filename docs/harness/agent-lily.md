@@ -117,20 +117,27 @@ nova to refuse a DB/workflow requirement and send it back to Bhoumik's queue).
 
 ## Plugins
 
-- **telegram** — her only human channel. `config.json` sets
-  `pollTimeoutSec: 25` and an empty `allowedChatIds` (**allow all** — fill in
-  her group's chat id once the group exists). Needs
-  `secrets.json → lily.telegram.TELEGRAM_BOT_TOKEN`; without it the plugin
-  logs `TELEGRAM_BOT_TOKEN not set; telegram plugin disabled` and the agent
-  still starts. Outbound via `scripts/telegram/telegram-cli send-message`.
+- **telegram** — her only human channel. Bot `lps_lily_bot`, group
+  `-1004474937526`, which `config.json` pins as her single `allowedChatIds`
+  entry (`pollTimeoutSec: 25`). `state/routes.json` maps that chat to thread
+  **`main`**, the same rule daisy, rosie and nova each carry for their own
+  group — **without it telegram messages land on `default`**, not `main`,
+  which is where her first few did before the rule was added. Rules are
+  re-read on every poll batch, so adding one takes effect without a restart.
+  Secret `lily.telegram.TELEGRAM_BOT_TOKEN`; without it the plugin logs
+  `TELEGRAM_BOT_TOKEN not set; telegram plugin disabled` and the agent still
+  starts. Outbound via `scripts/telegram/telegram-cli send-message`.
 - **admin**, **scheduler**, **agent-messaging** — the core plugins,
   auto-installed on every agent. agent-messaging carries the handoffs both
   ways.
 
-**No `webchat`** (she is absent from the app's chat panel — the panel's agent
-list in `app/components/workspace/` is the three webchat agents and was not
-changed) and **no `gws`** (no mailbox) and **no `artifacts`** — by Chris's
-instruction.
+**No `webchat`** and **no `gws`** (no mailbox) and **no `artifacts`** — by
+Chris's instruction. Having no webchat is why the app carries her as
+`reachOn: 'Telegram'` in `app/lib/agents.ts`: she is listed on **Know your
+Agents** and gets her own **settings tab** (model, schedules, run state — all
+harness config), while the chat rail and selector show her disabled as "On
+Telegram" and `/api/chat/lily/*` answers 404. See
+[`../app/README.md`](../app/README.md) § *Agent chat*.
 
 ## Scripts & extensions
 
@@ -162,13 +169,17 @@ works — and changes nothing outside her own dir.
 
 ## Operator setup
 
-Two things are outstanding until the Telegram bot exists:
+Done, 2026-08-25: bot token set, group `-1004474937526` pinned in
+`allowedChatIds`, and the `main` route added with
 
-1. Set `lily.telegram.TELEGRAM_BOT_TOKEN` in `harness/.secrets/secrets.json`
-   (or on Lily's Settings tab in the console).
-2. Put the group's chat id in
-   `harness/agents/lily/plugins/telegram/config.json` → `allowedChatIds`, so
-   the bot only answers that group.
+```sh
+bash scripts/telegram/routes add --name main --thread-id main --chat '-1004474937526'
+```
 
-Then restart the harness (`sudo ./scripts/server.sh restart`). Hand edits to
-harness data need a restart; console edits hot-reload.
+Note the ordering trap this deployment hit: the token was pasted before the
+route existed, so the group's first messages opened a `sessions/default/`
+thread. `threadIdStrategy: single` does **not** yield `main` on its own — the
+route is what does, which is why all four agents carry one.
+
+Hand edits to harness data need a restart (`sudo ./scripts/server.sh restart`);
+console edits and telegram routes hot-reload.

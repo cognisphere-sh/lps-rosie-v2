@@ -1,9 +1,9 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier about their lifecycle, and recording it. Covers the split with rosie (lifecycle is yours, orders are hers), the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v6.0.0)
+description: Everything about talking to a supplier about their lifecycle, and recording it. Covers the split with rosie (lifecycle is yours, orders are hers), the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v6.1.0)
 metadata:
   author: lps
-  version: "6.0.0"
+  version: "6.1.0"
 ---
 
 # Supplier communications
@@ -121,8 +121,10 @@ back via agent-messaging so Chris can be told.
 
 1. **Reread the most recent messages in the Gmail thread** so the reply fits the
    latest sender and conversation state.
-2. **Draft first, send second.** Prepare the draft and get Chris's or Bhoumik's
-   review and approval **before sending any email**.
+2. **Draft first, send second.** Put the draft to Chris **on this thread's own
+   web panel** (`webchat-cli send`, never `--portal`) and wait for his
+   approval of that exact text. This is a minor approval and it belongs here —
+   not on `main`, which is for urgent escalations over Telegram only.
 3. Send **as Chris** (not Daisy), with Chris's approved signature. When including
    the approved transparent LPS logo, render it **250px wide** so it roughly
    matches the width of "Chris Runyon".
@@ -130,7 +132,8 @@ back via agent-messaging so Chris can be told.
 5. **Reply in the same Gmail thread** — never start a new thread for an existing
    topic.
 6. Record the contact (below) in the same task.
-7. Report what was sent back to `main` so Chris can be told.
+7. The quoted send on this thread's panel (step 6) is the report — `main`
+   hears nothing about a routine exchange.
 
 Sending as Chris rather than Daisy is Chris's instruction (2026-07-14); the
 250px logo width is his correction of 2026-07-25.
