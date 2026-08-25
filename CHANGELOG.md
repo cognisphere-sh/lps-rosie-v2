@@ -15,6 +15,160 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-25
+
+### Added
+
+- **Every customer and supplier opens its agent conversations from wherever it
+  is listed** — the profile header, the table row and the mobile card. A
+  customer carries a **Rosie** button: her `customers.rosie_thread_id` thread,
+  the one conversation with that customer across all their job requests. A
+  supplier carries **Rosie** and **Daisy**: the same `supplier-<slug>` string
+  under two agents, so the two buttons open two distinct threads — Rosie for
+  order coordination, Daisy for onboarding and availability. Both ids belong to
+  the *company* and ride on every location row, so a farm page opens the same
+  conversations its company does; on the Suppliers list the pair sits on the
+  company row only, since a nested farm row would just reopen the same two.
+  On desktop the buttons live in each table's sticky actions column at the
+  right edge (Suppliers' widened to hold them beside its hide button); on
+  mobile they sit at the card's bottom-right, outside the card's own button
+  rather than nested inside it. The control is the agent's own avatar
+  (`agent-chat-button.tsx`), the same face the panel and the rail use.
+  A customer whose thread rosie has not minted yet gets the id her
+  `customer-coordination` skill would mint (`customer-<slug of name>`,
+  `lib/customers.ts`) — the same fallback the chat panel's thread picker
+  already used, now shared by both. `supplierAgentThreads()` (`lib/agents.ts`)
+  is the supplier half: it reads the two columns off a row and offers nothing
+  where they are unset, which is what keeps the buttons off the
+  search-projected farm rows.
+
+- **Rosie has the `gws` (Gmail) plugin enabled, in passive mode.**
+  `harness/agents/rosie/plugins/gws/config.json` is `{ "pollIntervalSec": -1 }`
+  — the poll loop only re-reads its settings, never touches Gmail, so no
+  inbound-mail notifications fire and nothing is marked read. The dir is what
+  makes her a gws agent in the console and seeds her `plugin-gws.md` prompt
+  fragment, `scripts/gws/` and the `read-email`/`search-email`/`route-email`
+  skills. She has no mailbox yet, so the plugin reports `failed` until someone
+  signs her in with Google from her Settings tab (the agent keeps running —
+  per-plugin failures don't sink it). Enable procedure and the note that the
+  once-per-start `gws_settings` message is not suppressed: `docs/harness/agent-rosie.md`.
+
+- **Each agent's chat colour and wallpaper moved onto its own Settings tab, and
+  wallpaper is now per agent.** Appearance used to be one Global block setting
+  all three agents' bubble colours side by side over a single shared wallpaper.
+  Colour and wallpaper are properties of a conversation, so they now sit on that
+  agent's tab beside its model, Google account and schedules, over a preview of
+  its own bubbles — Daisy can run the desert line art while Rosie runs Desert
+  Night and Nova runs none. Global keeps the app header/accent palette and
+  **Reset all**, which still clears both halves. `ChatAppearance.wallpaper`
+  became `wallpapers: Record<ChatAgentId, ChatWallpaperId>`; both older shapes
+  (`wallpaper: true` and `wallpaper: <id>`) migrate by becoming *every* agent's
+  wallpaper, so no existing device's chats changed appearance. The supplier
+  portal follows Rosie's wallpaper, as it already followed Rosie's colour.
+
+- **`/settings` is now section-wise, and configures the harness.** The page
+  was appearance-only; it is now tabbed — **Global** plus one tab per agent —
+  and everything new on it is harness state the app owns no copy of. Global
+  holds the harness-level LLM provider (OpenAI Codex only: a browser-driven
+  OAuth sign-in that polls the harness's server-side flow, plus the
+  enabled-model allowlist, custom ids included) with Appearance below it. Each
+  agent tab holds its model id + thinking level (written back into `agent.json`
+  whole, so nothing else in the file is lost), its Google Workspace sign-in via
+  the gws plugin, and a table of its scheduler `schedules.json` — cron, thread,
+  the message the agent receives, when it next fires, and pause/resume and
+  delete controls. Every write re-reads the file first, since the agent writes
+  it too, and delete confirms first. The next-run column is computed with
+  `croner` (added to `app/`, pinned to the `^9` the harness itself uses) against
+  the harness timezone, so it agrees with what the plugin will actually do.
+  Reaching the harness adds `app/api/harness/[...path]`, which forwards the user's own `pi_sid` (app users
+  are harness users) to the harness's authenticated API behind an allowlist —
+  the allowlist is the security boundary, and it pins `/fs/file` to the one
+  scheduler state file rather than the whole agent directory. Google's redirect
+  needs `/api/gws/oauth/*` rewritten straight through, so
+  `https://<domain>/api/gws/oauth/callback` must be registered as an authorized
+  redirect URI on the shared Google OAuth client before an agent can sign in
+  from the app.
+
+- **The availability-request drawer is now editable.** Opening `AR-<id>` from a
+  job-request card or an agent's `[…](ar:<id>)` button used to be read-only;
+  the admin can now answer its lines — the status picker, the per-status answer
+  pop-up and the per-cell quantity/price/notes saves the supplier portal
+  already had — and move the request's own status from its pill. Suppliers
+  answer by phone and email as often as through the portal, and until now those
+  answers had nowhere to land. `PATCH /api/availability-requests/:id` takes
+  `{itemId, changes}` alongside `{status}`, going through the same
+  `updateARItem` as the portal route without its supplier scope; a closed
+  request still refuses writes, so the drawer draws it read-only and points at
+  the pill to reopen it. `ARStatusPill` gained an optional `onChange` that
+  makes it a picker — the supplier profile's copy passes none and is unchanged.
+  A **Save** button at the drawer's foot mirrors the portal's: the answers are
+  already written line by line, so what it does is mark the whole request
+  Answered and date it. It deliberately does not wake rosie the way the
+  portal's Save does — `availability_submitted` says a supplier answered in
+  their portal, and the admin who typed the answers here is the one who would
+  act on it. `setAvailabilityRequestStatus` now maintains `submitted_at`
+  alongside the status (stamped on `submitted`, cleared on `new`, untouched on
+  `closed`), so the header's Submitted date is right however the status moved.
+
+### Changed
+
+- **The desktop nav rail starts collapsed and stays where you put it.** It
+  opened at 196px on every page load and, because each page renders its own
+  `Shell`, sprang back open every time you used it to navigate — so collapsing
+  it never stuck. The width is now a stored per-device choice (`lps.nav.open`),
+  changed only by the rail's own chevron, and an unset preference means
+  collapsed. Entering Full chat still force-collapses the rail without saving
+  that, since an automatic collapse is not a preference.
+
+- **A job request's links moved out of its sourcing notes and onto its card.**
+  The request-level sourcing-note block and every line's sourcing-note popover
+  no longer render supplier chips. The links live on the card instead, in the
+  empty half of the customer line so the card gains no row: a **Chat** chip on
+  the customer's own name, and opposite it **one segmented pill per engaged
+  supplier** — the supplier mark and name written once, then a segment for
+  **every** availability request the job has with them (previously only the
+  newest per supplier was linked at all) and one for their conversation.
+  Suppliers are ordered most recently engaged first. A job can have several
+  suppliers and several requests with each, so the supplier is the unit rather
+  than the request. A note is free text, so any link in it had to be built from
+  the job's engagement anyway — and that engagement is a fact about the job, not
+  about a sentence in a note.
+  `SupplierLink.availabilityRequestId` became `availabilityRequestIds` to carry
+  the full list. Request cards on a customer's page share the notes component,
+  so they lose the sourcing-note chips too; their head has no links strip.
+
+### Removed
+
+- **`customers.communication_notes` is dropped** (migration 0073), and with it
+  the customer page's append-only **Contact log**. The customer side now works
+  the way the supplier side has since migrations 0063/0066: what was *said to*
+  a customer lives in their Rosie thread, which the page's new header button
+  opens, and `customers.notes` keeps its half — what is durably *true about*
+  them, edited in place. The column was NULL on every row, so nothing was
+  archived and no backup table was made.
+  The whole append-a-stamped-entry path went with it: `appendNote` and the
+  `APPENDABLE` whitelist, `POST /api/rows`, the `AppendNote` control and
+  `noteStamp`. `lib/notes.ts` keeps the reader half (`parseEntries` /
+  `shortStamp`), which the job-request note columns still use. Rosie's
+  `customer-coordination` skill is 2.0.0 for it — a contact is posted to the
+  thread's own web chat now, which is why that chat has to stay complete —
+  with `job-requests` and `quote-generation` following where they referenced
+  the log.
+
+### Fixed
+
+- **Back out of a conversation opened from a card returns to the card, not to
+  the Agents list.** Tapping the Rosie or Daisy button on a customer or
+  supplier — in a table row, on a mobile card or in a page header — used to
+  push *two* mobile history entries, the Agents channel list and the
+  conversation over it, so leaving the conversation landed on a list the reader
+  had never opened and had to leave again to get back to what they were doing.
+  It pushes one entry now. The view records that it was opened from a card
+  (`MobileView.from`), which also makes its Back control read **Back** instead
+  of **Back to Agents**, and makes the bottom bar's **Agents** tab open the
+  channel list from there rather than walking out of the conversation — that
+  tab is the one place the list is still the right destination.
+
 ## 2026-08-24
 
 ### Changed

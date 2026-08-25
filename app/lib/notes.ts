@@ -1,21 +1,16 @@
 /**
- * The deployment's append-only note convention, in one place.
+ * The deployment's stamped-entry note convention, in one place.
  *
- * Two columns are logs rather than fields — `customers.communication_notes`
- * and `suppliers.communication_notes`. Both follow the same shape, written by
- * the agents' skills and by this app: entries separated by a blank line, each
- * stamped `[YYYY-MM-DD HH:MM America/Chicago]`. (The job-request note columns
- * were this kind of thing until 2026-08-18; `sourcing_notes` is free text now.)
- *
- * Reader and writer live together deliberately. They are two halves of one
- * format, and the only way the parser and the stamper can disagree is if
- * someone changes one without the other.
+ * Text written by the agents' skills as entries separated by a blank line,
+ * each stamped `[YYYY-MM-DD HH:MM America/Chicago]` — `job_requests`'
+ * `customer_notes` / `external_notes` today. The two append-only contact logs
+ * this convention was built for are both gone: `suppliers.communication_notes`
+ * was frozen by migration 0063, `customers.communication_notes` dropped by
+ * 0073, and each side's agent thread carries that history now. Nothing the app
+ * writes is stamped any more, so only the reader half is left.
  */
 
-/** The timezone every stamped entry in this deployment is written in. */
-export const NOTE_ZONE = 'America/Chicago'
-
-/** One entry of an append-only column. */
+/** One entry of a stamped note column. */
 export interface NoteEntry {
   /** `2026-08-18 09:41 America/Chicago`, or null for text predating the convention. */
   stamp: string | null
@@ -23,7 +18,7 @@ export interface NoteEntry {
 }
 
 /**
- * Split an append-only column into its entries, oldest first.
+ * Split a stamped note column into its entries, oldest first.
  *
  * Text with no stamp — written before the convention, or a customer's verbatim
  * message — stays one unstamped entry rather than being reshaped into
@@ -39,17 +34,6 @@ export function parseEntries(text: string | null): NoteEntry[] {
       const m = chunk.match(/^\[([^\]]+)\]\s*([\s\S]*)$/)
       return m ? { stamp: m[1], text: m[2].trim() } : { stamp: null, text: chunk }
     })
-}
-
-/** `[2026-08-18 09:41 America/Chicago]` — the stamp `parseEntries` reads back. */
-export function noteStamp(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: NOTE_ZONE,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(now)
-  const at = (type: string) => parts.find((p) => p.type === type)?.value ?? '00'
-  return `[${at('year')}-${at('month')}-${at('day')} ${at('hour')}:${at('minute')} ${NOTE_ZONE}]`
 }
 
 /**

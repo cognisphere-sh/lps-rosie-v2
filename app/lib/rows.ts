@@ -3,7 +3,6 @@
 // not show as a column.
 
 import type { SupplierLink } from '@/lib/availability'
-import type { NoteEntry } from '@/lib/notes'
 
 export type CellValue = string | number | boolean | string[] | null
 
@@ -349,8 +348,11 @@ export interface CustomerRow {
   address: JobAddress
   /** Durable facts, edited in place. */
   notes: string | null
-  /** `communication_notes` parsed into its stamped entries, oldest first. */
-  comms: NoteEntry[]
+  /**
+   * `customers.rosie_thread_id` — their conversation with Rosie, when minted.
+   * NULL until she first contacts them; `customerThreadId` says what it will be.
+   */
+  rosieThreadId: string | null
   /** Their active requests, newest first. */
   requests: CustomerRequest[]
   /** Requests not yet closed or archived — what "open" means on the card. */

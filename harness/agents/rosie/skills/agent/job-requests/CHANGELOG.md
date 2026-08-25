@@ -1,5 +1,11 @@
 # job-requests — changelog
 
+## 3.2.0
+
+2026-08-25 (Bhoumik). Migration 0073 dropped `customers.communication_notes`:
+§2's append-only counter-example and §7's reference to the log are gone — the
+customer's own thread carries the contact history (`customer-coordination`).
+
 ## 3.1.0
 
 2026-08-24 (Chris, JR-9). Added the cultivar/color pricing convention: for

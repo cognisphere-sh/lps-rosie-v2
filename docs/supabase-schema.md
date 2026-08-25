@@ -147,8 +147,9 @@ append-only prose log. Migration 0063 migrated its entries into the
 (2026-08-23) dropped that transcript again (rows snapshotted to
 `supplier_messages_backup_20260823`). The column still holds the pre-0063 text
 as an archive, and **nothing may write it again**.
-(`customers.communication_notes` is untouched — the customer side keeps its
-log convention.)
+(The customer side followed on 2026-08-25: migration 0073 dropped
+`customers.communication_notes` outright — it was empty — and rosie's customer
+thread carries that history now.)
 
 Live category distribution (post-0067 reclassification, 2026-08-23): Grower
 810, Wholesale Supplier 400, Retail 79, Broker/Platform 6, NULL 100. The NULLs
@@ -740,9 +741,8 @@ split can be introduced by migration if multi-contact customers ever appear.
 | `company` | text | yes | |
 | `email` / `phone` | text | yes | Inline, unlike suppliers |
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
-| `notes` | text | yes | **Durable facts**, edited in place — same split as suppliers |
-| `communication_notes` | text | yes | **Append-only contact log**, timestamped entries — same convention as `suppliers.communication_notes` |
-| `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for this customer — `customer-<slug of name>` (`-<id>` on a collision with a different customer), minted by rosie on first contact. One conversation per customer across all their job requests. Added 2026-08-23 (migration 0068) |
+| `notes` | text | yes | **Durable facts**, edited in place — same split as suppliers. There is no contact-log column beside it: `communication_notes` was **dropped 2026-08-25** by migration 0073 (empty on every row), the same move the supplier side made in 0063 — what was *said* lives in the rosie thread below |
+| `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for this customer — `customer-<slug of name>` (`-<id>` on a collision with a different customer), minted by rosie on first contact. One conversation per customer across all their job requests, and **the contact history** since 0073. Added 2026-08-23 (migration 0068) |
 | `is_active` | boolean | no, default true | Soft delete. No deactivation cascade — retiring a customer is a deliberate act, and their requests keep their history |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 

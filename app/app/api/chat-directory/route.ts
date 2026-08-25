@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { customerThreadId } from '@/lib/customers'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -9,9 +10,8 @@ import { supabase } from '@/lib/supabase'
  * supplier, every active customer — whether or not a web conversation exists
  * yet (the panel merges in the webchat plugin's transcript list for last
  * activity). Thread ids follow the restructure's conventions: `jr-<id>`,
- * `suppliers.rosie_thread_id`, `customers.rosie_thread_id` (computed
- * `customer-<slug>` when a named customer hasn't been minted one yet — the
- * same base rule rosie's `customer-coordination` skill uses).
+ * `suppliers.rosie_thread_id`, `customers.rosie_thread_id` (`customerThreadId`
+ * computes the latter when a named customer hasn't been minted one yet).
  */
 
 export interface ChatDirectoryEntry {
@@ -19,12 +19,6 @@ export interface ChatDirectoryEntry {
   title: string
   subtitle: string | null
 }
-
-const slug = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
 
 export async function GET() {
   try {
@@ -112,7 +106,7 @@ export async function GET() {
       customers: customers
         .filter((c) => c.rosie_thread_id || c.name)
         .map((c) => ({
-          threadId: c.rosie_thread_id ?? `customer-${slug(c.name)}`,
+          threadId: customerThreadId({ name: c.name, rosieThreadId: c.rosie_thread_id }),
           title: c.company || c.name,
           subtitle: c.company && c.name ? c.name : null,
         })),

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AgentChatButton } from '@/components/workspace/agent-chat-button'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import {
   ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
@@ -16,6 +17,7 @@ import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/searc
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { FilterControl, LpsTag, badgeFor } from '@/components/workspace/table-parts'
 import { Badge } from '@/components/ui/badge'
+import { supplierAgentThreads } from '@/lib/agents'
 import type { ARDetail, ARSummary } from '@/lib/availability'
 import {
   AVAILABILITY_SOURCE_TYPES, PLANT_COLS, SUPPLIER_CATEGORIES,
@@ -548,8 +550,7 @@ export default function SupplierProfilePage() {
     ) {
       setTab(requested)
     }
-    // `?tab=requests&ar=<id>` deep-links one availability request — where a
-    // sourcing-note supplier link lands.
+    // `?tab=requests&ar=<id>` deep-links one availability request.
     const ar = Number.parseInt(url.searchParams.get('ar') ?? '', 10)
     if (Number.isInteger(ar)) setOpenArId(ar)
   }, [])
@@ -996,6 +997,12 @@ export default function SupplierProfilePage() {
       ? `https://www.google.com/maps?q=${subject.row.ref.latitude},${subject.row.ref.longitude}`
       : null
 
+  // The threads are the *company's* — one per head branch, copied onto every
+  // location row — so they are named after the company however the page was
+  // opened.
+  const companyName = profile?.company.name ?? String(values.name ?? 'this supplier')
+  const agentThreads = supplierAgentThreads(values)
+
   // Read from the location rows, not the search row's primary_contact_* values:
   // the Contacts tab can promote someone else, and this has to follow. Fall
   // back through the list so a supplier whose primary has only an email still
@@ -1091,17 +1098,35 @@ export default function SupplierProfilePage() {
             Cancel
           </Button>
         </>
-      ) : !isMobile ? (
-        <Button
-          variant="outline"
-          size="icon-sm"
-          onClick={() => startFieldEdit(subject.row)}
-          aria-label="Edit supplier"
-          title="Edit supplier"
-        >
-          <PencilIcon size={15} />
-        </Button>
-      ) : undefined) : undefined}
+      ) : (
+        <>
+          {/* Both sides of this supplier, one avatar each: Rosie runs the
+              order coordination, Daisy the onboarding and availability. The
+              two threads share a name and differ only by agent — the face is
+              what tells them apart. The company's ids ride on every location
+              row, so a farm page opens the same two conversations. */}
+          {agentThreads.map(({ agentId, threadId }) => (
+            <AgentChatButton
+              key={agentId}
+              agentId={agentId}
+              threadId={threadId}
+              label={companyName}
+              subject={companyName}
+            />
+          ))}
+          {!isMobile && (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={() => startFieldEdit(subject.row)}
+              aria-label="Edit supplier"
+              title="Edit supplier"
+            >
+              <PencilIcon size={15} />
+            </Button>
+          )}
+        </>
+      )) : undefined}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {/* Compact supplier profile: collapsed by default on mobile. */}

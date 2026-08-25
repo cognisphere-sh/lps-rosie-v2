@@ -1,5 +1,13 @@
 # customer-coordination — changelog
 
+## 2.0.0
+
+2026-08-25 (Bhoumik). `customers.communication_notes` is **gone** (migration
+0073) — the same move the supplier side made in 0063. This thread's own web
+chat is the contact record now: every contact is posted there instead of
+appended to a column, and the app's customer page opens the thread from a
+Rosie button. `customers.notes` is unchanged.
+
 ## 1.1.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

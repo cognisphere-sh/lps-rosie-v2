@@ -2,9 +2,9 @@
 
 // The click-to-edit primitives, shared by every page that writes a cell.
 //
-// They were the Job Requests page's until Customers needed the same three
-// controls over the same endpoint; nothing here knows which table it is
-// editing, because the server decides that from its whitelist.
+// They were the Job Requests page's until Customers needed the same controls
+// over the same endpoint; nothing here knows which table it is editing,
+// because the server decides that from its whitelist.
 
 import { useRef, useState } from 'react'
 
@@ -20,22 +20,6 @@ export async function patchRow(table: string, id: number, column: string, value:
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ table, id, column, value }),
-  })
-  const body = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok) throw new Error(body.error ?? 'Could not save')
-}
-
-/**
- * Add one stamped entry to an append-only note column.
- *
- * The other verb on the same endpoint. `communication_notes` is a log, so the app
- * may add to it but never replace it — the server enforces that, this only asks.
- */
-export async function appendEntry(table: string, id: number, column: string, text: string): Promise<void> {
-  const res = await fetch('/api/rows', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ table, id, column, text }),
   })
   const body = (await res.json().catch(() => ({}))) as { error?: string }
   if (!res.ok) throw new Error(body.error ?? 'Could not save')
@@ -225,62 +209,3 @@ export function EditableTextarea({
     </button>
   )
 }
-
-/**
- * Write one new entry into an append-only log.
- *
- * Deliberately not an editor: `communication_notes` is the contact log, so the
- * only thing the app may do to it is add. The stamp is the server's — the
- * browser's clock is not the deployment's timezone.
- */
-export function AppendNote({
-  table,
-  id,
-  column,
-  onSaved,
-  placeholder,
-}: EditProps & { placeholder: string }) {
-  const toast = useToast()
-  const [draft, setDraft] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const add = async () => {
-    const text = draft.trim()
-    if (!text) return
-    setBusy(true)
-    try {
-      await appendEntry(table, id, column, text)
-      setDraft('')
-      onSaved()
-    } catch (e) {
-      toast((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <textarea
-        rows={2}
-        value={draft}
-        placeholder={placeholder}
-        onChange={(e) => setDraft(e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full resize-y rounded-lg border border-border bg-card p-2 text-[12.5px] text-foreground outline-none focus:border-primary"
-      />
-      <button
-        type="button"
-        disabled={busy || !draft.trim()}
-        onClick={(e) => {
-          e.stopPropagation()
-          void add()
-        }}
-        className="cursor-pointer self-start rounded-full border border-border bg-card px-3 py-1 text-[11.5px] font-semibold text-primary disabled:cursor-default disabled:opacity-40"
-      >
-        {busy ? 'Adding…' : 'Add entry'}
-      </button>
-    </div>
-  )
-}
-

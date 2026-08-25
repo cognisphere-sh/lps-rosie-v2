@@ -31,7 +31,7 @@ Comparison:
 | `devAgent` | — | — | **true** |
 | `maxConcurrentSlots` | 10 | 10 | — |
 | `secretsSchema` | Supabase (4 keys) | Supabase (4 keys, same values) | — |
-| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging); **gws pending** a mailbox | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
+| Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, **gws** (passive — no polling, awaiting sign-in), scheduler, supplier-events, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) |
 | Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `files/`: SCHEMA (symlink), templates; `memory.md` | `memory.md` only |
 | Migrations | 0001–0055 (the deployment's record; 0055's tables are rosie-owned) | — (recorded in daisy's dir) | — |
 | Skills | 7 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill |

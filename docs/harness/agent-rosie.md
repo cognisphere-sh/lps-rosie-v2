@@ -46,12 +46,13 @@ skills:
    non-Partner email is drafted, Chris-approved, and sent by Chris or by
    daisy's supplier thread from the shared mailbox (rosie has none).
 2. **Never messages a customer unbidden** — draft first, Chris approves the
-   specific draft, Chris sends it (no mailbox). Every contact logged in
-   `customers.communication_notes`. Runs on the customer's thread.
+   specific draft, Chris sends it (no mailbox). Runs on the customer's thread,
+   whose web chat is the contact record (`customers.communication_notes` was
+   dropped 2026-08-25, migration 0073).
 3. **Read-before-edit.** Her tables are edited concurrently by app users:
    `SET app.actor TO 'rosie'`, re-SELECT immediately before UPDATE, guarded
-   transitions, append-only contact log, last-5 `job_request_changelog`
-   entries loaded with every request/item acted on.
+   transitions, last-5 `job_request_changelog` entries loaded with every
+   request/item acted on.
 4. **A listing is not availability** (Chris, 2026-08-19, after JR-5). A
    catalogue hit fills `unit_price` and a `sourcing_notes` line and leaves the
    item **`pending`**; only the supplier's own answer (through their thread —
@@ -76,22 +77,27 @@ Enabled now (core `admin` / `scheduler` / `agent-messaging` need no dirs):
 | `webchat` | `{ "threadId": "main" }` | **Live** (2026-08-18; multi-thread since 2026-08-23). The app's chat panel reaches her at `/api/chat/rosie/*` — default thread `main` (shared with Telegram), and the panel's thread picker opens any of her threads (`jr-<id>`, supplier, customer, `router`). Also carries the secret `WEBCHAT_APP_SECRET` for the supplier portal's chat (`--portal` replies are the only messages the portal shows). See [plugin-webchat.md](plugin-webchat.md) |
 | `telegram` | `{ "pollTimeoutSec": 25, "allowedChatIds": ["-1004491410854"] }` | **Live** — bot `lps_rosie_bot`, token in secrets as `rosie.telegram.TELEGRAM_BOT_TOKEN`. `state/routes.json` maps that chat to `main` |
 | `supplier-events` | `{}` | **Live** (2026-08-23) — the app's availability-save webhook, delivered to the supplier's `rosie_thread_id` thread (fallback `router`). See [plugin-supplier-events.md](plugin-supplier-events.md) |
+| `gws` | `{ "pollIntervalSec": -1 }` | **Passive** (2026-08-25) — enabled with polling off, so no inbound-mail notifications fire and the mailbox stays unread. Everything else is the plugin default. Not usable until she signs in with Google (see below) |
 
-### Pending: email (gws)
+### Email (gws) — enabled, passive, not yet signed in
 
-**Not enabled** — the gws plugin hard-fails the agent start without its
-credential, so `plugins/gws/` stays absent until a mailbox exists.
-When rosie gets her own address (an open business decision — daisy already
-reads `chris.r@localplantsupply.com`), the enable procedure is:
+Enabled 2026-08-25 with `pollIntervalSec: -1` (**passive**: the poll loop only
+re-reads settings, never touches Gmail, so no notifications fire and nothing is
+marked read). Rosie has no mailbox of her own yet — the credential is missing,
+so the plugin reports `failed` on start; the agent itself keeps running
+(per-plugin failures don't sink an agent) and the plugin's seed — the
+`plugin-gws.md` prompt fragment, `scripts/gws/` and the `read-email` /
+`search-email` / `route-email` skills — is copied in regardless, so she can see
+the tooling before it works.
 
-1. `mkdir harness/agents/rosie/plugins/gws` and write `config.json` (daisy's
-   shape) — the dir is what makes her a gws agent in the console. Restart;
-   the plugin fails to start until step 3, which is expected.
-2. If she needs Calendar/Drive as well as mail, set `oauthScopes` in that
-   `config.json` *before* signing in — `gmail.modify` (Google's read/write
-   Gmail tier, which the poll loop needs) is always requested, so no Gmail
-   scope choice is offered.
-3. Sign in as the mailbox: console → **rosie → Settings tab → gws plugin
+To finish the enable when she gets an address (daisy already reads
+`chris.r@localplantsupply.com`):
+
+1. If she needs Calendar/Drive as well as mail, set `oauthScopes` in
+   `plugins/gws/config.json` *before* signing in — `gmail.modify` (Google's
+   read/write Gmail tier, which the poll loop needs) is always requested, so no
+   Gmail scope choice is offered. Changing it later means signing in again.
+2. Sign in as the mailbox: console → **rosie → Settings tab → gws plugin
    card → Sign in with Google** (since harness 0.11.0 this lives on the
    agent, not the app-level Settings page, which now only holds the shared
    OAuth client id/secret already saved for daisy). The callback writes
@@ -99,13 +105,22 @@ reads `chris.r@localplantsupply.com`), the enable procedure is:
    `rosie.gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` at it, and soft-reloads
    her — no hand-edit of `secrets.json`, and no `gws auth login`/`export`
    (that path was removed in 0.11.0).
-4. Confirm the plugin is `running` and update this file and the README
-   comparison table. Her `router` thread is the natural catch-all target,
-   mirroring daisy's routing setup.
+3. Confirm the plugin is `running`, then decide notifications: it stays passive
+   until someone sets a real `pollIntervalSec` — operator-side in
+   `config.json`, or by rosie herself via `scripts/gws/settings set` (an
+   overlay at `plugins/gws/state/settings.json` that wins over the config and
+   is picked up within a minute). Her `router` thread is the natural catch-all
+   target, mirroring daisy's routing setup. Update this file and the README
+   comparison table.
 
-Until then, customer email ends with Chris sending the approved text himself
-(`customer-coordination`), and non-Partner supplier outreach goes through
-Chris or daisy's mailbox (`supplier-coordination` §4).
+Note: passive suppresses inbound-mail notifications only. On every harness
+start the plugin still posts one `gws_settings` message to her `main` channel
+with the effective settings — that is how she re-asserts her preferences, and
+it can't be turned off.
+
+Until she is signed in, customer email ends with Chris sending the approved text
+himself (`customer-coordination`), and non-Partner supplier outreach goes
+through Chris or daisy's mailbox (`supplier-coordination` §4).
 
 ## Knowledge (`knowledge/`)
 
@@ -144,7 +159,7 @@ deliberately not repeated here, where it would only go stale.
 |---|---|
 | `job-requests` | The core operating procedure: intake as a reserved id handed from `main` to the `jr-<id>` thread, which writes the customer, the request and the items and then runs the sourcing round, statuses and quote coordination; concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends); the three-notes split and the customer-visibility rule; the Austin-Plant-Supply-first pricing and sourcing ladder; availability asks to each supplier's own thread (§5.2) and the confirmation gate (§5.3) — a catalogue hit prices a line and leaves it `pending`; the four-word item status vocabulary and the request lifecycle; customer contact handed to the customer's thread (§7) |
 | `supplier-coordination` | Runs on a supplier's `rosie_thread_id` thread — all order-side coordination across jobs: the LPS Partner split, creating availability requests (every line by default, snapshotting, price prefill), per-supplier preferences remembered in `suppliers.notes` (share customer details first among them; Chris asked only when nothing is remembered), `availability_submitted` handling with relay to the jr thread, gated outreach for non-Partners |
-| `customer-coordination` | Runs on a customer's `rosie_thread_id` thread (minted on first contact) — the draft → Chris-approves → Chris-sends flow, the append-only `communication_notes` log, durable preferences in `customers.notes`, relaying answers to the owning jr thread |
+| `customer-coordination` | Runs on a customer's `rosie_thread_id` thread (minted on first contact) — the draft → Chris-approves → Chris-sends flow, the contact record on that thread's own web chat (migration 0073 dropped the `communication_notes` column), durable preferences in `customers.notes`, relaying answers to the owning jr thread |
 | `message-routing` | Runs on the `router` thread — identify the owning `jr-<id>` / supplier / customer thread for unmapped messages, mint missing `rosie_thread_id` values, forward pointers, escalate to `main` only what needs a human |
 | `plant-and-supplier-search` | Adapted from daisy's — same RPC guidance, plus the read-only framing (findings go to item `sourcing_notes`; data problems get reported to daisy, not fixed; a hit is a listing, never an availability) and the sourcing look-up scoped to Austin Plant Supply |
 | `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule, agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate. A filled `unit_price` is not permission to quote |

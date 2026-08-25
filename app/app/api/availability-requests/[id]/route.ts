@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 
-import { availabilityRequest, setAvailabilityRequestStatus } from '@/lib/availability-queries'
+import {
+  availabilityRequest,
+  setAvailabilityRequestStatus,
+  updateARItem,
+} from '@/lib/availability-queries'
 
 /** One availability request, whole — the admin view (no disclosure filter). */
 export async function GET(
@@ -21,7 +25,11 @@ export async function GET(
   }
 }
 
-/** The one admin edit on a request: its status (usually → closed). */
+/**
+ * The admin edits: the request's own status (`{status}`, usually → `closed`),
+ * or one line's answer (`{itemId, changes}`) — the same columns the portal
+ * writes, entered on the supplier's behalf when they answer by phone or email.
+ */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -32,9 +40,20 @@ export async function PATCH(
     return NextResponse.json({ error: 'bad id' }, { status: 400 })
   }
   try {
-    const body = (await req.json()) as { status?: string }
+    const body = (await req.json()) as {
+      status?: string
+      itemId?: number
+      changes?: Record<string, string>
+    }
+    if (body.changes) {
+      if (!Number.isInteger(body.itemId)) {
+        return NextResponse.json({ error: 'itemId is required' }, { status: 400 })
+      }
+      await updateARItem(id, body.itemId!, body.changes)
+      return NextResponse.json({ ok: true })
+    }
     if (!body.status) {
-      return NextResponse.json({ error: 'status is required' }, { status: 400 })
+      return NextResponse.json({ error: 'status or changes is required' }, { status: 400 })
     }
     await setAvailabilityRequestStatus(id, body.status)
     return NextResponse.json({ ok: true })

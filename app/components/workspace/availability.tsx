@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 
 import {
   AR_RESPONSE_OPTIONS,
+  AR_STATUSES,
   arLineTotal,
   arResponseLabel,
   arResponseTone,
@@ -28,15 +29,40 @@ const LINE_COLUMNS =
 const GRID_MIN = 1070
 
 
-/** The request's lifecycle pill — New / Submitted / Closed. */
-export function ARStatusPill({ status }: { status: string }) {
+/**
+ * The request's lifecycle pill — New / Submitted / Closed. With `onChange` it
+ * is also the picker for it, the same native-select-under-a-pill the line
+ * answers use; without it, a read-only pill.
+ */
+export function ARStatusPill({
+  status,
+  onChange,
+}: {
+  status: string
+  onChange?: (next: string) => void
+}) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+      className={cn(
+        'relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold',
+        onChange && 'cursor-pointer',
+      )}
       style={toneStyle(arStatusTone(status))}
     >
       <span className="size-1.5 rounded-full" style={{ background: toneDot(arStatusTone(status)) }} />
       {arStatusLabel(status)}
+      {onChange && (
+        <select
+          aria-label="Request status"
+          value={status}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 cursor-pointer opacity-0"
+        >
+          {AR_STATUSES.map((s) => (
+            <option key={s} value={s}>{arStatusLabel(s)}</option>
+          ))}
+        </select>
+      )}
     </span>
   )
 }

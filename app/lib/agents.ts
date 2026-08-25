@@ -65,3 +65,23 @@ export const AGENTS: Agent[] = [
 export const CHAT_AGENTS = AGENTS.filter((a) => !a.upcoming)
 
 export const agentById = (id: string) => AGENTS.find((a) => a.id === id)
+
+/**
+ * The agent conversations a supplier row opens, in panel order.
+ *
+ * Rosie and daisy each keep one thread per supplier **company**
+ * (`suppliers.rosie_thread_id` / `daisy_thread_id`, migrations 0068 and 0064).
+ * The two hold the same `supplier-<slug>` string — thread ids are namespaced
+ * per agent — so they name two distinct conversations: rosie's order
+ * coordination and daisy's onboarding and availability. A row whose column is
+ * unset offers no button rather than guessing at an id, which is also what
+ * keeps the buttons off the search-projected farm rows nested under a company.
+ */
+export function supplierAgentThreads(
+  values: Record<string, unknown>,
+): { agentId: string; threadId: string }[] {
+  return ['rosie', 'daisy'].flatMap((agentId) => {
+    const threadId = values[`${agentId}_thread_id`]
+    return typeof threadId === 'string' && threadId ? [{ agentId, threadId }] : []
+  })
+}

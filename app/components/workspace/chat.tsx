@@ -15,7 +15,8 @@ import { AGENTS, CHAT_AGENTS } from '@/lib/agents'
 import { onOpenChat, onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
 import {
-  chatThemeForAgent, chatThemeStyle, chatWallpaperStyle, type ChatAppearance,
+  chatThemeForAgent, chatThemeStyle, chatWallpaperForAgent, chatWallpaperStyle,
+  type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
 
@@ -450,7 +451,7 @@ function ThreadPicker({
  * agent tab can toggle the sheet without a redundant close button.
  */
 export function AgentChat({
-  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack,
+  isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack, mobileBackLabel = 'Back',
   desktopFull = false, desktopPeekOpen = false,
   onDesktopFull, onDesktopExitFull, onDesktopPeekToggle,
 }: {
@@ -459,8 +460,10 @@ export function AgentChat({
   /** Mobile only: which agent the Agents list picked — the sheet has no rail. */
   mobileAgentId?: string
   appearance: ChatAppearance
-  /** Returns the mobile conversation to the Agents channel list. */
+  /** One step back out of the mobile conversation — the shell decides where. */
   onMobileBack?: () => void
+  /** Where the back arrow goes — the shell knows, this only says it. */
+  mobileBackLabel?: string
   desktopFull?: boolean
   desktopPeekOpen?: boolean
   /** Coordinates Full chat with the Shell's desktop workspace. */
@@ -686,7 +689,8 @@ export function AgentChat({
         <button
           type="button"
           onClick={onMobileBack}
-          aria-label="Back to Agents"
+          aria-label={mobileBackLabel}
+          title={mobileBackLabel}
           className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground hover:bg-muted"
         >
           <ChevronLeft size={18} />
@@ -775,7 +779,7 @@ export function AgentChat({
         className="absolute inset-0 z-[70] flex flex-col bg-background"
         style={{
           ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)),
-          ...chatWallpaperStyle(appearance.wallpaper),
+          ...chatWallpaperStyle(chatWallpaperForAgent(appearance, agent.id)),
         }}
       >
         {header(true)}
@@ -802,7 +806,7 @@ export function AgentChat({
           onRefresh={chat.refresh}
           onLoadMore={chat.loadMore}
           mobile
-          wallpaper={appearance.wallpaper}
+          wallpaper={chatWallpaperForAgent(appearance, agent.id)}
         />
         <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} big />
       </div>
@@ -946,7 +950,7 @@ export function AgentChat({
         onAction={onMarkdownAction}
         onRefresh={chat.refresh}
         onLoadMore={chat.loadMore}
-        wallpaper={appearance.wallpaper}
+        wallpaper={chatWallpaperForAgent(appearance, agent.id)}
       />
       <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} />
     </div>

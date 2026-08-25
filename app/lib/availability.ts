@@ -107,16 +107,16 @@ export interface ARDetail extends ARSummary {
 }
 
 /**
- * The suppliers engaged on one job request — what the sourcing-note supplier
- * links are built from. Onboarded suppliers link to their availability-request
- * view, the rest to their profile.
+ * The suppliers engaged on one job request — what a request card's links are
+ * built from: every availability request the job has with them, and their own
+ * conversation thread.
  */
 export interface SupplierLink {
   supplierId: number
   name: string
   onboarded: boolean
-  /** The newest availability request this job has with them, if any. */
-  availabilityRequestId: number | null
+  /** Every availability request this job has with them, newest first. */
+  availabilityRequestIds: number[]
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
   rosieThreadId: string | null
 }

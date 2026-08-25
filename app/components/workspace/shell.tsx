@@ -26,7 +26,7 @@ import {
 } from '@/lib/app-appearance'
 import {
   CHAT_APPEARANCE_STORE, CHAT_EDGE_DEFAULT_MIGRATION_STORE, DEFAULT_CHAT_APPEARANCE,
-  isChatTheme, isChatWallpaper,
+  isChatTheme, readChatWallpapers,
   type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
@@ -34,8 +34,16 @@ import { cn } from '@/lib/utils'
 export type PageId =
   | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
 
-/** What the mobile Agents tab has open over the page, if anything. */
-type MobileView = { name: 'agents' } | { name: 'chat'; agent: string }
+/**
+ * What the mobile Agents tab has open over the page, if anything.
+ *
+ * `from` says what a conversation was opened *from*, which is what Back out of
+ * it means: `agents` has the channel list under it, anything else was opened
+ * from a card on the page and has only the page.
+ */
+type MobileView =
+  | { name: 'agents' }
+  | { name: 'chat'; agent: string; from?: 'agents' }
 
 function nearestVerticalScroller(target: EventTarget | null, boundary: HTMLElement): HTMLElement | null {
   let el = target instanceof HTMLElement ? target : null
@@ -58,6 +66,16 @@ const NAV = [
 ] as const
 
 // ------------------------------------------------------------------- toasts
+
+/**
+ * The desktop nav rail's collapsed/expanded choice, per device.
+ *
+ * It has to be stored rather than held in state: every page renders its own
+ * `Shell`, so a plain `useState` springs back to its initial value on each
+ * navigation. The rail starts **collapsed** — the workspace tables want the
+ * width more than the labels do — and only the rail's own chevron changes that.
+ */
+const NAV_OPEN_STORE = 'lps.nav.open'
 
 const ToastCtx = createContext<(message: string) => void>(() => {})
 export const useToast = () => useContext(ToastCtx)
@@ -161,7 +179,7 @@ export function Shell({
   const isMobile = useIsMobile()
   const { dark, toggle } = useTheme()
   const user = useSessionUser()
-  const [navOpen, setNavOpen] = useState(true)
+  const [navOpen, setNavOpen] = useState(false)
   const [desktopChatFull, setDesktopChatFull] = useState(false)
   const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
@@ -192,9 +210,10 @@ export function Shell({
     () =>
       onOpenChat(({ agentId }) => {
         if (!window.matchMedia('(min-width: 900px)').matches) {
-          // Two entries, so Back out of a conversation opened from a card
-          // still lands on the Agents list — the same place its own arrow goes.
-          mobileView.open({ name: 'agents' }, { name: 'chat', agent: agentId })
+          // One entry, so Back returns to the card the conversation was opened
+          // from. It used to push the Agents list underneath as well, which
+          // sent you somewhere you had never been on the way out.
+          mobileView.open({ name: 'chat', agent: agentId })
         }
       }),
     [mobileView.open],
@@ -261,7 +280,12 @@ export function Shell({
       // `theme` is the legacy global-color shape. Preserve its wallpaper choice,
       // then migrate colors to the new agent-specific defaults.
       const saved = JSON.parse(window.localStorage.getItem(CHAT_APPEARANCE_STORE) ?? 'null') as
-        | { themes?: Partial<Record<ChatAgentId, unknown>>; theme?: unknown; wallpaper?: unknown }
+        | {
+            themes?: Partial<Record<ChatAgentId, unknown>>
+            theme?: unknown
+            wallpapers?: Partial<Record<ChatAgentId, unknown>>
+            wallpaper?: unknown
+          }
         | null
       if (!saved) {
         window.localStorage.setItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE, '1')
@@ -287,10 +311,7 @@ export function Shell({
         Object.assign(themes, DEFAULT_CHAT_APPEARANCE.themes)
       }
       window.localStorage.setItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE, '1')
-      const wallpaper = isChatWallpaper(saved.wallpaper)
-        ? saved.wallpaper
-        : saved.wallpaper === true ? 'line-art' : 'none'
-      setChatAppearance({ themes, wallpaper })
+      setChatAppearance({ themes, wallpapers: readChatWallpapers(saved) })
     } catch {
       // A malformed local preference should fall back to the product default.
     }
@@ -300,6 +321,19 @@ export function Shell({
     setChatAppearance(next)
     window.localStorage.setItem(CHAT_APPEARANCE_STORE, JSON.stringify(next))
     window.localStorage.setItem(CHAT_EDGE_DEFAULT_MIGRATION_STORE, '1')
+  }, [])
+
+  useEffect(() => {
+    // Only '1' opens it: an unset preference means collapsed, so the default
+    // costs no expand-then-collapse flash on first paint.
+    setNavOpen(window.localStorage.getItem(NAV_OPEN_STORE) === '1')
+  }, [])
+
+  const toggleNav = useCallback(() => {
+    setNavOpen((open) => {
+      window.localStorage.setItem(NAV_OPEN_STORE, open ? '0' : '1')
+      return !open
+    })
   }, [])
 
   useEffect(() => {
@@ -577,7 +611,7 @@ export function Shell({
 
               <button
                 type="button"
-                onClick={() => setNavOpen((v) => !v)}
+                onClick={toggleNav}
                 aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
                 title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
                 className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -691,7 +725,7 @@ export function Shell({
                         key={agent.id}
                         type="button"
                         disabled={agent.upcoming}
-                        onClick={() => mobileView.open({ name: 'chat', agent: agent.id })}
+                        onClick={() => mobileView.open({ name: 'chat', agent: agent.id, from: 'agents' })}
                         className={cn(
                           'flex w-full items-center gap-3 rounded-xl border-none bg-transparent px-3 py-3 text-left hover:bg-muted',
                           agent.upcoming ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
@@ -725,6 +759,11 @@ export function Shell({
                   mobileAgentId={mobileView.view?.name === 'chat' ? mobileView.view.agent : undefined}
                   appearance={chatAppearance}
                   onMobileBack={mobileView.back}
+                  mobileBackLabel={
+                    mobileView.view?.name === 'chat' && mobileView.view.from !== 'agents'
+                      ? 'Back'
+                      : 'Back to Agents'
+                  }
                 />
               )}
 
@@ -912,8 +951,17 @@ export function Shell({
                     setMoreMenu(false)
                     // One step at a time, the way Back walks it: a
                     // conversation returns to the list, the list to the page.
-                    if (mobileView.view) mobileView.back()
-                    else mobileView.open({ name: 'agents' })
+                    // A conversation opened from a card has no list under it —
+                    // its way out is the page — so this tab opens one instead
+                    // of walking out of the conversation entirely.
+                    const open = mobileView.view
+                    if (open?.name === 'chat' && open.from !== 'agents') {
+                      mobileView.open({ name: 'agents' })
+                    } else if (open) {
+                      mobileView.back()
+                    } else {
+                      mobileView.open({ name: 'agents' })
+                    }
                   }}
                   aria-label="Agents"
                   aria-expanded={mobileAgentsOpen || mobileChat}

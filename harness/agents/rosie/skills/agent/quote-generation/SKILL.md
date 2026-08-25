@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, rendering and publishing both formats, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.3.1)
+description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, rendering and publishing both formats, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.3.2)
 metadata:
   author: lps
-  version: "1.3.1"
+  version: "1.3.2"
 ---
 
 # Quote generation
@@ -81,6 +81,6 @@ Read the request fresh (with its last-5 changelog entries — `job-requests`
 
 The quote reaching the customer is a customer contact — the whole
 `job-requests` §7 flow applies: Chris approves the draft (quote attached or
-linked), the send is logged in `customers.communication_notes`, the request
-moves `sourcing → quoted` (guarded), and the quote link is appended to the
-request's `external_notes` with a timestamp.
+linked), the send is recorded on the customer thread's own web chat, the
+request moves `sourcing → quoted` (guarded), and the quote link is appended to
+the request's `external_notes` with a timestamp.

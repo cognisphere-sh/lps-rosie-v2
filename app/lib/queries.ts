@@ -2,7 +2,6 @@ import 'server-only'
 
 import { SUPPLIER_CATEGORIES } from '@/lib/columns'
 import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
-import { noteStamp } from '@/lib/notes'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import type { ServerSort } from '@/lib/server-sort'
 import { sourceUrl, supabase } from '@/lib/supabase'
@@ -37,6 +36,9 @@ interface SupplierRecord {
   longitude: number | null
   notes: string | null
   communication_notes: string | null
+  /** Migrations 0064/0068. Only `select('*')` reads carry them; search projections don't. */
+  daisy_thread_id?: string | null
+  rosie_thread_id?: string | null
   availability_source_type: string | null
   availability_update_days: number | null
   hosted_availability_url: string | null
@@ -124,6 +126,8 @@ function toSupplierRow(
       zip: s.zip,
       notes: s.notes,
       communication_notes: s.communication_notes,
+      daisy_thread_id: s.daisy_thread_id ?? null,
+      rosie_thread_id: s.rosie_thread_id ?? null,
       created_at: s.created_at,
       updated: s.updated_at,
     },
@@ -1038,9 +1042,9 @@ const WRITABLE: Record<string, string[]> = {
     'name', 'size', 'quantity', 'available_quantity', 'unit_price',
     'status', 'external_notes', 'sourcing_notes',
   ],
-  // `notes` is durable facts about the customer and is edited in place;
-  // `communication_notes` is absent for the reason `sourcing_notes` no longer is —
-  // it is an append-only contact log, reached through `appendNote`.
+  // `notes` is durable facts about the customer, edited in place. There is no
+  // contact-log column beside it any more: `communication_notes` was dropped by
+  // migration 0073 and the customer's rosie thread carries that history.
   customers: [
     'name', 'company', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes',
   ],
@@ -1162,61 +1166,6 @@ export async function updateFields(
 
   const { error } = await supabase.from(table).update(values).eq('id', id)
   if (error) throw new Error(`${table} update: ${error.message}`)
-}
-
-/**
- * Note columns that are logs rather than fields.
- *
- * `customers.communication_notes` is the contact log: entries are stamped and
- * never rewritten, because a contact happened at a time and cannot be edited
- * into not having happened. That is why the column is absent from WRITABLE —
- * an inline edit would overwrite the whole history — and appending is the only
- * way the app adds to it.
- *
- * `sourcing_notes` (which was `internal_notes` until migration 0061) used to
- * be here for the same reason. It is a free-text working sheet now — one line
- * per supplier, kept current by editing it — so it is an ordinary writable
- * column and the changelog holds its history.
- */
-const APPENDABLE: Record<string, string[]> = {
-  customers: ['communication_notes'],
-}
-
-/**
- * Add one stamped entry to an append-only note column.
- *
- * Read-modify-write, because PostgREST cannot express `col = col || $1`. Rosie
- * writes these columns too, so two appends landing in the same instant can cost
- * one entry. The trade was taken deliberately: the alternative is a migration
- * for a database function, and `job_request_changelog` records the before/after
- * of every write either way, so a lost entry is recoverable rather than gone.
- */
-export async function appendNote(
-  table: string,
-  id: string | number,
-  column: string,
-  text: string,
-): Promise<void> {
-  if (!APPENDABLE[table]?.includes(column)) {
-    throw new Error(`refusing to append to ${table}.${column}`)
-  }
-  const entry = text.trim()
-  if (!entry) throw new Error('an entry cannot be empty')
-
-  const { data, error } = await supabase.from(table).select(column).eq('id', id).maybeSingle()
-  if (error) throw new Error(`${table}: ${error.message}`)
-  if (!data) throw new Error(`${table} ${id} not found`)
-
-  // `column` is a runtime name, so PostgREST's generated row type cannot
-  // describe the shape it returns — the whitelist above is what makes it safe.
-  const row = data as unknown as Record<string, string | null>
-  const current = (row[column] ?? '').trimEnd()
-  const stamped = `${noteStamp()} ${entry}`
-  const { error: writeError } = await supabase
-    .from(table)
-    .update({ [column]: current ? `${current}\n\n${stamped}` : stamped })
-    .eq('id', id)
-  if (writeError) throw new Error(`${table} append: ${writeError.message}`)
 }
 
 /**

@@ -26,10 +26,12 @@ import {
   DEFAULT_CHAT_APPEARANCE,
   chatThemeForAgent,
   chatThemeStyle,
+  chatWallpaperForAgent,
   chatWallpaperStyle,
   isChatTheme,
-  isChatWallpaper,
+  readChatWallpapers,
   type ChatAppearance,
+  type ChatWallpaperId,
 } from '@/lib/chat-appearance'
 import { useHistoryView } from '@/lib/history-view'
 import { cn } from '@/lib/utils'
@@ -185,7 +187,7 @@ function PortalChat({
 }: {
   supplierId: number
   mobile?: boolean
-  wallpaper: ChatAppearance['wallpaper']
+  wallpaper: ChatWallpaperId
 }) {
   const chat = usePortalChat(supplierId)
   const [draft, setDraft] = useState('')
@@ -455,17 +457,18 @@ export function PortalFrame({
   useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(CHAT_APPEARANCE_STORE) ?? 'null') as
-        | { themes?: Partial<Record<'daisy' | 'rosie' | 'nova', unknown>>; wallpaper?: unknown }
+        | {
+            themes?: Partial<Record<'daisy' | 'rosie' | 'nova', unknown>>
+            wallpapers?: Partial<Record<'daisy' | 'rosie' | 'nova', unknown>>
+            wallpaper?: unknown
+          }
         | null
       if (!saved) return
       const themes = { ...DEFAULT_CHAT_APPEARANCE.themes }
       for (const id of ['daisy', 'rosie', 'nova'] as const) {
         if (isChatTheme(saved.themes?.[id])) themes[id] = saved.themes[id]
       }
-      setChatAppearance({
-        themes,
-        wallpaper: isChatWallpaper(saved.wallpaper) ? saved.wallpaper : DEFAULT_CHAT_APPEARANCE.wallpaper,
-      })
+      setChatAppearance({ themes, wallpapers: readChatWallpapers(saved) })
     } catch {
       // Malformed local appearance data falls back to the shared defaults.
     }
@@ -691,11 +694,11 @@ export function PortalFrame({
       className="absolute inset-0 z-40 flex flex-col bg-background"
       style={{
         ...chatThemeStyle(chatThemeForAgent(chatAppearance, 'rosie')),
-        ...chatWallpaperStyle(chatAppearance.wallpaper),
+        ...chatWallpaperStyle(chatWallpaperForAgent(chatAppearance, 'rosie')),
       }}
     >
       {chatHeader(true)}
-      <PortalChat supplierId={supplierId} mobile wallpaper={chatAppearance.wallpaper} />
+      <PortalChat supplierId={supplierId} mobile wallpaper={chatWallpaperForAgent(chatAppearance, 'rosie')} />
     </div>
   )
 
@@ -819,7 +822,7 @@ export function PortalFrame({
               </button>
             </div>
 
-            <PortalChat supplierId={supplierId} wallpaper={chatAppearance.wallpaper} />
+            <PortalChat supplierId={supplierId} wallpaper={chatWallpaperForAgent(chatAppearance, 'rosie')} />
           </aside>
         ) : (
           <div className="flex w-[46px] flex-none flex-col items-center border-l border-border bg-card py-3.5">

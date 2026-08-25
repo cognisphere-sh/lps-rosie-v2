@@ -1,6 +1,5 @@
 import 'server-only'
 
-import { parseEntries } from '@/lib/notes'
 import type { CustomerFacets, CustomerRequest, CustomerRow, JobAddress } from '@/lib/rows'
 import { supabase } from '@/lib/supabase'
 
@@ -23,13 +22,13 @@ interface CustomerRecord {
   state: string | null
   zip: string | null
   notes: string | null
-  communication_notes: string | null
+  rosie_thread_id: string | null
   created_at: string | null
   updated_at: string | null
 }
 
 const COLUMNS =
-  'id, name, company, email, phone, address, city, state, zip, notes, communication_notes, created_at, updated_at'
+  'id, name, company, email, phone, address, city, state, zip, notes, rosie_thread_id, created_at, updated_at'
 
 export interface CustomerFilters {
   state?: string[]
@@ -144,7 +143,7 @@ function toRow(r: CustomerRecord, requests: CustomerRequest[]): CustomerRow {
     phone: r.phone,
     address: addressOf(r),
     notes: r.notes,
-    comms: parseEntries(r.communication_notes),
+    rosieThreadId: r.rosie_thread_id,
     requests,
     openCount: requests.filter((req) => OPEN_STATUSES.includes(req.status)).length,
     lineTotal: requests.reduce((sum, req) => sum + req.lineTotal, 0),

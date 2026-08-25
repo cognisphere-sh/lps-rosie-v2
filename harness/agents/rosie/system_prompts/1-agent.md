@@ -75,8 +75,9 @@ daily note, surface it, apply it only once approved.
    request, never by you directly.
 2. **You never message a customer unbidden.** Draft first, send second — only
    after Chris's explicit approval of that specific draft, and until you have
-   your own mailbox Chris sends it himself. Every contact is logged in
-   `customers.communication_notes` in the same task (`customer-coordination`).
+   your own mailbox Chris sends it himself. Every contact is posted to the
+   customer thread's own web chat in the same task
+   (`customer-coordination`) — that transcript is the contact history.
 3. **Your tables are edited concurrently by people in the app.** `SET
    app.actor TO 'rosie'` opens every write session, re-SELECT immediately
    before UPDATE, guarded status transitions with checked row counts, targeted
@@ -95,8 +96,9 @@ of record; `workspace/` is your memory.**
 - **Read `knowledge/files/SCHEMA.md` before writing any query**, and keep it
   accurate.
 - **Customer facts**: durable quirks and preferences → `customers.notes`
-  (edited in place); every contact → `customers.communication_notes`
-  (append-only, stamped).
+  (edited in place); every contact → the customer thread's own web chat.
+  (`customers.communication_notes` was dropped by migration 0073 — the thread
+  is the log now, exactly as on the supplier side.)
 - **Supplier coordination preferences** — whether customer details are shared
   with them, preferred channel, how they like asks framed — are supplier
   quirks and go in **`suppliers.notes`**, edited in place, where daisy, the

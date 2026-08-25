@@ -3,11 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { AgentChatButton } from '@/components/workspace/agent-chat-button'
 import { patchRow } from '@/components/workspace/editable'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { Cell, ColumnHead, ColumnPicker } from '@/components/workspace/table-parts'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
 import { CUSTOMER_COLS, type ColumnDef } from '@/lib/columns'
+import { customerThreadId } from '@/lib/customers'
 import { formatDate, money } from '@/lib/format'
 import type { CellValue, CustomerFacets, CustomerRow } from '@/lib/rows'
 import { applyFilters, compareOptions, optionsFor, useTableConfig } from '@/lib/table-config'
@@ -15,7 +17,7 @@ import { useDebouncedSearch } from '@/lib/use-debounced'
 
 const EMPTY_FACETS: CustomerFacets = { state: [] }
 
-/** Holds the column picker, as on Suppliers. */
+/** Holds the column picker, and each row's Rosie button. */
 const ACTIONS_W = 16 + 26
 
 /** Statuses that mean a request is still live — what "active" counts. */
@@ -24,6 +26,9 @@ const ACTIVE_STATUSES = ['sourcing', 'quoted']
 /** One table row, as the shared `Cell` wants it: an id and a bag of values. */
 interface Row {
   id: number
+  /** Their Rosie thread, for the row's chat button. Never a column. */
+  threadId: string
+  name: string
   values: Record<string, CellValue>
 }
 
@@ -41,6 +46,8 @@ function toRow(c: CustomerRow): Row {
   const active = c.requests.filter((r) => ACTIVE_STATUSES.includes(r.status))
   return {
     id: c.id,
+    threadId: customerThreadId(c),
+    name: c.name,
     values: {
       name: c.name,
       company: c.company,
@@ -245,34 +252,49 @@ export default function CustomersPage() {
         // their page — the same trade the Suppliers list makes.
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5">
           {visible.map((row) => (
-            <button
+            // The card opens the customer; the avatar opens their Rosie
+            // conversation. It sits outside the card's button rather than
+            // inside it — a button within a button is not a button.
+            <div
               key={row.id}
-              type="button"
-              onClick={() => router.push(`/customers/${row.id}`)}
-              className="flex w-full cursor-pointer flex-col gap-2 rounded-xl border border-border bg-card p-3.5 text-left"
+              className="relative flex-none rounded-xl border border-border bg-card"
             >
-              <div className="flex items-start justify-between gap-2.5">
-                <div className="min-w-0">
-                  <div className="text-[14.5px] font-bold leading-tight">
-                    {String(row.values.name ?? '')}
+              <button
+                type="button"
+                onClick={() => router.push(`/customers/${row.id}`)}
+                className="flex w-full cursor-pointer flex-col gap-2 p-3.5 text-left"
+              >
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[14.5px] font-bold leading-tight">
+                      {String(row.values.name ?? '')}
+                    </div>
+                    <div className="text-[11.5px] text-muted-foreground">
+                      {String(row.values.company ?? '') ||
+                        [row.values.city, row.values.state].filter(Boolean).join(', ') ||
+                        'No company or address on file'}
+                    </div>
                   </div>
-                  <div className="text-[11.5px] text-muted-foreground">
-                    {String(row.values.company ?? '') ||
-                      [row.values.city, row.values.state].filter(Boolean).join(', ') ||
-                      'No company or address on file'}
+                  <div className="flex flex-none flex-col items-end gap-[3px] text-right">
+                    <div className="text-[15px] font-bold tabular-nums">
+                      {money(row.values.active_request_value) || '$0.00'}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {Number(row.values.active_requests ?? 0)} active
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex-none flex-col items-end gap-[3px] text-right">
-                  <div className="text-[15px] font-bold tabular-nums">
-                    {money(row.values.active_request_value) || '$0.00'}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {Number(row.values.active_requests ?? 0)} active
-                  </div>
-                </div>
+                <span className="text-[12.5px] font-semibold text-primary">Open customer →</span>
+              </button>
+              <div className="absolute bottom-3 right-3.5">
+                <AgentChatButton
+                  agentId="rosie"
+                  threadId={row.threadId}
+                  label={row.name}
+                  subject={row.name}
+                />
               </div>
-              <span className="text-[12.5px] font-semibold text-primary">Open customer →</span>
-            </button>
+            </div>
           ))}
           {!busy && visible.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">
@@ -348,7 +370,16 @@ export default function CustomersPage() {
                     <td
                       className="sticky right-0 z-10 border-b border-l border-lps-hair bg-card p-[4px_6px]"
                       style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
-                    />
+                    >
+                      <AgentChatButton
+                        agentId="rosie"
+                        threadId={row.threadId}
+                        label={row.name}
+                        subject={row.name}
+                        size={22}
+                        className="mx-auto"
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

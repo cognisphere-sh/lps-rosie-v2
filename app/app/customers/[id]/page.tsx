@@ -4,15 +4,14 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
-import {
-  AppendNote, EditableText, EditableTextarea, type EditProps,
-} from '@/components/workspace/editable'
+import { AgentChatButton } from '@/components/workspace/agent-chat-button'
+import { EditableText, EditableTextarea, type EditProps } from '@/components/workspace/editable'
 import { ChevronDown, ChevronRight, MailIcon, MapPinIcon, PhoneIcon } from '@/components/workspace/icons'
 import { RequestBody, addressLine } from '@/components/workspace/job-request'
 import { Shell } from '@/components/workspace/shell'
+import { customerThreadId } from '@/lib/customers'
 import { formatDate, money } from '@/lib/format'
 import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/lib/job-requests'
-import { shortStamp } from '@/lib/notes'
 import type { CustomerRequest, CustomerRow, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
@@ -234,6 +233,14 @@ export default function CustomerPage() {
       page="customers"
       title={customer.name}
       subtitle={[customer.company, where].filter(Boolean).join(' · ') || 'No company or address on file'}
+      headerAction={
+        <AgentChatButton
+          agentId="rosie"
+          threadId={customerThreadId(customer)}
+          label={customer.name}
+          subject={customer.name}
+        />
+      }
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {/* The details card. Everything on the customer record, editable in
@@ -306,43 +313,17 @@ export default function CustomerPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Block label="Notes — durable facts, edited in place">
-              <EditableTextarea
-                {...edit}
-                column="notes"
-                value={customer.notes}
-                placeholder="What is worth knowing about this customer?"
-              />
-            </Block>
-            <Block label="Contact log — append only">
-              {customer.comms.length ? (
-                <div className="flex max-h-[240px] flex-col gap-1.5 overflow-auto">
-                  {customer.comms.map((entry, i) => (
-                    <div key={i} className="flex flex-col gap-1 rounded-xl bg-lps-bubble p-2.5">
-                      {entry.stamp && (
-                        <span className="text-[10.5px] text-muted-foreground">
-                          {shortStamp(entry.stamp)}
-                        </span>
-                      )}
-                      <p className="m-0 whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground">
-                        {entry.text}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="px-1 text-[12px] text-lps-dim">Nothing logged yet.</span>
-              )}
-              <AppendNote
-                table="customers"
-                id={customer.id}
-                column="communication_notes"
-                onSaved={reload}
-                placeholder="Who reached out, and what was said?"
-              />
-            </Block>
-          </div>
+          {/* Durable facts only. The contact log that used to sit beside this
+              was dropped by migration 0073 — every contact is in the customer's
+              Rosie conversation, which the header's button opens. */}
+          <Block label="Notes — durable facts, edited in place">
+            <EditableTextarea
+              {...edit}
+              column="notes"
+              value={customer.notes}
+              placeholder="What is worth knowing about this customer?"
+            />
+          </Block>
         </div>
 
         {/* Tabs */}

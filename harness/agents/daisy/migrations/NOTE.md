@@ -10,6 +10,16 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0073_drop_customer_communication_notes.sql`
+
+Applied 2026-08-25 (Bhoumik). Drops `customers.communication_notes`, the
+append-only customer contact log — the same move the supplier side made in
+`0063`/`0066`. Every customer now has a dedicated rosie thread
+(`customers.rosie_thread_id`, `0068`) reachable from the customer page's Rosie
+button, and that transcript is the contact history; `customers.notes` keeps the
+durable-facts half. No backup table: the column was NULL on every row (2
+customers, none with any text).
+
 ## `0072_reserve_job_request_id.sql`
 
 Applied 2026-08-24 (Bhoumik). Adds `public.reserve_job_request_id()` —

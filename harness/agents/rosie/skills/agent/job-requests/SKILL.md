@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.1.0)
+description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.2.0)
 metadata:
   author: lps
-  version: "3.1.0"
+  version: "3.2.0"
 ---
 
 # Job requests
@@ -189,19 +189,9 @@ These tables are edited by people in the app while you work. Four rules:
    WHERE id = $itemId;
    ```
 
-   `customers.communication_notes` is the opposite, and stays **append-only**:
-   a contact happened at a time and cannot be edited into not having happened.
-   One statement, no round trip between read and write, stamped and signed:
-
-   ```sql
-   UPDATE customers
-   SET communication_notes = coalesce(communication_notes || E'\n\n', '') || $entry
-   WHERE id = $customerId;
-   ```
-
-   ```
-   [YYYY-MM-DD HH:MM America/Chicago] Rosie: <what happened>
-   ```
+   There is no append-only note column left to write: `customers`' contact log
+   was dropped by migration 0073 and the customer's own thread carries that
+   history (`customer-coordination`).
 
    The name is whose entry it is — `Rosie` for your own, `Chris` / `Bhoumik`
    for what they decided.
@@ -667,8 +657,8 @@ jr thread. Customer contact runs on the **customer's dedicated thread**
 (`customers.rosie_thread_id`, the `customer-coordination` skill): message it
 what needs saying — the quote to deliver, the question to put to them, built
 from customer-safe fields only (§4) — and it handles the draft →
-Chris-approval → send flow and the `communication_notes` log. What the
-customer answers comes back to this thread the same way.
+Chris-approval → send flow, recording the contact on its own web chat. What
+the customer answers comes back to this thread the same way.
 
 When the contact was a quote, move the request to `quoted` (guarded, §2) and
 note the quote link in the request's `external_notes` (see

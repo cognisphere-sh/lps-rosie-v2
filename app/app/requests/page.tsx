@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import {
-  ChevronDown, ChevronRight, CloseIcon, MapPinIcon,
+  ChevronDown, ChevronRight, CloseIcon, MapPinIcon, SuppliersIcon,
 } from '@/components/workspace/icons'
 import { onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { EditableText, patchRow } from '@/components/workspace/editable'
@@ -62,6 +62,58 @@ const sameSet = (a: string[], b: string[]) =>
 const valuesOf = (labels: string[], options: { value: string; label: string }[]) =>
   labels.map((l) => options.find((o) => o.label === l)?.value).filter(Boolean) as string[]
 
+/**
+ * One supplier's links, as a segmented pill: who they are, then what they open.
+ *
+ * A job can have several suppliers and several availability requests with each
+ * of them, so the supplier — not the request — is the unit: the name is written
+ * once, carries the app's own supplier mark, and every request the job has with
+ * them plus their conversation hang off it as segments. A flat run of `AR-<id>`
+ * chips is the same links in an order nobody can scan.
+ */
+function SupplierPill({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex flex-none items-stretch overflow-hidden rounded-full border border-lps-edge bg-card text-[10.5px] font-semibold">
+      <span className="flex items-center gap-1 px-2 py-0.5 text-foreground">
+        <SuppliersIcon size={11} className="flex-none text-muted-foreground" />
+        <span className="max-w-[11rem] truncate">{name}</span>
+      </span>
+      {children}
+    </span>
+  )
+}
+
+/** One thing a pill opens: an availability request, or a conversation. */
+function LinkSegment({
+  title,
+  onOpen,
+  className,
+  children,
+}: {
+  title: string
+  onOpen: () => void
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen()
+      }}
+      title={title}
+      aria-label={title}
+      className={cn(
+        'flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 hover:bg-lps-tint',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 function RequestCard({
   request,
   expanded,
@@ -109,6 +161,13 @@ function RequestCard({
     .join(', ')
 
   const latest = newestNote(request.notes)
+
+  // The engaged suppliers, most recently engaged first — each one pill, so a
+  // job with several suppliers and several requests each still reads as a list
+  // of suppliers rather than a run of loose AR numbers.
+  const supplierPills = [...request.supplierLinks].sort(
+    (a, b) => (b.availabilityRequestIds[0] ?? 0) - (a.availabilityRequestIds[0] ?? 0),
+  )
 
   return (
     <div
@@ -195,54 +254,71 @@ function RequestCard({
           </button>
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-[30px] text-[12px]">
+        {/* Who the job is for on the left, everything it opens on the right —
+            the strip rides the empty half of a line the card already draws
+            rather than adding one of its own. The sourcing notes used to carry
+            these links, but a note is free text: the links belong to the job,
+            not to a sentence about it. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pl-[30px] text-[12px]">
           <span className="font-semibold text-foreground">
             {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
           </span>
-          {request.customer && customerThread && (
+          {contact && <span className="text-muted-foreground">· {contact}</span>}
+          {/* The customer's conversation, on the customer's own name — the one
+              place it cannot be mistaken for a supplier's. */}
+          {customerThread && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                openChat({ agentId: 'rosie', threadId: customerThread, label: customerName ?? customerThread })
+                openChat({
+                  agentId: 'rosie',
+                  threadId: customerThread,
+                  label: customerName ?? customerThread,
+                })
               }}
-              title={`Open the ${customerName} conversation`}
-              aria-label={`Open the ${customerName} conversation`}
-              className="flex cursor-pointer items-center border-none bg-transparent p-0.5 text-muted-foreground hover:text-primary"
+              title={`Open the customer conversation with ${customerName ?? customerThread}`}
+              aria-label={`Open the customer conversation with ${customerName ?? customerThread}`}
+              className="flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary"
             >
-              <MessagesSquare size={12} />
+              <MessagesSquare size={11} /> Chat
             </button>
           )}
-          {contact && <span className="text-muted-foreground">· {contact}</span>}
           {locality && (
             <span className="inline-flex items-center gap-1 text-muted-foreground">
               <MapPinIcon size={11} /> {locality}
             </span>
           )}
-        </div>
-
-        {/* The job's availability requests — newest per supplier — each
-            opening as a drawer. */}
-        {request.supplierLinks.some((l) => l.availabilityRequestId != null) && (
-          <div className="flex flex-wrap items-center gap-1 pl-[30px]">
-            {request.supplierLinks
-              .filter((l) => l.availabilityRequestId != null)
-              .map((l) => (
-                <button
-                  key={l.availabilityRequestId}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openAvailabilityRequest(l.availabilityRequestId!)
-                  }}
-                  title={`Open availability request AR-${l.availabilityRequestId}`}
-                  className="cursor-pointer rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary"
-                >
-                  AR-{l.availabilityRequestId} · {l.name}
-                </button>
+          {supplierPills.length > 0 && (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+              {supplierPills.map((l) => (
+                <SupplierPill key={l.supplierId} name={l.name}>
+                  {l.availabilityRequestIds.map((arId) => (
+                    <LinkSegment
+                      key={arId}
+                      title={`Open availability request AR-${arId} to ${l.name}`}
+                      onOpen={() => openAvailabilityRequest(arId)}
+                      className="text-primary"
+                    >
+                      AR-{arId}
+                    </LinkSegment>
+                  ))}
+                  {l.rosieThreadId && (
+                    <LinkSegment
+                      title={`Open the supplier conversation with ${l.name}`}
+                      onOpen={() =>
+                        openChat({ agentId: 'rosie', threadId: l.rosieThreadId!, label: l.name })
+                      }
+                      className="text-muted-foreground hover:text-primary"
+                    >
+                      <MessagesSquare size={11} />
+                    </LinkSegment>
+                  )}
+                </SupplierPill>
               ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* Collapsed cards keep the same scan strip. The expanded body owns the
             single full-width strip so counts and subtotal are never repeated. */}

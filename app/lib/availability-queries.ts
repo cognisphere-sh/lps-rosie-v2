@@ -521,14 +521,28 @@ export async function submitAvailabilityRequest(
   }
 }
 
-/** Admin-side status write — the only column the admin edits on the request. */
+/**
+ * Admin-side status write — the request's own column, moved from the drawer's
+ * pill or its Save button.
+ *
+ * `submitted_at` follows the status rather than being set apart from it: the
+ * admin marking a request Answered is the same event the portal's Save
+ * stamps, and a request pushed back to `new` has no answered date to show.
+ * `closed` leaves the stamp alone — closing does not unanswer anything.
+ */
 export async function setAvailabilityRequestStatus(arId: number, status: string): Promise<void> {
   if (!['new', 'submitted', 'closed'].includes(status)) {
     throw new Error('status must be one of: new, submitted, closed')
   }
+  const stamp =
+    status === 'submitted'
+      ? { submitted_at: new Date().toISOString() }
+      : status === 'new'
+        ? { submitted_at: null }
+        : {}
   const { data, error } = await supabase
     .from('availability_requests')
-    .update({ status })
+    .update({ status, ...stamp })
     .eq('id', arId)
     .eq('is_active', true)
     .select('id')
@@ -565,7 +579,7 @@ export async function portalSupplier(id: number): Promise<{ id: number; name: st
 
 /**
  * The suppliers engaged on each of these job requests — an availability
- * request counts as engagement. What the sourcing-note links are built from.
+ * request counts as engagement. What a request card's links are built from.
  */
 export async function supplierLinksByRequest(
   jobRequestIds: number[],
@@ -580,17 +594,12 @@ export async function supplierLinksByRequest(
     .order('created_at', { ascending: false })
   if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
 
-  // job → supplier → newest AR id (the AR list is newest-first).
-  const engaged = new Map<number, Map<number, number | null>>()
-  const touch = (job: number, supplier: number, arId: number | null) => {
-    const bySupplier = engaged.get(job) ?? new Map<number, number | null>()
-    if (!bySupplier.has(supplier) || (bySupplier.get(supplier) == null && arId != null)) {
-      bySupplier.set(supplier, arId)
-    }
-    engaged.set(job, bySupplier)
-  }
+  // job → supplier → every AR id, newest first (the AR list is newest-first).
+  const engaged = new Map<number, Map<number, number[]>>()
   for (const r of (ars ?? []) as { id: number; job_request_id: number; supplier_id: number }[]) {
-    touch(r.job_request_id, r.supplier_id, r.id)
+    const bySupplier = engaged.get(r.job_request_id) ?? new Map<number, number[]>()
+    bySupplier.set(r.supplier_id, [...(bySupplier.get(r.supplier_id) ?? []), r.id])
+    engaged.set(r.job_request_id, bySupplier)
   }
 
   const supplierIds = [...new Set([...engaged.values()].flatMap((m) => [...m.keys()]))]
@@ -609,14 +618,14 @@ export async function supplierLinksByRequest(
   const out: Record<number, SupplierLink[]> = {}
   for (const [job, bySupplier] of engaged) {
     out[job] = [...bySupplier.entries()]
-      .map(([supplierId, arId]) => {
+      .map(([supplierId, arIds]) => {
         const s = meta.get(supplierId)
         return s
           ? {
               supplierId,
               name: s.name,
               onboarded: s.is_onboarded,
-              availabilityRequestId: arId,
+              availabilityRequestIds: arIds,
               rosieThreadId: s.rosie_thread_id,
             }
           : null

@@ -3,12 +3,14 @@
 import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 
+import { AgentChatButton } from '@/components/workspace/agent-chat-button'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { Cell, ColumnHead, ColumnPicker, LpsTag, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { Badge } from '@/components/ui/badge'
+import { supplierAgentThreads } from '@/lib/agents'
 import { SUPPLIER_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
 import type { SupplierCompany, SupplierRow } from '@/lib/rows'
@@ -17,7 +19,9 @@ import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 
-const ACTIONS_W = 16 + 26
+// The column picker's head, and each company row's two agent buttons beside
+// its hide button. Farm rows carry the hide button alone.
+const ACTIONS_W = 16 + 26 + 2 * 24
 /** Leading gutter holding the expander on a company with more than one farm. */
 const EXPAND_W = 28
 
@@ -291,47 +295,66 @@ export default function SuppliersPage() {
     } = {},
   ) => (
     <div key={row.id} className={company ? '' : 'border-t border-lps-hair bg-lps-tint/40 pl-3'}>
-      <button
-        type="button"
-        onClick={() => router.push(`/suppliers/${row.id}`)}
-        className="flex w-full flex-col gap-2 p-3.5 text-left"
-      >
-        <div className="flex items-start justify-between gap-2.5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[14.5px] font-bold leading-tight">
-              <span className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
-              {!!row.values.is_onboarded && <LpsTag />}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => router.push(`/suppliers/${row.id}`)}
+          className="flex w-full flex-col gap-2 p-3.5 text-left"
+        >
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[14.5px] font-bold leading-tight">
+                <span className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
+                {!!row.values.is_onboarded && <LpsTag />}
+              </div>
+              <div className="text-[11.5px] text-muted-foreground">
+                {[row.values.city, row.values.state].filter(Boolean).join(', ') || 'No address on file'}
+              </div>
             </div>
-            <div className="text-[11.5px] text-muted-foreground">
-              {[row.values.city, row.values.state].filter(Boolean).join(', ') || 'No address on file'}
+            <div className="flex flex-none flex-col items-end gap-[3px] text-right">
+              <div className="text-[15px] font-bold tabular-nums">
+                {row.values.item_count == null ? '—' : Number(row.values.item_count).toLocaleString('en-US')}
+              </div>
+              <div className="text-[11px] text-muted-foreground">items</div>
             </div>
           </div>
-          <div className="flex flex-none flex-col items-end gap-[3px] text-right">
-            <div className="text-[15px] font-bold tabular-nums">
-              {row.values.item_count == null ? '—' : Number(row.values.item_count).toLocaleString('en-US')}
-            </div>
-            <div className="text-[11px] text-muted-foreground">items</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {row.values.category && (
+              <Badge variant={badgeFor(String(row.values.category)) as 'default' | 'secondary' | 'outline'}>
+                {String(row.values.category)}
+              </Badge>
+            )}
+            {row.values.primary_contact_name && (
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                {String(row.values.primary_contact_name)}
+              </span>
+            )}
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {row.values.category && (
-            <Badge variant={badgeFor(String(row.values.category)) as 'default' | 'secondary' | 'outline'}>
-              {String(row.values.category)}
-            </Badge>
-          )}
-          {row.values.primary_contact_name && (
-            <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-              {String(row.values.primary_contact_name)}
-            </span>
-          )}
-        </div>
-        <div className="text-[11px] text-muted-foreground">
-          Last ingested {formatDate(row.values.last_ingestion_date as string | null) || '—'}
-        </div>
-        <span className="text-[12.5px] font-semibold text-primary">
-          {company && company.locationCount > 1 ? 'Open company →' : 'Open supplier →'}
-        </span>
-      </button>
+          <div className="text-[11px] text-muted-foreground">
+            Last ingested {formatDate(row.values.last_ingestion_date as string | null) || '—'}
+          </div>
+          <span className="text-[12.5px] font-semibold text-primary">
+            {company && company.locationCount > 1 ? 'Open company →' : 'Open supplier →'}
+          </span>
+        </button>
+        {/* The company's two conversations, outside the card's own button — a
+            button within a button is not a button. The nested farm rows carry
+            no pair: they are locations of the company whose threads these are. */}
+        {company && (
+          <div className="absolute bottom-3 right-3.5 flex items-center gap-1.5">
+            {supplierAgentThreads(row.values).map(({ agentId, threadId }) => (
+              <AgentChatButton
+                key={agentId}
+                agentId={agentId}
+                threadId={threadId}
+                label={company.name}
+                subject={company.name}
+                size={24}
+              />
+            ))}
+          </div>
+        )}
+      </div>
       {company && onToggle && company.locationCount > 1 && (
         <button
           type="button"
@@ -402,15 +425,28 @@ export default function SuppliersPage() {
           className="sticky right-0 z-10 border-b border-l border-lps-hair bg-card p-[4px_6px]"
           style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
         >
-          <button
-            type="button"
-            onClick={() => setHiddenRows((prev) => [...prev, row.id])}
-            title={company ? 'Hide company until refresh' : 'Hide farm until refresh'}
-            aria-label={company ? 'Hide company' : 'Hide farm'}
-            className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <EyeOffIcon size={14} />
-          </button>
+          <div className="flex items-center justify-end gap-1.5">
+            {company &&
+              supplierAgentThreads(row.values).map(({ agentId, threadId }) => (
+                <AgentChatButton
+                  key={agentId}
+                  agentId={agentId}
+                  threadId={threadId}
+                  label={company.name}
+                  subject={company.name}
+                  size={22}
+                />
+              ))}
+            <button
+              type="button"
+              onClick={() => setHiddenRows((prev) => [...prev, row.id])}
+              title={company ? 'Hide company until refresh' : 'Hide farm until refresh'}
+              aria-label={company ? 'Hide company' : 'Hide farm'}
+              className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <EyeOffIcon size={14} />
+            </button>
+          </div>
         </td>
       </tr>
     )

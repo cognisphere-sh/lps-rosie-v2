@@ -1,5 +1,11 @@
 # quote-generation — changelog
 
+## 1.3.2
+
+2026-08-25 (Bhoumik). §4 no longer says the send is logged in
+`customers.communication_notes` — migration 0073 dropped the column; the
+customer thread's own web chat is the record.
+
 ## 1.3.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

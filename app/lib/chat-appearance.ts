@@ -6,7 +6,7 @@ export type ChatWallpaperId = 'none' | 'line-art' | 'desert-night'
 
 export type ChatAppearance = {
   themes: Record<ChatAgentId, ChatThemeId>
-  wallpaper: ChatWallpaperId
+  wallpapers: Record<ChatAgentId, ChatWallpaperId>
 }
 
 export const CHAT_APPEARANCE_STORE = 'lps.chat.appearance.v1'
@@ -17,7 +17,11 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
     rosie: 'rose',
     nova: 'violet',
   },
-  wallpaper: 'none',
+  wallpapers: {
+    daisy: 'none',
+    rosie: 'none',
+    nova: 'none',
+  },
 }
 
 export const CHAT_THEMES: { id: ChatThemeId; label: string; accent: string; preview: string }[] = [
@@ -81,6 +85,40 @@ export function chatWallpaperStyle(wallpaperId: ChatWallpaperId): CSSProperties 
     backgroundRepeat: 'repeat',
     backgroundSize: wallpaper.size,
   }
+}
+
+export const CHAT_AGENT_IDS = ['daisy', 'rosie', 'nova'] as const
+
+/**
+ * The stored wallpapers, from any shape this preference has had.
+ *
+ * Two legacy shapes predate per-agent wallpapers: `wallpaper: true` (the first
+ * line-art flag) and `wallpaper: <id>` (one choice shared by every chat).
+ * Either one becomes every agent's wallpaper, so splitting the setting doesn't
+ * silently change how anyone's chats already look.
+ */
+export function readChatWallpapers(
+  saved: { wallpapers?: Partial<Record<ChatAgentId, unknown>>; wallpaper?: unknown } | null,
+): Record<ChatAgentId, ChatWallpaperId> {
+  const legacy: ChatWallpaperId = isChatWallpaper(saved?.wallpaper)
+    ? saved.wallpaper
+    : saved?.wallpaper === true ? 'line-art' : 'none'
+  const wallpapers = { daisy: legacy, rosie: legacy, nova: legacy }
+  for (const id of CHAT_AGENT_IDS) {
+    const value = saved?.wallpapers?.[id]
+    if (isChatWallpaper(value)) wallpapers[id] = value
+  }
+  return wallpapers
+}
+
+export function chatWallpaperForAgent(
+  appearance: ChatAppearance,
+  agentId: string,
+): ChatWallpaperId {
+  if (agentId === 'daisy' || agentId === 'rosie' || agentId === 'nova') {
+    return appearance.wallpapers[agentId]
+  }
+  return DEFAULT_CHAT_APPEARANCE.wallpapers.nova
 }
 
 export function chatThemeForAgent(appearance: ChatAppearance, agentId: string): ChatThemeId {
