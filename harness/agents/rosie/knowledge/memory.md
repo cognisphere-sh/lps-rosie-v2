@@ -22,3 +22,9 @@ two places instead.
 
 -----$-----$-----$-----
 
+name: chris-copy-ready-format
+lastUpdated: 2026-08-24 09:54:14
+description: Chris prefers copy-ready text sent as its own clean message, without commentary or caveats; place any context in a separate message before or after. He stated this while requesting the JR-8 pricing text. Relevant to future shareable-copy requests.
+
+-----$-----$-----$-----
+

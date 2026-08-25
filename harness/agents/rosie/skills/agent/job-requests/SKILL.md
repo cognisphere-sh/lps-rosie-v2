@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.0.1)
+description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.1.0)
 metadata:
   author: lps
-  version: "3.0.1"
+  version: "3.1.0"
 ---
 
 # Job requests
@@ -457,6 +457,26 @@ from their row. Rung 3 does not: another supplier's price goes on that
 supplier's `sourcing_notes` line and `unit_price` stays NULL, until Chris or
 the customer explicitly sources the line there — the only instruction that puts
 someone else's price in the column, and it goes on the line with it.
+
+### Cultivar/color pricing convention
+
+For **crape myrtles, plumbago and salvias**, price a customer-named variety or
+color from Austin Plant Supply's **general line at the matching size** when the
+catalogue does not identify that variety. Keep the customer's requested name
+and size on the item — a generic price line is a pricing basis, **not** a
+substitute offer, so do not add an `external_notes` substitution note or change
+the item to `alternative_proposed` solely for that difference. Record the
+basis concisely in `sourcing_notes`, for example:
+
+```
+APS: Generic Salvia 1 G catalogue price @ $5/unit — priced per Chris direction
+```
+
+This applies to variety/color only: a different size, a different plant, or a
+customer constraint that makes the variety material still follows the normal
+substitute/confirmation path. Catalogue price is still not availability; the
+item stays `pending` until the supplier confirms it or Chris explicitly directs
+it be treated as confirmed.
 
 Write **`unit_price` only**, taken from the inventory row you sourced:
 

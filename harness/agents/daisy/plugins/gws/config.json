@@ -3,5 +3,6 @@
   "gmailQuery": "in:inbox -label:daisy after:2026-07-01 is:unread",
   "firstOfThreadOnly": false,
   "allowedSenders": "*",
-  "requireAgentInTo": false
+  "requireAgentInTo": false,
+  "oauthScopes": "https://www.googleapis.com/auth/drive, https://www.googleapis.com/auth/drive.file, https://www.googleapis.com/auth/drive.readonly, https://www.googleapis.com/auth/drive.metadata.readonly, https://www.googleapis.com/auth/documents, https://www.googleapis.com/auth/documents.readonly, https://www.googleapis.com/auth/calendar, https://www.googleapis.com/auth/calendar.readonly, https://www.googleapis.com/auth/calendar.events, https://www.googleapis.com/auth/calendar.events.readonly, https://www.googleapis.com/auth/spreadsheets, https://www.googleapis.com/auth/spreadsheets.readonly"
 }

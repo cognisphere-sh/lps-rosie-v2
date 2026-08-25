@@ -1,5 +1,12 @@
 # job-requests — changelog
 
+## 3.1.0
+
+2026-08-24 (Chris, JR-9). Added the cultivar/color pricing convention: for
+crape myrtles, plumbago and salvias, use Austin Plant Supply’s general line at
+the matching size when its catalogue lacks the named variety/color. This is a
+pricing basis, not a substitution; availability confirmation remains required.
+
 ## 3.0.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —
