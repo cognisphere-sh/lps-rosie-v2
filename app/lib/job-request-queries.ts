@@ -481,3 +481,122 @@ export async function jobRequestSummary(): Promise<{ requests: number; items: nu
   ])
   return { requests: requests ?? 0, items: items ?? 0 }
 }
+
+/**
+ * What a delete took with it, so the toast can say and the confirm was honest.
+ *
+ * `answers` is the one line that is *not* a deletion: `availability_request_items`
+ * references a line with ON DELETE SET NULL, deliberately — a supplier's answer
+ * is theirs, and it keeps the name/size/quantity it was asked about. Deleting a
+ * line loses the traceback to it, not the answer.
+ */
+export interface JobRequestDeletion {
+  items: number
+  availabilityRequests: number
+  availabilityRequestItems: number
+  changelog: number
+  answers: number
+}
+
+/** `count: 'exact', head: true` over one table, filtered by one column. */
+async function countWhere(table: string, column: string, values: number[]): Promise<number> {
+  if (!values.length) return 0
+  const { count, error } = await supabase
+    .from(table)
+    .select('id', { count: 'exact', head: true })
+    .in(column, values)
+  if (error) throw new Error(`${table} count: ${error.message}`)
+  return count ?? 0
+}
+
+/**
+ * Delete one job request and everything hanging off it — **permanently**.
+ *
+ * A hard delete, not the `is_active` soft delete the suppliers table uses, and
+ * for a reason: the availability requests a job produced are read by *supplier
+ * id* in their own portal, not through the job's `is_active`, so retiring the
+ * job would leave a supplier answering an ask for a job that no longer exists.
+ * "Delete the request" has to mean the ask goes too.
+ *
+ * The cascade is the database's own (migrations 0055/0062): `job_request_items`,
+ * `job_request_changelog` and `availability_requests` all reference
+ * `job_requests` ON DELETE CASCADE, and `availability_request_items` cascades
+ * from its request. This counts what is about to go before issuing the one
+ * DELETE, because afterwards there is nothing left to count.
+ *
+ * Returns null if there is no such request.
+ */
+export async function deleteJobRequest(id: number): Promise<JobRequestDeletion | null> {
+  const { data: found, error: findError } = await supabase
+    .from('job_requests')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle()
+  if (findError) throw new Error(`job_requests: ${findError.message}`)
+  if (!found) return null
+
+  const { data: ars, error: arError } = await supabase
+    .from('availability_requests')
+    .select('id')
+    .eq('job_request_id', id)
+  if (arError) throw new Error(`availability_requests: ${arError.message}`)
+  const arIds = ((ars ?? []) as { id: number }[]).map((r) => r.id)
+
+  const [items, changelog, arItems] = await Promise.all([
+    countWhere('job_request_items', 'job_request_id', [id]),
+    countWhere('job_request_changelog', 'job_request_id', [id]),
+    countWhere('availability_request_items', 'availability_request_id', arIds),
+  ])
+
+  const { error } = await supabase.from('job_requests').delete().eq('id', id)
+  if (error) throw new Error(`job_requests delete: ${error.message}`)
+
+  return {
+    items,
+    availabilityRequests: arIds.length,
+    availabilityRequestItems: arItems,
+    changelog,
+    answers: 0,
+  }
+}
+
+/**
+ * Delete one line of a job request — permanently, and scoped to its request.
+ *
+ * The request id is part of the lookup rather than decoration: it is what stops
+ * a wrong id in the URL from deleting a line of somebody else's job.
+ *
+ * Its changelog entries cascade away with it. Any `availability_request_items`
+ * already asked about this line do **not** — see `JobRequestDeletion.answers`.
+ *
+ * Returns null if the request has no such line.
+ */
+export async function deleteJobRequestItem(
+  requestId: number,
+  itemId: number,
+): Promise<JobRequestDeletion | null> {
+  const { data: found, error: findError } = await supabase
+    .from('job_request_items')
+    .select('id')
+    .eq('id', itemId)
+    .eq('job_request_id', requestId)
+    .maybeSingle()
+  if (findError) throw new Error(`job_request_items: ${findError.message}`)
+  if (!found) return null
+
+  const [changelog, answers] = await Promise.all([
+    countWhere('job_request_changelog', 'item_id', [itemId]),
+    countWhere('availability_request_items', 'job_request_item_id', [itemId]),
+  ])
+
+  const { error } = await supabase.from('job_request_items').delete().eq('id', itemId)
+  if (error) throw new Error(`job_request_items delete: ${error.message}`)
+
+  return {
+    items: 1,
+    availabilityRequests: 0,
+    availabilityRequestItems: 0,
+    changelog,
+    answers,
+  }
+}

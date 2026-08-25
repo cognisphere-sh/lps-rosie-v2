@@ -19,7 +19,7 @@ import { resolveUser } from '@/lib/session'
 // `/portal` and `/api/portal` are the supplier portal: suppliers are not
 // harness users, and portal auth is a deliberately deferred step (Bhoumik,
 // 2026-08-19), so for now the routes are open and scope themselves to the
-// supplier id in the URL — onboarded suppliers only, customer details only
+// supplier id in the URL — LPS Partners only, customer details only
 // where `share_customer_details` says so. Revisit this line when auth lands.
 const PUBLIC_PREFIXES = ['/login', '/api/auth', '/portal', '/api/portal']
 

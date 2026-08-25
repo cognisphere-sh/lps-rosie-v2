@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 1.1.2
+
+2026-08-25 (Bhoumik). `suppliers.is_onboarded` is now
+`suppliers.is_lps_partner` (migration 0074) — §0 and §1 name the new column.
+The flag never changed meaning; the column now says what everything reading it
+already said, and no longer collides with daisy's sense of *onboarding* a
+supplier into the database.
+
 ## 1.1.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

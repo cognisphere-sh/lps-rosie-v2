@@ -184,7 +184,7 @@ export function Shell({
   const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
   // The temporary "see the portal as a supplier" picker — a stand-in until
-  // supplier sign-in exists. Lists onboarded suppliers, lazily on first open.
+  // supplier sign-in exists. Lists the LPS Partners, lazily on first open.
   const [supplierViewMenu, setSupplierViewMenu] = useState(false)
   const [portalSuppliers, setPortalSuppliers] = useState<{ id: number; name: string }[] | null>(null)
   // The Agents list and a conversation are mobile pages, not overlays: each
@@ -519,7 +519,7 @@ export function Shell({
                 <div data-menu className="relative">
                   <button
                     type="button"
-                    title="Supplier view — open the portal as an onboarded supplier"
+                    title="Supplier view — open the portal as an LPS Partner"
                     onClick={() => {
                       setSupplierViewMenu((v) => !v)
                       if (portalSuppliers == null) {
@@ -548,7 +548,7 @@ export function Shell({
                       )}
                       {portalSuppliers?.length === 0 && (
                         <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">
-                          No onboarded suppliers yet.
+                          No LPS Partners yet.
                         </div>
                       )}
                       {portalSuppliers?.map((s) => (
@@ -834,7 +834,7 @@ export function Shell({
                           <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
                         )}
                         {portalSuppliers?.length === 0 && (
-                          <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No onboarded suppliers yet.</div>
+                          <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No LPS Partners yet.</div>
                         )}
                         {portalSuppliers?.map((supplier) => (
                           <a

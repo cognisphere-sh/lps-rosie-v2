@@ -110,7 +110,32 @@ here).
   alongside the status (stamped on `submitted`, cleared on `new`, untouched on
   `closed`), so the header's Submitted date is right however the status moved.
 
+- **Supplier Search filters by LPS Partner.** A single-select chip in the
+  toolbar beside Type / City / State — *LPS Partners* or *Not partners* — over
+  `suppliers.is_lps_partner`. It runs as SQL over the whole match set like the
+  other three, which needed migration 0074 to project the column from
+  `search_suppliers`: the page had been reading the flag in a second
+  `suppliers` query and stitching it onto the RPC's rows, which is enough to
+  draw the LPS tag on a row but not to filter one out. That second read is gone.
+  Filtering happens on locations before grouping, as the other filters do, so a
+  company can appear because one of its farms is the partner.
+
 ### Changed
+
+- **"LPS Partner" is the only name for it now — the column included.** The flag
+  that says a supplier answers availability requests in their portal was
+  `suppliers.is_onboarded` in the database and on the supplier profile
+  (*Portal onboarded*), while every prompt, skill, tag and screen that reads it
+  said **LPS Partner**. Migration 0074 renames the column to `is_lps_partner`
+  and re-comments it; rosie's system prompt and her `supplier-coordination`
+  skill (v1.1.2) name the new column; the profile field, the LPS tag's tooltip,
+  the availability-request dialog's empty state, the rail's Supplier view
+  picker and the docs all say Partner. "Onboarded" was also the wrong word
+  twice over: daisy *onboards* suppliers into the database — contacts,
+  availability, ingestion — without any of them becoming partners, so one word
+  named two unrelated states. Historical records (past changelog entries,
+  earlier migrations) keep the old name, because the column was called that
+  when they were written.
 
 - **The desktop nav rail starts collapsed and stays where you put it.** It
   opened at 196px on every page load and, because each page renders its own

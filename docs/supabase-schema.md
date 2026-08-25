@@ -126,7 +126,7 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `availability_source_type` | text | yes | **CHECK**: `Email` \| `Hosted` — how the availability list reaches us. Null = not established yet |
 | `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
 | `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
-| `is_onboarded` | boolean | no, default false | Answers **availability requests in the supplier portal** (`/portal/<id>`, migration 0062). FALSE = reached only through daisy's channels. Not a login — portal auth is a deliberately deferred step |
+| `is_lps_partner` | boolean | no, default false | TRUE = an **LPS Partner**: they answer **availability requests in the supplier portal** (`/portal/<id>`, migration 0062). FALSE = reached only through our own channels. Not a login — portal auth is a deliberately deferred step. Independent of whether daisy has *onboarded* them into the database; renamed from `is_onboarded` 2026-08-25 (migration 0074), which projected it from `search_suppliers` so Supplier Search can filter on it |
 | `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the router thread (and per-supplier gws rules) send supplier traffic here. Added 2026-08-23 (migration 0064) |
 | `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for the company — the **same `supplier-<slug>` value** as `daisy_thread_id` (thread ids are per-agent namespaces, so the shared string names two distinct threads), one per head branch. All order-side coordination with the supplier runs there: availability requests, follow-ups, portal-save notifications. Set with `daisy_thread_id` at onboarding. Added 2026-08-23 (migration 0068) |
 | `is_active` | boolean | no, default true | Soft delete; deactivation cascades (see triggers) |
@@ -825,8 +825,8 @@ changed under you since you last looked.
 
 ### `availability_requests`
 
-One availability ask, from one job request to one **onboarded** supplier
-(`suppliers.is_onboarded` — an **LPS Partner**). Added 2026-08-19 by migration
+One availability ask, from one job request to one **LPS Partner**
+(`suppliers.is_lps_partner`). Added 2026-08-19 by migration
 0062. Created by the app (Job Requests page → selection bar) or by rosie's
 per-supplier thread (her `supplier-coordination` skill — since 2026-08-23 she
 owns order-side supplier coordination, the portal included; before that the
@@ -1035,9 +1035,12 @@ address / notes, and the same ordering rule. Returns active suppliers. It no
 longer returns `phone` or `email` — those columns are gone; the equivalents are
 `primary_contact_phone` / `primary_contact_email` below.
 
-It returns the three availability columns as of migration 0018 — the function
-has a fixed return type, so **any new `suppliers` column has to be added here
-before the app can read it through search.**
+It returns the three availability columns as of migration 0018, and
+`is_lps_partner` as of 0074 — the function has a fixed return type, so **any new
+`suppliers` column has to be added here before the app can read it through
+search.** `is_lps_partner` is projected so the Supplier Search page can filter
+on it over the whole match set rather than over the page it happens to hold; it
+is not in the `sort_column` whitelist.
 
 Its returned columns include `primary_contact_name`, `primary_contact_email` and
 `primary_contact_phone`, resolved by a `LEFT JOIN LATERAL` over

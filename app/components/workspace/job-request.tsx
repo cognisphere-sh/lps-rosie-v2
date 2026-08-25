@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 import {
   EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
-import { CheckIcon, ChevronDown, ChevronRight } from '@/components/workspace/icons'
+import { CheckIcon, ChevronDown, ChevronRight, TrashIcon } from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import { money, num } from '@/lib/format'
@@ -43,8 +43,12 @@ const LINE_COLUMNS =
 
 /** The select column only exists where something can act on a selection. */
 const SELECT_COLUMN = 36
-const gridOf = (selectable: boolean) =>
-  selectable ? `${SELECT_COLUMN}px ${LINE_COLUMNS}` : LINE_COLUMNS
+/** The trailing column holding a line's delete button, where lines can be deleted. */
+const ACTION_COLUMN = 34
+const gridOf = (selectable: boolean, deletable = false) =>
+  [selectable ? `${SELECT_COLUMN}px` : null, LINE_COLUMNS, deletable ? `${ACTION_COLUMN}px` : null]
+    .filter(Boolean)
+    .join(' ')
 
 /** Under this the columns would crush, so the card scrolls sideways instead. */
 const GRID_MIN = 1050
@@ -424,12 +428,15 @@ function ItemRow({
   item,
   selected,
   onSelect,
+  onDelete,
   onSaved,
 }: {
   item: JobRequestItem
   selected: boolean
   /** Omitted where the page has nothing to do with a selection. */
   onSelect?: () => void
+  /** Omitted where lines are read, not managed — the customer's own page. */
+  onDelete?: () => void
   onSaved: () => void
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
@@ -447,7 +454,7 @@ function ItemRow({
     <div
       className="grid items-center border-b border-lps-hair last:border-b-0"
       style={{
-        gridTemplateColumns: gridOf(!!onSelect),
+        gridTemplateColumns: gridOf(!!onSelect, !!onDelete),
         minHeight: '48px',
         padding: '4px 0',
         borderLeft: `3px solid ${toneDot(pill.tone)}`,
@@ -544,6 +551,19 @@ function ItemRow({
         value={item.sourcingNotes}
         onSaved={onSaved}
       />
+      {onDelete && (
+        <div className="flex justify-center px-1">
+          <button
+            type="button"
+            onClick={onDelete}
+            title={`Delete ${title || 'this line'} permanently`}
+            aria-label={`Delete ${title || 'this line'}`}
+            className="inline-flex size-[26px] cursor-pointer items-center justify-center rounded-[7px] border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <TrashIcon size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -851,6 +871,7 @@ export function RequestBody({
   onToggleDetails,
   selected,
   onSelect,
+  onDeleteItem,
   onSaved,
 }: {
   request: JobRequestRow
@@ -863,6 +884,11 @@ export function RequestBody({
   selected?: Set<number>
   /** Select or clear these line ids; the page owns the set. */
   onSelect?: (ids: number[], on: boolean) => void
+  /**
+   * Delete one line, permanently. Omitted where requests are read rather than
+   * managed — a customer's page lists their jobs, it does not administer them.
+   */
+  onDeleteItem?: (item: JobRequestItem) => void
   onSaved: () => void
 }) {
   const edit = { table: 'job_requests', id: request.id, onSaved }
@@ -958,11 +984,16 @@ export function RequestBody({
           the design fixes a min width for exactly this reason, and the two
           note columns are what would otherwise be squeezed out of existence. */}
       <div className="overflow-x-auto border-t border-border">
-        <div style={{ minWidth: onSelect ? GRID_MIN : GRID_MIN - SELECT_COLUMN }}>
+        <div
+          style={{
+            minWidth:
+              GRID_MIN - (onSelect ? 0 : SELECT_COLUMN) + (onDeleteItem ? ACTION_COLUMN : 0),
+          }}
+        >
           {/* Column header, repeated per card so it survives a collapsed neighbour. */}
           <div
             className="grid items-center border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-            style={{ gridTemplateColumns: gridOf(!!onSelect) }}
+            style={{ gridTemplateColumns: gridOf(!!onSelect, !!onDeleteItem) }}
           >
             {/* Deliberately unlabelled: the column selects lines, and a
                 header control here would only mean "all of them". */}
@@ -976,6 +1007,9 @@ export function RequestBody({
             <div className="px-2 py-1.5">Status</div>
             <div className="px-2 py-1.5">Shared note</div>
             <div className="px-2 py-1.5">Sourcing note</div>
+            {/* Unlabelled for the same reason the select column is: the header
+                cell of a per-row action could only mean "all of them". */}
+            {onDeleteItem && <div />}
           </div>
           {request.items.length ? (
             request.items.map((item) => (
@@ -984,6 +1018,7 @@ export function RequestBody({
                 item={item}
                 selected={selected?.has(item.id) ?? false}
                 onSelect={onSelect && (() => onSelect([item.id], !selected?.has(item.id)))}
+                onDelete={onDeleteItem && (() => onDeleteItem(item))}
                 onSaved={onSaved}
               />
             ))

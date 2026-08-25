@@ -10,6 +10,22 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0074_rename_is_onboarded_to_is_lps_partner.sql`
+
+Applied 2026-08-25 (Bhoumik). Renames `suppliers.is_onboarded` →
+`suppliers.is_lps_partner` and re-comments it, so the column carries the name
+every prompt, skill and screen already used out loud — **LPS Partner**. The old
+name also collided with daisy's sense of *onboarding* a supplier into the
+database, which is a different thing entirely and happens to suppliers who
+never become partners. Nothing but app code referenced the column (no view,
+policy, index, constraint or other function), and 1 of 1,396 rows is TRUE.
+
+The same step drops and recreates `search_suppliers` so its fixed return type
+projects `is_lps_partner`. That is what lets Supplier Search filter on the flag
+in SQL over the whole match set; the page previously read it in a second
+`suppliers` query, which is enough to draw the LPS tag on a row but not to
+filter one out. Body otherwise unchanged; EXECUTE re-granted after the drop.
+
 ## `0073_drop_customer_communication_notes.sql`
 
 Applied 2026-08-25 (Bhoumik). Drops `customers.communication_notes`, the

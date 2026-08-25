@@ -276,14 +276,14 @@ export async function createAvailabilityRequest(input: {
 }): Promise<number> {
   const { data: sup, error: supErr } = await supabase
     .from('suppliers')
-    .select('id, is_onboarded, is_active')
+    .select('id, is_lps_partner, is_active')
     .eq('id', input.supplierId)
     .maybeSingle()
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
-  const supplier = sup as { is_onboarded: boolean; is_active: boolean } | null
+  const supplier = sup as { is_lps_partner: boolean; is_active: boolean } | null
   if (!supplier?.is_active) throw new Error('supplier not found')
-  if (!supplier.is_onboarded) {
-    throw new Error('supplier is not onboarded')
+  if (!supplier.is_lps_partner) {
+    throw new Error('supplier is not an LPS Partner')
   }
 
   if (!input.itemIds.length) throw new Error('at least one line is required')
@@ -550,31 +550,31 @@ export async function setAvailabilityRequestStatus(arId: number, status: string)
   if (!data?.length) throw new Error('availability request not found')
 }
 
-/** The suppliers an availability request can be sent to. */
-export async function listOnboardedSuppliers(): Promise<
+/** The suppliers an availability request can be sent to — the LPS Partners. */
+export async function listLpsPartners(): Promise<
   { id: number; name: string; city: string | null; state: string | null }[]
 > {
   const { data, error } = await supabase
     .from('suppliers')
     .select('id, name, city, state')
     .eq('is_active', true)
-    .eq('is_onboarded', true)
+    .eq('is_lps_partner', true)
     .order('name', { ascending: true })
   if (error) throw new Error(`suppliers: ${error.message}`)
   return (data ?? []) as { id: number; name: string; city: string | null; state: string | null }[]
 }
 
-/** The portal's idea of its supplier: must exist, be active, and be onboarded. */
+/** The portal's idea of its supplier: must exist, be active, and be an LPS Partner. */
 export async function portalSupplier(id: number): Promise<{ id: number; name: string } | null> {
   const { data, error } = await supabase
     .from('suppliers')
-    .select('id, name, is_onboarded')
+    .select('id, name, is_lps_partner')
     .eq('id', id)
     .eq('is_active', true)
     .maybeSingle()
   if (error) throw new Error(`suppliers: ${error.message}`)
-  const s = data as { id: number; name: string; is_onboarded: boolean } | null
-  return s?.is_onboarded ? { id: s.id, name: s.name } : null
+  const s = data as { id: number; name: string; is_lps_partner: boolean } | null
+  return s?.is_lps_partner ? { id: s.id, name: s.name } : null
 }
 
 /**
@@ -606,12 +606,12 @@ export async function supplierLinksByRequest(
   if (!supplierIds.length) return {}
   const { data: sups, error: supErr } = await supabase
     .from('suppliers')
-    .select('id, name, is_onboarded, rosie_thread_id')
+    .select('id, name, is_lps_partner, rosie_thread_id')
     .in('id', supplierIds)
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
   const meta = new Map(
     (
-      (sups ?? []) as { id: number; name: string; is_onboarded: boolean; rosie_thread_id: string | null }[]
+      (sups ?? []) as { id: number; name: string; is_lps_partner: boolean; rosie_thread_id: string | null }[]
     ).map((s) => [s.id, s]),
   )
 
@@ -624,7 +624,7 @@ export async function supplierLinksByRequest(
           ? {
               supplierId,
               name: s.name,
-              onboarded: s.is_onboarded,
+              lpsPartner: s.is_lps_partner,
               availabilityRequestIds: arIds,
               rosieThreadId: s.rosie_thread_id,
             }

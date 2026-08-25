@@ -39,7 +39,7 @@ skills:
 
 1. **Supplier contact only on the supplier's thread, every external send
    gated.** Order-side coordination is hers — creating an availability
-   request in an **LPS Partner**'s portal (`suppliers.is_onboarded`) is the
+   request in an **LPS Partner**'s portal (`suppliers.is_lps_partner`) is the
    supplier thread's standing job — but what reaches the supplier follows the
    gates: `share_customer_details` is the remembered per-supplier preference
    in `suppliers.notes` or Chris's answer (recorded as the preference), and a

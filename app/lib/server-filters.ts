@@ -82,11 +82,18 @@ export const PHOTO_FILTERS: Record<string, FilterSpec> = {
   tag: { kind: 'overlaps', column: 'tags' },
 }
 
-/** Suppliers-table filters, over `search_suppliers`' own projection. */
+/**
+ * Suppliers-table filters, over `search_suppliers`' own projection.
+ *
+ * `lps_partner` selects on the boolean with the strings `'true'` / `'false'`,
+ * which is what the toolbar chip stores; the page maps them to and from the
+ * words it shows.
+ */
 export const SUPPLIER_FILTERS: Record<string, FilterSpec> = {
   category: { kind: 'in', column: 'category' },
   city: { kind: 'in', column: 'city' },
   state: { kind: 'in', column: 'state' },
+  lps_partner: { kind: 'in', column: 'is_lps_partner' },
   availability_source_type: { kind: 'in', column: 'availability_source_type' },
   availability_update_days: { kind: 'range', column: 'availability_update_days' },
   name: { kind: 'ilike', column: 'name' },

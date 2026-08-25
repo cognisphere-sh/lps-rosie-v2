@@ -19,6 +19,16 @@ import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 
+/**
+ * The LPS Partner chip's two answers, and the `is_lps_partner` values they
+ * select. The filter reaches SQL as a value on the boolean column, but a chip
+ * reading `true` would be asking the user to read the schema.
+ */
+const PARTNER_OPTIONS: Record<string, string> = {
+  'LPS Partners': 'true',
+  'Not partners': 'false',
+}
+
 // The column picker's head, and each company row's two agent buttons beside
 // its hide button. Farm rows carry the hide button alone.
 const ACTIONS_W = 16 + 26 + 2 * 24
@@ -225,6 +235,7 @@ export default function SuppliersPage() {
   const categoryFilter = Array.isArray(cfg.filters.category) ? cfg.filters.category : []
   const cityFilter = Array.isArray(cfg.filters.city) ? cfg.filters.city : []
   const stateFilter = Array.isArray(cfg.filters.state) ? cfg.filters.state : []
+  const partnerFilter = Array.isArray(cfg.filters.lps_partner) ? cfg.filters.lps_partner : []
   const hasFilters = Object.keys(cfg.filters).length > 0 || !!query
 
   const toolbar = (
@@ -269,6 +280,21 @@ export default function SuppliersPage() {
           </div>
         </>
       }
+      chips={[
+        {
+          label: 'LPS Partner',
+          allLabel: 'All suppliers',
+          // The two answers exclude each other: a supplier either answers in
+          // the portal or does not, so ticking both would be ticking neither.
+          single: true,
+          options: Object.keys(PARTNER_OPTIONS),
+          values: Object.keys(PARTNER_OPTIONS).filter((label) =>
+            partnerFilter.includes(PARTNER_OPTIONS[label]),
+          ),
+          onChange: (labels) =>
+            cfg.setColFilter('lps_partner', labels.map((label) => PARTNER_OPTIONS[label])),
+        },
+      ]}
       hasFilters={hasFilters}
       onClear={() => {
         setQuery('')
@@ -305,7 +331,7 @@ export default function SuppliersPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-[14.5px] font-bold leading-tight">
                 <span className="min-w-0 truncate">{String(row.values.name ?? '')}</span>
-                {!!row.values.is_onboarded && <LpsTag />}
+                {!!row.values.is_lps_partner && <LpsTag />}
               </div>
               <div className="text-[11.5px] text-muted-foreground">
                 {[row.values.city, row.values.state].filter(Boolean).join(', ') || 'No address on file'}
@@ -415,7 +441,7 @@ export default function SuppliersPage() {
                   ? formatDate(row.values[col.key] as string | null)
                   : row.values[col.key] ?? null
               }
-              tag={col.kind === 'link' && row.values.is_onboarded ? <LpsTag /> : undefined}
+              tag={col.kind === 'link' && row.values.is_lps_partner ? <LpsTag /> : undefined}
               onOpen={col.kind === 'link' ? () => router.push(`/suppliers/${row.id}`) : undefined}
               onSave={col.edit ? (next) => saveCell(row, col, next) : undefined}
             />

@@ -114,7 +114,7 @@ export interface ARDetail extends ARSummary {
 export interface SupplierLink {
   supplierId: number
   name: string
-  onboarded: boolean
+  lpsPartner: boolean
   /** Every availability request this job has with them, newest first. */
   availabilityRequestIds: number[]
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */

@@ -427,13 +427,13 @@ export function ColumnHead({
 export const fileHref = (path: string) => `/api/file?path=${encodeURIComponent(path)}`
 
 /**
- * Marks a portal-onboarded supplier — they answer availability requests in
- * the LPS supplier portal (`suppliers.is_onboarded`, migration 0062).
+ * Marks an LPS Partner — they answer availability requests in the LPS supplier
+ * portal (`suppliers.is_lps_partner`, migrations 0062/0074).
  */
 export function LpsTag() {
   return (
     <span
-      title="Onboarded on the LPS supplier portal"
+      title="LPS Partner — answers availability requests in the LPS supplier portal"
       className="inline-flex flex-none items-center rounded-[5px] bg-primary px-1 py-px text-[9px] font-black tracking-wide text-primary-foreground"
     >
       LPS

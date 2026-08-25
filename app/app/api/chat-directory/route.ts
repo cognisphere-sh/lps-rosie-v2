@@ -32,9 +32,9 @@ export async function GET() {
         .limit(100),
       supabase
         .from('suppliers')
-        .select('id, name, rosie_thread_id, is_onboarded, city, state')
+        .select('id, name, rosie_thread_id, is_lps_partner, city, state')
         .eq('is_active', true)
-        .eq('is_onboarded', true)
+        .eq('is_lps_partner', true)
         .not('rosie_thread_id', 'is', null),
       supabase.from('availability_requests').select('supplier_id').eq('is_active', true),
       supabase
@@ -53,7 +53,7 @@ export async function GET() {
       id: number
       name: string
       rosie_thread_id: string | null
-      is_onboarded: boolean
+      is_lps_partner: boolean
       city: string | null
       state: string | null
     }
@@ -72,7 +72,7 @@ export async function GET() {
     if (engagedIds.length) {
       const res = await supabase
         .from('suppliers')
-        .select('id, name, rosie_thread_id, is_onboarded, city, state')
+        .select('id, name, rosie_thread_id, is_lps_partner, city, state')
         .in('id', engagedIds)
       if (res.error) throw new Error(res.error.message)
       engaged = (res.data ?? []) as SupplierRow[]
@@ -99,7 +99,7 @@ export async function GET() {
         threadId,
         title: s.name,
         subtitle:
-          [s.is_onboarded ? 'LPS Partner' : null, [s.city, s.state].filter(Boolean).join(', ')]
+          [s.is_lps_partner ? 'LPS Partner' : null, [s.city, s.state].filter(Boolean).join(', ')]
             .filter(Boolean)
             .join(' · ') || null,
       })),

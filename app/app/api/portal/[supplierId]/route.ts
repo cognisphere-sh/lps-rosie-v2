@@ -6,8 +6,8 @@ import { listPortalRequests, portalSupplier } from '@/lib/availability-queries'
 // (`proxy.ts` exempts /portal and /api/portal): suppliers are not app users,
 // and portal auth is a deliberately deferred step (Bhoumik, 2026-08-19). Until
 // it lands, the supplier id in the URL is the only scoping — every read here
-// must go through `portalSupplier` (which refuses non-onboarded suppliers) and
-// disclose only what `share_customer_details` allows.
+// must go through `portalSupplier` (which refuses anyone who is not an LPS
+// Partner) and disclose only what `share_customer_details` allows.
 
 /**
  * The portal home: who this is, and their availability requests — each with

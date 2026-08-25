@@ -76,9 +76,9 @@ const FIELDS: ProfileFieldDefinition[] = [
   },
   { key: 'availability_update_days', label: 'Update every (days)', column: 'availability_update_days' },
   { key: 'hosted_availability_url', label: 'Hosted availability', column: 'hosted_availability_url' },
-  // The portal flag (migration 0062): onboarded suppliers answer availability
+  // The partner flag (migrations 0062/0074): an LPS Partner answers availability
   // requests at /portal/<id>; everyone else is reached through daisy's channels.
-  { key: 'is_onboarded', label: 'Portal onboarded', column: 'is_onboarded', options: ['true', 'false'] },
+  { key: 'is_lps_partner', label: 'LPS Partner', column: 'is_lps_partner', options: ['true', 'false'] },
   { key: 'item_count', label: 'Active items' },
   { key: 'last_ingestion_date', label: 'Last inventory ingestion' },
   { key: 'updated', label: 'Profile last updated' },
@@ -152,7 +152,7 @@ function fieldDisplay(row: SupplierRow, key: string, itemCount?: number | null):
   if (key === 'updated' || key === 'created_at' || key === 'last_ingestion_date') {
     return formatDate(value as string | null)
   }
-  if (key === 'is_onboarded') return value ? 'Yes' : 'No'
+  if (key === 'is_lps_partner') return value ? 'Yes' : 'No'
   if (key === 'item_count') return value == null ? '—' : num(value)
   return Array.isArray(value) ? value.join(', ') : value == null || value === '' ? '—' : String(value)
 }
@@ -1140,7 +1140,7 @@ export default function SupplierProfilePage() {
               >
                 ← All suppliers
               </Link>
-              {!!values.is_onboarded && <LpsTag />}
+              {!!values.is_lps_partner && <LpsTag />}
               {/* A farm's own page. Its company is where the whole picture is. */}
               {profile && subject && profile.company.id !== subject.row.id && (
                 <Link

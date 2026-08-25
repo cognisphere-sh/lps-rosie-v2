@@ -24,17 +24,17 @@ export async function portalChatTarget(supplierId: number): Promise<PortalChatTa
   if (!SECRET) return null // not wired on this box
   const { data, error } = await supabase
     .from('suppliers')
-    .select('name, rosie_thread_id, is_onboarded, is_active')
+    .select('name, rosie_thread_id, is_lps_partner, is_active')
     .eq('id', supplierId)
     .maybeSingle()
   if (error) throw new Error(`suppliers: ${error.message}`)
   const s = data as {
     name: string
     rosie_thread_id: string | null
-    is_onboarded: boolean
+    is_lps_partner: boolean
     is_active: boolean
   } | null
-  if (!s?.is_active || !s.is_onboarded || !s.rosie_thread_id) return null
+  if (!s?.is_active || !s.is_lps_partner || !s.rosie_thread_id) return null
   return { threadId: s.rosie_thread_id, supplierName: s.name }
 }
 

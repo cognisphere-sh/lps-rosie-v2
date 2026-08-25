@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request when onboarded, drafted outreach when not), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.1.1)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, drafted outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.1.2)
 metadata:
   author: lps
-  version: "1.1.1"
+  version: "1.1.2"
 ---
 
 # Supplier coordination
@@ -23,7 +23,7 @@ those).
 
 ## 0. Know this supplier first
 
-Before acting, read the supplier's row — `is_onboarded`, `notes`, and its
+Before acting, read the supplier's row — `is_lps_partner`, `notes`, and its
 locations (`head_branch_id`). **`suppliers.notes` is where this supplier's
 coordination preferences live**: whether customer details are shared with
 them, preferred channel, how they like asks framed, ordering constraints.
@@ -37,7 +37,7 @@ type-level habit.
 
 ## 1. LPS Partner or not
 
-**`suppliers.is_onboarded = true` makes them an LPS Partner** — they answer
+**`suppliers.is_lps_partner = true` makes them an LPS Partner** — they answer
 structured asks in their portal (`/portal/<supplierId>`), and the channel is
 an **availability request** (§2). Anyone else is reached by ordinary
 outreach (§4).

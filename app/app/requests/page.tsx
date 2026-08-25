@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import {
-  ChevronDown, ChevronRight, CloseIcon, MapPinIcon, SuppliersIcon,
+  ChevronDown, ChevronRight, CloseIcon, MapPinIcon, SuppliersIcon, TrashIcon,
 } from '@/components/workspace/icons'
 import { onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { EditableText, patchRow } from '@/components/workspace/editable'
@@ -31,7 +31,7 @@ import {
   toneDot,
   toneStyle,
 } from '@/lib/job-requests'
-import type { JobRequestFacets, JobRequestRow } from '@/lib/rows'
+import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
@@ -121,6 +121,8 @@ function RequestCard({
   version,
   onToggle,
   onSelect,
+  onDelete,
+  onDeleteItem,
   onSaved,
 }: {
   request: JobRequestRow
@@ -132,6 +134,10 @@ function RequestCard({
   onToggle: () => void
   /** Select or clear these line ids; the page owns the set. */
   onSelect: (ids: number[], on: boolean) => void
+  /** Delete the whole request, permanently. Confirmed by the page. */
+  onDelete: () => void
+  /** Delete one of its lines, permanently. Confirmed by the page. */
+  onDeleteItem: (item: JobRequestItem) => void
   onSaved: () => void
 }) {
   // The second level of expansion, kept on the card: opening a request's
@@ -252,6 +258,20 @@ function RequestCard({
           >
             <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
           </button>
+          {/* Last in the head, and the only control here that cannot be undone
+              — the page confirms before anything is sent. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
+            title={`Delete ${requestRef(request.id)} permanently`}
+            aria-label={`Delete ${requestRef(request.id)}`}
+            className="flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <TrashIcon size={14} />
+          </button>
         </div>
 
         {/* Who the job is for on the left, everything it opens on the right —
@@ -365,6 +385,7 @@ function RequestCard({
           onToggleDetails={() => setDetailsOpen((v) => !v)}
           selected={selected}
           onSelect={onSelect}
+          onDeleteItem={onDeleteItem}
           onSaved={onSaved}
         />
       )}
@@ -380,11 +401,11 @@ interface ARGroup {
 }
 
 /**
- * Send the selected lines to an onboarded supplier as an availability request.
+ * Send the selected lines to an LPS Partner as an availability request.
  *
  * One request per job: a selection spanning several jobs creates one per job,
  * because `availability_requests` ties a supplier's answer to the job it is
- * for. Only onboarded suppliers are offered — everyone else is reached through
+ * for. Only LPS Partners are offered — everyone else is reached through
  * their conversation thread (via daisy), not a portal they will never open.
  */
 function AvailabilityRequestDialog({
@@ -497,8 +518,8 @@ function AvailabilityRequestDialog({
           </select>
           {loaded && suppliers.length === 0 && (
             <span className="text-[11.5px] text-muted-foreground">
-              No onboarded suppliers yet — mark one as{' '}
-              <em>Portal onboarded</em> on their profile first.
+              No LPS Partners yet — mark one as an{' '}
+              <em>LPS Partner</em> on their profile first.
             </span>
           )}
         </label>
@@ -545,7 +566,7 @@ function AvailabilityRequestDialog({
  * deferred by migration 0055. Buttons that only looked like they sent
  * something would be worse than their absence. Send availability request *is*
  * wired since migration 0062 — it writes `availability_requests`, which is a
- * database row an onboarded supplier reads in their portal, not outreach.
+ * database row an LPS Partner reads in their portal, not outreach.
  */
 function SelectionBar({
   ids,
@@ -635,7 +656,11 @@ function SelectionBar({
   )
 }
 
+/** "3 lines, 2 availability requests and their answers, its change history". */
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
 export default function RequestsPage() {
+  const toast = useToast()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<string[]>(OPEN_STATUSES)
   const [itemStatus, setItemStatus] = useState<string[]>([])
@@ -777,6 +802,78 @@ export default function RequestsPage() {
       return next
     })
   }, [])
+
+  /**
+   * Delete a whole request — permanently, and everything hanging off it.
+   *
+   * The confirm names what goes before it goes, counted from what the card is
+   * already showing; the toast reports what the server actually removed. There
+   * is no undo, so the wording says so rather than implying a bin somewhere.
+   */
+  const deleteRequest = useCallback(
+    async (request: JobRequestRow) => {
+      const arCount = request.supplierLinks.reduce((n, l) => n + l.availabilityRequestIds.length, 0)
+      const goes = [
+        plural(request.itemCount, 'line'),
+        arCount ? `${plural(arCount, 'availability request')} and the answers on them` : null,
+        'its change history',
+      ]
+        .filter(Boolean)
+        .join(', ')
+      const ref = requestRef(request.id)
+      if (!window.confirm(`Delete ${ref} permanently? ${goes} go with it. This cannot be undone.`)) {
+        return
+      }
+
+      const res = await fetch(`/api/requests/${request.id}`, { method: 'DELETE' })
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string
+        deleted?: { items: number; availabilityRequests: number }
+      }
+      if (!res.ok) {
+        toast(`Could not delete ${ref}${body.error ? ` — ${body.error}` : ''}`)
+        return
+      }
+      const d = body.deleted
+      toast(
+        `${ref} deleted · ${plural(d?.items ?? 0, 'line')}` +
+          (d?.availabilityRequests ? `, ${plural(d.availabilityRequests, 'availability request')}` : ''),
+      )
+      reload()
+    },
+    [reload, toast],
+  )
+
+  /**
+   * Delete one line — permanently. A supplier already asked about it keeps
+   * their answer (`availability_request_items` is SET NULL, not cascaded), so
+   * the confirm says so rather than letting it be a surprise afterwards.
+   */
+  const deleteItem = useCallback(
+    async (request: JobRequestRow, item: JobRequestItem) => {
+      const label = [item.name, item.size].filter(Boolean).join(' · ') || 'this line'
+      if (!window.confirm(`Delete ${label} from ${requestRef(request.id)} permanently? This cannot be undone.`)) {
+        return
+      }
+
+      const res = await fetch(`/api/requests/${request.id}/items/${item.id}`, { method: 'DELETE' })
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string
+        deleted?: { answers: number }
+      }
+      if (!res.ok) {
+        toast(`Could not delete the line${body.error ? ` — ${body.error}` : ''}`)
+        return
+      }
+      const answers = body.deleted?.answers ?? 0
+      toast(
+        `Line deleted` +
+          (answers ? ` · ${plural(answers, "supplier answer")} kept, no longer linked` : ''),
+      )
+      reload()
+    },
+    [reload, toast],
+  )
 
   const toggle = useCallback((id: number) => {
     setExpanded((prev) => {
@@ -935,6 +1032,8 @@ export default function RequestsPage() {
             version={reloads}
             onToggle={() => toggle(request.id)}
             onSelect={select}
+            onDelete={() => deleteRequest(request)}
+            onDeleteItem={(item) => deleteItem(request, item)}
             onSaved={reload}
           />
         ))}

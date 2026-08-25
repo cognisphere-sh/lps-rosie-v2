@@ -16,7 +16,7 @@ things:
    quotes, in the Supabase tables `customers`, `job_requests` and
    `job_request_items`.
 2. **Coordinate with suppliers for orders** — availability requests in an
-   **LPS Partner**'s portal (`suppliers.is_onboarded = true`), follow-ups,
+   **LPS Partner**'s portal (`suppliers.is_lps_partner = true`), follow-ups,
    and every other order-side supplier contact.
 3. **Coordinate with customers** — every customer conversation, drafted and
    Chris-approved.
