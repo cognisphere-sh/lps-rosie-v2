@@ -8,6 +8,8 @@
 import { useEffect, useState } from 'react'
 
 import {
+  AR_RESPONSES,
+  AR_RESPONSE_META,
   AR_RESPONSE_OPTIONS,
   AR_STATUSES,
   arLineTotal,
@@ -19,7 +21,7 @@ import {
   type ARItem,
 } from '@/lib/availability'
 import { money, num } from '@/lib/format'
-import { toneDot, toneStyle, toneTint } from '@/lib/job-requests'
+import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
 
 /** Need · Size · Plant · Status · Avail qty · Price · Line total · Notes. */
@@ -30,7 +32,7 @@ const GRID_MIN = 1070
 
 
 /**
- * The request's lifecycle pill — New / Submitted / Closed. With `onChange` it
+ * The request's lifecycle pill — New / Processing / Submitted / Closed. With `onChange` it
  * is also the picker for it, the same native-select-under-a-pill the line
  * answers use; without it, a read-only pill.
  */
@@ -67,12 +69,64 @@ export function ARStatusPill({
   )
 }
 
+/**
+ * The request's answer strip — the supplier-facing twin of the admin Job
+ * Request card's DemandSummary: every answer with its count, then the line
+ * count and the subtotal. Zeros are drawn and dimmed rather than dropped, so
+ * "nothing is unavailable" and "nobody has looked yet" cannot render alike.
+ */
+export function ARResponseSummary({
+  items,
+  answeredCount,
+}: {
+  items: ARItem[]
+  answeredCount: number
+}) {
+  const counts: Record<string, number> = {}
+  for (const item of items) {
+    if (item.status) counts[item.status] = (counts[item.status] ?? 0) + 1
+  }
+  const states = [
+    { label: 'Pending', count: items.length - answeredCount, tone: 'grey' as Tone },
+    ...AR_RESPONSES.map((status) => ({
+      label: AR_RESPONSE_META[status].label,
+      count: counts[status] ?? 0,
+      tone: AR_RESPONSE_META[status].tone,
+    })),
+  ]
+  return (
+    <div className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
+      <div className="grid min-w-[800px] grid-cols-[repeat(6,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
+        {states.map((state) => (
+          <div key={state.label} className={cn('flex flex-col gap-0.5 px-3 py-2', state.count === 0 && 'opacity-45')}>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
+              <span className="size-1.5 flex-none rounded-full" style={{ background: toneDot(state.tone) }} />
+              {state.label}
+            </span>
+            <span className="text-[13px] font-bold tabular-nums text-foreground">{state.count}</span>
+          </div>
+        ))}
+        <div className="flex flex-col gap-0.5 px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Lines</span>
+          <span className="text-[13px] font-bold tabular-nums text-foreground">{items.length}</span>
+        </div>
+        <div className="flex flex-col gap-0.5 px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
+          <span className="text-[13px] font-bold tabular-nums text-foreground">
+            {money(arSubtotal(items)) || '—'}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Where a message actually happened — portal, email, text, or internal. */
 /**
  * The supplier's per-line answer, as a pill-styled picker.
  *
- * A native <select> under a styled face: the four-word vocabulary plus the
- * blank "Set status" state, which is a real state (unanswered), not a default.
+ * A native <select> under a styled face: the five answers plus the blank
+ * "Set status" state, which is a real state (unanswered), not a default.
  */
 function ResponseSelect({
   value,
@@ -171,51 +225,54 @@ function AnswerCell({
   )
 }
 
-/** What the pop-up collects for each answer, and the hint its notes carry. */
+/**
+ * What the pop-up collects for each answer, and the hint its notes carry.
+ *
+ * `available` is deliberately absent: it needs nothing asked, so picking it
+ * writes straight through with the demand as the available quantity (see
+ * `LineRow`). Price is not collected here at all — it arrives prefilled from
+ * our own catalogue and is corrected in the table's own Price cell.
+ */
 const ANSWER_FIELDS: Record<
   string,
   {
     title: string
-    qtyPrice: boolean
-    /** Whether the price on file is the right prefill for this answer. */
-    prefillPrice?: boolean
+    /** Whether the answer needs a quantity of its own. */
+    qty: boolean
+    /** Wipe a quantity a previous answer left behind — nothing is available. */
+    clearQty?: boolean
     /** Which field opens focused — the first thing this answer needs. */
     focus?: 'qty' | 'notes'
     notesLabel: string
     notesHint: string
   }
 > = {
-  available: {
-    title: 'Available',
-    qtyPrice: true,
-    prefillPrice: true,
-    notesLabel: 'Notes (optional)',
-    notesHint: 'Anything else about this line…',
-  },
   can_order: {
     title: 'Can order',
-    qtyPrice: true,
-    prefillPrice: true,
+    qty: false,
     notesLabel: 'ETA / notes',
     notesHint: 'When can you have it? e.g. ready mid-Sep',
   },
-  substitute: {
-    title: 'Substitute',
-    // A substitute is still something being supplied at a price, so it takes
-    // the same quantity and price the other two do — that is what puts it in
-    // the line total and the request's subtotal.
-    qtyPrice: true,
-    // But NOT the on-file price: that one belongs to the plant being replaced,
-    // and carrying it over would quote a different plant at the wrong price.
-    prefillPrice: false,
-    // Naming the substitute comes first; the numbers follow it.
+  arriving_soon: {
+    title: 'Arriving soon',
+    qty: false,
+    notesLabel: 'Notes',
+    notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
+  },
+  diff_size_qty_sub: {
+    title: 'Diff Size/Qty/Sub',
+    // The answer covers a different size, a short quantity or another plant,
+    // so it is the one that still needs a number: what you can actually supply.
+    qty: true,
+    // Naming what you have comes first; the quantity follows it.
     focus: 'notes',
     notesLabel: 'What instead',
-    notesHint: 'Name and size — e.g. Muskogee Crape Myrtle, 30 G',
+    notesHint: 'Size, quantity or substitute — e.g. Muskogee Crape Myrtle, 30 G',
   },
   unavailable: {
     title: 'Unavailable',
-    qtyPrice: false,
+    qty: false,
+    clearQty: true,
     notesLabel: 'Notes (optional)',
     notesHint: 'Substitutes welcome — Name, Size @ price $/unit',
   },
@@ -223,10 +280,10 @@ const ANSWER_FIELDS: Record<
 
 /**
  * Picking a status opens this pop-up for the rest of the answer, so a line is
- * answered whole in one go: Available / Can order take quantity (prefilled
- * with the demand), price (prefilled where we had one on file) and notes;
- * Substitute and Unavailable take the note, with the format hinted. The
- * inline cells stay for later tweaks.
+ * answered whole in one go: Diff Size/Qty/Sub takes a quantity and the note;
+ * Can order, Arriving soon and Unavailable take the note alone, with the format
+ * hinted. Available asks nothing and never opens this. The inline cells stay
+ * for later tweaks — price among them.
  */
 function StatusAnswerDialog({
   item,
@@ -239,18 +296,15 @@ function StatusAnswerDialog({
   onCancel: () => void
   onSave: (changes: Record<string, string>) => void
 }) {
-  const spec = ANSWER_FIELDS[status] ?? ANSWER_FIELDS.available
-  // Demand is the prefill: "we can supply what you asked for" is the common
-  // answer, and correcting a number beats typing one.
+  const spec = ANSWER_FIELDS[status]
+  // Demand is the prefill: a short quantity is the common shape of this answer,
+  // and correcting a number beats typing one.
   const [qty, setQty] = useState(
     item.availableQuantity != null
       ? String(item.availableQuantity)
       : item.quantity != null
         ? String(item.quantity)
         : '',
-  )
-  const [price, setPrice] = useState(
-    spec.prefillPrice && item.unitPrice != null ? String(item.unitPrice) : '',
   )
   const [notes, setNotes] = useState(item.notes ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
@@ -273,10 +327,10 @@ function StatusAnswerDialog({
 
   const save = () => {
     const changes: Record<string, string> = { status, notes: notes.trim() }
-    if (spec.qtyPrice) {
-      changes.available_quantity = qty.trim()
-      changes.unit_price = price.trim()
-    }
+    // An empty quantity clears the column, which is what `clearQty` wants and
+    // what an emptied box on a Diff Size/Qty/Sub answer means too.
+    if (spec.qty) changes.available_quantity = qty.trim()
+    else if (spec.clearQty) changes.available_quantity = ''
     onSave(changes)
   }
 
@@ -301,30 +355,18 @@ function StatusAnswerDialog({
           </span>
         </div>
 
-        {spec.qtyPrice && (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-0.5">
-              <span className={label}>Quantity</span>
-              <input
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                inputMode="decimal"
-                placeholder="Qty"
-                autoFocus={spec.focus !== 'notes'}
-                className={cn(field, 'text-right tabular-nums')}
-              />
-            </label>
-            <label className="flex flex-col gap-0.5">
-              <span className={label}>Price $/unit</span>
-              <input
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                inputMode="decimal"
-                placeholder="$/unit"
-                className={cn(field, 'text-right tabular-nums')}
-              />
-            </label>
-          </div>
+        {spec.qty && (
+          <label className="flex flex-col gap-0.5">
+            <span className={label}>Quantity you can supply</span>
+            <input
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              inputMode="decimal"
+              placeholder="Qty"
+              autoFocus={spec.focus !== 'notes'}
+              className={cn(field, 'text-right tabular-nums')}
+            />
+          </label>
         )}
 
         <label className="flex flex-col gap-0.5">
@@ -334,7 +376,7 @@ function StatusAnswerDialog({
             onChange={(e) => setNotes(e.target.value)}
             placeholder={spec.notesHint}
             rows={2}
-            autoFocus={!spec.qtyPrice || spec.focus === 'notes'}
+            autoFocus={!spec.qty || spec.focus === 'notes'}
             className="min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring"
           />
         </label>
@@ -400,8 +442,8 @@ function LineRow({
       </span>
       <span className="min-w-0 px-1" title={item.name}>
         <span className="block truncate text-[13px] font-semibold text-foreground">{item.name}</span>
-        {/* LPS's note to the supplier — a few words, e.g. the mapped
-            substitute. Ours; the supplier's own note is the Notes cell. */}
+        {/* LPS's note to the supplier — a few words, e.g. the alternative
+            sourcing mapped. Ours; the supplier's own note is the Notes cell. */}
         {item.lpsNotes && (
           // One line while the table is being scanned; the whole note on
           // hover, unfolded in place rather than in an overlay — the table is
@@ -419,11 +461,18 @@ function LineRow({
         <ResponseSelect
           value={item.status}
           disabled={!editable}
-          // Picking a status opens the answer pop-up rather than saving bare —
-          // clearing back to "Set status" is the one direct write.
+          // Picking a status opens the answer pop-up rather than saving bare.
+          // Two answers write straight through instead: clearing back to
+          // "Set status", and Available — "all of it, as asked" needs nothing
+          // typed, so the demand becomes the available quantity.
           onChange={(next) => {
             if (!next) void onPatch?.(item.id, { status: '' })
-            else setAnswering(next)
+            else if (next === 'available') {
+              void onPatch?.(item.id, {
+                status: 'available',
+                available_quantity: item.quantity == null ? '' : String(item.quantity),
+              })
+            } else setAnswering(next)
           }}
         />
       </div>
@@ -481,25 +530,17 @@ export function ARLineTable({
   items,
   editable,
   onPatch,
-  embedded = false,
   displayText,
 }: {
   items: ARItem[]
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
-  /** Full-bleed inside an already bordered request card. */
-  embedded?: boolean
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
 }) {
   const subtotal = arSubtotal(items)
   return (
-    <div
-      className={cn(
-        'w-full min-w-0 max-w-full overflow-x-auto bg-card',
-        embedded ? 'border-y border-border' : 'rounded-xl border border-border',
-      )}
-    >
+    <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card">
       <div
         className="grid items-center gap-x-2 border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
         style={{ gridTemplateColumns: LINE_COLUMNS, minWidth: GRID_MIN, padding: '8px 12px' }}

@@ -15,6 +15,90 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-26
+
+### Added
+
+- **A page per availability request in the supplier portal**
+  (`/portal/:supplierId/requests/:arId`). The home list's cards are links now,
+  not disclosures: answering a request is the work, so it gets the whole
+  viewport — our note, the customer and delivery blocks where they are shared,
+  the count/subtotal strip, the line editor and the button that hands it back.
+  A back link, the status pill and the requested/submitted dates sit in the
+  frame's toolbar slot. The list card keeps its design — same head, same
+  count/subtotal strip — less the chevron, which was the expand toggle and has
+  nothing left to toggle; its gutter went with it.
+- **Two more supplier answers.** Lines can now be answered **Arriving soon**
+  (`arriving_soon`, migration 0075) alongside Available, Can order,
+  Diff Size/Qty/Sub and Unavailable. **No new colour**: Diff Size/Qty/Sub keeps
+  the `teal` `substitute` already had, and Arriving soon takes `lime`, the one
+  of the design's six tones nothing else was using.
+- **`processing`, and a request that re-opens itself.** `availability_requests.status`
+  gains `processing` (migration 0075) — the supplier has started answering but
+  has not submitted — and an AFTER INSERT trigger on
+  `availability_request_items` puts a `processing` or `submitted` request back
+  to `new` whenever a line is added to it. Adding a plant to a request they had
+  already started is a new question, and it has to reach their New tab whoever
+  added it, so it is a trigger rather than app code: rosie adds lines by SQL as
+  readily as the app does. `submitted_at` is left alone, so the button on such
+  a request still reads *Re-Submit*.
+
+- **A Closed destination in the portal's nav rail** (`/portal/:supplierId/closed`),
+  last in the rail and last in the mobile bottom bar. One list, newest first,
+  no tabs and no filters — a closed request is something you look up, not
+  something you triage between. It is the **only** place a closed request now
+  appears: they are off the requests page entirely, not even under *All*, so
+  the four tabs describe open work and *All* means all of it. Both lists draw
+  the same card (`PortalRequestCard`, exported from `portal.tsx`), and a closed
+  request's back link and rail highlight follow it to Closed rather than to the
+  requests page.
+
+### Changed
+
+- **The supplier portal's mobile layout is the main app's.** No header on any
+  portal page — the frame starts at the page's own toolbar, as the Shell's
+  `hideHeaderOnMobile` pages do. The bell moves out of the header and into the
+  bottom bar as **Alerts, pinned left**, in the Shell's own icon-over-label
+  shape with its popover opening upward; **Chat stays pinned right**; and the
+  destinations sit between them in the independently scrollable strip, sized to
+  a third of the viewport each, so Requests / Orders / Closed show and ⋯ More
+  scrolls in. This replaces the portal's one deliberate divergence from the
+  Shell, which had kept the bell in a header drawn on both breakpoints. The
+  request page — the only one a highlighted tab does not identify — puts the
+  job name in its own toolbar row on mobile.
+- **The portal request list is four tabs and no filters.** All · New ·
+  Processing · Submitted, each drawn label-over-count with the count in that
+  status's own tone. The search box, the job-status / item-status / customer
+  chips, the date range, the sort and Expand all are gone — that toolbar was
+  the admin Job Requests one, and an operator triaging every job needs it in a
+  way a supplier looking at their own handful does not. `closed` requests show
+  under **All** only. **No API changed**: every server-side filter behind those
+  controls still works.
+- **Save is now Submit, and Re-Submit once the request has been answered
+  before.** The stored `submitted` status reads *Submitted* rather than
+  *Answered* to match, and a portal line write moves the request to
+  `processing` — the supplier is working on it. The admin drawer's own PATCH
+  deliberately does not: an operator entering answers a supplier gave by phone
+  is not a sign they are in the portal.
+- **Picking a status now behaves per answer.** *Available* opens no dialog at
+  all and writes straight through with the available quantity set to the demand
+  — "all of it, as asked" needs nothing typed. *Can order*, *Arriving soon* and
+  *Unavailable* take a note alone, the first hinting the ETA; *Unavailable*
+  also clears any available quantity a previous answer left behind, so a line
+  cannot read as unavailable and still quote a quantity. *Diff Size/Qty/Sub*
+  takes the quantity you can supply plus the note naming what instead, which
+  opens focused. **Price left the dialogs entirely** — it arrives prefilled
+  from our catalogue and is corrected in the table's own Price cell, which is
+  where a supplier looks for it.
+- **`substitute` is `diff_size_qty_sub`** (migration 0076), the value and not
+  only its label. The answer always covered a different size or quantity as
+  well as a different plant, and the stored word named a third of it. One of
+  thirteen answered lines carried the old value; the CHECK is dropped, the row
+  rewritten and the CHECK re-added in one statement.
+- **rosie's `supplier-coordination` skill → 1.6.0** for the new vocabulary, the
+  request lifecycle and what the portal writes alongside each status, so a
+  relayed answer is read the way it was given.
+
 ## 2026-08-25
 
 ### Added

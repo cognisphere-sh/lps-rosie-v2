@@ -1,6 +1,6 @@
 import 'server-only'
 
-// Wake rosie when a supplier saves an availability request in their portal.
+// Wake rosie when a supplier submits an availability request in their portal.
 // Posts to her `supplier-events` plugin webhook; the shared secret is wired by
 // scripts/app/secrets.sh into both app/.env.local and the plugin's secrets
 // bucket, the same pattern the artifacts secret uses.

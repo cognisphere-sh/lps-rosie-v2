@@ -1,268 +1,40 @@
 'use client'
 
-// The portal home: this supplier's availability requests as expandable cards,
-// deliberately shaped like the admin app's Job Requests page — a toolbar
-// (search, status and customer chips, sort, Expand all), collapsed cards that
-// open in place to the line editor, and a Save per request that wakes daisy.
-// The conversation is the docked chat sidebar (one thread per supplier), not
-// part of any card. See app/api/portal/[supplierId]/route.ts for the auth
+// The portal home: this supplier's **open** availability requests as one card
+// per request, grouped by the four tabs the work actually moves through — All,
+// New, Processing, Submitted. A card is a link, not a disclosure: it opens the
+// request's own page, where the lines are answered and submitted. There are no
+// filters here on purpose (2026-08-26) — the tab is the whole selection, and a
+// supplier's list is short enough that search and chips cost more than they
+// find. **Closed requests are not on this page at all**, not even under All:
+// they live at ./closed, their own rail destination. The conversation is the docked chat sidebar (one thread per supplier),
+// not part of any card. See app/api/portal/[supplierId]/route.ts for the auth
 // caveat — these pages are outside the session gate until supplier auth lands.
 
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
-import { Toolbar, type Chip } from '@/components/workspace/toolbar'
-import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
-import { PortalFrame, type PortalAlert } from '@/components/workspace/portal'
 import {
-  AR_RESPONSES,
-  AR_RESPONSE_META,
-  AR_STATUSES,
-  arResponseLabel,
-  arStatusLabel,
-  arSubtotal,
-  type ARDetail,
-} from '@/lib/availability'
-import { formatDate, money } from '@/lib/format'
-import { toneDot, type Tone } from '@/lib/job-requests'
-import { redactPortalRequestRefs } from '@/lib/portal-display'
+  PortalFrame,
+  PortalRequestCard,
+  portalRequestName,
+  type PortalAlert,
+} from '@/components/workspace/portal'
+import { arStatusTone, type ARDetail } from '@/lib/availability'
 import { cn } from '@/lib/utils'
 
-const SORTS = [
-  { id: 'newest', label: 'Newest first' },
-  { id: 'oldest', label: 'Oldest first' },
-  { id: 'status', label: 'Status' },
-  { id: 'customer', label: 'Customer' },
+/**
+ * The four groups the list is cut into. `All` is every **open** request —
+ * closing is ours, not theirs, and a closed request is finished work rather
+ * than a fourth thing to triage, so it is off this page entirely.
+ */
+const TABS = [
+  { id: 'all', label: 'All', status: null },
+  { id: 'new', label: 'New', status: 'new' },
+  { id: 'processing', label: 'Processing', status: 'processing' },
+  { id: 'submitted', label: 'Submitted', status: 'submitted' },
 ] as const
-type SortId = (typeof SORTS)[number]['id']
-
-const DATE_RANGES = [
-  { label: 'Today', days: 1 },
-  { label: 'Last 7 days', days: 7 },
-  { label: 'Last 14 days', days: 14 },
-  { label: 'Last 30 days', days: 30 },
-]
-const daysFor = (label: string) => DATE_RANGES.find((r) => r.label === label)?.days
-
-/** The item-status filter's vocabulary: Pending (unanswered) + the four answers. */
-const ITEM_FILTER_OPTIONS = ['Pending', ...AR_RESPONSES.map((v) => AR_RESPONSE_META[v].label)]
-const itemMatches = (status: string | null, picked: string[]) =>
-  picked.includes(status == null ? 'Pending' : arResponseLabel(status))
-
-/** What a request's customer reads as — shared requests only. */
-const customerLabel = (r: ARDetail) =>
-  r.customer ? r.customer.company || r.customer.name : null
-
-/** The supplier-facing twin of the main Job Request card's DemandSummary. */
-function ResponseSummary({ request }: { request: ARDetail }) {
-  const counts: Record<string, number> = {}
-  for (const item of request.items) {
-    if (item.status) counts[item.status] = (counts[item.status] ?? 0) + 1
-  }
-  const pending = request.items.length - request.answeredCount
-  const subtotal = arSubtotal(request.items)
-  const states = [
-    { label: 'Pending', count: pending, tone: 'grey' as Tone },
-    ...AR_RESPONSES.map((status) => ({
-      label: AR_RESPONSE_META[status].label,
-      count: counts[status] ?? 0,
-      tone: AR_RESPONSE_META[status].tone,
-    })),
-  ]
-
-  return (
-    <div className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
-      <div className="grid min-w-[700px] grid-cols-[repeat(5,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
-        {states.map((state) => (
-          <div key={state.label} className={cn('flex flex-col gap-0.5 px-3 py-2', state.count === 0 && 'opacity-45')}>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
-              <span className="size-1.5 rounded-full" style={{ background: toneDot(state.tone) }} />
-              {state.label}
-            </span>
-            <span className="text-[13px] font-bold tabular-nums text-foreground">{state.count}</span>
-          </div>
-        ))}
-        <div className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Lines</span>
-          <span className="text-[13px] font-bold tabular-nums text-foreground">{request.items.length}</span>
-        </div>
-        <div className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
-          <span className="text-[13px] font-bold tabular-nums text-foreground">{money(subtotal) || '—'}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function RequestCard({
-  request,
-  itemFilter,
-  expanded,
-  onToggle,
-  onPatch,
-  onSave,
-  saving,
-}: {
-  request: ARDetail
-  /** The item-status chip's picked labels; empty = every line. */
-  itemFilter: string[]
-  expanded: boolean
-  onToggle: () => void
-  onPatch: (arId: number, itemId: number, changes: Record<string, string>) => Promise<void>
-  onSave: (arId: number) => Promise<void>
-  saving: boolean
-}) {
-  const editable = request.status !== 'closed'
-  // The item-status chip is a question about lines, so the table answers with
-  // the lines it asked about rather than the whole request behind them. The
-  // card's summary strip above still counts every line, as the admin card's
-  // does — a filtered view must not restate the request's own totals.
-  const lines = itemFilter.length
-    ? request.items.filter((item) => itemMatches(item.status, itemFilter))
-    : request.items
-  const locality = [request.shipping?.city, request.shipping?.state].filter(Boolean).join(', ')
-
-  return (
-    <div
-      id={`ar-${request.id}`}
-      className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
-    >
-      {/* The head follows the admin card's shape without exposing its internal
-          request ref: name · status pill · date right, the customer on its own
-          line, then the demand strip. */}
-      <div
-        onClick={onToggle}
-        className="flex cursor-pointer flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint"
-      >
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${request.jobName ? redactPortalRequestRefs(request.jobName) : 'availability request'}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle()
-            }}
-            className="flex size-5 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-          <span className="min-w-0 max-w-[22rem] truncate text-[13.5px] font-semibold text-foreground">
-            {request.jobName ? redactPortalRequestRefs(request.jobName) : 'Availability request'}
-          </span>
-          <ARStatusPill status={request.status} />
-          <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim" title="Requested">
-            {formatDate(request.createdAt)}
-          </span>
-        </div>
-
-        {(customerLabel(request) || locality) && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 pl-[30px] text-[12px]">
-            {customerLabel(request) && <span className="font-semibold text-foreground">{customerLabel(request)}</span>}
-            {locality && <span className="text-muted-foreground">· {locality}</span>}
-          </div>
-        )}
-
-        {!expanded && (
-          <div className="pl-[30px]">
-            <ResponseSummary request={request} />
-          </div>
-        )}
-      </div>
-
-      {expanded && (
-        <>
-          <div className="flex min-w-0 flex-col gap-2.5 border-t border-border bg-lps-tint p-2.5 sm:p-3">
-            {/* Supplier-visible operational overview, in the admin request body's order. */}
-            {request.lpsNotes && (
-              <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-lps-hair bg-lps-bubble p-3">
-                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                  Note from Local Plant Supply
-                </span>
-                <span className="whitespace-pre-wrap text-[12.5px] text-foreground">
-                  {redactPortalRequestRefs(request.lpsNotes)}
-                </span>
-              </div>
-            )}
-            {(request.customer || request.shipping?.address) && (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {request.customer && (
-                  <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-lps-hair bg-card p-3">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Customer</span>
-                    <span className="text-[12.5px] text-foreground">
-                      {[request.customer.company, request.customer.name].filter(Boolean).join(' · ')}
-                    </span>
-                    {(request.customer.phone || request.customer.email) && (
-                      <span className="text-[11.5px] text-muted-foreground">
-                        {[request.customer.phone, request.customer.email].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {request.shipping?.address && (
-                  <div className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-lps-hair bg-card p-3">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Delivery</span>
-                    <span className="text-[12.5px] text-foreground">
-                      {[
-                        request.shipping.address,
-                        [request.shipping.city, request.shipping.state].filter(Boolean).join(', '),
-                        request.shipping.zip,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            <ResponseSummary request={request} />
-          </div>
-
-          <ARLineTable
-            items={lines}
-            editable={editable}
-            embedded
-            onPatch={(itemId, changes) => onPatch(request.id, itemId, changes)}
-            displayText={redactPortalRequestRefs}
-          />
-
-          <div className="flex flex-col gap-2.5 bg-card p-2.5 sm:p-3">
-            {lines.length !== request.items.length && (
-              <p className="m-0 text-[11.5px] text-muted-foreground">
-                Showing {lines.length} of {request.items.length} lines — the item status filter.
-                The subtotal above covers the lines shown; answering one takes it out of this view.
-              </p>
-            )}
-            {editable && request.status === 'new' && request.items.some((item) => item.unitPrice != null) && (
-              <p className="m-0 text-[11.5px] text-muted-foreground">
-                Prices we already have on file are filled in — please correct any that have changed.
-              </p>
-            )}
-            {editable ? (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => void onSave(request.id)}
-                  disabled={saving}
-                  className="cursor-pointer rounded-full bg-primary px-6 py-2 text-[12.5px] font-bold text-primary-foreground shadow-sm disabled:opacity-50"
-                >
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-                <span className="text-[11.5px] text-muted-foreground">
-                  Saving sends your answers to Local Plant Supply — you can come back and refine them.
-                </span>
-              </div>
-            ) : (
-              <p className="m-0 text-[12px] text-muted-foreground">This request is closed — the lines are read-only.</p>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
+type TabId = (typeof TABS)[number]['id']
 
 export default function PortalHomePage() {
   const params = useParams<{ supplierId: string }>()
@@ -271,17 +43,7 @@ export default function PortalHomePage() {
   const [supplierName, setSupplierName] = useState<string | null>(null)
   const [requests, setRequests] = useState<ARDetail[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
-  const [error, setError] = useState('')
-
-  const [query, setQuery] = useState('')
-  /** Chip selections hold option LABELS; empty = "all", like the admin toolbar. */
-  const [statusFilter, setStatusFilter] = useState<string[]>([])
-  const [itemStatusFilter, setItemStatusFilter] = useState<string[]>([])
-  const [customerFilter, setCustomerFilter] = useState<string[]>([])
-  const [created, setCreated] = useState<string[]>([])
-  const [sort, setSort] = useState<SortId>('newest')
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [savingId, setSavingId] = useState<number | null>(null)
+  const [tab, setTab] = useState<TabId>('all')
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/portal/${supplierId}`)
@@ -291,7 +53,9 @@ export default function PortalHomePage() {
     }
     const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
     setSupplierName(body.supplier.name)
-    setRequests(body.requests)
+    // Closed requests belong to the Closed page — dropping them here is what
+    // keeps them out of All as well as out of the three status tabs.
+    setRequests(body.requests.filter((r) => r.status !== 'closed'))
     setState('ready')
   }, [supplierId])
 
@@ -303,41 +67,7 @@ export default function PortalHomePage() {
     void load().catch(() => setState('missing'))
   }, [supplierId, load])
 
-  const patchItem = useCallback(
-    async (arId: number, itemId: number, changes: Record<string, string>) => {
-      setError('')
-      const res = await fetch(`/api/portal/${supplierId}/requests/${arId}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ itemId, changes }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(body.error ?? 'Could not save')
-      }
-      await load()
-    },
-    [supplierId, load],
-  )
-
-  const save = useCallback(
-    async (arId: number) => {
-      setSavingId(arId)
-      setError('')
-      const res = await fetch(`/api/portal/${supplierId}/requests/${arId}/submit`, {
-        method: 'POST',
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(body.error ?? 'Could not save')
-      }
-      await load()
-      setSavingId(null)
-    },
-    [supplierId, load],
-  )
-
-  /** The header's overall stats, over everything — filters don't change them. */
+  /** The header's overall stats, over everything — the tab doesn't change them. */
   const stats = useMemo(() => {
     let newJobs = 0
     let pendingRows = 0
@@ -357,119 +87,24 @@ export default function PortalHomePage() {
     () =>
       requests
         .filter((r) => r.status === 'new')
-        .map((r) => ({
-          id: r.id,
-          label: r.jobName ? redactPortalRequestRefs(r.jobName) : 'Availability request',
-          at: Date.parse(r.createdAt),
-        })),
+        .map((r) => ({ id: r.id, label: portalRequestName(r), at: Date.parse(r.createdAt) })),
     [requests],
   )
 
-  /** A bell row opens its request in place, the way the drawer does upstream. */
-  const openAlert = useCallback((id: number) => {
-    setExpanded((current) => new Set(current).add(id))
-    // The card has to exist before it can be scrolled to.
-    requestAnimationFrame(() => {
-      document.getElementById(`ar-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }, [])
-
-  /** The customer chip's options — only shared requests carry a customer. */
-  const customerOptions = useMemo(
-    () => [...new Set(requests.map(customerLabel).filter((v): v is string => !!v))].sort(),
-    [requests],
-  )
+  const counts = useMemo(() => {
+    const by: Record<TabId, number> = { all: requests.length, new: 0, processing: 0, submitted: 0 }
+    for (const r of requests) {
+      if (r.status === 'new') by.new += 1
+      else if (r.status === 'processing') by.processing += 1
+      else if (r.status === 'submitted') by.submitted += 1
+    }
+    return by
+  }, [requests])
 
   const shown = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const cutoff = created.length && daysFor(created[0]) != null
-      ? new Date(Date.now() - daysFor(created[0])! * 86_400_000).toISOString()
-      : null
-    const list = requests.filter((r) => {
-      if (statusFilter.length && !statusFilter.includes(arStatusLabel(r.status))) return false
-      if (itemStatusFilter.length && !r.items.some((it) => itemMatches(it.status, itemStatusFilter))) {
-        return false
-      }
-      if (customerFilter.length && !customerFilter.includes(customerLabel(r) ?? '')) return false
-      if (cutoff && r.createdAt < cutoff) return false
-      if (q) {
-        const hay = [
-          redactPortalRequestRefs(r.jobName ?? ''),
-          customerLabel(r) ?? '',
-          ...r.items.map((it) => it.name),
-        ]
-          .join('\n')
-          .toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      return true
-    })
-    const byCreated = (a: ARDetail, b: ARDetail) => b.createdAt.localeCompare(a.createdAt)
-    return list.sort((a, b) => {
-      if (sort === 'oldest') return -byCreated(a, b)
-      if (sort === 'status') return a.status.localeCompare(b.status) || byCreated(a, b)
-      if (sort === 'customer') {
-        return (customerLabel(a) ?? '￿').localeCompare(customerLabel(b) ?? '￿') || byCreated(a, b)
-      }
-      return byCreated(a, b)
-    })
-  }, [requests, query, statusFilter, itemStatusFilter, customerFilter, created, sort])
-
-  // The item-status chip asks about lines, so the requests that matched open
-  // themselves — the same drill-in the admin Job Requests page does, since
-  // otherwise the answer stays behind a chevron.
-  useEffect(() => {
-    if (itemStatusFilter.length) setExpanded(new Set(shown.map((r) => r.id)))
-  }, [itemStatusFilter, shown])
-
-  const allShownExpanded = shown.length > 0 && shown.every((r) => expanded.has(r.id))
-
-  const chips: Chip[] = [
-    {
-      label: 'Status',
-      allLabel: 'All statuses',
-      options: AR_STATUSES.map((v) => arStatusLabel(v)),
-      values: statusFilter,
-      onChange: setStatusFilter,
-    },
-    {
-      label: 'Item status',
-      allLabel: 'All item statuses',
-      options: ITEM_FILTER_OPTIONS,
-      values: itemStatusFilter,
-      onChange: setItemStatusFilter,
-    },
-    // Only shared requests carry a customer, so the chip appears only when
-    // there is at least one to filter by.
-    ...(customerOptions.length
-      ? [{
-          label: 'Customer',
-          allLabel: 'All customers',
-          options: customerOptions,
-          values: customerFilter,
-          onChange: setCustomerFilter,
-        }]
-      : []),
-    {
-      label: 'Requested',
-      allLabel: 'Any time',
-      options: DATE_RANGES.map((r) => r.label),
-      values: created,
-      onChange: setCreated,
-      single: true,
-    },
-  ]
-  const hasFilters = !!(
-    query.trim() || statusFilter.length || itemStatusFilter.length ||
-    customerFilter.length || created.length
-  )
-  const clearAll = () => {
-    setQuery('')
-    setStatusFilter([])
-    setItemStatusFilter([])
-    setCustomerFilter([])
-    setCreated([])
-  }
+    const status = TABS.find((t) => t.id === tab)?.status
+    return requests.filter((r) => (status ? r.status === status : true))
+  }, [requests, tab])
 
   if (state === 'missing') {
     return (
@@ -494,88 +129,64 @@ export default function PortalHomePage() {
       supplierName={supplierName}
       tab="requests"
       title="Availability Requests"
-      // The header's running total, over everything — filters don't change it.
+      // The header's running total, over everything — the tab doesn't change it.
       subtitle={`${stats.newJobs} ${stats.newJobs === 1 ? 'new job' : 'new jobs'} · ${stats.pendingRows} rows pending · ${stats.unavailableRows} rows unavailable`}
       alerts={alerts}
-      onOpenAlert={openAlert}
+      onOpenAlert={(id) => { window.location.href = `/portal/${supplierId}/requests/${id}` }}
       toolbar={
-        /* The admin Job Requests toolbar, in the admin's own slot: search,
-           multi-select chips (job status, item status, customer, requested
-           date), sort, Expand all. */
-        <Toolbar
-          placeholder="Search plants, jobs, customers…"
-          query={query}
-          onQuery={setQuery}
-          chips={chips}
-          hasFilters={hasFilters}
-          onClear={clearAll}
-          summary={`${shown.length} of ${requests.length} ${requests.length === 1 ? 'request' : 'requests'}`}
-          controls={
-            <>
-              <select
-                aria-label="Sort"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortId)}
-                className="h-[30px] cursor-pointer rounded-full border border-border bg-card px-2.5 text-[12px] font-semibold text-muted-foreground outline-none"
-              >
-                {SORTS.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-              </select>
+        /* The tabs sit where the toolbar used to, pinned under the header: one
+           segmented control, label over count, the count in the tab's own tone
+           so the list can be triaged without reading it. */
+        <div className="flex-none border-b border-border bg-card px-3 py-2.5 md:px-4">
+          <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/45 p-1">
+            {TABS.map((t) => (
               <button
+                key={t.id}
                 type="button"
-                onClick={() =>
-                  setExpanded(allShownExpanded ? new Set() : new Set(shown.map((r) => r.id)))
-                }
-                className="cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground"
+                onClick={() => setTab(t.id)}
+                aria-pressed={tab === t.id}
+                className={cn(
+                  'flex min-w-[92px] flex-1 cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-3 py-1.5',
+                  tab === t.id
+                    ? 'border-border bg-card shadow-sm'
+                    : 'border-transparent bg-transparent hover:bg-lps-tint',
+                )}
               >
-                {allShownExpanded ? 'Collapse all' : 'Expand all'}
+                <span className="text-[11px] font-semibold text-muted-foreground">{t.label}</span>
+                <span
+                  className="text-[15px] font-bold tabular-nums"
+                  style={{ color: t.status ? `var(--lps-tone-${arStatusTone(t.status)}-fg)` : undefined }}
+                >
+                  {counts[t.id]}
+                </span>
               </button>
-            </>
-          }
-        />
+            ))}
+          </div>
+        </div>
       }
     >
       {/* The frame hands its children a fixed, overflow-hidden box, so this is
           the scroll container — the same shape the admin Job Requests page
           builds inside the Shell. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
-        {error && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
-            {error}
-          </div>
-        )}
-
         {state === 'ready' && shown.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <span className="text-[14px] font-semibold text-foreground">
-              {hasFilters ? 'No availability requests match these filters' : 'No availability requests yet'}
+              {requests.length ? 'Nothing in this tab' : 'No availability requests yet'}
             </span>
             <span className="text-[12.5px] text-muted-foreground">
-              {hasFilters
-                ? 'Try clearing the status, customer, or search filters.'
+              {requests.length
+                ? 'Try All to see every request.'
                 : 'Requests appear here as Local Plant Supply sends them.'}
             </span>
           </div>
         )}
 
         {shown.map((r) => (
-          <RequestCard
+          <PortalRequestCard
             key={r.id}
             request={r}
-            itemFilter={itemStatusFilter}
-            expanded={expanded.has(r.id)}
-            onToggle={() =>
-              setExpanded((current) => {
-                const next = new Set(current)
-                if (next.has(r.id)) next.delete(r.id)
-                else next.add(r.id)
-                return next
-              })
-            }
-            onPatch={patchItem}
-            onSave={save}
-            saving={savingId === r.id}
+            href={`/portal/${supplierId}/requests/${r.id}`}
           />
         ))}
 

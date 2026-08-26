@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.5.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.6.0)
 metadata:
   author: lps
-  version: "1.5.0"
+  version: "1.6.0"
 ---
 
 # Supplier coordination
@@ -84,7 +84,7 @@ WHERE job_request_id = $job AND is_active;
   request's own `lps_notes` carries job-level context worth their eyes —
   delivery window, site constraints, what matters across the lines
   (rendered on their portal card). A line's `lps_notes` carries what helps
-  them answer *that line*: the substitute and price the inventory data
+  them answer *that line*: the alternative and price the inventory data
   mapped (`Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit`), a
   special request from the customer, or a customer note worth passing on
   (rendered under the plant name). A few words, never a sentence; NULL when
@@ -96,19 +96,26 @@ WHERE job_request_id = $job AND is_active;
   for over webchat, the web reply includes the panel button
   `[Open AR-<id>](ar:<id>)`.
 
-## 3. The supplier saved answers (`availability_submitted`)
+## 3. The supplier submitted answers (`availability_submitted`)
 
-The supplier pressed **Save** in their portal; the `supplier-events`
-notification lands on this thread (each re-save re-notifies). Read the request
-and its items; the supplier's per-line vocabulary:
+The supplier pressed **Submit** (or **Re-Submit**) in their portal; the
+`supplier-events` notification lands on this thread (each re-submit
+re-notifies). Read the request and its items; the supplier's per-line
+vocabulary:
 
 | `status` | Meaning |
 |---|---|
-| `available` | Has it — `available_quantity` / `unit_price` say how much, at what |
+| `available` | Has all of it — the portal sets `available_quantity` to the demand; `unit_price` says at what |
 | `can_order` | Can get it; the ETA is in `notes` |
-| `substitute` | Offers something else; what, in `notes` |
-| `unavailable` | No |
+| `diff_size_qty_sub` | Can supply something different — another size, a short quantity or another plant; what, in `notes`, how many in `available_quantity` |
+| `arriving_soon` | Stock is on its way; when, in `notes` |
+| `unavailable` | No — `available_quantity` is cleared with it |
 | NULL | Didn't answer that line |
+
+The request's own `status` tracks the same work: `new` (waiting on them, and
+re-set by the database whenever we add a line to a request they had already
+started), `processing` (they have answered at least one line since), then
+`submitted`. `closed` is ours.
 
 **`status` is the only column that says they answered** — a `unit_price` may
 be our §2 prefill, so a NULL-status line is never "confirmed at that price".
@@ -116,7 +123,8 @@ be our §2 prefill, so a NULL-status line is never "confirmed at that price".
 Then **message the jr thread** (`jr-<job_request_id>`) with the answers, item
 by item — it owns the item statuses and moves them per `job-requests` §5.3.
 A half-answered request may warrant a follow-up (§5); say in the relay what is
-still open. A webchat report about the save includes `[Open AR-<id>](ar:<id>)`.
+still open. A webchat report about the submission includes
+`[Open AR-<id>](ar:<id>)`.
 
 ## 3.5 The supplier writes in their portal chat
 

@@ -10,6 +10,38 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0076_ar_item_status_diff_size_qty_sub.sql`
+
+Applied 2026-08-26 (Bhoumik), immediately after 0075. Renames the supplier's
+`substitute` answer to **`diff_size_qty_sub`** — the value, not only its label.
+The answer was never only "a different plant": it is what a supplier reaches
+for when what they have differs from the ask in size, quantity *or* identity,
+and `substitute` named a third of that. 1 of 13 answered lines carried the old
+value. The CHECK is dropped, the row rewritten and the CHECK re-added in one
+statement, so nothing is ever outside it.
+
+## `0075_availability_status_vocabulary.sql`
+
+Applied 2026-08-26 (Bhoumik), for the supplier portal's restructure. Three
+things:
+
+- `availability_requests.status` gains **`processing`** — the supplier has
+  started answering but has not submitted. The portal's four tabs are
+  All / New / Processing / Submitted, and the app moves a request to
+  `processing` on any line write that comes *from the portal* (an admin
+  entering answers on the supplier's behalf does not).
+- `availability_request_items.status` gains **`arriving_soon`** (when, in
+  `notes`).
+- `availability_request_items` gets an AFTER INSERT trigger,
+  `availability_request_items_reopen`, which puts its request back to `new`
+  when the request was `processing` or `submitted`. **Adding a line to a
+  request the supplier already worked on is a new question**, and it must land
+  in their New tab whoever added it — the app or one of rosie's scripts —
+  which is why this is a trigger and not app code. `closed` is deliberately
+  left alone: closing is a terminal admin act, and re-opening one should be
+  just as deliberate. `submitted_at` is untouched, so the portal's button
+  still reads **Re-Submit** on a request that has been answered before.
+
 ## `0074_rename_is_onboarded_to_is_lps_partner.sql`
 
 Applied 2026-08-25 (Bhoumik). Renames `suppliers.is_onboarded` →

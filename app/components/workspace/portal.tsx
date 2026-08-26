@@ -4,7 +4,7 @@
 // Shell, and deliberately the same design language: a collapsible left nav
 // rail on desktop, a chat column docked on the right, a bottom tab bar on
 // mobile, and the theme / settings / log-out controls at the left rail's foot.
-// A supplier gets their identity and two destinations, not the operator's
+// A supplier gets their identity and three destinations, not the operator's
 // pages or agent chat. Settings and Log out are drawn but disabled: both
 // belong to supplier sign-in, which is a deliberately deferred step — see
 // docs/app/README.md (Supplier portal).
@@ -17,8 +17,10 @@ import {
   Composer, SizePill, Transcript, useComposer,
   type ChatFile, type ChatMessage,
 } from '@/components/workspace/chat-kit'
+import { ARResponseSummary, ARStatusPill } from '@/components/workspace/availability'
 import {
-  ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon, SettingsIcon, SunIcon,
+  ArchiveIcon, ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon,
+  SettingsIcon, SunIcon,
 } from '@/components/workspace/icons'
 import { useIsMobile, useTheme } from '@/components/workspace/shell'
 import {
@@ -33,11 +35,13 @@ import {
   type ChatAppearance,
   type ChatWallpaperId,
 } from '@/lib/chat-appearance'
+import type { ARDetail } from '@/lib/availability'
+import { formatDate } from '@/lib/format'
 import { useHistoryView } from '@/lib/history-view'
 import { redactPortalRequestRefs } from '@/lib/portal-display'
 import { cn } from '@/lib/utils'
 
-export type PortalTab = 'requests' | 'orders'
+export type PortalTab = 'requests' | 'orders' | 'closed'
 
 const AUTH_LATER = 'Available once supplier sign-in lands'
 
@@ -299,18 +303,24 @@ function fmtAlertAt(ms: number): string {
 }
 
 /**
- * The portal header's bell — the supplier's twin of the admin Shell's, and
- * the same popover design. Two sources: availability requests still sitting
- * at `new`, and a reply from Local Plant Supply the supplier hasn't opened
- * the chat on. Both clear by being acted on, so there is no "mark all read".
+ * The bell — the supplier's twin of the admin Shell's, and the same popover
+ * design. Two sources: availability requests still sitting at `new`, and a
+ * reply from Local Plant Supply the supplier hasn't opened the chat on. Both
+ * clear by being acted on, so there is no "mark all read".
+ *
+ * `mobile` is the Shell's own second shape: a bottom-bar slot with the icon
+ * over an *Alerts* label, its popover opening upward from the left edge. The
+ * portal used to keep the bell in the header on both breakpoints; since
+ * 2026-08-26 there is no header on mobile, so it lives where the Shell's does.
  */
 function PortalNotificationBell({
-  requests, chat, onOpenRequest, onOpenChat,
+  requests, chat, onOpenRequest, onOpenChat, mobile = false,
 }: {
   requests: PortalAlert[]
   chat: { at: number; text: string } | null
   onOpenRequest?: (id: number) => void
   onOpenChat: () => void
+  mobile?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const count = requests.length + (chat ? 1 : 0)
@@ -325,16 +335,22 @@ function PortalNotificationBell({
   }, [open])
 
   return (
-    <div data-portal-bell className="relative flex-none">
+    <div data-portal-bell className={cn('relative flex-none', mobile && 'w-[52px]')}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Notifications"
         aria-label={count ? `Notifications — ${count} new` : 'Notifications'}
         aria-expanded={open}
-        className="relative flex size-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+        className={cn(
+          'cursor-pointer border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+          mobile
+            ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
+            : 'relative flex size-8 items-center justify-center rounded-full',
+          open && mobile && 'text-primary',
+        )}
       >
-        <span className="relative flex items-center justify-center">
+        <span className={cn('relative flex items-center justify-center', mobile && 'size-[18px]')}>
           <Bell size={16} />
           {count > 0 && (
             <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--lps-warn-dot)] px-0.5 text-[9px] font-bold leading-none text-white">
@@ -342,10 +358,18 @@ function PortalNotificationBell({
             </span>
           )}
         </span>
+        {mobile && <span className="text-[10.5px] font-semibold">Alerts</span>}
       </button>
 
       {open && (
-        <div className="lps-pop absolute right-0 top-[calc(100%+6px)] z-[96] flex max-h-[70vh] w-[min(320px,calc(100vw-24px))] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]">
+        <div
+          className={cn(
+            'lps-pop absolute z-[96] flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--lps-shadow)]',
+            mobile
+              ? 'bottom-[calc(100%+6px)] left-0 w-[min(320px,calc(100vw-16px))]'
+              : 'right-0 top-[calc(100%+6px)] w-[min(320px,calc(100vw-24px))]',
+          )}
+        >
           <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
             <span className="text-[12.5px] font-bold text-foreground">Notifications</span>
           </div>
@@ -402,6 +426,61 @@ function PortalNotificationBell({
         </div>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------- the request card
+
+/** What a request reads as when it has no job name of its own. */
+export const portalRequestName = (r: ARDetail) =>
+  r.jobName ? redactPortalRequestRefs(r.jobName) : 'Availability request'
+
+/** Its customer, where the request shares one. */
+export const portalCustomerLabel = (r: ARDetail) =>
+  r.customer ? r.customer.company || r.customer.name : null
+
+/**
+ * One availability request as both portal lists draw it — the open ones under
+ * their four tabs, and the closed ones on their own page.
+ *
+ * The card the request had when it expanded in place, less the chevron: it was
+ * the toggle, and there is nothing to toggle any more — the whole card is the
+ * link to the request's own page. Its gutter went with it, so the customer line
+ * and the count strip sit flush under the name.
+ */
+export function PortalRequestCard({
+  request,
+  href,
+}: {
+  request: ARDetail
+  href: string
+}) {
+  const locality = [request.shipping?.city, request.shipping?.state].filter(Boolean).join(', ')
+  const customer = portalCustomerLabel(request)
+  return (
+    <Link
+      href={href}
+      className="flex flex-none flex-col gap-1.5 overflow-hidden rounded-xl border border-border bg-card px-3.5 py-2.5 no-underline shadow-sm transition-shadow hover:bg-lps-tint hover:shadow-md"
+    >
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className="min-w-0 max-w-[22rem] truncate text-[13.5px] font-semibold text-foreground">
+          {portalRequestName(request)}
+        </span>
+        <ARStatusPill status={request.status} />
+        <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim" title="Requested">
+          {formatDate(request.createdAt)}
+        </span>
+      </div>
+
+      {(customer || locality) && (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
+          {customer && <span className="font-semibold text-foreground">{customer}</span>}
+          {locality && <span className="text-muted-foreground">· {locality}</span>}
+        </div>
+      )}
+
+      <ARResponseSummary items={request.items} answeredCount={request.answeredCount} />
+    </Link>
   )
 }
 
@@ -650,9 +729,13 @@ export function PortalFrame({
     </div>
   )
 
-  const nav: { id: PortalTab; label: string; href: string; Icon: typeof RequestsIcon }[] = [
-    { id: 'requests', label: 'Availability Requests', href: `/portal/${supplierId}`, Icon: RequestsIcon },
-    { id: 'orders', label: 'Orders', href: `/portal/${supplierId}/orders`, Icon: FileIcon },
+  // `short` is the mobile bottom bar's label — the rail has room for the whole
+  // name and the bar does not. Closed sits last: it is where work goes to rest,
+  // not somewhere a supplier starts.
+  const nav: { id: PortalTab; label: string; short: string; href: string; Icon: typeof RequestsIcon }[] = [
+    { id: 'requests', label: 'Availability Requests', short: 'Requests', href: `/portal/${supplierId}`, Icon: RequestsIcon },
+    { id: 'orders', label: 'Orders', short: 'Orders', href: `/portal/${supplierId}/orders`, Icon: FileIcon },
+    { id: 'closed', label: 'Closed Requests', short: 'Closed', href: `/portal/${supplierId}/closed`, Icon: ArchiveIcon },
   ]
 
   const railBtn = (active: boolean, enabled = true) =>
@@ -710,18 +793,23 @@ export function PortalFrame({
       className="fixed inset-x-0 flex flex-col overflow-hidden bg-background"
       style={{ top: viewportFrame.top, height: viewportFrame.height }}
     >
-      {/* The admin Shell's header, on both breakpoints: the page name in the
-          serif line, its running total beside it, then the bell. */}
-      <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
-        <div className="flex min-w-0 flex-1 items-baseline gap-3">
-          <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
-          {subtitle && (
-            <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
-          )}
+      {/* The admin Shell's header — **desktop only** since 2026-08-26: the page
+          name in the serif line, its running total beside it, then the bell.
+          On mobile every portal page draws no header at all, exactly as the
+          Shell's `hideHeaderOnMobile` pages do; the bell moves to the left of
+          the bottom bar, and the page column starts at its own toolbar. */}
+      {!isMobile && (
+        <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
+          <div className="flex min-w-0 flex-1 items-baseline gap-3">
+            <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
+            {subtitle && (
+              <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
+            )}
+          </div>
+          {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
+          {bell}
         </div>
-        {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
-        {bell}
-      </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Desktop nav rail */}
@@ -882,17 +970,25 @@ export function PortalFrame({
         </div>
       )}
 
-      {/* Mobile bottom navigation, in the admin app's shape: an independently
-          scrollable strip of destinations with Chat pinned at the right edge.
-          Alerts is not repeated here — the header's bell is the one bell. */}
+      {/* Mobile bottom navigation, in the admin app's shape: global actions
+          pinned at both edges — Alerts left, Chat right — with an
+          independently scrollable strip of destinations between them, each
+          sized to a third of its viewport, so three show and More scrolls. */}
       {isMobile && !keyboardOpen && (
         <nav className="z-50 flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
+          <PortalNotificationBell
+            mobile
+            requests={alerts}
+            chat={chatAlert}
+            onOpenRequest={onOpenAlert}
+            onOpenChat={openChatPanel}
+          />
           <div
             role="group"
             aria-label="Pages"
             className="lps-mobile-nav-scroll flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x"
           >
-            {nav.map(({ id, label, href, Icon }) => (
+            {nav.map(({ id, label, short, href, Icon }) => (
               <Link
                 key={id}
                 href={href}
@@ -920,9 +1016,7 @@ export function PortalFrame({
                 )}
               >
                 <span className="flex size-[18px] items-center justify-center"><Icon /></span>
-                <span className="text-center text-[10.5px] font-semibold leading-tight">
-                  {id === 'requests' ? 'Requests' : label}
-                </span>
+                <span className="text-center text-[10.5px] font-semibold leading-tight">{short}</span>
               </Link>
             ))}
             <button

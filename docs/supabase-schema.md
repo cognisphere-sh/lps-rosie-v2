@@ -831,7 +831,7 @@ One availability ask, from one job request to one **LPS Partner**
 per-supplier thread (her `supplier-coordination` skill — since 2026-08-23 she
 owns order-side supplier coordination, the portal included; before that the
 writer was daisy's retired `availability-requests` skill). Answered by the
-supplier in their portal, whose Save wakes rosie via the `supplier-events`
+supplier in their portal, whose Submit wakes rosie via the `supplier-events`
 webhook.
 
 | Column | Type | Null | Notes |
@@ -840,8 +840,8 @@ webhook.
 | `job_request_id` | bigint → `job_requests.id` ON DELETE CASCADE | no | |
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
 | `share_customer_details` | boolean | no, default false | Whether the portal shows the supplier who the job is for (customer name/company/contact routes and shipping address). Default is not to |
-| `status` | text | no, default `new` | **CHECK**: `new` \| `submitted` \| `closed`. `submitted` = the supplier pressed **Save** in the portal (`submitted_at` stamps the first one; the apps label it *Answered*); `closed` = we are done with it (an admin act) |
-| `submitted_at` | timestamptz | yes | Stamped by the portal's Submit |
+| `status` | text | no, default `new` | **CHECK**: `new` \| `processing` \| `submitted` \| `closed` (`processing` added 2026-08-26, migration 0075). `new` = waiting on them, and **re-set by trigger whenever a line is added** to a request they had already started; `processing` = they have answered at least one line in their portal since; `submitted` = they pressed **Submit** there; `closed` = we are done with it (an admin act) |
+| `submitted_at` | timestamptz | yes | Stamped by the portal's Submit, and left alone by everything else — the portal's button reads **Re-Submit** off it |
 | `lps_notes` | text | yes | **LPS's job-level note to the supplier** — delivery window, site constraints, what matters across the lines. Written by rosie at share time; rendered on the portal's request card; never supplier-writable. Added 2026-08-23 (migration 0071) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
@@ -862,8 +862,8 @@ seeded.
 | `availability_request_id` | bigint → `availability_requests.id` ON DELETE CASCADE | no | |
 | `job_request_item_id` | bigint → `job_request_items.id` ON DELETE SET NULL | yes | The traceback; SET NULL so a deleted line doesn't take the supplier's answer with it |
 | `name` / `size` / `quantity` | text / text / numeric | no / yes / yes | **The ask, snapshotted.** `quantity` CHECK: null or `> 0` |
-| `status` | text | yes | **The supplier's answer** — CHECK: `available` \| `unavailable` \| `can_order` (ETA in `notes`) \| `substitute` (what instead, in `notes`). **NULL = not answered yet** (renders as "Set status", never a guess). The **only** column that says a line was answered — `unit_price` may be ours (below) |
-| `available_quantity` | numeric | yes | CHECK: null or `>= 0` |
+| `status` | text | yes | **The supplier's answer** — CHECK: `available` \| `can_order` (ETA in `notes`) \| `diff_size_qty_sub` (a different size, quantity or plant; what, in `notes`) \| `arriving_soon` (when, in `notes`) \| `unavailable`. `arriving_soon` added and `substitute` renamed `diff_size_qty_sub` on 2026-08-26 (migrations 0075/0076). **NULL = not answered yet** (renders as "Set status", never a guess). The **only** column that says a line was answered — `unit_price` may be ours (below) |
+| `available_quantity` | numeric | yes | CHECK: null or `>= 0`. The portal fills it from `quantity` on `available` and clears it on `unavailable`; `diff_size_qty_sub` asks for it |
 | `unit_price` | numeric(10,2) | yes | CHECK: null or `> 0` — same never-0 rule as everywhere. **Seeded at share time** where our own catalogue already answers the line for that supplier at that size, so they confirm or correct a number rather than typing one; ours until `status` is theirs |
 | `notes` | text | yes | The supplier's note about this line — substitute, ETA, conditions |
 | `lps_notes` | text | yes | **LPS's brief note to the supplier about this line** — the substitute and price the inventory data mapped ("Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit"), a special request from the customer, or a customer note worth the supplier's eyes. A few words; written at share time; rendered under the plant name in the portal; not in the portal PATCH whitelist, so never supplier-editable. Added 2026-08-23 (migration 0070; semantics broadened + request-level sibling by 0071) |
@@ -1141,6 +1141,7 @@ by default.
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
 | `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
+| `availability_request_items_reopen` | availability_request_items | AFTER INSERT | `availability_request_reopen_on_new_line()`: puts the parent request back to `new` when it was `processing` or `submitted`. Adding a line to a request the supplier already worked on is a new question, and it must reach their portal's New tab whoever added it — the app or an agent script. `closed` is left alone; `submitted_at` is untouched, so the portal's button still reads *Re-Submit*. Added 2026-08-26 (migration 0075) |
 | `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `supplier_messages` — messages are append-only and never updated |
 
 ## Indexes that matter

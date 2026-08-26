@@ -1,5 +1,18 @@
 # supplier-coordination — changelog
 
+## 1.6.0
+
+2026-08-26 (Bhoumik) — §3 tracks the supplier portal's restructure. The
+per-line vocabulary gains **`arriving_soon`** and renames `substitute` to
+**`diff_size_qty_sub`** (migrations 0075/0076): the answer always covered a
+different size or quantity as well as a different plant, and the stored value
+now says so. The table also records what the portal writes alongside a status —
+`available` fills `available_quantity` from the demand, `unavailable` clears it
+— so a relayed answer is read the same way it was given. New paragraph on the
+request's own `status`: `new` → `processing` → `submitted`, with `new` re-set
+by the database whenever we add a line to a request the supplier had already
+started. The button they press is **Submit** / **Re-Submit**, not Save.
+
 ## 1.5.0
 
 2026-08-25 (Bhoumik, same day as 1.4.0) — *Judgment calls* becomes *Judgment

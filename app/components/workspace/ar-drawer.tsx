@@ -165,7 +165,7 @@ export function AvailabilityRequestDrawer() {
                 </button>
                 <span className="text-[11.5px] text-muted-foreground">
                   Each answer is written as you make it — Save marks the whole request
-                  Answered and dates it.
+                  Submitted and dates it.
                 </span>
               </div>
             )}

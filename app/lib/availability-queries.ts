@@ -342,6 +342,12 @@ const AR_ITEM_WRITABLE = ['status', 'available_quantity', 'unit_price', 'notes']
 /**
  * Write one line's answer, scoped: the item must belong to the request, and —
  * from the portal — the request to that supplier, still open.
+ *
+ * A write **from the portal** also moves the request itself to `processing`:
+ * the supplier has started on it, which is what the portal's Processing tab
+ * asks. Only their own hand does that — the admin drawer enters answers a
+ * supplier gave by phone, and those are ours, not a sign they are working the
+ * portal. `closed` never moves (`arForWrite` refuses it first).
  */
 export async function updateARItem(
   arId: number,
@@ -386,6 +392,16 @@ export async function updateARItem(
     .select('id')
   if (error) throw new Error(`availability_request_items: ${error.message}`)
   if (!data?.length) throw new Error('line not found')
+
+  if (opts.forSupplierId != null && ar.status !== 'processing') {
+    // Best-effort: the answer is already saved, and a request left reading
+    // New costs a tab, not data.
+    await supabase
+      .from('availability_requests')
+      .update({ status: 'processing' })
+      .eq('id', ar.id)
+      .eq('is_active', true)
+  }
 }
 
 /** The request, checked for writing: active, the supplier's own, not closed. */
@@ -490,7 +506,7 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
   })
 }
 
-/** The supplier pressed Save. Returns context for the notification. */
+/** The supplier pressed Submit. Returns context for the notification. */
 export async function submitAvailabilityRequest(
   arId: number,
   forSupplierId: number,
@@ -526,13 +542,14 @@ export async function submitAvailabilityRequest(
  * pill or its Save button.
  *
  * `submitted_at` follows the status rather than being set apart from it: the
- * admin marking a request Answered is the same event the portal's Save
- * stamps, and a request pushed back to `new` has no answered date to show.
- * `closed` leaves the stamp alone — closing does not unanswer anything.
+ * admin marking a request Submitted is the same event the portal's Submit
+ * stamps, and a request pushed back to `new` has no submitted date to show.
+ * `processing` and `closed` leave the stamp alone — neither unanswers
+ * anything, and the portal's button reads **Re-Submit** off it.
  */
 export async function setAvailabilityRequestStatus(arId: number, status: string): Promise<void> {
-  if (!['new', 'submitted', 'closed'].includes(status)) {
-    throw new Error('status must be one of: new, submitted, closed')
+  if (!['new', 'processing', 'submitted', 'closed'].includes(status)) {
+    throw new Error('status must be one of: new, processing, submitted, closed')
   }
   const stamp =
     status === 'submitted'

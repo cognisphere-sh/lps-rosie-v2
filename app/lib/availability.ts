@@ -5,14 +5,17 @@
 import type { Tone } from '@/lib/job-requests'
 
 /** `availability_requests.status` — the CHECK vocabulary, in lifecycle order. */
-export const AR_STATUSES = ['new', 'submitted', 'closed'] as const
+export const AR_STATUSES = ['new', 'processing', 'submitted', 'closed'] as const
 export type ARStatus = (typeof AR_STATUSES)[number]
 
-// `submitted` reads as **Answered**: the portal's button says Save (a supplier
-// can save partial answers and come back), so the stored word would overclaim.
+// The portal's three working states, plus the admin's terminal one. `new` is
+// re-set whenever a line is added to a request the supplier already worked on
+// (migration 0075's trigger), so the ask goes back to the top of their New tab;
+// `processing` is any answer they have made since; `submitted` is the button.
 export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
   new: { label: 'New', tone: 'amber' },
-  submitted: { label: 'Answered', tone: 'green' },
+  processing: { label: 'Processing', tone: 'teal' },
+  submitted: { label: 'Submitted', tone: 'green' },
   closed: { label: 'Closed', tone: 'grey' },
 }
 
@@ -20,16 +23,32 @@ export const arStatusLabel = (s: string) => AR_STATUS_META[s as ARStatus]?.label
 export const arStatusTone = (s: string): Tone => AR_STATUS_META[s as ARStatus]?.tone ?? 'grey'
 
 /**
- * `availability_request_items.status` — the supplier's four-word answer.
- * NULL is a real state (not answered yet) and renders as "Set status".
+ * `availability_request_items.status` — the supplier's answer, in the order the
+ * portal's picker offers it. NULL is a real state (not answered yet) and
+ * renders as "Set status".
+ *
+ * `diff_size_qty_sub` was `substitute` until migration 0076: the answer covers
+ * a different size or quantity as well as a different plant, so the stored
+ * value was renamed with the label rather than left disagreeing with it.
  */
-export const AR_RESPONSES = ['available', 'can_order', 'substitute', 'unavailable'] as const
+export const AR_RESPONSES = [
+  'available',
+  'can_order',
+  'diff_size_qty_sub',
+  'arriving_soon',
+  'unavailable',
+] as const
 export type ARResponse = (typeof AR_RESPONSES)[number]
 
+// Tones come from the design's existing six — no new colour was introduced for
+// the two new answers. `diff_size_qty_sub` keeps the teal `substitute` already
+// had, and `arriving_soon` takes `lime`, the one tone nothing else was using
+// (`grey` is not free: it is what an unanswered line reads as).
 export const AR_RESPONSE_META: Record<ARResponse, { label: string; tone: Tone }> = {
   available: { label: 'Available', tone: 'green' },
   can_order: { label: 'Can order', tone: 'amber' },
-  substitute: { label: 'Substitute', tone: 'teal' },
+  diff_size_qty_sub: { label: 'Diff Size/Qty/Sub', tone: 'teal' },
+  arriving_soon: { label: 'Arriving soon', tone: 'lime' },
   unavailable: { label: 'Unavailable', tone: 'red' },
 }
 
