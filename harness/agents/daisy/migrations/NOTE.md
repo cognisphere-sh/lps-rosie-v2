@@ -10,6 +10,20 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0077_ar_item_mapped_inventory.sql`
+
+Applied 2026-08-26 (Bhoumik), the same day as 0075/0076. Adds
+`availability_request_items.mapped_inventory_id` — a nullable
+`uuid → inventory.id`, ON DELETE SET NULL, with a partial index over the
+non-null rows. **The mapping existed already; only as prose.** The jr thread
+named the inventory row its look-up found at that supplier, the supplier thread
+seeded `unit_price` off it, and the row itself was never written down — so a
+seeded price could not be traced to what it was seeded from. **No backfill**:
+the mapping was never stored, and the existing lines' prose lives in thread
+transcripts rather than anywhere a query could reach; every existing row is
+NULL, which is also what an unmapped line means going forward. Nothing renders
+it yet — deliberately outside `AR_ITEM_COLUMNS` and the portal PATCH whitelist.
+
 ## `0076_ar_item_status_diff_size_qty_sub.sql`
 
 Applied 2026-08-26 (Bhoumik), immediately after 0075. Renames the supplier's

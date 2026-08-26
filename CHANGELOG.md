@@ -19,6 +19,27 @@ here).
 
 ### Added
 
+- **The mapped plant is written down.** `availability_request_items` gains
+  **`mapped_inventory_id`** (uuid → `inventory.id`, ON DELETE SET NULL,
+  migration 0077): the supplier's own catalogue row our look-up matched to a
+  line. The mapping already drove the request — the jr thread named the row it
+  found, the supplier thread copied its price into `unit_price` — but it was
+  never stored, so a seeded price could not be traced to what produced it, and
+  a supplier's answer could not be read against the row we thought answered
+  the line. Now it can. **Nothing renders it**: it is outside
+  `AR_ITEM_COLUMNS`, outside the portal PATCH whitelist and off every screen,
+  by request. **Not backfilled** — the mapping was never stored, and a re-run
+  search answers a different question than "which row did we ask from".
+  Written by rosie's supplier thread; the app's own Availability request
+  dialog still seeds a price without recording the row, so a priced line with
+  no mapping is an app-made request, not an inconsistency.
+- Rosie's `supplier-coordination` skill writes and reads it: §2 pairs the
+  mapping with the price it produced (**both or neither**, and a near-miss is
+  an `lps_notes` sentence rather than a mapping), §3 reads each answer against
+  it and leaves it alone when the answer contradicts it. `job-requests` §5.2
+  makes the `inventory` **id** the part of an availability ask that has to
+  travel, and requires a near-miss to be named as not mapping.
+
 - **A page per availability request in the supplier portal**
   (`/portal/:supplierId/requests/:arId`). The home list's cards are links now,
   not disclosures: answering a request is the work, so it gets the whole

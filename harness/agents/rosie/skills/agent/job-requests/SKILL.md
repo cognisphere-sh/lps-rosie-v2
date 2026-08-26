@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.4.0)
+description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.4.1)
 metadata:
   author: lps
-  version: "3.4.0"
+  version: "3.4.1"
 ---
 
 # Job requests
@@ -562,8 +562,12 @@ supplier-coordination."
 - Include the item ids — the answer comes back item by item.
 - **Say what the look-up found on every line**, including "nothing on their
   list", and name the `inventory` row (id + catalogued name/size/price) when
-  one maps — an unambiguous mapped row is what the supplier thread seeds the
-  availability request's price from.
+  one maps — an unambiguous mapped row is what the supplier thread stores as
+  the line's `mapped_inventory_id` and seeds its price from. The id is the
+  part that matters: a name and a price it can't trace back to a row is a
+  number it has to drop. Only a **same plant, same size** row is a mapping;
+  a near-miss (line 2 above) is described in the prose and named as *not*
+  mapping, so the supplier thread writes a note rather than a row.
 - When the relay lands, put it on each item's supplier line — one line per
   supplier named, in §4.1's shape (the row they have, then its price, and
   `Substitute:` when it isn't the ask). Another supplier's pricing stays on

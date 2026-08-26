@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.6.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.7.0)
 metadata:
   author: lps
-  version: "1.6.0"
+  version: "1.7.0"
 ---
 
 # Supplier coordination
@@ -61,6 +61,11 @@ INSERT INTO availability_request_items
 SELECT $ar, id, name, size, quantity
 FROM job_request_items
 WHERE job_request_id = $job AND is_active;
+
+-- Then the mapping, per line that has one (below). Not every line does.
+UPDATE availability_request_items
+   SET mapped_inventory_id = $inventoryId, unit_price = $price
+ WHERE availability_request_id = $ar AND job_request_item_id = $item;
 ```
 
 - **`share_customer_details`** shows the supplier the customer's name,
@@ -73,13 +78,34 @@ WHERE job_request_id = $job AND is_active;
 - A line missing from their published list still goes on — it is the one they
   are most likely to surprise us on. A subset is Chris's instruction, never
   your inference.
-- **Prefill `unit_price`** on a line only where this supplier's own
-  `inventory` row answers it unambiguously (same plant, same size). The jr
-  thread's ask names the mapped rows (id + catalogued name/size/price) — seed
-  from those, spot-checking rather than re-running its search; a guess is
-  worse than an empty box. Never seed `status`, `available_quantity` or
-  `notes` — those are the supplier's alone; `status` NULL is what says
-  "unanswered".
+- **Write down the mapping, then the price it gives.**
+  `mapped_inventory_id` is the `inventory` row that answers the line for this
+  supplier unambiguously (same plant, same size); `unit_price` is what you
+  copy off it. The jr thread's ask names those rows (id + catalogued
+  name/size/price) — seed from them, spot-checking rather than re-running its
+  search; a guess is worse than an empty box.
+  - **Both or neither, when you write the line.** Never a price without the
+    row it came from — an unsourceable number is the thing this column exists
+    to prevent. The other way round is fine: a mapped row whose catalogue
+    price is NULL maps, and the price stays empty.
+    - The rule is yours, not the table's. A request **created in the app**
+      (Job Requests page → Availability request) seeds a price from the
+      catalogue without recording a row, so a priced line with no mapping is
+      an app-made request, not a contradiction — and every line written
+      before 2026-08-26 is unmapped because the column didn't exist. Don't
+      backfill one from a re-run search: a mapping means *this* is the row we
+      asked from, and a later search is a different question.
+  - **NULL is the ordinary answer**, on the lines that matter most: a line
+    nothing on their list maps is exactly the one they may surprise us on,
+    and it still goes on the request (above). Leave it NULL rather than
+    reaching for a near-miss — a different size or a cousin plant is *not* a
+    mapping, it is a `lps_notes` sentence.
+  - Nothing shows it to anyone yet — it is ours, it is not on their portal,
+    and no screen renders it. It is written for the traceback: which
+    catalogue row we thought answered the line, read later against what they
+    actually said.
+- Never seed `status`, `available_quantity` or `notes` — those are the
+  supplier's alone; `status` NULL is what says "unanswered".
 - **`lps_notes` is what we tell the supplier, at both levels.** The
   request's own `lps_notes` carries job-level context worth their eyes —
   delivery window, site constraints, what matters across the lines
@@ -119,6 +145,12 @@ started), `processing` (they have answered at least one line since), then
 
 **`status` is the only column that says they answered** — a `unit_price` may
 be our §2 prefill, so a NULL-status line is never "confirmed at that price".
+Read each answer against `mapped_inventory_id`, the row we thought answered
+that line: a `diff_size_qty_sub` or an unchanged price on a line that mapped
+says something different from one on a line that mapped nothing, and a
+`unavailable` on a line their own catalogue listed is worth naming in the
+relay. Where the answer contradicts the mapping, the answer wins and the
+mapping stays as it was — it records what we asked from, not what is true.
 
 Then **message the jr thread** (`jr-<job_request_id>`) with the answers, item
 by item — it owns the item statuses and moves them per `job-requests` §5.3.

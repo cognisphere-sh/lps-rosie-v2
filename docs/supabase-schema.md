@@ -851,10 +851,17 @@ webhook.
 The lines shared with the supplier — one or more of the job request's lines,
 **snapshotted at share time**: `name`, `size`, `quantity` are *copied*, not
 joined, because what we asked a supplier is evidence — a later edit to the job
-request must not silently rewrite the question they are answering. `unit_price`
-is seeded the same moment, from that supplier's own `inventory` row where it
-answers the line unambiguously; the other three answer columns are never
-seeded.
+request must not silently rewrite the question they are answering.
+`mapped_inventory_id` and `unit_price` are seeded the same moment, from that
+supplier's own `inventory` row where it answers the line unambiguously; the
+other three answer columns are never seeded.
+
+**The mapping and the price it produced are two columns, not one.**
+`mapped_inventory_id` is the row our look-up found; `unit_price` is what we
+copied off it. Keeping both is what lets a seeded price be traced to its
+source, and lets the supplier's answer be read against the row we thought
+answered the line — the snapshot rule does not apply to it, because it is a
+pointer at live data rather than evidence of what we asked.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -862,9 +869,10 @@ seeded.
 | `availability_request_id` | bigint → `availability_requests.id` ON DELETE CASCADE | no | |
 | `job_request_item_id` | bigint → `job_request_items.id` ON DELETE SET NULL | yes | The traceback; SET NULL so a deleted line doesn't take the supplier's answer with it |
 | `name` / `size` / `quantity` | text / text / numeric | no / yes / yes | **The ask, snapshotted.** `quantity` CHECK: null or `> 0` |
+| `mapped_inventory_id` | uuid → `inventory.id` ON DELETE SET NULL | yes | **The mapped plant** — this supplier's own catalogue row our look-up matched to the line (same plant, same size, unambiguously), and what `unit_price` was seeded from. **NULL is the normal, interesting case**: nothing on their list mapped, which is the line they are most likely to surprise us on. Ours, not theirs — outside the portal PATCH whitelist and outside `AR_ITEM_COLUMNS`, so nothing renders it yet. **Written by rosie's supplier thread only**: `createAvailabilityRequest()` still seeds a price without recording the row it came from, so a priced-but-unmapped line is an app-made request rather than a contradiction, and every pre-0077 line is NULL. Not backfilled — a mapping says *this is the row we asked from*, which a later re-run search cannot reconstruct. SET NULL because the catalogue is re-ingested and has twice been reset outright; a partial index covers the non-null rows. Added 2026-08-26 (migration 0077) |
 | `status` | text | yes | **The supplier's answer** — CHECK: `available` \| `can_order` (ETA in `notes`) \| `diff_size_qty_sub` (a different size, quantity or plant; what, in `notes`) \| `arriving_soon` (when, in `notes`) \| `unavailable`. `arriving_soon` added and `substitute` renamed `diff_size_qty_sub` on 2026-08-26 (migrations 0075/0076). **NULL = not answered yet** (renders as "Set status", never a guess). The **only** column that says a line was answered — `unit_price` may be ours (below) |
 | `available_quantity` | numeric | yes | CHECK: null or `>= 0`. The portal fills it from `quantity` on `available` and clears it on `unavailable`; `diff_size_qty_sub` asks for it |
-| `unit_price` | numeric(10,2) | yes | CHECK: null or `> 0` — same never-0 rule as everywhere. **Seeded at share time** where our own catalogue already answers the line for that supplier at that size, so they confirm or correct a number rather than typing one; ours until `status` is theirs |
+| `unit_price` | numeric(10,2) | yes | CHECK: null or `> 0` — same never-0 rule as everywhere. **Seeded at share time** from `mapped_inventory_id`'s row, so they confirm or correct a number rather than typing one; ours until `status` is theirs. Seeded *only* where a row mapped, but a mapped row with no price still leaves this NULL |
 | `notes` | text | yes | The supplier's note about this line — substitute, ETA, conditions |
 | `lps_notes` | text | yes | **LPS's brief note to the supplier about this line** — the substitute and price the inventory data mapped ("Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit"), a special request from the customer, or a customer note worth the supplier's eyes. A few words; written at share time; rendered under the plant name in the portal; not in the portal PATCH whitelist, so never supplier-editable. Added 2026-08-23 (migration 0070; semantics broadened + request-level sibling by 0071) |
 | `is_active` | boolean | no, default true | Soft delete |

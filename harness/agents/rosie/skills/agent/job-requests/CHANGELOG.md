@@ -1,5 +1,14 @@
 # job-requests — changelog
 
+## 3.4.1
+
+2026-08-26 (Bhoumik) — §5.2 sharpens what the availability ask must carry now
+that the supplier thread *stores* the mapping
+(`availability_request_items.mapped_inventory_id`, migration 0077): the
+`inventory` **id** is the part that matters, and a near-miss must be named as
+not mapping, so the other thread writes a note instead of a row. No change to
+what this thread does otherwise.
+
 ## 3.4.0
 
 2026-08-25 (Bhoumik, same day as 3.3.0) — generalised from *approval* to

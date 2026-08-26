@@ -1,5 +1,19 @@
 # supplier-coordination — changelog
 
+## 1.7.0
+
+2026-08-26 (Bhoumik, same day as 1.6.0) — §2 gains
+**`availability_request_items.mapped_inventory_id`** (migration 0077): the
+supplier's own catalogue row our look-up matched to a line is now *written
+down*, not just used and discarded. It was already the thing `unit_price` was
+seeded from — the pair is now **both or neither**, so a seeded price always
+names the row it came from. A near-miss is still not a mapping (it is an
+`lps_notes` sentence), and NULL stays the ordinary answer on the lines that
+matter most. §3 reads each supplier answer against it: the same
+`diff_size_qty_sub` means something different on a line that mapped than on
+one that mapped nothing, and the answer never rewrites the mapping. Nothing
+renders the column yet, by design.
+
 ## 1.6.0
 
 2026-08-26 (Bhoumik) — §3 tracks the supplier portal's restructure. The
