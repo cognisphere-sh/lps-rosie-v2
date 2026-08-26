@@ -1059,7 +1059,12 @@ dots on the rail and header agent avatars, the thread picker's cards, the
 mobile Agents list and tab — and the **notification bell** in the page
 header: a badge count, and a popover listing unread threads (sender, thread,
 snippet, time; "Mark all read"); clicking one opens that agent's panel on
-that thread.
+that thread. The popover also carries an **agent filter** — a chip row of
+*All* plus each chat agent with its unread count — narrowing the list to one
+agent. It is a view, not a scope: the badge keeps counting every agent, and
+while a chip is active the action reads "Mark read" and marks only the agent
+shown, since marking away what is hidden would be a surprise. The filter
+resets when the popover closes.
 
 **Deep links.** Anything in the workspace can open the panel on a thread via
 `lib/chat-bus.ts` (`openChat` → a window event `AgentChat` and the Shell

@@ -18,7 +18,7 @@ import {
   AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
   CustomersIcon, MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
 } from '@/components/workspace/icons'
-import { AGENTS, chatBlockedReason } from '@/lib/agents'
+import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
 import { requestRef } from '@/lib/job-requests'
 import {
   APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentColor, appAccentStyle, readAppAccent,
@@ -1080,10 +1080,16 @@ function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
  * The header's notification bell: unread agent-chat messages across every
  * agent and thread, newest first. Clicking one opens that agent's panel on
  * that thread — which is also what marks it read (the panel's own poll).
+ *
+ * The chip row filters the list to one agent. It's a view of the same unread
+ * set, so the badge keeps counting everything; only the list and "Mark all
+ * read" narrow — marking read what you can't see would be a surprise. The
+ * filter resets when the popup closes.
  */
 function NotificationBell({ mobile = false }: { mobile?: boolean }) {
-  const { unread, markAllRead } = useChatNotifications()
+  const { unread, unreadByAgent, markAllRead } = useChatNotifications()
   const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -1095,12 +1101,16 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
   }, [open])
 
   const agentOf = (id: string) => AGENTS.find((a) => a.id === id)
+  const shown = filter ? unread.filter((n) => n.agentId === filter) : unread
 
   return (
     <div data-notif-bell className={cn('relative flex-none', mobile && 'w-[52px]')}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v)
+          setFilter(null)
+        }}
         title="Notifications"
         aria-label={unread.length ? `Notifications — ${unread.length} unread` : 'Notifications'}
         className={cn(
@@ -1131,23 +1141,50 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
         >
           <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2">
             <span className="text-[12.5px] font-bold text-foreground">Notifications</span>
-            {unread.length > 0 && (
+            {shown.length > 0 && (
               <button
                 type="button"
-                onClick={markAllRead}
+                onClick={() => markAllRead(shown)}
                 className="ml-auto cursor-pointer border-none bg-transparent text-[11px] font-semibold text-primary hover:underline"
               >
-                Mark all read
+                {filter ? 'Mark read' : 'Mark all read'}
               </button>
             )}
           </div>
+          <div className="flex flex-none items-center gap-1 overflow-x-auto border-b border-border px-2 py-1.5">
+            {[{ id: null, name: 'All', count: unread.length }, ...CHAT_AGENTS.map((a) => ({
+              id: a.id as string | null,
+              name: a.name,
+              count: unreadByAgent[a.id] ?? 0,
+            }))].map((chip) => (
+              <button
+                key={chip.id ?? 'all'}
+                type="button"
+                onClick={() => setFilter(chip.id)}
+                aria-pressed={filter === chip.id}
+                className={cn(
+                  'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold',
+                  filter === chip.id
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                <span>{chip.name}</span>
+                {chip.count > 0 && (
+                  <span className={cn('text-[10px]', filter === chip.id ? 'opacity-80' : 'text-lps-dim')}>
+                    {chip.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           <div className="flex min-h-0 flex-col overflow-y-auto p-1.5">
-            {unread.length === 0 && (
+            {shown.length === 0 && (
               <p className="m-0 px-2 py-3 text-center text-[12px] text-muted-foreground">
-                You’re all caught up.
+                {filter ? `Nothing unread from ${agentOf(filter)?.name ?? filter}.` : 'You’re all caught up.'}
               </p>
             )}
-            {unread.map((n) => {
+            {shown.map((n) => {
               const agent = agentOf(n.agentId)
               return (
                 <button

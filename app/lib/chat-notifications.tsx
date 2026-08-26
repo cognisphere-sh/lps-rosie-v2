@@ -69,7 +69,8 @@ interface ChatNotificationsValue {
   unread: ChatNotification[]
   unreadByAgent: Record<string, number>
   isUnread: (agentId: string, threadId: string) => boolean
-  markAllRead: () => void
+  /** Mark a set of notifications read; the whole unread list when omitted. */
+  markAllRead: (items?: ChatNotification[]) => void
 }
 
 const Ctx = createContext<ChatNotificationsValue>({
@@ -151,8 +152,8 @@ export function ChatNotificationsProvider({ children }: { children: React.ReactN
 
   // The one place that marks threads read without opening them, so it needs
   // the plugin's explicit endpoint rather than a panel poll.
-  const markAllRead = useCallback(() => {
-    for (const n of unread) {
+  const markAllRead = useCallback((items?: ChatNotification[]) => {
+    for (const n of items ?? unread) {
       markThreadRead(n.agentId, n.threadId, n.lastId)
       void fetch(`/api/chat/${n.agentId}/read`, {
         method: 'POST',

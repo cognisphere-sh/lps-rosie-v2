@@ -17,6 +17,15 @@ here).
 
 ## 2026-08-25
 
+### Added
+
+- **Filter the notification bell by agent.** The bell's popover carries a chip
+  row — *All* plus each chat agent with its unread count — that narrows the
+  list to one agent's threads. It filters the view only: the badge still
+  counts every agent, and with a chip active the action reads "Mark read" and
+  marks just the agent shown, so nothing you can't see gets cleared. The chip
+  resets when the popover closes.
+
 ### Changed
 
 - **Supplier-facing availability-request IDs are hidden.** Portal request cards
