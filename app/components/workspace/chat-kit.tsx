@@ -695,7 +695,7 @@ export function Transcript({
       onTouchCancel={() => { pullStart.current = null; setPull(0) }}
       className={cn(
         'font-chat flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-y-contain',
-        mobile ? 'bg-transparent px-4 pb-4 pt-[72px]' : 'bg-background p-4',
+        mobile ? 'bg-transparent px-4 pb-4 pt-[calc(env(safe-area-inset-top)+5rem)]' : 'bg-background p-4',
       )}
       style={mobile ? undefined : chatWallpaperStyle(wallpaper)}
     >

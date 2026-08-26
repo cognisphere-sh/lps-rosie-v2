@@ -90,7 +90,7 @@ export function AvailabilityRequestDrawer() {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-[640px] flex-col gap-2.5 overflow-y-auto border-l border-border bg-background p-4 shadow-[var(--lps-shadow)]"
+        className="flex h-full w-full max-w-[640px] flex-col gap-2.5 overflow-y-auto border-l border-border bg-background px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] shadow-[var(--lps-shadow)] min-[900px]:p-4"
       >
         <div className="flex items-center gap-2">
           <span className="text-[14px] font-bold text-foreground">
@@ -100,7 +100,7 @@ export function AvailabilityRequestDrawer() {
             type="button"
             onClick={() => setArId(null)}
             aria-label="Close"
-            className="ml-auto flex size-7 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="ml-auto flex size-11 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground min-[900px]:size-7"
           >
             <CloseIcon size={14} />
           </button>

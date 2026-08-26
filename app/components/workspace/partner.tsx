@@ -649,7 +649,7 @@ export function PartnerFrame({
       className={cn(
         'flex flex-none items-center gap-2.5',
         floating
-          ? 'absolute inset-x-3 top-2 z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/45 px-3 py-2 shadow-lg backdrop-blur-sm supports-[backdrop-filter]:bg-background/35'
+          ? 'absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/45 px-2 py-2 shadow-lg backdrop-blur-sm supports-[backdrop-filter]:bg-background/35'
           : 'border-b border-border px-3 py-2.5',
       )}
     >
@@ -674,7 +674,7 @@ export function PartnerFrame({
           onClick={closeChatPanel}
           aria-label="Hide chat"
           title="Hide chat"
-          className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <X size={16} />
         </button>

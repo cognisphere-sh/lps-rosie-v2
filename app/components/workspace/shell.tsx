@@ -521,7 +521,7 @@ export function Shell({
                   Each row opens the same existing agent conversation. */}
               {isMobile && mobileAgentsOpen && (
                 <div className="absolute inset-0 z-[69] flex flex-col bg-background">
-                  <div className="flex flex-none items-center border-b border-border bg-card px-4 py-3">
+                  <div className="flex flex-none items-center border-b border-border bg-card px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
                     <div className="min-w-0 flex-1">
                       <h2 className="m-0 text-[18px] font-bold text-foreground">Agents</h2>
                       <p className="m-0 text-[11.5px] text-muted-foreground">Your AI team</p>

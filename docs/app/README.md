@@ -184,11 +184,16 @@ is what a sequence is for.
   and Plant search, omits its redundant generic Shell header on mobile. The chat
   sheet overlays page content inside the main column, above the tab bar, so
   global navigation remains visible while chatting. Its Telegram-style identity
-  header floats over the transcript as an inset rounded pill with a translucent
-  blurred surface, a prominent agent avatar and a two-line name /
-  role-and-live-status treatment;
-  the reserved transcript inset keeps the first message readable while later
-  messages can scroll beneath the glass. It replaces the underlying page header
+  header floats over the transcript as an inset rounded pill with a 20%
+  translucent, lightly blurred surface, a prominent agent avatar and a two-line
+  name / role-and-live-status treatment. Wallpaper remains visibly legible
+  beneath the glass and continues behind the iOS status bar; safe-area-aware
+  positioning keeps the 44px Back and Conversations targets below system chrome;
+  the conversation picker, Agents list and full-height availability-request
+  drawer headers also consume that inset, with 44px mobile Close targets. A
+  matching transcript inset keeps the first
+  message readable while later messages scroll beneath the glass. It replaces
+  the underlying page header
   rather than stacking a second header.
   The fixed Shell height follows `window.visualViewport.height` (with
   `window.innerHeight` as its ceiling), keeping the tab bar above Android PWA
@@ -1480,9 +1485,12 @@ Preferences persist per browser/device under `lps.chat.appearance.v1` and also
 apply to the desktop chat panel. On mobile, the wallpaper is painted on the
 shared conversation layer so the floating identity pill lightly blurs and
 tints—rather than hides—the artwork beneath it instead of compositing over a
-solid transcript surface. Its supported backdrop tint is 35% (45% fallback)
-with a small blur; the operator and supplier-portal chats use the same
-treatment. The wallpaper field is an id (`none`,
+solid transcript surface. The operator pill uses a 20% supported backdrop tint
+(25% fallback) with a 3px blur, while text shadow preserves label contrast;
+the supplier-portal chat keeps its existing stronger glass treatment. Both
+chat headers and the transcript reserve the top safe area, and the installed
+iOS app uses a translucent status bar so the wallpaper reaches the top edge.
+The wallpaper field is an id (`none`,
 `line-art`, or `desert-night`); legacy boolean `true` migrates to `line-art`.
 Agent/incoming bubbles use an 18% accent-tinted card surface with a 28%
 accent-tinted border, separating them from black wallpaper; outgoing bubbles
@@ -1965,8 +1973,11 @@ responses are skipped (`cache.put` throws on those), and offline lookups pass
   arrives.
 - The manifest is linked through `metadata.manifest`; `theme_color` lives in
   **both** the manifest and `viewport.themeColor` in `app/layout.tsx`.
-- `viewport.viewportFit: 'cover'` is what gives the mobile tab bar's
-  `env(safe-area-inset-bottom)` a non-zero value once the app runs full screen.
+- `viewport.viewportFit: 'cover'` gives the mobile frame real safe-area
+  insets. The bottom bar consumes `env(safe-area-inset-bottom)`; ordinary page
+  chrome and mobile chat controls consume `env(safe-area-inset-top)`. The iOS
+  standalone status bar is `black-translucent`, allowing chat wallpaper behind
+  it without letting page controls overlap it.
 
 ## File map
 

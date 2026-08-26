@@ -25,7 +25,10 @@ export const metadata: Metadata = {
     icon: '/lps-cactus-icon-192.png',
     apple: '/lps-cactus-apple-touch-icon.png',
   },
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Plant Supply' },
+  // Let full-screen chat wallpaper continue behind the iOS status bar. The
+  // workspace frame applies the safe-area inset to ordinary page chrome and
+  // each mobile chat applies it to its own floating controls.
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Plant Supply' },
 }
 
 export const viewport: Viewport = {

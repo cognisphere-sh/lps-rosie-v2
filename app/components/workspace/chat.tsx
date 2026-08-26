@@ -311,12 +311,13 @@ function ThreadCard({
  * stay reachable through deep links but are not offered here.
  */
 function ThreadPicker({
-  agentId, current, onPick, onClose,
+  agentId, current, onPick, onClose, mobile = false,
 }: {
   agentId: string
   current: string
   onPick: (t: { id: string; label: string }) => void
   onClose: () => void
+  mobile?: boolean
 }) {
   const [dir, setDir] = useState<ThreadDirectory>({ jobs: [], suppliers: [], customers: [] })
   const [lastAt, setLastAt] = useState<Map<string, number>>(new Map())
@@ -409,13 +410,19 @@ function ThreadPicker({
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col bg-background">
-      <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-2.5">
+      <div className={cn(
+        'flex flex-none items-center gap-2 border-b border-border px-3 pb-2.5',
+        mobile ? 'pt-[calc(0.625rem+env(safe-area-inset-top))]' : 'pt-2.5',
+      )}>
         <span className="text-[13px] font-bold text-foreground">Conversations</span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close thread list"
-          className="ml-auto flex size-7 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            'ml-auto flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+            mobile ? 'size-11' : 'size-7',
+          )}
         >
           <X size={14} />
         </button>
@@ -686,7 +693,7 @@ export function AgentChat({
     <div className={cn(
       'flex flex-none items-center gap-2.5',
       big
-        ? 'absolute inset-x-3 top-2 z-30 min-h-14 rounded-[22px] border border-border/70 bg-background/45 px-3 py-2 shadow-lg backdrop-blur-sm supports-[backdrop-filter]:bg-background/35'
+        ? 'absolute inset-x-3 top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 min-h-14 rounded-[22px] border border-border/50 bg-background/25 px-2 py-2 shadow-lg backdrop-blur-[3px] supports-[backdrop-filter]:bg-background/20'
         : 'border-b border-border px-4 py-3',
     )}>
       {big && onMobileBack && (
@@ -695,7 +702,7 @@ export function AgentChat({
           onClick={onMobileBack}
           aria-label={mobileBackLabel}
           title={mobileBackLabel}
-          className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground hover:bg-muted"
+          className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground [filter:drop-shadow(0_1px_1px_rgb(0_0_0/.45))] hover:bg-muted/70"
         >
           <ChevronLeft size={18} />
         </button>
@@ -709,8 +716,8 @@ export function AgentChat({
       />
       {big ? (
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-          <span className="truncate text-[14.5px] font-bold leading-tight">{agent.name}</span>
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
+          <span className="truncate text-[14.5px] font-bold leading-tight [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">{agent.name}</span>
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-foreground/80 [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">
             <span className="flex-none">{agent.role}</span>
             {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
           </span>
@@ -731,8 +738,9 @@ export function AgentChat({
           title="Conversations"
           aria-label="Open the conversation list"
           className={cn(
-            'flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5',
-            picker ? 'bg-muted text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            'flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent',
+            big ? 'size-11 [filter:drop-shadow(0_1px_1px_rgb(0_0_0/.45))]' : 'p-1.5',
+            picker ? 'bg-muted/70 text-primary' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
           )}
         >
           <MessagesSquare size={16} />
@@ -791,6 +799,7 @@ export function AgentChat({
             current={thread.id}
             onPick={(t) => { setThread(t); setPicker(false) }}
             onClose={() => setPicker(false)}
+            mobile
           />
         )}
         <Transcript

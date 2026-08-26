@@ -33,6 +33,19 @@ here).
 
 ### Changed
 
+- **Mobile agent chat now reaches the top edge instead of sitting under an
+  opaque app bar.** In the installed iOS app, `black-translucent` status chrome
+  lets the active chat wallpaper continue behind the system status area. The
+  floating agent identity pill is now 20% glass (25% fallback) with a 3px blur,
+  so wallpaper remains visibly present; text/drop shadows preserve contrast.
+  The header and transcript consume the top safe-area inset, Back and
+  Conversations are 44px targets; the conversation picker, Agents list and
+  full-height availability-request drawer protect their title/control rows too,
+  including 44px mobile Close targets. Ordinary pages receive the same inset in
+  their own chrome so this status-bar
+  change does not move controls under the notch. The supplier portal keeps its
+  existing glass strength but gains the same safe positioning and 44px close
+  target.
 - **The supplier portal now lives at `/partner/:id`** (was `/portal/:supplierId`).
   `/portal/*` redirects permanently to `/partner/*`, so links already in
   suppliers' inboxes keep working. The page routes moved
