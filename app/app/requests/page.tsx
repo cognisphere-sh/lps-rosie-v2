@@ -1,8 +1,8 @@
 'use client'
 
 import Image from 'next/image'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MessagesSquare } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MessagesSquare, MoreHorizontal } from 'lucide-react'
 
 import {
   ChevronDown, ChevronRight, CloseIcon, MapPinIcon, SuppliersIcon, TrashIcon,
@@ -135,7 +135,7 @@ function RequestCard({
   /** Select or clear these line ids; the page owns the set. */
   onSelect: (ids: number[], on: boolean) => void
   /** Delete the whole request, permanently. Confirmed by the page. */
-  onDelete: () => void
+  onDelete: (returnFocus: HTMLElement | null) => void
   /** Delete one of its lines, permanently. Confirmed by the page. */
   onDeleteItem: (item: JobRequestItem) => void
   onSaved: () => void
@@ -144,6 +144,24 @@ function RequestCard({
   // details is a fact about looking at that card, not about the page, and the
   // card stays mounted while its lines collapse and reopen.
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsButton = useRef<HTMLButtonElement>(null)
+  const actions = useOutsideClose(actionsOpen, () => setActionsOpen(false))
+
+  useEffect(() => {
+    if (expanded) setActionsOpen(false)
+  }, [expanded])
+
+  useEffect(() => {
+    if (!actionsOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setActionsOpen(false)
+      actionsButton.current?.focus()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [actionsOpen])
 
   const tone = requestStatusTone(request.status)
   const customerName = request.customer?.company || request.customer?.name
@@ -254,24 +272,67 @@ function RequestCard({
             }}
             title={`Chat with Rosie about ${requestRef(request.id)}`}
             aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
-            className="flex flex-none cursor-pointer items-center border-none bg-transparent p-0 opacity-75 hover:opacity-100"
+            className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent opacity-75 hover:opacity-100 md:size-[22px]"
           >
             <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
           </button>
-          {/* Last in the head, and the only control here that cannot be undone
-              — the page confirms before anything is sent. */}
+          {/* Desktop and an already-expanded mobile card keep the established
+              direct control. A collapsed mobile card puts this permanent action
+              one deliberate level deeper, away from Rosie's adjacent target. */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              onDelete()
+              onDelete(e.currentTarget)
             }}
             title={`Delete ${requestRef(request.id)} permanently`}
             aria-label={`Delete ${requestRef(request.id)}`}
-            className="flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            className={cn(
+              'size-11 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive md:size-[22px]',
+              expanded ? 'flex' : 'hidden md:flex',
+            )}
           >
             <TrashIcon size={14} />
           </button>
+          {!expanded && (
+            <div
+              ref={actions}
+              data-menu
+              className="relative flex-none md:hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                ref={actionsButton}
+                type="button"
+                aria-expanded={actionsOpen}
+                aria-controls={`request-actions-${request.id}`}
+                aria-label={`Actions for ${requestRef(request.id)}`}
+                onClick={() => setActionsOpen((open) => !open)}
+                className="flex min-h-11 cursor-pointer items-center gap-1 rounded-lg border border-border bg-card px-3 text-[12px] font-semibold text-foreground"
+              >
+                <MoreHorizontal size={17} aria-hidden="true" /> Actions
+              </button>
+              {actionsOpen && (
+                <div
+                  id={`request-actions-${request.id}`}
+                  aria-label={`Actions for ${requestRef(request.id)}`}
+                  className="lps-pop absolute right-0 top-full z-30 mt-1 min-w-44 rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+                >
+                  <button
+                    type="button"
+                    aria-label={`Delete ${requestRef(request.id)} permanently`}
+                    onClick={() => {
+                      setActionsOpen(false)
+                      onDelete(actionsButton.current)
+                    }}
+                    className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-3 text-left text-[13px] font-semibold text-destructive hover:bg-destructive/10"
+                  >
+                    <TrashIcon size={15} /> Delete request
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Who the job is for on the left, everything it opens on the right —
@@ -668,6 +729,104 @@ function SelectionBar({
 /** "3 lines, 2 availability requests and their answers, its change history". */
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
+function DeleteRequestDialog({
+  request,
+  busy,
+  error,
+  returnFocus,
+  onCancel,
+  onConfirm,
+}: {
+  request: JobRequestRow
+  busy: boolean
+  error: string
+  returnFocus: React.RefObject<HTMLElement | null>
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const cancel = useRef<HTMLButtonElement>(null)
+  const confirm = useRef<HTMLButtonElement>(null)
+  const label = request.name ? `${requestRef(request.id)} — ${request.name}` : requestRef(request.id)
+
+  useEffect(() => {
+    const focusTarget = returnFocus.current
+    cancel.current?.focus()
+    return () => {
+      setTimeout(() => focusTarget?.focus(), 0)
+    }
+  }, [returnFocus])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-busy={busy}
+      aria-labelledby="delete-request-title"
+      aria-describedby="delete-request-impact delete-request-status"
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-4 sm:items-center"
+      onClick={() => { if (!busy) onCancel() }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !busy) onCancel()
+        if (event.key !== 'Tab') return
+        if (event.shiftKey && document.activeElement === cancel.current) {
+          event.preventDefault()
+          confirm.current?.focus()
+        } else if (!event.shiftKey && document.activeElement === confirm.current) {
+          event.preventDefault()
+          cancel.current?.focus()
+        }
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="lps-pop w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
+      >
+        <h2 id="delete-request-title" className="text-[17px] font-bold text-foreground">
+          Permanently delete {label}?
+        </h2>
+        <p id="delete-request-impact" className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          This permanently removes {plural(request.itemCount, 'line')}, all related availability
+          requests and their answers, and the request&apos;s change history. This cannot be undone.
+        </p>
+        <p id="delete-request-status" role="status" aria-live="polite" className="mt-3 min-h-5 text-[12px] font-semibold text-muted-foreground">
+          {busy ? 'Deleting request…' : ''}
+        </p>
+        {error && (
+          <p role="alert" aria-live="assertive" className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            ref={cancel}
+            type="button"
+            aria-disabled={busy}
+            onClick={() => { if (!busy) onCancel() }}
+            className={cn(
+              'min-h-11 rounded-full border border-border bg-card px-5 text-[13px] font-semibold text-foreground',
+              busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+            )}
+          >
+            Cancel
+          </button>
+          <button
+            ref={confirm}
+            type="button"
+            aria-disabled={busy}
+            onClick={() => { if (!busy) onConfirm() }}
+            className={cn(
+              'min-h-11 rounded-full bg-destructive px-5 text-[13px] font-bold text-destructive-foreground',
+              busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+            )}
+          >
+            {busy ? 'Deleting…' : 'Delete permanently'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function RequestsPage() {
   const toast = useToast()
   const [query, setQuery] = useState('')
@@ -689,6 +848,11 @@ export default function RequestsPage() {
   /** Selected line ids, across every card on the page. */
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [arDialogOpen, setArDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<JobRequestRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const deleteReturnFocus = useRef<HTMLElement | null>(null)
+  const requestList = useRef<HTMLDivElement>(null)
   /** Bumped after a write, to refetch the page and everything derived from it. */
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
@@ -812,43 +976,39 @@ export default function RequestsPage() {
     })
   }, [])
 
-  /**
-   * Delete a whole request — permanently, and everything hanging off it.
-   *
-   * The confirm names what goes before it goes, counted from what the card is
-   * already showing; the toast reports what the server actually removed. There
-   * is no undo, so the wording says so rather than implying a bin somewhere.
-   */
+  /** Delete a whole request after the explicit dialog confirms it. */
   const deleteRequest = useCallback(
     async (request: JobRequestRow) => {
-      const arCount = request.supplierLinks.reduce((n, l) => n + l.availabilityRequestIds.length, 0)
-      const goes = [
-        plural(request.itemCount, 'line'),
-        arCount ? `${plural(arCount, 'availability request')} and the answers on them` : null,
-        'its change history',
-      ]
-        .filter(Boolean)
-        .join(', ')
       const ref = requestRef(request.id)
-      if (!window.confirm(`Delete ${ref} permanently? ${goes} go with it. This cannot be undone.`)) {
-        return
+      setDeleteError('')
+      setDeleting(true)
+      try {
+        const res = await fetch(`/api/requests/${request.id}`, { method: 'DELETE' })
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string
+          deleted?: { items: number; availabilityRequests: number }
+        }
+        if (!res.ok) {
+          const message = `Could not delete ${ref}${body.error ? ` — ${body.error}` : ''}`
+          setDeleteError(message)
+          toast(message)
+          return
+        }
+        const d = body.deleted
+        toast(
+          `${ref} deleted · ${plural(d?.items ?? 0, 'line')}` +
+            (d?.availabilityRequests ? `, ${plural(d.availabilityRequests, 'availability request')}` : ''),
+        )
+        deleteReturnFocus.current = requestList.current
+        setDeleteTarget(null)
+        reload()
+      } catch {
+        const message = `Could not delete ${ref} — check your connection and try again.`
+        setDeleteError(message)
+        toast(message)
+      } finally {
+        setDeleting(false)
       }
-
-      const res = await fetch(`/api/requests/${request.id}`, { method: 'DELETE' })
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string
-        deleted?: { items: number; availabilityRequests: number }
-      }
-      if (!res.ok) {
-        toast(`Could not delete ${ref}${body.error ? ` — ${body.error}` : ''}`)
-        return
-      }
-      const d = body.deleted
-      toast(
-        `${ref} deleted · ${plural(d?.items ?? 0, 'line')}` +
-          (d?.availabilityRequests ? `, ${plural(d.availabilityRequests, 'availability request')}` : ''),
-      )
-      reload()
     },
     [reload, toast],
   )
@@ -999,7 +1159,12 @@ export default function RequestsPage() {
       {/* The Shell hands its children a fixed, overflow-hidden box, so this is
           the scroll container. Without `min-h-0 flex-1 overflow-auto` the cards
           push past its bottom edge with nothing to scroll them back. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
+      <div
+        ref={requestList}
+        tabIndex={-1}
+        aria-label="Job requests"
+        className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 outline-none md:p-4"
+      >
         {error && (
           <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
             {error}
@@ -1023,6 +1188,19 @@ export default function RequestsPage() {
             onClear={() => setSelected(new Set())}
             onSaved={reload}
             onAvailabilityRequest={() => setArDialogOpen(true)}
+          />
+        )}
+        {deleteTarget && (
+          <DeleteRequestDialog
+            request={deleteTarget}
+            busy={deleting}
+            error={deleteError}
+            returnFocus={deleteReturnFocus}
+            onCancel={() => {
+              setDeleteError('')
+              setDeleteTarget(null)
+            }}
+            onConfirm={() => void deleteRequest(deleteTarget)}
           />
         )}
         {arDialogOpen && (
@@ -1051,7 +1229,11 @@ export default function RequestsPage() {
             version={reloads}
             onToggle={() => toggle(request.id)}
             onSelect={select}
-            onDelete={() => deleteRequest(request)}
+            onDelete={(returnFocus) => {
+              deleteReturnFocus.current = returnFocus
+              setDeleteError('')
+              setDeleteTarget(request)
+            }}
             onDeleteItem={(item) => deleteItem(request, item)}
             onSaved={reload}
           />

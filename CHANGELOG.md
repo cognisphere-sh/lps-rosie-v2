@@ -17,6 +17,10 @@ here).
 
 ## 2026-08-26
 
+### Fixed
+
+- **Made whole-job deletion deliberate on collapsed mobile Job Request cards.** The immediately executable trash control beside Rosie moved into a labelled, tap-sized Actions menu; Delete request now opens an accessible confirmation that names the JR/job, says the action is permanent, and gives the line count plus an accurate warning that all related availability requests and answers, and the change history, are removed. Desktop, expanded-card and line-item delete behavior remain otherwise unchanged.
+
 ### Added
 
 - **Reload button for the installed app.** The nav rail (and mobile ⋯ More
