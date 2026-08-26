@@ -6,7 +6,7 @@
 // shared, the answer summary, the line editor, and the Submit button that
 // hands the answers back to Local Plant Supply.
 //
-// It loads the same payload the home list does (`GET /api/portal/:id`, lines
+// It loads the same payload the home list does (`GET /api/partner/:id`, lines
 // embedded) rather than the single-request route: one fetch feeds the request,
 // the supplier's name and the header bell, which is on every portal page.
 
@@ -18,17 +18,17 @@ import { ARLineTable, ARResponseSummary, ARStatusPill } from '@/components/works
 import { ChevronLeft } from '@/components/workspace/icons'
 import { useIsMobile } from '@/components/workspace/shell'
 import {
-  PortalFrame,
-  portalRequestName as requestName,
-  type PortalAlert,
-} from '@/components/workspace/portal'
+  PartnerFrame,
+  partnerRequestName as requestName,
+  type PartnerAlert,
+} from '@/components/workspace/partner'
 import { type ARDetail } from '@/lib/availability'
 import { formatDate } from '@/lib/format'
-import { redactPortalRequestRefs } from '@/lib/portal-display'
+import { redactPartnerRequestRefs } from '@/lib/partner-display'
 
-export default function PortalRequestPage() {
-  const params = useParams<{ supplierId: string; arId: string }>()
-  const supplierId = Number.parseInt(params.supplierId, 10)
+export default function PartnerRequestPage() {
+  const params = useParams<{ id: string; arId: string }>()
+  const supplierId = Number.parseInt(params.id, 10)
   const arId = Number.parseInt(params.arId, 10)
   // The frame draws no header on mobile, and this is the one portal page a
   // highlighted tab does not identify — so the name rides in the toolbar there.
@@ -41,7 +41,7 @@ export default function PortalRequestPage() {
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/portal/${supplierId}`)
+    const res = await fetch(`/api/partner/${supplierId}`)
     if (!res.ok) {
       setState('missing')
       return
@@ -63,7 +63,7 @@ export default function PortalRequestPage() {
   const request = useMemo(() => requests.find((r) => r.id === arId) ?? null, [requests, arId])
 
   /** The header bell is on every portal page, so it lists the same unanswered requests. */
-  const alerts: PortalAlert[] = useMemo(
+  const alerts: PartnerAlert[] = useMemo(
     () =>
       requests
         .filter((r) => r.status === 'new')
@@ -74,7 +74,7 @@ export default function PortalRequestPage() {
   const patchItem = useCallback(
     async (itemId: number, changes: Record<string, string>) => {
       setError('')
-      const res = await fetch(`/api/portal/${supplierId}/requests/${arId}`, {
+      const res = await fetch(`/api/partner/${supplierId}/requests/${arId}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ itemId, changes }),
@@ -91,7 +91,7 @@ export default function PortalRequestPage() {
   const submit = useCallback(async () => {
     setSaving(true)
     setError('')
-    const res = await fetch(`/api/portal/${supplierId}/requests/${arId}/submit`, { method: 'POST' })
+    const res = await fetch(`/api/partner/${supplierId}/requests/${arId}/submit`, { method: 'POST' })
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string }
       setError(body.error ?? 'Could not submit')
@@ -106,7 +106,7 @@ export default function PortalRequestPage() {
   const back = (
     <div className="flex flex-none flex-wrap items-center gap-2.5 border-b border-border bg-card px-3 py-2.5 md:px-4">
       <Link
-        href={isClosed ? `/portal/${supplierId}/closed` : `/portal/${supplierId}`}
+        href={isClosed ? `/partner/${supplierId}/closed` : `/partner/${supplierId}`}
         className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-semibold text-muted-foreground no-underline hover:bg-muted hover:text-foreground"
       >
         <span className="flex size-3.5"><ChevronLeft /></span>
@@ -131,7 +131,7 @@ export default function PortalRequestPage() {
 
   if (state === 'missing' || (state === 'ready' && !request)) {
     return (
-      <PortalFrame
+      <PartnerFrame
         supplierId={supplierId}
         supplierName={supplierName}
         tab="requests"
@@ -143,7 +143,7 @@ export default function PortalRequestPage() {
             This request isn&apos;t available. Please check with your Local Plant Supply contact.
           </p>
         </div>
-      </PortalFrame>
+      </PartnerFrame>
     )
   }
 
@@ -151,7 +151,7 @@ export default function PortalRequestPage() {
   const pending = request ? request.items.length - request.answeredCount : 0
 
   return (
-    <PortalFrame
+    <PartnerFrame
       supplierId={supplierId}
       supplierName={supplierName}
       tab={isClosed ? 'closed' : 'requests'}
@@ -162,7 +162,7 @@ export default function PortalRequestPage() {
           : undefined
       }
       alerts={alerts}
-      onOpenAlert={(id) => { window.location.href = `/portal/${supplierId}/requests/${id}` }}
+      onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       toolbar={back}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
@@ -184,7 +184,7 @@ export default function PortalRequestPage() {
                   Note from Local Plant Supply
                 </span>
                 <span className="whitespace-pre-wrap text-[12.5px] text-foreground">
-                  {redactPortalRequestRefs(request.lpsNotes)}
+                  {redactPartnerRequestRefs(request.lpsNotes)}
                 </span>
               </div>
             )}
@@ -227,7 +227,7 @@ export default function PortalRequestPage() {
               items={request.items}
               editable={editable}
               onPatch={patchItem}
-              displayText={redactPortalRequestRefs}
+              displayText={redactPartnerRequestRefs}
             />
 
             {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (
@@ -262,6 +262,6 @@ export default function PortalRequestPage() {
           </>
         )}
       </div>
-    </PortalFrame>
+    </PartnerFrame>
   )
 }

@@ -1,23 +1,27 @@
 'use client'
 
+// The admin app's chrome: the shared `WorkspaceFrame` (frame.tsx) filled in
+// with the operator's destinations, agent chat, notification bell and the
+// signed-in user. What is drawn here is only what the supplier portal does
+// not also draw — the layout itself lives in the frame, once.
+
 import Image from 'next/image'
 import Link from 'next/link'
-import { Bell, Plus, RefreshCw } from 'lucide-react'
+import { Bell, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
-  createContext, useCallback, useContext, useEffect, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useState,
 } from 'react'
 
-import { InstallAppButton } from '@/components/pwa/install-app-button'
-import { usePWA } from '@/components/pwa/pwa-provider'
 import { AvailabilityRequestDrawer } from '@/components/workspace/ar-drawer'
 import { AgentChat } from '@/components/workspace/chat'
+import { WorkspaceFrame, moreItemClass, useIsMobile, useTheme, useToast } from '@/components/workspace/frame'
 import { onOpenChat, openChat } from '@/lib/chat-bus'
 import { useHistoryView } from '@/lib/history-view'
 import { ChatNotificationsProvider, useChatNotifications } from '@/lib/chat-notifications'
 import {
-  AgentsIcon, ChevronLeft, ChevronRight, CheckIcon, InstallIcon, InventoryIcon, LogoutIcon,
-  CustomersIcon, MoonIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon, SunIcon,
+  AgentsIcon, ChevronRight, InventoryIcon, LogoutIcon,
+  CustomersIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon,
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
 import { requestRef } from '@/lib/job-requests'
@@ -31,6 +35,9 @@ import {
   type ChatAgentId, type ChatAppearance,
 } from '@/lib/chat-appearance'
 import { cn } from '@/lib/utils'
+
+// The layout hooks moved to the frame; every page still imports them from here.
+export { useIsMobile, useTheme, useToast } from '@/components/workspace/frame'
 
 export type PageId =
   | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
@@ -46,16 +53,6 @@ type MobileView =
   | { name: 'agents' }
   | { name: 'chat'; agent: string; from?: 'agents' }
 
-function nearestVerticalScroller(target: EventTarget | null, boundary: HTMLElement): HTMLElement | null {
-  let el = target instanceof HTMLElement ? target : null
-  while (el && el !== boundary) {
-    const overflow = window.getComputedStyle(el).overflowY
-    if ((overflow === 'auto' || overflow === 'scroll') && el.scrollHeight > el.clientHeight) return el
-    el = el.parentElement
-  }
-  return null
-}
-
 const NAV = [
   { id: 'suppliers', label: 'Suppliers', href: '/suppliers', Icon: SuppliersIcon, enabled: true },
   { id: 'inventory', label: 'Plant search', href: '/plants', Icon: InventoryIcon, enabled: true },
@@ -65,21 +62,6 @@ const NAV = [
   { id: 'customers', label: 'Customers', href: '/customers', Icon: CustomersIcon, enabled: true },
   { id: 'requests', label: 'Job Requests', href: '/requests', Icon: RequestsIcon, enabled: true },
 ] as const
-
-// ------------------------------------------------------------------- toasts
-
-/**
- * The desktop nav rail's collapsed/expanded choice, per device.
- *
- * It has to be stored rather than held in state: every page renders its own
- * `Shell`, so a plain `useState` springs back to its initial value on each
- * navigation. The rail starts **collapsed** — the workspace tables want the
- * width more than the labels do — and only the rail's own chevron changes that.
- */
-const NAV_OPEN_STORE = 'lps.nav.open'
-
-const ToastCtx = createContext<(message: string) => void>(() => {})
-export const useToast = () => useContext(ToastCtx)
 
 const ChatAppearanceCtx = createContext<{
   appearance: ChatAppearance
@@ -93,30 +75,6 @@ export function useChatAppearanceSettings() {
   const value = useContext(ChatAppearanceCtx)
   if (!value) throw new Error('useChatAppearanceSettings must be used inside Shell')
   return value
-}
-
-// ------------------------------------------------------------------- theme
-
-/** Shared with the supplier portal, so both read one `lps.theme` preference. */
-export function useTheme() {
-  const [dark, setDark] = useState(false)
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem('lps.theme')
-    const isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
-    setDark(isDark)
-    document.documentElement.classList.toggle('dark', isDark)
-  }, [])
-
-  const toggle = () =>
-    setDark((prev) => {
-      const next = !prev
-      document.documentElement.classList.toggle('dark', next)
-      window.localStorage.setItem('lps.theme', next ? 'dark' : 'light')
-      return next
-    })
-
-  return { dark, toggle }
 }
 
 /**
@@ -144,19 +102,6 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-/** Mirrors the design's `isMobile = width < 900` breakpoint. */
-export function useIsMobile() {
-  const [mobile, setMobile] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 899px)')
-    const sync = () => setMobile(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-  return mobile
-}
-
 // ------------------------------------------------------------------- shell
 
 export function Shell({
@@ -178,33 +123,23 @@ export function Shell({
 }) {
   const router = useRouter()
   const isMobile = useIsMobile()
-  const { dark, toggle } = useTheme()
+  const theme = useTheme()
   const user = useSessionUser()
-  const { isStandalone } = usePWA()
-  const [navOpen, setNavOpen] = useState(false)
   const [desktopChatFull, setDesktopChatFull] = useState(false)
   const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
   // The temporary "see the portal as a supplier" picker — a stand-in until
   // supplier sign-in exists. Lists the LPS Partners, lazily on first open.
   const [supplierViewMenu, setSupplierViewMenu] = useState(false)
-  const [portalSuppliers, setPortalSuppliers] = useState<{ id: number; name: string }[] | null>(null)
+  const [partnerSuppliers, setPartnerSuppliers] = useState<{ id: number; name: string }[] | null>(null)
   // The Agents list and a conversation are mobile pages, not overlays: each
   // one is a history entry, so Back pops it instead of leaving the route.
   const mobileView = useHistoryView<MobileView>()
   const mobileAgentsOpen = mobileView.view?.name === 'agents'
   const mobileChat = mobileView.view?.name === 'chat'
-  const [moreMenu, setMoreMenu] = useState(false)
-  const mobileNavScroll = useRef<HTMLDivElement | null>(null)
-  const mobileNavItems = useRef<Partial<Record<PageId | 'more', HTMLElement | null>>>({})
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [appAccent, setAppAccent] = useState<AppAccentId>(DEFAULT_APP_ACCENT)
-  const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
-  const [keyboardOpen, setKeyboardOpen] = useState(false)
-  const [pagePull, setPagePull] = useState(0)
-  const [pageRefreshing, setPageRefreshing] = useState(false)
-  const [toast, setToast] = useState('')
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const { dark } = theme
 
   // A card anywhere can ask for a chat thread; on mobile that means opening
   // the conversation on the right agent (the thread is the panel's own state).
@@ -220,19 +155,6 @@ export function Shell({
       }),
     [mobileView.open],
   )
-  const pageRefreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const pagePullStart = useRef<{ x: number; y: number; scroller: HTMLElement | null } | null>(null)
-
-  const showToast = useCallback((message: string) => {
-    setToast(message)
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => setToast(''), 2200)
-  }, [])
-
-  useEffect(() => () => {
-    clearTimeout(timer.current)
-    clearTimeout(pageRefreshTimer.current)
-  }, [])
 
   useEffect(() => {
     // Desktop Full is a layout mode, never a mobile state. This also repairs a
@@ -242,40 +164,6 @@ export function Shell({
       setDesktopPeekOpen(false)
     }
   }, [isMobile])
-
-  useEffect(() => {
-    // Android standalone PWAs can report 100dvh as the full physical display,
-    // including system bars outside the usable visual viewport. When its
-    // keyboard pans to a focused field, visualViewport.offsetTop is non-zero;
-    // anchoring to that offset prevents equal-and-opposite clipping/blank space.
-    const viewport = window.visualViewport
-    const update = () => {
-      const height = Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)
-      setViewportFrame({
-        top: `${Math.round(viewport?.offsetTop ?? 0)}px`,
-        height: `${Math.round(height)}px`,
-      })
-
-      const active = document.activeElement
-      const typing = active instanceof HTMLInputElement
-        || active instanceof HTMLTextAreaElement
-        || (active instanceof HTMLElement && active.isContentEditable)
-      setKeyboardOpen(window.matchMedia('(max-width: 899px)').matches && typing)
-    }
-    update()
-    window.addEventListener('resize', update)
-    document.addEventListener('focusin', update)
-    document.addEventListener('focusout', update)
-    viewport?.addEventListener('resize', update)
-    viewport?.addEventListener('scroll', update)
-    return () => {
-      window.removeEventListener('resize', update)
-      document.removeEventListener('focusin', update)
-      document.removeEventListener('focusout', update)
-      viewport?.removeEventListener('resize', update)
-      viewport?.removeEventListener('scroll', update)
-    }
-  }, [])
 
   useEffect(() => {
     try {
@@ -326,19 +214,6 @@ export function Shell({
   }, [])
 
   useEffect(() => {
-    // Only '1' opens it: an unset preference means collapsed, so the default
-    // costs no expand-then-collapse flash on first paint.
-    setNavOpen(window.localStorage.getItem(NAV_OPEN_STORE) === '1')
-  }, [])
-
-  const toggleNav = useCallback(() => {
-    setNavOpen((open) => {
-      window.localStorage.setItem(NAV_OPEN_STORE, open ? '0' : '1')
-      return !open
-    })
-  }, [])
-
-  useEffect(() => {
     setAppAccent(readAppAccent(window.localStorage.getItem(APP_APPEARANCE_STORE)))
   }, [])
 
@@ -377,28 +252,6 @@ export function Shell({
     return () => document.removeEventListener('mousedown', close)
   }, [supplierViewMenu])
 
-  // Same treatment for the mobile ⋯ menu.
-  useEffect(() => {
-    if (!moreMenu) return
-    const close = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('[data-more-menu]')) setMoreMenu(false)
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [moreMenu])
-
-  // The middle mobile strip deliberately shows only three destinations at a
-  // time. Keep the current route (or More for Settings) in view without using
-  // scrollIntoView, which can also move the page horizontally on mobile.
-  useEffect(() => {
-    if (!isMobile || page === 'agents') return
-    const strip = mobileNavScroll.current
-    const active = mobileNavItems.current[page === 'settings' ? 'more' : page]
-    if (!strip || !active) return
-    const left = active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2
-    strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
-  }, [isMobile, page])
-
   const signOut = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
@@ -408,22 +261,42 @@ export function Shell({
     }
   }
 
-  // Leaving the More menu for another page — the mobile Agents view has to
-  // come off the screen with it, or the route transition looks like the tap
-  // did nothing. `dismiss` leaves its history entry alone, so Back still
-  // returns to the conversation it was opened on.
-  const leaveMoreMenu = () => {
-    setMoreMenu(false)
-    mobileView.dismiss()
+  const toggleSupplierView = () => {
+    setSupplierViewMenu((v) => !v)
+    if (partnerSuppliers == null) {
+      fetch('/api/availability-requests/suppliers')
+        .then(async (res) => {
+          const body = res.ok
+            ? ((await res.json()) as { suppliers: { id: number; name: string }[] })
+            : { suppliers: [] }
+          setPartnerSuppliers(body.suppliers)
+        })
+        .catch(() => setPartnerSuppliers([]))
+    }
   }
 
-  const railBtn = (active: boolean, enabled = true) =>
-    cn(
-      'flex items-center gap-2.5 rounded-[10px] border-none text-[13px] font-semibold w-full text-left transition-colors',
-      navOpen ? 'px-2.5 py-2 justify-start' : 'px-0 py-2 justify-center',
-      active ? 'bg-secondary text-primary' : 'text-muted-foreground',
-      enabled ? 'cursor-pointer hover:bg-muted hover:text-foreground' : 'cursor-not-allowed opacity-45',
-    )
+  const supplierList = (className: string) => (
+    <>
+      {partnerSuppliers == null && (
+        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
+      )}
+      {partnerSuppliers?.length === 0 && (
+        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No LPS Partners yet.</div>
+      )}
+      {partnerSuppliers?.map((s) => (
+        <a
+          key={s.id}
+          href={`/partner/${s.id}`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => setSupplierViewMenu(false)}
+          className={className}
+        >
+          {s.name}
+        </a>
+      ))}
+    </>
+  )
 
   return (
     <ChatAppearanceCtx.Provider value={{
@@ -433,95 +306,44 @@ export function Shell({
       saveAppAccent,
       reset: resetAppearance,
     }}>
-      <ToastCtx.Provider value={showToast}>
-        <ChatNotificationsProvider>
+      <ChatNotificationsProvider>
         <AvailabilityRequestDrawer />
-        <div
-          data-workspace-shell
-          className="fixed inset-x-0 flex flex-col overflow-hidden"
-          style={{ top: viewportFrame.top, height: viewportFrame.height, ...appAccentStyle(appAccent, dark) }}
-        >
-        {/* Mobile chat supplies its own compact identity header; do not stack
-            the underlying page header above it. */}
-        {!(isMobile && (mobileAgentsOpen || mobileChat || hideHeaderOnMobile)) && (
-          <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 py-2.5">
-            <div className="flex min-w-0 flex-1 items-baseline gap-3">
-              <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
-              {subtitle && (
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
-              )}
-            </div>
-            {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
-            {/* The Job Requests page only — this is that page's action, and
-                mobile carries it as the floating button below instead (this
-                header is not drawn there). */}
-            {!isMobile && page === 'requests' && <NewJobRequestButton />}
-            {!isMobile && <NotificationBell />}
-          </div>
-        )}
-
-        <div className="flex min-h-0 flex-1">
-          {/* Desktop nav rail */}
-          {!isMobile && !desktopChatFull && (
-            <nav
-              className="flex flex-none flex-col gap-0.5 border-r border-border bg-card"
-              style={{ width: navOpen ? 196 : 56, padding: navOpen ? '12px 10px' : '12px 8px' }}
-            >
-              {NAV.map(({ id, label, href, Icon, enabled }) =>
-                enabled ? (
-                  <Link key={id} href={href} title={label} className={railBtn(page === id)}>
-                    <span className="flex size-4 flex-none items-center justify-center"><Icon /></span>
-                    {navOpen && <span>{label}</span>}
-                  </Link>
-                ) : (
-                  <button key={id} type="button" disabled title={`${label} — not built yet`} className={railBtn(false, false)}>
-                    <span className="flex size-4 flex-none items-center justify-center"><Icon /></span>
-                    {navOpen && <span>{label}</span>}
-                  </button>
-                ),
-              )}
-
-              <div className="flex-1" />
-
-              <div className="flex flex-col gap-0.5 border-t border-lps-hair pt-2">
-                <Link href="/settings" title="Settings" className={railBtn(page === 'settings')}>
-                  <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
-                  {navOpen && <span>Settings</span>}
-                </Link>
-
-                <button type="button" onClick={toggle} title={dark ? 'Dark mode' : 'Light mode'} className={railBtn(false)}>
-                  <span className="flex size-4 flex-none items-center justify-center">
-                    {dark ? <MoonIcon /> : <SunIcon />}
-                  </span>
-                  {navOpen && (
-                    <>
-                      <span>{dark ? 'Dark mode' : 'Light mode'}</span>
-                      <span
-                        className={cn('relative ml-auto h-[17px] w-[30px] flex-none rounded-full', dark ? 'bg-primary' : 'bg-muted')}
-                      >
-                        <span
-                          className="absolute top-[2px] size-[13px] rounded-full bg-card transition-all"
-                          style={{ left: dark ? 15 : 2 }}
-                        />
-                      </span>
-                    </>
-                  )}
-                </button>
-
-                <InstallAppButton title="Install app" onMessage={showToast} className={railBtn(false)}>
-                  <span className="flex size-4 flex-none items-center justify-center"><InstallIcon /></span>
-                  {navOpen && <span>Install app</span>}
-                </InstallAppButton>
-
-                {isStandalone && (
-                  // An installed app window has no browser toolbar, so nothing
-                  // else on screen can reload it.
-                  <button type="button" onClick={() => window.location.reload()} title="Reload" className={railBtn(false)}>
-                    <span className="flex size-4 flex-none items-center justify-center"><RefreshCw size={15} /></span>
-                    {navOpen && <span>Reload</span>}
-                  </button>
-                )}
-
+        <WorkspaceFrame
+          title={title}
+          subtitle={subtitle}
+          toolbar={toolbar}
+          headerAction={headerAction}
+          // Mobile chat supplies its own compact identity header; do not
+          // stack the underlying page header above it.
+          hideHeaderOnMobile={hideHeaderOnMobile || mobileAgentsOpen || mobileChat}
+          headerExtras={
+            <>
+              {/* The Job Requests page only — this is that page's action, and
+                  mobile carries it as the floating button below instead (this
+                  header is not drawn there). */}
+              {page === 'requests' && <NewJobRequestButton />}
+              <NotificationBell />
+            </>
+          }
+          theme={theme}
+          nav={NAV}
+          activeId={page}
+          moreActive={page === 'settings'}
+          mobileOverlay={{ open: !!mobileView.view, close: mobileView.close, dismiss: mobileView.dismiss }}
+          disablePull={mobileAgentsOpen || mobileChat}
+          railHidden={desktopChatFull}
+          // Full chat hides the workspace until the center-edge pull handle
+          // reveals a narrow supplier/search peek pane.
+          pageColumnClassName={!desktopChatFull ? 'flex-1' : desktopPeekOpen ? 'w-[240px] flex-none' : 'w-0 flex-none'}
+          style={appAccentStyle(appAccent, dark)}
+          railTop={({ navOpen, railBtn }) => (
+            <Link href="/settings" title="Settings" className={railBtn(page === 'settings')}>
+              <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
+              {navOpen && <span>Settings</span>}
+            </Link>
+          )}
+          railBottom={({ navOpen, railBtn }) => (
+              <>
                 <Link href="/agents" title="Know your Agents" className={railBtn(page === 'agents')}>
                   <span className="flex size-4 flex-none items-center justify-center"><AgentsIcon /></span>
                   {navOpen && <span>Know your Agents</span>}
@@ -531,19 +353,7 @@ export function Shell({
                   <button
                     type="button"
                     title="Supplier view — open the portal as an LPS Partner"
-                    onClick={() => {
-                      setSupplierViewMenu((v) => !v)
-                      if (portalSuppliers == null) {
-                        fetch('/api/availability-requests/suppliers')
-                          .then(async (res) => {
-                            const body = res.ok
-                              ? ((await res.json()) as { suppliers: { id: number; name: string }[] })
-                              : { suppliers: [] }
-                            setPortalSuppliers(body.suppliers)
-                          })
-                          .catch(() => setPortalSuppliers([]))
-                      }
-                    }}
+                    onClick={toggleSupplierView}
                     className={railBtn(false)}
                   >
                     <span className="flex size-4 flex-none items-center justify-center"><SuppliersIcon /></span>
@@ -554,26 +364,7 @@ export function Shell({
                       <div className="border-b border-lps-hair px-2.5 pb-1.5 pt-1 text-[11px] text-muted-foreground">
                         See the portal as a supplier — a stand-in until supplier sign-in exists.
                       </div>
-                      {portalSuppliers == null && (
-                        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
-                      )}
-                      {portalSuppliers?.length === 0 && (
-                        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">
-                          No LPS Partners yet.
-                        </div>
-                      )}
-                      {portalSuppliers?.map((s) => (
-                        <a
-                          key={s.id}
-                          href={`/portal/${s.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => setSupplierViewMenu(false)}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                        >
-                          {s.name}
-                        </a>
-                      ))}
+                      {supplierList('flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted')}
                     </div>
                   )}
                 </div>
@@ -618,105 +409,111 @@ export function Shell({
                     </div>
                   )}
                 </div>
+              </>
+          )}
+          moreTop={({ closeMoreMenu }) => (
+            <Link
+              href="/settings"
+              onClick={() => {
+                // Leaving the More menu for another page — the mobile Agents
+                // view has to come off the screen with it, or the route
+                // transition looks like the tap did nothing. `dismiss` leaves
+                // its history entry alone, so Back still returns to the
+                // conversation it was opened on.
+                closeMoreMenu()
+                mobileView.dismiss()
+              }}
+              className={moreItemClass}
+            >
+              <SettingsIcon size={14} />
+              Settings
+            </Link>
+          )}
+          moreBottom={({ closeMoreMenu }) => (
+            <>
+              <Link
+                href="/agents"
+                onClick={() => {
+                  closeMoreMenu()
+                  mobileView.dismiss()
+                }}
+                className={moreItemClass}
+              >
+                <AgentsIcon size={14} />
+                Know your Agents
+              </Link>
+              <div data-menu>
+                <button
+                  type="button"
+                  onClick={toggleSupplierView}
+                  aria-expanded={supplierViewMenu}
+                  className={moreItemClass}
+                >
+                  <SuppliersIcon size={14} />
+                  Supplier view
+                  <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierViewMenu && 'rotate-90')} />
+                </button>
+                {supplierViewMenu && (
+                  <div className="ml-5 border-l border-lps-hair pl-1" onClick={closeMoreMenu}>
+                    {supplierList('block truncate rounded-lg px-2.5 py-[7px] text-[12px] font-semibold text-foreground hover:bg-muted')}
+                  </div>
+                )}
               </div>
-
+              <div className="mb-1 mt-1 border-t border-lps-hair px-2.5 pb-1 pt-2">
+                <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
+                <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
+              </div>
               <button
                 type="button"
-                onClick={toggleNav}
-                aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
-                title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
-                className="mt-1.5 flex h-7 cursor-pointer items-center justify-center rounded-[9px] border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={signOut}
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg"
               >
-                <span className="flex size-3.5">{navOpen ? <ChevronLeft /> : <ChevronRight />}</span>
+                <LogoutIcon size={14} />
+                Log out
               </button>
-            </nav>
+            </>
           )}
-
-          {/* Main workspace: Full chat hides it until the center-edge pull
-              handle reveals a narrow supplier/search peek pane. */}
-          <div
-            className={cn(
-              'flex min-h-0 min-w-0 flex-col overflow-hidden',
-              !desktopChatFull ? 'flex-1' : desktopPeekOpen ? 'w-[240px] flex-none' : 'w-0 flex-none',
-            )}
-          >
-            <div
-              className="relative flex min-h-0 flex-1 flex-col"
-              onTouchStart={(e) => {
-                if (!isMobile || mobileAgentsOpen || mobileChat || keyboardOpen || pageRefreshing || e.touches.length !== 1) return
-                const scroller = nearestVerticalScroller(e.target, e.currentTarget)
-                if (scroller && scroller.scrollTop > 0) return
-                pagePullStart.current = {
-                  x: e.touches[0].clientX,
-                  y: e.touches[0].clientY,
-                  scroller,
+          mobileBarLeft={() => <NotificationBell mobile />}
+          mobileBarRight={({ closeMoreMenu }) => (
+            <button
+              type="button"
+              onClick={() => {
+                closeMoreMenu()
+                // One step at a time, the way Back walks it: a conversation
+                // returns to the list, the list to the page. A conversation
+                // opened from a card has no list under it — its way out is
+                // the page — so this tab opens one instead of walking out of
+                // the conversation entirely.
+                const open = mobileView.view
+                if (open?.name === 'chat' && open.from !== 'agents') {
+                  mobileView.open({ name: 'agents' })
+                } else if (open) {
+                  mobileView.back()
+                } else {
+                  mobileView.open({ name: 'agents' })
                 }
               }}
-              onTouchMove={(e) => {
-                const start = pagePullStart.current
-                if (!start || e.touches.length !== 1) return
-                if (start.scroller && start.scroller.scrollTop > 0) {
-                  pagePullStart.current = null
-                  setPagePull(0)
-                  return
-                }
-                const x = e.touches[0].clientX - start.x
-                const y = e.touches[0].clientY - start.y
-                if (y <= 0 || Math.abs(y) <= Math.abs(x)) {
-                  setPagePull(0)
-                  return
-                }
-                e.preventDefault()
-                setPagePull(Math.min(72, y * 0.45))
-              }}
-              onTouchEnd={() => {
-                pagePullStart.current = null
-                if (pagePull < 54 || pageRefreshing) {
-                  setPagePull(0)
-                  return
-                }
-                setPageRefreshing(true)
-                setPagePull(48)
-                window.dispatchEvent(new Event('lps:refresh'))
-                router.refresh()
-                clearTimeout(pageRefreshTimer.current)
-                pageRefreshTimer.current = setTimeout(() => {
-                  setPageRefreshing(false)
-                  setPagePull(0)
-                }, 700)
-              }}
-              onTouchCancel={() => {
-                pagePullStart.current = null
-                setPagePull(0)
-              }}
+              aria-label="Agents"
+              aria-expanded={mobileAgentsOpen || mobileChat}
+              className={cn(
+                'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
+                mobileAgentsOpen || mobileChat || page === 'agents' ? 'text-primary' : 'text-muted-foreground',
+              )}
             >
-              {(pagePull > 0 || pageRefreshing) && (
-                <div
-                  className="pointer-events-none absolute left-1/2 top-2 z-[95] flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-primary shadow-[var(--lps-shadow)]"
-                  style={{ transform: `translate(-50%, ${Math.max(0, pagePull - 18)}px)` }}
-                  aria-live="polite"
-                >
-                  <RefreshCw size={16} className={pageRefreshing ? 'animate-spin' : ''} />
-                  <span className="sr-only">{pageRefreshing ? 'Refreshing page' : 'Pull to refresh'}</span>
-                </div>
-              )}
-              {toolbar}
-              <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-
-              {toast && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-[22px] z-[65] flex justify-center">
-                  <span className="lps-pop inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-[9px] text-[12.5px] font-semibold text-background shadow-[var(--lps-shadow)]">
-                    <CheckIcon size={14} />
-                    {toast}
-                  </span>
-                </div>
-              )}
-
+              <span className="relative flex size-[18px] items-center justify-center">
+                <AgentsIcon />
+                <AgentUnreadDot className="absolute -right-1 -top-1" />
+              </span>
+              <span className="text-[10.5px] font-semibold">Agents</span>
+            </button>
+          )}
+          pageOverlays={({ isMobile, moreMenuOpen, keyboardOpen }) => (
+            <>
               {/* Mobile's New job request. Out of the way of anything that
                   takes over the column — the chat sheet, the Agents list, the
                   ⋯ menu it would sit under — and of the keyboard. */}
               {isMobile && page === 'requests' &&
-                !mobileChat && !mobileAgentsOpen && !moreMenu && !keyboardOpen && (
+                !mobileChat && !mobileAgentsOpen && !moreMenuOpen && !keyboardOpen && (
                   <NewJobRequestButton fab />
                 )}
 
@@ -780,234 +577,12 @@ export function Shell({
                   }
                 />
               )}
-
-              {/* The ⋯ menu popover lives here rather than inside the
-                  overflow-clipped tab bar. */}
-              {isMobile && moreMenu && (
-                <div data-more-menu className="lps-pop absolute bottom-2 right-2 z-[80] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-                  <Link
-                    href="/settings"
-                    onClick={leaveMoreMenu}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                  >
-                    <SettingsIcon size={14} />
-                    Settings
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={toggle}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                  >
-                    {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
-                    {dark ? 'Dark mode' : 'Light mode'}
-                  </button>
-                  <InstallAppButton
-                    onMessage={(message) => {
-                      setMoreMenu(false)
-                      showToast(message)
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                  >
-                    <InstallIcon size={14} />
-                    Install app
-                  </InstallAppButton>
-                  {isStandalone && (
-                    <button
-                      type="button"
-                      onClick={() => window.location.reload()}
-                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                    >
-                      <RefreshCw size={14} />
-                      Reload
-                    </button>
-                  )}
-                  <Link
-                    href="/agents"
-                    onClick={leaveMoreMenu}
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                  >
-                    <AgentsIcon size={14} />
-                    Know your Agents
-                  </Link>
-                  <div data-menu>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierViewMenu((open) => !open)
-                        if (portalSuppliers == null) {
-                          fetch('/api/availability-requests/suppliers')
-                            .then(async (res) => {
-                              const body = res.ok
-                                ? ((await res.json()) as { suppliers: { id: number; name: string }[] })
-                                : { suppliers: [] }
-                              setPortalSuppliers(body.suppliers)
-                            })
-                            .catch(() => setPortalSuppliers([]))
-                        }
-                      }}
-                      aria-expanded={supplierViewMenu}
-                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
-                    >
-                      <SuppliersIcon size={14} />
-                      Supplier view
-                      <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierViewMenu && 'rotate-90')} />
-                    </button>
-                    {supplierViewMenu && (
-                      <div className="ml-5 border-l border-lps-hair pl-1">
-                        {portalSuppliers == null && (
-                          <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
-                        )}
-                        {portalSuppliers?.length === 0 && (
-                          <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No LPS Partners yet.</div>
-                        )}
-                        {portalSuppliers?.map((supplier) => (
-                          <a
-                            key={supplier.id}
-                            href={`/portal/${supplier.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => {
-                              setSupplierViewMenu(false)
-                              setMoreMenu(false)
-                            }}
-                            className="block truncate rounded-lg px-2.5 py-[7px] text-[12px] font-semibold text-foreground hover:bg-muted"
-                          >
-                            {supplier.name}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="mb-1 mt-1 border-t border-lps-hair px-2.5 pb-1 pt-2">
-                    <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
-                    <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={signOut}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg"
-                  >
-                    <LogoutIcon size={14} />
-                    Log out
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Mobile bottom navigation keeps global actions pinned at both
-                edges. The center strip is independently scrollable and sizes
-                each destination to one third of its viewport. */}
-            {isMobile && !keyboardOpen && (
-              <nav className="flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
-                <NotificationBell mobile />
-                <div
-                  ref={mobileNavScroll}
-                  role="group"
-                  aria-label="Pages"
-                  className="lps-mobile-nav-scroll flex min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x"
-                >
-                  {NAV.map(({ id, label, href, Icon, enabled }) => {
-                    // A view open over the page owns the highlight — the page
-                    // underneath is not what you are looking at.
-                    const active = page === id && !mobileView.view
-                    const inner = (
-                      <>
-                        <span className={cn('flex size-[18px] items-center justify-center', active ? 'text-primary' : '')}>
-                          <Icon />
-                        </span>
-                        <span className="text-center text-[10.5px] font-semibold leading-tight">{label}</span>
-                      </>
-                    )
-                    const klass = cn(
-                      'flex min-w-0 basis-1/3 shrink-0 flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                      active ? 'text-primary' : 'text-muted-foreground',
-                      enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-45',
-                    )
-                    return enabled ? (
-                      <Link
-                        key={id}
-                        ref={(node) => { mobileNavItems.current[id] = node }}
-                        href={href}
-                        aria-label={label}
-                        onClick={(e) => {
-                          setMoreMenu(false)
-                          if (!mobileView.view) return
-                          // Tapping the destination you are already on has no
-                          // route change to make, so the tap means "put the
-                          // page back" — unwind the views instead of pushing a
-                          // second entry for the same route.
-                          if (page === id) {
-                            e.preventDefault()
-                            mobileView.close()
-                          } else {
-                            mobileView.dismiss()
-                          }
-                        }}
-                        className={klass}
-                      >
-                        {inner}
-                      </Link>
-                    ) : (
-                      <button key={id} type="button" disabled aria-label={label} className={klass}>{inner}</button>
-                    )
-                  })}
-                  <button
-                    ref={(node) => { mobileNavItems.current.more = node }}
-                    type="button"
-                    data-more-menu
-                    onClick={() => setMoreMenu((v) => !v)}
-                    aria-label="More"
-                    aria-expanded={moreMenu}
-                    className={cn(
-                      'flex min-w-0 basis-1/3 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                      moreMenu || (page === 'settings' && !mobileView.view)
-                        ? 'text-primary'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    <span className="flex size-[18px] items-center justify-center text-[16px] font-bold leading-none">⋯</span>
-                    <span className="text-[10.5px] font-semibold">More</span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMoreMenu(false)
-                    // One step at a time, the way Back walks it: a
-                    // conversation returns to the list, the list to the page.
-                    // A conversation opened from a card has no list under it —
-                    // its way out is the page — so this tab opens one instead
-                    // of walking out of the conversation entirely.
-                    const open = mobileView.view
-                    if (open?.name === 'chat' && open.from !== 'agents') {
-                      mobileView.open({ name: 'agents' })
-                    } else if (open) {
-                      mobileView.back()
-                    } else {
-                      mobileView.open({ name: 'agents' })
-                    }
-                  }}
-                  aria-label="Agents"
-                  aria-expanded={mobileAgentsOpen || mobileChat}
-                  className={cn(
-                    'flex w-[52px] flex-none cursor-pointer flex-col items-center gap-1 rounded-[10px] border-none bg-transparent px-0.5 py-1.5',
-                    mobileAgentsOpen || mobileChat || page === 'agents' ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                >
-                  <span className="relative flex size-[18px] items-center justify-center">
-                    <AgentsIcon />
-                    <AgentUnreadDot className="absolute -right-1 -top-1" />
-                  </span>
-                  <span className="text-[10.5px] font-semibold">Agents</span>
-                </button>
-              </nav>
-            )}
-          </div>
-
-          {/* Agent chat on desktop: a docked panel, or a collapsed rail when
-              hidden. The mobile sheet is rendered inside the main column above
-              so the bottom tab bar stays put. */}
-          {!isMobile && (
+            </>
+          )}
+          // Agent chat on desktop: a docked panel, or a collapsed rail when
+          // hidden. The mobile sheet is rendered inside the page column above
+          // so the bottom tab bar stays put.
+          rightColumn={({ setNavOpen }) => (
             <AgentChat
               isMobile={false}
               mobileOpen={mobileChat}
@@ -1026,10 +601,10 @@ export function Shell({
               onDesktopPeekToggle={() => setDesktopPeekOpen((open) => !open)}
             />
           )}
-        </div>
-        </div>
-        </ChatNotificationsProvider>
-      </ToastCtx.Provider>
+        >
+          {children}
+        </WorkspaceFrame>
+      </ChatNotificationsProvider>
     </ChatAppearanceCtx.Provider>
   )
 }

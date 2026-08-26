@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { portalChatFetch, portalChatTarget } from '@/lib/portal-chat'
+import { partnerChatFetch, partnerChatTarget } from '@/lib/partner-chat'
 
 /**
  * The portal's chat with Local Plant Supply (rosie), on the supplier's own
@@ -14,22 +14,22 @@ import { portalChatFetch, portalChatTarget } from '@/lib/portal-chat'
 async function target(rawSupplier: string) {
   const supplierId = Number.parseInt(rawSupplier, 10)
   if (!Number.isInteger(supplierId)) return null
-  return portalChatTarget(supplierId)
+  return partnerChatTarget(supplierId)
 }
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ supplierId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const t = await target((await params).supplierId)
+    const t = await target((await params).id)
     if (!t) return NextResponse.json({ error: 'chat unavailable' }, { status: 404 })
     const search = new URL(req.url).searchParams
     const file = search.get('file')
     if (file) {
       const qs = new URLSearchParams({ thread: t.threadId, name: file })
       const range = req.headers.get('range')
-      const res = await portalChatFetch(`api/app-file?${qs.toString()}`, {
+      const res = await partnerChatFetch(`api/app-file?${qs.toString()}`, {
         headers: range ? { range } : undefined,
         signal: req.signal,
       })
@@ -59,7 +59,7 @@ export async function GET(
       const v = search.get(k)
       if (v) qs.set(k, v)
     }
-    const res = await portalChatFetch(`api/app-messages?${qs.toString()}`)
+    const res = await partnerChatFetch(`api/app-messages?${qs.toString()}`)
     const body = (await res.json()) as Record<string, unknown>
     return NextResponse.json(
       res.ok ? { ...body, supplierName: t.supplierName } : body,
@@ -72,17 +72,17 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ supplierId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const t = await target((await params).supplierId)
+    const t = await target((await params).id)
     if (!t) return NextResponse.json({ error: 'chat unavailable' }, { status: 404 })
     const search = new URL(req.url).searchParams
     if (search.get('upload') === '1') {
       const label = req.headers.get('x-file-name')?.trim()
       if (!label || !req.body) return NextResponse.json({ error: 'file required' }, { status: 400 })
       const qs = new URLSearchParams({ thread: t.threadId })
-      const res = await portalChatFetch(`api/app-upload?${qs.toString()}`, {
+      const res = await partnerChatFetch(`api/app-upload?${qs.toString()}`, {
         method: 'POST',
         headers: {
           'content-type': req.headers.get('content-type') ?? 'application/octet-stream',
@@ -103,7 +103,7 @@ export async function POST(
     if (!text && attachments.length === 0) {
       return NextResponse.json({ error: 'text or attachments required' }, { status: 400 })
     }
-    const res = await portalChatFetch('api/app-send', {
+    const res = await partnerChatFetch('api/app-send', {
       method: 'POST',
       body: JSON.stringify({
         threadId: t.threadId,

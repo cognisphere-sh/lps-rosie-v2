@@ -22,6 +22,11 @@ const config: NextConfig = {
   // `server.sh dev`, which sources DOMAIN from the `config` file). DEV_ORIGIN
   // adds one more — e.g. the LAN IP when testing on a phone.
   allowedDevOrigins: [process.env.DOMAIN, process.env.DEV_ORIGIN].filter((o): o is string => !!o),
+  async redirects() {
+    // The supplier portal lived at /portal until 2026-08-26; links already sent
+    // to suppliers keep working.
+    return [{ source: '/portal/:path*', destination: '/partner/:path*', permanent: true }]
+  },
   async rewrites() {
     return [
       { source: '/api/auth/:path*', destination: `${harness}/api/auth/:path*` },

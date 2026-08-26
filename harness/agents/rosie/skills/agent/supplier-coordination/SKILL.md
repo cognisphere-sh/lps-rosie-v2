@@ -38,7 +38,7 @@ type-level habit.
 ## 1. LPS Partner or not
 
 **`suppliers.is_lps_partner = true` makes them an LPS Partner** — they answer
-structured asks in their portal (`/portal/<supplierId>`), and the channel is
+structured asks in their portal (`/partner/<id>`), and the channel is
 an **availability request** (§2). Anyone else is reached by ordinary
 outreach (§4).
 

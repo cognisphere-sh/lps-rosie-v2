@@ -14,13 +14,13 @@ import { supabase } from '@/lib/supabase'
 const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 const SECRET = process.env.WEBCHAT_APP_SECRET
 
-export interface PortalChatTarget {
+export interface PartnerChatTarget {
   threadId: string
   supplierName: string
 }
 
 /** The portal-chat thread for a supplier — its company's rosie_thread_id. */
-export async function portalChatTarget(supplierId: number): Promise<PortalChatTarget | null> {
+export async function partnerChatTarget(supplierId: number): Promise<PartnerChatTarget | null> {
   if (!SECRET) return null // not wired on this box
   const { data, error } = await supabase
     .from('suppliers')
@@ -38,7 +38,7 @@ export async function portalChatTarget(supplierId: number): Promise<PortalChatTa
   return { threadId: s.rosie_thread_id, supplierName: s.name }
 }
 
-export async function portalChatFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function partnerChatFetch(path: string, init?: RequestInit): Promise<Response> {
   const streamsFile = path.startsWith('api/app-upload') || path.startsWith('api/app-file')
   return fetch(`${HARNESS_URL}/webhook/rosie/webchat/${path}`, {
     ...init,

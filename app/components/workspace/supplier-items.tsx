@@ -36,7 +36,7 @@ import {
   type SupplierItemLine,
 } from '@/lib/availability'
 import { toneDot, toneStyle, type Tone } from '@/lib/job-requests'
-import { redactPortalRequestRefs } from '@/lib/portal-display'
+import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
 /** A small read-only pill in a tone — the same shape the request pills use. */
@@ -209,7 +209,7 @@ function ItemGroupCard({
             items={group.lines}
             editable
             onPatch={onPatch}
-            displayText={redactPortalRequestRefs}
+            displayText={redactPartnerRequestRefs}
             leadingHeader="Job"
             renderLeading={(line) => (
               <JobCell

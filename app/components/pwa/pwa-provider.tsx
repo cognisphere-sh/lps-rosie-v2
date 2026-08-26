@@ -14,6 +14,9 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+/** Per-window memory that this window was launched as the installed app. */
+const STANDALONE_STORE = 'lps.pwa.standalone'
+
 export type InstallOutcome = 'accepted' | 'dismissed' | 'unavailable'
 
 type PWAState = {
@@ -67,12 +70,25 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     // Deferred a tick to keep the UA sniff out of the render pass.
     const t = setTimeout(() => {
       const ua = window.navigator.userAgent
+      // "Not a browser tab" rather than "is standalone": Chrome reports the
+      // installed window as standalone, minimal-ui or window-controls-overlay
+      // depending on version and manifest, and a plain standalone match was
+      // seen flipping false after an in-app reload (2026-08-26) — which hid the
+      // Reload row and showed Install app inside the installed app. Once a
+      // window has been seen installed it stays so for its lifetime, since a
+      // reload cannot turn an app window back into a tab.
+      let installed = !window.matchMedia('(display-mode: browser)').matches ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+      try {
+        if (installed) window.sessionStorage.setItem(STANDALONE_STORE, '1')
+        else installed = window.sessionStorage.getItem(STANDALONE_STORE) === '1'
+      } catch {
+        // Storage can be unavailable; the live check alone is fine then.
+      }
       setEnv({
         isIOS: /iPad|iPhone|iPod/.test(ua),
         isChrome: /Chrome|CriOS|Edg/.test(ua) && !/OPR|SamsungBrowser/.test(ua),
-        isStandalone:
-          window.matchMedia('(display-mode: standalone)').matches ||
-          (window.navigator as Navigator & { standalone?: boolean }).standalone === true,
+        isStandalone: installed,
       })
     }, 0)
     return () => clearTimeout(t)

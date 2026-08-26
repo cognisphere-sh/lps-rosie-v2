@@ -90,7 +90,28 @@ fidelity", start here rather than reverting one of these by accident:
 
 ## Shell and responsive behaviour
 
-`components/workspace/shell.tsx` renders the frame for every page. Its optional
+**One frame, two apps.** `components/workspace/frame.tsx` (`WorkspaceFrame`)
+is the layout itself — the fixed visual-viewport container, the header, the
+collapsible nav rail with its shared footer (Dark mode · Install app · Reload),
+the page column with pull-to-refresh and toasts, the mobile ⋯ More menu and the
+bottom tab bar. It takes what a role adds through slots: `nav`/`activeId`,
+`railIdentity`, `railTop`/`railBottom` and `moreTop`/`moreBottom` (rows around
+the shared footer actions, in the rail's order), `headerExtras`,
+`mobileBarLeft`/`mobileBarRight` (the bar's pinned edges), `pageOverlays`,
+`rightColumn`, and a `mobileOverlay` describing a view a role opens over the
+page column so the bar's highlight and taps unwind it the same way everywhere.
+Slots are render props receiving `FrameState` (`isMobile`, `navOpen`,
+`keyboardOpen`, `moreMenuOpen`, `closeMoreMenu`, `showToast`, `railBtn`).
+The caller owns `useTheme()` and passes it in, since it sits above the frame.
+`useToast`, `useTheme` and `useIsMobile` live here; `shell.tsx` re-exports
+them so pages import as before. Added 2026-08-26, replacing a `Shell` and a
+`PartnerFrame` that were two copies of the same layout and drifted.
+
+`components/workspace/shell.tsx` (`Shell`) is the admin app's fill-in of that
+frame: the operator's destinations, Settings above and Know your Agents /
+Supplier view / the signed-in user below the shared footer, the agent chat as
+`rightColumn` and the mobile Agents list + sheet as `pageOverlays`, the
+notification bell, and the chat-appearance / accent contexts. Its optional
 `headerAction` slot lets detail routes keep a compact, single sticky identity
 header rather than repeating the page title inside the content. Its
 `hideHeaderOnMobile` option removes redundant generic titles from the Suppliers
@@ -208,10 +229,10 @@ in the desktop rail and through mobile More.
 | `/customers` | client | **Customers** — a table, one row per person, in the same shape Suppliers uses: sticky header with per-column sort, filter, resize and drag-to-reorder, a column picker at the right edge, and the layout persisted per table. Columns are Name (opens their page), Company, Email, Phone, **Active requests**, **Active request value**, **Orders**, **Total order value**, City, State, Street, ZIP, Notes, Added, Last updated — Street, ZIP, Notes and Added hidden by default. The two request figures are summed **in the browser** from the rollup each customer already carries (`sourcing` + `quoted`); the two order figures are **empty on purpose** — there are no order tables (migration 0055 defers them), and a column reading a request figure under an order's name would be a lie. Every cell but the four figures and the two dates is **edited in place** through `PATCH /api/rows`. Search matches name, company, email or phone; a **State** chip and a **With requests · N** toggle narrow further, both server-side. The **column header's** sort and filters run over the page in view rather than the whole table — two of the columns are summed in the browser and have no database column to order on. Each row also carries a **Rosie** button — in the actions column at the right edge on desktop, at the card's bottom-right on mobile — opening that customer's conversation. On mobile the table gives way to one card per customer, opening the same page. Cards no longer expand here: everything the old drawer held moved to `/customers/:id`. **No create form, deliberately** — see the deviations table. |
 | `/customers/:id` | client | **One customer.** A details card — the contact routes, a four-figure summary (Active requests, Active request value, Orders, Total order value, the last two reading `—` until order tables exist), **Who they are** and **Address** as editable field grids, **Notes** edited in place (the append-only **Contact log** beside it went with `customers.communication_notes` on 2026-08-25, migration 0073) — and under it two tabs. The header carries a **Rosie button**: the customer's own `rosie_thread_id` conversation, which is the contact history now, opened in the docked panel. **Requests** lists their active requests with status pill, line count, total and date, and each line **opens** into the same body the Job Requests page draws (compact request/contact/delivery/billing-payment summary, status strip, editable line-item table, secondary details-and-notes drawer, Change history), minus the line checkboxes and the delete column: this page has no selection bar to act on them, and a customer's page lists their jobs rather than administering them — deleting one is done where requests are managed. The opened request is fetched on its own from `GET /api/requests/:id` and re-fetched after any write. **Orders** is drawn and empty, saying why. Nothing is behind a second chevron here — this is where a customer is corrected, not scanned. |
 | `/requests` | client | **Job Requests**, from the Order Requests design comp. One **collapsed card per request** carrying everything it is judged on without opening it — `JR-<id>`, **the job's name** (`job_requests.name`, click to rename — which also retitles the job's Rosie thread, see *Agent chat*; blank on an unnamed request, because `JR-<id>` beside it is already its name), status pill, customer/company, contact name, ship-to city/state, the updated date (created is its tooltip), a **one-line demand strip** — every line status with its count, then item count and subtotal, zeros included but dimmed, so "nothing is unavailable" and "nobody has looked yet" cannot render alike — and **the newest note on the request, truncated to one line** and tagged with its audience. The head is deliberately spare: the customer's email and phone belong to the customer and are a click away on their card, and one date is enough to triage by. The card head carries **no checkbox**: selection is per line, in the table the card opens. Clicking the card expands it into a compact four-block summary (request identity, real customer/contact routes, ship-to delivery address, and billing address/payment state), one full-width status/count/item/subtotal strip, the line-item table, and a **Change history** drawer at the foot. Unsupported PO, delivery schedule/method and payment-method data are never fabricated: the summary explicitly says when schedule or payment details are not recorded. The editable **More details & notes** drawer is **shut by default** — a second level of expansion — and preserves the shipping/billing fields plus all three audience-specific note blocks, with a one-line summary of what it is hiding while closed. The **sourcing note** block is an ordinary editable field there, like the shared note: it is free text kept current, not a log that grows without bound. Order particulars are read when a request is being actioned, not when it is being scanned, so the head keeps only the destination city and state. The table is Select / Item / Size / Demand / Avail / Unit price / Total / Status / Shared note / Sourcing note, plus a trailing unlabelled **delete** column, colour-keyed by status down a left edge. Each line's **name carries the customer's note about that line** underneath it, in italics — the ask and what they said about it, read together. **The counts on a collapsed card always describe the whole request**, never the filtered subset the expanded table draws — so a card can honestly read `4 lines` while showing one. A search or an item-level filter auto-expands the cards it matched, since the question was about lines. **Expand all / Collapse all** in the toolbar. Selecting lines offers **Availability request** in the selection bar: a dialog with the LPS Partner dropdown and a share-customer-details checkbox that creates one `availability_requests` row per job involved, snapshotting the selected lines and **prefilling each line's price** where our own catalogue answers it for that supplier at that size (exact identity match, one agreed price, or the box goes out blank). Everything the job opens hangs off the customer line, in the empty half of a row the card already draws — so the card is no taller for it. The customer's end sits with the customer's name: a **Chat** chip opening their Rosie conversation. Right-aligned opposite it, **one segmented pill per engaged supplier**, most recently engaged first: the rail's supplier mark and the name written once, then a segment for **every availability request this job has with them** (`AR-<id>`, newest first, opening the request as a drawer) and one for **their conversation**. A job can have several suppliers and several requests with each, so the supplier is the unit — a flat run of `AR-<id>` chips would be the same links in an order nobody can scan. **Below `md` the supplier pills are drawn only on an expanded card**, and take a full-width line of their own rather than hanging off the right edge: a narrow card has no empty half for them to ride, and who a job's suppliers are is what the card is opened to find out. The customer line, its Chat chip and the demand strip are unchanged there. These live on the card and not under the sourcing notes, where they used to be: a note is free text, so a link in it can only be built from the job's actual engagement anyway, and that engagement belongs to the job rather than to a sentence about it. The denser line table scrolls sideways below ~1050px rather than crushing its columns, and each card is `flex-none` so the card list scrolls vertically instead of the card being shrunk and clipping its own contents. **Fields are edited inline**: click a line's name, size, demand, avail or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged value is never written), rename the job from the card head, pick a status from the pill's dropdown, and edit the ship-to/bill-to parts and both note fields in the More details & notes drawer. Every write goes through `PATCH /api/rows`, and the page refetches afterwards because `total` and every count are derived. **Change history** is the request's whole audit trail — every edit to it or its lines, by this app *and* by the agents, since `job_request_changelog` is trigger-written and neither write path has to cooperate. Each entry names the actor in words (`service_role` → "This app", `postgres` → "An agent script"), says whether it was a create or a change and what it was about, and lists each column as `old → new`. It is fetched only when opened, and re-fetched after any write, so an edit you just made shows up in the history you are looking at. Nothing in it is editable — the rows are immutable by design. **Two trash buttons, both permanent.** The card head carries one for the whole request, last in its row of controls, and each line carries one at the right end of the line table. Both confirm first, and the confirm names what goes: the request's says how many lines, how many availability requests *and the answers on them*, and its change history, counted from what the card is already showing; a line's warns that a supplier already asked about it keeps their answer, unlinked. Both say the delete cannot be undone, because it cannot — see *Writing*. The toast afterwards reports what the server actually removed. **Not editable, deliberately:** `total` (generated) and `customer_notes` (the customer's own words) — see *Row tinting and selection* and *Job requests* below. |
-| `/portal/:supplierId` | client | **Supplier portal home** — the outward-facing app an LPS Partner uses (see *Supplier portal*). **One card per availability request, and the card is a link**: it opens the request's own page (`/portal/:supplierId/requests/:arId`) rather than expanding in place, because answering a request is the work and a list is only how you pick one. **Four tabs and no filters** (2026-08-26): All · New · Processing · Submitted, in the frame's toolbar slot, each drawn label-over-count with the count in that status's own tone. The tab *is* the selection — the search box, the job-status / item-status / customer chips, the date range, the sort and Expand all are all gone, and a supplier's list is short enough that they cost more than they found. **`closed` requests are not on this page at all** (2026-08-26), not even under All: closing is ours, and a closed request is finished work rather than a fourth thing to triage, so it has its own rail destination instead of a tab. **The card keeps the design it had when it expanded**, less the chevron — that was the toggle, there is nothing to toggle any more, and its gutter went with it, so the customer line and the strip sit flush under the name. Head: job name (falling back to *Availability request*; supplier-facing request IDs are deliberately omitted), status pill, requested date right. Then the customer and ship-to locality on one line, and the same bordered count/subtotal strip (line count, Pending and each of the five answers, zeros included but dimmed so "nothing is unavailable" and "nobody has looked yet" cannot render alike, then Lines and Subtotal). The whole card is the link. The frame's own header keeps the page name and the stats over everything (X new jobs · Y rows pending · Z rows unavailable) plus the bell. **Ungated** — see *Auth*. 404-styled message for a supplier that is missing or not an LPS Partner. |
-| `/portal/:supplierId/closed` | client | **Closed requests** — the fourth and last entry in the portal's nav rail (`Closed`, an archive mark), and the only place a `closed` request appears. One list, newest first, no tabs and no filters: a closed request is something you look up, not something you triage between. The cards are the requests page's own `PortalRequestCard`, and still open the request, which reads closed and read-only when it gets there. |
-| `/portal/:supplierId/requests/:arId` | client | **One availability request**, and everything needed to answer it: our note to the supplier, the customer and delivery blocks where the request shares them, the count/subtotal strip, the editable line table, and the button that hands it back. The frame's toolbar slot carries a back link — **← All requests**, or **← Closed requests** on a closed one, since that is the list it was reached from and belongs to (the rail's highlight follows it the same way) — the status pill and the requested/submitted dates; the header carries the job name and `N lines · M pending`. Each line carries its answer's tone as the admin table does — a coloured left accent bar and a row tint, grey while unanswered — and picking a status behaves per answer (see *Supplier portal*). Per-cell saves on blur handle later tweaks through the scoped portal PATCH, which also moves the request to `processing`. The button reads **Submit**, or **Re-Submit** once `submitted_at` exists — including after we added a line and the trigger put the request back to `new`. It stamps the request `submitted` and wakes rosie; re-submitting re-notifies. A notice under the table says so while the request is `new` and carries prefilled prices, because `status` is the one column that says a line was answered. It loads the home list's payload (`GET /api/portal/:id`, lines embedded) rather than the single-request route, so one fetch feeds the request, the supplier's name and the bell. A closed request is read-only. |
-| `/portal/:supplierId/orders` | client | The portal's Orders tab — drawn and empty on purpose, exactly like the admin app's order columns: the order tables are deferred by migration 0055. |
+| `/partner/:id` | client | **Supplier portal home** — the outward-facing app an LPS Partner uses (see *Supplier portal*). **One card per availability request, and the card is a link**: it opens the request's own page (`/partner/:id/requests/:arId`) rather than expanding in place, because answering a request is the work and a list is only how you pick one. **Four tabs and no filters** (2026-08-26): All · New · Processing · Submitted, in the frame's toolbar slot, each drawn label-over-count with the count in that status's own tone. The tab *is* the selection — the search box, the job-status / item-status / customer chips, the date range, the sort and Expand all are all gone, and a supplier's list is short enough that they cost more than they found. **`closed` requests are not on this page at all** (2026-08-26), not even under All: closing is ours, and a closed request is finished work rather than a fourth thing to triage, so it has its own rail destination instead of a tab. **The card keeps the design it had when it expanded**, less the chevron — that was the toggle, there is nothing to toggle any more, and its gutter went with it, so the customer line and the strip sit flush under the name. Head: job name (falling back to *Availability request*; supplier-facing request IDs are deliberately omitted), status pill, requested date right. Then the customer and ship-to locality on one line, and the same bordered count/subtotal strip (line count, Pending and each of the five answers, zeros included but dimmed so "nothing is unavailable" and "nobody has looked yet" cannot render alike, then Lines and Subtotal). The whole card is the link. The frame's own header keeps the page name and the stats over everything (X new jobs · Y rows pending · Z rows unavailable) plus the bell. **Ungated** — see *Auth*. 404-styled message for a supplier that is missing or not an LPS Partner. |
+| `/partner/:id/closed` | client | **Closed requests** — the fourth and last entry in the portal's nav rail (`Closed`, an archive mark), and the only place a `closed` request appears. One list, newest first, no tabs and no filters: a closed request is something you look up, not something you triage between. The cards are the requests page's own `PartnerRequestCard`, and still open the request, which reads closed and read-only when it gets there. |
+| `/partner/:id/requests/:arId` | client | **One availability request**, and everything needed to answer it: our note to the supplier, the customer and delivery blocks where the request shares them, the count/subtotal strip, the editable line table, and the button that hands it back. The frame's toolbar slot carries a back link — **← All requests**, or **← Closed requests** on a closed one, since that is the list it was reached from and belongs to (the rail's highlight follows it the same way) — the status pill and the requested/submitted dates; the header carries the job name and `N lines · M pending`. Each line carries its answer's tone as the admin table does — a coloured left accent bar and a row tint, grey while unanswered — and picking a status behaves per answer (see *Supplier portal*). Per-cell saves on blur handle later tweaks through the scoped portal PATCH, which also moves the request to `processing`. The button reads **Submit**, or **Re-Submit** once `submitted_at` exists — including after we added a line and the trigger put the request back to `new`. It stamps the request `submitted` and wakes rosie; re-submitting re-notifies. A notice under the table says so while the request is `new` and carries prefilled prices, because `status` is the one column that says a line was answered. It loads the home list's payload (`GET /api/partner/:id`, lines embedded) rather than the single-request route, so one fetch feeds the request, the supplier's name and the bell. A closed request is read-only. |
+| `/partner/:id/orders` | client | The portal's Orders tab — drawn and empty on purpose, exactly like the admin app's order columns: the order tables are deferred by migration 0055. |
 | `/agents` | client | Know your Agents: one card per entry in `lib/agents.ts` — avatar, role, an Active / "Coming soon" / "On Telegram" badge (`chatBlockedReason`), and the full profile banner image. Only `upcoming` fades its banner; an agent reached on another channel is live. |
 | `/settings` | client | Tabbed: **Global** (the harness's OpenAI Codex login and model allowlist, then the app header/accent palette and Reset all) and one tab per agent (that agent's chat colour and wallpaper with a live preview, model + thinking level, Google account, scheduled tasks). The tab is in `?tab=`. Available from desktop Settings and mobile More. See *Settings*. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
@@ -242,11 +263,11 @@ in the desktop rail and through mobile More.
 | `POST /api/availability-requests` | Create one from a job request's selected lines (`{jobRequestId, supplierId, shareCustomerDetails, itemIds}`). Refuses a supplier that is not an LPS Partner; snapshots the lines' name/size/quantity at share time and prefills each line's `unit_price` where our catalogue answers it for that supplier at that size. It does **not** write `mapped_inventory_id` (migration 0077) — the price look-up takes a number when every surviving row agrees on one, which is not the same as one row mapping. Rosie's supplier thread is the column's only writer for now, so a priced line with no mapping is a request made here. |
 | `GET·PATCH /api/availability-requests/:id` | One request whole (admin view — no disclosure filter), and the admin writes: `{status}` (usually → `closed`), or `{itemId, changes}` for one line's answer — the same four writable columns the portal PATCH takes, through the same `updateARItem` scoping minus the supplier check, so a closed request still refuses. A `{status}` write also maintains `submitted_at` — stamped on `submitted`, cleared on `new`, untouched on `closed`. |
 | `GET /api/availability-requests/suppliers` | The LPS Partners — the create dialog's dropdown and the nav rail's Supplier view picker. |
-| `GET /api/portal/:supplierId` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not an LPS Partner, which is the scoping rule every portal route starts with. |
-| `GET /api/portal/:supplierId/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
-| `GET·PATCH /api/portal/:supplierId/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. A PATCH also moves the request to `processing` — the supplier is working on it — which the admin's own PATCH deliberately does not. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
-| `POST /api/portal/:supplierId/requests/:arId/submit` | The request page's **Submit** / **Re-Submit**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
-| `GET·POST /api/portal/:supplierId/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
+| `GET /api/partner/:id` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not an LPS Partner, which is the scoping rule every portal route starts with. |
+| `GET /api/partner/:id/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
+| `GET·PATCH /api/partner/:id/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. A PATCH also moves the request to `processing` — the supplier is working on it — which the admin's own PATCH deliberately does not. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
+| `POST /api/partner/:id/requests/:arId/submit` | The request page's **Submit** / **Re-Submit**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
+| `GET·POST /api/partner/:id/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
 
@@ -256,30 +277,34 @@ rather than a server-rendered one and a client one that drift apart.
 
 ## Supplier portal
 
-`/portal/<supplierId>` is the **outward-facing supplier app** (migration 0062):
+`/partner/<id>` is the **outward-facing supplier app** (migration 0062):
 an LPS Partner answers availability requests and talks to the broker
 there. Same tokens, same components, same product as the admin app — but its
-own chrome (`components/workspace/portal.tsx`): a supplier gets their identity
-and three destinations, not the operator's pages or agent chat.
+own fill-in of the shared chrome (`components/workspace/partner.tsx`): a
+supplier gets their identity and three destinations, not the operator's pages
+or agent chat.
 
-The chrome (`components/workspace/portal.tsx`) is the admin Shell's layout,
-not merely its language (2026-08-24). `PortalFrame` holds itself in the same
-**fixed visual-viewport frame** the Shell does — anchored to
-`visualViewport.offsetTop`, so an Android PWA keyboard pans without clipping,
-and the mobile bottom bar hides while a field has focus. Inside it, top to
-bottom and left to right:
+The chrome is **the admin Shell's frame itself** — `PartnerFrame` renders the
+same `WorkspaceFrame` (`components/workspace/frame.tsx`, see *Shell and
+responsive behaviour*) the admin `Shell` does, since 2026-08-26 (it had been a
+separate copy of the layout since 2026-08-24). So it holds itself in the same
+**fixed visual-viewport frame** — anchored to `visualViewport.offsetTop`, so
+an Android PWA keyboard pans without clipping, the document scroll-locked, the
+mobile bottom bar hidden while a field has focus — and gains whatever the
+frame gains (pull-to-refresh, toasts, Install app, the Reload row) without a
+second implementation. Its slots, top to bottom and left to right:
 
 - **The page header, on desktop only** — the Shell's exact row: the page name
   in the 21px serif line, its running total beside it in muted 12.5px, an
   optional action slot, then the bell. It spans the full width above the rail,
-  as the admin's does. `PortalFrame` takes `title`, `subtitle`, `headerAction`
+  as the admin's does. `PartnerFrame` takes `title`, `subtitle`, `headerAction`
   and `toolbar` for it. **On mobile there is no header on any portal page**
   (2026-08-26): the frame starts at the page's own toolbar, exactly as the
   Shell's `hideHeaderOnMobile` pages do, and the bell moves to the bottom bar.
   The rule is the frame's, not a per-page option — every portal page follows
   it. The one page a highlighted tab does not identify is the request page, so
   it puts the job name in its own toolbar row on mobile.
-- **The notification bell** (`PortalNotificationBell`) — in that header on
+- **The notification bell** (`PartnerNotificationBell`) — in that header on
   desktop, and **pinned to the left of the bottom bar as *Alerts* on mobile**,
   where it takes the Shell's own second shape: icon over label in a 52px slot,
   popover opening upward from the left edge. Two sources: availability requests
@@ -305,15 +330,17 @@ bottom and left to right:
   The remembered open/closed state in `lps.portal.chat.v1` is therefore the
   *desktop* panel's — the mobile chat always opens closed and is navigated to.
 - **The nav rail** on desktop (Availability Requests / Orders / Closed
-  Requests, supplier identity at its head, theme toggle / Settings / Log out at
-  its foot). **Closed sits last**, added 2026-08-26: it is where work goes to
+  Requests, supplier identity at its head, then the frame's Dark mode /
+  Install app / Reload and the portal's disabled Settings / Log out at its
+  foot). **Closed sits last**, added 2026-08-26: it is where work goes to
   rest, not somewhere a supplier starts. On mobile it joins the bottom bar's
   scrollable strip as *Closed*, which is what that strip was built to absorb —
   with three destinations plus ⋯ between the two pinned edges, three show at a
   time and More scrolls into view rather than being dropped.
   It opens **collapsed to icons**, as the admin Shell's rail does — the
   requests beside it are what a supplier came for — and the chevron at its
-  foot expands it to labels. The rail is desktop-only; its three destinations
+  foot expands it to labels; the choice is the frame's `lps.nav.open`, shared
+  with the admin app on the same device. The rail is desktop-only; its three destinations
   are the bottom bar's scrollable strip on mobile.
 - **The toolbar slot**, pinned under the header, then the page's own scroller
   — the frame hands children a fixed `overflow-hidden` box exactly as the
@@ -343,8 +370,8 @@ Three things to keep straight:
   first incarnation died with `supplier_messages`). It lives where the admin
   app's agent panel does: a column docked on the **right**, a 46px rail
   carrying the Local Plant Supply mark that opens the panel (fixed Chat action
-  on mobile) — `PortalChat` in `components/workspace/portal.tsx` — that polls
-  `GET /api/portal/:supplierId/chat` and posts the supplier's messages to
+  on mobile) — `PartnerChat` in `components/workspace/partner.tsx` — that polls
+  `GET /api/partner/:id/chat` and posts the supplier's messages to
   rosie's supplier thread (`Channel: portal`, sender `<Supplier> (portal)`).
   Only its **transport** is portal-specific: the bubbles, transcript and
   composer are literally the agent panel's, shared through
@@ -439,17 +466,17 @@ tabs are:
   they are working the portal.
 - **`submitted`** — they pressed Submit. Stamps `submitted_at` and wakes rosie.
 - **`closed`** — ours, and terminal. It is the one status with no tab: a closed
-  request leaves the requests page entirely for `/portal/:id/closed`, so the
+  request leaves the requests page entirely for `/partner/:id/closed`, so the
   four tabs describe only open work and *All* means all of it.
 
-`components/workspace/portal.tsx` exports the card both lists draw
-(`PortalRequestCard`) along with `portalRequestName` / `portalCustomerLabel`,
+`components/workspace/partner.tsx` exports the card both lists draw
+(`PartnerRequestCard`) along with `partnerRequestName` / `partnerCustomerLabel`,
 so the open list, the Closed page and the request page's own title cannot drift
 apart.
 
 ## By item — the portal's requests, grouped by plant
 
-The portal home (`/portal/:supplierId`) carries a **By request / By item**
+The portal home (`/partner/:id`) carries a **By request / By item**
 switch above the tabs. Both draw the same open workload; they differ in what a
 card is.
 
@@ -495,16 +522,16 @@ the pair the grid is exactly what it always was; the subtotal label's span
 shifts (`1 / 7` → `1 / 8`) so it still sits under Price either way.
 
 The leading column here is **Job**: the request's name (already redacted by
-`redactPortalRequestRefs`) with its **request status** pill beside it, and the
+`redactPartnerRequestRefs`) with its **request status** pill beside it, and the
 **customer** underneath. The customer is present only where that request
 carries `share_customer_details` — `listPortalItemLines` doesn't even query a
 customer for a request without it, so the disclosure rule holds at the read,
 not just at the render. The name is a link to
-`/portal/:supplierId/requests/:arId`.
+`/partner/:id/requests/:arId`.
 
 Each row belongs to a **different request**, so a write names its own: the
 view's `onPatch` takes the whole line and PATCHes
-`/api/portal/:supplierId/requests/:arId`. Answering refetches both lists — the
+`/api/partner/:id/requests/:arId`. Answering refetches both lists — the
 group's counts and subtotal here, and the request cards behind the switch,
 because the answer also moves that request to `processing`, which the Job
 cell's own pill shows.
@@ -516,7 +543,7 @@ the request's editable cells, and a drag that started inside a text input would
 fight selecting the text in it.
 
 Dragging an ask by its job name onto a mapped group sets that line's
-`mapped_inventory_id` to the group's row — `PATCH /api/portal/:supplierId/requests/:arId` with
+`mapped_inventory_id` to the group's row — `PATCH /api/partner/:id/requests/:arId` with
 `{itemId, mappedInventoryId}`, then a refetch, because both the group it leaves
 and the group it lands in are derived from the mapping. The receiving group is
 kept open, so the line is visible where it landed.
@@ -543,7 +570,7 @@ does not write them. Until one line is mapped, By item is a read-only
 regrouping of the asks by name.
 
 The read behind it is `listPortalItemLines()` →
-`GET /api/portal/:supplierId/items`, fetched only once By item is asked for. It
+`GET /api/partner/:id/items`, fetched only once By item is asked for. It
 is deliberately **not** `AR_ITEM_COLUMNS`: that list is shared with the portal's
 other reads, and the mapping rides on its own.
 
@@ -1852,7 +1879,7 @@ so the harness re-checks its own session there.
 
 `proxy.ts` (Next 16's replacement for `middleware`) gates every route except
 `/login`, `/api/auth/*`, the public artifact path (*Agent artifacts*) and the
-supplier portal (`/portal`, `/api/portal` — suppliers are not harness users and
+supplier portal (`/portal`, `/api/partner` — suppliers are not harness users and
 portal auth is a deliberately deferred step; see *Supplier portal*), and
 **verifies the session rather than just looking for the cookie**: `pi_sid` is a
 signed stateless token, so it calls the harness `/api/auth/me` with the incoming
@@ -1894,7 +1921,8 @@ screen. No library — a manifest, a service worker, and Chrome's
 | `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
 | `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
 | `components/pwa/install-app-button.tsx` | The manual entry point, rendered in the desktop rail and mobile ⋯ More. |
-| Shell / Portal **Reload** entry | Rail row / ⋯ More item (admin Shell and supplier portal alike) shown only when `usePWA().isStandalone` — an installed window has no browser toolbar, so this is the one way to reload. Plain `window.location.reload()`. |
+| Frame **Reload** entry | `WorkspaceFrame` rail row / ⋯ More item (so both apps) shown only when `usePWA().isStandalone` — an installed window has no browser toolbar, so this is the one way to reload. Plain `window.location.reload()`. **Install app** is its complement, drawn only when *not* standalone. |
+| `isStandalone` | "Not a browser tab": `display-mode: browser` is false (Chrome reports the installed window as standalone / minimal-ui / window-controls-overlay by version) or iOS `navigator.standalone`. Remembered in `sessionStorage` (`lps.pwa.standalone`) for the window's lifetime, because a plain standalone match was seen flipping false after an in-app reload. |
 | `components/pwa/ios-install-modal.tsx` | Safari has no install API, so iOS gets Share → Add to Home Screen instructions. |
 | `public/lps-cactus-icon-{192,512}.png`, `lps-cactus-apple-touch-icon.png` | CR's purple LPS flowering-cactus mark for browser/iOS home-screen icons. |
 | `public/lps-cactus-icon-maskable-512.png` | Android maskable variant: the full cactus stays inside the safe zone on a solid sampled-purple square. |
@@ -1947,7 +1975,7 @@ app/
   api/           suppliers, suppliers/[id], plants, photos, photos/[id]/image,
                  customers, customers/[id], requests, requests/[id],
                  requests/[id]/changelog, availability-requests (+/[id],
-                 /suppliers), portal/[supplierId] (+ requests/[arId],
+                 /suppliers), partner/[id] (+ requests/[arId],
                  /submit), file, rows, chat/[...path],
                  harness/[...path] (allowlisted admin proxy — see *Settings*)
   a/[agent]/     agent artifacts: public/ pass-through, private/ page +
@@ -1955,7 +1983,7 @@ app/
   suppliers/     list (one row per company) + [id] profile (one page per company)
   customers/     list (a table) + [id] page (details card, Requests / Orders tabs)
   requests/      job requests, one card per request
-  portal/[supplierId]/  the supplier portal: the request list (four tabs),
+  partner/[id]/        the supplier portal: the request list (four tabs),
                  requests/[arId] (one request, answered and submitted) and
                  orders (drawn empty — see *Deliberate deviations*)
   plants/        plant search, one card per company
@@ -1981,7 +2009,12 @@ components/
   pwa/           install: provider (SW + beforeinstallprompt), auto popup,
                  rail/menu button, iOS instructions modal
   workspace/
-    shell.tsx        nav rail, header, mobile tab bar, theme, session user, toasts
+    frame.tsx        WorkspaceFrame — the one layout both apps fill in: viewport
+                     container, header, nav rail + shared footer, page column
+                     (pull-to-refresh, toasts), ⋯ More menu, bottom tab bar;
+                     useTheme / useIsMobile / useToast
+    shell.tsx        the admin app's fill-in: destinations, agent chat, bell,
+                     session user, supplier-view picker, appearance contexts
     chat.tsx         agent chat: docked panel / rail / mobile sheet, polling,
                      composer (attach, paste, voice), markdown subset
     editable.tsx     click-to-edit text/textarea, shared by Job Requests and
@@ -2007,9 +2040,9 @@ components/
                      lines grouped by plant, each group expanding into
                      ARLineTable itself with a Job leading column, which is
                      also the drag handle that maps a line to a catalogue row
-    portal.tsx       the supplier portal's Shell-like chrome (left nav rail /
-                     bottom bar, right-docked chat with attachments + voice,
-                     theme, disabled Settings+Log out)
+    partner.tsx      the supplier portal's fill-in of the same frame (identity,
+                     three destinations, right-docked chat with attachments +
+                     voice, its own bell, disabled Settings+Log out)
     toolbar.tsx      search box, multi-select filter chips, count summary
     search-loader.tsx  sprouting-seedlings loader + overlay for ongoing searches
     icons.tsx        the design's icon set

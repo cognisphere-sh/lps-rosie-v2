@@ -77,7 +77,7 @@ const FIELDS: ProfileFieldDefinition[] = [
   { key: 'availability_update_days', label: 'Update every (days)', column: 'availability_update_days' },
   { key: 'hosted_availability_url', label: 'Hosted availability', column: 'hosted_availability_url' },
   // The partner flag (migrations 0062/0074): an LPS Partner answers availability
-  // requests at /portal/<id>; everyone else is reached through daisy's channels.
+  // requests at /partner/<id>; everyone else is reached through daisy's channels.
   { key: 'is_lps_partner', label: 'LPS Partner', column: 'is_lps_partner', options: ['true', 'false'] },
   { key: 'item_count', label: 'Active items' },
   { key: 'last_ingestion_date', label: 'Last inventory ingestion' },
@@ -1571,7 +1571,7 @@ export default function SupplierProfilePage() {
                   </span>
                   <div className="ml-auto flex items-center gap-2">
                     <a
-                      href={`/portal/${openAr.supplierId}/requests/${openAr.id}`}
+                      href={`/partner/${openAr.supplierId}/requests/${openAr.id}`}
                       target="_blank"
                       rel="noreferrer"
                       className="text-[11.5px] font-semibold text-primary underline"

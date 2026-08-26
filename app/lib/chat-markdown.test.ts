@@ -5,7 +5,7 @@ import {
   chatMarkdownPlainText, joinLineBrokenMarkdownLinks, splitBareHttpUrl, splitChatMarkdownBlocks,
   tokenizeChatInline, transformChatInlineText,
 } from './chat-markdown.ts'
-import { redactPortalRequestRefs } from './portal-display.ts'
+import { redactPartnerRequestRefs } from './partner-display.ts'
 
 test('splits labelled fenced code from surrounding prose', () => {
   assert.deepEqual(splitChatMarkdownBlocks('Before\n```text\nfirst\nsecond\n```\nAfter'), [
@@ -67,7 +67,7 @@ test('transforms visible markdown text without changing destinations or action t
 test('copies redacted visible text without corrupting or leaking an unsafe href', () => {
   const copied = chatMarkdownPlainText(
     '[Open AR-7](https://example.com/AR-6) and [safe docs](https://example.com/docs) [Open AR #8](ar:8)',
-    redactPortalRequestRefs,
+    redactPartnerRequestRefs,
   )
   assert.equal(
     copied,

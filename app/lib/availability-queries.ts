@@ -8,7 +8,7 @@ import type {
   SupplierLink,
 } from '@/lib/availability'
 import { AR_RESPONSES } from '@/lib/availability'
-import { redactPortalRequestRefs } from '@/lib/portal-display'
+import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { supabase } from '@/lib/supabase'
 
 // The reads and writes behind availability requests (migration 0062).
@@ -584,7 +584,7 @@ export async function listLpsPartners(): Promise<
 }
 
 /** The portal's idea of its supplier: must exist, be active, and be an LPS Partner. */
-export async function portalSupplier(id: number): Promise<{ id: number; name: string } | null> {
+export async function partnerSupplier(id: number): Promise<{ id: number; name: string } | null> {
   const { data, error } = await supabase
     .from('suppliers')
     .select('id, name, is_lps_partner')
@@ -735,7 +735,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
       arStatus: ar.status,
       arCreatedAt: ar.created_at,
       // The same name and redaction the portal's own cards use.
-      arName: jobName ? redactPortalRequestRefs(jobName) : 'Availability request',
+      arName: jobName ? redactPartnerRequestRefs(jobName) : 'Availability request',
       arCustomer: ar.share_customer_details
         ? customerByJob.get(ar.job_request_id) ?? null
         : null,

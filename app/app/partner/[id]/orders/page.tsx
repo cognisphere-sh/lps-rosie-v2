@@ -8,21 +8,21 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-import { PortalFrame, type PortalAlert } from '@/components/workspace/portal'
-import { redactPortalRequestRefs } from '@/lib/portal-display'
+import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
+import { redactPartnerRequestRefs } from '@/lib/partner-display'
 
-export default function PortalOrdersPage() {
-  const params = useParams<{ supplierId: string }>()
-  const supplierId = Number.parseInt(params.supplierId, 10)
+export default function PartnerOrdersPage() {
+  const params = useParams<{ id: string }>()
+  const supplierId = Number.parseInt(params.id, 10)
   const [supplierName, setSupplierName] = useState<string | null>(null)
   // The header bell is on every portal page, so this tab loads the same
   // unanswered-request list the Requests tab shows.
-  const [alerts, setAlerts] = useState<PortalAlert[]>([])
+  const [alerts, setAlerts] = useState<PartnerAlert[]>([])
 
   useEffect(() => {
     if (!Number.isInteger(supplierId)) return
     void (async () => {
-      const res = await fetch(`/api/portal/${supplierId}`)
+      const res = await fetch(`/api/partner/${supplierId}`)
       if (res.ok) {
         const body = (await res.json()) as {
           supplier: { name: string }
@@ -34,7 +34,7 @@ export default function PortalOrdersPage() {
             .filter((request) => request.status === 'new')
             .map((request) => ({
               id: request.id,
-              label: request.jobName ? redactPortalRequestRefs(request.jobName) : 'Availability request',
+              label: request.jobName ? redactPartnerRequestRefs(request.jobName) : 'Availability request',
               at: Date.parse(request.createdAt),
             })),
         )
@@ -43,13 +43,13 @@ export default function PortalOrdersPage() {
   }, [supplierId])
 
   return (
-    <PortalFrame
+    <PartnerFrame
       supplierId={supplierId}
       supplierName={supplierName}
       tab="orders"
       title="Orders"
       alerts={alerts}
-      onOpenAlert={() => { window.location.href = `/portal/${supplierId}` }}
+      onOpenAlert={() => { window.location.href = `/partner/${supplierId}` }}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-5 md:p-4">
         <div className="flex flex-col items-center gap-2 py-16 text-center">
@@ -59,6 +59,6 @@ export default function PortalOrdersPage() {
           </span>
         </div>
       </div>
-    </PortalFrame>
+    </PartnerFrame>
   )
 }

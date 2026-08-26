@@ -1,7 +1,7 @@
 'use client'
 
 // The chat primitives the operator's agent panel (`chat.tsx`) and the supplier
-// portal's chat column (`portal.tsx`) both draw from: markdown bubbles, the
+// portal's chat column (`partner.tsx`) both draw from: markdown bubbles, the
 // voice-note player, attachments, the composer with its recorder, and the
 // scrolling transcript. Everything here is transport-agnostic — the caller
 // supplies the endpoints (file hrefs, upload) and the copy.

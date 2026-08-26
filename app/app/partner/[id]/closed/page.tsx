@@ -6,30 +6,30 @@
 // is something you look up. No tabs and no filters here either; the page is
 // one list, newest first.
 //
-// The cards are the requests page's own (`PortalRequestCard`) and still open
+// The cards are the requests page's own (`PartnerRequestCard`) and still open
 // the request, which reads as closed and read-only when it gets there.
 
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
-  PortalFrame,
-  PortalRequestCard,
-  portalRequestName,
-  type PortalAlert,
-} from '@/components/workspace/portal'
+  PartnerFrame,
+  PartnerRequestCard,
+  partnerRequestName,
+  type PartnerAlert,
+} from '@/components/workspace/partner'
 import { type ARDetail } from '@/lib/availability'
 
-export default function PortalClosedPage() {
-  const params = useParams<{ supplierId: string }>()
-  const supplierId = Number.parseInt(params.supplierId, 10)
+export default function PartnerClosedPage() {
+  const params = useParams<{ id: string }>()
+  const supplierId = Number.parseInt(params.id, 10)
 
   const [supplierName, setSupplierName] = useState<string | null>(null)
   const [requests, setRequests] = useState<ARDetail[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/portal/${supplierId}`)
+    const res = await fetch(`/api/partner/${supplierId}`)
     if (!res.ok) {
       setState('missing')
       return
@@ -51,16 +51,16 @@ export default function PortalClosedPage() {
   const closed = useMemo(() => requests.filter((r) => r.status === 'closed'), [requests])
 
   /** The bell is on every portal page, and still lists the unanswered ones. */
-  const alerts: PortalAlert[] = useMemo(
+  const alerts: PartnerAlert[] = useMemo(
     () =>
       requests
         .filter((r) => r.status === 'new')
-        .map((r) => ({ id: r.id, label: portalRequestName(r), at: Date.parse(r.createdAt) })),
+        .map((r) => ({ id: r.id, label: partnerRequestName(r), at: Date.parse(r.createdAt) })),
     [requests],
   )
 
   return (
-    <PortalFrame
+    <PartnerFrame
       supplierId={supplierId}
       supplierName={supplierName}
       tab="closed"
@@ -71,7 +71,7 @@ export default function PortalClosedPage() {
           : undefined
       }
       alerts={alerts}
-      onOpenAlert={(id) => { window.location.href = `/portal/${supplierId}/requests/${id}` }}
+      onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
         {state === 'missing' && (
@@ -90,10 +90,10 @@ export default function PortalClosedPage() {
         )}
 
         {closed.map((r) => (
-          <PortalRequestCard
+          <PartnerRequestCard
             key={r.id}
             request={r}
-            href={`/portal/${supplierId}/requests/${r.id}`}
+            href={`/partner/${supplierId}/requests/${r.id}`}
           />
         ))}
 
@@ -101,6 +101,6 @@ export default function PortalClosedPage() {
           <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
         )}
       </div>
-    </PortalFrame>
+    </PartnerFrame>
   )
 }

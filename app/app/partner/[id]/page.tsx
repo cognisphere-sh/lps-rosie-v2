@@ -8,18 +8,18 @@
 // supplier's list is short enough that search and chips cost more than they
 // find. **Closed requests are not on this page at all**, not even under All:
 // they live at ./closed, their own rail destination. The conversation is the docked chat sidebar (one thread per supplier),
-// not part of any card. See app/api/portal/[supplierId]/route.ts for the auth
+// not part of any card. See app/api/partner/[supplierId]/route.ts for the auth
 // caveat — these pages are outside the session gate until supplier auth lands.
 
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
-  PortalFrame,
-  PortalRequestCard,
-  portalRequestName,
-  type PortalAlert,
-} from '@/components/workspace/portal'
+  PartnerFrame,
+  PartnerRequestCard,
+  partnerRequestName,
+  type PartnerAlert,
+} from '@/components/workspace/partner'
 import { SupplierItemGroups } from '@/components/workspace/supplier-items'
 import { arStatusTone, type ARDetail, type SupplierItemLine } from '@/lib/availability'
 import { cn } from '@/lib/utils'
@@ -51,9 +51,9 @@ const VIEWS = [
 ] as const
 type ViewId = (typeof VIEWS)[number]['id']
 
-export default function PortalHomePage() {
-  const params = useParams<{ supplierId: string }>()
-  const supplierId = Number.parseInt(params.supplierId, 10)
+export default function PartnerHomePage() {
+  const params = useParams<{ id: string }>()
+  const supplierId = Number.parseInt(params.id, 10)
 
   const [supplierName, setSupplierName] = useState<string | null>(null)
   const [requests, setRequests] = useState<ARDetail[]>([])
@@ -63,7 +63,7 @@ export default function PortalHomePage() {
   const [itemLines, setItemLines] = useState<SupplierItemLine[] | null>(null)
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/portal/${supplierId}`)
+    const res = await fetch(`/api/partner/${supplierId}`)
     if (!res.ok) {
       setState('missing')
       return
@@ -89,7 +89,7 @@ export default function PortalHomePage() {
    * only once that view is asked for. The page opens on By request.
    */
   const loadItemLines = useCallback(async () => {
-    const res = await fetch(`/api/portal/${supplierId}/items`, { cache: 'no-store' })
+    const res = await fetch(`/api/partner/${supplierId}/items`, { cache: 'no-store' })
     if (res.ok) setItemLines(((await res.json()) as { lines: SupplierItemLine[] }).lines)
   }, [supplierId])
 
@@ -105,7 +105,7 @@ export default function PortalHomePage() {
    */
   const patchItemLine = useCallback(
     async (line: SupplierItemLine, changes: Record<string, string>) => {
-      const res = await fetch(`/api/portal/${supplierId}/requests/${line.arId}`, {
+      const res = await fetch(`/api/partner/${supplierId}/requests/${line.arId}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ itemId: line.id, changes }),
@@ -124,7 +124,7 @@ export default function PortalHomePage() {
    */
   const mapItemLine = useCallback(
     async (line: SupplierItemLine, inventoryId: string) => {
-      const res = await fetch(`/api/portal/${supplierId}/requests/${line.arId}`, {
+      const res = await fetch(`/api/partner/${supplierId}/requests/${line.arId}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ itemId: line.id, mappedInventoryId: inventoryId }),
@@ -150,11 +150,11 @@ export default function PortalHomePage() {
   }, [requests])
 
   /** What the header bell lists: every request still waiting to be answered. */
-  const alerts: PortalAlert[] = useMemo(
+  const alerts: PartnerAlert[] = useMemo(
     () =>
       requests
         .filter((r) => r.status === 'new')
-        .map((r) => ({ id: r.id, label: portalRequestName(r), at: Date.parse(r.createdAt) })),
+        .map((r) => ({ id: r.id, label: partnerRequestName(r), at: Date.parse(r.createdAt) })),
     [requests],
   )
 
@@ -175,7 +175,7 @@ export default function PortalHomePage() {
 
   if (state === 'missing') {
     return (
-      <PortalFrame
+      <PartnerFrame
         supplierId={supplierId}
         supplierName={supplierName}
         tab="requests"
@@ -186,12 +186,12 @@ export default function PortalHomePage() {
             This portal link isn&apos;t active. Please check with your Local Plant Supply contact.
           </p>
         </div>
-      </PortalFrame>
+      </PartnerFrame>
     )
   }
 
   return (
-    <PortalFrame
+    <PartnerFrame
       supplierId={supplierId}
       supplierName={supplierName}
       tab="requests"
@@ -199,7 +199,7 @@ export default function PortalHomePage() {
       // The header's running total, over everything — the tab doesn't change it.
       subtitle={`${stats.newJobs} ${stats.newJobs === 1 ? 'new job' : 'new jobs'} · ${stats.pendingRows} rows pending · ${stats.unavailableRows} rows unavailable`}
       alerts={alerts}
-      onOpenAlert={(id) => { window.location.href = `/portal/${supplierId}/requests/${id}` }}
+      onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       toolbar={
         /* The tabs sit where the toolbar used to, pinned under the header: one
            segmented control, label over count, the count in the tab's own tone
@@ -264,7 +264,7 @@ export default function PortalHomePage() {
           ) : (
             <SupplierItemGroups
               lines={itemLines}
-              hrefFor={(line) => `/portal/${supplierId}/requests/${line.arId}`}
+              hrefFor={(line) => `/partner/${supplierId}/requests/${line.arId}`}
               onMap={mapItemLine}
               onPatch={patchItemLine}
             />
@@ -285,10 +285,10 @@ export default function PortalHomePage() {
         )}
 
         {shown.map((r) => (
-          <PortalRequestCard
+          <PartnerRequestCard
             key={r.id}
             request={r}
-            href={`/portal/${supplierId}/requests/${r.id}`}
+            href={`/partner/${supplierId}/requests/${r.id}`}
           />
         ))}
 
@@ -298,6 +298,6 @@ export default function PortalHomePage() {
           </>
         )}
       </div>
-    </PortalFrame>
+    </PartnerFrame>
   )
 }

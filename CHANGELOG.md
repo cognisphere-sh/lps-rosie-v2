@@ -20,9 +20,43 @@ here).
 ### Added
 
 - **Reload button for the installed app.** The nav rail (and mobile ⋯ More
-  menu) of both the admin app and the supplier portal gains a **Reload** entry, shown only when running as an installed PWA
+  menu) gains a **Reload** entry, shown only when running as an installed PWA
   — a standalone window has no browser toolbar, so on desktop there was no
-  way to refresh the page short of knowing Ctrl+R.
+  way to refresh the page short of knowing Ctrl+R. It first landed in the
+  admin Shell only, and the portal — which has its own rail — didn't get it;
+  that gap is what the change below removes.
+  Later the same day: **Install app is hidden inside the installed window**
+  (it and Reload are complements), and the standalone check became "not a
+  browser tab" remembered per window in `sessionStorage` — Chrome's
+  `display-mode: standalone` match was seen flipping false after an in-app
+  reload, which made Reload vanish and Install app appear inside the app.
+
+### Changed
+
+- **The supplier portal now lives at `/partner/:id`** (was `/portal/:supplierId`).
+  `/portal/*` redirects permanently to `/partner/*`, so links already in
+  suppliers' inboxes keep working. The page routes moved
+  (`app/app/partner/[id]/…`) and so did the API (`/api/partner/:id/…`,
+  `app/app/api/partner/[id]/…`, no redirect — nothing outside the app calls
+  it). The files follow the name: `components/workspace/partner.tsx`,
+  `lib/partner-display.ts`, `lib/partner-chat.ts`, and their `Portal*`
+  exports are `Partner*` (`PartnerFrame`, `PartnerChat`,
+  `redactPartnerRequestRefs`, …). The proxy's public-prefix list, the admin
+  app's *Supplier view* and *Portal view* links, rosie's
+  `supplier-coordination` skill and the docs follow. Unchanged on purpose:
+  the words a supplier sees ("Supplier portal"), the `lps.portal.chat.v1`
+  panel preference, and the webchat plugin's `portal` visibility flag — those
+  are not paths.
+- **One workspace frame for both apps.** `components/workspace/frame.tsx`
+  (`WorkspaceFrame`) is now the layout — viewport container, header, nav rail
+  with the shared Dark mode / Install app / Reload footer, page column with
+  pull-to-refresh and toasts, mobile ⋯ More menu, bottom tab bar — and the
+  admin `Shell` and supplier `PortalFrame` are fill-ins of it through slots
+  rather than two copies of the same chrome. The portal thereby gains what it
+  had been missing: Install app, pull-to-refresh, toasts, the document scroll
+  lock, and a rail width preference (`lps.nav.open`) shared with the admin
+  app. `useTheme` / `useIsMobile` / `useToast` moved to the frame; `shell.tsx`
+  re-exports them, so pages import as before.
 - **By item — the portal's requests, grouped by plant.** The supplier portal's
   home gains a **By request / By item** switch. By request is unchanged: one
   card per job under the All / New / Processing / Submitted tabs. **By item**

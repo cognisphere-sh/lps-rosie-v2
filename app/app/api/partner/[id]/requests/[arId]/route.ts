@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import {
   availabilityRequest,
-  portalSupplier,
+  partnerSupplier,
   setARItemMapping,
   updateARItem,
 } from '@/lib/availability-queries'
@@ -14,7 +14,7 @@ async function scope(rawSupplier: string, rawAr: string) {
   const supplierId = Number.parseInt(rawSupplier, 10)
   const arId = Number.parseInt(rawAr, 10)
   if (!Number.isInteger(supplierId) || !Number.isInteger(arId)) return null
-  const supplier = await portalSupplier(supplierId)
+  const supplier = await partnerSupplier(supplierId)
   if (!supplier) return null
   return { supplierId, arId, supplier }
 }
@@ -22,9 +22,9 @@ async function scope(rawSupplier: string, rawAr: string) {
 /** One availability request, as the supplier may see it. */
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ supplierId: string; arId: string }> },
+  { params }: { params: Promise<{ id: string; arId: string }> },
 ) {
-  const { supplierId, arId } = await params
+  const { id: supplierId, arId } = await params
   try {
     const s = await scope(supplierId, arId)
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -48,9 +48,9 @@ export async function GET(
  */
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ supplierId: string; arId: string }> },
+  { params }: { params: Promise<{ id: string; arId: string }> },
 ) {
-  const { supplierId, arId } = await params
+  const { id: supplierId, arId } = await params
   try {
     const s = await scope(supplierId, arId)
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
