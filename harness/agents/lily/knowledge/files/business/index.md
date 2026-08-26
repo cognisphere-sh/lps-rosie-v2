@@ -12,7 +12,4 @@ software does today: `../../../../../app/`, `docs/app/`, `docs/harness/` and
 
 ## Files
 
-(none yet — write one when you actually know something. The shapes the
-`feedback-loop` skill suggests: `operations.md` how an order really moves,
-`people.md` who does and decides what, `seasons.md` what the year does to the
-work, `friction.md` what keeps recurring and the log dates that evidence it.)
+- `operations.md` — how pricing, availability, and fulfilment identities relate during an order.
