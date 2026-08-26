@@ -9,6 +9,7 @@ import {
 } from 'react'
 
 import { InstallAppButton } from '@/components/pwa/install-app-button'
+import { usePWA } from '@/components/pwa/pwa-provider'
 import { AvailabilityRequestDrawer } from '@/components/workspace/ar-drawer'
 import { AgentChat } from '@/components/workspace/chat'
 import { onOpenChat, openChat } from '@/lib/chat-bus'
@@ -179,6 +180,7 @@ export function Shell({
   const isMobile = useIsMobile()
   const { dark, toggle } = useTheme()
   const user = useSessionUser()
+  const { isStandalone } = usePWA()
   const [navOpen, setNavOpen] = useState(false)
   const [desktopChatFull, setDesktopChatFull] = useState(false)
   const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
@@ -511,6 +513,15 @@ export function Shell({
                   {navOpen && <span>Install app</span>}
                 </InstallAppButton>
 
+                {isStandalone && (
+                  // An installed app window has no browser toolbar, so nothing
+                  // else on screen can reload it.
+                  <button type="button" onClick={() => window.location.reload()} title="Reload" className={railBtn(false)}>
+                    <span className="flex size-4 flex-none items-center justify-center"><RefreshCw size={15} /></span>
+                    {navOpen && <span>Reload</span>}
+                  </button>
+                )}
+
                 <Link href="/agents" title="Know your Agents" className={railBtn(page === 'agents')}>
                   <span className="flex size-4 flex-none items-center justify-center"><AgentsIcon /></span>
                   {navOpen && <span>Know your Agents</span>}
@@ -800,6 +811,16 @@ export function Shell({
                     <InstallIcon size={14} />
                     Install app
                   </InstallAppButton>
+                  {isStandalone && (
+                    <button
+                      type="button"
+                      onClick={() => window.location.reload()}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+                    >
+                      <RefreshCw size={14} />
+                      Reload
+                    </button>
+                  )}
                   <Link
                     href="/agents"
                     onClick={leaveMoreMenu}

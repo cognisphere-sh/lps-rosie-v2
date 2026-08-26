@@ -19,6 +19,52 @@ here).
 
 ### Added
 
+- **Reload button for the installed app.** The nav rail (and mobile ⋯ More
+  menu) of both the admin app and the supplier portal gains a **Reload** entry, shown only when running as an installed PWA
+  — a standalone window has no browser toolbar, so on desktop there was no
+  way to refresh the page short of knowing Ctrl+R.
+- **By item — the portal's requests, grouped by plant.** The supplier portal's
+  home gains a **By request / By item** switch. By request is unchanged: one
+  card per job under the All / New / Processing / Submitted tabs. **By item**
+  is one card per plant, across every open request that asked for it — the
+  question the per-request list can't answer, because a plant is spread over
+  all of them. A card carries the plant's name and size, the same answer strip
+  a request card shows (counts per answer, line count, subtotal) computed over
+  the group, and the ask count. **The status tabs are hidden under By item**,
+  deliberately: a status is a fact about a request, and that view is grouping
+  plants.
+- **The expanded rows are the request's line table — the same component, and
+  editable.** `ARLineTable` gained an optional **leading column**
+  (`leadingHeader` + `renderLeading`); everything after it is untouched, so the
+  request page's table and this one are the same table, with the same status
+  picker and answer dialog, the same inline Avail qty / Price / Notes cells,
+  the same tone accent, row tint and subtotal footer. **A line is answered here
+  exactly as it is answered on its own request's page** — a supplier working
+  plant by plant no longer opens six requests to say the same thing six times.
+  The leading column is **Job**: the request's name (redacted) with its status
+  pill, linking to the request, and the customer beneath it where the request
+  shares customer details — a request without the flag is never even queried
+  for one. Each row belongs to a different request, so a write names its own,
+  and answering refetches both lists because it also moves that request to
+  `processing`.
+- **Dragging an ask onto a catalogue row groups it under that row**, writing
+  `availability_request_items.mapped_inventory_id` through
+  `setARItemMapping()` — kept a separate entry point from the four answer
+  columns, so a mapping can never ride in on an answer write or the reverse
+  (`{changes: {mapped_inventory_id}}` is still refused). **The handle is the
+  Job cell, not the row** — the rest of the row is editable, and a drag begun
+  in a text input would fight selecting its text. Only mapped groups take a
+  drop, a group never takes a line it already holds, and the row must
+  belong to the supplier's own company (`head_branch_id`). **This makes the
+  mapping the one column of ours a supplier can move** — it says which of
+  their rows an ask is about, never what they are answering. A supplier with
+  nothing mapped has no drop targets, and By item is a read-only regrouping by
+  name until rosie seeds one at share time.
+- `GET /api/portal/:supplierId/items` behind it (`listPortalItemLines`),
+  scoped by `portalSupplier` like every other portal read and deliberately not
+  on the shared `AR_ITEM_COLUMNS`. `groupSupplierItems()` is unit-tested in
+  `lib/availability.test.ts`.
+
 - **The mapped plant is written down.** `availability_request_items` gains
   **`mapped_inventory_id`** (uuid → `inventory.id`, ON DELETE SET NULL,
   migration 0077): the supplier's own catalogue row our look-up matched to a

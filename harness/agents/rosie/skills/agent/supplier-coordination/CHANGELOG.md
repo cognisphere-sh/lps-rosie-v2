@@ -1,5 +1,20 @@
 # supplier-coordination — changelog
 
+## 1.8.0
+
+2026-08-26 (Bhoumik, same day as 1.7.0) — §2's mapping bullet catches up with
+the app, and reverses what 1.7.0 said about who can see the column. The
+**supplier's portal** has a **By item** view that groups their open asks by the
+catalogue row each maps to — and lets them answer the group together, in the
+same line table the request's own page uses — and they place a line by dragging
+its job name onto one of their own rows. So `mapped_inventory_id` is supplier-visible *and*
+supplier-writable — the only column of ours that is. Two consequences for this
+thread: what you write at share time is what that view opens on, and **a
+mapping the supplier set themselves stands** — it is better evidence than our
+look-up was, so never overwrite one with a search of your own; ask them if it
+looks wrong. Their *answer* is unchanged: `status`, `available_quantity`,
+`unit_price`, `notes`, and nothing else.
+
 ## 1.7.0
 
 2026-08-26 (Bhoumik, same day as 1.6.0) — §2 gains

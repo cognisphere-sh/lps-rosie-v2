@@ -20,7 +20,8 @@ import {
   portalRequestName,
   type PortalAlert,
 } from '@/components/workspace/portal'
-import { arStatusTone, type ARDetail } from '@/lib/availability'
+import { SupplierItemGroups } from '@/components/workspace/supplier-items'
+import { arStatusTone, type ARDetail, type SupplierItemLine } from '@/lib/availability'
 import { cn } from '@/lib/utils'
 
 /**
@@ -36,6 +37,20 @@ const TABS = [
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
+/**
+ * The two ways the same workload is cut. **By request** is one card per job —
+ * what that job wants. **By item** is one card per plant, across every request
+ * that asked for it, which is the question the per-request list cannot answer.
+ *
+ * The status tabs belong to By request alone: a status is a fact about a
+ * request, and By item is not looking at requests.
+ */
+const VIEWS = [
+  { id: 'request', label: 'By request' },
+  { id: 'item', label: 'By item' },
+] as const
+type ViewId = (typeof VIEWS)[number]['id']
+
 export default function PortalHomePage() {
   const params = useParams<{ supplierId: string }>()
   const supplierId = Number.parseInt(params.supplierId, 10)
@@ -44,6 +59,8 @@ export default function PortalHomePage() {
   const [requests, setRequests] = useState<ARDetail[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [tab, setTab] = useState<TabId>('all')
+  const [view, setView] = useState<ViewId>('request')
+  const [itemLines, setItemLines] = useState<SupplierItemLine[] | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/portal/${supplierId}`)
@@ -66,6 +83,56 @@ export default function PortalHomePage() {
     }
     void load().catch(() => setState('missing'))
   }, [supplierId, load])
+
+  /**
+   * The lines behind By item — a second read over the same workload, fetched
+   * only once that view is asked for. The page opens on By request.
+   */
+  const loadItemLines = useCallback(async () => {
+    const res = await fetch(`/api/portal/${supplierId}/items`, { cache: 'no-store' })
+    if (res.ok) setItemLines(((await res.json()) as { lines: SupplierItemLine[] }).lines)
+  }, [supplierId])
+
+  useEffect(() => {
+    if (view !== 'item' || !Number.isInteger(supplierId)) return
+    void loadItemLines().catch(() => {})
+  }, [view, supplierId, loadItemLines])
+
+  /**
+   * One line's answer, from the By-item view. Each row there belongs to its
+   * own request, so the line names the one to write to — otherwise identical
+   * to what the request's own page does, because it is the same table.
+   */
+  const patchItemLine = useCallback(
+    async (line: SupplierItemLine, changes: Record<string, string>) => {
+      const res = await fetch(`/api/portal/${supplierId}/requests/${line.arId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ itemId: line.id, changes }),
+      })
+      if (!res.ok) return
+      // Both lists are derived from the answer — the group's counts and
+      // subtotal here, and the request's status and counts on the cards.
+      await Promise.all([loadItemLines().catch(() => {}), load().catch(() => {})])
+    },
+    [supplierId, loadItemLines, load],
+  )
+
+  /**
+   * Group one line under a catalogue row, then re-read: the group it lands in
+   * and the group it left are both derived from the mapping.
+   */
+  const mapItemLine = useCallback(
+    async (line: SupplierItemLine, inventoryId: string) => {
+      const res = await fetch(`/api/portal/${supplierId}/requests/${line.arId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ itemId: line.id, mappedInventoryId: inventoryId }),
+      })
+      if (res.ok) await loadItemLines().catch(() => {})
+    },
+    [supplierId, loadItemLines],
+  )
 
   /** The header's overall stats, over everything — the tab doesn't change them. */
   const stats = useMemo(() => {
@@ -136,8 +203,29 @@ export default function PortalHomePage() {
       toolbar={
         /* The tabs sit where the toolbar used to, pinned under the header: one
            segmented control, label over count, the count in the tab's own tone
-           so the list can be triaged without reading it. */
-        <div className="flex-none border-b border-border bg-card px-3 py-2.5 md:px-4">
+           so the list can be triaged without reading it. Above them, the view
+           switch — and under By item the tabs are gone entirely, because a
+           status is a fact about a request and that view is grouping plants. */
+        <div className="flex flex-none flex-col gap-2 border-b border-border bg-card px-3 py-2.5 md:px-4">
+          <div className="flex w-fit gap-1 rounded-lg border border-border bg-secondary/45 p-0.5">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setView(v.id)}
+                aria-pressed={view === v.id}
+                className={cn(
+                  'cursor-pointer rounded-[6px] border px-2.5 py-1 text-[11.5px] font-semibold',
+                  view === v.id
+                    ? 'border-border bg-card text-foreground shadow-sm'
+                    : 'border-transparent bg-transparent text-muted-foreground hover:bg-lps-tint',
+                )}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          {view === 'request' && (
           <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/45 p-1">
             {TABS.map((t) => (
               <button
@@ -162,6 +250,7 @@ export default function PortalHomePage() {
               </button>
             ))}
           </div>
+          )}
         </div>
       }
     >
@@ -169,6 +258,19 @@ export default function PortalHomePage() {
           the scroll container — the same shape the admin Job Requests page
           builds inside the Shell. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
+        {view === 'item' ? (
+          itemLines == null ? (
+            <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+          ) : (
+            <SupplierItemGroups
+              lines={itemLines}
+              hrefFor={(line) => `/portal/${supplierId}/requests/${line.arId}`}
+              onMap={mapItemLine}
+              onPatch={patchItemLine}
+            />
+          )
+        ) : (
+          <>
         {state === 'ready' && shown.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <span className="text-[14px] font-semibold text-foreground">
@@ -192,6 +294,8 @@ export default function PortalHomePage() {
 
         {state === 'loading' && (
           <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
+        )}
+          </>
         )}
       </div>
     </PortalFrame>

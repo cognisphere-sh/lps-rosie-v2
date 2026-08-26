@@ -243,7 +243,8 @@ in the desktop rail and through mobile More.
 | `GET·PATCH /api/availability-requests/:id` | One request whole (admin view — no disclosure filter), and the admin writes: `{status}` (usually → `closed`), or `{itemId, changes}` for one line's answer — the same four writable columns the portal PATCH takes, through the same `updateARItem` scoping minus the supplier check, so a closed request still refuses. A `{status}` write also maintains `submitted_at` — stamped on `submitted`, cleared on `new`, untouched on `closed`. |
 | `GET /api/availability-requests/suppliers` | The LPS Partners — the create dialog's dropdown and the nav rail's Supplier view picker. |
 | `GET /api/portal/:supplierId` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not an LPS Partner, which is the scoping rule every portal route starts with. |
-| `GET·PATCH /api/portal/:supplierId/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A request belonging to another supplier answers 404, not 403. A PATCH also moves the request to `processing` — the supplier is working on it — which the admin's own PATCH deliberately does not. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
+| `GET /api/portal/:supplierId/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
+| `GET·PATCH /api/portal/:supplierId/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. A PATCH also moves the request to `processing` — the supplier is working on it — which the admin's own PATCH deliberately does not. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
 | `POST /api/portal/:supplierId/requests/:arId/submit` | The request page's **Submit** / **Re-Submit**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
 | `GET·POST /api/portal/:supplierId/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
@@ -445,6 +446,106 @@ tabs are:
 (`PortalRequestCard`) along with `portalRequestName` / `portalCustomerLabel`,
 so the open list, the Closed page and the request page's own title cannot drift
 apart.
+
+## By item — the portal's requests, grouped by plant
+
+The portal home (`/portal/:supplierId`) carries a **By request / By item**
+switch above the tabs. Both draw the same open workload; they differ in what a
+card is.
+
+**By request** is unchanged — one card per job, under the All / New /
+Processing / Submitted tabs. **By item** is one card per plant, with the asks
+underneath: the question the per-request list can't answer, because a plant is
+spread across every request that wanted it.
+
+**The status tabs are hidden under By item**, deliberately: a status is a fact
+about a request, and that view is grouping plants. Closed requests are absent
+from both, as they are from the whole home page — they live at `./closed`.
+
+A group is one of two things, and the difference is the point:
+
+| Group | Keyed by | What it means |
+|---|---|---|
+| **Mapped** (*your catalogue*) | `mapped_inventory_id` (`inv:<uuid>`) | A real row of this supplier's catalogue. Every line in it is the same offering at the same size, whatever each request typed. Headed by the **row's** name and size — the lines disagree, and none of them wins |
+| **Unmapped** (*unmatched*) | the item name, lowercased with inner whitespace collapsed (`name:<key>`) | A shared spelling and nothing more. Its "size" is the distinct sizes actually asked (`15 G · 30 G`) — several sizes is the tell that the group is a spelling, not an offering |
+
+**Mapped groups sort first**, then unmapped, each side alphabetical — they are
+the drop targets, and interleaving them with the names they exist to absorb
+would scatter the targets through the list.
+
+Each card carries the plant's name and size, the same **answer strip** a
+request card shows (`ARResponseSummary` — every answer with its count, then the
+line count and the subtotal) computed over the group's lines, and the ask
+count.
+
+### The expanded rows *are* the request's line table
+
+Not a look-alike — the same `ARLineTable`, `editable`, with the same status
+picker and answer dialog, the same inline Avail qty / Price / Notes cells, the
+same tone accent and row tint, the same subtotal footer. **A line is answered
+here exactly as it is answered on its own request's page**, which is the point:
+a supplier working plant by plant shouldn't have to open six requests to say
+the same thing six times.
+
+`ARLineTable` gained one optional feature for this: a **leading column**,
+declared as a `leadingHeader` + `renderLeading` pair. Everything after it —
+Need · Size · Plant · Status · Avail qty · Price · Line total · Notes — is
+untouched, so the request page's table and this one are the same table. Without
+the pair the grid is exactly what it always was; the subtotal label's span
+shifts (`1 / 7` → `1 / 8`) so it still sits under Price either way.
+
+The leading column here is **Job**: the request's name (already redacted by
+`redactPortalRequestRefs`) with its **request status** pill beside it, and the
+**customer** underneath. The customer is present only where that request
+carries `share_customer_details` — `listPortalItemLines` doesn't even query a
+customer for a request without it, so the disclosure rule holds at the read,
+not just at the render. The name is a link to
+`/portal/:supplierId/requests/:arId`.
+
+Each row belongs to a **different request**, so a write names its own: the
+view's `onPatch` takes the whole line and PATCHes
+`/api/portal/:supplierId/requests/:arId`. Answering refetches both lists — the
+group's counts and subtotal here, and the request cards behind the switch,
+because the answer also moves that request to `processing`, which the Job
+cell's own pill shows.
+
+### Dragging a line onto a catalogue row
+
+**The drag handle is the Job cell, not the whole row** — the rest of the row is
+the request's editable cells, and a drag that started inside a text input would
+fight selecting the text in it.
+
+Dragging an ask by its job name onto a mapped group sets that line's
+`mapped_inventory_id` to the group's row — `PATCH /api/portal/:supplierId/requests/:arId` with
+`{itemId, mappedInventoryId}`, then a refetch, because both the group it leaves
+and the group it lands in are derived from the mapping. The receiving group is
+kept open, so the line is visible where it landed.
+
+Three rules, each with a reason:
+
+- **Only a mapped group takes a drop.** An unmapped group has no key to write.
+- **A group never takes a line it already holds** — that write is a no-op
+  dressed as a change.
+- **The catalogue row must belong to the same company** as the request's
+  supplier, checked server-side through `head_branch_id`. A company's farms are
+  one catalogue from the portal's point of view, so a cross-farm mapping within
+  the company is a real answer; a mapping to somebody else's row is refused.
+
+The write goes through `setARItemMapping()`, **not** `updateARItem()`'s
+`changes` whitelist. Keeping them apart is what stops a mapping riding in on an
+answer write or the reverse — `{"changes": {"mapped_inventory_id": …}}` is
+still refused, as it always was.
+
+**A supplier with nothing mapped has no drop targets** and cannot bootstrap the
+view: mappings are otherwise seeded by rosie's supplier thread at share time
+(`supplier-coordination` §2), and the app's own Availability request dialog
+does not write them. Until one line is mapped, By item is a read-only
+regrouping of the asks by name.
+
+The read behind it is `listPortalItemLines()` →
+`GET /api/portal/:supplierId/items`, fetched only once By item is asked for. It
+is deliberately **not** `AR_ITEM_COLUMNS`: that list is shared with the portal's
+other reads, and the mapping rides on its own.
 
 ## Companies and farms
 
@@ -1793,6 +1894,7 @@ screen. No library — a manifest, a service worker, and Chrome's
 | `components/pwa/pwa-provider.tsx` | Registers the worker, captures the install event, exposes `usePWA()`. Wraps the root layout. |
 | `components/pwa/install-popup.tsx` | The unprompted offer — Chrome only, once per session. |
 | `components/pwa/install-app-button.tsx` | The manual entry point, rendered in the desktop rail and mobile ⋯ More. |
+| Shell / Portal **Reload** entry | Rail row / ⋯ More item (admin Shell and supplier portal alike) shown only when `usePWA().isStandalone` — an installed window has no browser toolbar, so this is the one way to reload. Plain `window.location.reload()`. |
 | `components/pwa/ios-install-modal.tsx` | Safari has no install API, so iOS gets Share → Add to Home Screen instructions. |
 | `public/lps-cactus-icon-{192,512}.png`, `lps-cactus-apple-touch-icon.png` | CR's purple LPS flowering-cactus mark for browser/iOS home-screen icons. |
 | `public/lps-cactus-icon-maskable-512.png` | Android maskable variant: the full cactus stays inside the safe zone on a solid sampled-purple square. |
@@ -1898,8 +2000,13 @@ components/
                      cell (plain/link/badge/list/file/url), MultiFilter
     plant-table.tsx  the plant sub-table, shared by search + profile
     availability.tsx the availability-request pieces two apps draw: the line
-                     table, the request and per-line status pills, the answer
+                     table (optionally with one caller-supplied leading
+                     column), the request and per-line status pills, the answer
                      summary strip and the per-status answer dialog
+    supplier-items.tsx  the portal's By-item view: this supplier's request
+                     lines grouped by plant, each group expanding into
+                     ARLineTable itself with a Job leading column, which is
+                     also the drag handle that maps a line to a catalogue row
     portal.tsx       the supplier portal's Shell-like chrome (left nav rail /
                      bottom bar, right-docked chat with attachments + voice,
                      theme, disabled Settings+Log out)

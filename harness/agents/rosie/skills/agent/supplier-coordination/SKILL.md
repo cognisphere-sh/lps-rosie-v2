@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.7.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.8.0)
 metadata:
   author: lps
-  version: "1.7.0"
+  version: "1.8.0"
 ---
 
 # Supplier coordination
@@ -94,16 +94,28 @@ UPDATE availability_request_items
       an app-made request, not a contradiction — and every line written
       before 2026-08-26 is unmapped because the column didn't exist. Don't
       backfill one from a re-run search: a mapping means *this* is the row we
-      asked from, and a later search is a different question.
+      asked from, and a later search is a different question. **A mapping the
+      supplier set themselves stands** — it is them telling us which of their
+      rows the ask is about, which is better evidence than our look-up was.
+      Never overwrite one with a search of your own; if it looks wrong, ask
+      them (§3.5), don't correct it silently.
   - **NULL is the ordinary answer**, on the lines that matter most: a line
     nothing on their list maps is exactly the one they may surprise us on,
     and it still goes on the request (above). Leave it NULL rather than
     reaching for a near-miss — a different size or a cousin plant is *not* a
     mapping, it is a `lps_notes` sentence.
-  - Nothing shows it to anyone yet — it is ours, it is not on their portal,
-    and no screen renders it. It is written for the traceback: which
-    catalogue row we thought answered the line, read later against what they
-    actually said.
+  - **The supplier sees this one, and can change it.** Their portal has a
+    **By item** view that groups every open ask by the catalogue row it maps
+    to — and answers them there, in the same line table the request's own
+    page uses, so one plant's asks across several requests get answered
+    together. They place a line by dragging its job name onto one of their
+    own rows. So
+    what you write at share time is what that view opens on — a line you
+    leave unmapped sits under its own name until they place it. It is still
+    the *only* column of ours they can touch, and it says which of their
+    rows an ask is about, never what they are answering: `status`,
+    `available_quantity`, `unit_price` and `notes` remain the whole of their
+    answer.
 - Never seed `status`, `available_quantity` or `notes` — those are the
   supplier's alone; `status` NULL is what says "unanswered".
 - **`lps_notes` is what we tell the supplier, at both levels.** The

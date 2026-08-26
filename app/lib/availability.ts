@@ -139,3 +139,114 @@ export interface SupplierLink {
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
   rosieThreadId: string | null
 }
+
+// ------------------------------------------------- the portal's item view
+//
+// The same lines, cut the other way. The portal's request list answers "what
+// does this job want from us". The question it cannot answer is "how often
+// have they asked me for *this plant*, and what did I say each time", because
+// a plant is spread across every request that wanted it. These types carry one
+// supplier's whole open workload as lines, so the page can group them by plant
+// instead.
+//
+// Everything here is **portal-safe by construction**: an ARItem is already
+// what the supplier answers, and the only fields added name the request the
+// line arrived on and the catalogue row it maps to. Nothing about the job
+// behind it beyond the request name the portal already prints.
+
+/** One availability-request line, plus the request and catalogue row it belongs to. */
+export interface SupplierItemLine extends ARItem {
+  arId: number
+  /** `availability_requests.status` — new | processing | submitted | closed. */
+  arStatus: string
+  arCreatedAt: string
+  /** The request's name as the portal prints it, already redacted. */
+  arName: string
+  /**
+   * Who the job is for — **only** where that request was shared with customer
+   * details. Null everywhere else, exactly as the portal's request cards
+   * decide it.
+   */
+  arCustomer: string | null
+  /** `availability_request_items.mapped_inventory_id` (migration 0077). */
+  mappedInventoryId: string | null
+  /** The mapped catalogue row's own identity — null when nothing is mapped. */
+  mappedName: string | null
+  mappedSize: string | null
+}
+
+/**
+ * One plant, across every request that asked for it.
+ *
+ * Two kinds, and the difference is the whole point of the view. A **mapped**
+ * group is a real catalogue row — every line in it is the same offering at the
+ * same size, whatever each request called it. An **unmapped** group is only a
+ * shared spelling: nothing says those lines are one plant except that they
+ * were typed alike, which is why it is the group you drag lines *out* of.
+ */
+export interface SupplierItemGroup {
+  /** `inv:<uuid>` or `name:<key>` — stable across a refetch, so expansion survives one. */
+  key: string
+  mappedInventoryId: string | null
+  /** The catalogue row's name, or the item name the unmapped lines share. */
+  name: string
+  /** The catalogue row's size; for an unmapped group, the sizes actually asked. */
+  size: string | null
+  lines: SupplierItemLine[]
+}
+
+/** How an unmapped group is keyed: case and inner whitespace don't split a group. */
+const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+
+/**
+ * Group a supplier's lines by plant — mapped rows first, then the unmapped
+ * names, each side alphabetical.
+ *
+ * Mapped first is not decoration: those are the groups a line can be dropped
+ * onto, and the ordering keeps the drop targets together at the top rather
+ * than interleaved with the names they are there to absorb.
+ */
+export function groupSupplierItems(lines: SupplierItemLine[]): SupplierItemGroup[] {
+  const groups = new Map<string, SupplierItemGroup>()
+  for (const line of lines) {
+    const mapped = line.mappedInventoryId
+    const key = mapped ? `inv:${mapped}` : `name:${nameKey(line.name)}`
+    let group = groups.get(key)
+    if (!group) {
+      group = {
+        key,
+        mappedInventoryId: mapped,
+        // A mapped row names itself; an unmapped group can only be called what
+        // the first line asking for it was called.
+        name: (mapped ? line.mappedName : null) ?? line.name,
+        size: mapped ? line.mappedSize : null,
+        lines: [],
+      }
+      groups.set(key, group)
+    }
+    group.lines.push(line)
+  }
+
+  // An unmapped group's size is whatever its lines actually asked for — one
+  // size reads like a mapped row's, several say plainly that the group is a
+  // spelling and not an offering.
+  for (const group of groups.values()) {
+    if (group.mappedInventoryId == null) {
+      const sizes = [...new Set(group.lines.map((l) => l.size).filter((s): s is string => !!s))]
+      group.size = sizes.length ? sizes.join(' · ') : null
+    }
+    group.lines.sort((a, b) => b.arId - a.arId || a.id - b.id)
+  }
+
+  const all = [...groups.values()]
+  const byName = (a: SupplierItemGroup, b: SupplierItemGroup) =>
+    a.name.localeCompare(b.name) || (a.size ?? '').localeCompare(b.size ?? '')
+  return [
+    ...all.filter((g) => g.mappedInventoryId != null).sort(byName),
+    ...all.filter((g) => g.mappedInventoryId == null).sort(byName),
+  ]
+}
+
+/** How many of a group's lines the supplier has actually answered. */
+export const answeredIn = (lines: SupplierItemLine[]) =>
+  lines.filter((l) => l.status != null).length

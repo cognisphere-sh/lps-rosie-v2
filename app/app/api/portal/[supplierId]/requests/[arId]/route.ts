@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 
-import { availabilityRequest, portalSupplier, updateARItem } from '@/lib/availability-queries'
+import {
+  availabilityRequest,
+  portalSupplier,
+  setARItemMapping,
+  updateARItem,
+} from '@/lib/availability-queries'
 
 // See ../../route.ts for why these routes are outside the session gate and how
 // they are scoped in its absence.
@@ -32,8 +37,14 @@ export async function GET(
 }
 
 /**
- * One line's answer. Body: { itemId, changes: { status?, available_quantity?,
- * unit_price?, notes? } } — the ask columns are not writable from here.
+ * One line's answer — body `{ itemId, changes: { status?, available_quantity?,
+ * unit_price?, notes? } }`; the ask columns are not writable from here.
+ *
+ * Or one line's catalogue mapping — body `{ itemId, mappedInventoryId }`,
+ * which is what the By-item view's drag writes. It goes through
+ * `setARItemMapping` rather than the `changes` whitelist so a mapping can
+ * never ride in on an answer write, or the reverse, and the row it names must
+ * belong to this supplier's own company.
  */
 export async function PATCH(
   req: Request,
@@ -43,9 +54,24 @@ export async function PATCH(
   try {
     const s = await scope(supplierId, arId)
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    const body = (await req.json()) as { itemId?: number; changes?: Record<string, string> }
-    if (!Number.isInteger(body.itemId) || !body.changes) {
-      return NextResponse.json({ error: 'itemId and changes are required' }, { status: 400 })
+    const body = (await req.json()) as {
+      itemId?: number
+      changes?: Record<string, string>
+      mappedInventoryId?: string | null
+    }
+    if (!Number.isInteger(body.itemId)) {
+      return NextResponse.json({ error: 'itemId is required' }, { status: 400 })
+    }
+    // The key's *presence* selects the branch: `null` is a real value here,
+    // the one that unmaps a line.
+    if ('mappedInventoryId' in body) {
+      await setARItemMapping(s.arId, body.itemId!, body.mappedInventoryId ?? null, {
+        forSupplierId: s.supplierId,
+      })
+      return NextResponse.json({ ok: true })
+    }
+    if (!body.changes) {
+      return NextResponse.json({ error: 'changes or mappedInventoryId is required' }, { status: 400 })
     }
     await updateARItem(s.arId, body.itemId!, body.changes, { forSupplierId: s.supplierId })
     return NextResponse.json({ ok: true })

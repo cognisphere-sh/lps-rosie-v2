@@ -5,7 +5,7 @@
 // the answers are read). Nothing here knows which side it is on beyond the
 // `editable` prop on the line table.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import {
   AR_RESPONSES,
@@ -29,6 +29,15 @@ const LINE_COLUMNS =
   '56px 90px minmax(200px,1.5fr) 150px 90px 100px 100px minmax(200px,1fr)'
 /** Track minima + gaps + row padding/left accent; below this the table scrolls. */
 const GRID_MIN = 1070
+
+// A caller may put one column of its own in front of Need — the By-item view
+// uses it for the job a line came from, because there a table holds lines from
+// several requests at once. Everything after it stays exactly as it is here,
+// so the two tables are the same table.
+/** The leading column's track, when one is asked for. */
+const LEAD_COLUMN = 'minmax(210px,1.3fr)'
+/** Its contribution to the scroll threshold: the track minimum plus its gap. */
+const LEAD_MIN = 218
 
 
 /**
@@ -407,11 +416,18 @@ function LineRow({
   editable,
   onPatch,
   displayText = (text) => text,
+  columns,
+  minWidth,
+  leading,
 }: {
   item: ARItem
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
   displayText?: (text: string) => string
+  columns: string
+  minWidth: number
+  /** Rendered as the row's first cell when the table has a leading column. */
+  leading?: ReactNode
 }) {
   /** Which status the pop-up is collecting details for; null = closed. */
   const [answering, setAnswering] = useState<string | null>(null)
@@ -426,14 +442,15 @@ function LineRow({
     <div
       className="grid items-center gap-x-2 border-b border-lps-hair last:border-b-0"
       style={{
-        gridTemplateColumns: LINE_COLUMNS,
-        minWidth: GRID_MIN,
+        gridTemplateColumns: columns,
+        minWidth,
         minHeight: 56,
         padding: '7px 12px',
         borderLeft: `3px solid ${toneDot(tone)}`,
         background: toneTint(tone),
       }}
     >
+      {leading}
       <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
         {num(item.quantity) || '—'}
       </span>
@@ -526,25 +543,38 @@ function LineRow({
  * answer and re-fetches — the caller owns both, because the two sides write
  * through different routes.
  */
-export function ARLineTable({
+export function ARLineTable<T extends ARItem>({
   items,
   editable,
   onPatch,
   displayText,
+  leadingHeader,
+  renderLeading,
 }: {
-  items: ARItem[]
+  items: T[]
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
+  /**
+   * One extra column in front of Need. Both parts go together — the header
+   * names it, the renderer fills it per row. The By-item view uses it for the
+   * job a line came from; a table of one request's lines has no need of it.
+   */
+  leadingHeader?: string
+  renderLeading?: (item: T) => ReactNode
 }) {
   const subtotal = arSubtotal(items)
+  const lead = leadingHeader != null && renderLeading != null
+  const columns = lead ? `${LEAD_COLUMN} ${LINE_COLUMNS}` : LINE_COLUMNS
+  const minWidth = lead ? GRID_MIN + LEAD_MIN : GRID_MIN
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card">
       <div
         className="grid items-center gap-x-2 border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-        style={{ gridTemplateColumns: LINE_COLUMNS, minWidth: GRID_MIN, padding: '8px 12px' }}
+        style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
       >
+        {lead && <span className="px-1">{leadingHeader}</span>}
         <span className="px-1">Need</span>
         <span className="px-1">Size</span>
         <span className="px-1">Plant</span>
@@ -566,16 +596,21 @@ export function ARLineTable({
           editable={editable}
           onPatch={onPatch}
           displayText={displayText}
+          columns={columns}
+          minWidth={minWidth}
+          leading={lead ? renderLeading(item) : undefined}
         />
       ))}
       {items.length > 0 && (
         <div
           className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
-          style={{ gridTemplateColumns: LINE_COLUMNS, minWidth: GRID_MIN, padding: '8px 12px' }}
+          style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
         >
+          {/* The label spans everything up to Line total, so it still sits
+              directly under Price whether or not there is a leading column. */}
           <span
             className="px-1 text-right text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-            style={{ gridColumn: '1 / 7' }}
+            style={{ gridColumn: lead ? '1 / 8' : '1 / 7' }}
           >
             Subtotal
           </span>

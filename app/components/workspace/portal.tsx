@@ -10,7 +10,7 @@
 // docs/app/README.md (Supplier portal).
 
 import Link from 'next/link'
-import { Bell, Leaf, MessagesSquare, X } from 'lucide-react'
+import { Bell, Leaf, MessagesSquare, RefreshCw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
@@ -22,6 +22,7 @@ import {
   ArchiveIcon, ChevronLeft, ChevronRight, FileIcon, LogoutIcon, MoonIcon, RequestsIcon,
   SettingsIcon, SunIcon,
 } from '@/components/workspace/icons'
+import { usePWA } from '@/components/pwa/pwa-provider'
 import { useIsMobile, useTheme } from '@/components/workspace/shell'
 import {
   CHAT_APPEARANCE_STORE,
@@ -531,6 +532,7 @@ export function PortalFrame({
   const [chatWidth, setChatWidth] = useState(340)
   const chatHydrated = useRef(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const { isStandalone } = usePWA()
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [viewportFrame, setViewportFrame] = useState({ top: '0px', height: '100dvh' })
   const [keyboardOpen, setKeyboardOpen] = useState(false)
@@ -847,6 +849,15 @@ export function PortalFrame({
                 )}
               </button>
 
+              {isStandalone && (
+                // An installed app window has no browser toolbar, so nothing
+                // else on screen can reload it.
+                <button type="button" onClick={() => window.location.reload()} title="Reload" className={railBtn(false)}>
+                  <span className="flex size-4 flex-none items-center justify-center"><RefreshCw size={15} /></span>
+                  {navOpen && <span>Reload</span>}
+                </button>
+              )}
+
               <button type="button" disabled title={`Settings — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
                 <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
                 {navOpen && <span>Settings</span>}
@@ -949,6 +960,16 @@ export function PortalFrame({
             {dark ? <MoonIcon size={14} /> : <SunIcon size={14} />}
             {dark ? 'Dark mode' : 'Light mode'}
           </button>
+          {isStandalone && (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-foreground hover:bg-muted"
+            >
+              <RefreshCw size={14} />
+              Reload
+            </button>
+          )}
           <button
             type="button"
             disabled

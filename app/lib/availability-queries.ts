@@ -4,9 +4,11 @@ import type {
   ARDetail,
   ARItem,
   ARSummary,
+  SupplierItemLine,
   SupplierLink,
 } from '@/lib/availability'
 import { AR_RESPONSES } from '@/lib/availability'
+import { redactPortalRequestRefs } from '@/lib/portal-display'
 import { supabase } from '@/lib/supabase'
 
 // The reads and writes behind availability requests (migration 0062).
@@ -650,4 +652,200 @@ export async function supplierLinksByRequest(
       .filter(Boolean) as SupplierLink[]
   }
   return out
+}
+
+// ------------------------------------------------- the portal's item view
+//
+// Every open line this supplier has, flat — what the portal's **By item** view
+// groups by plant. A separate read rather than a wider `listPortalRequests()`:
+// it carries `mapped_inventory_id`, which is deliberately not on the column
+// list the rest of the portal's reads share.
+
+/** Like `AR_ITEM_COLUMNS`, plus the mapping the By-item view groups on. */
+const AR_ITEM_MAPPED_COLUMNS = `${AR_ITEM_COLUMNS}, mapped_inventory_id`
+
+/**
+ * One supplier's **open** requests, line by line, with the catalogue row each
+ * line maps to.
+ *
+ * Closed requests are excluded for the same reason the portal home excludes
+ * them: closing is ours, and a closed request is finished work rather than
+ * something to group and answer. That also means every line this view shows is
+ * one the supplier may still act on, so nothing here is undraggable.
+ *
+ * Three batched reads, not a join. Nothing about the job behind a request
+ * crosses into the result beyond its name, which the portal already prints.
+ */
+export async function listPortalItemLines(supplierId: number): Promise<SupplierItemLine[]> {
+  const { data: arData, error: arErr } = await supabase
+    .from('availability_requests')
+    .select(AR_COLUMNS)
+    .eq('supplier_id', supplierId)
+    .eq('is_active', true)
+    .neq('status', 'closed')
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
+  const ars = (arData ?? []) as ARRecord[]
+  if (!ars.length) return []
+  const arById = new Map(ars.map((r) => [r.id, r]))
+
+  const { data: itemData, error: itemErr } = await supabase
+    .from('availability_request_items')
+    .select(AR_ITEM_MAPPED_COLUMNS)
+    .in('availability_request_id', ars.map((r) => r.id))
+    .eq('is_active', true)
+    .order('id', { ascending: true })
+  if (itemErr) throw new Error(`availability_request_items: ${itemErr.message}`)
+  const items = (itemData ?? []) as (ARItemRecord & { mapped_inventory_id: string | null })[]
+  if (!items.length) return []
+
+  const jobs = await jobNames([...new Set(ars.map((r) => r.job_request_id))])
+
+  // Who each job is for — fetched **only** for the requests that were shared
+  // with customer details, so a request that wasn't cannot leak one through
+  // this route any more than through the cards.
+  const customerByJob = await sharedCustomerNames(ars)
+
+  // The mapped catalogue rows. A mapping whose row has since been retired
+  // keeps its id and resolves to no name — the group falls back to what the
+  // line was asked as, rather than disappearing.
+  const invIds = [...new Set(items.map((i) => i.mapped_inventory_id).filter((v): v is string => !!v))]
+  const invById = new Map<string, { name: string; size: string | null }>()
+  if (invIds.length) {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('id, name, size')
+      .in('id', invIds)
+      .eq('is_active', true)
+    if (error) throw new Error(`inventory: ${error.message}`)
+    for (const row of (data ?? []) as { id: string; name: string; size: string | null }[]) {
+      invById.set(row.id, { name: row.name, size: row.size })
+    }
+  }
+
+  return items.flatMap((raw) => {
+    const ar = arById.get(raw.availability_request_id)
+    if (!ar) return []
+    const inv = raw.mapped_inventory_id ? invById.get(raw.mapped_inventory_id) : undefined
+    const jobName = jobs.get(ar.job_request_id) ?? null
+    return [{
+      ...toARItem(raw),
+      arId: ar.id,
+      arStatus: ar.status,
+      arCreatedAt: ar.created_at,
+      // The same name and redaction the portal's own cards use.
+      arName: jobName ? redactPortalRequestRefs(jobName) : 'Availability request',
+      arCustomer: ar.share_customer_details
+        ? customerByJob.get(ar.job_request_id) ?? null
+        : null,
+      mappedInventoryId: raw.mapped_inventory_id,
+      mappedName: inv?.name ?? null,
+      mappedSize: inv?.size ?? null,
+    }]
+  })
+}
+
+/**
+ * job id → the customer's company-or-name, for the requests that share it.
+ *
+ * Two reads and nothing speculative: the jobs named by requests with
+ * `share_customer_details`, then those jobs' customers. A request without the
+ * flag never reaches either query.
+ */
+async function sharedCustomerNames(ars: ARRecord[]): Promise<Map<number, string>> {
+  const jobIds = [...new Set(ars.filter((r) => r.share_customer_details).map((r) => r.job_request_id))]
+  if (!jobIds.length) return new Map()
+
+  const { data: jobData, error: jobErr } = await supabase
+    .from('job_requests')
+    .select('id, customer_id')
+    .in('id', jobIds)
+  if (jobErr) throw new Error(`job_requests: ${jobErr.message}`)
+  const jobs = (jobData ?? []) as { id: number; customer_id: number | null }[]
+
+  const customerIds = [...new Set(jobs.map((j) => j.customer_id).filter((v): v is number => v != null))]
+  if (!customerIds.length) return new Map()
+
+  const { data: custData, error: custErr } = await supabase
+    .from('customers')
+    .select('id, name, company')
+    .in('id', customerIds)
+  if (custErr) throw new Error(`customers: ${custErr.message}`)
+  const labelById = new Map(
+    ((custData ?? []) as { id: number; name: string; company: string | null }[]).map((c) => [
+      c.id,
+      // The same preference the portal's cards use: the company if there is
+      // one, otherwise the person.
+      c.company || c.name,
+    ]),
+  )
+
+  const out = new Map<number, string>()
+  for (const job of jobs) {
+    const label = job.customer_id != null ? labelById.get(job.customer_id) : undefined
+    if (label) out.set(job.id, label)
+  }
+  return out
+}
+
+/**
+ * Point one line at a catalogue row — or at nothing.
+ *
+ * Deliberately **not** part of `updateARItem`: that function's whitelist is the
+ * four answer columns, and a mapping is a different kind of statement about a
+ * line. Keeping them apart means a mapping can never ride in on an answer
+ * write, or the reverse.
+ *
+ * The catalogue row must belong to **the same company** as the request's
+ * supplier (`head_branch_id`). A company's farms are one catalogue from the
+ * portal's point of view, so a cross-farm mapping within the company is a real
+ * answer; a mapping to somebody else's row is not a thing to allow at all.
+ */
+export async function setARItemMapping(
+  arId: number,
+  itemId: number,
+  inventoryId: string | null,
+  opts: { forSupplierId?: number } = {},
+): Promise<void> {
+  const ar = await arForWrite(arId, opts.forSupplierId)
+
+  if (inventoryId != null) {
+    const companyId = await companyOf(ar.supplier_id)
+    const { data: row, error: invErr } = await supabase
+      .from('inventory')
+      .select('id, supplier_id')
+      .eq('id', inventoryId)
+      .eq('is_active', true)
+      .maybeSingle()
+    if (invErr) throw new Error(`inventory: ${invErr.message}`)
+    const inv = row as { id: string; supplier_id: number | null } | null
+    if (!inv?.supplier_id) throw new Error('catalogue row not found')
+    if ((await companyOf(inv.supplier_id)) !== companyId) {
+      throw new Error('that catalogue row belongs to a different supplier')
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('availability_request_items')
+    .update({ mapped_inventory_id: inventoryId })
+    .eq('id', itemId)
+    .eq('availability_request_id', ar.id)
+    .eq('is_active', true)
+    .select('id')
+  if (error) throw new Error(`availability_request_items: ${error.message}`)
+  if (!data?.length) throw new Error('line not found')
+}
+
+/** The company a location belongs to — its head branch, or itself. */
+async function companyOf(supplierId: number): Promise<number> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('id, head_branch_id')
+    .eq('id', supplierId)
+    .maybeSingle()
+  if (error) throw new Error(`suppliers: ${error.message}`)
+  const s = data as { id: number; head_branch_id: number | null } | null
+  if (!s) throw new Error('supplier not found')
+  return s.head_branch_id ?? s.id
 }
