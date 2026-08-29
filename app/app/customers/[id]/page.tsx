@@ -155,6 +155,7 @@ function RequestLine({
               version={version}
               detailsOpen={detailsOpen}
               onToggleDetails={() => setDetailsOpen((v) => !v)}
+              emptyItemsCopy="No active line items are recorded for this customer request."
               onSaved={onSaved}
             />
           )}
