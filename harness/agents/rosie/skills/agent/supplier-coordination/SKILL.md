@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.8.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.9.0)
 metadata:
   author: lps
-  version: "1.8.0"
+  version: "1.9.0"
 ---
 
 # Supplier coordination
@@ -203,6 +203,15 @@ Outreach is **sent from your own mailbox** (`chris@localplantsupply.com`, as
      preamble, no restating what they already know, applying anything
      `suppliers.notes` remembers about how they like to be approached. Present
      it for **Chris's approval on this thread's web chat**.
+
+   **For any non-Partner availability email**, make the approved draft a
+   brief, light, plain-language ask — not an internal request form. Never call
+   it an “LPS job” or say “Please confirm your availability.” When known and
+   useful, start with concrete project or location context; then give the
+   plant, size and quantity and ask a real human question, such as “Y’all have
+   those available?” Ask for a photo only when it would help answer the ask.
+   Supplier-specific preferences in `suppliers.notes` still control the
+   framing.
 
    Either way approval is **per-draft**: a template or a past yes is never
    standing permission.

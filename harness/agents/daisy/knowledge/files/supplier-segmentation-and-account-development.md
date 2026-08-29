@@ -2,7 +2,7 @@
 
 **Sensitivity:** Restricted internal strategy/training IP. Do not share with suppliers, customers, or outside parties; do not copy into supplier profiles except a durable, supplier-specific fact that belongs there.
 
-**Source / date:** Chris’s morning conversation and direction, 2026-08-21 (including correction at 10:14 CDT). This is a curated set of working observations and strategy, **not** a universal characterization of any supplier, market, or individual.
+**Source / date:** Chris’s morning conversation and direction, 2026-08-21 (including correction at 10:14 CDT), plus association-evidence direction 2026-08-28 10:18 CDT and original-cohort qualification direction 2026-08-28 10:25 CDT. This is a curated set of working observations and strategy, **not** a universal characterization of any supplier, market, or individual.
 
 ## Internal source cohorts and labels
 
@@ -15,6 +15,21 @@ The original Google Sheet lists are internal sourcing/outreach cohorts. Their bu
 - Luxury Builders
 
 The current app category enum has an unknown provenance. It does **not** replace, prove, or recreate these original source labels. Preserve the source-cohort meaning rather than inferring it from today’s app designation.
+
+### Prior-human-qualification signal
+
+Many suppliers in the original source groups received some human qualification
+before Daisy intake, more than suppliers pulled from other sources. When a
+supplier can be **verified** against an identifiable original cohort row/list,
+that provenance is a priority signal for focused review and, only with separate
+approval, a direct availability-and-Texas-service question. Preserve the exact
+source label and artifact/path or URL with retrieval date. Do not infer membership
+from the app category, name similarity, a missing artifact, or uncertain
+provenance.
+
+This is not evidence of current availability, price, Texas delivery, current
+business type, or permission to contact a supplier. Texas-first market rules and
+all communication authorization rules still control.
 
 ## Working market and supplier-model observations
 
@@ -35,6 +50,20 @@ For a promising Texas wholesale nursery, use a light-touch relationship-learning
 3. Send targeted requests through that relationship.
 
 This is relationship development, not a blanket demand for availability. Supplier contact remains subject to the applicable authorization and communication rules.
+
+## Qualification evidence: association membership
+
+Current, attributable trade-association membership is a supporting signal of a
+supplier's market/service reach. Preserve the association, the supplier identity
+listed, a current public URL or other dated evidence, geography, and retrieval
+date. For the named La Croix case, TNLA (Texas Nursery & Landscape Association)
+membership is direct Texas-market evidence. An Alabama nursery/landscape
+association membership can support a Louisiana supplier's reach beyond Louisiana.
+
+This signal does not universally guarantee delivery or service in the association's
+market. Explicit delivery, shipping, service-area, sales-terms, or documented
+direct-business evidence prevails; use membership as dispositive only where Chris
+has named the supplier/case or made that decision.
 
 ## Benchmark lead: Southwest Wholesale Nursery (supplier 661)
 

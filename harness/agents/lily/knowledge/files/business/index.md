@@ -13,3 +13,4 @@ software does today: `../../../../../app/`, `docs/app/`, `docs/harness/` and
 ## Files
 
 - `operations.md` — how pricing, availability, and fulfilment identities relate during an order.
+- `friction.md` — recurring workflow gaps and the evidence for improving them.

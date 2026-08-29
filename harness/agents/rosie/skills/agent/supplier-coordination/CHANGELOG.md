@@ -1,5 +1,15 @@
 # supplier-coordination — changelog
 
+## 1.9.0
+
+2026-08-28 (Chris approval relayed by Lily) — §4 now gives the approved
+plain-language style for every non-Partner availability email: a brief,
+light, concrete question rather than an internal request form. It forbids
+“LPS job” and “Please confirm your availability,” calls for useful
+project/location context and a real availability question, limits photo asks
+to when useful, and preserves supplier-specific preferences and the
+per-draft Chris approval gate.
+
 ## 1.8.0
 
 2026-08-26 (Bhoumik, same day as 1.7.0) — §2's mapping bullet catches up with

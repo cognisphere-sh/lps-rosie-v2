@@ -1,3 +1,1 @@
-{
-  "schedules": []
-}
+{"schedules":[{"name":"discuss-request-order-detail-pages-2026-09-01","cron":"0 9 1 9 *","text":"Reminder for Chris: discuss with Bhoumik on the next call giving Requests and Orders their own unique detail pages, especially to use mobile screen space better. Send this reminder to the Telegram group.","threadId":"main","onetime":true}]}

@@ -547,6 +547,37 @@ one.
   retiring rather than deleting. It parses no plant row — and notes a supplier's
   plant-photo gallery in its report rather than cataloguing it, since harvesting
   one is scheduled work rather than a side effect of onboarding.
+- **daily-supplier-availability-onboarding** — the 03:00 cohort coordinator.
+  It freezes and hashes an exact batch plan before dispatch; workers append
+  fsynced supplier snapshots only to their assigned JSONL and use `run-state
+  latest` before any action. Freeze, append/correct, latest and both merge modes
+  share one global-state → run → sorted-batch lock hierarchy, so a durable
+  prepare cannot race late evidence. Lock acquisition uses no-follow opens,
+  owner/mode/type, pre-open/opened/current inode checks, and a post-flock rescan
+  for still-open deleted lock inodes; the tool never unlinks locks. Deleted-inode
+  detection depends on Linux procfs. Same-user processes are trusted not to
+  sabotage locks: replacement can cause a safe command failure/DoS, never
+  concurrent entry. The coordinator atomically replaces
+  the run file. Completion across run + 20 MB state is a recoverable journaled
+  transaction, not multi-file atomic: pending transactions recover first and a
+  hash-bound idempotent delta rebases onto current state rather than replaying a
+  stale snapshot. Recovery independently rebuilds the frozen plan and latest
+  batch provenance/event/result hashes before writing; changed evidence blocks.
+  Normal completion is date-monotonic; status exposes pending phases and blocks
+  dispatch. Mechanical source/draft/signup/no-send evidence, honest read-only
+  assertions and hashed reconciliation artifacts are required. Symlinks, unsafe
+  slugs, plan drift, journal tampering, orphan/torn logs and incomplete results
+  block it. Completed status also fails on canonical/log divergence. Legacy
+  damaged runs use a separate resumable, idempotent no-action recovery import
+  with exact canonical result keys. State first anchors cohort plus exact
+  manifest/evidence paths/hashes; every phase replay requires those external
+  inputs and rederives plan, ordered events/batch logs, frozen payload and
+  transaction identity. Ordinary commands block pending import rather than
+  trusting a self-hashed journal. Explicit `run_id` is bound across physical
+  filename, state key, journal basename/core/delta and import payload. A one-time
+  idempotent migration updates both embedded state and standalone historical run
+  files; completed pre-v2.6 files without frozen logs remain status-readable but
+  explicitly report canonical log verification as unavailable.
 These are deliberately mutually exclusive, split by what each one writes:
 `supplier-email-routing` dispatches and writes nothing,
 `availability-ingestion` writes `inventory` / `inventory_sources` /

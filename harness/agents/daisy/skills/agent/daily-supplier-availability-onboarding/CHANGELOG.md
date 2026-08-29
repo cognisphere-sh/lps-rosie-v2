@@ -1,5 +1,113 @@
 # daily-supplier-availability-onboarding — changelog
 
+## 2.10.0
+
+2026-08-28 — sixth-review recovery-import integrity fix. State now records the
+canonical run/cohort and exact manifest/evidence paths/hashes before import.
+Pending import requires explicit replay with those same external files; ordinary
+commands block instead of trusting journal payload. Every prepared,
+logs-written, run-frozen and committed replay reloads canonical state, physical
+run, manifest/evidence and artifact hashes, rederives exact plan, ordered
+results/events/batch lines, frozen payload, hashes and transaction id, and rejects
+cohort/content/path substitution. Twenty-eight tests add the exact coherent
+supplier substitution plus manifest, evidence and path changes across partial
+phases. v2.7/v2.8 qualification rules are unchanged.
+
+## 2.9.0
+
+2026-08-28 — fifth-review lock/rollout hardening. Lock acquisition now records
+the pre-open pathname inode, compares it after `flock`, and rescans deleted
+holders after descriptor/path verification, closing the exact pre-scan→open
+unlink race. Documents the Linux `/proc/<pid>/fd` dependency and same-user
+safe-DoS trust boundary. The idempotent run-id migration now updates standalone
+historical run files as well as embedded state; pre-v2.6 completed files without
+frozen logs are explicitly marked legacy and remain status-readable without a
+false canonical-provenance claim. Twenty-four tests include the exact
+`v260_lock_race.py` reproduction and standalone migration/replay.
+
+## 2.8.0
+
+2026-08-28 — Chris clarified that verified membership in an original source
+cohort is a prior-human-qualification signal. The Texas gate now preserves exact
+verified provenance, gives those suppliers focused review rather than treating
+missing website shipping language alone as a low-priority stop, and queues a
+narrow availability-and-Texas-service question only for separate approval. It
+explicitly prohibits inferring membership and preserves Texas-first/no-unapproved
+email rules; provenance is not proof of current availability, price, delivery or
+business type. Cohort ordering and batch reporting now expose the signal.
+
+## 2.7.0
+
+2026-08-28 — Chris designated attributable, current trade-association membership
+as a supplier-qualification signal. The Texas-service gate now reviews and records
+association evidence with geography and retrieval provenance; direct
+shipping/service evidence still prevails, and membership alone is not treated as a
+universal service guarantee. The daily report must state the classification
+rationale and how association evidence affected it. Adds TNLA/La Croix and an
+Alabama association/Louisiana supplier example.
+
+## 2.6.0
+
+2026-08-28 — fourth-review integrity hardening. Every running/completed payload
+now carries a `run_id` bound to physical filename, state key, journal basename,
+transaction core/delta and import payload; semantic date substitution blocks
+even after unkeyed hashes are recomputed. A one-time idempotent legacy-state
+migration adds historical payload IDs. Lock acquisition now rejects symlinks,
+wrong owner/mode/type, an opened/path inode mismatch and a still-open deleted
+lock inode; creation fsyncs its parent and the tool never unlinks locks.
+Transaction-critical JSON/log reads use no-follow opens and `fstat`. The corrected
+plan-mutation test passes required state and checks the real divergence error.
+Twenty-three tests include the exact semantic-substitution and lock-replacement
+reproductions.
+
+## 2.5.0
+
+2026-08-28 — closes the prepared-evidence race from the third adversarial
+review. Freeze, append/correct, latest, non-complete merge and completion now
+share one global-state → run → sorted-batch lock hierarchy. Recovery reacquires
+it and independently rebuilds canonical plan/provenance/event/result hashes
+before a prepared journal can write; late evidence blocks instead of being
+overwritten. Completed status compares canonical run data to latest logs and
+fails on divergence. State and delta semantics (run/date, exact reviewed IDs,
+order, cursor and hashes) are validated rather than trusting a self-hash. Twenty
+tests add prepared-crash/late-correction, stale merge, completed-log divergence
+and semantic-tamper/invalid-state reproductions.
+
+## 2.4.0
+
+2026-08-28 — second adversarial hardening. Completion journals now carry a
+hash-bound idempotent state delta, never a stale full-state snapshot; every
+pending transaction is validated/recovered under the global lock before another
+date can complete. Tampering blocks progress, normal dates are monotonic, and
+status exposes pending phases/dispatch blocking. All state/run/lock/transaction/
+batch paths reject symlinks and non-regular components. Recovery import now
+requires exact canonical decimal keys, hashed reconciliation artifacts and
+explicit read-only-check assertions, and is itself resumable/idempotent across
+journaled phases. Seventeen tests reproduce cross-date replay, tampering, cursor
+regression, symlink escape, import collisions/replay/crashes and prior cases.
+
+## 2.3.0
+
+2026-08-28 — adversarial hardening after review: a stable global lock now
+serializes state completion across dates; a prepared transaction journal makes
+the two-file run/state update recoverable and replay-idempotent without claiming
+multi-file atomicity. Plans are frozen and hashed before dispatch, safe slugs and
+event schemas are enforced, orphan logs block merge, completed runs are
+immutable, corrections carry predecessor hashes/reason/evidence, and partial
+writes are looped/fsynced. Adds worker `latest`/coordinator `status`, mechanical
+completion evidence, and a separate no-action legacy recovery importer. Ten
+adversarial tests cover the reproduced races and recovery paths.
+
+## 2.2.0
+
+2026-08-28 — prevents parallel cohort workers from racing whole-file writes.
+Workers now append immutable, fsynced supplier snapshots only to their assigned
+batch log; the coordinator deterministically locks and atomically merges every
+batch, rejects missing/overlapping/torn evidence, and advances completion state
+only after exact terminal coverage. Adds concurrency, correction and crash-
+recovery tests. Also corrects the documented coordinator state path to the
+active `daily-supplier-availability-onboarding` thread.
+
 ## 2.1.1
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

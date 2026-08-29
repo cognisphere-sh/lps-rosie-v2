@@ -14,3 +14,17 @@ A workflow change counts — not everything here is software.
 | Slug | Title | Status | Route |
 |---|---|---|---|
 | `one-gallon-sedge-price-mapping` | Use one 1 G price for sedge varieties | staged | bhoumik |
+| `supplier-natural-language-replies` | Let Austin reply naturally and keep the work current | staged | bhoumik |
+| `catalog-photo-upload-page` | Add catalog photos from the Photos page | staged | nova (blocked by bhoumik workflow) |
+| `catalog-photo-intake-review` | Review submitted catalog photos before publishing | staged | bhoumik |
+| `mobile-agent-chat-translucent-header` | Make the mobile agent-chat header translucent | routed | nova |
+| `job-request-delete-safety` | Make deleting a job request safe on mobile | shipped | nova |
+| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops job-request lifecycle and history | staged | bhoumik |
+| `availability-last-updated-display` | Show when availability was last updated | drafted | nova |
+| `availability-last-updated-semantics` | Define and retain the availability-update time | staged | bhoumik |
+| `availability-response-change-management` | Keep availability changes visible after a nursery responds | staged | bhoumik |
+| `availability-change-indicators` | Mark changed availability in Requests and Orders | drafted | nova |
+| `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
+| `supplier-outreach-human-tone` | Ask suppliers about availability like a person | shipped | rosie |
+| `approved-voice-playbook-governance` | Keep a reviewed playbook for writing in Chris’s voice | drafted | bhoumik |
+| `voice-playbook-review-screen` | Review Chris-voice guidance and examples in one place | drafted | nova |

@@ -15,6 +15,43 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-28
+
+### Fixed
+
+- **Made Daisy's parallel daily supplier-onboarding cohorts recoverable and
+  race-safe.** A frozen hashed plan assigns each worker an append-only fsynced
+  log; locked merge atomically replaces the run file. Run + state completion is
+  explicitly journaled rather than misrepresented as multi-file atomic. Under a
+  no-follow global lock, every pending transaction recovers first and a
+  hash-bound idempotent delta rebases onto current state. One global-state → run
+  → sorted-batch lock hierarchy covers freeze, append/correct, latest and merge;
+  prepared recovery independently rebuilds canonical plan/provenance/event/result
+  hashes, and completed status rejects log divergence. Date monotonicity keeps
+  old runs from regressing the cursor. Schema/symlink/path validation,
+  orphan/torn-log checks, audited corrections, hashed reconciliation artifacts,
+  explicit read-only assertions, and a resumable idempotent no-action legacy
+  importer close the adversarial cases. Tests cover cross-date replay,
+  journal tampering, chronological regression, symlink escape, canonical import
+  keys/replay/phase crashes, prepared-crash late evidence, stale merges,
+  completed-log divergence, invalid state/delta semantics and partial writes.
+  Explicit run identity is now bound across filename/state/journal/delta/import,
+  with an idempotent legacy-state migration. Stable lock acquisition additionally
+  rejects replaced or still-open deleted inodes and validates owner/mode/type;
+  transaction-critical reads are no-follow + `fstat`. Pre-open/opened/current
+  inode binding plus a post-flock deleted-holder rescan closes the remaining lock
+  race (Linux procfs-dependent; same-user sabotage is a safe-DoS trust boundary).
+  The legacy migration now covers standalone completed run files and marks their
+  unavailable pre-v2.6 log verification honestly. Twenty-four tests include the
+  exact semantic-date substitution and both lock-replacement reproductions.
+  Recovery import additionally anchors cohort and exact manifest/evidence
+  paths/hashes in canonical state, requires explicit external replay for every
+  pending phase, and independently rederives plan, ordered events/logs, frozen
+  payload and transaction identity. Twenty-eight tests include coherent cohort,
+  manifest, evidence and path substitution across partial import phases.
+  This prevents the Aug. 27 failure where ten workers raced whole-file updates
+  and only 30 of 100 results survived.
+
 ## 2026-08-26
 
 ### Fixed
