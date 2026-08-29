@@ -479,7 +479,7 @@ export default function SuppliersPage() {
   }
 
   return (
-    <Shell page="suppliers" title="Suppliers" subtitle="One row per company" toolbar={toolbar} hideHeaderOnMobile>
+    <Shell page="suppliers" title="Suppliers" toolbar={toolbar} hideHeaderOnMobile>
       {isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5">
           {visibleCompanies.map((company) => {

@@ -65,15 +65,16 @@ export default function PartnerClosedPage() {
       supplierName={supplierName}
       tab="closed"
       title="Closed Requests"
-      subtitle={
-        state === 'ready'
-          ? `${closed.length} ${closed.length === 1 ? 'request' : 'requests'}`
-          : undefined
-      }
       alerts={alerts}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5 md:p-4">
+        {state === 'ready' && (
+          <p className="m-0 text-[11.5px] text-muted-foreground">
+            {closed.length} {closed.length === 1 ? 'request' : 'requests'}
+          </p>
+        )}
+
         {state === 'missing' && (
           <p className="py-10 text-center text-[13px] text-muted-foreground">
             This portal link isn&apos;t active. Please check with your Local Plant Supply contact.

@@ -119,7 +119,6 @@ type Slot = (state: FrameState) => React.ReactNode
 
 export function WorkspaceFrame({
   title,
-  subtitle,
   toolbar,
   headerAction,
   headerExtras,
@@ -147,7 +146,6 @@ export function WorkspaceFrame({
   children,
 }: {
   title: string
-  subtitle?: string
   /** Sits under the header, above the scrolling page. */
   toolbar?: React.ReactNode
   headerAction?: React.ReactNode
@@ -316,15 +314,25 @@ export function WorkspaceFrame({
         style={{ top: viewportFrame.top, height: viewportFrame.height, ...style }}
       >
         {!(isMobile && hideHeaderOnMobile) && (
-          <div className="flex flex-none items-center gap-3 border-b border-border bg-card px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))]">
-            <div className="flex min-w-0 flex-1 items-baseline gap-3">
-              <h1 className="m-0 truncate font-serif text-[21px] font-semibold text-foreground">{title}</h1>
-              {subtitle && (
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">{subtitle}</span>
-              )}
+          <div className="flex min-h-10 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
+            <div className="min-w-0 flex-1">
+              <h1
+                title={title}
+                className="m-0 truncate font-serif text-[17px] font-semibold leading-6 text-foreground"
+              >
+                {title}
+              </h1>
             </div>
-            {headerAction && <div className="flex flex-none items-center gap-2">{headerAction}</div>}
-            {!isMobile && headerExtras}
+            {headerAction && (
+              <div className="flex flex-none items-center gap-1.5 [&>a]:min-h-11 [&>a]:min-w-11 [&>button]:min-h-11 [&>button]:min-w-11">
+                {headerAction}
+              </div>
+            )}
+            {!isMobile && headerExtras && (
+              <div className="flex flex-none items-center gap-1.5 [&>a]:min-h-11 [&>a]:min-w-11 [&>button]:min-h-11 [&>button]:min-w-11">
+                {headerExtras}
+              </div>
+            )}
           </div>
         )}
 

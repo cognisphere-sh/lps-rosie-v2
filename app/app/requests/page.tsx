@@ -1158,7 +1158,6 @@ export default function RequestsPage() {
     <Shell
       page="requests"
       title="Job Requests"
-      subtitle={`${summary.requests} open ${summary.requests === 1 ? 'request' : 'requests'} · ${summary.items} line items`}
       hideHeaderOnMobile
       toolbar={
         <Toolbar
@@ -1168,7 +1167,7 @@ export default function RequestsPage() {
           chips={chips}
           hasFilters={hasFilters}
           onClear={clearAll}
-          summary={`${total} ${total === 1 ? 'request' : 'requests'}`}
+          summary={`${total} ${total === 1 ? 'request' : 'requests'} · ${summary.items} line ${summary.items === 1 ? 'item' : 'items'}`}
           pagination={{ page, pageCount, onPage: setPage, busy }}
           controls={
             <>

@@ -981,7 +981,7 @@ export default function SupplierProfilePage() {
 
   if (notFound) {
     return (
-      <Shell page="suppliers" title="Supplier" subtitle="Not found">
+      <Shell page="suppliers" title="Supplier">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <p className="text-[14px] font-semibold">That supplier does not exist.</p>
           <Link href="/suppliers" className="text-[13px] font-semibold text-primary underline">
@@ -1082,13 +1082,6 @@ export default function SupplierProfilePage() {
     <Shell
       page="suppliers"
       title={String(values.name ?? 'Supplier')}
-      subtitle={subject && !editingHeader
-        ? [
-            values.category,
-            multi ? `${locations.length} farms` : null,
-            !subject.row.ref.is_active ? 'Inactive' : null,
-          ].filter(Boolean).join(' · ')
-        : subject ? undefined : 'Loading…'}
       headerAction={subject ? (editingHeader ? (
         <>
           <Button
@@ -1165,7 +1158,7 @@ export default function SupplierProfilePage() {
                 type="button"
                 onClick={() => setProfileDetailsOpen((open) => !open)}
                 aria-expanded={profileExpanded}
-                className="flex min-w-36 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted"
+                className="flex min-h-11 min-w-36 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block text-[12px] font-semibold">Supplier details</span>
@@ -1253,6 +1246,7 @@ export default function SupplierProfilePage() {
                   <Button
                     variant="outline"
                     size="icon-sm"
+                    className="size-11"
                     onClick={() => startFieldEdit(subject.row)}
                     aria-label="Edit supplier"
                     title="Edit supplier"
@@ -1567,7 +1561,7 @@ export default function SupplierProfilePage() {
                 <button
                   type="button"
                   onClick={() => setOpenArId(null)}
-                  className="inline-flex w-fit cursor-pointer items-center gap-1 border-none bg-transparent text-[12px] font-semibold text-primary hover:underline"
+                  className="inline-flex min-h-11 min-w-11 w-fit cursor-pointer items-center gap-1 border-none bg-transparent text-[12px] font-semibold text-primary hover:underline"
                 >
                   <ChevronLeft size={13} /> All availability requests
                 </button>

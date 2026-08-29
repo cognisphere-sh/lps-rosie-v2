@@ -211,7 +211,6 @@ export default function CustomersPage() {
     <Shell
       page="customers"
       title="Customers"
-      subtitle={`${summary.customers} ${summary.customers === 1 ? 'customer' : 'customers'} · ${summary.withRequests} with active requests`}
       hideHeaderOnMobile
       toolbar={
         <Toolbar

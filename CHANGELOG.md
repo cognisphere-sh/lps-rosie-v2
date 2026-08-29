@@ -29,6 +29,10 @@ here).
   without a broad page refetch; all response detail remains in the AR drawer.
   (`app/{app/requests/page.tsx,components/workspace/ar-drawer.tsx}`, `app/lib/{availability,availability-queries,chat-bus}.ts`)
 
+### Changed
+
+- **Workspace headers are compact and purposeful across the admin app and supplier portal.** `WorkspaceFrame` now owns one title-only ~40px actionless desktop row, retaining only page/record actions and global controls; every direct header action plus the explicit bells and New Job Request control has a 44×44px minimum target, so current action-bearing rows measure 53px including the border rather than shrinking touch targets. Persistent subtitle plumbing is gone. Photo ordering, Job Request line counts, portal request stats, closed counts and portal-detail line/pending counts moved into their existing toolbars or content. Generic mobile headers now stay absent for every list/workspace route, including Agents and Settings, while supplier/customer detail identity, safe areas, navigation, bells, chat and purpose-built overlay headers are preserved. Focused source/class/layout-contract tests cover the shared primitive, 44px actions and Back/detail controls, responsive policy, metadata destinations and exclusions. (`app/components/workspace/{frame,shell,partner}.tsx`, `app/app/{suppliers,plants,photos,customers,requests,agents,settings,partner}`, `app/lib/compact-headers.test.ts`)
+
 ### Fixed
 
 - **Long plant names stay readable on mobile Plant Search.** The plant-name

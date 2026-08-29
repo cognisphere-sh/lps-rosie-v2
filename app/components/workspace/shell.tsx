@@ -107,7 +107,6 @@ function initialsOf(name: string): string {
 export function Shell({
   page,
   title,
-  subtitle,
   toolbar,
   headerAction,
   hideHeaderOnMobile = false,
@@ -115,7 +114,6 @@ export function Shell({
 }: {
   page: PageId
   title: string
-  subtitle?: string
   toolbar?: React.ReactNode
   headerAction?: React.ReactNode
   hideHeaderOnMobile?: boolean
@@ -310,7 +308,6 @@ export function Shell({
         <AvailabilityRequestDrawer />
         <WorkspaceFrame
           title={title}
-          subtitle={subtitle}
           toolbar={toolbar}
           headerAction={headerAction}
           // Mobile chat supplies its own compact identity header; do not
@@ -662,7 +659,7 @@ function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
         'flex flex-none items-center border-none bg-primary font-semibold text-primary-foreground',
         fab
           ? 'absolute bottom-3 right-3 z-[64] size-12 justify-center rounded-full shadow-[var(--lps-shadow)]'
-          : 'gap-1.5 rounded-full px-3 py-1.5 text-[12.5px]',
+          : 'min-h-11 min-w-11 gap-1.5 rounded-full px-3 py-1.5 text-[12.5px]',
         busy ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-90',
       )}
     >
@@ -713,7 +710,7 @@ function NotificationBell({ mobile = false }: { mobile?: boolean }) {
           'cursor-pointer border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
           mobile
             ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
-            : 'relative flex size-8 items-center justify-center rounded-full',
+            : 'relative flex size-11 items-center justify-center rounded-full',
           open && mobile && 'text-primary',
         )}
       >

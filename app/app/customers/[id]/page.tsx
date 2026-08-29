@@ -199,7 +199,7 @@ export default function CustomerPage() {
 
   if (error || !Number.isInteger(id)) {
     return (
-      <Shell page="customers" title="Customer" subtitle="Not found">
+      <Shell page="customers" title="Customer">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
           <p className="text-[14px] font-semibold">That customer does not exist.</p>
           <Link href="/customers" className="text-[13px] font-semibold text-primary underline">
@@ -212,7 +212,7 @@ export default function CustomerPage() {
 
   if (!customer) {
     return (
-      <Shell page="customers" title="Customer" subtitle="Loading…">
+      <Shell page="customers" title="Customer">
         <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
       </Shell>
     )
@@ -233,7 +233,6 @@ export default function CustomerPage() {
     <Shell
       page="customers"
       title={customer.name}
-      subtitle={[customer.company, where].filter(Boolean).join(' · ') || 'No company or address on file'}
       headerAction={chatThreadId ? (
         <AgentChatButton
           agentId="rosie"
@@ -251,7 +250,7 @@ export default function CustomerPage() {
         <div className="flex flex-col gap-3 border-b border-border bg-lps-tint p-4">
           <Link
             href="/customers"
-            className="w-fit text-[12px] font-semibold text-primary no-underline hover:underline"
+            className="inline-flex min-h-11 min-w-11 w-fit items-center text-[12px] font-semibold text-primary no-underline hover:underline"
           >
             ← All customers
           </Link>

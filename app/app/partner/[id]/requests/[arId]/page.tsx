@@ -103,11 +103,12 @@ export default function PartnerRequestPage() {
   // A closed request was reached from the Closed page and belongs to it, so
   // both the back link and the rail's highlight follow it there.
   const isClosed = request?.status === 'closed'
+  const pending = request ? request.items.length - request.answeredCount : 0
   const back = (
     <div className="flex flex-none flex-wrap items-center gap-2.5 border-b border-border bg-card px-3 py-2.5 md:px-4">
       <Link
         href={isClosed ? `/partner/${supplierId}/closed` : `/partner/${supplierId}`}
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-semibold text-muted-foreground no-underline hover:bg-muted hover:text-foreground"
+        className="inline-flex min-h-11 min-w-11 items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-semibold text-muted-foreground no-underline hover:bg-muted hover:text-foreground"
       >
         <span className="flex size-3.5"><ChevronLeft /></span>
         {isClosed ? 'Closed requests' : 'All requests'}
@@ -115,6 +116,9 @@ export default function PartnerRequestPage() {
       {request && (
         <>
           <ARStatusPill status={request.status} />
+          <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+            {request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {pending} pending
+          </span>
           <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim">
             Requested {formatDate(request.createdAt)}
             {request.submittedAt && ` · Submitted ${formatDate(request.submittedAt)}`}
@@ -148,7 +152,6 @@ export default function PartnerRequestPage() {
   }
 
   const editable = !!request && request.status !== 'closed'
-  const pending = request ? request.items.length - request.answeredCount : 0
 
   return (
     <PartnerFrame
@@ -156,11 +159,6 @@ export default function PartnerRequestPage() {
       supplierName={supplierName}
       tab={isClosed ? 'closed' : 'requests'}
       title={request ? requestName(request) : 'Availability request'}
-      subtitle={
-        request
-          ? `${request.items.length} ${request.items.length === 1 ? 'line' : 'lines'} · ${pending} pending`
-          : undefined
-      }
       alerts={alerts}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       toolbar={back}

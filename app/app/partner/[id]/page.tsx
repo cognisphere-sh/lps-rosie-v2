@@ -196,8 +196,6 @@ export default function PartnerHomePage() {
       supplierName={supplierName}
       tab="requests"
       title="Availability Requests"
-      // The header's running total, over everything — the tab doesn't change it.
-      subtitle={`${stats.newJobs} ${stats.newJobs === 1 ? 'new job' : 'new jobs'} · ${stats.pendingRows} rows pending · ${stats.unavailableRows} rows unavailable`}
       alerts={alerts}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       toolbar={
@@ -207,23 +205,31 @@ export default function PartnerHomePage() {
            switch — and under By item the tabs are gone entirely, because a
            status is a fact about a request and that view is grouping plants. */
         <div className="flex flex-none flex-col gap-2 border-b border-border bg-card px-3 py-2.5 md:px-4">
-          <div className="flex w-fit gap-1 rounded-lg border border-border bg-secondary/45 p-0.5">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => setView(v.id)}
-                aria-pressed={view === v.id}
-                className={cn(
-                  'cursor-pointer rounded-[6px] border px-2.5 py-1 text-[11.5px] font-semibold',
-                  view === v.id
-                    ? 'border-border bg-card text-foreground shadow-sm'
-                    : 'border-transparent bg-transparent text-muted-foreground hover:bg-lps-tint',
-                )}
-              >
-                {v.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-fit gap-1 rounded-lg border border-border bg-secondary/45 p-0.5">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setView(v.id)}
+                  aria-pressed={view === v.id}
+                  className={cn(
+                    'cursor-pointer rounded-[6px] border px-2.5 py-1 text-[11.5px] font-semibold',
+                    view === v.id
+                      ? 'border-border bg-card text-foreground shadow-sm'
+                      : 'border-transparent bg-transparent text-muted-foreground hover:bg-lps-tint',
+                  )}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <span
+              aria-live="polite"
+              className="w-full text-[11.5px] text-muted-foreground min-[900px]:ml-auto min-[900px]:w-auto"
+            >
+              {stats.newJobs} {stats.newJobs === 1 ? 'new job' : 'new jobs'} · {stats.pendingRows} rows pending · {stats.unavailableRows} rows unavailable
+            </span>
           </div>
           {view === 'request' && (
           <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/45 p-1">

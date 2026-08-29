@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 export default function AgentsPage() {
   return (
-    <Shell page="agents" title="Know your Agents" subtitle="The AI team behind this workspace">
+    <Shell page="agents" title="Know your Agents" hideHeaderOnMobile>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
         {AGENTS.map((a) => (
           <div key={a.id} className="shrink-0 overflow-hidden rounded-xl border border-border bg-card">

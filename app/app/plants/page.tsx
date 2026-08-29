@@ -713,7 +713,7 @@ export default function PlantSearchPage() {
   )
 
   return (
-    <Shell page="inventory" title="Plant search" subtitle="One card per company" toolbar={toolbar} hideHeaderOnMobile>
+    <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile>
       {!searchHydrated ? null : !hasQuery ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <span className="text-[15px] font-semibold">What plant are you looking for?</span>

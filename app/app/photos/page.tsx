@@ -651,7 +651,7 @@ export default function PhotoCataloguePage() {
       summary={
         searching
           ? 'Searching…'
-          : `Showing ${photos.length.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} photo${total === 1 ? '' : 's'}`
+          : `Showing ${photos.length.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} photo${total === 1 ? '' : 's'} · ${query.trim() ? 'Ranked by match' : 'Newest first'}`
       }
     />
   )
@@ -660,7 +660,6 @@ export default function PhotoCataloguePage() {
     <Shell
       page="photos"
       title="Photo catalogue"
-      subtitle={query.trim() ? 'Ranked by match' : 'Newest first'}
       toolbar={toolbar}
       hideHeaderOnMobile
     >

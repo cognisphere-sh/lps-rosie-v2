@@ -351,7 +351,7 @@ function PartnerNotificationBell({
           'cursor-pointer border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
           mobile
             ? 'flex w-full flex-col items-center gap-1 rounded-[10px] px-0.5 py-1.5'
-            : 'relative flex size-8 items-center justify-center rounded-full',
+            : 'relative flex size-11 items-center justify-center rounded-full',
           open && mobile && 'text-primary',
         )}
       >
@@ -499,7 +499,6 @@ export function PartnerFrame({
   supplierName,
   tab,
   title,
-  subtitle,
   toolbar,
   headerAction,
   alerts = [],
@@ -512,7 +511,6 @@ export function PartnerFrame({
   tab: PartnerTab
   /** The header's page name, in the admin Shell's serif line. */
   title: string
-  subtitle?: string
   /** Sits under the header, above the scrolling page — the Shell's slot. */
   toolbar?: React.ReactNode
   headerAction?: React.ReactNode
@@ -713,7 +711,6 @@ export function PartnerFrame({
   return (
     <WorkspaceFrame
       title={title}
-      subtitle={subtitle}
       toolbar={toolbar}
       headerAction={headerAction}
       // Since 2026-08-26 every portal page draws no header on mobile, exactly
