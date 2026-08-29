@@ -128,6 +128,7 @@ export function MultiFilter({
   selectionLabel,
   buttonClassName,
   filterPlaceholder = 'Filter suppliers…',
+  largeTargets = false,
 }: {
   allLabel: string
   options: string[]
@@ -136,6 +137,7 @@ export function MultiFilter({
   selectionLabel?: string
   buttonClassName?: string
   filterPlaceholder?: string
+  largeTargets?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [needle, setNeedle] = useState('')
@@ -149,6 +151,7 @@ export function MultiFilter({
     <div ref={pop} data-menu className="relative w-full">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex h-6 w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] text-[11px] font-medium',
@@ -169,13 +172,14 @@ export function MultiFilter({
             value={needle}
             onChange={(e) => setNeedle(e.target.value)}
             placeholder={filterPlaceholder}
-            className="mb-1 h-7 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] outline-none"
+            aria-label={filterPlaceholder}
+            className={cn('mb-1 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] outline-none', largeTargets ? 'h-11' : 'h-7')}
           />
           {selected.length > 0 && (
             <button
               type="button"
               onClick={() => onChange([])}
-              className="mb-1 w-full cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-left text-[11.5px] font-semibold text-primary hover:bg-muted"
+              className={cn('mb-1 w-full cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-left text-[11.5px] font-semibold text-primary hover:bg-muted', largeTargets && 'min-h-11')}
             >
               Clear selection
             </button>
@@ -189,8 +193,9 @@ export function MultiFilter({
               <button
                 key={o}
                 type="button"
+                aria-pressed={on}
                 onClick={() => onChange(on ? selected.filter((x) => x !== o) : [...selected, o])}
-                className={checkRow(on)}
+                className={cn(checkRow(on), largeTargets && 'min-h-11')}
                 title={o}
               >
                 <span className={checkBox(on)}>{on && <CheckIcon size={10} />}</span>
@@ -337,11 +342,12 @@ export function ColumnHead({
   col: ColumnDef
   width: number
   sort: Sort
-  filters: ColFilters
-  options: string[]
+  /** Omit these three filter props on a table whose filters live elsewhere. */
+  filters?: ColFilters
+  options?: string[]
   small?: boolean
   onSort: () => void
-  onFilter: (value: ColFilter) => void
+  onFilter?: (value: ColFilter) => void
   onResize: (width: number) => void
   onMove: (fromKey: string) => void
 }) {
@@ -405,13 +411,15 @@ export function ColumnHead({
         </button>
       </div>
 
-      <FilterControl
-        col={col}
-        value={filters[col.key]}
-        options={options}
-        small={small}
-        onFilter={onFilter}
-      />
+      {filters && onFilter && (
+        <FilterControl
+          col={col}
+          value={filters[col.key]}
+          options={options ?? []}
+          small={small}
+          onFilter={onFilter}
+        />
+      )}
 
       <div
         onMouseDown={startResize}

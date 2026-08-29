@@ -7,7 +7,8 @@ import { AgentChatButton } from '@/components/workspace/agent-chat-button'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import { SUPPLIER_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { Cell, ColumnHead, ColumnPicker, LpsTag, MultiFilter, badgeFor } from '@/components/workspace/table-parts'
+import { SupplierFilters } from '@/components/workspace/supplier-filters'
+import { Cell, ColumnHead, ColumnPicker, LpsTag, badgeFor } from '@/components/workspace/table-parts'
 import { Toolbar } from '@/components/workspace/toolbar'
 import { Badge } from '@/components/ui/badge'
 import { supplierAgentThreads } from '@/lib/agents'
@@ -18,16 +19,6 @@ import { SUPPLIER_FILTERS, clientOnlyFilters, filterQuery } from '@/lib/server-f
 import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
-
-/**
- * The LPS Partner chip's two answers, and the `is_lps_partner` values they
- * select. The filter reaches SQL as a value on the boolean column, but a chip
- * reading `true` would be asking the user to read the schema.
- */
-const PARTNER_OPTIONS: Record<string, string> = {
-  'LPS Partners': 'true',
-  'Not partners': 'false',
-}
 
 // The column picker's head, and each company row's two agent buttons beside
 // its hide button. Farm rows carry the hide button alone.
@@ -232,10 +223,6 @@ export default function SuppliersPage() {
     [facets],
   )
 
-  const categoryFilter = Array.isArray(cfg.filters.category) ? cfg.filters.category : []
-  const cityFilter = Array.isArray(cfg.filters.city) ? cfg.filters.city : []
-  const stateFilter = Array.isArray(cfg.filters.state) ? cfg.filters.state : []
-  const partnerFilter = Array.isArray(cfg.filters.lps_partner) ? cfg.filters.lps_partner : []
   const hasFilters = Object.keys(cfg.filters).length > 0 || !!query
 
   const toolbar = (rightActions: React.ReactNode) => (
@@ -245,57 +232,13 @@ export default function SuppliersPage() {
       query={query}
       onQuery={setQuery}
       controls={
-        <>
-          <div className="w-[calc(50%-4px)] md:w-[160px]">
-            <MultiFilter
-              allLabel="All supplier types"
-              selectionLabel="Type"
-              options={optionList('category')}
-              selected={categoryFilter}
-              onChange={(next) => cfg.setColFilter('category', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
-              filterPlaceholder="Filter supplier types…"
-            />
-          </div>
-          <div className="w-[calc(50%-4px)] md:w-[160px]">
-            <MultiFilter
-              allLabel="All cities"
-              selectionLabel="City"
-              options={optionList('city')}
-              selected={cityFilter}
-              onChange={(next) => cfg.setColFilter('city', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
-              filterPlaceholder="Filter cities…"
-            />
-          </div>
-          <div className="w-[calc(50%-4px)] md:w-[140px]">
-            <MultiFilter
-              allLabel="All states"
-              selectionLabel="State"
-              options={optionList('state')}
-              selected={stateFilter}
-              onChange={(next) => cfg.setColFilter('state', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
-              filterPlaceholder="Filter states…"
-            />
-          </div>
-        </>
+        <SupplierFilters
+          mobile={isMobile}
+          filters={cfg.filters}
+          options={optionList}
+          onFilter={(key, value) => cfg.setColFilter(key, value)}
+        />
       }
-      chips={[
-        {
-          label: 'LPS Partner',
-          allLabel: 'All suppliers',
-          // The two answers exclude each other: a supplier either answers in
-          // the portal or does not, so ticking both would be ticking neither.
-          single: true,
-          options: Object.keys(PARTNER_OPTIONS),
-          values: Object.keys(PARTNER_OPTIONS).filter((label) =>
-            partnerFilter.includes(PARTNER_OPTIONS[label]),
-          ),
-          onChange: (labels) =>
-            cfg.setColFilter('lps_partner', labels.map((label) => PARTNER_OPTIONS[label])),
-        },
-      ]}
       hasFilters={hasFilters}
       onClear={() => {
         setQuery('')
@@ -304,7 +247,7 @@ export default function SuppliersPage() {
       summary={
         searching
           ? 'Searching…'
-          : `Showing ${visibleCompanies.length} of ${total.toLocaleString('en-US')} companies`
+          : `${visibleCompanies.length}/${total} Companies`
       }
       pagination={{ page, pageCount, onPage: setPage, busy: searching }}
     />
@@ -531,10 +474,7 @@ export default function SuppliersPage() {
                         col={col}
                         width={cfg.widthOf(col)}
                         sort={cfg.sort}
-                        filters={cfg.filters}
-                        options={optionList(col.key)}
                         onSort={() => cfg.cycleSort(col.key)}
-                        onFilter={(v) => cfg.setColFilter(col.key, v)}
                         onResize={(w) => cfg.resizeColumn(col.key, w)}
                         onMove={(from) => cfg.moveColumn(from, col.key)}
                       />

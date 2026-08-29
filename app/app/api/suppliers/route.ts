@@ -3,11 +3,14 @@ import { NextResponse } from 'next/server'
 import { PAGE_SIZE, itemCounts, listSuppliers, supplierFacets } from '@/lib/queries'
 import { SUPPLIER_FILTERS, parseFilters } from '@/lib/server-filters'
 import { SUPPLIER_SORTS, parseSort } from '@/lib/server-sort'
+import { invalidSupplierRequest } from '@/lib/supplier-request-validation'
 
 // Debounced search from the client lands here. proxy.ts has already verified
 // the harness session, so anything reaching this handler is signed in.
 export async function GET(req: Request) {
   const url = new URL(req.url)
+  const invalid = invalidSupplierRequest(url.searchParams)
+  if (invalid) return NextResponse.json({ error: invalid }, { status: 400 })
   const search = url.searchParams.get('q') ?? ''
 
   // `counts=1` is the suppliers page's second pass: the table renders from the
