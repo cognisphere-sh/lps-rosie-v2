@@ -651,11 +651,13 @@ set per search flavour (`PLANT_SEARCH_LABELS` for the two plant searches,
 `SUPPLIER_SEARCH_LABELS` for the suppliers list, `PHOTO_SEARCH_LABELS` for the
 photo catalogue), all defined in `search-loader.tsx`.
 
-The photo catalogue runs the same machinery against `search_plant_photos`, which
-is `search_inventory`'s algorithm over a photo's name, size, caption, tags and
-notes — so everything below about ranking, aliases and typed sizes applies there
-too, and a search for `Chusan Palm` finds a photo catalogued as *Trachycarpus
-fortunei*. It differs in one way that matters to the page: a blank query
+The photo catalogue runs the same **unquoted discovery machinery** against
+`search_plant_photos`, over a photo's name, size, caption, tags and notes — so
+everything below about broad ranking, aliases and typed sizes applies there too,
+and a search for `Chusan Palm` finds a photo catalogued as *Trachycarpus
+fortunei*. Quoted literal mode belongs only to `search_inventory`; the photo
+RPC does not implement it. The photo page also differs in one way that matters:
+a blank query
 **browses** `plant_photos` newest-first instead of showing a prompt, because a
 photo catalogue with nothing typed into it is still something you want to look
 at.
@@ -674,14 +676,21 @@ the saved state cannot serve stale inventory. Clearing the search removes both
 the URL parameter and saved term. Browser Back/Forward changes are restored via
 `popstate`.
 
-Wrapping the entire plant identity in straight double quotes switches the same
-API to exact mode: `"Italian Cypress"` compares complete common, botanical and
-composed identity parts (plus exact cultivar keys and one direct reviewed alias
-hop), ignoring punctuation/case/word order but refusing extra tokens. It
-therefore excludes Arizona Cypress and Blue Ice while the unquoted query keeps
-the broad discovery tail. Quotes are preserved in the URL and local storage.
-Use the existing Size selector with an exact query; text outside the closing
-quote deliberately means the query is no longer fully wrapped and stays broad.
+Wrapping the entire Plant Search term in straight double quotes switches the
+same API to **literal substring mode**: `"Italian Cypress"` looks for those two
+words, together and in that order, case-insensitively in the composed name,
+common name, botanical name, or cultivar/variety/trade name. Size and notes do
+not qualify a row in quoted mode. It does not normalize punctuation or spacing,
+expand aliases, split terms,
+accept partial tokens/spelling variations, or run fuzzy matching. `%`, `_` and
+`\\` inside the quotes are literal characters rather than SQL pattern syntax;
+apostrophes and inner double quotes are literal too. Outer whitespace and
+whitespace just inside the pair are trimmed, but internal whitespace is
+preserved. Empty/whitespace-only quoted terms return no rows. A one-sided quote
+is not quoted mode and follows the unchanged broad-search path. All quoted hits
+have equal relevance; Plant Search's normal caller ordering therefore shows the
+newest first. Quotes are preserved in the URL and local storage. Use the
+existing Size selector to constrain an identity-only quoted search by size.
 
 Plant Search treats size as part of the natural question without showing a
 permanent filter form. A query such as `15g Agave Americana` is parsed into the

@@ -1,5 +1,22 @@
 # plant-and-supplier-search — changelog
 
+## 1.7.1
+
+2026-08-29, Bhoumik-approved correction before migration 0081 is applied.
+Quoted literal matching is identity-only: composed/common/botanical/cultivar
+name can qualify, while size-only and notes-only hits cannot. This keeps the
+availability-request price seeder from accepting an unrelated row merely
+because its public notes repeat the requested phrase.
+
+## 1.7.0
+
+2026-08-29, with migration 0081. Adds quoted literal plant search: one
+outer pair of straight double quotes selects a case-insensitive, escaped literal
+substring over identity fields, size, and public notes, bypassing aliases,
+normalization, token/spelling variation, and fuzzy matching. Clarifies that this
+contract belongs only to `search_inventory`; broad discovery remains the
+default and is unchanged.
+
 ## 1.6.2
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

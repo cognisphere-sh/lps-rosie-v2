@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. daisy's skill, narrowed — the same RPCs and search discipline, plus scoping a sourcing look-up to Austin Plant Supply, when to widen past it, and the read-only framing that sends findings to a request's `sourcing_notes` and data problems to daisy. Use for any price or sourcing question against the database. (v1.1.4)
+description: Look up a plant or supplier in Supabase and answer the asker well. daisy's skill, narrowed — broad versus quoted-literal search, Austin Plant Supply scoping and widening, plus read-only handling that sends findings to request `sourcing_notes` and data problems to daisy. Use for any database-backed price or sourcing question. (v1.2.1)
 metadata:
   author: lps
-  version: "1.1.4"
+  version: "1.2.1"
 ---
 
 # Looking up a plant or supplier
@@ -56,7 +56,23 @@ neither the ask nor a close alternative, or Chris or the customer named another
 supplier. A question that was never about a job request ("who has Muskogee?")
 is not scoped at all.
 
-### How it matches and ranks
+### Quoted literal plant search
+
+Wrap the entire `search_inventory` term in straight double quotes when the
+characters inside must occur together and in order: `"Italian Cypress"`. This
+is a case-insensitive literal substring over composed/common/botanical/cultivar
+identity only. Size and notes cannot qualify a row. It does **not** expand
+aliases, normalize
+punctuation or internal spacing, accept token/spelling variations, or use fuzzy
+matching. `%`, `_`, and `\\` are literal too. Empty quoted input finds nothing;
+a one-sided quote stays on the broad path. Every quoted hit has equal relevance,
+so order by recency/name or another field the question calls for.
+
+Use this as a precision tool, not the default discovery path: it will not find a
+botanical synonym for a common name, a reversed phrase, or a typo. Quotes on
+`search_suppliers` and `search_plant_photos` do not carry this contract.
+
+### How unquoted search matches and ranks
 
 It searches **names, size and notes**. It is typo tolerant, matches **partially
 at both ends** (`sycamor` and `ycamor` both find `sycamore`), and expands your

@@ -299,6 +299,23 @@ narrowed from seven words to four (`pending`, `available`,
 `alternative_proposed`, `unavailable`), remapping before narrowing. See the
 migration file's own header for what went and why.
 
+## `0081_quoted_literal_substring_plant_search.sql`
+
+Applied 2026-08-29. The authorized query wrapper ran the unchanged functional
+transaction (`BEGIN`, timeout, `CREATE OR REPLACE FUNCTION`, `COMMIT`); its guard
+blocked only the ancillary function comment and PostgREST schema-cache notify.
+The signature was unchanged, so the function was immediately callable.
+Replaces only the quoted branch of the existing two-argument
+`search_inventory` RPC. A fully double-quoted query now uses one escaped `ILIKE
+'%…%'` pattern over composed/common/botanical/cultivar identity only; size and
+notes cannot qualify. It is case-insensitive but otherwise literal: no
+normalization, alias expansion, token partials, spelling variation, or fuzzy matching; SQL wildcard
+and escape characters are escaped. All hits have relevance 1 and use recency,
+then name, as tie-breakers. Empty quoted input returns nothing; one-sided quotes
+retain broad discovery. The unquoted 0057 body is unchanged. The 0057
+`normalize_identity_token_key` helper remains present but is no longer called.
+No table data, helper, index, signature, or return type changes.
+
 ## `0057_quoted_exact_plant_search.sql`
 
 Applied 2026-08-17 at Bhoumik's request. Adds the immutable

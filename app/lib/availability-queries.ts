@@ -218,9 +218,10 @@ export async function availabilityRequest(
  * job-request item id — seeded into the request so they confirm or correct a
  * number instead of typing one from scratch.
  *
- * Deliberately narrow. The look-up runs in `search_inventory`'s **exact
- * identity mode** (the quoted query, migration 0057 — no fuzzy tail), scoped
- * to this supplier's own rows and to the size asked for, and a price is taken
+ * Deliberately narrow. The look-up runs in `search_inventory`'s **literal
+ * substring mode** (the quoted query, migration 0081 — no alias/fuzzy tail),
+ * scoped to this supplier's own rows and to the size asked for, and a price is
+ * taken
  * only when every surviving row agrees on one. Anything less certain goes out
  * blank: an empty box costs the supplier a moment, a wrong number in front of
  * them costs more. A failed look-up is never a failed request.

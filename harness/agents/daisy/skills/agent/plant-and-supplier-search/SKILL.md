@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the `search_inventory` / `search_suppliers` RPCs, the split plant identity and the alias edges that reach it, widening a search that came back empty, and the shape of a good answer. Use for any look-up of a plant, a supplier, or what they carry — including a geographic question that has to be answered from farm evidence, or a fallback query that touches the key columns directly. (v1.6.2)
+description: Look up a plant or a supplier in the Supabase database and answer the asker well. Covers the `search_inventory` / `search_suppliers` RPCs, broad versus quoted-literal plant search, split identity and aliases, widening, and answer shape. Use for any look-up of a plant, supplier, or what they carry — including a geographic question that needs farm evidence, or a fallback query touching key columns directly. (v1.7.1)
 metadata:
   author: lps
-  version: "1.6.2"
+  version: "1.7.1"
 ---
 
 # Looking up a plant or supplier
@@ -20,7 +20,22 @@ what was actually asked.
 An empty `search` returns **nothing** — there is nothing to rank. To *list*
 rather than *search*, select from `inventory` with an `ORDER BY` and a `LIMIT`.
 
-### How it matches and ranks
+### Quoted literal plant search
+
+Wrap the entire `search_inventory` term in straight double quotes when the
+characters inside must occur together and in order: `"Italian Cypress"`. This
+is a case-insensitive literal substring over composed/common/botanical/cultivar
+identity only. Size and notes cannot qualify a row. It does **not** expand
+aliases, normalize punctuation or internal spacing, accept token/spelling variations, or use fuzzy
+matching. `%`, `_`, and `\\` are literal too. Empty quoted input finds nothing;
+a one-sided quote stays on the broad path. Every quoted hit has equal relevance,
+so order by recency/name or another field the question calls for.
+
+Use this as a precision tool, not the default discovery path: it will not find a
+botanical synonym for a common name, a reversed phrase, or a typo. Quotes on
+`search_suppliers` and `search_plant_photos` do not carry this contract.
+
+### How unquoted search matches and ranks
 
 It searches **names, size and notes**. It is typo tolerant, matches **partially
 at both ends** (`sycamor` and `ycamor` both find `sycamore`), and expands your

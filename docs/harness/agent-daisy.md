@@ -445,6 +445,13 @@ and when; the summaries below are one line each.
   active photo's object is never a candidate — lives in the database rather than
   in a script's arguments.
 
+- `0081_quoted_literal_substring_plant_search.sql` — approved and applied
+  2026-08-29. Replaces `search_inventory`'s quoted exact-identity branch with
+  escaped case-insensitive literal-substring matching over the composed and
+  split identity fields only; size and notes cannot qualify. It bypasses aliases,
+  normalization, token partials and fuzzy matching; unquoted discovery and the
+  RPC signature/projection are unchanged.
+
 - `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
   `suppliers.daisy_thread_id` — the company's one dedicated daisy thread
   (`supplier-<slug of head-branch name>`, one per head branch, every location

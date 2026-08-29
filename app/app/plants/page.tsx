@@ -274,9 +274,9 @@ export default function PlantSearchPage() {
     [toast],
   )
 
-  // Exact multi-word identity intent is enforced in search_inventory before
-  // these groups arrive. Do not re-expand or reinterpret its direct aliases in
-  // the browser: that used to let sibling cultivars back into the result set.
+  // Quoted literal retrieval is enforced in search_inventory before these
+  // groups arrive. Do not normalize, expand or reinterpret its result in the
+  // browser; unquoted ranking also remains the RPC's responsibility.
   const refinedGroups = groups
 
   // Column filters, and the plant table's sort, ran in SQL before this page was
@@ -374,7 +374,7 @@ export default function PlantSearchPage() {
 
   const toolbar = (
     <Toolbar
-      placeholder={'Search plant name; use "quotes" for exact…'}
+      placeholder={'Search plant name; use "quotes" for a literal phrase…'}
       query={query}
       onQuery={setQuery}
       controls={
@@ -708,7 +708,7 @@ export default function PlantSearchPage() {
           <span className="text-[15px] font-semibold">What plant are you looking for?</span>
           <span className="max-w-[470px] text-[12.5px] text-muted-foreground">
             Search broadly by plant name, optionally with a size such as “15g Agave Americana”.
-            Wrap an exact common or botanical identity in double quotes: "Italian Cypress".
+            Wrap a literal case-insensitive plant-identity substring in double quotes: "Italian Cypress".
           </span>
         </div>
       ) : isMobile ? (

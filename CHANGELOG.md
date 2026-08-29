@@ -106,6 +106,14 @@ here).
 
 ### Changed
 
+- **Fully double-quoted Plant Search now means a literal substring** (Bhoumik's
+  direction, migration 0081 applied 2026-08-29). The trimmed inner phrase is matched
+  case-insensitively, in order, across composed/common/botanical/cultivar
+  identity only; size and notes cannot qualify. It bypasses alias expansion,
+  normalization, token and spelling variations, and fuzzy matching; `%`, `_`
+  and `\\` are escaped as
+  data. Empty quoted input returns nothing, one-sided quotes remain broad, all
+  quoted hits tie on relevance, and unquoted search is unchanged.
 - **Mobile agent chat now reaches the top edge instead of sitting under an
   opaque app bar.** In the installed iOS app, `black-translucent` status chrome
   lets the active chat wallpaper continue behind the system status area. The

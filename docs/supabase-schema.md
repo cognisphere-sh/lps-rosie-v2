@@ -978,7 +978,7 @@ on it** — nothing reads it, and it is a candidate for removal.
 |---|---|---|
 | `normalize_search_text(text)` | text | Search tokenization: lowercase, punctuation → spaces, split letter↔digit boundaries ("1G" → "1 g"). The pgroonga document/query normalizer — the concatenation in `search_inventory` must stay byte-identical to the two `inventory_search_*_idx` expressions or the indexes are skipped |
 | `normalize_plant_key(text)` | text | Identity key for plant names: lowercase **letters only** ("Live-Oak 2" → "liveoak"). Backs the generated `*_key` columns |
-| `normalize_identity_token_key(text)` | text | Exact-mode identity signature (0057): normalized tokens sorted and joined, so `Italian Cypress` = `Cypress, Italian`, while either differs from any identity with an extra token such as `Blue Ice`. IMMUTABLE/STRICT/PARALLEL SAFE; comparison helper only, not stored evidence |
+| `normalize_identity_token_key(text)` | text | Legacy 0057 identity signature: normalized tokens sorted and joined. Retained for compatibility after 0081 replaced that exact-identity branch; current quoted search does not call it |
 | `compose_plant_name(text, text, text)` | text | The SOP name format: the non-empty parts joined by ` - `, in the order common, botanical, cultivar; NULL when all three are empty. What `trg_inventory_derive_identity` writes into `inventory.name` — and, since 0051, `plant_photos.name` too |
 | `plant_photo_document(name, size, caption, tags, notes)` | text | The searchable text of a photo, IMMUTABLE. **The single definition** behind both `plant_photos_search_*` indexes and `search_plant_photos` — which is why the photo side cannot drift the way the inventory side can, where the same concatenation is repeated in five places |
 | `normalize_size(text)` | text | Size-string normalizer — canonicalizes units/spacing/leading zeros (`"1G"` → `"1 G"`, `"024 Inch Box"` → `"24\" Box"`). **Nothing calls it automatically** (no trigger, no default): ingestion applies it, and migration 0019 applied it to the 38,090 legacy rows that had drifted |
@@ -992,15 +992,23 @@ search_inventory(search text = '', fuzzy_ratio real = 0.34)
 sorting are the caller's job, applied as SQL over the result. The function
 answers one question: which rows answer this query, and how well.
 
-**One outer pair of straight double quotes selects exact identity mode**
-(migration 0057): `"Italian Cypress"` matches a complete common, botanical or
-composed identity part, an exact cultivar key, or one active direct alias hop.
-Comparison ignores case, punctuation and token order (`"Cypress Italian"` is
-the same query), but it does **not** ignore extra tokens—Arizona Cypress and
-Blue Ice cannot enter a quoted Italian Cypress result through substring, fuzzy
-or notes matching. The outer quotes must wrap the entire non-empty query;
-unbalanced/internal quotes remain on the broad path. A size cannot sit outside
-the wrapper, so use the Size filter with quoted identity mode.
+**One outer pair of straight double quotes selects literal substring mode**
+(migration 0081): `"Italian Cypress"` matches those characters together and in
+that order, case-insensitively, in `name`, `common_name`, `botanical_name`, or
+`cultivar_variety_trade_name`. Size and notes do not qualify a row in quoted
+mode. It does not normalize punctuation/internal whitespace, expand aliases,
+split tokens, accept partial spellings, or run fuzzy matching. `%`, `_`, and
+`\\` are escaped before `ILIKE`
+and therefore remain literal; apostrophes and inner `"` characters are ordinary
+data because the RPC never interpolates the term into SQL. All matches receive
+`relevance = 1` and tie-break on `updated_at DESC, name ASC`.
+
+The outer quotes must wrap the entire trimmed query. Whitespace at the query and
+inner-phrase edges is trimmed; internal whitespace is preserved. Empty or
+whitespace-only quoted input returns zero rows. A missing opening or closing
+quote remains on the unchanged broad path. With a complete outer pair, any
+additional quote is part of the literal inner phrase (`"""` searches for one
+`"`).
 
 **Unquoted input is unchanged broad discovery.** It executes the 0050
 IDF-weighted partial/fuzzy body and intentionally keeps related tail matches.
@@ -1142,12 +1150,12 @@ result by the caller (0045).
 ```
 search_plant_photos(search text = '', fuzzy_ratio real = 0.34)
 ```
-`search_inventory`'s ranking, over the photo catalogue — same algorithm, same
-contract, added 2026-08-16 by migration 0051. Two parameters, neither a filter;
+The **unquoted discovery algorithm** used by `search_inventory`, over the photo
+catalogue, added 2026-08-16 by migration 0051. Two parameters, neither a filter;
 supplier scoping, size/tag filtering and sorting are applied as SQL over the
 result. Query groups, alias expansion, size-as-a-phrase-group and
-`relevance = Σ idf` all behave exactly as described above, so everything in
-*How it ranks* applies unchanged.
+`relevance = Σ idf` behave as described above. Migration 0081 changes only
+`search_inventory`: `search_plant_photos` has no literal quoted-mode contract.
 
 Returns the `plant_photos` columns plus `supplier_name`, `supplier_category`,
 `supplier_city`, `supplier_state` and `relevance` — 33 columns (`name_key`
