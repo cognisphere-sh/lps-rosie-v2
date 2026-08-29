@@ -212,8 +212,10 @@ export default function CustomersPage() {
       page="customers"
       title="Customers"
       hideHeaderOnMobile
-      toolbar={
+      hideHeaderOnDesktop
+      toolbar={(rightActions) => (
         <Toolbar
+          rightActions={rightActions}
           placeholder="Search name, company, email, phone…"
           query={query}
           onQuery={setQuery}
@@ -238,7 +240,7 @@ export default function CustomersPage() {
             </button>
           }
         />
-      }
+      )}
     >
       {error && (
         <div className="mx-4 mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">

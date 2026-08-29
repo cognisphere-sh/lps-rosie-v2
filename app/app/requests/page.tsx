@@ -1201,10 +1201,12 @@ export default function RequestsPage() {
       page="requests"
       title="All jobs"
       hideHeaderOnMobile
-      toolbar={(
+      hideHeaderOnDesktop
+      toolbar={(rightActions) => (
         <>
         <JobsViewSwitch active="all" />
         <Toolbar
+          rightActions={rightActions}
           placeholder="Search plants, customers, JR-…"
           query={query}
           onQuery={setQuery}
@@ -1228,7 +1230,7 @@ export default function RequestsPage() {
           }
         />
         </>
-      }
+      )}
     >
       {/* The Shell hands its children a fixed, overflow-hidden box, so this is
           the scroll container. Without `min-h-0 flex-1 overflow-auto` the cards

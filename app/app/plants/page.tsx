@@ -373,8 +373,9 @@ export default function PlantSearchPage() {
 
   const hasFilters = !!query || activeFilterCount > 0
 
-  const toolbar = (
+  const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
+      rightActions={rightActions}
       placeholder={'Search plant name; use "quotes" for a literal phrase…'}
       query={query}
       onQuery={setQuery}
@@ -713,7 +714,7 @@ export default function PlantSearchPage() {
   )
 
   return (
-    <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile>
+    <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {!searchHydrated ? null : !hasQuery ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <span className="text-[15px] font-semibold">What plant are you looking for?</span>

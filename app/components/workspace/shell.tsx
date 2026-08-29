@@ -43,11 +43,16 @@ export type PageId =
   | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
 
 /** One shared switch on both Jobs routes; the nav remains active for either. */
-export function JobsViewSwitch({ active }: { active: 'inbox' | 'all' }) {
+export function JobsViewSwitch({ active, rightActions }: { active: 'inbox' | 'all'; rightActions?: React.ReactNode }) {
   return (
     <nav aria-label="Jobs views" className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-3 py-1.5">
       <Link href="/jobs" aria-current={active === 'inbox' ? 'page' : undefined} className={cn('flex min-h-11 items-center rounded-full px-3 text-[12px] font-semibold', active === 'inbox' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}>Inbox</Link>
       <Link href="/requests" aria-current={active === 'all' ? 'page' : undefined} className={cn('flex min-h-11 items-center rounded-full px-3 text-[12px] font-semibold', active === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}>All jobs</Link>
+      {rightActions && (
+        <span className="ml-auto hidden w-full items-center justify-end gap-1 min-[900px]:flex min-[1024px]:w-auto">
+          {rightActions}
+        </span>
+      )}
     </nav>
   )
 }
@@ -120,14 +125,17 @@ export function Shell({
   toolbar,
   headerAction,
   hideHeaderOnMobile = false,
+  hideHeaderOnDesktop = false,
   focusedIntake,
   children,
 }: {
   page: PageId
   title: string
-  toolbar?: React.ReactNode
+  /** A render slot keeps Shell-owned controls inside the route's existing toolbar. */
+  toolbar?: React.ReactNode | ((rightActions: React.ReactNode) => React.ReactNode)
   headerAction?: React.ReactNode
   hideHeaderOnMobile?: boolean
+  hideHeaderOnDesktop?: boolean
   focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
   children: React.ReactNode
 }) {
@@ -320,18 +328,24 @@ export function Shell({
         <AvailabilityRequestDrawer />
         <WorkspaceFrame
           title={title}
-          toolbar={toolbar}
+          toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
+            <span className="flex items-center gap-1">
+              {page === 'requests' && !focusedIntake && <NewJobRequestButton />}
+              <NotificationBell />
+            </span>
+          ) : null) : toolbar}
           headerAction={headerAction}
           // Mobile chat supplies its own compact identity header; do not
           // stack the underlying page header above it.
           hideHeaderOnMobile={hideHeaderOnMobile || mobileAgentsOpen || mobileChat || !!focusedIntake}
+          hideHeaderOnDesktop={hideHeaderOnDesktop}
           hideHeader={!!focusedIntake}
-          headerExtras={
+          headerExtras={!hideHeaderOnDesktop && (
             <>
               {page === 'requests' && !focusedIntake && <NewJobRequestButton />}
               <NotificationBell />
             </>
-          }
+          )}
           theme={theme}
           nav={NAV}
           activeId={page}

@@ -196,9 +196,10 @@ export default function PartnerHomePage() {
       supplierName={supplierName}
       tab="requests"
       title="Availability Requests"
+      hideHeaderOnDesktop
       alerts={alerts}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
-      toolbar={
+      toolbar={(rightActions) => (
         /* The tabs sit where the toolbar used to, pinned under the header: one
            segmented control, label over count, the count in the tab's own tone
            so the list can be triaged without reading it. Above them, the view
@@ -224,12 +225,15 @@ export default function PartnerHomePage() {
                 </button>
               ))}
             </div>
-            <span
-              aria-live="polite"
-              className="w-full text-[11.5px] text-muted-foreground min-[900px]:ml-auto min-[900px]:w-auto"
-            >
-              {stats.newJobs} {stats.newJobs === 1 ? 'new job' : 'new jobs'} · {stats.pendingRows} rows pending · {stats.unavailableRows} rows unavailable
-            </span>
+            <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 min-[1024px]:w-auto">
+              <span
+                aria-live="polite"
+                className="text-[11.5px] text-muted-foreground"
+              >
+                {stats.newJobs} {stats.newJobs === 1 ? 'new job' : 'new jobs'} · {stats.pendingRows} rows pending · {stats.unavailableRows} rows unavailable
+              </span>
+              {rightActions}
+            </div>
           </div>
           {view === 'request' && (
           <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-secondary/45 p-1">
@@ -258,7 +262,7 @@ export default function PartnerHomePage() {
           </div>
           )}
         </div>
-      }
+      )}
     >
       {/* The frame hands its children a fixed, overflow-hidden box, so this is
           the scroll container — the same shape the admin Job Requests page

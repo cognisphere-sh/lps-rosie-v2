@@ -501,6 +501,7 @@ export function PartnerFrame({
   title,
   toolbar,
   headerAction,
+  hideHeaderOnDesktop = false,
   alerts = [],
   onOpenAlert,
   children,
@@ -511,9 +512,10 @@ export function PartnerFrame({
   tab: PartnerTab
   /** The header's page name, in the admin Shell's serif line. */
   title: string
-  /** Sits under the header, above the scrolling page — the Shell's slot. */
-  toolbar?: React.ReactNode
+  /** A render slot keeps the PartnerFrame-owned bell in the route's existing toolbar. */
+  toolbar?: React.ReactNode | ((rightActions: React.ReactNode) => React.ReactNode)
   headerAction?: React.ReactNode
+  hideHeaderOnDesktop?: boolean
   /** Availability requests still at `new`, as the bell lists them. */
   alerts?: PartnerAlert[]
   onOpenAlert?: (id: number) => void
@@ -711,13 +713,16 @@ export function PartnerFrame({
   return (
     <WorkspaceFrame
       title={title}
-      toolbar={toolbar}
+      toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
+        <span className="flex items-center">{bell()}</span>
+      ) : null) : toolbar}
       headerAction={headerAction}
       // Since 2026-08-26 every portal page draws no header on mobile, exactly
       // as the Shell's `hideHeaderOnMobile` pages do; the bell moves to the
       // left of the bottom bar, and the page column starts at its own toolbar.
       hideHeaderOnMobile
-      headerExtras={bell()}
+      hideHeaderOnDesktop={hideHeaderOnDesktop}
+      headerExtras={!hideHeaderOnDesktop && bell()}
       theme={theme}
       nav={nav}
       activeId={tab}

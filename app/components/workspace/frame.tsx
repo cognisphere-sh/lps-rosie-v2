@@ -123,6 +123,7 @@ export function WorkspaceFrame({
   headerAction,
   headerExtras,
   hideHeaderOnMobile = false,
+  hideHeaderOnDesktop = false,
   hideHeader = false,
   theme,
   nav,
@@ -154,6 +155,8 @@ export function WorkspaceFrame({
   /** Trailing header content, desktop only — the role's bell and the like. */
   headerExtras?: React.ReactNode
   hideHeaderOnMobile?: boolean
+  /** Ordinary list workspaces can use their existing toolbar as the desktop top row. */
+  hideHeaderOnDesktop?: boolean
   /** Purpose-built full-screen surfaces replace the shared header entirely. */
   hideHeader?: boolean
   /** The caller's `useTheme()` — it is above the frame, so it owns the hook. */
@@ -319,7 +322,7 @@ export function WorkspaceFrame({
         className="fixed inset-x-0 flex flex-col overflow-hidden bg-background"
         style={{ top: viewportFrame.top, height: viewportFrame.height, ...style }}
       >
-        {!hideHeader && !(isMobile && hideHeaderOnMobile) && (
+        {!hideHeader && (isMobile ? !hideHeaderOnMobile : !hideHeaderOnDesktop) && (
           <div className="flex min-h-10 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
             <div className="min-w-0 flex-1">
               <h1

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
 
-test('WorkspaceFrame owns one compact title-only header row', () => {
+test('WorkspaceFrame owns one compact title-only header row for retained and detail screens', () => {
   const frame = source('components/workspace/frame.tsx')
   const shell = source('components/workspace/shell.tsx')
   const partner = source('components/workspace/partner.tsx')
@@ -36,9 +36,54 @@ test('generic mobile workspaces hide the shared row while record identities rema
   assert.match(source('components/workspace/partner.tsx'), /hideHeaderOnMobile\n/)
 
   const frame = source('components/workspace/frame.tsx')
-  assert.match(frame, /!\(isMobile && hideHeaderOnMobile\)/)
+  assert.match(frame, /isMobile \? !hideHeaderOnMobile : !hideHeaderOnDesktop/)
   assert.match(frame, /pt-\[env\(safe-area-inset-top\)\]/)
   assert.match(frame, /pt-\[calc\(0\.25rem\+env\(safe-area-inset-top\)\)\]/)
+})
+
+test('qualifying desktop lists move Shell-owned controls into their existing toolbar', () => {
+  for (const path of [
+    'app/suppliers/page.tsx',
+    'app/plants/page.tsx',
+    'app/photos/page.tsx',
+    'app/customers/page.tsx',
+    'app/requests/page.tsx',
+    'app/jobs/page.tsx',
+  ]) {
+    const route = source(path)
+    assert.match(route, /hideHeaderOnDesktop/, path)
+    assert.match(route, /rightActions/, path)
+  }
+
+  const portal = source('app/partner/[id]/page.tsx')
+  assert.match(portal, /hideHeaderOnDesktop/)
+  assert.match(portal, /toolbar=\{\(rightActions\) =>/)
+  assert.match(portal, /\{rightActions\}/)
+
+  for (const path of [
+    'app/agents/page.tsx',
+    'app/settings/page.tsx',
+    'app/partner/[id]/closed/page.tsx',
+    'app/partner/[id]/orders/page.tsx',
+    'app/suppliers/[id]/page.tsx',
+    'app/customers/[id]/page.tsx',
+    'app/partner/[id]/requests/[arId]/page.tsx',
+  ]) {
+    assert.doesNotMatch(source(path), /hideHeaderOnDesktop/, path)
+  }
+
+  const shell = source('components/workspace/shell.tsx')
+  const partner = source('components/workspace/partner.tsx')
+  const toolbar = source('components/workspace/toolbar.tsx')
+  assert.match(shell, /typeof toolbar === 'function' \? toolbar\(!isMobile \?/)
+  assert.match(shell, /page === 'requests'.*<NewJobRequestButton/s)
+  assert.match(shell, /<NotificationBell \/>/)
+  assert.doesNotMatch(source('app/jobs/page.tsx'), /NewJobRequestButton|NotificationBell/)
+  assert.match(partner, /typeof toolbar === 'function' \? toolbar\(!isMobile \?/)
+  assert.match(partner, /\{bell\(\)\}/)
+  assert.match(toolbar, /rightActions\?: React\.ReactNode/)
+  assert.match(toolbar, /min-\[900px\]:w-full min-\[1024px\]:w-auto/)
+  assert.match(source('components/workspace/shell.tsx'), /min-\[900px\]:flex min-\[1024px\]:w-auto/)
 })
 
 test('header and mobile detail actions keep a 44px target and honest row geometry', () => {

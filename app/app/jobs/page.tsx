@@ -238,7 +238,7 @@ function JobsWorkspace() {
     router.replace(`/jobs?jr=${selection.id}`, { scroll: false })
   }
 
-  const switcher = <JobsViewSwitch active="inbox" />
+  const switcher = (rightActions: React.ReactNode) => <JobsViewSwitch active="inbox" rightActions={rightActions} />
   if (focused && selection.kind === 'valid') {
     return <Shell page="requests" title={`JR-${selection.id} · New request with Rosie`} hideHeaderOnMobile toolbar={undefined}
       focusedIntake={{ id: selection.id, onExit: exitIntake, savedPanel: <IntakeSaved id={selection.id} /> }}>
@@ -249,7 +249,7 @@ function JobsWorkspace() {
   const pendingMarker = selection.kind === 'valid' && marker?.id === selection.id && !selectedInList
   const unavailable = selection.kind === 'invalid' || (selection.kind === 'valid' && !loading && !selectedInList && !pendingMarker)
   return (
-    <Shell page="requests" title="Jobs" hideHeaderOnMobile toolbar={switcher}>
+    <Shell page="requests" title="Jobs" hideHeaderOnMobile hideHeaderOnDesktop toolbar={switcher}>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <section aria-label="Active job inbox" className={cn('w-full flex-none border-r border-border bg-card min-[900px]:w-[292px]', breakpoint === true && selection.kind !== 'bare' && 'hidden')}>
           <div className="border-b border-border px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Active jobs</div>

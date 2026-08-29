@@ -593,8 +593,9 @@ export default function PhotoCataloguePage() {
     setSupplierPick([])
   }, [])
 
-  const toolbar = (
+  const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
+      rightActions={rightActions}
       placeholder="Search plant name, optionally with size (15g)…"
       query={query}
       onQuery={setQuery}
@@ -662,6 +663,7 @@ export default function PhotoCataloguePage() {
       title="Photo catalogue"
       toolbar={toolbar}
       hideHeaderOnMobile
+      hideHeaderOnDesktop
     >
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {!hydrated ? null : photos.length === 0 && !searching ? (

@@ -115,6 +115,8 @@ test('focused intake reuses one AgentChat/useChat/composer upload path and manua
   const jobs = source('app/jobs/page.tsx')
   assert.match(shell, /focusedIntake=\{focusedIntake\}/)
   assert.match(shell, /hideHeader=\{!!focusedIntake\}/)
+  assert.match(jobs, /hideHeaderOnDesktop/)
+  assert.match(jobs, /rightActions=\{rightActions\}/)
   assert.doesNotMatch(jobs, /md:/)
   assert.doesNotMatch(chat.slice(chat.indexOf('if (focusedIntake)')), /md:/)
   assert.match(jobs, /min-\[900px\]:w-\[292px\]/)

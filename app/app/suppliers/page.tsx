@@ -238,8 +238,9 @@ export default function SuppliersPage() {
   const partnerFilter = Array.isArray(cfg.filters.lps_partner) ? cfg.filters.lps_partner : []
   const hasFilters = Object.keys(cfg.filters).length > 0 || !!query
 
-  const toolbar = (
+  const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
+      rightActions={rightActions}
       placeholder="Search name, contact, email, city…"
       query={query}
       onQuery={setQuery}
@@ -479,7 +480,7 @@ export default function SuppliersPage() {
   }
 
   return (
-    <Shell page="suppliers" title="Suppliers" toolbar={toolbar} hideHeaderOnMobile>
+    <Shell page="suppliers" title="Suppliers" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {isMobile ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto p-3 pb-5">
           {visibleCompanies.map((company) => {

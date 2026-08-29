@@ -142,6 +142,7 @@ export function Toolbar({
   onQuery,
   chips = [],
   controls,
+  rightActions,
   hasFilters,
   onClear,
   summary,
@@ -152,6 +153,8 @@ export function Toolbar({
   onQuery: (value: string) => void
   chips?: Chip[]
   controls?: React.ReactNode
+  /** Desktop shell controls placed in this toolbar's trailing cluster. */
+  rightActions?: React.ReactNode
   hasFilters: boolean
   onClear: () => void
   summary: string
@@ -181,11 +184,12 @@ export function Toolbar({
           Clear all
         </button>
       )}
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-3 min-[900px]:w-full min-[1024px]:w-auto">
         <span className="hidden whitespace-nowrap text-[12px] text-muted-foreground md:inline">
           {summary}
         </span>
         {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}
+        {rightActions}
       </div>
     </div>
   )
