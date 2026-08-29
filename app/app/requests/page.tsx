@@ -22,7 +22,7 @@ import {
   StatusPill,
   newestNote,
 } from '@/components/workspace/job-request'
-import { Shell, useToast } from '@/components/workspace/shell'
+import { JobsViewSwitch, Shell, useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
 import {
@@ -56,6 +56,7 @@ const DATE_RANGES = [
 const daysFor = (label: string) => DATE_RANGES.find((r) => r.label === label)?.days
 
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
+const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
 
 /**
  * What the Status chip starts on: every status but Archived.
@@ -854,6 +855,11 @@ export default function RequestsPage() {
   const [created, setCreated] = useState<string[]>([])
   const [updated, setUpdated] = useState<string[]>([])
   const [page, setPage] = useState(1)
+  // Gate the first list fetch until this tab's last management view is
+  // validated and restored; otherwise defaults flash and make a wasted fetch.
+  const [restored, setRestored] = useState(false)
+  const pendingCustomer = useRef<string[]>([])
+  const didRestore = useRef(false)
 
   const [requests, setRequests] = useState<JobRequestRow[]>([])
   const [total, setTotal] = useState(0)
@@ -874,6 +880,32 @@ export default function RequestsPage() {
   /** Bumped after a write, to refetch the page and everything derived from it. */
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(REQUESTS_VISIT_STORE) ?? 'null') as Partial<{
+        query: string; status: string[]; itemStatus: string[]; customer: string[]
+        created: string[]; updated: string[]; page: number
+      }> | null
+      const allowedStatus = new Set(REQUEST_STATUS_OPTIONS.map((o) => o.label))
+      const allowedItem = new Set(ITEM_STATUS_OPTIONS.map((o) => o.label))
+      const allowedDates = new Set(DATE_RANGES.map((o) => o.label))
+      if (saved) {
+        setQuery(typeof saved.query === 'string' ? saved.query.slice(0, 500) : '')
+        setStatus(Array.isArray(saved.status) ? saved.status.filter((v) => allowedStatus.has(v)) : OPEN_STATUSES)
+        setItemStatus(Array.isArray(saved.itemStatus) ? saved.itemStatus.filter((v) => allowedItem.has(v)) : [])
+        pendingCustomer.current = Array.isArray(saved.customer) ? saved.customer.filter((v) => typeof v === 'string') : []
+        setCreated(Array.isArray(saved.created) ? saved.created.filter((v) => allowedDates.has(v)).slice(0, 1) : [])
+        setUpdated(Array.isArray(saved.updated) ? saved.updated.filter((v) => allowedDates.has(v)).slice(0, 1) : [])
+        setPage(Number.isSafeInteger(saved.page) && (saved.page ?? 0) > 0 && (saved.page ?? 0) <= 10_000 ? saved.page! : 1)
+      }
+    } catch { /* malformed tab state falls back to defaults */ }
+  }, [])
+
+  useEffect(() => {
+    if (!restored) return
+    sessionStorage.setItem(REQUESTS_VISIT_STORE, JSON.stringify({ query, status, itemStatus, customer, created, updated, page }))
+  }, [restored, query, status, itemStatus, customer, created, updated, page])
 
   // A job renamed from the chat panel's thread picker wrote the same column
   // this page edits, so the cards behind it are one refetch out of date.
@@ -932,16 +964,26 @@ export default function RequestsPage() {
       .then((r) => r.json())
       .then((d) => {
         if (cancelled || d.error) return
-        setFacets(d.facets ?? EMPTY_FACETS)
+        const nextFacets = d.facets ?? EMPTY_FACETS
+        setFacets(nextFacets)
         setSummary(d.summary ?? { requests: 0, items: 0 })
+        if (!didRestore.current) {
+          didRestore.current = true
+          const allowedCustomers = new Set(nextFacets.customer.map((c: { name: string; company: string | null }) => c.company || c.name))
+          setCustomer(pendingCustomer.current.filter((name) => allowedCustomers.has(name)))
+          setRestored(true)
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!didRestore.current) { didRestore.current = true; setRestored(true) }
+      })
     return () => {
       cancelled = true
     }
   }, [reloads])
 
   useEffect(() => {
+    if (!restored || !settled || debounced !== query || debouncedFilters !== serverQuery) return
     let cancelled = false
     setBusy(true)
     const params = new URLSearchParams(debouncedFilters)
@@ -970,7 +1012,7 @@ export default function RequestsPage() {
     return () => {
       cancelled = true
     }
-  }, [debounced, debouncedFilters, page, reloads])
+  }, [debounced, debouncedFilters, page, reloads, restored, settled, query, serverQuery])
 
   // A search or an item filter is asking about *lines*, so the cards that
   // matched open themselves — otherwise the answer is hidden behind a chevron.
@@ -1157,9 +1199,11 @@ export default function RequestsPage() {
   return (
     <Shell
       page="requests"
-      title="Job Requests"
+      title="All jobs"
       hideHeaderOnMobile
-      toolbar={
+      toolbar={(
+        <>
+        <JobsViewSwitch active="all" />
         <Toolbar
           placeholder="Search plants, customers, JR-…"
           query={query}
@@ -1183,6 +1227,7 @@ export default function RequestsPage() {
             </>
           }
         />
+        </>
       }
     >
       {/* The Shell hands its children a fixed, overflow-hidden box, so this is

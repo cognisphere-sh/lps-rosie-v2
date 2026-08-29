@@ -872,6 +872,7 @@ export function RequestBody({
   selected,
   onSelect,
   onDeleteItem,
+  emptyItemsCopy = 'No line items match these filters.',
   onSaved,
 }: {
   request: JobRequestRow
@@ -889,6 +890,8 @@ export function RequestBody({
    * managed — a customer's page lists their jobs, it does not administer them.
    */
   onDeleteItem?: (item: JobRequestItem) => void
+  /** Honest empty state for filtered management vs an unfiltered work pane. */
+  emptyItemsCopy?: string
   onSaved: () => void
 }) {
   const edit = { table: 'job_requests', id: request.id, onSaved }
@@ -1024,7 +1027,7 @@ export function RequestBody({
             ))
           ) : (
             <div className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">
-              No line items match these filters.
+              {emptyItemsCopy}
             </div>
           )}
         </div>

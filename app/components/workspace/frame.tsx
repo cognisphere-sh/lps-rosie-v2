@@ -123,6 +123,7 @@ export function WorkspaceFrame({
   headerAction,
   headerExtras,
   hideHeaderOnMobile = false,
+  hideHeader = false,
   theme,
   nav,
   activeId,
@@ -138,6 +139,7 @@ export function WorkspaceFrame({
   moreBottom,
   mobileBarLeft,
   mobileBarRight,
+  hideMobileBar = false,
   pageOverlays,
   rightColumn,
   pageColumnClassName = 'flex-1',
@@ -152,6 +154,8 @@ export function WorkspaceFrame({
   /** Trailing header content, desktop only — the role's bell and the like. */
   headerExtras?: React.ReactNode
   hideHeaderOnMobile?: boolean
+  /** Purpose-built full-screen surfaces replace the shared header entirely. */
+  hideHeader?: boolean
   /** The caller's `useTheme()` — it is above the frame, so it owns the hook. */
   theme: { dark: boolean; toggle: () => void }
   nav: readonly NavItem[]
@@ -180,6 +184,8 @@ export function WorkspaceFrame({
   /** The bottom bar's pinned edges: the bell on the left, chat on the right. */
   mobileBarLeft: Slot
   mobileBarRight: Slot
+  /** Purpose-built full-screen modes (such as focused intake) hide app navigation. */
+  hideMobileBar?: boolean
   /** Rendered inside the page column, over its content. */
   pageOverlays?: Slot
   /** The desktop column right of the page — a chat panel or its rail. */
@@ -313,7 +319,7 @@ export function WorkspaceFrame({
         className="fixed inset-x-0 flex flex-col overflow-hidden bg-background"
         style={{ top: viewportFrame.top, height: viewportFrame.height, ...style }}
       >
-        {!(isMobile && hideHeaderOnMobile) && (
+        {!hideHeader && !(isMobile && hideHeaderOnMobile) && (
           <div className="flex min-h-10 flex-none items-center gap-2 border-b border-border bg-card px-3 pb-1 pt-[calc(0.25rem+env(safe-area-inset-top))] md:px-4 min-[900px]:pt-1">
             <div className="min-w-0 flex-1">
               <h1
@@ -336,7 +342,7 @@ export function WorkspaceFrame({
           </div>
         )}
 
-        <div className={cn('flex min-h-0 flex-1', isMobile && hideHeaderOnMobile && !overlayOpen && 'pt-[env(safe-area-inset-top)]')}>
+        <div className={cn('flex min-h-0 flex-1', !hideHeader && isMobile && hideHeaderOnMobile && !overlayOpen && 'pt-[env(safe-area-inset-top)]')}>
           {/* Desktop nav rail */}
           {!isMobile && !railHidden && (
             <nav
@@ -529,7 +535,7 @@ export function WorkspaceFrame({
             {/* Mobile bottom navigation keeps global actions pinned at both
                 edges. The center strip is independently scrollable and sizes
                 each destination to one third of its viewport. */}
-            {isMobile && !keyboardOpen && (
+            {isMobile && !keyboardOpen && !hideMobileBar && (
               <nav className="flex flex-none items-stretch gap-0.5 overflow-visible border-t border-border bg-card px-1 pt-[5px] pb-[calc(5px+env(safe-area-inset-bottom))]">
                 {mobileBarLeft(state)}
                 <div

@@ -867,6 +867,22 @@ export function Composer({
   const box = useRef<HTMLTextAreaElement>(null)
   const canSend = Boolean(draft.trim() || composer.files.length)
 
+  const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length) void composer.upload(files)
+    const text = event.dataTransfer.getData('text/plain')
+    if (!text) return
+    const start = box.current?.selectionStart ?? draft.length
+    const end = box.current?.selectionEnd ?? start
+    setDraft(`${draft.slice(0, start)}${text}${draft.slice(end)}`)
+    requestAnimationFrame(() => {
+      const caret = start + text.length
+      box.current?.focus()
+      box.current?.setSelectionRange(caret, caret)
+    })
+  }
+
   // Grow the textarea with its content up to max-h, then scroll inside it.
   // Runs on every draft change so pastes and the post-send clear resize too.
   useLayoutEffect(() => {
@@ -886,7 +902,11 @@ export function Composer({
   }, [draft])
 
   return (
-    <div className="flex-none border-t border-border bg-background">
+    <div
+      className="flex-none border-t border-border bg-background"
+      onDragOver={(event) => { if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/plain')) event.preventDefault() }}
+      onDrop={onDrop}
+    >
       {composer.files.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-3.5 pt-2.5">
           {composer.files.map((f) => (

@@ -15,6 +15,11 @@ export const REQUEST_STATUSES = [
 ] as const
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
+/** The existing open Job Request lifecycle shared by Jobs surfaces. */
+export const ACTIVE_JOB_STATUSES = ['sourcing', 'quoted'] as const satisfies readonly RequestStatus[]
+export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_STATUSES)[number] =>
+  (ACTIVE_JOB_STATUSES as readonly string[]).includes(status)
+
 /**
  * `job_request_items.status` — the CHECK vocabulary, in lifecycle order.
  *

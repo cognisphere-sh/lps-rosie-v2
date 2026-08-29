@@ -479,7 +479,7 @@ function ThreadPicker({
 export function AgentChat({
   isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack, mobileBackLabel = 'Back',
   desktopFull = false, desktopPeekOpen = false,
-  onDesktopFull, onDesktopExitFull, onDesktopPeekToggle,
+  onDesktopFull, onDesktopExitFull, onDesktopPeekToggle, focusedIntake,
 }: {
   isMobile: boolean
   mobileOpen: boolean
@@ -496,21 +496,25 @@ export function AgentChat({
   onDesktopFull?: () => void
   onDesktopExitFull?: () => void
   onDesktopPeekToggle?: () => void
+  /** Reuses this exact chat/hook/composer in the purpose-built JR intake surface. */
+  focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
 }) {
-  const [agentId, setAgentId] = useState(CHAT_AGENTS[0].id)
+  const [agentId, setAgentId] = useState(focusedIntake ? 'rosie' : CHAT_AGENTS[0].id)
   const [open, setOpen] = useState(false)
   const [width, setWidth] = useState(330)
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState(false)
   // Which of the agent's threads the panel is on. Every agent defaults to
   // `main`; the picker (rosie, daisy) and open-chat events move it.
-  const [thread, setThread] = useState({ id: 'main', label: 'Main' })
+  const [thread, setThread] = useState(() => focusedIntake
+    ? { id: `jr-${focusedIntake.id}`, label: `JR-${focusedIntake.id}` }
+    : { id: 'main', label: 'Main' })
   const [picker, setPicker] = useState(false)
   const hydrated = useRef(false)
 
-  const activeId = isMobile ? mobileAgentId ?? CHAT_AGENTS[0].id : agentId
+  const activeId = focusedIntake ? 'rosie' : isMobile ? mobileAgentId ?? CHAT_AGENTS[0].id : agentId
   const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === activeId) ?? CHAT_AGENTS[0], [activeId])
-  const visible = isMobile ? mobileOpen : open
+  const visible = focusedIntake ? true : isMobile ? mobileOpen : open
   const chat = useChat(agent.id, visible, thread.id)
   const uploadOne = useCallback(
     async (file: File): Promise<ChatFile> => {
@@ -603,6 +607,11 @@ export function AgentChat({
   // Restore the docked panel's state after mount, so the server render and the
   // first client render agree (same guard the table layout uses).
   useEffect(() => {
+    if (focusedIntake) {
+      setOpen(true)
+      hydrated.current = true
+      return
+    }
     try {
       const raw = window.localStorage.getItem(STORE)
       const saved = raw
@@ -681,6 +690,13 @@ export function AgentChat({
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [menu])
+
+  useEffect(() => {
+    if (!focusedIntake) return
+    setAgentId('rosie')
+    setThread({ id: `jr-${focusedIntake.id}`, label: `JR-${focusedIntake.id}` })
+    setPicker(false)
+  }, [focusedIntake?.id])
 
   const send = () => {
     const text = draft.trim()
@@ -793,6 +809,27 @@ export function AgentChat({
       )}
     </div>
   )
+
+  const intakeHeader = focusedIntake && (
+    <div className="flex min-h-[60px] flex-none items-center gap-2 border-b border-border bg-card px-2 pt-[env(safe-area-inset-top)] sm:px-3">
+      <button type="button" onClick={focusedIntake.onExit} className="flex min-h-11 min-w-11 items-center gap-2 rounded-lg px-2 text-[12px] font-semibold text-primary" aria-label="Exit focused intake">
+        <ChevronLeft size={18} /> Exit
+      </button>
+      <Image src="/rosie.png" alt="" width={30} height={30} className="rounded-full" />
+      <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-bold">JR-{focusedIntake.id} · New request with Rosie</div><div className="text-[11px] text-muted-foreground">Only saved record details appear beside this chat</div></div>
+    </div>
+  )
+
+  if (focusedIntake) {
+    const conversation = <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Transcript messages={chat.messages} pending={chat.pending} error={chat.error} hasMore={chat.hasMore} loadingMore={chat.loadingMore} fileHref={fileHref} empty={emptyState} pendingLabel={`${agent.name} is working…`} suggestions={agent.suggestions} onSuggest={setDraft} onAction={onMarkdownAction} onRefresh={chat.refresh} onLoadMore={chat.loadMore} mobile={isMobile} wallpaper={chatWallpaperForAgent(appearance, agent.id)} />
+      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder="Tell Rosie about the new request…" big={isMobile} />
+    </div>
+    return <div className={cn('flex min-h-0 flex-1 flex-col bg-background', isMobile ? 'absolute inset-0 z-[80]' : 'w-full')} style={{ ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)), ...chatWallpaperStyle(chatWallpaperForAgent(appearance, agent.id)) }}>
+      {intakeHeader}
+      <div className="flex min-h-0 flex-1 flex-col min-[900px]:flex-row">{conversation}{focusedIntake.savedPanel}</div>
+    </div>
+  }
 
   // ------------------------------------------------------------- mobile sheet
   // Overlays the page content only — shell.tsx renders this inside the main

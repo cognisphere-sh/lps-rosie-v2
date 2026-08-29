@@ -42,6 +42,16 @@ export { useIsMobile, useTheme, useToast } from '@/components/workspace/frame'
 export type PageId =
   | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
 
+/** One shared switch on both Jobs routes; the nav remains active for either. */
+export function JobsViewSwitch({ active }: { active: 'inbox' | 'all' }) {
+  return (
+    <nav aria-label="Jobs views" className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-3 py-1.5">
+      <Link href="/jobs" aria-current={active === 'inbox' ? 'page' : undefined} className={cn('flex min-h-11 items-center rounded-full px-3 text-[12px] font-semibold', active === 'inbox' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}>Inbox</Link>
+      <Link href="/requests" aria-current={active === 'all' ? 'page' : undefined} className={cn('flex min-h-11 items-center rounded-full px-3 text-[12px] font-semibold', active === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}>All jobs</Link>
+    </nav>
+  )
+}
+
 /**
  * What the mobile Agents tab has open over the page, if anything.
  *
@@ -60,7 +70,7 @@ const NAV = [
   // The customer side, in the order it is worked: who they are, then what they
   // asked for.
   { id: 'customers', label: 'Customers', href: '/customers', Icon: CustomersIcon, enabled: true },
-  { id: 'requests', label: 'Job Requests', href: '/requests', Icon: RequestsIcon, enabled: true },
+  { id: 'requests', label: 'Jobs', href: '/jobs', Icon: RequestsIcon, enabled: true },
 ] as const
 
 const ChatAppearanceCtx = createContext<{
@@ -110,6 +120,7 @@ export function Shell({
   toolbar,
   headerAction,
   hideHeaderOnMobile = false,
+  focusedIntake,
   children,
 }: {
   page: PageId
@@ -117,6 +128,7 @@ export function Shell({
   toolbar?: React.ReactNode
   headerAction?: React.ReactNode
   hideHeaderOnMobile?: boolean
+  focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -312,13 +324,11 @@ export function Shell({
           headerAction={headerAction}
           // Mobile chat supplies its own compact identity header; do not
           // stack the underlying page header above it.
-          hideHeaderOnMobile={hideHeaderOnMobile || mobileAgentsOpen || mobileChat}
+          hideHeaderOnMobile={hideHeaderOnMobile || mobileAgentsOpen || mobileChat || !!focusedIntake}
+          hideHeader={!!focusedIntake}
           headerExtras={
             <>
-              {/* The Job Requests page only — this is that page's action, and
-                  mobile carries it as the floating button below instead (this
-                  header is not drawn there). */}
-              {page === 'requests' && <NewJobRequestButton />}
+              {page === 'requests' && !focusedIntake && <NewJobRequestButton />}
               <NotificationBell />
             </>
           }
@@ -327,11 +337,12 @@ export function Shell({
           activeId={page}
           moreActive={page === 'settings'}
           mobileOverlay={{ open: !!mobileView.view, close: mobileView.close, dismiss: mobileView.dismiss }}
-          disablePull={mobileAgentsOpen || mobileChat}
-          railHidden={desktopChatFull}
+          disablePull={mobileAgentsOpen || mobileChat || !!focusedIntake}
+          railHidden={desktopChatFull || !!focusedIntake}
+          hideMobileBar={!!focusedIntake}
           // Full chat hides the workspace until the center-edge pull handle
           // reveals a narrow supplier/search peek pane.
-          pageColumnClassName={!desktopChatFull ? 'flex-1' : desktopPeekOpen ? 'w-[240px] flex-none' : 'w-0 flex-none'}
+          pageColumnClassName={focusedIntake ? 'flex-1 min-[900px]:w-0 min-[900px]:flex-none' : !desktopChatFull ? 'flex-1' : desktopPeekOpen ? 'w-[240px] flex-none' : 'w-0 flex-none'}
           style={appAccentStyle(appAccent, dark)}
           railTop={({ navOpen, railBtn }) => (
             <Link href="/settings" title="Settings" className={railBtn(page === 'settings')}>
@@ -509,7 +520,7 @@ export function Shell({
               {/* Mobile's New job request. Out of the way of anything that
                   takes over the column — the chat sheet, the Agents list, the
                   ⋯ menu it would sit under — and of the keyboard. */}
-              {isMobile && page === 'requests' &&
+              {isMobile && page === 'requests' && !focusedIntake &&
                 !mobileChat && !mobileAgentsOpen && !moreMenuOpen && !keyboardOpen && (
                   <NewJobRequestButton fab />
                 )}
@@ -572,6 +583,7 @@ export function Shell({
                       ? 'Back'
                       : 'Back to Agents'
                   }
+                  focusedIntake={focusedIntake}
                 />
               )}
             </>
@@ -596,6 +608,7 @@ export function Shell({
                 setDesktopPeekOpen(false)
               }}
               onDesktopPeekToggle={() => setDesktopPeekOpen((open) => !open)}
+              focusedIntake={focusedIntake}
             />
           )}
         >
@@ -632,14 +645,34 @@ function fmtNotifAt(ms: number): string {
  */
 function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
   const toast = useToast()
+  const router = useRouter()
   const [busy, setBusy] = useState(false)
 
   const start = async () => {
     setBusy(true)
     try {
+      // A prior reserve may have landed while navigation failed. Its tab marker
+      // is recovery evidence: reopen that exact id, never allocate a second.
+      let saved: { id?: number } | null = null
+      try {
+        saved = JSON.parse(window.sessionStorage.getItem('lps.jobs.intake.v1') ?? 'null') as { id?: number } | null
+      } catch {
+        window.sessionStorage.removeItem('lps.jobs.intake.v1')
+      }
+      const savedId = saved?.id
+      if (typeof savedId === 'number' && Number.isSafeInteger(savedId) && savedId > 0) {
+        router.push(`/jobs?jr=${savedId}&intake=1`, { scroll: false })
+        openChat({ agentId: 'rosie', threadId: `jr-${savedId}`, label: requestRef(savedId) })
+        return
+      }
       const res = await fetch('/api/requests/reserve', { method: 'POST' })
       const body = (await res.json().catch(() => ({}))) as { id?: number; error?: string }
       if (!res.ok || !body.id) throw new Error(body.error ?? 'Could not start a job request')
+      // Write recovery evidence before either route/panel operation. A retry
+      // after this point reuses this id; only a failed reserve can allocate one.
+      const returnUrl = `${window.location.pathname}${window.location.search}`
+      window.sessionStorage.setItem('lps.jobs.intake.v1', JSON.stringify({ id: body.id, returnUrl }))
+      router.push(`/jobs?jr=${body.id}&intake=1`, { scroll: false })
       openChat({ agentId: 'rosie', threadId: `jr-${body.id}`, label: requestRef(body.id) })
     } catch (e) {
       toast((e as Error).message)
