@@ -62,7 +62,8 @@ fi
 # app/.env.local. Enabled on rosie (her restructure, 2026-08-23; the earlier
 # daisy incarnation was removed the same day).
 if [[ -f "$ROOT/app/.env.local" ]]; then
-  ROOT="$ROOT" node <<'NODE' >> "$ROOT/app/.env.local"
+  ROOT="$ROOT" SUPABASE_URL="${SUPABASE_URL:-}" SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-}" \
+  node <<'NODE' >> "$ROOT/app/.env.local"
 const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
 const root = process.env.ROOT;
 const agents = ["rosie"];
@@ -85,9 +86,25 @@ for (const agent of agents) {
     webchat: { ...(secrets[agent]?.webchat ?? {}), WEBCHAT_APP_SECRET: webchat },
   };
 }
+// The webchat plugin keeps its transcripts in Supabase (threads /
+// thread_messages, migration 0078) and needs the project credentials in its
+// OWN bucket: secret keys must be unique across an agent's buckets, and the
+// agent-level bucket already holds SUPABASE_URL / SUPABASE_SECRET_KEY for
+// rosie and daisy — hence the WEBCHAT_ prefix. Every agent that carries the
+// plugin gets them, nova included (she has no agent-level Supabase access).
+for (const agent of ["rosie", "daisy", "nova"]) {
+  secrets[agent] = {
+    ...(secrets[agent] ?? {}),
+    webchat: {
+      ...(secrets[agent]?.webchat ?? {}),
+      WEBCHAT_SUPABASE_URL: process.env.SUPABASE_URL ?? "",
+      WEBCHAT_SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? "",
+    },
+  };
+}
 fs.writeFileSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n");
 fs.chmodSync(secretsPath, 0o600);
 process.stdout.write(`SUPPLIER_EVENTS_APP_SECRET=${shared}\nWEBCHAT_APP_SECRET=${webchat}\n`);
-console.error(`>> supplier-events + webchat portal: app→agent secrets wired for ${agents.join(", ")}`);
+console.error(`>> supplier-events + webchat portal: app→agent secrets wired for ${agents.join(", ")}; webchat Supabase for rosie, daisy, nova`);
 NODE
 fi

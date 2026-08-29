@@ -15,6 +15,15 @@ stay one conversation; the panel's thread picker opens any other thread
 portal joins the supplier's own thread through the app-secret endpoints.
 Delivery uses `threadIdOverride` throughout.
 
+**Since 2026-08-26 the transcripts live in Supabase** — `threads` and
+`thread_messages` (migration 0078, [`docs/supabase-schema.md`](../supabase-schema.md))
+— not in per-agent JSONL files. The plugin is the only writer and keeps a
+write-through in-memory copy (the newest `historyLimit` per thread, loaded at
+start), so every endpoint below still answers from memory with the same
+contract; the database is what survives a restart, what the entity tables'
+`*_thread_ref` columns point at, and what the app subscribes to (Supabase
+Realtime → SSE) instead of polling on a timer.
+
 ## Config
 
 | Key | Default | Meaning |
@@ -24,10 +33,12 @@ Delivery uses `threadIdOverride` throughout.
 | `pendingTimeoutSec` | `900` | How long an unanswered web message may keep the "working…" indicator up before the panel drops it. Does not bound the queue half of the indicator. |
 | `historyLimit` | `200` | Messages kept in memory and returned to the browser, per thread. |
 
-One **optional** secret: `WEBCHAT_APP_SECRET` — enables the four server-to-server
-portal endpoints below. Wired for rosie by `scripts/app/secrets.sh` (same
-pattern as the artifacts and supplier-events secrets); without it they answer
-404. Daisy and nova don't carry it.
+Secrets — all wired by `scripts/app/secrets.sh`:
+
+| Key | Required | Meaning |
+|---|---|---|
+| `WEBCHAT_SUPABASE_URL` / `WEBCHAT_SUPABASE_SECRET_KEY` | yes | The project credentials, in the plugin's own bucket for every agent that carries it (rosie, daisy, nova). Prefixed because secret keys must be unique across an agent's buckets and rosie's and daisy's agent-level bucket already holds `SUPABASE_URL` / `SUPABASE_SECRET_KEY`. The plugin refuses to start without them |
+| `WEBCHAT_APP_SECRET` | no | Enables the four server-to-server portal endpoints below (same pattern as the artifacts and supplier-events secrets); without it they answer 404. Rosie only |
 
 ## Endpoints — `/webhook/<agent>/webchat/api/*`
 
@@ -96,29 +107,45 @@ error rather than silently posting into the void.
 
 ## Where messages live
 
-Three places, each with a different job — the plugin adds **no new database**:
-
 | What | Where |
 |---|---|
-| The transcripts the panel renders | `agents/<id>/plugins/webchat/state/threads/<threadId>.jsonl` (append-only, one file per thread; the pre-multi-thread `transcript.jsonl` is migrated to the default thread's file on first start) |
-| Who has read what | `agents/<id>/plugins/webchat/state/read.json` — two cursors per thread, see [Read state](#read-state) |
-| Uploaded files | `agents/<id>/plugins/webchat/inbox/` |
+| The transcripts the panel renders | `thread_messages`, one row per message under its `threads` row — `seq` is the message id the panel sees. The plugin holds the newest `historyLimit` per thread in memory and serves every read from there |
+| Who has read what | `threads.web_read_id` / `portal_read_id`, see [Read state](#read-state) |
+| The "working…" half the plugin owns | `threads.pending_since` |
+| Uploaded files | `agents/<id>/plugins/webchat/inbox/` — the `files` JSON on the row names them; the bytes never leave the box |
 | Files the agent sends back | `agents/<id>/plugins/webchat/state/outbox/` |
 | The event that wakes the agent | `agents/<id>/sessions/.events.db` — the harness's own queue |
 | What the model sees | `agents/<id>/sessions/<threadId>/<sessionId>.jsonl` — pi's session, shared with Telegram |
 
-The transcript is read into memory once at start; every append writes both, and
-the browser polls memory rather than the file. `historyLimit` therefore also
-bounds how far "Load earlier messages" can walk back — paging reads the same
-in-memory window, not the file. It is deliberately separate from
-the pi session jsonl, which holds tool calls and reasoning and is not a chat log.
+Every message is inserted before it is acknowledged (a failed insert fails the
+send); cursor and pending writes are fire-and-forget behind the in-memory
+copy. On start the plugin loads its agent's threads that have a transcript
+(`last_seq IS NOT NULL`) and clears their `pending_since` — a restarted
+harness is not mid-turn. A thread whose row exists only because an entity
+trigger minted it becomes known to the plugin on its first message
+(`link_thread()`, which is also what `api/send` on a brand-new id calls).
+`historyLimit` still bounds how far "Load earlier messages" can walk back —
+paging reads the in-memory window. The transcript is deliberately separate
+from the pi session jsonl, which holds tool calls and reasoning and is not a
+chat log.
+
+The pre-2026-08-26 files (`state/threads/*.jsonl`, `state/read.json`) were
+imported once (CHANGELOG, 2026-08-26) and are left on disk as the backup; the
+plugin no longer reads or writes them.
+
+**A job request's thread follows the job** (migrations 0079/0080): deleting
+the job deletes its `threads` row and transcript — the app then calls
+`api/reset` on `jr-<id>` so the plugin forgets its copy and the harness
+conversation is wiped — and closing the job (`closed_won` / `closed_lost` /
+`archived`) sets `threads.closed_at`, which hides the thread from the app's
+picker and bell without touching the transcript or this plugin.
 
 ## Read state
 
 Since 2026-08-24 "read" is **plugin state, not browser state** — a phone and a
 laptop looking at the same thread agree, which per-browser `localStorage` could
-never do. It lives in `state/read.json`, `{threadId: {web, portal}}`, written
-through a temp file and `rename` so a crash can't leave half a map.
+never do. It lives on the `threads` row (`web_read_id`, `portal_read_id`;
+`state/read.json` until 2026-08-26), mirrored in memory.
 
 Two cursors per thread, each the newest message id that side has seen, because
 one thread has two audiences with opposite views of it: a supplier's message is
@@ -138,12 +165,8 @@ page fetched — an open panel has seen the thread, not just its delta.
 
 Two edges worth knowing:
 
-- **First start after this landed** — no `read.json`, so every thread already
-  on disk is seeded read (`web` = newest id, `portal` = newest portal-visible
-  id). Without that, turning read state on would have lit up every thread at
-  once. A corrupt/unreadable file re-seeds the same way: marking everything
-  read is the harmless direction, the other one leaves the dots stuck on.
-- **`api/reset`** deletes the thread's cursors along with its transcript —
+- **`api/reset`** deletes the thread's messages and zeroes its cursors and
+  preview (the `threads` row itself stays — the entity FKs point at it) —
   ids restart at 1, and a stale cursor would hide the new conversation.
 
 An agent's `api/reply` moves **neither** cursor: that is the message the dots

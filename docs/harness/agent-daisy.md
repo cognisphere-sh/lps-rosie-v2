@@ -158,7 +158,9 @@ gets answered. `1-agent.md` § *Chris & Bhoumik*.
   panel's **Conversations** picker also opens her per-supplier threads
   (`suppliers.daisy_thread_id`), the way rosie's has since the restructure;
   `router` and the per-email threads stay deep-link only. Outbound via
-  `scripts/webchat/webchat-cli send`.
+  `scripts/webchat/webchat-cli send`. Secrets `WEBCHAT_SUPABASE_URL` /
+  `WEBCHAT_SUPABASE_SECRET_KEY` (2026-08-26): transcripts live in `threads` /
+  `thread_messages`, migration 0078.
   Since 2026-08-25 a supplier thread's panel transcript **is that supplier's
   contact history** — the move rosie's customer threads made with migration
   0073, finally extended to suppliers. Every contact is posted there in the

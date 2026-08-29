@@ -76,7 +76,9 @@ Enabled (per `system_prompts/plugin-*.md`; dirs materialize on first state write
   plugin](plugin-webchat.md)); `config.json` sets `threadId: "main"` (plus
   explicit defaults for the other keys) so panel messages share the `main`
   thread with telegram's main route. Replies via
-  `scripts/webchat/webchat-cli`.
+  `scripts/webchat/webchat-cli`. Secrets `WEBCHAT_SUPABASE_URL` /
+  `WEBCHAT_SUPABASE_SECRET_KEY` (2026-08-26) — her only Supabase access;
+  transcripts live in `threads` / `thread_messages`, migration 0078.
 
 ## Scripts & extensions
 

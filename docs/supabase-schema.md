@@ -18,7 +18,8 @@ migration 0040, the source-deactivation invariant on 2026-08-14 after
 migration 0048, the supplier head-branch column on 2026-08-15 after
 migration 0049, the photo catalogue on 2026-08-16 after migration 0051, and
 the customer/job-request tables on 2026-08-17 when migrations 0055 and 0056
-created them.
+created them, and the web-chat tables (`threads`, `thread_messages`) on
+2026-08-26 when migrations 0078–0080 created them.
 **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -43,6 +44,10 @@ users 1 ──< chat_sessions 1 ──< availability_queries
 
 customers 1 ──< job_requests 1 ──< job_request_items      (customer_id nullable; SET NULL)
                 job_requests 1 ──< job_request_changelog >── 1 job_request_items (item_id nullable)
+
+threads 1 ──< thread_messages                              (web-chat transcripts, one thread per (agent, thread id))
+threads 1 ──  suppliers.rosie_thread_ref / daisy_thread_ref, customers.rosie_thread_ref,
+              job_requests.rosie_thread_ref                (derived FKs, trigger-maintained; SET NULL)
 ```
 
 > **The catalogue has since been rebuilt.** Verified 2026-08-18: `inventory`
@@ -129,6 +134,7 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `is_lps_partner` | boolean | no, default false | TRUE = an **LPS Partner**: they answer **availability requests in the supplier portal** (`/partner/<id>`, migration 0062). FALSE = reached only through our own channels. Not a login — portal auth is a deliberately deferred step. Independent of whether daisy has *onboarded* them into the database; renamed from `is_onboarded` 2026-08-25 (migration 0074), which projected it from `search_suppliers` so Supplier Search can filter on it |
 | `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the router thread (and per-supplier gws rules) send supplier traffic here. Added 2026-08-23 (migration 0064) |
 | `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for the company — the **same `supplier-<slug>` value** as `daisy_thread_id` (thread ids are per-agent namespaces, so the shared string names two distinct threads), one per head branch. All order-side coordination with the supplier runs there: availability requests, follow-ups, portal-save notifications. Set with `daisy_thread_id` at onboarding. Added 2026-08-23 (migration 0068) |
+| `rosie_thread_ref` / `daisy_thread_ref` | bigint → `threads.id` ON DELETE SET NULL | yes | **Derived** from the two text columns by the `suppliers_link_threads` trigger — writing a text id upserts the `threads` row for (agent, id) and links it. Never write these. Added 2026-08-26 (migration 0078) |
 | `is_active` | boolean | no, default true | Soft delete; deactivation cascades (see triggers) |
 | `created_at` / `updated_at` | timestamptz | yes, default `now()` | `updated_at` maintained by trigger |
 
@@ -743,6 +749,7 @@ split can be introduced by migration if multi-contact customers ever appear.
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
 | `notes` | text | yes | **Durable facts**, edited in place — same split as suppliers. There is no contact-log column beside it: `communication_notes` was **dropped 2026-08-25** by migration 0073 (empty on every row), the same move the supplier side made in 0063 — what was *said* lives in the rosie thread below |
 | `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for this customer — `customer-<slug of name>` (`-<id>` on a collision with a different customer), minted by rosie on first contact. One conversation per customer across all their job requests, and **the contact history** since 0073. Added 2026-08-23 (migration 0068) |
+| `rosie_thread_ref` | bigint → `threads.id` ON DELETE SET NULL | yes | **Derived** from `rosie_thread_id` by the `customers_link_threads` trigger. Never write. Added 2026-08-26 (migration 0078) |
 | `is_active` | boolean | no, default true | Soft delete. No deactivation cascade — retiring a customer is a deliberate act, and their requests keep their history |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -769,6 +776,7 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 | `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited. Holds only what the structured columns don't: constraints, deadlines, conditions — not the plants, the address or the identity |
 | `sourcing_notes` | text | yes | **Ours.** Free text, edited in place. At request level it holds what changed about the *job* ("Delivery date 8/22 → 8/29"); a line's sourcing detail belongs on the line. Named `internal_notes` until migration 0061 |
 | `external_notes` | text | yes | Written to be **shown to the customer** |
+| `rosie_thread_ref` | bigint → `threads.id` ON DELETE SET NULL | yes | **Derived**: the `threads` row for (rosie, `jr-<id>`), linked on insert by `job_requests_link_threads`. The thread **closes with the job** (`threads.closed_at`, set when `status` becomes `closed_won` / `closed_lost` / `archived` or `is_active` goes false; cleared when it comes back) and is **deleted with it** (`job_requests_drop_thread`, transcript cascades). Excluded from the changelog. Never write. Added 2026-08-26 (migrations 0078–0080) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -877,6 +885,55 @@ pointer at live data rather than evidence of what we asked.
 | `lps_notes` | text | yes | **LPS's brief note to the supplier about this line** — the substitute and price the inventory data mapped ("Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit"), a special request from the customer, or a customer note worth the supplier's eyes. A few words; written at share time; rendered under the plant name in the portal; not in the portal PATCH whitelist, so never supplier-editable. Added 2026-08-23 (migration 0070; semantics broadened + request-level sibling by 0071) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `threads`
+
+One row per **(agent, cognisphere thread id)** — the web-chat side of a
+harness thread. Added 2026-08-26 (migration 0078), when the webchat plugin's
+per-agent JSONL transcripts and `read.json` moved here. **The pair is the
+natural key, never the id alone**: `supplier-<slug>` names one conversation
+under rosie and a different one under daisy (migration 0068).
+
+Rows come from two writers. The webchat plugin upserts the row for any thread
+it records a message on (`link_thread()`); the entity triggers upsert it the
+moment a `*_thread_id` text column is written, so every minted id has a row
+whether or not anything was ever said on it (~2,700 rows, ~20 with a
+transcript). A row with `last_seq IS NULL` has no transcript and is not shown
+anywhere.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK — what the entities' `*_thread_ref` columns point at |
+| `agent` | text | no | `rosie` \| `daisy` \| `nova` |
+| `thread_id` | text | no | The cognisphere thread id: `main`, `router`, `jr-<id>`, `supplier-<slug>`, `customer-<slug>`, `<parent>-§-[TASK]-§-<slug>`. UNIQUE with `agent` |
+| `web_read_id` / `portal_read_id` | integer | no, default 0 | The two read cursors (were `read.json` `web` / `portal`): the newest `seq` the team's panel / the supplier's portal has seen. Moved by the plugin only |
+| `pending_since` | timestamptz | yes | The "working…" indicator's plugin half: set when a web message is handed to the agent, NULL on the agent's first reply. The plugin clears every row of its agent on start |
+| `last_seq` / `last_at` / `last_role` / `last_sender` / `last_text` | — | yes | **Preview of the newest message**, maintained by the `thread_messages_preview` trigger (`last_text` is the first 120 chars). What the app's bell reads — one Realtime event per message, no transcript query |
+| `closed_at` | timestamptz | yes | **Closed with its job request** (migration 0080): set by `job_requests_close_thread` when the job goes `closed_won` / `closed_lost` / `archived` or inactive, cleared when it reopens. The transcript stays; the thread leaves the picker and the bell. Only job threads close |
+| `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### `thread_messages`
+
+The transcript — one row per web-chat message, exactly the JSONL row shape
+the plugin used to append. Added 2026-08-26 (migration 0078). Written by the
+webchat plugin only; the app never inserts here (a browser send goes through
+the plugin, because that is what wakes the agent).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint identity | no | PK |
+| `thread_id` | bigint → `threads.id` ON DELETE CASCADE | no | |
+| `seq` | integer | no | The per-thread message id the plugin allocates (the panel's `id`). UNIQUE with `thread_id`; restarts at 1 on a reset |
+| `role` | text | no | **CHECK**: `user` \| `agent` |
+| `text` | text | no, default `''` | Markdown |
+| `files` | jsonb | no, default `[]` | `[{name,label,mime,size,dir}]` — the **bytes stay on the agent's disk** (`plugins/webchat/inbox/`, `state/outbox/`), served by the plugin |
+| `sender_name` | text | yes | Portal messages carry the supplier's name; panel messages get theirs from the session |
+| `portal` | boolean | no, default false | Portal-visible: what the supplier typed, or a `--portal` reply. The portal is served ONLY these rows |
+| `created_at` | timestamptz | no, default `now()` | The message's own timestamp (the JSONL `at`) |
+
+Both tables are in the `supabase_realtime` publication: the app server holds
+one subscription on `threads` and relays changes to browsers over SSE
+(`docs/app/README.md`, *Agent chat*).
 
 ### `supplier_messages` — removed
 
@@ -1150,7 +1207,11 @@ by default.
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
 | `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
 | `availability_request_items_reopen` | availability_request_items | AFTER INSERT | `availability_request_reopen_on_new_line()`: puts the parent request back to `new` when it was `processing` or `submitted`. Adding a line to a request the supplier already worked on is a new question, and it must reach their portal's New tab whoever added it — the app or an agent script. `closed` is left alone; `submitted_at` is untouched, so the portal's button still reads *Re-Submit*. Added 2026-08-26 (migration 0075) |
-| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `supplier_messages` — messages are append-only and never updated |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items, threads | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `thread_messages` — messages are append-only and never updated |
+| `suppliers_link_threads` / `customers_link_threads` / `job_requests_link_threads` | suppliers, customers, job_requests | BEFORE INSERT (OR UPDATE OF the `*_thread_id` columns) | `link_thread(agent, id)`: upserts the `threads` row for the text id and sets the derived `*_thread_ref` FK. Job requests link `jr-<id>` on insert. Migration 0078 |
+| `job_requests_drop_thread` | job_requests | AFTER DELETE | Deletes the job's `threads` row (transcript cascades). Migration 0079 |
+| `job_requests_close_thread` | job_requests | AFTER INSERT OR UPDATE OF `status`, `is_active` | Sets `threads.closed_at` when the job is `closed_won` / `closed_lost` / `archived` or inactive; clears it otherwise. Migration 0080 |
+| `thread_messages_preview` | thread_messages | AFTER INSERT | Copies the row into the thread's `last_*` preview columns (forward only) |
 
 ## Indexes that matter
 
@@ -1244,6 +1305,7 @@ Gmail OAuth tokens) included.
 | `users` | enabled | Per-user via `auth.uid()` |
 | `inventory_sources` | enabled | `authenticated` full access |
 | `plant_aliases` | enabled | `authenticated` full access (replaced `plant_other_names` 2026-08-14) |
+| `threads` / `thread_messages` | enabled | **No policies** — secret-key callers only (the webchat plugin, the app server). Added 2026-08-26 (migration 0078) |
 | `plant_photos` | enabled | `authenticated` full access (added 2026-08-16, migration 0051) |
 | `contacts` | enabled | `authenticated` full access |
 | `supplier_contacts` | enabled | `authenticated` full access (added 2026-08-14) |

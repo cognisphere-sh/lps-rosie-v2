@@ -5,11 +5,12 @@ import {
 } from 'react'
 
 import { CHAT_AGENTS } from '@/lib/agents'
+import { subscribeEvents } from '@/lib/chat-events'
 
 /**
  * Unread-message tracking for the agent chats.
  *
- * "Read" lives in the webchat plugin (`state/read.json`), not in this browser:
+ * "Read" lives on the `threads` table, not in this browser:
  * every thread carries a `readId`, the newest message id the team has seen,
  * and a thread is unread when `lastId > readId`. Opening a thread is what
  * moves it — the chat panel polls with `read=1` while it's open — so reading
@@ -17,15 +18,19 @@ import { CHAT_AGENTS } from '@/lib/agents'
  * read plugin-side, which is why nothing here has to special-case the
  * operator's own panel sends any more.
  *
- * One provider (mounted by the Shell) polls every agent's `api/threads`; the
- * rail avatars, the thread picker, the mobile Agents list and the header bell
- * all read the same context. `markThreadRead` is the optimistic half: the
- * panel calls it after each poll so the dots clear immediately instead of
- * waiting up to `POLL_MS` for the next threads sweep to report the new cursor.
+ * One provider (mounted by the Shell) sweeps every agent's `api/threads` once,
+ * then keeps the rows current from `/api/chat/events` — the app server's relay
+ * of Supabase Realtime on the `threads` table, one event per change (new
+ * message, read mark, working indicator). The sweep re-runs on every
+ * (re)connect and on a slow fallback timer, so a dropped stream costs a
+ * minute, never a missed dot. The rail avatars, the thread picker, the mobile
+ * Agents list and the header bell all read the same context. `markThreadRead`
+ * is the optimistic half: the panel calls it after each poll so the dots clear
+ * immediately instead of waiting for the server cursor to come back around.
  */
 
 const READ_EVENT = 'lps:chat-read'
-const POLL_MS = 15_000
+const RESYNC_MS = 60_000
 
 /**
  * Ids marked read locally but not yet reflected by a `api/threads` response —
@@ -89,26 +94,51 @@ export function ChatNotificationsProvider({ children }: { children: React.ReactN
   useEffect(() => {
     let cancelled = false
     const poll = async () => {
-      const next: Record<string, ThreadRow[]> = {}
-      await Promise.all(
-        CHAT_AGENTS.map(async (a) => {
-          try {
-            const res = await fetch(`/api/chat/${a.id}/threads`, { cache: 'no-store' })
-            if (!res.ok) return
-            const body = (await res.json()) as { threads: ThreadRow[] }
-            next[a.id] = body.threads
-          } catch {
-            /* agent unreachable — keep whatever we last knew */
-          }
-        }),
-      )
-      if (!cancelled) setRows((prev) => ({ ...prev, ...next }))
+      try {
+        const res = await fetch('/api/chat/threads', { cache: 'no-store' })
+        if (!res.ok) return
+        const body = (await res.json()) as { threads: Record<string, ThreadRow[]> }
+        if (!cancelled) setRows(body.threads)
+      } catch {
+        /* app unreachable — keep whatever we last knew */
+      }
     }
     void poll()
-    const t = setInterval(() => void poll(), POLL_MS)
+    const t = setInterval(() => void poll(), RESYNC_MS)
+    const off = subscribeEvents(
+      '/api/chat/events',
+      (data) => {
+        const ev = data as {
+          type?: string; agent: string; threadId: string; lastId: number; lastAt: number
+          lastRole: 'user' | 'agent' | null; lastSender: string | null; lastText: string
+          webReadId: number; closed: boolean
+        }
+        if (ev?.type !== 'thread' || cancelled) return
+        setRows((prev) => {
+          const list = prev[ev.agent] ?? []
+          const rest = list.filter((r) => r.threadId !== ev.threadId)
+          // A closed thread (its job is done) leaves the list; a thread with
+          // no transcript yet (an id minted by an entity trigger) never joins.
+          if (ev.closed) return { ...prev, [ev.agent]: rest }
+          if (!ev.lastId || !ev.lastRole) return prev
+          const row: ThreadRow = {
+            threadId: ev.threadId,
+            lastId: ev.lastId,
+            lastAt: ev.lastAt,
+            lastRole: ev.lastRole,
+            ...(ev.lastSender ? { lastSender: ev.lastSender } : {}),
+            lastText: ev.lastText,
+            readId: ev.webReadId,
+          }
+          return { ...prev, [ev.agent]: [row, ...rest] }
+        })
+      },
+      () => void poll(),
+    )
     return () => {
       cancelled = true
       clearInterval(t)
+      off()
     }
   }, [])
 

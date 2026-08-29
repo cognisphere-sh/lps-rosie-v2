@@ -18,9 +18,13 @@ import {
   chatThemeForAgent, chatThemeStyle, chatWallpaperForAgent, chatWallpaperStyle,
   type ChatAppearance,
 } from '@/lib/chat-appearance'
+import { subscribeEvents } from '@/lib/chat-events'
 import { cn } from '@/lib/utils'
 
-const POLL_MS = 2000
+// Fallback cadence only: the transcript is re-fetched the moment
+// `/api/chat/events` says this thread moved. The timer still covers the half
+// of the working indicator that lives in the harness queue, not the database.
+const POLL_MS = 10_000
 const PAGE = 50
 const MIN_W = 280
 const STORE = 'lps.chat.v1'
@@ -117,8 +121,19 @@ function useChat(agentId: string, active: boolean, threadId: string) {
     if (!active) return
     poll()
     const t = setInterval(poll, POLL_MS)
-    return () => clearInterval(t)
-  }, [active, poll])
+    const off = subscribeEvents(
+      '/api/chat/events',
+      (data) => {
+        const ev = data as { type?: string; agent?: string; threadId?: string }
+        if (ev?.type === 'thread' && ev.agent === agentId && ev.threadId === threadId) void poll()
+      },
+      () => void poll(),
+    )
+    return () => {
+      clearInterval(t)
+      off()
+    }
+  }, [active, poll, agentId, threadId])
 
   const send = useCallback(
     async (text: string, files: ChatFile[]) => {

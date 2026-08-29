@@ -25,14 +25,22 @@
  *   GET  api/app-messages ?thread=<id>&since=<id>&read=1  → server-to-server (portal)
  *   GET  api/app-file     ?thread=<id>&name=<stored>      → server-to-server (portal)
  *
- * Read state lives here, in `state/read.json`, not in a browser: two cursors
- * per thread — `web` for the team's panel, `portal` for the supplier — each
- * the id of the newest message that side has seen. A poll carrying `read=1`
- * comes from a panel that is open on the thread, so it marks everything in
- * that thread read; sending marks your own message read. Any device sees the
- * same dots, which is the point. The two cursors are deliberately separate:
- * a supplier's message is unread for the team, an agent's reply is unread for
- * the supplier, and both live on one thread.
+ * Storage is Supabase (migration 0078): one `threads` row per (agent, thread
+ * id) and the transcript in `thread_messages`, `seq` being the per-thread
+ * message id. This plugin is the only writer, so it keeps a write-through
+ * in-memory copy (the newest `historyLimit` per thread, loaded at start) and
+ * serves every read from that; the database is what survives, what the app
+ * subscribes to (Realtime → SSE), and what the entity tables' `*_thread_ref`
+ * columns point at. Attachment bytes stay on disk (inbox/, state/outbox/).
+ *
+ * Read state is two cursors per thread on the `threads` row — `web` for the
+ * team's panel, `portal` for the supplier — each the id of the newest message
+ * that side has seen. A poll carrying `read=1` comes from a panel that is
+ * open on the thread, so it marks everything in that thread read; sending
+ * marks your own message read. Any device sees the same dots, which is the
+ * point. The two cursors are deliberately separate: a supplier's message is
+ * unread for the team, an agent's reply is unread for the supplier, and both
+ * live on one thread.
  *
  * Auth is three-sided, because the callers differ:
  *   - browser routes (upload/send/messages/threads/file/reset) require a valid
@@ -45,23 +53,15 @@
  *     portal, whose users are not harness users. Without the secret configured
  *     all four answer 404.
  *
- * ponytail: transcripts are append-only JSONL per thread, read into memory at
- *   start, and the browser polls. No SSE, no DB — read.json included.
+ * ponytail: the browser still polls this plugin for the transcript; the
+ *   database is the store and the push signal (the app's SSE route relays
+ *   Realtime changes), not a second read path.
  */
 import { createReadStream } from "node:fs";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import {
-  appendFile,
-  copyFile,
-  mkdir,
-  readdir,
-  readFile,
-  rename,
-  writeFile,
-  stat,
-  unlink,
-} from "node:fs/promises";
+import { copyFile, mkdir, readdir, writeFile, stat, unlink } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 interface WebchatConfig {
   threadId: string;
@@ -99,10 +99,35 @@ interface ReadCursors {
 }
 
 interface Thread {
+  /** `threads.id` — null until the row exists (first message or first mark). */
+  dbId: number | null;
   messages: ChatMessage[];
   nextId: number;
   /** When the last user message was handed to the agent; null once answered. */
   pendingSince: number | null;
+}
+
+/** A `thread_messages` row. */
+interface MessageRow {
+  seq: number;
+  role: "user" | "agent";
+  text: string;
+  files: ChatFile[];
+  sender_name: string | null;
+  portal: boolean;
+  created_at: string;
+}
+
+function fromRow(r: MessageRow): ChatMessage {
+  return {
+    id: r.seq,
+    at: Date.parse(r.created_at),
+    role: r.role,
+    text: r.text,
+    files: r.files ?? [],
+    ...(r.sender_name ? { senderName: r.sender_name } : {}),
+    ...(r.portal ? { portal: true } : {}),
+  };
 }
 
 const MIME: Record<string, string> = {
@@ -173,11 +198,6 @@ function validUploadTicket(secret: string, threadId: string, file: Omit<ChatFile
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-/** Thread ids become file names; keep them boring and reversible enough. */
-function safeThreadId(raw: string): string {
-  return String(raw).replace(/[^A-Za-z0-9._§\[\]-]+/g, "_").slice(0, 120);
-}
-
 export default class WebchatPlugin {
   manifest = {
     displayName: "Web Chat",
@@ -215,19 +235,24 @@ export default class WebchatPlugin {
           description:
             "Optional shared secret for the app's server-to-server portal endpoints (X-App-Secret). Without it api/app-upload/app-send/app-messages/app-file answer 404. Wired by scripts/app/secrets.sh for rosie."
         },
+        WEBCHAT_SUPABASE_URL: {
+          type: "string",
+          description: "Supabase project URL — transcripts live in threads / thread_messages. Wired by scripts/app/secrets.sh.",
+        },
+        WEBCHAT_SUPABASE_SECRET_KEY: {
+          type: "string",
+          description: "Supabase secret key (sb_secret_*), prefixed because keys are unique across an agent's buckets. Wired by scripts/app/secrets.sh.",
+        },
       },
-      additionalProperties: false,
+      required: ["WEBCHAT_SUPABASE_URL", "WEBCHAT_SUPABASE_SECRET_KEY"],
     },
   };
 
   private ctx?: any;
   private cfg!: WebchatConfig;
+  private db!: SupabaseClient;
   private threads = new Map<string, Thread>();
   private read = new Map<string, ReadCursors>();
-  private readPath = "";
-  /** Serializes read.json writes so two marks can't interleave. */
-  private readWrite: Promise<void> = Promise.resolve();
-  private threadsDir = "";
   private outboxDir = "";
   private apiBase = "";
   private portalActiveUploads = 0;
@@ -235,14 +260,41 @@ export default class WebchatPlugin {
   private thread(id: string): Thread {
     let t = this.threads.get(id);
     if (!t) {
-      t = { messages: [], nextId: 1, pendingSince: null };
+      t = { dbId: null, messages: [], nextId: 1, pendingSince: null };
       this.threads.set(id, t);
     }
     return t;
   }
 
-  private transcriptPath(threadId: string): string {
-    return join(this.threadsDir, `${safeThreadId(threadId)}.jsonl`);
+  /**
+   * The `threads.id` for a thread id, creating the row when it is missing.
+   * Always an upsert, never the cached id: a job request's delete takes its
+   * thread row with it (migration 0079), and a cached id would then dangle.
+   */
+  private async dbThreadId(threadId: string): Promise<number> {
+    const t = this.thread(threadId);
+    const { data, error } = await this.db.rpc("link_thread", {
+      p_agent: this.ctx.agentId,
+      p_thread_id: threadId,
+    });
+    if (error) throw new Error(`threads upsert failed: ${error.message}`);
+    t.dbId = Number(data);
+    return t.dbId;
+  }
+
+  /** Write one `threads` column set; logged, never thrown — the in-memory copy is already right. */
+  private updateThread(threadId: string, patch: Record<string, unknown>): void {
+    void this.dbThreadId(threadId)
+      .then(async (id) => {
+        const { error } = await this.db.from("threads").update(patch).eq("id", id);
+        if (error) throw new Error(error.message);
+      })
+      .catch((e) => this.ctx?.log.error({ err: String(e), threadId }, "webchat: threads update failed"));
+  }
+
+  private setPending(threadId: string, since: number | null): void {
+    this.thread(threadId).pendingSince = since;
+    this.updateThread(threadId, { pending_since: since === null ? null : new Date(since).toISOString() });
   }
 
   private cursors(threadId: string): ReadCursors {
@@ -264,30 +316,19 @@ export default class WebchatPlugin {
     if (cursors[side] >= lastId) return;
     cursors[side] = lastId;
     this.read.set(threadId, cursors);
-    this.persistRead();
-  }
-
-  /** Write read.json through a temp file, so a crash can't leave half a map. */
-  private persistRead(): void {
-    const snapshot = JSON.stringify(Object.fromEntries(this.read));
-    this.readWrite = this.readWrite
-      .then(async () => {
-        await writeFile(`${this.readPath}.tmp`, snapshot + "\n");
-        await rename(`${this.readPath}.tmp`, this.readPath);
-      })
-      .catch((e) => {
-        this.ctx?.log.error({ err: String(e) }, "webchat: read.json write failed");
-      });
+    this.updateThread(threadId, { [side === "web" ? "web_read_id" : "portal_read_id"]: lastId });
   }
 
   async start(ctx: any): Promise<void> {
     this.ctx = ctx;
     this.cfg = ctx.config as WebchatConfig;
-    this.threadsDir = join(ctx.stateDir, "threads");
+    const url = String(ctx.secrets?.WEBCHAT_SUPABASE_URL ?? "");
+    const key = String(ctx.secrets?.WEBCHAT_SUPABASE_SECRET_KEY ?? "");
+    if (!url || !key) throw new Error("webchat: WEBCHAT_SUPABASE_URL and WEBCHAT_SUPABASE_SECRET_KEY are required");
+    this.db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
     this.outboxDir = join(ctx.stateDir, "outbox");
     await mkdir(ctx.inboxDir, { recursive: true });
     await mkdir(this.outboxDir, { recursive: true });
-    await mkdir(this.threadsDir, { recursive: true });
 
     // httpBaseUrl is `<server>/webhook/<agent>/webchat` — the harness's own API
     // sits at the same origin, which is what we need for session checks.
@@ -298,74 +339,35 @@ export default class WebchatPlugin {
       );
     }
 
-    // Migrate the single-thread era: the old flat transcript.jsonl becomes the
-    // default thread's file. One-shot; a re-run finds nothing to move.
-    const legacy = join(ctx.stateDir, "transcript.jsonl");
-    const defaultPath = this.transcriptPath(this.cfg.threadId);
-    try {
-      await stat(defaultPath);
-    } catch {
-      try {
-        await stat(legacy);
-        await rename(legacy, defaultPath);
-        ctx.log.info("webchat: migrated transcript.jsonl to threads/");
-      } catch {
-        /* no legacy transcript either */
-      }
+    // Load every thread of this agent that has a transcript: the newest
+    // `historyLimit` messages each, plus its cursors. Rows without a
+    // transcript (ids minted by an entity trigger) stay unknown here until
+    // their first message — `link_thread` finds them then.
+    const { data: rows, error } = await this.db
+      .from("threads")
+      .select("id, thread_id, web_read_id, portal_read_id")
+      .eq("agent", ctx.agentId)
+      .not("last_seq", "is", null);
+    if (error) throw new Error(`webchat: threads load failed: ${error.message}`);
+    for (const row of rows ?? []) {
+      const { data: msgs, error: e2 } = await this.db
+        .from("thread_messages")
+        .select("seq, role, text, files, sender_name, portal, created_at")
+        .eq("thread_id", row.id)
+        .order("seq", { ascending: false })
+        .limit(this.cfg.historyLimit);
+      if (e2) throw new Error(`webchat: transcript load failed (${row.thread_id}): ${e2.message}`);
+      const messages = ((msgs ?? []) as MessageRow[]).reverse().map(fromRow);
+      this.threads.set(row.thread_id, {
+        dbId: row.id,
+        messages,
+        nextId: (messages[messages.length - 1]?.id ?? 0) + 1,
+        // A restarted harness is not mid-turn; the column is cleared below.
+        pendingSince: null,
+      });
+      this.read.set(row.thread_id, { web: Number(row.web_read_id), portal: Number(row.portal_read_id) });
     }
-
-    let files: string[] = [];
-    try {
-      files = (await readdir(this.threadsDir)).filter((f) => f.endsWith(".jsonl"));
-    } catch {
-      /* dir just created */
-    }
-    for (const f of files) {
-      try {
-        const raw = await readFile(join(this.threadsDir, f), "utf8");
-        const messages = raw
-          .split("\n")
-          .filter(Boolean)
-          .map((l) => JSON.parse(l) as ChatMessage);
-        const t: Thread = {
-          messages,
-          nextId: (messages[messages.length - 1]?.id ?? 0) + 1,
-          pendingSince: null,
-        };
-        // The file name IS the thread id for every id `safeThreadId` passes
-        // through unchanged — which is all of ours (jr-12, supplier-<slug>…).
-        this.threads.set(f.slice(0, -".jsonl".length), t);
-        this.trim(t);
-      } catch {
-        /* one corrupt transcript must not take the plugin down */
-      }
-    }
-    this.readPath = join(ctx.stateDir, "read.json");
-    let seeded = false;
-    try {
-      const raw = JSON.parse(await readFile(this.readPath, "utf8")) as Record<
-        string,
-        Partial<ReadCursors>
-      >;
-      for (const [threadId, c] of Object.entries(raw ?? {})) {
-        this.read.set(threadId, { web: Number(c?.web ?? 0), portal: Number(c?.portal ?? 0) });
-      }
-      seeded = true;
-    } catch {
-      /* no file yet, or unreadable — seed below. Re-seeding marks everything
-         read, which is the harmless direction; the other one would leave every
-         thread shouting unread forever. */
-    }
-    if (!seeded) {
-      // Turning read state on must not light up every thread that already has
-      // a transcript: whatever is on disk now counts as seen by both sides.
-      for (const [threadId, t] of this.threads) {
-        const last = t.messages[t.messages.length - 1];
-        if (last) this.read.set(threadId, { web: last.id, portal: this.portalCursor(t) });
-      }
-      this.persistRead();
-      ctx.log.info({ threads: this.read.size }, "webchat: seeded read state from transcripts");
-    }
+    await this.db.from("threads").update({ pending_since: null }).eq("agent", ctx.agentId).not("pending_since", "is", null);
 
     await this.cleanupPortalOrphans();
     ctx.log.info(
@@ -414,11 +416,23 @@ export default class WebchatPlugin {
   }
 
   private async record(threadId: string, m: Omit<ChatMessage, "id">): Promise<ChatMessage> {
+    const dbId = await this.dbThreadId(threadId);
     const t = this.thread(threadId);
-    const msg: ChatMessage = { ...m, id: t.nextId++ };
+    const msg: ChatMessage = { ...m, id: t.nextId };
+    const { error } = await this.db.from("thread_messages").insert({
+      thread_id: dbId,
+      seq: msg.id,
+      role: msg.role,
+      text: msg.text,
+      files: msg.files,
+      sender_name: msg.senderName ?? null,
+      portal: Boolean(msg.portal),
+      created_at: new Date(msg.at).toISOString(),
+    });
+    if (error) throw new Error(`thread_messages insert failed: ${error.message}`);
+    t.nextId += 1;
     t.messages.push(msg);
     this.trim(t);
-    await appendFile(this.transcriptPath(threadId), JSON.stringify(msg) + "\n");
     return msg;
   }
 
@@ -426,7 +440,7 @@ export default class WebchatPlugin {
   private isPending(t: Thread): boolean {
     if (t.pendingSince === null) return false;
     if (Date.now() - t.pendingSince > this.cfg.pendingTimeoutSec * 1000) {
-      t.pendingSince = null;
+      t.pendingSince = null; // memory only: the column is a hint, and the next answer clears it
       return false;
     }
     return true;
@@ -519,7 +533,7 @@ export default class WebchatPlugin {
         ...(rel.length ? { attachments: rel } : {}),
       },
     });
-    this.thread(threadId).pendingSince = Date.now();
+    this.setPending(threadId, Date.now());
     return msg;
   }
 
@@ -573,7 +587,7 @@ export default class WebchatPlugin {
           files,
           ...(portal ? { portal: true } : {}),
         });
-        this.thread(threadId).pendingSince = null; // answered
+        this.setPending(threadId, null); // answered
         return json(200, { ok: true, id: msg.id, threadId });
       }
 
@@ -590,6 +604,7 @@ export default class WebchatPlugin {
           const t = this.thread(threadId);
           // Only the portal-visible half of the thread crosses this endpoint.
           const view: Thread = {
+            dbId: t.dbId,
             messages: t.messages.filter((m) => m.portal),
             nextId: t.nextId,
             pendingSince: t.pendingSince,
@@ -889,10 +904,23 @@ export default class WebchatPlugin {
         const b = await this.readJson(req).catch(() => ({}) as Record<string, unknown>);
         const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
         ctx.resetThread("web", threadId);
-        this.threads.set(threadId, { messages: [], nextId: 1, pendingSince: null });
-        this.read.delete(threadId); // ids restart at 1 — a stale cursor would hide the new transcript
-        this.persistRead();
-        await writeFile(this.transcriptPath(threadId), "");
+        const dbId = this.thread(threadId).dbId;
+        if (dbId !== null) {
+          const { error } = await this.db.from("thread_messages").delete().eq("thread_id", dbId);
+          if (error) return json(500, { error: `transcript delete failed: ${error.message}` });
+          // ids restart at 1 — a stale cursor would hide the new transcript,
+          // and the preview trigger only ever moves forward.
+          const { error: e2 } = await this.db
+            .from("threads")
+            .update({
+              web_read_id: 0, portal_read_id: 0, pending_since: null,
+              last_seq: null, last_at: null, last_role: null, last_sender: null, last_text: null,
+            })
+            .eq("id", dbId);
+          if (e2) return json(500, { error: `threads reset failed: ${e2.message}` });
+        }
+        this.threads.set(threadId, { dbId: null, messages: [], nextId: 1, pendingSince: null });
+        this.read.delete(threadId);
         return json(200, { ok: true });
       }
 

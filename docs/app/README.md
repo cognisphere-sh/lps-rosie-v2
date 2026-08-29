@@ -260,7 +260,9 @@ in the desktop rail and through mobile More.
 | `GET /api/requests?q=&page=` | Job requests, 25 per page, each with **all** of its active line items, its per-status counts and `lineTotal`. `q` matches a plant name on the request, the customer's name/company/email, or the request id (`7` or `JR-7`) — a plant match narrows the lines returned, a customer or id match keeps them all. `status` / `itemStatus` are whitelisted against the CHECK vocabularies (an unknown value is dropped, not an error); `size`, `customer` and `created`/`updated` (days back) filter too — `size` is still served though the toolbar no longer offers it as a chip (see the deviations table). `?facets=1` returns the size and customer option lists plus the header totals. |
 | `GET /api/file?path=` | Redirects to a 1-hour signed URL for a source file. |
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
-| `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox (`messages`, `send`, `upload`, `file`, `reset`, `threads`). See *Agent chat*. |
+| `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox (`messages`, `send`, `upload`, `file`, `reset`, `threads`, `read`). See *Agent chat*. |
+| `GET /api/chat/threads` | The bell's sweep: every chattable agent's open threads with a transcript, straight from the `threads` table (closed ones excluded), keyed by agent in the plugin's `api/threads` row shape. |
+| `GET /api/chat/events` | **Server-sent events** — one `thread` event per change to any chat agent's `threads` row (new message, read mark, working indicator, close). The app server's single Supabase Realtime subscription, relayed (`lib/chat-realtime.ts`). See *Agent chat*. |
 | `GET /api/chat-directory?agent=<rosie\|daisy>` | The chat panel's thread picker, by category, merged client-side with the plugin's `api/threads` transcript list. **rosie** (the default): active job requests (`jr-<id>`, titled by `job_requests.name`, renamable from the card), LPS Partners and engaged suppliers (`rosie_thread_id`), active customers. **daisy**: supplier companies only (`daisy_thread_id`, the head branch's row) — bounded to the ones she works, every LPS Partner plus everyone with an active `inventory_sources` row, since all 1,300-odd suppliers carry a thread id. |
 | `GET /a/:agent/private/artifacts/:slug/raw` | The artifact HTML for the page's iframe, fetched from the harness with the shared secret. |
 | `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
@@ -272,6 +274,7 @@ in the desktop rail and through mobile More.
 | `GET /api/partner/:id/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
 | `GET·PATCH /api/partner/:id/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. A PATCH also moves the request to `processing` — the supplier is working on it — which the admin's own PATCH deliberately does not. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
 | `POST /api/partner/:id/requests/:arId/submit` | The request page's **Submit** / **Re-Submit**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
+| `GET /api/partner/:id/chat/events` | The portal's push signal: a content-free `{type:'ping'}` whenever the supplier's rosie thread changes — no preview, because the newest message may be internal. The portal re-fetches through the route below, which filters. |
 | `GET·POST /api/partner/:id/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
 | `PATCH /api/rows` | One inline cell edit, or a whitelisted set of changed fields in one row update. |
 | `DELETE /api/rows` | Soft delete (`is_active = false`). `inventory_sources` cascades to the rows it sourced and returns `retired`. |
@@ -316,8 +319,10 @@ second implementation. Its slots, top to bottom and left to right:
   still at `new` — the page passes them as `alerts`, and clicking one opens
   that request's page; alert rows show the job name (or *Availability request*)
   without the internal availability-request ID — and a reply from Local Plant Supply the supplier hasn't
-  opened the chat on. The frame polls `?since=0&limit=1` every 20s for the
-  latter and compares against the `readId` the plugin returns (its `portal`
+  opened the chat on. The frame fetches `?since=0&limit=1` for the latter —
+  on load, whenever `/api/partner/:id/chat/events` pings, and on a 60s
+  fallback (a flat 20s poll before 2026-08-26; the open chat's own fetch runs
+  the same way with a 15s fallback) — and compares against the `readId` the plugin returns (its `portal`
   cursor — read state is server-side since 2026-08-24, same as the admin
   side). That peek poll deliberately omits `read=1`, because it runs while the
   chat is *closed*; the open panel's own poll carries it, so opening the panel
@@ -1239,15 +1244,19 @@ An emptied field abandons rather than unnaming the job — unnaming is not what
 the pencil is for. Only job cards are renamable: a supplier's or customer's
 thread is titled from their own record.
 
-**Unread tracking and the bell.** `lib/chat-notifications.tsx` polls every
-agent's `api/threads` (15s); a thread is unread when `lastId > readId`. Since
-2026-08-24 **`readId` comes from the webchat plugin**, not this browser — read
-state lives in the agent's `state/read.json` ([Read state](../harness/plugin-webchat.md#read-state)),
+**Unread tracking and the bell.** `lib/chat-notifications.tsx` sweeps
+`GET /api/chat/threads` once (and again on every stream reconnect, plus a 60s
+fallback), then keeps its rows current from **`/api/chat/events`** — the app
+server's relay of Supabase Realtime on the `threads` table, one event per
+change (2026-08-26; a 15s poll of each agent's `api/threads` before that). A
+thread is unread when `lastId > readId`; a closed thread (its job is done)
+drops out on its event. Since 2026-08-24 **`readId` is plugin state**, not this
+browser's — it lives on the `threads` row ([Read state](../harness/plugin-webchat.md#read-state)),
 so opening a thread on a phone clears its dot on the desktop. The open panel's
 poll carries `read=1`, which is what marks it; the plugin also marks your own
 `api/send`, so nothing here special-cases the operator's own messages any
 more. `markThreadRead` survives as an in-memory latency shim — the panel calls
-it after each poll so a dot clears now rather than at the next 15s sweep — and
+it after each poll so a dot clears now rather than when the event comes back — and
 "Mark all read" is the one path that marks without opening, through
 `POST /api/chat/<agent>/read`. One provider (mounted by the Shell) feeds warn-colored
 dots on the rail and header agent avatars, the thread picker's cards, the
@@ -1330,9 +1339,21 @@ before it runs, and the plugin re-checks the session on its side; the agent and
 action are both checked against allowlists, since the path comes from the
 browser. A harness that is down answers 502 rather than hanging the poll.
 
-The panel **polls** `api/messages?since=<cursor>` every 2s while it is open —
-no SSE, no websocket. A sent message is added optimistically and then adopts
-the id the server returns, so the next poll doesn't duplicate it.
+The panel fetches `api/messages?since=<cursor>` while it is open: once on
+open, again the moment `/api/chat/events` reports its thread moved, and on a
+10s fallback timer (which also covers the half of the working indicator that
+lives in the harness queue, not the database). Until 2026-08-26 this was a
+flat 2s poll. Message bodies are never pushed — the event says *something
+changed* and the panel makes the same delta fetch it always made. A sent
+message is added optimistically and then adopts the id the server returns, so
+the next fetch doesn't duplicate it.
+
+**Why a relay and not Realtime in the browser.** No Supabase key reaches the
+browser and app users are not Supabase auth users, so no RLS policy could tell
+them from the public. `lib/chat-realtime.ts` holds one subscription with the
+existing server-side client (kept on `globalThis` across dev reloads) and fans
+`threads` changes out over SSE; `lib/chat-events.ts` shares one `EventSource`
+per URL between the bell, the open panel and the portal's hooks.
 
 **Pagination.** The first fetch of a transcript asks for `&limit=50`, so the
 panel opens on the 50 newest messages rather than the whole history. When the

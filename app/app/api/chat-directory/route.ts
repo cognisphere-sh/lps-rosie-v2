@@ -44,7 +44,8 @@ async function rosieDirectory(): Promise<ChatDirectory> {
       .from('job_requests')
       .select('id, name, status, customer_id, updated_at')
       .eq('is_active', true)
-      .neq('status', 'archived')
+      // A closed job's thread is closed with it (migration 0080).
+      .in('status', ['sourcing', 'quoted'])
       .order('updated_at', { ascending: false })
       .limit(100),
     supabase

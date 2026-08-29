@@ -21,6 +21,25 @@ here).
 
 - **Made whole-job deletion deliberate on collapsed mobile Job Request cards.** The immediately executable trash control beside Rosie moved into a labelled, tap-sized Actions menu; Delete request now opens an accessible confirmation that names the JR/job, says the action is permanent, and gives the line count plus an accurate warning that all related availability requests and answers, and the change history, are removed. Desktop, expanded-card and line-item delete behavior remain otherwise unchanged.
 
+### Removed
+
+- **Rosie's chats, every customer, every job request and every availability
+  request — hard-deleted, at Bhoumik's request** (after the Supabase move
+  below). Rosie's 26 harness threads were reset through the webchat plugin's
+  `api/reset` (conversation context, queue rows and DB transcript), her
+  pre-move `state/threads/*.jsonl` + `read.json` files were removed, and one
+  SQL pass then deleted `availability_request_items` (11),
+  `availability_requests` (1), `job_requests` (1, its 11 items and 23
+  changelog rows cascading, its thread dropped by trigger), `customers` (3)
+  and rosie's `jr-*` / `customer-*` thread rows; her 1,338 remaining `threads`
+  rows (the supplier FK targets, `main`, `router`) stay, emptied. The
+  entity tables were snapshotted into the `backup_20260826` schema first
+  (not exposed to PostgREST) — **but rosie's messages were not**: the resets
+  ran before the snapshot and the JSONL copies were already gone, so the
+  transcripts are unrecoverable. `availability_queries` (the legacy user
+  search log) and rosie's `workspace/threads/*` notes were left alone. Daisy's
+  and nova's chats are untouched.
+
 ### Added
 
 - **Reload button for the installed app.** The nav rail (and mobile ⋯ More
@@ -50,6 +69,56 @@ here).
   change does not move controls under the notch. The supplier portal keeps its
   existing glass strength but gains the same safe positioning and 44px close
   target.
+- **Web-chat transcripts moved from per-agent JSONL files into Supabase, and
+  the chat surfaces went from polling to push.** Migration 0078 adds
+  `threads` (one row per (agent, cognisphere thread id) — read cursors, the
+  working indicator, a trigger-kept preview of the newest message) and
+  `thread_messages` (the transcript; `seq` is the per-thread id the panel
+  sees, `files` keeps the JSONL shape and the bytes stay on the agent's
+  disk). The natural key is the *pair*: `supplier-<slug>` names one thread
+  under rosie and another under daisy, so a global unique on the id was never
+  possible. **The entities got real foreign keys without a second source of
+  truth**: `suppliers.rosie_thread_ref` / `daisy_thread_ref`,
+  `customers.rosie_thread_ref` and `job_requests.rosie_thread_ref` are
+  *derived* — a trigger upserts the `threads` row and links it whenever the
+  existing text `*_thread_id` column is written (job requests on insert, as
+  `jr-<id>`), so skills, `webchat-cli --thread-id`, the portal and the app
+  keep speaking the text id and the FK follows. All 2,677 minted ids were
+  linked in the backfill with `updated_at` and the changelog triggers off, and
+  `log_job_request_changes()` now ignores the derived column. The webchat
+  plugin (`harness/plugins/webchat`) is the only writer and keeps its
+  write-through in-memory copy, so every endpoint keeps its contract; it needs
+  `WEBCHAT_SUPABASE_URL` / `WEBCHAT_SUPABASE_SECRET_KEY` in its own bucket
+  (prefixed — keys are unique across an agent's buckets), wired by
+  `scripts/app/secrets.sh` for rosie, daisy and nova, and `@supabase/supabase-js`
+  joined `harness/package.json`. The 22 existing transcripts (~640 messages,
+  both read cursors each) were imported once by a scratch script; the JSONL
+  and `read.json` files are left on disk as the backup and are no longer
+  read. **Push**: the app server holds one Supabase Realtime subscription on
+  `threads` (`lib/chat-realtime.ts`) and relays it over SSE — `/api/chat/events`
+  for the team (session-gated), `/api/partner/:id/chat/events` for the portal
+  (a content-free ping, since the newest message may be internal). The bell
+  sweeps the new `GET /api/chat/threads` (one DB query for all agents instead
+  of a 15s poll of each plugin) and updates rows from the stream; the open
+  panel and the portal re-fetch their delta on the event, with slow fallback
+  timers (10s / 15s / 60s) in place of the old 2s / 5s / 20s polls. A browser
+  subscribing directly was ruled out: no key reaches it and app users are not
+  Supabase auth users, so no RLS policy could tell them from the public. The
+  agent is still woken by the plugin's `ctx.notify` on every send — writes go
+  through the plugin, only reads and push moved to the database, because a
+  dropped Realtime connection must never lose a wake. Verified end to end: a
+  panel send reached nova and her reply came back over SSE in ~5s.
+- **A job request's chat thread follows the job.** Migration 0079: deleting
+  a job (the app's permanent trash) deletes its `threads` row and transcript,
+  and `DELETE /api/requests/:id` then asks rosie's webchat plugin to forget
+  its copy and wipe the harness conversation (best effort — the plugin
+  refuses while a turn is in flight there). Migration 0080: `threads.closed_at`
+  — a job going `closed_won` / `closed_lost` / `archived` (or inactive)
+  closes its thread, and coming back reopens it. A closed thread keeps its
+  transcript but leaves the chat picker (`/api/chat-directory` now lists only
+  `sourcing` / `quoted` jobs) and the bell. Supplier and customer threads are
+  never closed or deleted this way — they outlive every job.
+
 - **The supplier portal now lives at `/partner/:id`** (was `/portal/:supplierId`).
   `/portal/*` redirects permanently to `/partner/*`, so links already in
   suppliers' inboxes keep working. The page routes moved

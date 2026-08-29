@@ -35,6 +35,7 @@ import {
 import type { ARDetail } from '@/lib/availability'
 import { formatDate } from '@/lib/format'
 import { useHistoryView } from '@/lib/history-view'
+import { subscribeEvents } from '@/lib/chat-events'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +45,10 @@ const AUTH_LATER = 'Available once supplier sign-in lands'
 
 // ------------------------------------------------------------------ the chat
 
-const CHAT_POLL_MS = 5000
+// Fallback cadences only: `/api/partner/:id/chat/events` pings the moment the
+// thread moves, and both hooks re-fetch on it.
+const CHAT_POLL_MS = 15_000
+const BELL_POLL_MS = 60_000
 const CHAT_PAGE = 50
 const CHAT_MIN_W = 280
 const CHAT_STORE = 'lps.portal.chat.v1'
@@ -149,8 +153,12 @@ function usePartnerChat(supplierId: number) {
   useEffect(() => {
     void poll()
     const t = setInterval(() => void poll(), CHAT_POLL_MS)
-    return () => clearInterval(t)
-  }, [poll])
+    const off = subscribeEvents(`/api/partner/${supplierId}/chat/events`, () => void poll(), () => void poll())
+    return () => {
+      clearInterval(t)
+      off()
+    }
+  }, [poll, supplierId])
 
   const send = useCallback(
     async (text: string, files: ChatFile[]) => {
@@ -580,8 +588,9 @@ export function PartnerFrame({
       }
     }
     void tick()
-    const t = setInterval(() => void tick(), 20_000)
-    return () => { alive = false; clearInterval(t) }
+    const t = setInterval(() => void tick(), BELL_POLL_MS)
+    const off = subscribeEvents(`/api/partner/${supplierId}/chat/events`, () => void tick(), () => void tick())
+    return () => { alive = false; clearInterval(t); off() }
   }, [supplierId])
 
   // Opening the panel is what marks the conversation read.

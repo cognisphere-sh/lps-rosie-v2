@@ -10,6 +10,35 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0080_threads_closed_at.sql`
+
+Applied 2026-08-26 (Bhoumik), after 0079. `threads.closed_at` plus the
+`job_requests_close_thread` trigger: a job going `closed_won` / `closed_lost`
+/ `archived` (or inactive) closes its thread; coming back reopens it. The
+transcript stays; the app hides closed threads from the picker and the bell.
+Backfilled from the jobs already closed.
+
+## `0079_job_request_delete_drops_thread.sql`
+
+Applied 2026-08-26 (Bhoumik), minutes after 0078. AFTER DELETE on
+`job_requests` deletes the job's `threads` row, and the transcript cascades.
+Supplier and customer threads are never deleted this way.
+
+## `0078_threads_and_thread_messages.sql`
+
+Applied 2026-08-26 (Bhoumik). The web-chat store: `threads` (one per (agent,
+thread id) — read cursors, working indicator, newest-message preview) and
+`thread_messages` (the transcript, `seq` per thread). Derived `*_thread_ref`
+FKs on `suppliers` (rosie + daisy), `customers` and `job_requests`,
+maintained by `link_thread()` triggers off the existing text `*_thread_id`
+columns (job requests: `jr-<id>` on insert). `log_job_request_changes()`
+re-created to exclude the derived column. Backfill linked every minted id
+(2,677 thread rows) with `updated_at` and changelog triggers disabled; RLS on,
+no policies; both tables added to the `supabase_realtime` publication. The
+existing JSONL transcripts were then imported by a one-shot script (22
+threads, ~640 messages, cursors preserved) — no migration file, see
+CHANGELOG.
+
 ## `0077_ar_item_mapped_inventory.sql`
 
 Applied 2026-08-26 (Bhoumik), the same day as 0075/0076. Adds
