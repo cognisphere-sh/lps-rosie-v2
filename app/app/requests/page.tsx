@@ -30,6 +30,7 @@ import {
   isSubmittedARStatus,
   withAvailabilityRequestStatus,
 } from '@/lib/availability'
+import { customerThreadId } from '@/lib/customers'
 import { formatDate } from '@/lib/format'
 import { shortStamp } from '@/lib/notes'
 import {
@@ -177,14 +178,9 @@ function RequestCard({
   const tone = requestStatusTone(request.status)
   const customerName = request.customer?.company || request.customer?.name
   const contact = request.customer?.company && request.customer.name ? request.customer.name : null
-  // The customer's chat thread: the minted id, or the same `customer-<slug>`
-  // rosie's customer-coordination skill mints on first contact.
-  const customerThread = request.customer
-    ? request.customer.rosieThreadId ??
-      (request.customer.name
-        ? `customer-${request.customer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`
-        : null)
-    : null
+  // Only the stored canonical customer thread is safe to open. Rosie owns
+  // first-contact minting and collision handling; this card never guesses.
+  const customerThread = request.customer ? customerThreadId(request.customer) : null
   const edit = { table: 'job_requests', id: request.id, onSaved }
 
   // The head keeps only where it is going; the street lives in the drawer.

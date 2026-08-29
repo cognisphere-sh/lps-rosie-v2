@@ -21,6 +21,7 @@ export function AgentChatButton({
   label,
   subject,
   size = 26,
+  labelled = false,
   className,
 }: {
   agentId: string
@@ -31,6 +32,8 @@ export function AgentChatButton({
   subject: string
   /** Avatar edge in px. 26 suits a page header; a table row wants 22. */
   size?: number
+  /** Show a labelled header action; narrow phones keep its accessible avatar. */
+  labelled?: boolean
   className?: string
 }) {
   const agent = agentById(agentId)
@@ -47,7 +50,9 @@ export function AgentChatButton({
       title={what}
       aria-label={what}
       className={cn(
-        'flex flex-none cursor-pointer items-center border-none bg-transparent p-0 opacity-75 hover:opacity-100',
+        labelled
+          ? 'flex min-h-11 min-w-11 flex-none cursor-pointer items-center gap-1.5 rounded-md border border-border bg-background px-2 text-[12px] font-semibold text-foreground shadow-xs hover:bg-accent'
+          : 'flex flex-none cursor-pointer items-center border-none bg-transparent p-0 opacity-75 hover:opacity-100',
         className,
       )}
     >
@@ -59,6 +64,7 @@ export function AgentChatButton({
         style={{ width: size, height: size }}
         className="rounded-full object-cover"
       />
+      {labelled && <span className="hidden min-[480px]:inline">Chat with {agent.name}</span>}
     </button>
   )
 }

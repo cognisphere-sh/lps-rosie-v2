@@ -3,20 +3,14 @@
  * a server route and a client page can each import them.
  */
 
-/** `Riverbend Landscapes` → `riverbend-landscapes`. Rosie's own slug rule. */
-const slug = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
 /**
- * The customer's rosie thread — `customers.rosie_thread_id` where it is set.
+ * The customer's canonical Rosie thread, when it has been minted and stored.
  *
- * Rosie mints the column on first contact (`customer-<slug of name>`, with
- * `-<id>` appended only on a collision with a different customer). Until she
- * does, the base rule gives the same id her `customer-coordination` skill
- * would, so the app can open the conversation before there is one to open.
+ * The app must not derive a slug for a missing thread: Rosie owns collision
+ * handling when she first contacts the customer. Guessing here can open a
+ * second conversation that is not the customer's recorded contact history.
  */
-export const customerThreadId = (customer: { name: string; rosieThreadId: string | null }) =>
-  customer.rosieThreadId ?? `customer-${slug(customer.name)}`
+export const customerThreadId = (customer: { rosieThreadId: string | null }): string | null => {
+  const threadId = customer.rosieThreadId?.trim()
+  return threadId || null
+}

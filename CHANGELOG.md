@@ -19,6 +19,7 @@ here).
 
 ### Added
 
+- **Supplier and customer detail headers now expose their canonical chats.** Supplier profiles show touch-sized **Chat with Rosie** and **Chat with Daisy** actions for the company's stored per-agent thread ids; customer profiles show **Chat with Rosie** for the stored customer thread. Missing/blank ids are omitted instead of guessed, including the customer Chat chip on Job Request cards, preventing duplicate conversations; supplier ids are trimmed and validated independently per agent. (`app/app/{suppliers,customers}/[id]`, `app/components/workspace/agent-chat-button.tsx`, `app/lib/{agents,customers}.ts`)
 - **Submitted supplier responses are visible without making Job Request cards
   taller.** Each linked `AR-<id>` segment now turns green and includes a compact
   matching round dot only while that availability request's current lifecycle

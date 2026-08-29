@@ -222,6 +222,7 @@ export default function CustomerPage() {
   const where = addressLine(customer.address)
   const active = customer.requests.filter((r) => ACTIVE_STATUSES.includes(r.status))
   const activeValue = active.reduce((sum, r) => sum + r.lineTotal, 0)
+  const chatThreadId = customerThreadId(customer)
 
   const tabs: [Tab, string][] = [
     ['requests', `Requests (${customer.requests.length})`],
@@ -233,14 +234,15 @@ export default function CustomerPage() {
       page="customers"
       title={customer.name}
       subtitle={[customer.company, where].filter(Boolean).join(' · ') || 'No company or address on file'}
-      headerAction={
+      headerAction={chatThreadId ? (
         <AgentChatButton
           agentId="rosie"
-          threadId={customerThreadId(customer)}
+          threadId={chatThreadId}
           label={customer.name}
           subject={customer.name}
+          labelled
         />
-      }
+      ) : undefined}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {/* The details card. Everything on the customer record, editable in

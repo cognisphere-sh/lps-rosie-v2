@@ -350,7 +350,7 @@ export interface CustomerRow {
   notes: string | null
   /**
    * `customers.rosie_thread_id` — their conversation with Rosie, when minted.
-   * NULL until she first contacts them; `customerThreadId` says what it will be.
+   * NULL until she first contacts them; the app does not guess the future id.
    */
   rosieThreadId: string | null
   /** Their active requests, newest first. */

@@ -26,8 +26,8 @@ const ACTIVE_STATUSES = ['sourcing', 'quoted']
 /** One table row, as the shared `Cell` wants it: an id and a bag of values. */
 interface Row {
   id: number
-  /** Their Rosie thread, for the row's chat button. Never a column. */
-  threadId: string
+  /** Their stored Rosie thread, for the row's chat button. Never a column. */
+  threadId: string | null
   name: string
   values: Record<string, CellValue>
 }
@@ -286,14 +286,16 @@ export default function CustomersPage() {
                 </div>
                 <span className="text-[12.5px] font-semibold text-primary">Open customer →</span>
               </button>
-              <div className="absolute bottom-3 right-3.5">
-                <AgentChatButton
-                  agentId="rosie"
-                  threadId={row.threadId}
-                  label={row.name}
-                  subject={row.name}
-                />
-              </div>
+              {row.threadId && (
+                <div className="absolute bottom-3 right-3.5">
+                  <AgentChatButton
+                    agentId="rosie"
+                    threadId={row.threadId}
+                    label={row.name}
+                    subject={row.name}
+                  />
+                </div>
+              )}
             </div>
           ))}
           {!busy && visible.length === 0 && (
@@ -371,14 +373,16 @@ export default function CustomersPage() {
                       className="sticky right-0 z-10 border-b border-l border-lps-hair bg-card p-[4px_6px]"
                       style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
                     >
-                      <AgentChatButton
-                        agentId="rosie"
-                        threadId={row.threadId}
-                        label={row.name}
-                        subject={row.name}
-                        size={22}
-                        className="mx-auto"
-                      />
+                      {row.threadId && (
+                        <AgentChatButton
+                          agentId="rosie"
+                          threadId={row.threadId}
+                          label={row.name}
+                          subject={row.name}
+                          size={22}
+                          className="mx-auto"
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

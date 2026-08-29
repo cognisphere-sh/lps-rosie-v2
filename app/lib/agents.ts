@@ -104,7 +104,8 @@ export function supplierAgentThreads(
   values: Record<string, unknown>,
 ): { agentId: string; threadId: string }[] {
   return ['rosie', 'daisy'].flatMap((agentId) => {
-    const threadId = values[`${agentId}_thread_id`]
-    return typeof threadId === 'string' && threadId ? [{ agentId, threadId }] : []
+    const stored = values[`${agentId}_thread_id`]
+    const threadId = typeof stored === 'string' ? stored.trim() : ''
+    return threadId ? [{ agentId, threadId }] : []
   })
 }

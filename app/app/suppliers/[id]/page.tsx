@@ -1100,11 +1100,11 @@ export default function SupplierProfilePage() {
         </>
       ) : (
         <>
-          {/* Both sides of this supplier, one avatar each: Rosie runs the
-              order coordination, Daisy the onboarding and availability. The
-              two threads share a name and differ only by agent — the face is
-              what tells them apart. The company's ids ride on every location
-              row, so a farm page opens the same two conversations. */}
+          {/* Both sides of this supplier: Rosie runs order coordination and
+              Daisy onboarding and availability. Their stored per-agent thread
+              ids are canonical; a missing id gets no guessed action. The
+              company's ids ride on every location row, so a farm page opens
+              the same two conversations as its head office. */}
           {agentThreads.map(({ agentId, threadId }) => (
             <AgentChatButton
               key={agentId}
@@ -1112,6 +1112,7 @@ export default function SupplierProfilePage() {
               threadId={threadId}
               label={companyName}
               subject={companyName}
+              labelled
             />
           ))}
           {!isMobile && (
