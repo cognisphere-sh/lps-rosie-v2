@@ -36,6 +36,24 @@ export function onOpenAvailabilityRequest(handler: (arId: number) => void): () =
   return () => window.removeEventListener('lps:open-ar', listener)
 }
 
+export interface AvailabilityRequestStatusDetail {
+  arId: number
+  status: string
+}
+
+/** Tell mounted admin views that a drawer write changed an AR lifecycle state. */
+export function availabilityRequestStatusChanged(detail: AvailabilityRequestStatusDetail): void {
+  window.dispatchEvent(new CustomEvent<AvailabilityRequestStatusDetail>('lps:ar-status', { detail }))
+}
+
+export function onAvailabilityRequestStatusChanged(
+  handler: (detail: AvailabilityRequestStatusDetail) => void,
+): () => void {
+  const listener = (e: Event) => handler((e as CustomEvent<AvailabilityRequestStatusDetail>).detail)
+  window.addEventListener('lps:ar-status', listener)
+  return () => window.removeEventListener('lps:ar-status', listener)
+}
+
 export interface RenameThreadDetail {
   threadId: string
   /** What the thread is called now — the panel header and picker follow it. */

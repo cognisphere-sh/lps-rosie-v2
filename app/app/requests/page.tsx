@@ -7,7 +7,13 @@ import { MessagesSquare, MoreHorizontal } from 'lucide-react'
 import {
   ChevronDown, ChevronRight, CloseIcon, MapPinIcon, SuppliersIcon, TrashIcon,
 } from '@/components/workspace/icons'
-import { onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
+import {
+  onAvailabilityRequestStatusChanged,
+  onRenameThread,
+  openAvailabilityRequest,
+  openChat,
+  renameThread,
+} from '@/lib/chat-bus'
 import { EditableText, patchRow } from '@/components/workspace/editable'
 import {
   DemandSummary,
@@ -19,6 +25,11 @@ import {
 import { Shell, useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
+import {
+  availabilityRequestLinkLabel,
+  isSubmittedARStatus,
+  withAvailabilityRequestStatus,
+} from '@/lib/availability'
 import { formatDate } from '@/lib/format'
 import { shortStamp } from '@/lib/notes'
 import {
@@ -190,7 +201,7 @@ function RequestCard({
   // job with several suppliers and several requests each still reads as a list
   // of suppliers rather than a run of loose AR numbers.
   const supplierPills = [...request.supplierLinks].sort(
-    (a, b) => (b.availabilityRequestIds[0] ?? 0) - (a.availabilityRequestIds[0] ?? 0),
+    (a, b) => (b.availabilityRequests[0]?.id ?? 0) - (a.availabilityRequests[0]?.id ?? 0),
   )
 
   return (
@@ -383,14 +394,22 @@ function RequestCard({
             >
               {supplierPills.map((l) => (
                 <SupplierPill key={l.supplierId} name={l.name}>
-                  {l.availabilityRequestIds.map((arId) => (
+                  {l.availabilityRequests.map((ar) => (
                     <LinkSegment
-                      key={arId}
-                      title={`Open availability request AR-${arId} to ${l.name}`}
-                      onOpen={() => openAvailabilityRequest(arId)}
-                      className="text-primary"
+                      key={ar.id}
+                      title={availabilityRequestLinkLabel(ar.id, l.name, ar.status)}
+                      onOpen={() => openAvailabilityRequest(ar.id)}
+                      className="gap-1 text-primary"
                     >
-                      AR-{arId}
+                      AR-{ar.id}
+                      {isSubmittedARStatus(ar.status) && (
+                        <span
+                          className="rounded-full px-1 py-px text-[9px] font-bold"
+                          style={toneStyle('green')}
+                        >
+                          Submitted
+                        </span>
+                      )}
                     </LinkSegment>
                   ))}
                   {l.rosieThreadId && (
@@ -862,6 +881,18 @@ export default function RequestsPage() {
   useEffect(
     () => onRenameThread(({ threadId }) => { if (threadId.startsWith('jr-')) reload() }),
     [reload],
+  )
+
+  // The drawer has already re-read the one AR it wrote. Patch that status into
+  // the mounted cards instead of refetching the full request page and facets.
+  useEffect(
+    () => onAvailabilityRequestStatusChanged(({ arId, status }) => {
+      setRequests((current) => current.map((request) => {
+        const supplierLinks = withAvailabilityRequestStatus(request.supplierLinks, arId, status)
+        return supplierLinks === request.supplierLinks ? request : { ...request, supplierLinks }
+      }))
+    }),
+    [],
   )
 
   const customerIds = useMemo(() => {

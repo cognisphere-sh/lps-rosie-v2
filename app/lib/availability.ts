@@ -22,6 +22,19 @@ export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
 export const arStatusLabel = (s: string) => AR_STATUS_META[s as ARStatus]?.label ?? s
 export const arStatusTone = (s: string): Tone => AR_STATUS_META[s as ARStatus]?.tone ?? 'grey'
 
+/** The existing lifecycle state the admin UI may safely call submitted. */
+export const isSubmittedARStatus = (status: string) => status === 'submitted'
+
+/** The AR segment's accessible name, including the state its visible badge conveys. */
+export function availabilityRequestLinkLabel(
+  id: number,
+  supplierName: string,
+  status: string,
+): string {
+  const base = `Open availability request AR-${id} to ${supplierName}`
+  return isSubmittedARStatus(status) ? `${base} — Submitted` : base
+}
+
 /**
  * `availability_request_items.status` — the supplier's answer, in the order the
  * portal's picker offers it. NULL is a real state (not answered yet) and
@@ -135,9 +148,29 @@ export interface SupplierLink {
   name: string
   lpsPartner: boolean
   /** Every availability request this job has with them, newest first. */
-  availabilityRequestIds: number[]
+  availabilityRequests: { id: number; status: string }[]
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
   rosieThreadId: string | null
+}
+
+/** Apply one drawer status signal without refetching unrelated job-request data. */
+export function withAvailabilityRequestStatus(
+  links: SupplierLink[],
+  arId: number,
+  status: string,
+): SupplierLink[] {
+  let changed = false
+  const next = links.map((link) => {
+    const availabilityRequests = link.availabilityRequests.map((ar) => {
+      if (ar.id !== arId || ar.status === status) return ar
+      changed = true
+      return { ...ar, status }
+    })
+    return availabilityRequests.some((ar, i) => ar !== link.availabilityRequests[i])
+      ? { ...link, availabilityRequests }
+      : link
+  })
+  return changed ? next : links
 }
 
 // ------------------------------------------------- the portal's item view

@@ -607,17 +607,26 @@ export async function supplierLinksByRequest(
 
   const { data: ars, error: arErr } = await supabase
     .from('availability_requests')
-    .select('id, job_request_id, supplier_id, created_at')
+    .select('id, job_request_id, supplier_id, status, created_at')
     .in('job_request_id', jobRequestIds)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
   if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
 
-  // job → supplier → every AR id, newest first (the AR list is newest-first).
-  const engaged = new Map<number, Map<number, number[]>>()
-  for (const r of (ars ?? []) as { id: number; job_request_id: number; supplier_id: number }[]) {
-    const bySupplier = engaged.get(r.job_request_id) ?? new Map<number, number[]>()
-    bySupplier.set(r.supplier_id, [...(bySupplier.get(r.supplier_id) ?? []), r.id])
+  // job → supplier → every AR link, newest first (the AR list is newest-first).
+  const engaged = new Map<number, Map<number, { id: number; status: string }[]>>()
+  for (const r of (ars ?? []) as {
+    id: number
+    job_request_id: number
+    supplier_id: number
+    status: string
+  }[]) {
+    const bySupplier =
+      engaged.get(r.job_request_id) ?? new Map<number, { id: number; status: string }[]>()
+    bySupplier.set(r.supplier_id, [
+      ...(bySupplier.get(r.supplier_id) ?? []),
+      { id: r.id, status: r.status },
+    ])
     engaged.set(r.job_request_id, bySupplier)
   }
 
@@ -637,14 +646,14 @@ export async function supplierLinksByRequest(
   const out: Record<number, SupplierLink[]> = {}
   for (const [job, bySupplier] of engaged) {
     out[job] = [...bySupplier.entries()]
-      .map(([supplierId, arIds]) => {
+      .map(([supplierId, availabilityRequests]) => {
         const s = meta.get(supplierId)
         return s
           ? {
               supplierId,
               name: s.name,
               lpsPartner: s.is_lps_partner,
-              availabilityRequestIds: arIds,
+              availabilityRequests,
               rosieThreadId: s.rosie_thread_id,
             }
           : null

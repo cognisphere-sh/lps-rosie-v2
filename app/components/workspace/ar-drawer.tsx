@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import { CloseIcon } from '@/components/workspace/icons'
-import { onOpenAvailabilityRequest } from '@/lib/chat-bus'
+import {
+  availabilityRequestStatusChanged,
+  onOpenAvailabilityRequest,
+} from '@/lib/chat-bus'
 import type { ARDetail } from '@/lib/availability'
 import { formatDate } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
@@ -66,10 +69,15 @@ export function AvailabilityRequestDrawer() {
         setError(failed.error ?? 'Could not save')
       }
       await load(arId)
-        .then(setAr)
+        .then((next) => {
+          setAr(next)
+          if (res.ok && next.status !== ar?.status) {
+            availabilityRequestStatusChanged({ arId, status: next.status })
+          }
+        })
         .catch((e) => setError((e as Error).message))
     },
-    [arId, load],
+    [ar?.status, arId, load],
   )
 
   useEffect(() => {

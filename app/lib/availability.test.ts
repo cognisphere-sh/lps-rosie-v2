@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { answeredIn, groupSupplierItems, type SupplierItemLine } from './availability.ts'
+import {
+  answeredIn,
+  availabilityRequestLinkLabel,
+  groupSupplierItems,
+  isSubmittedARStatus,
+  withAvailabilityRequestStatus,
+  type SupplierItemLine,
+  type SupplierLink,
+} from './availability.ts'
 
 /** A line with everything defaulted, so each case states only what it is about. */
 const line = (o: Partial<SupplierItemLine> & { id: number }): SupplierItemLine => ({
@@ -73,6 +81,55 @@ test('a mapping whose catalogue row is gone still groups, under the asked name',
   const groups = groupSupplierItems([line({ id: 1, name: 'Redbud', size: '15 G', mappedInventoryId: 'gone' })])
   assert.equal(groups[0].name, 'Redbud')
   assert.equal(groups[0].size, null)
+})
+
+test('only the current submitted lifecycle state earns a Submitted badge', () => {
+  assert.equal(isSubmittedARStatus('submitted'), true)
+  for (const status of ['new', 'processing', 'closed']) {
+    assert.equal(isSubmittedARStatus(status), false)
+  }
+})
+
+test('an AR link accessible name includes exactly the visible submitted state', () => {
+  assert.equal(
+    availabilityRequestLinkLabel(7, 'Oak Hill', 'submitted'),
+    'Open availability request AR-7 to Oak Hill — Submitted',
+  )
+  assert.equal(
+    availabilityRequestLinkLabel(7, 'Oak Hill', 'processing'),
+    'Open availability request AR-7 to Oak Hill',
+  )
+})
+
+test('a drawer status signal updates only its linked AR and preserves unrelated references', () => {
+  const links: SupplierLink[] = [
+    {
+      supplierId: 1,
+      name: 'Oak Hill',
+      lpsPartner: true,
+      availabilityRequests: [
+        { id: 7, status: 'processing' },
+        { id: 6, status: 'closed' },
+      ],
+      rosieThreadId: 'supplier-oak-hill',
+    },
+    {
+      supplierId: 2,
+      name: 'Pine Farm',
+      lpsPartner: true,
+      availabilityRequests: [{ id: 5, status: 'new' }],
+      rosieThreadId: null,
+    },
+  ]
+
+  const next = withAvailabilityRequestStatus(links, 7, 'submitted')
+  assert.notEqual(next, links)
+  assert.notEqual(next[0], links[0])
+  assert.equal(next[1], links[1])
+  assert.equal(next[0].availabilityRequests[0].status, 'submitted')
+  assert.equal(next[0].availabilityRequests[1], links[0].availabilityRequests[1])
+  assert.equal(withAvailabilityRequestStatus(next, 7, 'submitted'), next)
+  assert.equal(withAvailabilityRequestStatus(next, 99, 'submitted'), next)
 })
 
 test('answeredIn counts the lines the supplier actually answered', () => {
