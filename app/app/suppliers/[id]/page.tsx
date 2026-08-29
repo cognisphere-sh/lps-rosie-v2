@@ -46,6 +46,10 @@ const DIMENSION_FILTERS = [
 /** Width of the farm card beside the Inventory tab's rows, as on Plant search. */
 const FARM_PANEL_W = 260
 
+/** One 44px mobile contact target — shared by agent and external routes. */
+const MOBILE_QUICK_ACTION_CLASS =
+  'inline-flex size-11 flex-none items-center justify-center rounded-lg border border-border text-primary hover:bg-muted'
+
 // `column` marks the field as editable in place and names the `suppliers`
 // column it writes to. Derived values (item_count, updated) and `website`
 // aren't editable — matching the design's own column definitions.
@@ -1105,7 +1109,7 @@ export default function SupplierProfilePage() {
               ids are canonical; a missing id gets no guessed action. The
               company's ids ride on every location row, so a farm page opens
               the same two conversations as its head office. */}
-          {agentThreads.map(({ agentId, threadId }) => (
+          {!isMobile && agentThreads.map(({ agentId, threadId }) => (
             <AgentChatButton
               key={agentId}
               agentId={agentId}
@@ -1156,12 +1160,12 @@ export default function SupplierProfilePage() {
           )}
 
           {isMobile && (
-            <div className="flex items-center gap-1.5 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
               <button
                 type="button"
                 onClick={() => setProfileDetailsOpen((open) => !open)}
                 aria-expanded={profileExpanded}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted"
+                className="flex min-w-36 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block text-[12px] font-semibold">Supplier details</span>
@@ -1170,13 +1174,26 @@ export default function SupplierProfilePage() {
                 <ChevronDown size={14} className={cn('flex-none text-lps-dim', !profileExpanded && '-rotate-90')} />
               </button>
 
-              <div className="flex flex-none items-center gap-1">
+              <div className="ml-auto flex w-fit max-w-full flex-wrap items-center justify-end gap-1">
+                {/* On mobile these belong with the supplier's other quick
+                    contact routes, not duplicated in the page header. */}
+                {agentThreads.map(({ agentId, threadId }) => (
+                  <AgentChatButton
+                    key={agentId}
+                    agentId={agentId}
+                    threadId={threadId}
+                    label={companyName}
+                    subject={companyName}
+                    size={26}
+                    quickAction
+                  />
+                ))}
                 {quickPhone && (
                   <a
                     href={`tel:${String(quickPhone).replace(/[^\d+]/g, '')}`}
                     aria-label={`Call ${String(quickPhone)}`}
                     title={`Call ${String(quickPhone)}`}
-                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
+                    className={MOBILE_QUICK_ACTION_CLASS}
                   >
                     <PhoneIcon size={15} />
                   </a>
@@ -1186,7 +1203,7 @@ export default function SupplierProfilePage() {
                     href={`mailto:${String(quickEmail)}`}
                     aria-label={`Email ${String(quickEmail)}`}
                     title={`Email ${String(quickEmail)}`}
-                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
+                    className={MOBILE_QUICK_ACTION_CLASS}
                   >
                     <MailIcon size={15} />
                   </a>
@@ -1198,7 +1215,7 @@ export default function SupplierProfilePage() {
                     rel="noreferrer"
                     aria-label="Open supplier website"
                     title="Open supplier website"
-                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
+                    className={MOBILE_QUICK_ACTION_CLASS}
                   >
                     <GlobeIcon size={15} />
                   </a>
@@ -1210,7 +1227,7 @@ export default function SupplierProfilePage() {
                     rel="noreferrer"
                     aria-label="Open supplier on map"
                     title="Open supplier on map"
-                    className="inline-flex size-8 items-center justify-center rounded-lg border border-border text-primary"
+                    className={MOBILE_QUICK_ACTION_CLASS}
                   >
                     <MapPinIcon size={15} />
                   </a>
