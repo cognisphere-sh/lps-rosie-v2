@@ -29,6 +29,15 @@ here).
   without a broad page refetch; all response detail remains in the AR drawer.
   (`app/{app/requests/page.tsx,components/workspace/ar-drawer.tsx}`, `app/lib/{availability,availability-queries,chat-bus}.ts`)
 
+### Fixed
+
+- **Long plant names stay readable on mobile Plant Search.** The plant-name
+  value now scrolls horizontally inside its own bounded row area instead of
+  truncating, preserving the adjacent price, quantity and disclosure action
+  without creating page-level horizontal overflow. Touch/trackpad scrolling,
+  a slim mouse scrollbar, and focused-row arrow/Home/End controls expose the
+  full value. (`app/app/plants/page.tsx`, `app/lib/plant-name-scroll.ts`)
+
 ## 2026-08-28
 
 ### Fixed

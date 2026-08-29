@@ -14,6 +14,7 @@ import { ColumnPicker, FilterControl, MultiFilter, badgeFor, fileHref } from '@/
 import { Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, PLANT_COLS, plantEditPatch, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
+import { scrollPlantNameWithKeyboard } from '@/lib/plant-name-scroll'
 import type { PlantGroup, PlantRow } from '@/lib/rows'
 import { MASTER_FILTERS, PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
@@ -569,10 +570,20 @@ export default function PlantSearchPage() {
                     )
                   }
                   aria-expanded={detailsOpen}
+                  onKeyDown={(event) => {
+                    const name = event.currentTarget.querySelector<HTMLElement>('[data-plant-name-scroll]')
+                    if (name && scrollPlantNameWithKeyboard(name, event.key)) event.preventDefault()
+                  }}
                   className="flex w-full items-start gap-3 p-3 text-left"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold">{String(p.values.name ?? '')}</div>
+                    <div
+                      data-plant-name-scroll
+                      title={String(p.values.name ?? '')}
+                      className="lps-plant-name-scroll max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain whitespace-nowrap text-[13px] font-semibold touch-pan-x"
+                    >
+                      {String(p.values.name ?? '')}
+                    </div>
                     {/* The card is the company; this row's stock sits at one farm. */}
                     {g.locationCount > 1 && p.values.branch && (
                       <div className="mt-0.5 truncate text-[11px] font-semibold text-primary">

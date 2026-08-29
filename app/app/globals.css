@@ -264,6 +264,23 @@ body:has([data-workspace-shell]) {
   display: none;
 }
 
+/* Long names in mobile Plant Search scroll inside their own value instead of
+   widening the result card. Keep a slim thumb so mouse users can discover it;
+   touch users pan the value directly. */
+.lps-plant-name-scroll {
+  scrollbar-color: var(--muted-foreground) transparent;
+  scrollbar-width: thin;
+}
+
+.lps-plant-name-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.lps-plant-name-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--muted-foreground);
+}
+
 /* The pencil affordance only appears on the row you are pointing at. */
 .lps-row:hover .lps-pencil {
   opacity: 1;
