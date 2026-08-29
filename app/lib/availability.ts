@@ -25,7 +25,7 @@ export const arStatusTone = (s: string): Tone => AR_STATUS_META[s as ARStatus]?.
 /** The existing lifecycle state the admin UI may safely call submitted. */
 export const isSubmittedARStatus = (status: string) => status === 'submitted'
 
-/** The AR segment's accessible name, including the state its visible badge conveys. */
+/** The AR segment's accessible name, including the state its visible indicator conveys. */
 export function availabilityRequestLinkLabel(
   id: number,
   supplierName: string,

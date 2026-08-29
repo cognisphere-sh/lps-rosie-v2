@@ -20,9 +20,10 @@ here).
 ### Added
 
 - **Submitted supplier responses are visible without making Job Request cards
-  taller.** Each linked `AR-<id>` segment now includes a compact **Submitted**
-  badge only while that availability request's current lifecycle status is
-  exactly `submitted`; its accessible name includes the same state. Successful
+  taller.** Each linked `AR-<id>` segment now turns green and includes a compact
+  matching round dot only while that availability request's current lifecycle
+  status is exactly `submitted`; its accessible name still says **Submitted**.
+  Successful
   drawer writes patch the re-read status into only the matching mounted link,
   without a broad page refetch; all response detail remains in the AR drawer.
   (`app/{app/requests/page.tsx,components/workspace/ar-drawer.tsx}`, `app/lib/{availability,availability-queries,chat-bus}.ts`)

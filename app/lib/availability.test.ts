@@ -83,14 +83,14 @@ test('a mapping whose catalogue row is gone still groups, under the asked name',
   assert.equal(groups[0].size, null)
 })
 
-test('only the current submitted lifecycle state earns a Submitted badge', () => {
+test('only the current submitted lifecycle state earns a submitted indicator', () => {
   assert.equal(isSubmittedARStatus('submitted'), true)
   for (const status of ['new', 'processing', 'closed']) {
     assert.equal(isSubmittedARStatus(status), false)
   }
 })
 
-test('an AR link accessible name includes exactly the visible submitted state', () => {
+test('an AR link accessible name includes the submitted state conveyed by its dot', () => {
   assert.equal(
     availabilityRequestLinkLabel(7, 'Oak Hill', 'submitted'),
     'Open availability request AR-7 to Oak Hill — Submitted',

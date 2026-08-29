@@ -399,16 +399,19 @@ function RequestCard({
                       key={ar.id}
                       title={availabilityRequestLinkLabel(ar.id, l.name, ar.status)}
                       onOpen={() => openAvailabilityRequest(ar.id)}
-                      className="gap-1 text-primary"
+                      className={cn(
+                        'gap-1',
+                        isSubmittedARStatus(ar.status)
+                          ? 'text-[var(--lps-tone-green-dot)]'
+                          : 'text-primary',
+                      )}
                     >
                       AR-{ar.id}
                       {isSubmittedARStatus(ar.status) && (
                         <span
-                          className="rounded-full px-1 py-px text-[9px] font-bold"
-                          style={toneStyle('green')}
-                        >
-                          Submitted
-                        </span>
+                          aria-hidden="true"
+                          className="size-1.5 flex-none rounded-full bg-[var(--lps-tone-green-dot)]"
+                        />
                       )}
                     </LinkSegment>
                   ))}
