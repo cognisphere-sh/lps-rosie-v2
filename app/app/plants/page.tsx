@@ -22,9 +22,12 @@ import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
 
-// Company-panel fields — everything on the master row that isn't already shown
-// as the heading, the count, the category badge or the state.
-const PANEL_FIXED = ['name', 'plant_count', 'category', 'state']
+// Company-panel fields with a fixed compact placement, or deliberately kept
+// off search cards. City and contact routes remain on the linked profile.
+const PANEL_FIXED = [
+  'name', 'plant_count', 'category', 'state', 'city',
+  'primary_contact_email', 'primary_contact_phone', 'updated',
+]
 const PLANT_SEARCH_KEY = 'lps.plant-search.query.v1'
 const PLANT_SIZE_CHOICE_KEY = 'lps.plant-search.size-choice.v3'
 // Earlier versions stored a normalised size key ("gallon:15"), then the row's
@@ -526,13 +529,15 @@ export default function PlantSearchPage() {
               <button
                 type="button"
                 onClick={() => router.push(`/suppliers/${g.companyId}`)}
-                className="min-w-0 flex-1 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
+                className="min-w-0 truncate border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary underline underline-offset-2"
               >
                 {g.companyName}
               </button>
-              <span className="text-[11px] font-semibold text-muted-foreground">
-                {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
-              </span>
+              {g.company.values.state && (
+                <span className="flex-none text-[11.5px] font-semibold text-muted-foreground">
+                  {String(g.company.values.state)}
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {g.company.values.category && (
@@ -540,11 +545,16 @@ export default function PlantSearchPage() {
                   {String(g.company.values.category)}
                 </Badge>
               )}
-              <span className="text-[11.5px] text-muted-foreground">
-                {[g.company.values.city, g.company.values.state].filter(Boolean).join(', ')}
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
               </span>
+              {g.company.values.updated && (
+                <span className="text-[11px] text-muted-foreground">
+                  Updated {formatDate(String(g.company.values.updated))}
+                </span>
+              )}
               {farmLabel(g) && (
-                <span className="text-[11.5px] text-muted-foreground">· {farmLabel(g)}</span>
+                <span className="text-[11.5px] text-muted-foreground">{farmLabel(g)}</span>
               )}
             </div>
           </div>
@@ -660,16 +670,21 @@ export default function PlantSearchPage() {
           <button
             type="button"
             onClick={() => router.push(`/suppliers/${g.companyId}`)}
-            className="min-w-0 flex-1 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
+            className="min-w-0 cursor-pointer border-none bg-transparent p-0 text-left text-[14px] font-bold text-primary"
           >
             {g.companyName}
           </button>
+          {g.company.values.state && (
+            <span className="flex-none pt-px text-[11.5px] font-semibold text-muted-foreground">
+              {String(g.company.values.state)}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setHiddenCompanies((prev) => [...prev, g.companyId])}
             title="Hide company"
             aria-label="Hide company"
-            className="inline-flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-lps-dim hover:bg-muted hover:text-foreground"
+            className="ml-auto inline-flex size-[22px] flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-lps-dim hover:bg-muted hover:text-foreground"
           >
             <EyeOffIcon size={13} />
           </button>
@@ -683,6 +698,11 @@ export default function PlantSearchPage() {
           <span className="whitespace-nowrap rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-secondary-foreground">
             {g.plants.length} match{g.plants.length === 1 ? '' : 'es'}
           </span>
+          {g.company.values.updated && (
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+              Updated {formatDate(String(g.company.values.updated))}
+            </span>
+          )}
           {farmLabel(g) && (
             <span className="whitespace-nowrap text-[11px] text-muted-foreground">{farmLabel(g)}</span>
           )}

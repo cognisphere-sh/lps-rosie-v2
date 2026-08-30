@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "bash ../scripts/app-build.sh check",
+    "qa": "bash ../scripts/app-build.sh qa",
+    "start": "bash ../scripts/app-runtime.sh",
     "test": "tsx --test lib/*.test.ts lib/*.test.tsx",
     "typecheck": "tsc --noEmit"
   },

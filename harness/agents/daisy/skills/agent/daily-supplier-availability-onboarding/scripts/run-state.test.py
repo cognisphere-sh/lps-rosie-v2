@@ -105,6 +105,25 @@ class TestRunState(unittest.TestCase):
   finally: held.close()
  def test_legacy_state_run_ids_migrate_once(self):
   old=self.root/"legacy-state.json"; self.write(old,{"schema_version":2,"last_completed_run":"2026-08-27","last_supplier_id":2,"reviewed_supplier_ids":[1,2],"runs":{"2026-08-27":{"status":"completed","selected_supplier_ids":[1,2]}}}); standalone=self.root/"runs"/"2026-08-27.json"; self.write(standalone,{"status":"completed","started_at":"2026-08-27T03:00:00-05:00","selected_supplier_ids":[1,2],"supplier_results":{"1":{"status":"final","outcome":"held"},"2":{"status":"final","outcome":"held"}}}); first=self.cli("migrate-state-run-ids","--state-file",old); self.assertEqual(first.returncode,0,first.stderr); self.assertEqual(json.loads(old.read_text())["runs"]["2026-08-27"]["run_id"],"2026-08-27"); migrated=json.loads(standalone.read_text()); self.assertEqual(migrated["run_id"],"2026-08-27"); self.assertTrue(migrated["legacy_completed"]); status=self.cli("status","--run-file",standalone,"--state-file",old); self.assertEqual(status.returncode,0,status.stderr); self.assertFalse(json.loads(status.stdout)["dispatch_blocked"]); second=self.cli("migrate-state-run-ids","--state-file",old); self.assertEqual(second.returncode,0,second.stderr); self.assertFalse(json.loads(second.stdout)["changed"])
+ def import_fixture(self,date_value="2026-08-27"):
+  p,_=self.make_run(date_value,freeze=False); self.register_import_source(p); manifest=self.root/f"{date_value}-import.json"; self.write(manifest,{"batches":{"legacy-a":[1,2],"legacy-b":[3,4]},"results":{str(i):{"status":"final","outcome":"held"} for i in range(1,5)}}); evidence=self.evidence(p,4,{"held":4}); return p,manifest,evidence
+ def test_import_replays_replace_before_phase_update_window(self):
+  import importlib.machinery
+  module=importlib.machinery.SourceFileLoader("replace_window_test",str(SCRIPT)).load_module(); p,manifest,evidence=self.import_fixture(); module.ensure_import_authorization(self.state,p.stem,manifest,evidence,create=True); core=module.import_journal_core(p,self.state,manifest,evidence,"2026-08-28T06:00:00-05:00"); directory=module.transaction_dirs(self.state)[1]; journal=directory/f'{p.stem}-{core["transaction_id"]}.json'; module.atomic_json(journal,module.journal_with_hash(core,"prepared")); root=p.parent/"batch-results"/p.stem; root.mkdir(parents=True)
+  for batch,text in core["batch_lines"].items(): (root/f"{batch}.jsonl").write_text(text)
+  result=module.advance_import(journal,manifest,evidence,self.state,allow_injection=False); self.assertEqual(result["phase"],"committed")
+ def test_import_replays_frozen_run_before_phase_update_window(self):
+  import importlib.machinery
+  module=importlib.machinery.SourceFileLoader("frozen_window_test",str(SCRIPT)).load_module(); p,manifest,evidence=self.import_fixture(); module.ensure_import_authorization(self.state,p.stem,manifest,evidence,create=True); core=module.import_journal_core(p,self.state,manifest,evidence,"2026-08-28T06:00:00-05:00"); directory=module.transaction_dirs(self.state)[1]; journal=directory/f'{p.stem}-{core["transaction_id"]}.json'; root=p.parent/"batch-results"/p.stem; root.mkdir(parents=True)
+  for batch,text in core["batch_lines"].items(): (root/f"{batch}.jsonl").write_text(text)
+  module.atomic_json(p,core["frozen_run"]); module.atomic_json(journal,module.journal_with_hash(core,"logs-written")); result=module.advance_import(journal,manifest,evidence,self.state,allow_injection=False); self.assertEqual(result["phase"],"committed")
+ def test_committed_replay_rejects_missing_changed_or_extra_physical_logs(self):
+  for offset,variant in enumerate(("missing","changed","extra"),28):
+   date_value=f"2026-08-{offset}"; p,manifest,evidence=self.import_fixture(date_value); command=("import-recovery","--run-file",p,"--state-file",self.state,"--manifest",manifest,"--evidence-manifest",evidence,"--imported-at","2026-08-28T06:00:00-05:00"); self.assertEqual(self.cli(*command).returncode,0); root=p.parent/"batch-results"/p.stem
+   if variant=="missing": (root/"legacy-a.jsonl").unlink()
+   elif variant=="changed": (root/"legacy-a.jsonl").write_text("changed\n")
+   else: (root/"extra.jsonl").write_text("extra\n")
+   with self.subTest(variant=variant): self.assertNotEqual(self.cli(*command).returncode,0)
  def test_import_evidence_change_blocks_partial_replay(self):
   p,_=self.make_run(freeze=False); self.register_import_source(p); manifest=self.root/"evidence-manifest-source.json"; self.write(manifest,{"batches":{"legacy":[1,2,3,4]},"results":{str(i):{"status":"final","outcome":"held"} for i in range(1,5)}}); evidence=self.evidence(p,4,{"held":4}); command=("import-recovery","--run-file",p,"--state-file",self.state,"--manifest",manifest,"--evidence-manifest",evidence,"--imported-at","2026-08-28T06:00:00-05:00"); self.assertNotEqual(self.cli(*command,env={"RUN_STATE_FAIL_IMPORT_PHASE":"run-frozen"}).returncode,0); changed=json.loads(evidence.read_text()); changed["method"]="substituted"; self.write(evidence,changed); self.assertNotEqual(self.cli(*command).returncode,0)
  def test_import_path_substitution_blocks_partial_replay(self):

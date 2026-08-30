@@ -63,9 +63,19 @@ work") require constant clarification.
 
 ## 5. Verify Before Declaring Done
 
-- Run the checks this workspace has: the app's own lint/typecheck/build
-  scripts (`app/package.json`), and for harness-side changes a server
-  restart that comes up clean (agents `running`, no `failed` plugins).
+- Run the checks this workspace has: the app's own test/typecheck and **isolated**
+  `pnpm --dir app build` scripts, and for harness-side changes a server restart
+  that comes up clean (agents `running`, no `failed` plugins).
+- `pnpm --dir app build` holds the canonical supported-operation lock and installs/builds only in
+  a hashed immutable snapshot under `app/.build-work`; it cleans the snapshot
+  and never writes live source, dependencies or `.next`. Direct `next build` is
+  unsupported and blocked. For browser QA, use `pnpm --dir app qa` (optionally
+  `LPS_QA_PORT=3101`); it holds the same lock and cleans its child/release.
+- Deploy only with `sudo ./scripts/server.sh restart app`: it builds a complete
+  source + dependency + `.next` release while the old app serves, atomically
+  switches the runtime pointer and verifies exact identity locally/via nginx.
+  Normal failures/signals restore immediately; a SIGKILL/power loss is recovered
+  by the stable launcher and next app-control invocation from the fsynced journal.
 - A task is not complete while any of these report errors.
 
 ## 6. Boundaries

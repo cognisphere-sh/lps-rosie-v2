@@ -4,67 +4,72 @@
 - Route: bhoumik
 - Priority: Lifecycle/history is current staged work; Closed Lost reason capture is low-priority follow-on
 - Raised: 2026-08-27 by Chris (via nova handoff, then Chris clarification)
-- Updated: 2026-08-27
+- Updated: 2026-08-28
 
 ## Problem
 
-The LPS Ops view needs one clear lifecycle for a customer job request and a durable place to review completed work. Chris does not see value in Archived: a duplicate or bad request should be deleted, while every legitimate request ends as either Closed Won or Closed Lost. The current lifecycle has Sourcing, Quoted, Closed Won, Closed Lost, and Archived; it has no Confirmed stage, and it does not define a historical reporting view.
+LPS Ops needs a clear current state for each customer job request and a durable historical record of completed work and quote cycles. Archived is not useful to Chris: bad/duplicate requests are exceptional deletions; legitimate work ends Closed Won or Closed Lost and remains reportable history.
 
-This lifecycle drives the request vocabulary, active-work counts, Rosie's JR chat directory and JR-thread closure. Historical closed work must remain available for business reporting rather than being treated as clutter in the active work list.
+Quick quote opportunities are now separate from Job Requests: they do not enter Request Management until customer re-engagement to source plants or update installation timing creates a new Request. The Job Request lifecycle therefore drives only active sourcing/availability work, Rosie's JR picker, related availability requests, and JR-thread closure; the source quote remains linked historical context.
 
 ## Evidence
 
-- 2026-08-27 — Chris first defined the LPS Ops Job Request status order/colors from `photo_234.jpg`: Active (green), Quote Delivered (blue), Confirmed (purple), Closed Won (teal/dark green), Closed Lost (red), Archived (gray). The screenshot showed Rosie's Recent Chats/JR picker with Urban Oasis marked Active. (via Nova handoff)
-- 2026-08-27 — Chris clarified that Archived has little purpose and “just takes up data”; duplicates/bad requests should be deleted, and all other requests either become an order or do not: Closed Won or Closed Lost. He expects Closed Won/Lost in a Job Request Historical view for reporting/querying, including requests and dollars created in January and Closed Won last month. (via Lily)
-- 2026-08-27 — Chris specified that selecting Closed Lost must require a Reason dropdown and save the selected reason with the request. Exact choices: Price, Different Vendor, Unable to Fulfill Request, No Response, NA. Screenshot `photo_27.jpg` illustrates a Closed Lost reason alongside a close date. (via Lily)
-- Current LPS job requests use Sourcing, Quoted, Closed Won, Closed Lost, Archived. Current open-request counts and Rosie's JR chat picker treat only Sourcing and Quoted as open; Closed Won, Closed Lost, and Archived close the JR conversation. (`docs/supabase-schema.md`, app/docs review, 2026-08-27.)
+- 2026-08-27 — Chris initially named/colors: Active (green), Quote Delivered (blue), Confirmed (purple), Closed Won (teal/dark green), Closed Lost (red), Archived (gray). He later ruled out Archived as a normal outcome. (via Nova/Chris)
+- 2026-08-27 — Chris wants Closed Won/Lost in a Job Request Historical view for questions such as requests/dollars created in January and Closed Won last month. Duplicate/bad requests are deleted. (via Chris)
+- 2026-08-28 — Chris defined Confirmed: availability/quote work and back-and-forth are complete, the customer has received available items and cost, and has committed to buy. (via Chris)
+- 2026-08-28 — Chris corrected Closed Won: it is only after plants are delivered or picked up and the transaction took place, not order-ID creation. (via Chris)
+- 2026-08-28 — Bhoumik says customers can add/remove plants or accept substitutions after a first quote, requiring multiple quote deliveries on the same Job Request. He recommends New/In Progress as current labels and retaining quote deliveries as history/milestones rather than using Quote Delivered as a current status. (via Bhoumik)
+- 2026-08-28 — Chris decisively chose the sales-pipeline model: Quote Delivered remains a necessary distinct state showing the customer received pricing/availability. On a customer change, the request returns to Active; when the revised quote is sent, it returns to Quote Delivered. Chris considered “Quote and Availability Delivered” but chose the concise label Quote Delivered; it means the complete pricing-and-availability package, with clarifying help text rather than a longer status name. (via Lily)
+- 2026-08-28 — Chris confirmed that supplier changes occur regularly after confirmation. Confirmed must surface a supplier-facing Order Details inbox item that carries the request’s information and the same communication/update capability through fulfilment; confirmation does not close supplier availability communication. (via Telegram)
+- 2026-08-28 — Chris clarified that about 90% of requests are future projects: LPS can deliver a price quote before checking live nursery availability, which normally happens 7–10 days ahead. He proposed **Availability Updated** for the point when the nursery completes its current availability update and LPS sends that information to the customer for review. (via Telegram)
+- 2026-08-29 — Bhoumik proposes an alternative objective lifecycle: New → In Progress → Committed → Closed Lost/Won, with quote deliveries and availability updates as durable mapped sub-events with links, filters and badges. He says recurring cycles make customer-delivery labels subjective current stages. This conflicts with Chris’s stated need for the status itself to track customer receipt of pricing/availability. (via Bhoumik)
+- 2026-08-29 — Bhoumik flags that stored supplier price data can be stale. A customer quote before current supplier confirmation risks a price rise after commitment; an updated supplier price list could support a quote without a live availability check only if Chris accepts that commercial policy and defines the verification/communication gate before commitment. (via Bhoumik)
+- 2026-08-29 — Chris approved early budgeting quotes from available pricing: contractors need a plant-cost placeholder to bid and understand price/availability can change with install timing. Quote delivery is a customer-facing milestone. Before commitment, LPS must put the later current supplier availability **and price** in front of the customer. (via Telegram)
+- 2026-08-29 — Bhoumik demonstrated that a minor customer change makes both “quote delivered” and “needs work” true, so either sales-stage status hides a material fact. Recommended alternative: objective lifecycle plus simultaneously visible dated/filterable milestones/markers for latest quote, latest verified availability, and pending customer change. Chris is deciding whether this preserves the sales-pipeline view he needs. (via Bhoumik/Lily)
+- 2026-08-29 — Chris chose sales stages, but redefined them to remove the collision: **Pricing** covers LPS/customer work through pricing, including quote revisions; **Availability** begins closer to planting/when needed and covers LPS/customer consensus on current availability and what the customer will buy. Quote deliveries and supplier submissions are events within their respective stages, not stages. (via Chris)
+- 2026-08-29 — Chris’s usual live availability timing is 7–10 days before installation. Current Job Requests have no structured installation/delivery or availability-needed-by date; timing exists only in free-text notes, so Rosie cannot reliably trigger the Availability stage without a new business rule/data source and an override. (via Bhoumik/schema review)
+- 2026-08-29 — Bhoumik confirms a quick quote opportunity may use available catalog pricing without supplier confirmation, because it is explicitly indicative and outside Request Management. Its later conversion, not the quote itself, starts sourcing; current supplier price and availability remain required before Confirmed. (via Bhoumik)
+- Current requests use Sourcing, Quoted, Closed Won, Closed Lost, Archived; only Sourcing/Quoted count as open, and closed statuses close Rosie's JR thread. (schema/app review, 2026-08-27.)
 
 ## What it should do
 
-- Establish this lifecycle for **LPS Ops Job Requests**: Active (green), Quote Delivered (blue), Confirmed (purple), Closed Won (teal/dark green), Closed Lost (red). Retire Archived as a future job-request outcome.
-- Treat Closed Won and Closed Lost as the two completed outcomes. They leave active operational work but remain retained and findable in a Job Request Historical view.
-- Make the historical view support the business questions Chris named: requests and their dollar value created during a selected period, and requests Closed Won during a selected period. Its time basis and totals must be clear enough that Chris can trust the result.
-- Keep erroneous/duplicate requests distinct from historical closure: deletion remains a deliberate exception, with safeguards appropriate to a permanent removal and its dependent work/history.
-- Apply the agreed lifecycle consistently wherever LPS Ops judges, filters, counts, or lists job requests, including active-request summaries and Rosie's JR conversation picker. Completed requests should not crowd active work; they should remain available through history/reporting.
-- Preserve lifecycle history through the transition from the current status set. Keep line-item availability answers and supplier availability-request progress independent of job-request lifecycle.
+- Retire Archived as a future job-request outcome. Keep Confirmed (purple), Closed Won (teal/dark green), and Closed Lost (red), with their settled meanings.
+- Apply this lifecycle only after a quick quote opportunity explicitly converts into a new Job Request. The prior **Pricing** entry stage is superseded: early budgeting quotes and their revisions live in the separate Quote opportunity workflow. A converted Request enters Request Management for live sourcing/installation work—normally **Availability**, then **Confirmed**, **Closed Won**, or **Closed Lost**. A later supplier re-submission is a separate notification/freshness event, not an automatic stage change.
+- Treat the source quick quote, supplier submissions, and LPS’s later delivery of current supplier-verified availability-and-price as durable, dated events linked to the Job Request as applicable. Keep every cycle visible and reportable; never overwrite earlier customer packages.
+- Use Confirmed only after the customer commits after receiving the current supplier-verified availability and price package; an early budgeting quote alone cannot satisfy this gate. Confirmation creates/surfaces a supplier-facing Order Details inbox item that carries the request information and retains the same supplier communication and update capability through fulfilment; it does not close related availability communication.
+- Use Closed Won only when plants are delivered or picked up and the transaction is complete. Closed Lost is the other completed outcome. Both leave active work and remain in Job Request Historical.
+- When a job reaches Closed Won or Closed Lost, close its related availability requests and Order Details communication; do not change line-item or supplier-answer meanings.
+- Make history support requests/dollars created in a period and Closed Won requests/dollars in a period, with clear date/total basis.
+- Preserve existing legitimate requests and their audit trail through migration. Keep permanent deletion guarded and exceptional for duplicates/bad requests.
 
 ## Acceptance criteria
 
-- Chris can open an LPS Ops job request and see only Active, Quote Delivered, Confirmed, Closed Won, and Closed Lost, in that order and with the stated colors; Archived is not a new selectable outcome.
-- Active-work views and Rosie's JR conversation picker follow the agreed definition of open work; Closed Won and Closed Lost leave those active-work views and their JR conversation has the agreed closed behavior.
-- Chris can use a Job Request Historical view to find Closed Won and Closed Lost requests without restoring them to the active list.
-- Chris can answer, for a chosen period, how many requests and how many request dollars were created, and how many requests/dollars were Closed Won, with the basis of each measure shown clearly.
-- An existing legitimate request is preserved and mapped to a valid lifecycle status; pre-existing Archived records receive an approved treatment rather than disappearing.
-- A duplicate or bad request can be deliberately removed only through the agreed deletion safeguards; a normal completed request is retained for history and reporting.
-- Job-request line statuses and supplier availability-request statuses retain their existing independent meanings.
+- A quick quote opportunity is distinct from Request Management and can be returned without a Job Request. A customer re-engagement to source plants or update installation timing creates a linked new Request, which enters the Job Request lifecycle at Availability; Archived is not selectable.
+- The source quote, supplier submission, and LPS availability-and-price delivery are dated, reviewable events; the early quote remains historical/indicative rather than becoming a verified supplier commitment.
+- Confirmed means customer commitment, not fulfillment. It shows the supplier an Order Details inbox item with the carried-forward information and ongoing update/communication capability. Closed Won occurs only at delivery/pickup and transaction completion, not at order creation.
+- Completed requests leave active work and Rosie's open JR picker but remain in Job Request Historical for the stated reporting questions.
+- Moving a job to Closed Won or Closed Lost closes all related availability requests and the Order Details communication.
+- Existing requests map to valid stages without disappearing or losing history; deletion is guarded and only for bad/duplicate requests.
 
 ## Deferred follow-on — not an immediate build item
 
-- When the status/history flow is next expanded, require and save one Closed Lost reason from this exact list: Price, Different Vendor, Unable to Fulfill Request, No Response, NA.
-- Show and make that saved reason available for historical review/querying at that time.
+- On a future status/history update, Closed Lost requires and saves one reason: Price, Different Vendor, Unable to Fulfill Request, No Response, or NA; expose it in history/querying then.
 
 ## Out of scope
 
 - Changing individual plant-line availability states.
-- Changing supplier portal availability-request stages.
-- Changing customer or supplier identity/contact metadata.
-- Building a general chat-status system unless Bhoumik confirms the scope is broader than LPS Ops Job Requests.
-
-## Assumptions
-
-- This supersedes the initial screenshot’s Archived status: Chris has now ruled it out as a normal future outcome.
-- The future Closed Lost reason is a structured business outcome, not a free-text note or a line-item/supplier-status value.
-- “Active” replaces the current initial Sourcing stage and “Quote Delivered” replaces Quoted, subject to Bhoumik’s approved migration plan.
-- Closed Won and Closed Lost are retained historical business records, not deletion candidates merely because they are no longer active.
+- Changing supplier portal status vocabulary, apart from the agreed parent-job closure behavior.
+- Customer/supplier identity metadata and a general chat-status system.
 
 ## Open questions
 
-- **Chris:** What specifically moves a request from Confirmed to Closed Won: the customer’s commitment, or only creation/placement of the actual order? This decides the meaning of Confirmed and the Closed Won reporting date.
-- **Bhoumik:** Propose the safe migration and retention treatment for existing Sourcing, Quoted, and Archived requests, including how historical reporting distinguishes created, closed, and any future order date, and how existing Closed Lost records without a known reason are handled.
-- **Bhoumik:** Confirm the exact scope of the new lifecycle/history behavior across LPS Ops job requests, Rosie's JR picker and customer summaries versus legacy chat metadata. It must not silently alter supplier availability requests or plant-line statuses.
+- **Bhoumik:** Define the supplier-change event/notification and Last updated semantics so a re-submission is visibly dated, attributed to the nursery rather than LPS, retains before/after values where changed, and does not alter the Job Request’s customer-facing stage.
+- **Bhoumik:** Define the Order Details phase as a carried-forward supplier inbox view with the request’s information and communication/update capability until terminal closure; define durable quote-cycle milestones/history and a safe migration for current Sourcing/Quoted/Archived records. Preserve/report created, quote-delivered, Confirmed/order-created, Closed Won (transaction complete), and Closed Lost dates; handle historic Closed Lost records without a known reason; confirm legacy-chat scope.
+- **Bhoumik:** Coordinate the Job Request lifecycle with `quote-opportunity-to-job-request-conversion`: quick quotes are plainly indicative and need no supplier check; after conversion, current supplier-verified price and availability must be delivered to and accepted by the customer before Confirmed.
 
 ## Handoff log
 
-- 2026-08-27 — Staged for Bhoumik. Initial status definition captured; not sent to Nova because lifecycle, migration, thread closure, retention, and reporting behavior are workflow/data concerns.
-- 2026-08-27 — Updated after Chris clarified that Archived should be retired, completed requests belong in historical reporting, and only duplicate/bad requests should be deleted.
-- 2026-08-27 — Captured Closed Lost reason choices from screenshot `photo_27.jpg`; Chris marked this low-priority follow-on, not an immediate build item. Lifecycle/history remains staged for Bhoumik.
+- 2026-08-27 — Staged for Bhoumik; workflow/data rather than Nova UI work.
+- 2026-08-27 — Archived retired; history/reporting and exceptional deletion added. Closed Lost reasons recorded as deferred.
+- 2026-08-28 — Confirmed and Closed Won definitions clarified; prior order-ID-as-Closed-Won interpretation corrected. Closure of related availability requests at terminal closure included.
+- 2026-08-28 — Quote delivery recognized as recurring. Chris chose the Active/Quote Delivered sales-pipeline labels; customer changes return the request to Active and revised quote delivery returns it to Quote Delivered. Bhoumik’s quote history/milestone design must preserve every cycle.

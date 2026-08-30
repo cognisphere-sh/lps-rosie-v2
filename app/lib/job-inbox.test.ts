@@ -4,8 +4,10 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import {
-  hasFocusedIntakeEvidence, jobInboxEventAction, jobInboxLayout, mergeJobInbox,
-  orderJobInbox, parseJobSelection, patchJobInbox, type JobInboxRow,
+  hasFocusedIntakeEvidence, jobInboxBackAction, jobInboxEventAction, jobInboxLayout,
+  jobInboxMembership, jobInboxNavigationAction, jobInboxNewNavigationAction,
+  jobInboxRowAriaLabel, mergeJobInbox, orderJobInbox, parseJobSelection, patchJobInbox,
+  shouldRestoreJobInbox, type JobInboxRow,
 } from './job-inbox.ts'
 
 const row = (id: number, overrides: Partial<JobInboxRow> = {}): JobInboxRow => ({
@@ -87,6 +89,65 @@ test('focused intake requires exact same-tab evidence, not active list membershi
   assert.equal(hasFocusedIntakeEvidence(9, { id: 9 }), true)
 })
 
+test('focused navigation has one landing entry, replace-only row/New switching and explicit Back', () => {
+  assert.equal(jobInboxNavigationAction('bare'), 'push')
+  assert.equal(jobInboxNavigationAction('valid'), 'replace')
+  assert.equal(jobInboxNavigationAction('invalid'), 'replace')
+  assert.equal(jobInboxNewNavigationAction(true), 'replace')
+  assert.equal(jobInboxNewNavigationAction(false), 'push')
+  assert.equal(jobInboxBackAction(true), 'back')
+  assert.equal(jobInboxBackAction(false), 'replace')
+
+  const history = ['/jobs']
+  if (jobInboxNavigationAction('bare') === 'push') history.push('/jobs?jr=1')
+  if (jobInboxNavigationAction('valid') === 'replace') history[history.length - 1] = '/jobs?jr=2'
+  if (jobInboxNewNavigationAction(true) === 'replace') history[history.length - 1] = '/jobs?jr=3&intake=1'
+  history[history.length - 1] = '/jobs?jr=3' // manual Exit also replaces
+  assert.deepEqual(history, ['/jobs', '/jobs?jr=3'])
+  if (jobInboxBackAction(true) === 'back') history.pop()
+  assert.deepEqual(history, ['/jobs'])
+
+  // Mobile uses the same selected-entry rule: selecting A pushes, New B
+  // replaces A, manual Exit replaces intake B, and Back reaches bare.
+  const mobile = ['/jobs']
+  mobile.push('/jobs?jr=21')
+  if (jobInboxNewNavigationAction(true) === 'replace') mobile[1] = '/jobs?jr=22&intake=1'
+  mobile[1] = '/jobs?jr=22'
+  mobile.pop()
+  assert.deepEqual(mobile, ['/jobs'])
+  assert.equal(jobInboxNewNavigationAction(false), 'push') // bare-mobile New
+})
+
+test('list restoration is edge-triggered, not caused by polling or breakpoint changes', () => {
+  assert.equal(shouldRestoreJobInbox('valid', 'bare', true, false), true)
+  assert.equal(shouldRestoreJobInbox('valid', 'bare', false, true), true)
+  assert.equal(shouldRestoreJobInbox('bare', 'bare', true, true), false) // row-count poll/SSE
+  assert.equal(shouldRestoreJobInbox('valid', 'valid', true, true), false) // 899 ↔ 900 resize
+  assert.equal(shouldRestoreJobInbox('bare', 'valid', true, true), false)
+})
+
+test('membership needs a successful list response before unavailable', () => {
+  assert.equal(jobInboxMembership('valid', false, false, false, false), 'loading')
+  assert.equal(jobInboxMembership('valid', false, true, false, false), 'error')
+  assert.equal(jobInboxMembership('invalid', false, true, false, false), 'error')
+  assert.equal(jobInboxMembership('valid', true, false, true, false), 'listed')
+  assert.equal(jobInboxMembership('valid', true, false, false, true), 'pending')
+  assert.equal(jobInboxMembership('valid', true, false, false, false), 'unavailable')
+  assert.equal(jobInboxMembership('invalid', true, false, false, false), 'unavailable')
+})
+
+test('row accessible name always states identity, activity and read state', () => {
+  const view = orderJobInbox([row(9, {
+    name: 'Courtyard', status: 'sourcing',
+    thread: { lastId: 3, lastAt: '2026-08-29T13:00:00Z', lastText: 'Need more yaupon', webReadId: 2 },
+  })])[0]
+  assert.equal(
+    jobInboxRowAriaLabel(view, 'Sourcing', 'Aug 29, 1:00 PM'),
+    'JR-9, Courtyard, Sourcing, Need more yaupon, Aug 29, 1:00 PM, Unread web chat',
+  )
+  assert.match(jobInboxRowAriaLabel({ ...view, unread: false }, 'Sourcing', 'Now'), /No unread web chat$/)
+})
+
 test('responsive behavior changes at exactly 900px', () => {
   assert.equal(jobInboxLayout(899), 'mobile')
   assert.equal(jobInboxLayout(900), 'desktop')
@@ -108,6 +169,41 @@ test('API query is bounded, complete, batched, active-only and privacy-scoped', 
   assert.match(source('proxy.ts'), /pathname\.startsWith\('\/api'\)[\s\S]*status: 401/)
 })
 
+test('focused desktop shell replaces only the nav rail and keeps global AgentChat', () => {
+  const shell = source('components/workspace/shell.tsx')
+  const frame = source('components/workspace/frame.tsx')
+  const jobs = source('app/jobs/page.tsx')
+  assert.doesNotMatch(jobs, /ordered\[0\][\s\S]{0,120}router\.replace/)
+  assert.match(shell, /railHidden=\{desktopChatFull \|\| focusedJobsDesktop \|\| !!focusedIntake\}/)
+  assert.match(shell, /rightColumn=\{\(\{ setNavOpen \}\) => \([\s\S]*<AgentChat/)
+  assert.match(frame, /!isMobile && rightColumn\?\.\(state\)/)
+  assert.match(jobs, /focusedJobsDesktop=\{selection\.kind !== 'bare'\}/)
+  assert.match(jobs, /replaceNewJobEntry=\{selection\.kind !== 'bare'\}/)
+  assert.match(jobs, /<section aria-label="Active job inbox"[\s\S]*<main ref=\{workRef\}/)
+  assert.match(jobs, /<JobsTopActions \/>/)
+  assert.match(jobs, /min-h-11[\s\S]{0,180}Back to Jobs/)
+  assert.match(jobs, /tabIndex=\{-1\}/)
+  assert.match(jobs, /aria-label=\{jobInboxRowAriaLabel/)
+  assert.match(jobs, /aria-current=/)
+  assert.match(jobs, /response\.status === 404[\s\S]*setDetailError\(''\)[\s\S]*current\.filter\(\(row\) => row\.id !== id\)[\s\S]*refreshList\(\)[\s\S]*return/)
+  assert.match(jobs, /membership === 'listed' && detailError/)
+  assert.doesNotMatch(jobs, /<AgentChat|useChat\(/)
+})
+
+test('focused route restores scroll/focus and uses push entry then replace switching', () => {
+  const jobs = source('app/jobs/page.tsx')
+  assert.match(jobs, /onScroll=\{saveListPosition\}/)
+  assert.match(jobs, /target\?\.focus\(\{ preventScroll: true \}\)/)
+  assert.match(jobs, /target\?\.scrollIntoView\(\{ block: 'nearest' \}\)/)
+  assert.match(jobs, /shouldRestoreJobInbox\([\s\S]*pendingListRestore\.current[\s\S]*enteredFromLanding\.current/)
+  assert.doesNotMatch(jobs, /\[breakpoint, ordered\.length, selection\.kind\]/)
+  assert.match(jobs, /pendingWorkFocus\.current = id/)
+  assert.match(jobs, /workRef\.current\?\.focus\(\{ preventScroll: true \}\)/)
+  assert.match(jobs, /if \(action === 'push'\)[\s\S]*router\.push[\s\S]*router\.replace/)
+  assert.match(jobs, /newOrigin[\s\S]*LIST_ORIGIN_ID[\s\S]*selection\.id[\s\S]*sessionStorage\.setItem\(LIST_ORIGIN, String\(selection\.id\)\)/)
+  assert.match(jobs, /jobInboxBackAction\(enteredFromLanding\.current\)/)
+})
+
 test('focused intake reuses one AgentChat/useChat/composer upload path and manual exit', () => {
   const shell = source('components/workspace/shell.tsx')
   const chat = source('components/workspace/chat.tsx')
@@ -123,7 +219,9 @@ test('focused intake reuses one AgentChat/useChat/composer upload path and manua
   assert.match(chat, /min-\[900px\]:flex-row/)
   assert.match(shell, /focusedIntake \? 'flex-1 min-\[900px\]:w-0 min-\[900px\]:flex-none'/)
   assert.equal((shell.match(/fetch\('\/api\/requests\/reserve'/g) ?? []).length, 1)
-  assert.match(shell, /savedId[\s\S]*router\.push\(`\/jobs\?jr=\$\{savedId\}&intake=1`/)
+  assert.match(shell, /savedId[\s\S]*navigate\(`\/jobs\?jr=\$\{savedId\}&intake=1`\)/)
+  assert.match(shell, /jobInboxNewNavigationAction\(fromSelectedEntry\)[\s\S]*router\.replace[\s\S]*router\.push/)
+  assert.match(shell, /if \(!res\.ok \|\| !body\.id\) throw[\s\S]*setItem\('lps\.jobs\.origin\.v1', 'new'\)[\s\S]*setItem\('lps\.jobs\.origin-id\.v1', String\(body\.id\)\)[\s\S]*setItem\('lps\.jobs\.intake\.v1'/)
   assert.equal((chat.match(/const chat = useChat\(/g) ?? []).length, 1)
   assert.equal((chat.match(/const composer = useComposer\(/g) ?? []).length, 1)
   assert.match(chat, /`\/api\/chat\/\$\{agent\.id\}\/upload`/)

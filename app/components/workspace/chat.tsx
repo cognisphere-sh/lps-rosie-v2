@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
 import { onOpenChat, onRenameThread, openAvailabilityRequest, openChat, renameThread } from '@/lib/chat-bus'
 import { markThreadRead, useChatNotifications } from '@/lib/chat-notifications'
+import { currentPage } from '@/lib/chat-page'
 import {
   chatThemeForAgent, chatThemeStyle, chatWallpaperForAgent, chatWallpaperStyle,
   type ChatAppearance,
@@ -146,7 +147,7 @@ function useChat(agentId: string, active: boolean, threadId: string) {
         const res = await fetch(`/api/chat/${agentId}/send`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text, attachments: files, threadId }),
+          body: JSON.stringify({ text, attachments: files, threadId, page: currentPage() }),
         })
         if (!res.ok) throw new Error(String(res.status))
         const { id } = (await res.json()) as { id: number }

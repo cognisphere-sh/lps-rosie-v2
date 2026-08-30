@@ -33,6 +33,7 @@ import {
   type ChatWallpaperId,
 } from '@/lib/chat-appearance'
 import type { ARDetail } from '@/lib/availability'
+import { currentPage } from '@/lib/chat-page'
 import { formatDate } from '@/lib/format'
 import { useHistoryView } from '@/lib/history-view'
 import { subscribeEvents } from '@/lib/chat-events'
@@ -171,7 +172,7 @@ function usePartnerChat(supplierId: number) {
         const res = await fetch(`/api/partner/${supplierId}/chat`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text, attachments: files }),
+          body: JSON.stringify({ text, attachments: files, page: currentPage() }),
         })
         if (!res.ok) throw new Error(String(res.status))
         const { id } = (await res.json()) as { id: number }
@@ -504,6 +505,7 @@ export function PartnerFrame({
   hideHeaderOnDesktop = false,
   alerts = [],
   onOpenAlert,
+  onAgentReply,
   children,
 }: {
   supplierId: number
@@ -519,6 +521,13 @@ export function PartnerFrame({
   /** Availability requests still at `new`, as the bell lists them. */
   alerts?: PartnerAlert[]
   onOpenAlert?: (id: number) => void
+  /**
+   * A new reply from Local Plant Supply landed — read or not. Rosie writes a
+   * chat-given answer into the request herself (`supplier-coordination`
+   * §3.6), so the page under the chat reloads on it rather than showing the
+   * table as it was before she answered.
+   */
+  onAgentReply?: () => void
   children: React.ReactNode
 }) {
   const isMobile = useIsMobile()
@@ -538,6 +547,12 @@ export function PartnerFrame({
   const chatHydrated = useRef(false)
   const [chatAppearance, setChatAppearance] = useState<ChatAppearance>(DEFAULT_CHAT_APPEARANCE)
   const [chatAlert, setChatAlert] = useState<{ at: number; text: string } | null>(null)
+  // The newest agent reply the peek poll below has seen, so it can tell a
+  // fresh one from last time's. Null until the first tick, which only
+  // records — the reply already on screen at load is not news.
+  const lastAgentId = useRef<number | null>(null)
+  const onAgentReplyRef = useRef(onAgentReply)
+  useEffect(() => { onAgentReplyRef.current = onAgentReply }, [onAgentReply])
 
   useEffect(() => {
     try {
@@ -578,6 +593,12 @@ export function PartnerFrame({
         }
         if (!alive) return
         const last = body.messages[body.messages.length - 1]
+        if (last?.role === 'agent') {
+          if (lastAgentId.current != null && last.id > lastAgentId.current) onAgentReplyRef.current?.()
+          lastAgentId.current = last.id
+        } else if (lastAgentId.current == null) {
+          lastAgentId.current = 0
+        }
         setChatAlert(
           last && last.role === 'agent' && last.id > (body.readId ?? 0)
             ? { at: last.at, text: redactPartnerRequestRefs(last.text) }

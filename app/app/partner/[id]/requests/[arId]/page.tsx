@@ -155,6 +155,8 @@ export default function PartnerRequestPage() {
 
   return (
     <PartnerFrame
+      // Rosie may have written a chat-given answer into this request.
+      onAgentReply={load}
       supplierId={supplierId}
       supplierName={supplierName}
       tab={isClosed ? 'closed' : 'requests'}

@@ -579,7 +579,10 @@ one.
   with exact canonical result keys. State first anchors cohort plus exact
   manifest/evidence paths/hashes; every phase replay requires those external
   inputs and rederives plan, ordered events/batch logs, frozen payload and
-  transaction identity. Ordinary commands block pending import rather than
+  transaction identity. Replays no-follow verify exact physical log filenames
+  and bytes with no extras, recover both batch-root-replaced and run-frozen
+  write-before-phase-update crash windows, and recheck logs even after commit.
+  Ordinary commands block pending import rather than
   trusting a self-hashed journal. Explicit `run_id` is bound across physical
   filename, state key, journal basename/core/delta and import payload. A one-time
   idempotent migration updates both embedded state and standalone historical run

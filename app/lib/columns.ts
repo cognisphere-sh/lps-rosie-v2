@@ -58,15 +58,18 @@ export const AVAILABILITY_SOURCE_TYPES = ['Email', 'Hosted']
 export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'name', label: 'Name', width: 210, kind: 'link' },
   { key: 'category', label: 'Category', width: 128, kind: 'badge', filter: 'multiselect' },
+  { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
+  { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
+  { key: 'item_count', label: '# Items', width: 84, align: 'right', filter: 'range' },
+  { key: 'website', label: 'Website', width: 190, kind: 'url', filter: 'none' },
   // Contacts live in their own table keyed by contact id, so these are read-only
   // here — a supplier row has no single contact id to write back to. Editing,
   // adding and promoting happen on the profile's Contacts tab.
   { key: 'primary_contact_name', label: 'Primary contact', width: 150 },
+  { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'city' } },
   { key: 'primary_contact_email', label: 'Primary email', width: 210 },
   { key: 'primary_contact_phone', label: 'Primary phone', width: 145 },
   { key: 'other_contacts', label: 'Other contacts', width: 190, kind: 'contacts', filter: 'none' },
-  { key: 'website', label: 'Website', width: 190, kind: 'url', filter: 'none' },
-  { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
   { key: 'last_ingestion_date', label: 'Last ingestion', width: 138, filter: 'none' },
   // How the supplier's availability reaches us, and how often. All three are
   // nullable — blank means nobody has established it yet, not "none".
@@ -85,9 +88,6 @@ export const SUPPLIER_COLS: ColumnDef[] = [
     kind: 'url', filter: 'none', edit: true,
     writes: { table: 'suppliers', column: 'hosted_availability_url' },
   },
-  { key: 'item_count', label: '# Items', width: 96, align: 'right', filter: 'range' },
-  { key: 'city', label: 'City', width: 150, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'city' } },
-  { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
   // `notes` = durable profile facts (quirks, preferences, anything the schema
   // has no column for). Contact history lives with the agents, not here — the
   // old `communication_notes` column was retired by migration 0063 and the
@@ -96,7 +96,11 @@ export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'created_at', label: 'Created at', width: 130, filter: 'none' },
   { key: 'updated', label: 'Last updated', width: 140, filter: 'none' },
 ]
-export const SUPPLIER_HIDDEN = ['created_at', 'notes']
+export const SUPPLIER_VISIBLE = [
+  'name', 'category', 'state', 'inventory_sources', 'item_count', 'website', 'primary_contact_name',
+]
+export const SUPPLIER_HIDDEN = SUPPLIER_COLS.map((column) => column.key)
+  .filter((key) => !SUPPLIER_VISIBLE.includes(key))
 
 // Plant search — master rows are suppliers with a plant count.
 export const MASTER_COLS: ColumnDef[] = [

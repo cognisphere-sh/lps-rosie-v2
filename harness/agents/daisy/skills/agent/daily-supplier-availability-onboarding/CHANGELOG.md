@@ -1,5 +1,17 @@
 # daily-supplier-availability-onboarding — changelog
 
+## 2.11.0
+
+2026-08-28 — targeted-review import crash-window and physical-evidence fix.
+Prepared replay now no-follow verifies and accepts an already-renamed batch root
+only when exact expected filenames/bytes exist with no extras. Logs-written replay
+recognizes an already atomically written run only when it exactly equals the
+rederived frozen payload. Logs-written, run-frozen and committed/idempotent replay
+all independently verify the physical logs against rederived canonical lines and
+reject missing, changed, extra or symlinked entries. Thirty-one tests add both
+write-before-phase-update crash windows and committed missing/changed/extra logs.
+v2.7/v2.8 qualification rules are unchanged.
+
 ## 2.10.0
 
 2026-08-28 — sixth-review recovery-import integrity fix. State now records the

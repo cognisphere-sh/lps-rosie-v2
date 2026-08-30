@@ -9,11 +9,27 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=../config.example
 source "$ROOT/config"
 RUN_USER="${RUN_USER:-${SUDO_USER:-$USER}}"
-NAME="${APP_NAME:-$(basename "$ROOT")}"
+NAME="${APP_NAME:-$(basename "$ROOT")}"; [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || { echo "invalid APP_NAME" >&2; exit 1; }
 # app/ is optional until it has a package.json — the harness runs alone before that.
 HAS_APP=false; [[ -f "$ROOT/app/package.json" ]] && HAS_APP=true
 
 [[ $EUID -eq 0 ]] || { echo "run as root (sudo)"; exit 1; }
+# Installing the standalone unit over an active legacy worktree unit without a
+# durable healthy release would make the next ordinary restart unrecoverable.
+# Fail before changing packages, metadata or units; bootstrap/migration requires
+# a separately reviewed operator window on an existing deployment.
+if $HAS_APP && systemctl is-active --quiet "$NAME-app.service" 2>/dev/null \
+  && [[ ! -L "/var/lib/$NAME-app-runtime/healthy" ]]; then
+  echo "active legacy app has no durable healthy release; standalone bootstrap must be reviewed before setup rewrites its unit" >&2
+  exit 1
+fi
+if [[ -e "/etc/$NAME" || -L "/etc/$NAME" ]]; then
+  python3 "$ROOT/scripts/app-pipeline.py" validate-metadata "/etc/$NAME/app-pipeline.json" "$ROOT" "$NAME" >/dev/null
+elif [[ -e "/run/lock/$NAME-app-build.lock" || -L "/run/lock/$NAME-app-build.lock" ]]; then
+  echo "installed lock exists without valid pipeline metadata; operator recovery required" >&2; exit 1
+fi
+python3 "$ROOT/scripts/app-pipeline.py" init-lock "/run/lock/$NAME-setup.lock" production
+exec 7<>"/run/lock/$NAME-setup.lock"; flock 7
 echo ">> name=$NAME app=$DOMAIN:$APP_PORT (present: $HAS_APP) console=$CONSOLE_DOMAIN:$HARNESS_PORT dir=$ROOT user=$RUN_USER"
 
 # ---- system packages ------------------------------------------------------
@@ -78,18 +94,33 @@ sudo -u "$RUN_USER" touch "$RUN_HOME/.npmrc"
 sudo -u "$RUN_USER" grep -qF 'npm.pkg.github.com/:_authToken' "$RUN_HOME/.npmrc" \
   || echo '//npm.pkg.github.com/:_authToken=${COGNISPHERE_NPM_TOKEN}' | sudo -u "$RUN_USER" tee -a "$RUN_HOME/.npmrc" >/dev/null
 
+# Canonical lock exists before any setup action writes app config/dependencies.
+LOCK_PATH="/run/lock/$NAME-app-build.lock"; SETUP_CREATED_APP_LOCK=false
+if $HAS_APP; then
+  [[ -e "$LOCK_PATH" ]] || SETUP_CREATED_APP_LOCK=true
+  python3 "$ROOT/scripts/app-pipeline.py" init-lock "$LOCK_PATH" production
+fi
+cleanup_setup_lock(){ rc=$?; if ((rc != 0)) && $SETUP_CREATED_APP_LOCK && [[ ! -f "/etc/$NAME/app-pipeline.json" ]]; then rm -f "$LOCK_PATH"; fi; exit "$rc"; }
+trap cleanup_setup_lock EXIT
+
 # ---- credentials ------------------------------------------------------------
 # `scripts/server.sh secrets` is the single source: it writes users.json
 # (harness login) and, when app/ exists, app/.env.local (harness login +
 # DOMAIN/PORT/HARNESS_URL). Blank APP_PASS is generated once and reused. Runs
 # as RUN_USER so the files are owned correctly.
 install -d -o "$RUN_USER" "$ROOT/harness/.secrets"
-sudo -u "$RUN_USER" bash "$ROOT/scripts/server.sh" secrets
+if $HAS_APP; then python3 "$ROOT/scripts/app-pipeline.py" with-lock "$LOCK_PATH" -- bash "$ROOT/scripts/server.sh" secrets; else bash "$ROOT/scripts/server.sh" secrets; fi
 
-# ---- build (as the app user so node_modules aren't root-owned) -------------
-# Delegated to scripts/build.sh — the same command used for every later deploy
-# (git pull && sudo ./scripts/server.sh restart).
-sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash "$ROOT/scripts/build.sh"
+# ---- canonical setup lock + frozen live harness install --------------------
+# The standalone app never uses this live install; the harness does. Serialize
+# dependency mutation with every supported app build/control operation.
+if $HAS_APP; then
+  python3 "$ROOT/scripts/app-pipeline.py" with-lock "$LOCK_PATH" -- \
+    python3 "$ROOT/scripts/app-pipeline.py" exec-as "$RUN_USER" -- \
+    env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" pnpm --dir "$ROOT" install --filter cognisphere-harness-rosie... --frozen-lockfile
+else
+  sudo -u "$RUN_USER" env COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" pnpm --dir "$ROOT" install --filter cognisphere-harness-rosie... --frozen-lockfile
+fi
 
 # ---- agent runtimes: build each agent's Python venv + CLIs ------------------
 # Each agent has a bootstrap/bootstrap.sh (idempotent) that creates <agent>/.venv
@@ -147,38 +178,29 @@ WantedBy=multi-user.target
 EOF
 
 UNITS=("$NAME-harness.service")
+PIPELINE_TX=""
+rollback_pipeline_install(){ [[ -z "$PIPELINE_TX" ]] || bash "$ROOT/scripts/install-app-pipeline.sh" rollback "$PIPELINE_TX"; }
 if $HAS_APP; then
-  cat > "/etc/systemd/system/$NAME-app.service" <<EOF
-[Unit]
-Description=$NAME user-facing app
-After=network.target $NAME-harness.service
-Wants=$NAME-harness.service
-
-[Service]
-Type=simple
-User=$RUN_USER
-WorkingDirectory=$ROOT/app
-Environment=PATH=$UNIT_PATH
-Environment=NODE_ENV=production
-Environment=PORT=$APP_PORT
-Environment=HARNESS_URL=http://127.0.0.1:$HARNESS_PORT
-Environment=COGNISPHERE_NPM_TOKEN=
-# 'next start' honors \$PORT; passing "-- -p" trips Next 16's arg parser (it
-# reads -p as a project dir), so rely on the PORT env above.
-ExecStart=$PNPM_BIN start
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
+  exec 9<>"$LOCK_PATH"; flock 9
+  export INSTALL_PIPELINE_LOCKED=1 LPS_PIPELINE_INNER=1 LPS_LOCK_PATH="$LOCK_PATH"
+  PIPELINE_TX="$(ROOT="$ROOT" NAME="$NAME" RUN_USER="$RUN_USER" UNIT_PATH="$UNIT_PATH" APP_PORT="$APP_PORT" HARNESS_PORT="$HARNESS_PORT" LOCK_PATH="$LOCK_PATH" COGNISPHERE_NPM_TOKEN="$COGNISPHERE_NPM_TOKEN" bash "$ROOT/scripts/install-app-pipeline.sh" prepare)"
+  trap rollback_pipeline_install ERR INT TERM HUP
   UNITS+=("$NAME-app.service")
 else
   rm -f "/etc/systemd/system/$NAME-app.service"
 fi
 
 systemctl daemon-reload
-systemctl enable --now "${UNITS[@]}"
+systemctl enable --now "$NAME-harness.service"
+if $HAS_APP; then
+  # The earlier build was verification-only. Materialize the first live .next
+  # through the same candidate/swap path used by every later deployment; HTTPS
+  # is configured below, so this first health check is local-only.
+  systemctl enable "$NAME-app.service"
+  SKIP_HTTPS_HEALTH=1 bash "$ROOT/scripts/app-deploy.sh"
+  bash "$ROOT/scripts/install-app-pipeline.sh" commit "$PIPELINE_TX"; PIPELINE_TX=""; SETUP_CREATED_APP_LOCK=false
+  flock -u 9; exec 9>&-; unset INSTALL_PIPELINE_LOCKED LPS_PIPELINE_INNER LPS_LOCK_PATH; trap - ERR INT TERM HUP
+fi
 
 # ---- nginx: app on $DOMAIN (when present), harness console on $CONSOLE_DOMAIN
 # Console UI binds to 127.0.0.1 only; nginx is the sole public entry.

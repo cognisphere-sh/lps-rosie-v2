@@ -97,6 +97,7 @@ export async function POST(
     const b = (await req.json().catch(() => ({}))) as {
       text?: string
       attachments?: { name: string; label: string; mime: string; size: number; ticket: string }[]
+      page?: { path?: string; title?: string }
     }
     const text = String(b.text ?? '').trim()
     const attachments = Array.isArray(b.attachments) ? b.attachments : []
@@ -110,6 +111,7 @@ export async function POST(
         text,
         attachments,
         senderName: `${t.supplierName} (portal)`,
+        ...(b.page && typeof b.page === 'object' ? { page: b.page } : {}),
       }),
     })
     return NextResponse.json(await res.json(), { status: res.status })

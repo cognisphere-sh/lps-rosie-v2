@@ -12,8 +12,8 @@ import { supabase } from '@/lib/supabase'
  * or not a web conversation exists yet (the panel merges in the webchat
  * plugin's transcript list for last activity). Thread ids follow the
  * restructure's conventions: `jr-<id>`, `suppliers.rosie_thread_id` /
- * `daisy_thread_id`, `customers.rosie_thread_id` (`customerThreadId` computes
- * the latter when a named customer hasn't been minted one yet).
+ * `daisy_thread_id`, and `customers.rosie_thread_id`. Missing ids are omitted;
+ * the directory never guesses a thread or creates a duplicate conversation.
  */
 
 export interface ChatDirectoryEntry {
@@ -121,13 +121,16 @@ async function rosieDirectory(): Promise<ChatDirectory> {
           .filter(Boolean)
           .join(' · ') || null,
     })),
-    customers: customers
-      .filter((c) => c.rosie_thread_id || c.name)
-      .map((c) => ({
-        threadId: customerThreadId({ name: c.name, rosieThreadId: c.rosie_thread_id }),
-        title: c.company || c.name,
-        subtitle: c.company && c.name ? c.name : null,
-      })),
+    customers: customers.flatMap((c) => {
+      const threadId = customerThreadId({ rosieThreadId: c.rosie_thread_id })
+      return threadId
+        ? [{
+            threadId,
+            title: c.company || c.name,
+            subtitle: c.company && c.name ? c.name : null,
+          }]
+        : []
+    }),
   }
 }
 

@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { Bell, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
-  createContext, useCallback, useContext, useEffect, useState,
+  createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react'
 
 import { AvailabilityRequestDrawer } from '@/components/workspace/ar-drawer'
@@ -24,6 +24,7 @@ import {
   CustomersIcon, PhotosIcon, RequestsIcon, SettingsIcon, SuppliersIcon,
 } from '@/components/workspace/icons'
 import { AGENTS, CHAT_AGENTS, chatBlockedReason } from '@/lib/agents'
+import { jobInboxNewNavigationAction } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
 import {
   APP_APPEARANCE_STORE, DEFAULT_APP_ACCENT, appAccentColor, appAccentStyle, readAppAccent,
@@ -117,6 +118,209 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+// ------------------------------------------------------------------- account
+
+type AccountRailActionsProps = {
+  navOpen: boolean
+  page: PageId
+  user: string | null
+  open: boolean
+  setOpen: (open: boolean) => void
+  supplierOpen: boolean
+  setSupplierOpen: (open: boolean) => void
+  toggleSupplier: () => void
+  supplierList: (className: string, onSelect?: () => void) => React.ReactNode
+  signOut: () => void
+  railBtn: (active: boolean, enabled?: boolean) => string
+}
+
+/** Desktop-only account disclosure; mobile keeps the established More rows. */
+export function AccountRailActions({
+  navOpen,
+  page,
+  user,
+  open,
+  setOpen,
+  supplierOpen,
+  setSupplierOpen,
+  toggleSupplier,
+  supplierList,
+  signOut,
+  railBtn,
+}: AccountRailActionsProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverId = 'desktop-account-popover'
+  const supplierId = 'desktop-account-supplier-view'
+
+  const close = useCallback((restoreFocus = false) => {
+    setSupplierOpen(false)
+    setOpen(false)
+    if (restoreFocus) window.setTimeout(() => triggerRef.current?.focus(), 0)
+  }, [setOpen, setSupplierOpen])
+
+  useEffect(() => {
+    if (!open) return
+    const dismissOutside = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) close()
+    }
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      close(true)
+    }
+    document.addEventListener('mousedown', dismissOutside)
+    document.addEventListener('keydown', dismissOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', dismissOutside)
+      document.removeEventListener('keydown', dismissOnEscape)
+    }
+  }, [close, open])
+
+  return (
+    <div ref={rootRef} data-menu className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          if (open) close()
+          else setOpen(true)
+        }}
+        title="Account"
+        aria-label="Account"
+        aria-expanded={open}
+        aria-controls={popoverId}
+        aria-current={open ? 'true' : undefined}
+        className={cn(railBtn(open), 'min-h-11 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
+      >
+        {navOpen && (
+          <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
+            {user ? initialsOf(user) : '·'}
+          </span>
+        )}
+        <span className={navOpen ? undefined : 'w-full text-center text-[9px] font-bold leading-none'}>Account</span>
+      </button>
+
+      {open && (
+        <div
+          id={popoverId}
+          aria-label="Account actions"
+          className="lps-pop absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[230px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
+        >
+          <div className="mb-1 border-b border-lps-hair px-2.5 pb-2 pt-1.5">
+            <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
+            <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
+          </div>
+          <Link
+            href="/agents"
+            aria-current={page === 'agents' ? 'page' : undefined}
+            onClick={() => close()}
+            className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+          >
+            <AgentsIcon size={14} />
+            Know your Agents
+          </Link>
+          <button
+            type="button"
+            aria-expanded={supplierOpen}
+            aria-controls={supplierId}
+            onClick={toggleSupplier}
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+          >
+            <SuppliersIcon size={14} />
+            Supplier view
+            <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierOpen && 'rotate-90')} />
+          </button>
+          {supplierOpen && (
+            <div id={supplierId} className="ml-2 border-l border-lps-hair pl-1">
+              <div className="border-b border-lps-hair px-2.5 pb-1.5 pt-1 text-[11px] text-muted-foreground">
+                See the portal as a supplier — a stand-in until supplier sign-in exists.
+              </div>
+              {supplierList(
+                'flex min-h-11 w-full items-center rounded-lg px-2.5 text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary',
+                () => close(),
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+          >
+            <LogoutIcon size={14} />
+            Log out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type SupplierLoadState = 'idle' | 'loading' | 'loaded' | 'error'
+
+export async function fetchPartnerSuppliers(
+  signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<{ id: number; name: string }[]> {
+  const response = await fetcher('/api/availability-requests/suppliers', { signal })
+  if (!response.ok) throw new Error('Supplier list request failed')
+  const body = (await response.json()) as { suppliers: { id: number; name: string }[] }
+  return body.suppliers
+}
+
+export function SupplierPortalList({
+  state,
+  suppliers,
+  retry,
+  className,
+  onSelect,
+}: {
+  state: SupplierLoadState
+  suppliers: { id: number; name: string }[]
+  retry: () => void
+  className: string
+  onSelect: () => void
+}) {
+  if (state === 'idle' || state === 'loading') {
+    return <div role="status" className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
+  }
+  if (state === 'error') {
+    return (
+      <div role="alert" className="px-2.5 py-2 text-[12px] text-muted-foreground">
+        <div>Couldn’t load LPS Partners.</div>
+        <button type="button" onClick={retry} className="mt-1 min-h-11 rounded-lg px-2.5 font-semibold text-primary hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Retry</button>
+      </div>
+    )
+  }
+  if (suppliers.length === 0) {
+    return <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No LPS Partners yet.</div>
+  }
+  return suppliers.map((supplier) => (
+    <a
+      key={supplier.id}
+      href={`/partner/${supplier.id}`}
+      target="_blank"
+      rel="noreferrer"
+      onClick={onSelect}
+      className={className}
+    >
+      {supplier.name}
+    </a>
+  ))
+}
+
+/** Clear disclosure state when either responsive implementation is replaced. */
+export function useBreakpointMenuReset(
+  isMobile: boolean,
+  setAccountOpen: (open: boolean) => void,
+  setSupplierOpen: (open: boolean) => void,
+) {
+  useEffect(() => () => {
+    setAccountOpen(false)
+    setSupplierOpen(false)
+  }, [isMobile, setAccountOpen, setSupplierOpen])
+}
+
 // ------------------------------------------------------------------- shell
 
 export function Shell({
@@ -126,6 +330,8 @@ export function Shell({
   headerAction,
   hideHeaderOnMobile = false,
   hideHeaderOnDesktop = false,
+  focusedJobsDesktop = false,
+  replaceNewJobEntry = false,
   focusedIntake,
   children,
 }: {
@@ -136,6 +342,10 @@ export function Shell({
   headerAction?: React.ReactNode
   hideHeaderOnMobile?: boolean
   hideHeaderOnDesktop?: boolean
+  /** Selected desktop Jobs replaces the ordinary app rail; mobile chrome is unchanged. */
+  focusedJobsDesktop?: boolean
+  /** New replaces a selected Jobs detail entry; bare Jobs and other routes push. */
+  replaceNewJobEntry?: boolean
   focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
   children: React.ReactNode
 }) {
@@ -149,7 +359,9 @@ export function Shell({
   // The temporary "see the portal as a supplier" picker — a stand-in until
   // supplier sign-in exists. Lists the LPS Partners, lazily on first open.
   const [supplierViewMenu, setSupplierViewMenu] = useState(false)
-  const [partnerSuppliers, setPartnerSuppliers] = useState<{ id: number; name: string }[] | null>(null)
+  const [partnerSuppliers, setPartnerSuppliers] = useState<{ id: number; name: string }[]>([])
+  const [supplierLoadState, setSupplierLoadState] = useState<SupplierLoadState>('idle')
+  const supplierFetchController = useRef<AbortController | null>(null)
   // The Agents list and a conversation are mobile pages, not overlays: each
   // one is a history entry, so Back pops it instead of leaving the route.
   const mobileView = useHistoryView<MobileView>()
@@ -182,6 +394,10 @@ export function Shell({
       setDesktopPeekOpen(false)
     }
   }, [isMobile])
+
+  useBreakpointMenuReset(isMobile, setUserMenu, setSupplierViewMenu)
+
+  useEffect(() => () => supplierFetchController.current?.abort(), [])
 
   useEffect(() => {
     try {
@@ -250,16 +466,6 @@ export function Shell({
       ?.setAttribute('content', appAccentColor(appAccent, dark))
   }, [appAccent, dark])
 
-  // Close the user menu on any outside click, like the design's data-menu handler.
-  useEffect(() => {
-    if (!userMenu) return
-    const close = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('[data-menu]')) setUserMenu(false)
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [userMenu])
-
   // Same treatment for the supplier-view picker.
   useEffect(() => {
     if (!supplierViewMenu) return
@@ -279,41 +485,39 @@ export function Shell({
     }
   }
 
+  const loadPartnerSuppliers = useCallback(() => {
+    supplierFetchController.current?.abort()
+    const controller = new AbortController()
+    supplierFetchController.current = controller
+    setSupplierLoadState('loading')
+    fetchPartnerSuppliers(controller.signal)
+      .then((suppliers) => {
+        setPartnerSuppliers(suppliers)
+        setSupplierLoadState('loaded')
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        setPartnerSuppliers([])
+        setSupplierLoadState('error')
+      })
+  }, [])
+
   const toggleSupplierView = () => {
-    setSupplierViewMenu((v) => !v)
-    if (partnerSuppliers == null) {
-      fetch('/api/availability-requests/suppliers')
-        .then(async (res) => {
-          const body = res.ok
-            ? ((await res.json()) as { suppliers: { id: number; name: string }[] })
-            : { suppliers: [] }
-          setPartnerSuppliers(body.suppliers)
-        })
-        .catch(() => setPartnerSuppliers([]))
-    }
+    setSupplierViewMenu((open) => {
+      const next = !open
+      if (next && supplierLoadState === 'idle') loadPartnerSuppliers()
+      return next
+    })
   }
 
-  const supplierList = (className: string) => (
-    <>
-      {partnerSuppliers == null && (
-        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">Loading…</div>
-      )}
-      {partnerSuppliers?.length === 0 && (
-        <div className="px-2.5 py-1.5 text-[12px] text-muted-foreground">No LPS Partners yet.</div>
-      )}
-      {partnerSuppliers?.map((s) => (
-        <a
-          key={s.id}
-          href={`/partner/${s.id}`}
-          target="_blank"
-          rel="noreferrer"
-          onClick={() => setSupplierViewMenu(false)}
-          className={className}
-        >
-          {s.name}
-        </a>
-      ))}
-    </>
+  const supplierList = (className: string, onSelect = () => setSupplierViewMenu(false)) => (
+    <SupplierPortalList
+      state={supplierLoadState}
+      suppliers={partnerSuppliers}
+      retry={loadPartnerSuppliers}
+      className={className}
+      onSelect={onSelect}
+    />
   )
 
   return (
@@ -330,7 +534,7 @@ export function Shell({
           title={title}
           toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
             <span className="flex items-center gap-1">
-              {page === 'requests' && !focusedIntake && <NewJobRequestButton />}
+              {page === 'requests' && !focusedIntake && <NewJobRequestButton fromSelectedEntry={replaceNewJobEntry} />}
               <NotificationBell />
             </span>
           ) : null) : toolbar}
@@ -342,7 +546,7 @@ export function Shell({
           hideHeader={!!focusedIntake}
           headerExtras={!hideHeaderOnDesktop && (
             <>
-              {page === 'requests' && !focusedIntake && <NewJobRequestButton />}
+              {page === 'requests' && !focusedIntake && <NewJobRequestButton fromSelectedEntry={replaceNewJobEntry} />}
               <NotificationBell />
             </>
           )}
@@ -352,7 +556,7 @@ export function Shell({
           moreActive={page === 'settings'}
           mobileOverlay={{ open: !!mobileView.view, close: mobileView.close, dismiss: mobileView.dismiss }}
           disablePull={mobileAgentsOpen || mobileChat || !!focusedIntake}
-          railHidden={desktopChatFull || !!focusedIntake}
+          railHidden={desktopChatFull || focusedJobsDesktop || !!focusedIntake}
           hideMobileBar={!!focusedIntake}
           // Full chat hides the workspace until the center-edge pull handle
           // reveals a narrow supplier/search peek pane.
@@ -365,73 +569,19 @@ export function Shell({
             </Link>
           )}
           railBottom={({ navOpen, railBtn }) => (
-              <>
-                <Link href="/agents" title="Know your Agents" className={railBtn(page === 'agents')}>
-                  <span className="flex size-4 flex-none items-center justify-center"><AgentsIcon /></span>
-                  {navOpen && <span>Know your Agents</span>}
-                </Link>
-
-                <div data-menu className="relative">
-                  <button
-                    type="button"
-                    title="Supplier view — open the portal as an LPS Partner"
-                    onClick={toggleSupplierView}
-                    className={railBtn(false)}
-                  >
-                    <span className="flex size-4 flex-none items-center justify-center"><SuppliersIcon /></span>
-                    {navOpen && <span>Supplier view</span>}
-                  </button>
-                  {supplierViewMenu && (
-                    <div className="lps-pop absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[210px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-                      <div className="border-b border-lps-hair px-2.5 pb-1.5 pt-1 text-[11px] text-muted-foreground">
-                        See the portal as a supplier — a stand-in until supplier sign-in exists.
-                      </div>
-                      {supplierList('flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[12.5px] font-semibold text-foreground hover:bg-muted')}
-                    </div>
-                  )}
-                </div>
-
-                <div data-menu className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setUserMenu((v) => !v)}
-                    title={user ?? 'Signed in'}
-                    className={cn(
-                      'flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-none bg-transparent text-left hover:bg-muted',
-                      navOpen ? 'px-2 py-1.5 justify-start' : 'px-0 py-1.5 justify-center',
-                    )}
-                  >
-                    <span className="inline-flex size-[26px] flex-none items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
-                      {user ? initialsOf(user) : '·'}
-                    </span>
-                    {navOpen && (
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12.5px] font-semibold text-foreground">
-                          {user ?? '…'}
-                        </span>
-                        <span className="block truncate text-[11px] text-muted-foreground">Austin Plant Supply</span>
-                      </span>
-                    )}
-                  </button>
-
-                  {userMenu && (
-                    <div className="lps-pop absolute bottom-[calc(100%+6px)] left-0 z-[96] min-w-[184px] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
-                      <div className="mb-1 border-b border-lps-hair px-2.5 pb-2 pt-1.5">
-                        <div className="text-[12.5px] font-semibold">{user ?? 'Signed in'}</div>
-                        <div className="text-[11px] text-muted-foreground">Austin Plant Supply</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={signOut}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-[#C24C2E] hover:bg-lps-warn-bg"
-                      >
-                        <LogoutIcon size={14} />
-                        Log out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </>
+            <AccountRailActions
+              navOpen={navOpen}
+              page={page}
+              user={user}
+              open={userMenu}
+              setOpen={setUserMenu}
+              supplierOpen={supplierViewMenu}
+              setSupplierOpen={setSupplierViewMenu}
+              toggleSupplier={toggleSupplierView}
+              supplierList={supplierList}
+              signOut={signOut}
+              railBtn={railBtn}
+            />
           )}
           moreTop={({ closeMoreMenu }) => (
             <Link
@@ -476,8 +626,14 @@ export function Shell({
                   <ChevronRight size={13} className={cn('ml-auto transition-transform', supplierViewMenu && 'rotate-90')} />
                 </button>
                 {supplierViewMenu && (
-                  <div className="ml-5 border-l border-lps-hair pl-1" onClick={closeMoreMenu}>
-                    {supplierList('block truncate rounded-lg px-2.5 py-[7px] text-[12px] font-semibold text-foreground hover:bg-muted')}
+                  <div className="ml-5 border-l border-lps-hair pl-1">
+                    {supplierList(
+                      'block truncate rounded-lg px-2.5 py-[7px] text-[12px] font-semibold text-foreground hover:bg-muted',
+                      () => {
+                        setSupplierViewMenu(false)
+                        closeMoreMenu()
+                      },
+                    )}
                   </div>
                 )}
               </div>
@@ -536,7 +692,7 @@ export function Shell({
                   ⋯ menu it would sit under — and of the keyboard. */}
               {isMobile && page === 'requests' && !focusedIntake &&
                 !mobileChat && !mobileAgentsOpen && !moreMenuOpen && !keyboardOpen && (
-                  <NewJobRequestButton fab />
+                  <NewJobRequestButton fab fromSelectedEntry={replaceNewJobEntry} />
                 )}
 
               {/* Agents is a mobile channel list, not a new route or transport.
@@ -657,10 +813,22 @@ function fmtNotifAt(ms: number): string {
  * draws no header on mobile (`hideHeaderOnMobile`), so a header-only action
  * would not exist where it is most wanted.
  */
-function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
+function NewJobRequestButton({
+  fab = false,
+  label = 'New job request',
+  fromSelectedEntry = false,
+}: {
+  fab?: boolean
+  label?: string
+  fromSelectedEntry?: boolean
+}) {
   const toast = useToast()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+  const navigate = (url: string) => {
+    if (jobInboxNewNavigationAction(fromSelectedEntry) === 'replace') router.replace(url, { scroll: false })
+    else router.push(url, { scroll: false })
+  }
 
   const start = async () => {
     setBusy(true)
@@ -675,7 +843,7 @@ function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
       }
       const savedId = saved?.id
       if (typeof savedId === 'number' && Number.isSafeInteger(savedId) && savedId > 0) {
-        router.push(`/jobs?jr=${savedId}&intake=1`, { scroll: false })
+        navigate(`/jobs?jr=${savedId}&intake=1`)
         openChat({ agentId: 'rosie', threadId: `jr-${savedId}`, label: requestRef(savedId) })
         return
       }
@@ -685,8 +853,12 @@ function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
       // Write recovery evidence before either route/panel operation. A retry
       // after this point reuses this id; only a failed reserve can allocate one.
       const returnUrl = `${window.location.pathname}${window.location.search}`
+      if (window.location.pathname === '/jobs') {
+        window.sessionStorage.setItem('lps.jobs.origin.v1', 'new')
+        window.sessionStorage.setItem('lps.jobs.origin-id.v1', String(body.id))
+      }
       window.sessionStorage.setItem('lps.jobs.intake.v1', JSON.stringify({ id: body.id, returnUrl }))
-      router.push(`/jobs?jr=${body.id}&intake=1`, { scroll: false })
+      navigate(`/jobs?jr=${body.id}&intake=1`)
       openChat({ agentId: 'rosie', threadId: `jr-${body.id}`, label: requestRef(body.id) })
     } catch (e) {
       toast((e as Error).message)
@@ -701,6 +873,7 @@ function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
       disabled={busy}
       onClick={start}
       title="Start a job request and open its Rosie conversation"
+      id="jobs-new-trigger"
       aria-label="New job request"
       className={cn(
         'flex flex-none items-center border-none bg-primary font-semibold text-primary-foreground',
@@ -711,8 +884,18 @@ function NewJobRequestButton({ fab = false }: { fab?: boolean }) {
       )}
     >
       <Plus size={fab ? 22 : 14} />
-      {!fab && <span>New job request</span>}
+      {!fab && <span>{label}</span>}
     </button>
+  )
+}
+
+/** Shell-owned focused Jobs actions: one New flow and the existing notification behavior. */
+export function JobsTopActions() {
+  return (
+    <div aria-label="Job actions" className="flex min-h-11 items-center justify-end gap-1">
+      <NewJobRequestButton label="New job" fromSelectedEntry />
+      <NotificationBell />
+    </div>
   )
 }
 

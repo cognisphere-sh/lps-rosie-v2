@@ -839,9 +839,7 @@ def import_journal_core(run_file, state_file, manifest_path, evidence_path, impo
     return build_import_core(run_file, state_file, manifest_path, evidence_path, imported_at, load(run_file))
 
 
-def legacy_payload_for_import_revalidation(journal, current):
-    if journal["phase"] in {"prepared", "logs-written"}:
-        return current
+def legacy_from_frozen_import(journal, current):
     if current != journal["frozen_run"]:
         raise ValueError("frozen recovery run differs from journal payload")
     legacy = dict(current)
@@ -850,6 +848,34 @@ def legacy_payload_for_import_revalidation(journal, current):
     if not journal["transaction_core"].get("legacy_had_run_id"):
         legacy.pop("run_id", None)
     return legacy
+
+
+def legacy_payload_for_import_revalidation(journal, current):
+    if journal["phase"] == "prepared": return current
+    if journal["phase"] == "logs-written" and current != journal["frozen_run"]: return current
+    return legacy_from_frozen_import(journal, current)
+
+
+def verify_import_batch_root(run_file, expected_lines):
+    root = Path(run_file).parent / "batch-results" / Path(run_file).stem
+    safe_directory(root)
+    expected_names = {f"{safe_slug(batch)}.jsonl" for batch in expected_lines}
+    actual_names = {entry.name for entry in root.iterdir()}
+    if actual_names != expected_names: raise ValueError("recovery physical batch log filenames differ from canonical lines")
+    for batch, text in expected_lines.items():
+        path = root / f"{safe_slug(batch)}.jsonl"; regular_file(path, "recovery batch log")
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode): raise ValueError("recovery batch log is not regular")
+            chunks = []
+            while True:
+                chunk = os.read(fd, 1024 * 1024)
+                if not chunk: break
+                chunks.append(chunk)
+        finally: os.close(fd)
+        if b"".join(chunks) != text.encode(): raise ValueError(f"recovery physical batch log differs: {batch}")
+    if {entry.name for entry in root.iterdir()} != expected_names: raise ValueError("recovery physical batch logs changed during verification")
 
 
 def revalidate_import_from_canonical(journal_path, journal, manifest_path, evidence_path, state_file):
@@ -862,6 +888,8 @@ def revalidate_import_from_canonical(journal_path, journal, manifest_path, evide
     expected = build_import_core(run_file, state_file, manifest_path, evidence_path, core.get("imported_at"), legacy)
     for key in ("transaction_id", "transaction_core", "run_file", "state_file", "frozen_run", "batch_lines"):
         if journal.get(key) != expected.get(key): raise ValueError(f"recovery import canonical revalidation mismatch: {key}")
+    if journal["phase"] in {"logs-written", "run-frozen", "committed"}:
+        verify_import_batch_root(run_file, expected["batch_lines"])
     return expected
 
 def validate_import_location(journal_path, journal):
@@ -891,17 +919,15 @@ def advance_import(journal_path, manifest_path=None, evidence_path=None, state_f
     root = Path(run_file).parent / "batch-results" / run_file.stem
     staging = Path(run_file).parent / "batch-results" / f".{run_file.stem}-{journal['transaction_id']}.staging"
     if journal["phase"] == "prepared":
-        if staging.exists():
-            no_symlinks(staging)
-            shutil.rmtree(staging)
-        safe_directory(staging.parent, create=True)
-        safe_directory(staging, create=True)
-        for batch, text in journal["batch_lines"].items():
-            atomic_bytes(staging / f"{safe_slug(batch)}.jsonl", text.encode())
         if root.exists() or root.is_symlink():
-            raise ValueError("recovery target batch root already exists")
-        os.replace(staging, root)
-        fsync_directory(root.parent)
+            verify_import_batch_root(run_file, journal["batch_lines"])
+        else:
+            if staging.exists() or staging.is_symlink():
+                no_symlinks(staging); shutil.rmtree(staging)
+            safe_directory(staging.parent, create=True); safe_directory(staging, create=True)
+            for batch, text in journal["batch_lines"].items(): atomic_bytes(staging / f"{safe_slug(batch)}.jsonl", text.encode())
+            os.replace(staging, root); fsync_directory(root.parent)
+            verify_import_batch_root(run_file, journal["batch_lines"])
         core = {key: value for key, value in journal.items() if key not in {"phase", "journal_hash"}}
         journal = journal_with_hash(core, "logs-written")
         atomic_json(journal_path, journal)
@@ -910,9 +936,10 @@ def advance_import(journal_path, manifest_path=None, evidence_path=None, state_f
     revalidate_import_from_canonical(journal_path, journal, manifest_path, evidence_path, state_file)
     if journal["phase"] == "logs-written":
         current = load(run_file)
-        if sha(current) != journal["transaction_core"]["legacy_run_hash"]:
-            raise ValueError("legacy run changed during recovery import")
-        atomic_json(run_file, journal["frozen_run"])
+        if current != journal["frozen_run"]:
+            if sha(current) != journal["transaction_core"]["legacy_run_hash"]: raise ValueError("legacy run changed during recovery import")
+            atomic_json(run_file, journal["frozen_run"])
+        if load(run_file) != journal["frozen_run"]: raise ValueError("recovery frozen run write did not match canonical payload")
         core = {key: value for key, value in journal.items() if key not in {"phase", "journal_hash"}}
         journal = journal_with_hash(core, "run-frozen")
         atomic_json(journal_path, journal)

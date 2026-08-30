@@ -160,6 +160,55 @@ export function jobInboxEventAction(rows: JobInboxRow[], event: JobThreadPatch):
 
 export const jobInboxLayout = (width: number): 'mobile' | 'desktop' => width < 900 ? 'mobile' : 'desktop'
 
+/** Bare-list activation adds one history entry; changing the focused row mutates it. */
+export const jobInboxNavigationAction = (selection: 'bare' | 'valid' | 'invalid'): 'push' | 'replace' =>
+  selection === 'bare' ? 'push' : 'replace'
+
+/** A mounted entry deliberately pushed from the landing may safely use browser Back. */
+export const jobInboxBackAction = (enteredFromLanding: boolean): 'back' | 'replace' =>
+  enteredFromLanding ? 'back' : 'replace'
+
+/** New replaces any selected/detail entry; only a bare landing adds an entry. */
+export const jobInboxNewNavigationAction = (fromSelectedEntry: boolean): 'push' | 'replace' =>
+  fromSelectedEntry ? 'replace' : 'push'
+
+/** Restore only on an intentional focused/detail → bare transition, never poll or resize. */
+export function shouldRestoreJobInbox(
+  previous: 'bare' | 'valid' | 'invalid',
+  current: 'bare' | 'valid' | 'invalid',
+  pendingExit: boolean,
+  enteredFromLanding: boolean,
+): boolean {
+  return previous !== 'bare' && current === 'bare' && (pendingExit || enteredFromLanding)
+}
+
+export type JobInboxMembership = 'loading' | 'error' | 'listed' | 'pending' | 'unavailable'
+
+/** Do not call an id unavailable until one successful active-list response established membership. */
+export function jobInboxMembership(
+  selection: 'bare' | 'valid' | 'invalid',
+  ready: boolean,
+  error: boolean,
+  listed: boolean,
+  pending: boolean,
+): JobInboxMembership {
+  if (selection === 'bare') return ready ? 'listed' : error ? 'error' : 'loading'
+  if (!ready) return error ? 'error' : 'loading'
+  if (selection === 'invalid') return 'unavailable'
+  if (listed) return 'listed'
+  return pending ? 'pending' : 'unavailable'
+}
+
+export function jobInboxRowAriaLabel(
+  row: Pick<JobInboxViewRow, 'id' | 'name' | 'customer' | 'status' | 'preview' | 'unread'>,
+  statusLabel: string,
+  activityLabel: string,
+): string {
+  const name = row.name || row.customer || 'Unnamed job'
+  const readState = row.unread ? 'Unread web chat' : 'No unread web chat'
+  return `JR-${row.id}, ${name}, ${statusLabel}, ${row.preview}, ${activityLabel}, ${readState}`
+}
+
 export function hasFocusedIntakeEvidence(
   id: number,
   marker: { id?: number } | null,

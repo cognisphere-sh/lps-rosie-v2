@@ -1,9 +1,9 @@
 ---
 name: daily-supplier-availability-onboarding
-description: Run the approved daily review of up to 100 active suppliers without availability data. Covers stable-inode locks, explicit run identity, frozen plans, append-only evidence, canonically revalidated delta journals, no-action legacy import, provenance- and association-aware Texas-service qualification, dedicated-thread ingestion, and reporting. Use when the daily schedule fires, running/recovering a cohort, or reviewing a past batch. (v2.10.0)
+description: Run the approved daily review of up to 100 active suppliers without availability data. Covers stable-inode locks, explicit run identity, frozen plans, append-only evidence, canonically revalidated delta journals, no-action legacy import, provenance- and association-aware Texas-service qualification, dedicated-thread ingestion, and reporting. Use when the daily schedule fires, running/recovering a cohort, or reviewing a past batch. (v2.11.0)
 metadata:
   author: daisy
-  version: "2.10.0"
+  version: "2.11.0"
 ---
 
 # Daily supplier availability onboarding
@@ -181,10 +181,15 @@ the original manifest/evidence paths. At prepared, logs-written, run-frozen and
 committed replay it independently reloads canonical state, physical legacy/frozen
 run, manifest, evidence and hashed reconciliation artifacts; rederives exact
 selected cohort, plan, ordered results/events/batch lines, frozen payload, hashes
-and transaction id; and compares all of them to the journal. Changed content or
-path substitution blocks. Other commands block on pending import rather than
-advancing it without those external canonical inputs. Identical validated replay
-returns unchanged success and `actions_performed: 0`. It does not advance current cursor,
+and transaction id; and compares all of them to the journal. Physical batch-log filenames and exact
+bytes (with no extras and no symlink following) are verified independently at
+logs-written, run-frozen and committed replay. A crash after replacing the batch
+root but before updating journal phase accepts that root only when this exact
+verification passes; a crash after atomically freezing the run but before phase
+update accepts only the exact rederived frozen payload. Changed content or path
+substitution blocks. Other commands block on pending import rather than advancing
+it without those external canonical inputs. Identical validated replay returns
+unchanged success and `actions_performed: 0`. It does not advance current cursor,
 so a later completed date remains latest. Merge, recheck, regenerate the whole
 private artifact, then complete only where monotonic policy allows. Never infer
 missing results from the damaged canonical map.

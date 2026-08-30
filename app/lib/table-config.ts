@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { DEFAULT_HIDDEN, TABLE_COLS, splitMultiValue, type ColumnDef, type TableId } from '@/lib/columns'
+import {
+  DEFAULT_HIDDEN, SUPPLIER_VISIBLE, TABLE_COLS, splitMultiValue, type ColumnDef, type TableId,
+} from '@/lib/columns'
 import { compareSizeStd } from '@/lib/size-std'
 
 export interface TableConfig {
@@ -17,6 +19,7 @@ export type ColFilters = Record<string, ColFilter>
 
 const STORAGE_KEY = 'lps.tables.v1'
 const CAL_VISIBLE_MIGRATION_KEY = 'lps.tables.v1.cal-visible'
+export const SUPPLIER_DEFAULT_MIGRATION_KEY = 'lps.tables.v1.suppliers-seven-column-default-v1'
 const FILTER_VALUE_KEYS = new Map(
   Object.values(TABLE_COLS)
     .flat()
@@ -59,20 +62,92 @@ export function showCaliperInStoredPlants(
   layouts: Partial<Record<TableId, TableConfig>>,
 ): Partial<Record<TableId, TableConfig>> {
   const plants = layouts.plants
-  if (!plants?.hidden.includes('cal')) return layouts
+  if (!plants || !Array.isArray(plants.hidden) || !plants.hidden.includes('cal')) return layouts
   return { ...layouts, plants: { ...plants, hidden: plants.hidden.filter((key) => key !== 'cal') } }
+}
+
+/** Parse persisted layouts without letting corrupt local data break a table. */
+export function parseStoredTableLayouts(raw: string | null): Partial<Record<TableId, TableConfig>> {
+  try {
+    const parsed: unknown = JSON.parse(raw ?? '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Partial<Record<TableId, TableConfig>>
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Adopt the seven-column Suppliers default once for an existing saved layout.
+ *
+ * The product rollout wins for the seven promoted columns: they become visible
+ * in the requested order. Every other supplier column becomes hidden, while
+ * its relative saved order is retained behind those seven. Saved widths are
+ * untouched. The version marker around this helper means subsequent user
+ * visibility/reorder changes persist normally and are never forced again.
+ */
+export function migrateStoredSupplierDefault(
+  layouts: unknown,
+): Partial<Record<TableId, TableConfig>> {
+  if (!layouts || typeof layouts !== 'object' || Array.isArray(layouts)) return {}
+  const current = layouts as Partial<Record<TableId, TableConfig>>
+  const supplier = current.suppliers
+  if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) return current
+
+  const allKeys = TABLE_COLS.suppliers.map((column) => column.key)
+  const legacyOrder = Array.isArray(supplier.order)
+    ? supplier.order.filter(
+        (key, index, order): key is string =>
+          typeof key === 'string' && allKeys.includes(key) && order.indexOf(key) === index,
+      )
+    : []
+  const remaining = [
+    ...legacyOrder.filter((key) => !SUPPLIER_VISIBLE.includes(key)),
+    ...allKeys.filter((key) => !SUPPLIER_VISIBLE.includes(key) && !legacyOrder.includes(key)),
+  ]
+  const widths = supplier.widths && typeof supplier.widths === 'object' && !Array.isArray(supplier.widths)
+    ? supplier.widths
+    : {}
+
+  return {
+    ...current,
+    suppliers: {
+      order: [...SUPPLIER_VISIBLE, ...remaining],
+      hidden: allKeys.filter((key) => !SUPPLIER_VISIBLE.includes(key)),
+      widths,
+    },
+  }
+}
+
+export function applyStoredLayoutMigrations(
+  layouts: Partial<Record<TableId, TableConfig>>,
+  pending: { caliper: boolean; suppliers: boolean },
+): Partial<Record<TableId, TableConfig>> {
+  let next = layouts
+  if (pending.caliper) next = showCaliperInStoredPlants(next)
+  if (pending.suppliers) next = migrateStoredSupplierDefault(next)
+  return next
 }
 
 function read(): Partial<Record<TableId, TableConfig>> {
   if (typeof window === 'undefined') return {}
   try {
-    const layouts = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')
-    if (window.localStorage.getItem(CAL_VISIBLE_MIGRATION_KEY)) return layouts
-
-    const migrated = showCaliperInStoredPlants(layouts)
-    if (migrated !== layouts) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
-    window.localStorage.setItem(CAL_VISIBLE_MIGRATION_KEY, '1')
-    return migrated
+    let layouts = parseStoredTableLayouts(window.localStorage.getItem(STORAGE_KEY))
+    const migrateCaliper = !window.localStorage.getItem(CAL_VISIBLE_MIGRATION_KEY)
+    const migrateSuppliers = !window.localStorage.getItem(SUPPLIER_DEFAULT_MIGRATION_KEY)
+    layouts = applyStoredLayoutMigrations(layouts, {
+      caliper: migrateCaliper,
+      suppliers: migrateSuppliers,
+    })
+    if (migrateCaliper || migrateSuppliers) {
+      // Write the migrated payload before its markers. If storage fails, the
+      // migration remains eligible to retry instead of marking stale data done.
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts))
+      if (migrateCaliper) window.localStorage.setItem(CAL_VISIBLE_MIGRATION_KEY, '1')
+      if (migrateSuppliers) window.localStorage.setItem(SUPPLIER_DEFAULT_MIGRATION_KEY, '1')
+    }
+    return layouts
   } catch {
     return {}
   }

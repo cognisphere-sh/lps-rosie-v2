@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer, and when a request needs chasing. (v1.9.0)
+description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer or carries an answer (text, photo, voice) to write into the request, and when a request needs chasing. (v1.10.0)
 metadata:
   author: lps
-  version: "1.9.0"
+  version: "1.10.0"
 ---
 
 # Supplier coordination
@@ -117,7 +117,9 @@ UPDATE availability_request_items
     `available_quantity`, `unit_price` and `notes` remain the whole of their
     answer.
 - Never seed `status`, `available_quantity` or `notes` — those are the
-  supplier's alone; `status` NULL is what says "unanswered".
+  supplier's alone; `status` NULL is what says "unanswered". (Writing them
+  *from the supplier's own words* in their portal chat is §3.6, and is the
+  one time you touch them.)
 - **`lps_notes` is what we tell the supplier, at both levels.** The
   request's own `lps_notes` carries job-level context worth their eyes —
   delivery window, site constraints, what matters across the lines
@@ -181,9 +183,75 @@ carry it). A portal reply is external supplier contact: routine
 clarifications about an active availability request — which line, what size
 meant, when the list updates — are the channel's purpose and yours to answer;
 anything committing LPS — pricing, terms, new business — is asked of Chris on
-this thread's own web chat first (never `main`). Relay anything that answers
-a job's lines to the jr thread, and
-put durable preferences in `suppliers.notes`.
+this thread's own web chat first (never `main`). A message that *states*
+availability — a count, a price, a substitute, a photo of a list — is an
+answer, and §3.6 writes it into the request. Put durable preferences in
+`suppliers.notes`.
+
+## 3.6 The supplier answers a request in the chat
+
+A portal message that **states availability** is an answer, not a question —
+"we've got 30 of the ferns at $12", "the crape myrtle is out, can do 15 G
+instead", a photo of a tag or a hand-written list, a voice note. The line
+editor is still the primary way they answer; the chat is the same answer
+spoken instead of typed into cells, and **you are the pen**: write what they
+said into the request so the table, the jr thread and Chris all see one
+answer, then confirm it back.
+
+1. **Resolve the request.** The `Page` metadata says where they were:
+   `/partner/<supplierId>/requests/<arId>` names the request outright; from
+   the home list (`/partner/<supplierId>`) match what they said against the
+   lines of their **open** requests (`status <> 'closed'`, this supplier).
+   One request with a line that fits → that one. Two plausible fits or none →
+   ask, `--portal`, one short question naming the choices (job name and
+   plant, never `AR-<id>` — the supplier never sees our ids).
+2. **Read what they sent.** An image is read directly (`read` the inbox
+   path); a voice note is transcribed per the webchat prompt; a PDF or
+   spreadsheet through `markitdown`. Pull out, per plant: the status in the
+   §3 vocabulary, the quantity, the price, and anything else they said. A
+   photo of a plant with no count or price on it is not an answer by itself —
+   it goes with whatever the text says, and if the text says nothing, ask
+   what they want it to tell us.
+3. **Write only what they said, to the lines it is about:**
+
+   ```sql
+   SET app.actor TO 'rosie';
+   UPDATE availability_request_items
+      SET status = $status,            -- one of §3's five values
+          available_quantity = $qty,   -- the number they gave; the demand on `available`; NULL on `unavailable`
+          unit_price = $price,         -- only when they named one
+          notes = $notes               -- their own words, short: the substitute, the ETA, the caveat
+    WHERE availability_request_id = $ar AND id = $item AND is_active;
+   UPDATE availability_requests SET status = 'processing'
+    WHERE id = $ar AND status = 'new';
+   ```
+
+   The four answer columns stay **theirs**: you fill them *from their words*,
+   never from a guess, your look-up or their catalogue. No price named → leave
+   `unit_price` as it was (a §2 prefill is not confirmed by a chat message
+   that never mentioned it). A line they didn't mention is untouched. A line
+   the request doesn't have — a plant they offer that we never asked for — is
+   **not** added here; note it in the relay for the jr thread to decide.
+   `mapped_inventory_id` is never written from a chat answer.
+4. **Confirm, `--portal`, in their terms** — the plant, what you recorded
+   (status, quantity, price), and a nudge that the request page shows it and
+   they can change it there: *"Got it — Boston Fern 1 G: available, 30 at
+   $12. It's on your request now; tap it if anything's off."* When they sent
+   the last open line, or say they are done ("that's everything"), mark it
+   submitted yourself — `UPDATE availability_requests SET status = 'submitted',
+   submitted_at = now() WHERE id = $ar` — and say so; otherwise say what is
+   still open on the request. Don't submit for them when lines are still
+   unanswered and they haven't said they're finished.
+5. **Then §3, as if they had pressed Submit** — relay the answers to the jr
+   thread item by item, with the same reading against `mapped_inventory_id`
+   and the same `[Open AR-<id>](ar:<id>)` on a web report. Doing it yourself
+   raises no `availability_submitted` event, so this step is not optional; a
+   later re-submit from their page re-notifies, and that relay then covers
+   only what changed.
+
+A message that only *asks* — which size, when the list updates — is §3.5.
+A correction to an answer already submitted follows the same five steps; the
+relay says it is a change and what it was before.
 
 ## 4. Not an LPS Partner
 

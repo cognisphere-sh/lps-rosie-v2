@@ -98,6 +98,11 @@ export default function PartnerHomePage() {
     void loadItemLines().catch(() => {})
   }, [view, supplierId, loadItemLines])
 
+  const refreshAfterReply = useCallback(() => {
+    void load().catch(() => {})
+    if (view === 'item') void loadItemLines().catch(() => {})
+  }, [load, view, loadItemLines])
+
   /**
    * One line's answer, from the By-item view. Each row there belongs to its
    * own request, so the line names the one to write to — otherwise identical
@@ -192,6 +197,9 @@ export default function PartnerHomePage() {
 
   return (
     <PartnerFrame
+      // Rosie may have written a chat-given answer into a request — the
+      // cards' counts and status, and By item's groups, are derived from it.
+      onAgentReply={refreshAfterReply}
       supplierId={supplierId}
       supplierName={supplierName}
       tab="requests"

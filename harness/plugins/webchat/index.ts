@@ -13,7 +13,7 @@
  *
  * Endpoints
  *   POST api/upload   raw body + `x-file-name`  → stores in inbox/, returns {name}
- *   POST api/send     {text, attachments?, threadId?} → transcript + notify(agent)
+ *   POST api/send     {text, attachments?, threadId?, page?} → transcript + notify(agent)
  *   GET  api/messages ?since=<id>|?before=<id>&thread=<id>&read=1 → {messages, hasMore, pending, cursor, readId}
  *   GET  api/threads  → {threads:[{threadId,lastId,lastAt,lastRole,lastText,readId}]}
  *   GET  api/file     ?name=<stored name>       → the bytes
@@ -21,7 +21,7 @@
  *   POST api/reset    {threadId?}               → wipe that thread's context + transcript
  *   POST api/reply    {text, attachments?, threadId?} → agent's reply (CLI only)
  *   POST api/app-upload   raw body + thread/name headers → server-to-server (portal)
- *   POST api/app-send     {threadId, text, attachments?, senderName} → server-to-server (portal)
+ *   POST api/app-send     {threadId, text, attachments?, senderName, page?} → server-to-server (portal)
  *   GET  api/app-messages ?thread=<id>&since=<id>&read=1  → server-to-server (portal)
  *   GET  api/app-file     ?thread=<id>&name=<stored>      → server-to-server (portal)
  *
@@ -62,6 +62,22 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { copyFile, mkdir, readdir, writeFile, stat, unlink } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+/** What the sender had open when the message was sent — self-reported by the client. */
+interface PageContext {
+  path: string;
+  title?: string;
+}
+
+/** Validate a client-supplied `page` — an app-relative path plus an optional title. */
+function pageContext(raw: unknown): PageContext | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const path = String(r.path ?? "").trim().replace(/\s+/g, " ").slice(0, 500);
+  if (!path.startsWith("/") || path.startsWith("//")) return undefined;
+  const title = String(r.title ?? "").trim().replace(/\s+/g, " ").slice(0, 200);
+  return title ? { path, title } : { path };
+}
 
 interface WebchatConfig {
   threadId: string;
@@ -500,13 +516,21 @@ export default class WebchatPlugin {
     };
   }
 
-  /** Deliver one inbound user message: transcript row + notify the agent. */
+  /**
+   * Deliver one inbound user message: transcript row + notify the agent.
+   *
+   * `page` is what the sender had open when they hit send — appended to the
+   * agent-facing body as "Additional context" (never to the transcript, which
+   * shows only what the user typed) so the agent can read intent off the
+   * screen the message was written against.
+   */
   private async deliver(
     threadId: string,
     text: string,
     files: ChatFile[],
     senderName: string,
     channelId: string,
+    page?: PageContext,
   ): Promise<ChatMessage> {
     const ctx = this.ctx;
     const msg = await this.record(threadId, {
@@ -520,7 +544,12 @@ export default class WebchatPlugin {
     // Attachment paths are inlined in the body (same shape telegram uses)
     // so the agent can `read` them without reconstructing a path.
     const rel = files.map((f) => join("plugins/webchat/inbox", f.name));
-    const body = text + files.map((f, i) => `\n<${f.label}>[${rel[i]}]`).join("");
+    const body =
+      text +
+      files.map((f, i) => `\n<${f.label}>[${rel[i]}]`).join("") +
+      (page
+        ? `\n\nAdditional context:\n- Current page: ${page.title ? `${page.title} (${page.path})` : page.path}`
+        : "");
 
     ctx.notify("web_message", {
       text: body,
@@ -531,6 +560,7 @@ export default class WebchatPlugin {
         messageId: msg.id,
         webchatThreadId: threadId,
         ...(rel.length ? { attachments: rel } : {}),
+        ...(page ? { page: page.path } : {}),
       },
     });
     this.setPending(threadId, Date.now());
@@ -706,7 +736,7 @@ export default class WebchatPlugin {
               return json(400, { error: "attachment total exceeds 50MB" });
             files.push({ ...file, dir: "inbox" });
           }
-          const msg = await this.deliver(threadId, text, files, senderName, "portal");
+          const msg = await this.deliver(threadId, text, files, senderName, "portal", pageContext(b.page));
           this.markRead(threadId, "portal", msg.id);
           return json(200, { ok: true, id: msg.id });
         }
@@ -885,7 +915,7 @@ export default class WebchatPlugin {
           });
         }
 
-        const msg = await this.deliver(threadId, text, files, user, "web");
+        const msg = await this.deliver(threadId, text, files, user, "web", pageContext(b.page));
         this.markRead(threadId, "web", msg.id);
         return json(200, { ok: true, id: msg.id });
       }

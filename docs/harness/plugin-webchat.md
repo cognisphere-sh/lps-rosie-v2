@@ -45,7 +45,7 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 | Method + path | Caller | Purpose |
 |---|---|---|
 | `POST api/upload` | browser | Raw body + `x-file-name` → stores in `inbox/`, returns `{name, label, size, mime}`. |
-| `POST api/send` | browser | `{text, attachments[], threadId?}` → records the message on that thread and wakes the agent there. |
+| `POST api/send` | browser | `{text, attachments[], threadId?, page?}` → records the message on that thread and wakes the agent there. `page` is `{path, title?}` — what the sender had open; see *Inbound event shape*. |
 | `GET api/messages?since=<id>&thread=<id>` | browser | `{messages, hasMore, pending, cursor, readId}` — everything newer than `<id>` on that thread. Polled every 2s while the panel is open. |
 | `GET api/messages?before=<id>` | browser | The page of history *older* than `<id>`, for the panel's "Load earlier messages". |
 | &nbsp;&nbsp;`&limit=<n>` | browser | Keeps only the newest `n` of that window; `hasMore` says whether older ones remain. The 2s poll omits it — a delta must never be truncated. |
@@ -56,7 +56,7 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 | `POST api/reset` | browser | `{threadId?}` — wipes that thread's context **and** its transcript. |
 | `POST api/reply` | the agent | `{text, attachments[], threadId?, portal?}` → the reply, defaulting to the config thread (the CLI defaults `threadId` to `$PI_THREAD_ID`); clears that thread's half of `pending`. |
 | `POST api/app-upload?thread=<id>` | app server | Raw body + `x-file-name` + `X-App-Secret` → stages an allowlisted file (25MB by default) under a fixed-length opaque name and returns metadata plus an HMAC ticket bound to that exact thread/file. |
-| `POST api/app-send` | app server | `{threadId, text?, attachments?, senderName}` + `X-App-Secret` → a supplier-portal message: verifies every staged attachment ticket and disk size, records it portal-visible, and delivers it with `Channel: portal`. Attachment-only messages are valid. |
+| `POST api/app-send` | app server | `{threadId, text?, attachments?, senderName, page?}` + `X-App-Secret` → a supplier-portal message: verifies every staged attachment ticket and disk size, records it portal-visible, and delivers it with `Channel: portal`. Attachment-only messages are valid. |
 | `GET api/app-messages?thread=<id>` | app server | `X-App-Secret` → the **portal-visible half** of that thread only: portal-sent messages and `--portal` replies. The team's internal panel traffic never crosses this endpoint. Carries `readId` (the `portal` cursor); `&read=1` marks it, and only the portal's open chat panel sends that. |
 | `GET api/app-file?thread=<id>&name=<stored>` | app server | `X-App-Secret` → an inbox/outbox attachment only when that exact name occurs on a portal-visible row in that exact thread. |
 
@@ -211,10 +211,19 @@ portal) · `ThreadId: <the message's thread>` plus:
 | `SenderName` | The signed-in app user (harness session — not self-reported), or `<Supplier name> (portal)` for portal messages. |
 | `MessageId` | The plugin's own id for the message. |
 | `Attachments` | Agent-dir-relative paths, present only when files were attached. |
+| `Page` | The app path the sender had open (`/requests/12`, `/partner/oak-hill?tab=availability`), present when the client sent one. |
 
 Attachments are also inlined in the body as
 `<originalName>[plugins/webchat/inbox/<stored-name>]`, the same shape telegram
 uses, so the agent can `read` them without reconstructing a path.
+
+When the client sends `page`, the body also ends with an `Additional context:`
+block — `- Current page: <title> (<path>)` — so the agent can resolve "this
+request" / "this supplier" off the screen the message was written against.
+Both the team panel and the supplier portal send it (`lib/chat-page.ts` in
+the app). The plugin validates it (`pageContext()`: an app-relative path,
+capped lengths) and appends it only to the agent-facing body — the transcript
+stored in `thread_messages` holds just what the user typed.
 
 ## Verifying a change
 

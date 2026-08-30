@@ -17,7 +17,7 @@ Chris needs a trustworthy Last updated date and time for availability on an indi
 
 ## What it should do
 
-Define one request-level availability-update time and make it reliably available to both views.
+Define one request-level availability-update time and make it reliably available to both views. It represents a supplier/nursery re-submission or availability update and is accompanied by a notification to Chris/Rosie; it must not be treated as a Job Request status change.
 
 The decision must state which events advance it and whose activity counts. At minimum, distinguish a nursery updating an availability answer from LPS creating, routing, closing, or otherwise editing a request. The chosen meaning must remain valid when the nursery updates another line after the request has already entered Processing.
 
@@ -48,7 +48,7 @@ It must remain separate from the request’s Sent/Requested time and from **Subm
 
 ## Open questions
 
-- **Chris:** Does “Last updated” mean the most recent nursery-provided availability answer/update only, or the latest change of any kind to the request? This is the minimum clarification needed.
+- **Bhoumik:** Confirm the exact qualifying supplier events and durable event/time design, retaining the supplier-versus-LPS actor distinction; Chris has decided that supplier updates drive notification/freshness and do not change the customer-facing Job Request stage.
 - **Chris:** When LPS and a nursery both edit the same availability answer, should the latest save simply win, should one side be protected, or should an LPS change be recorded as an override?
 - **Chris:** After the nursery completes an answer, should its values update the original job-request line automatically, or remain a separate supplier response for Chris to review?
 - **Bhoumik:** Once Chris confirms the meaning, decide whether the existing activity timestamps can truthfully support it or whether the workflow must retain a dedicated availability-update event/time and conflict/override provenance.

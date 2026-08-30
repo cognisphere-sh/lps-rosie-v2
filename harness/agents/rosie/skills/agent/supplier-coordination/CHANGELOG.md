@@ -1,5 +1,20 @@
 # supplier-coordination — changelog
 
+## 1.10.0
+
+2026-08-29 (Bhoumik) — new **§3.6: the supplier answers a request in the
+chat**. A portal message that states availability — text, a photo of a tag or
+a list, a voice note — is an answer, and rosie is the pen: resolve the request
+from `Page` (the request's own path) or by matching the lines of their open
+requests, read what they sent, write `status` / `available_quantity` /
+`unit_price` / `notes` on the lines they named — only what they said, never a
+guess or a prefill confirmed by silence — move the request to `processing`,
+confirm `--portal` in their terms, mark `submitted` when they say they're done
+or the last line is answered, then run §3's relay to the jr thread (no
+`availability_submitted` event fires for her own write). The §2 rule that the
+answer columns are never *seeded* is unchanged — this writes them from the
+supplier's own words, on the supplier's own thread.
+
 ## 1.9.0
 
 2026-08-28 (Chris approval relayed by Lily) — §4 now gives the approved

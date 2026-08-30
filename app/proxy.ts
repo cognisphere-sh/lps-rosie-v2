@@ -22,6 +22,7 @@ import { resolveUser } from '@/lib/session'
 // supplier id in the URL — LPS Partners only, customer details only
 // where `share_customer_details` says so. Revisit this line when auth lands.
 const PUBLIC_PREFIXES = ['/login', '/api/auth', '/partner', '/api/partner']
+const PUBLIC_BUILD_HEALTH = '/api/health/build'
 
 // A published artifact is meant to be readable by anyone with the link — that
 // is the whole point of its public flag — so this one path shape is exempt from
@@ -33,6 +34,7 @@ export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   if (
+    pathname === PUBLIC_BUILD_HEALTH ||
     PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     PUBLIC_ARTIFACT.test(pathname)
   ) {
