@@ -25,6 +25,8 @@ export interface ColumnDef {
   key: string
   label: string
   width: number
+  /** Smallest usable width when content must not paint into an adjacent cell. */
+  minWidth?: number
   kind?: CellKind
   filter?: FilterKind
   /** Optional numeric row value used to filter/sort a human-readable column. */
@@ -57,7 +59,10 @@ export const AVAILABILITY_SOURCE_TYPES = ['Email', 'Hosted']
 
 export const SUPPLIER_COLS: ColumnDef[] = [
   { key: 'name', label: 'Name', width: 210, kind: 'link' },
-  { key: 'category', label: 'Category', width: 128, kind: 'badge', filter: 'multiselect' },
+  {
+    key: 'category', label: 'Category', width: 160, minWidth: 160,
+    kind: 'badge', filter: 'multiselect',
+  },
   { key: 'state', label: 'State', width: 96, edit: true, filter: 'multiselect', writes: { table: 'suppliers', column: 'state' } },
   { key: 'inventory_sources', label: 'Inventory sources', width: 210, kind: 'list', filter: 'none' },
   { key: 'item_count', label: '# Items', width: 84, align: 'right', filter: 'range' },

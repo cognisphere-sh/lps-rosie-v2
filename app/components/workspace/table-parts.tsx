@@ -625,7 +625,7 @@ export function Cell({
 
   if (col.kind === 'badge') {
     return text ? (
-      <span className="px-1.5" title={text}>
+      <span className="inline-flex max-w-full overflow-hidden px-1.5" title={text}>
         <Badge variant={badgeFor(text) as 'default' | 'secondary' | 'outline'}>{text}</Badge>
       </span>
     ) : (

@@ -215,6 +215,23 @@ here).
 
 ### Fixed
 
+- **The Suppliers Category badge no longer runs into State**
+  (`app/lib/{columns,table-config}.ts`,
+  `app/components/workspace/table-parts.tsx`). The Category column now has a
+  160px default and minimum, enough for the normal one-line **Wholesale
+  Supplier** badge and its padding while short badges remain content-sized.
+  One saved-layout migration raises only an undersized Category width; wider
+  widths, column order/visibility and every unrelated width remain as saved,
+  and later resize attempts respect the same floor. Stored layouts are now
+  normalized safely on every load even after migration markers exist, so
+  malformed width/order/hidden shapes cannot crash rendering while valid
+  unrelated entries survive. The render-time floor applies only to columns
+  that explicitly declare one; legacy sub-64px widths in other columns still
+  render unchanged (64px remains only their interactive resize floor). The
+  badge wrapper also contains unexpected oversized content inside its cell
+  instead of painting over State, without changing the table's horizontal
+  overflow behavior.
+
 - **A sign-in poisoned the shared Supabase client, and RLS then refused
   everything it touched** (`app/lib/auth.ts`). `verifyCredentials` called
   `signInWithPassword` on the module-singleton `supabase` client; supabase-js

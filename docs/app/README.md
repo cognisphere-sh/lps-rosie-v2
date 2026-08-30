@@ -1316,7 +1316,19 @@ change on Plant search also applies to the profile's Inventory tab, exactly as
 in the design. Caliper is now visible in the default layout. A one-time
 `lps.tables.v1.cal-visible` migration removes only `cal` from a saved
 `plants.hidden` list, preserving every other saved order, width and visibility
-preference.
+preference. The Suppliers **Category** column defaults to and cannot be resized
+below 160px, which accommodates the normal one-line **Wholesale Supplier**
+badge plus its cell padding and a gap before State. A one-time
+`lps.tables.v1.suppliers-category-min-width-v1` migration raises only an
+undersized saved Category width; wider saved widths, order, visibility and every
+other width remain untouched. Stored table configs are normalized on every
+load, independently of migration markers: malformed order/hidden/width shapes
+fall back safely while valid entries survive. The 160px render-time floor
+applies only to this explicitly constrained column; legacy saved widths below
+the interactive 64px resize floor remain unchanged for every other column.
+Badge wrappers contain unexpected oversized content within their own cell,
+while the badges themselves remain content-sized and the table keeps its
+existing horizontal overflow.
 
 `FilterControl` renders one of four widgets per column (`text`, `range`,
 `multiselect`, `none`). The multiselect dropdown opens with a **search box**

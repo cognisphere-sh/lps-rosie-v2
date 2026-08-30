@@ -20,6 +20,11 @@ export type ColFilters = Record<string, ColFilter>
 const STORAGE_KEY = 'lps.tables.v1'
 const CAL_VISIBLE_MIGRATION_KEY = 'lps.tables.v1.cal-visible'
 export const SUPPLIER_DEFAULT_MIGRATION_KEY = 'lps.tables.v1.suppliers-seven-column-default-v1'
+export const SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY = 'lps.tables.v1.suppliers-category-min-width-v1'
+const MIN_COLUMN_WIDTH = 64
+const SUPPLIER_CATEGORY_MIN_WIDTH = TABLE_COLS.suppliers.find(
+  (column) => column.key === 'category',
+)?.minWidth ?? MIN_COLUMN_WIDTH
 const FILTER_VALUE_KEYS = new Map(
   Object.values(TABLE_COLS)
     .flat()
@@ -33,6 +38,50 @@ const MULTI_VALUE_KEYS = new Set(
 
 function defaults(table: TableId): TableConfig {
   return { order: TABLE_COLS[table].map((c) => c.key), hidden: [...DEFAULT_HIDDEN[table]], widths: {} }
+}
+
+export function resolvedColumnWidth(config: TableConfig, column: ColumnDef): number {
+  const saved = config.widths[column.key]
+  const width = typeof saved === 'number' && Number.isFinite(saved) ? saved : column.width
+  return column.minWidth == null ? width : Math.max(column.minWidth, width)
+}
+
+export function normalizeStoredTableConfig(table: TableId, stored: unknown): TableConfig {
+  const fallback = defaults(table)
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return fallback
+  const candidate = stored as Partial<TableConfig>
+  const order = Array.isArray(candidate.order)
+    ? candidate.order.filter((key): key is string => typeof key === 'string')
+    : fallback.order
+  const hidden = Array.isArray(candidate.hidden)
+    ? candidate.hidden.filter((key): key is string => typeof key === 'string')
+    : fallback.hidden
+  const widths = candidate.widths && typeof candidate.widths === 'object' && !Array.isArray(candidate.widths)
+    ? Object.fromEntries(
+        Object.entries(candidate.widths).filter(
+          (entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+        ),
+      )
+    : {}
+  return { order, hidden, widths }
+}
+
+export function normalizeStoredTableLayouts(
+  layouts: unknown,
+): Partial<Record<TableId, TableConfig>> {
+  if (!layouts || typeof layouts !== 'object' || Array.isArray(layouts)) return {}
+  const current = layouts as Record<string, unknown>
+  const normalized: Record<string, unknown> = { ...current }
+  for (const table of Object.keys(TABLE_COLS) as TableId[]) {
+    if (Object.prototype.hasOwnProperty.call(current, table)) {
+      normalized[table] = normalizeStoredTableConfig(table, current[table])
+    }
+  }
+  return normalized as Partial<Record<TableId, TableConfig>>
+}
+
+export function resizedColumnWidth(column: ColumnDef | undefined, width: number): number {
+  return Math.max(column?.minWidth ?? MIN_COLUMN_WIDTH, Math.round(width))
 }
 
 /**
@@ -120,32 +169,60 @@ export function migrateStoredSupplierDefault(
   }
 }
 
+export function migrateStoredSupplierCategoryWidth(
+  layouts: Partial<Record<TableId, TableConfig>>,
+): Partial<Record<TableId, TableConfig>> {
+  const supplier = layouts.suppliers
+  if (!supplier || !supplier.widths || typeof supplier.widths !== 'object' || Array.isArray(supplier.widths)) {
+    return layouts
+  }
+  const category = supplier.widths.category
+  if (typeof category !== 'number' || !Number.isFinite(category) || category >= SUPPLIER_CATEGORY_MIN_WIDTH) {
+    return layouts
+  }
+  return {
+    ...layouts,
+    suppliers: {
+      ...supplier,
+      widths: { ...supplier.widths, category: SUPPLIER_CATEGORY_MIN_WIDTH },
+    },
+  }
+}
+
 export function applyStoredLayoutMigrations(
   layouts: Partial<Record<TableId, TableConfig>>,
-  pending: { caliper: boolean; suppliers: boolean },
+  pending: { caliper: boolean; suppliers: boolean; supplierCategoryWidth?: boolean },
 ): Partial<Record<TableId, TableConfig>> {
   let next = layouts
   if (pending.caliper) next = showCaliperInStoredPlants(next)
   if (pending.suppliers) next = migrateStoredSupplierDefault(next)
+  if (pending.supplierCategoryWidth) next = migrateStoredSupplierCategoryWidth(next)
   return next
 }
 
 function read(): Partial<Record<TableId, TableConfig>> {
   if (typeof window === 'undefined') return {}
   try {
-    let layouts = parseStoredTableLayouts(window.localStorage.getItem(STORAGE_KEY))
+    let layouts = normalizeStoredTableLayouts(
+      parseStoredTableLayouts(window.localStorage.getItem(STORAGE_KEY)),
+    )
     const migrateCaliper = !window.localStorage.getItem(CAL_VISIBLE_MIGRATION_KEY)
     const migrateSuppliers = !window.localStorage.getItem(SUPPLIER_DEFAULT_MIGRATION_KEY)
+    const migrateSupplierCategoryWidth = !window.localStorage.getItem(SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY)
     layouts = applyStoredLayoutMigrations(layouts, {
       caliper: migrateCaliper,
       suppliers: migrateSuppliers,
+      supplierCategoryWidth: migrateSupplierCategoryWidth,
     })
-    if (migrateCaliper || migrateSuppliers) {
+    if (migrateCaliper || migrateSuppliers || migrateSupplierCategoryWidth) {
       // Write the migrated payload before its markers. If storage fails, the
       // migration remains eligible to retry instead of marking stale data done.
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts))
       if (migrateCaliper) window.localStorage.setItem(CAL_VISIBLE_MIGRATION_KEY, '1')
       if (migrateSuppliers) window.localStorage.setItem(SUPPLIER_DEFAULT_MIGRATION_KEY, '1')
+      if (migrateSupplierCategoryWidth) {
+        window.localStorage.setItem(SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY, '1')
+      }
     }
     return layouts
   } catch {
@@ -169,17 +246,19 @@ export function useTableConfig(table: TableId) {
   // markup on the first pass and hydration doesn't mismatch.
   useEffect(() => {
     hydrated.current = false
-    const stored = read()[table]
-    setConfig(stored ? { ...defaults(table), ...stored } : defaults(table))
-    hydrated.current = true
+    setConfig(normalizeStoredTableConfig(table, read()[table]))
   }, [table])
 
   // Persist as a side effect of the config changing, not inside the state
-  // updater. The `hydrated` guard matters: without it the first render would
-  // write the defaults straight over whatever was stored, and no layout would
-  // ever survive a reload.
+  // updater. The first pass only arms the guard: hydration's state update then
+  // rerenders with the normalized stored config, which is the first value safe
+  // to write back. Otherwise the render defaults can overwrite storage before
+  // hydration has applied it.
   useEffect(() => {
-    if (!hydrated.current) return
+    if (!hydrated.current) {
+      hydrated.current = true
+      return
+    }
     try {
       const all = read()
       all[table] = config
@@ -203,7 +282,7 @@ export function useTableConfig(table: TableId) {
     .map((k) => cols.find((c) => c.key === k))
     .filter((c): c is ColumnDef => !!c && !config.hidden.includes(c.key))
 
-  const widthOf = (c: ColumnDef) => config.widths[c.key] ?? c.width
+  const widthOf = (c: ColumnDef) => resolvedColumnWidth(config, c)
 
   const toggleColumn = (key: string) =>
     save({
@@ -214,8 +293,10 @@ export function useTableConfig(table: TableId) {
 
   const moveColumn = (fromKey: string, toKey: string) => save({ order: reorder(orderedKeys, fromKey, toKey) })
 
-  const resizeColumn = (key: string, width: number) =>
-    save({ widths: { ...config.widths, [key]: Math.max(64, Math.round(width)) } })
+  const resizeColumn = (key: string, width: number) => {
+    const column = cols.find((candidate) => candidate.key === key)
+    save({ widths: { ...config.widths, [key]: resizedColumnWidth(column, width) } })
+  }
 
   // none → asc → desc → none
   const cycleSort = (key: string) =>
