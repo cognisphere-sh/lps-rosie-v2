@@ -15,6 +15,55 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-30
+
+### Removed
+
+- **The immutable app build/deploy pipeline is gone**, reverting `scripts/`
+  to its pre-pipeline state. `scripts/{app-build,app-deploy,app-deploy-core,
+  app-runtime,app-runtime-launcher,install-app-pipeline}.sh`,
+  `app-pipeline.py`, `verify-runtime-env.mjs` and the pipeline tests under
+  `scripts/tests/` are deleted; `build.sh`, `server.sh` and `setup-server.sh`
+  are back to the plain `pnpm build` / systemd `pnpm start` flow. With them go
+  the hooks that only existed for the pipeline: `app/package.json`'s `build`/
+  `start` are `next build` / `next start` again and `qa` is dropped,
+  `next.config.ts` no longer requires the snapshot manifest/lock or emits a
+  standalone build, and the `/api/health/build` release-identity route (plus
+  its proxy exemption and test) is removed. `sudo ./scripts/server.sh restart`
+  had broken because `pnpm build` called the deleted `app-build.sh`.
+
+### Fixed
+
+- **`app-pipeline.py exec-as` sets `HOME`/`USER`/`LOGNAME` to the build
+  user's.** It dropped uid but kept root's environment, so every pnpm it ran
+  for setup and deploy — the frozen harness install, the pipeline install's
+  `app-build.sh check`, the deploy's candidate build — hit corepack trying to
+  write `/root/.cache/node/corepack` as that user (`EACCES`), and
+  `setup-server.sh` could not complete on a host with an app.
+- **`setup-server.sh` can be re-run after a failed first install.** Its opening
+  guard keyed "already installed" on `/etc/<name>` existing, but `server.sh
+  secrets` creates that directory (for `app.env`) before the pipeline is
+  installed, so a first install that failed after that step could never be
+  retried; it now keys on `app-pipeline.json` itself.
+
+### Changed
+
+- **Active job detail carries the request's links** (`app/jobs/page.tsx`).
+  The selected job on `/jobs` now shows the same customer / Chat / ship-to /
+  supplier-pill strip as the `/requests` card — every availability request
+  (`AR-<id>`, green when submitted) and the supplier and customer conversations
+  — between the job head and its body, and patches a drawer-written AR status
+  into the open job. The strip moved out of `requests/page.tsx` into the shared
+  `RequestLinks` in `components/workspace/job-request.tsx`.
+- **Supplier portal home redrawn to the Figma comp** (`app/partner/[id]/page.tsx`).
+  The status tabs are centred in one card-toned strip (selected tab boxed,
+  counts in blue/orange accents; `submitted` is labelled *Completed*); each
+  request is one row — status pill, name over our note to the supplier
+  (`lpsNotes`), subtotal — with a blue edge on New; the By request / By item
+  switch is a floating icon toggle at the foot of the list. The stats line, the
+  requested date and the card's count strip are gone from the list. `PartnerRequestCard` is now used
+  only by `/partner/:id/closed`.
+
 ## 2026-08-29
 
 ### Added
@@ -52,7 +101,7 @@ here).
 
 ### Changed
 
-- **App builds and deployments no longer mutate or depend on live source, dependencies or Next output.** Validated root metadata gives supported app operations one canonical flock; linked pre-setup worktrees share `git-common-dir`. Immutable snapshots produce self-contained Next standalone runtimes with no env files/external links and a documented narrow resolved-value scan for conventional nonpublic secret names. Production systemd uses a root launcher, `/var/lib` pointers and current root `EnvironmentFile`—never worktree/package-manager/app-user dependencies—so live `.next` destruction cannot affect it. Fsynced journals and durable healthy/actual-previous pointers recover failure/SIGKILL without promoting candidates; reference-aware retention and exact public BUILD_ID/chunk checks protect rollback/identity. Setup adds a separately locked frozen live-harness install and transactional app metadata/launcher/unit installation. Fixtures, root integration tests, an empty-node_modules harness install/binary check and real isolated nginx QA cover these components; they do not claim to execute the host apt/cert workflow. (`app/{package.json,next.config.ts,proxy.ts,app/api/health/build}`, `scripts/{app-pipeline.py,app-build,app-deploy,app-runtime-launcher,install-app-pipeline,verify-runtime-env,build,server,setup-server}.sh`, `scripts/tests/{app-build-pipeline,setup-empty-host,setup-pipeline-install}.test.sh`)
+- **App builds and deployments no longer mutate or depend on live source, dependencies or Next output.** No-follow root metadata parents and one validated flock coordinate supported operations; linked pre-setup worktrees share `git-common-dir`. Immutable snapshots produce standalone runtimes with no env files/external links. Actual `@next/env` resolution is stored outside release bytes per release, narrowly scanned for exact/underscore-delimited conventional secret names, and injected by the stable launcher so normal start and rollback use their own build-time values—there is no dotenv copy or systemd `EnvironmentFile`. QA owns a dedicated server process group with bounded TERM/KILL/reap cleanup. Deployment fsyncs an early recovery journal, completed release/env trees, rename parents and pointer transitions before promotion; normal failures, abandoned pre-service artifacts and SIGKILL recover without promoting candidates. Setup uses a separately locked frozen harness install plus a fsynced transaction marker that records every directory, backup, temp and enable-link predecessor through prepare/commit rollback boundaries. Automated fixtures cover all prepare/deploy pre-service ERR/TERM/SIGKILL boundaries, fsync ordering/failure, metadata parent/race rejection and cleanup failure; root integration and empty-node_modules CLI checks run independently. `app-real-qa-signal.test.sh` runs a real standalone candidate through actual temporary nginx when available (explicit SKIP otherwise), checking public exact BUILD_ID, protected non-health behavior, byte-identical chunk, secret-free logs and process/listener/snapshot cleanup. The suite does not claim to execute host apt/cert provisioning. (`app/{package.json,next.config.ts,proxy.ts,app/api/health/build}`, `scripts/{app-pipeline.py,app-build,app-deploy,app-deploy-core,app-runtime-launcher,install-app-pipeline,verify-runtime-env,build,server,setup-server}.sh`, `scripts/tests/{app-build-pipeline,app-real-qa-signal,setup-empty-host,setup-pipeline-install}.test.sh`)
 - **Desktop account actions now live in one Account disclosure.** The rail no longer gives Know your Agents and the temporary Supplier view standalone rows; both sit above Log out with the signed-in identity, while Settings, theme and Install/Reload keep their order and mobile More stays unchanged. The visibly labelled 44px trigger and action rows expose current state only while open, preserve lazy supplier loading and public new-tab launch, distinguish request errors from an empty partner list with Retry, close nested state safely across dismissal and breakpoint changes, and restore trigger focus on Escape. Rendered interaction and source-contract tests cover dismissal, routes, active-descendant semantics and responsive duplication. (`app/components/workspace/shell.tsx`, `app/lib/account-rail-actions.test.tsx`)
 - **Suppliers now has one compact filter surface.** The one-line desktop toolbar keeps broad Search, a labelled 44px Filters button, one bounded active-filter summary, the compact `50/1336 Companies` count, pager and Notifications. Filters opens an anchored desktop popover or a mobile sheet for strict Name contains, searchable City/Type/State multiselects and exclusive LPS Partner; Clear all clears broad and advanced criteria. Table headers keep labels, sorting, resizing, reordering and the column picker but no longer duplicate filter widgets. The mobile sheet is portalled with inert/hidden background isolation, body lock and a real focus trap; all close paths restore the trigger. Existing valid server query, grouping, paging and 300ms search/filter semantics are unchanged, while malformed NUL parameter names/values or non-boolean partner filters now return fixed, non-reflecting JSON `400` errors instead of database `500`. Rendered JSDOM interaction tests cover focus, dismissal, state, Clear all and paging. (`app/app/{suppliers/page.tsx,api/suppliers}`,  `app/components/workspace/{supplier-filters,table-parts}.tsx`, `app/lib/supplier-{filters,filter-consolidation.test,filter-interactions.test,request-validation}.ts`, `app/package.json`)
 - **Shared job line tables now lead with Demand, Avail, Size, Plant Name and Status.** The reordered header, row fields and width tracks apply identically in the active `/jobs` pane, `/requests` management cards and customer request cards, while retaining optional selection/deletion edges, the existing trailing price/total/note order, field semantics and horizontal overflow. Customer request cards now use an honest unfiltered empty-state message rather than referring to filters. (`app/components/workspace/job-request.tsx`, `app/lib/job-request-line-table.test.ts`)

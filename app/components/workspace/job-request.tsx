@@ -6,13 +6,22 @@
 // nothing here knows which page it is drawn on.
 
 import { useEffect, useLayoutEffect, useState } from 'react'
+import { MessagesSquare } from 'lucide-react'
 
 import {
   EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
-import { CheckIcon, ChevronDown, ChevronRight, TrashIcon } from '@/components/workspace/icons'
+import {
+  CheckIcon, ChevronDown, ChevronRight, MapPinIcon, SuppliersIcon, TrashIcon,
+} from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
+import {
+  availabilityRequestLinkLabel,
+  isSubmittedARStatus,
+} from '@/lib/availability'
+import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
+import { customerThreadId } from '@/lib/customers'
 import { money, num } from '@/lib/format'
 import {
   ITEM_STATUS_OPTIONS,
@@ -569,6 +578,179 @@ function ItemRow({
 }
 
 /** One labelled, editable field in the request detail grid. */
+/**
+ * One supplier's links, as a segmented pill: who they are, then what they open.
+ *
+ * A job can have several suppliers and several availability requests with each
+ * of them, so the supplier — not the request — is the unit: the name is written
+ * once, carries the app's own supplier mark, and every request the job has with
+ * them plus their conversation hang off it as segments. A flat run of `AR-<id>`
+ * chips is the same links in an order nobody can scan.
+ */
+function SupplierPill({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex flex-none items-stretch overflow-hidden rounded-full border border-lps-edge bg-card text-[10.5px] font-semibold">
+      <span className="flex items-center gap-1 px-2 py-0.5 text-foreground">
+        <SuppliersIcon size={11} className="flex-none text-muted-foreground" />
+        <span className="max-w-[11rem] truncate">{name}</span>
+      </span>
+      {children}
+    </span>
+  )
+}
+
+/** One thing a pill opens: an availability request, or a conversation. */
+function LinkSegment({
+  title,
+  onOpen,
+  className,
+  children,
+}: {
+  title: string
+  onOpen: () => void
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen()
+      }}
+      title={title}
+      aria-label={title}
+      className={cn(
+        'flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 hover:bg-lps-tint',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * Who the job is for on the left, everything it opens on the right: the
+ * customer and their conversation, where it ships, and every engaged supplier
+ * with their availability requests and conversation. The sourcing notes used
+ * to carry these links, but a note is free text: the links belong to the job,
+ * not to a sentence about it.
+ *
+ * `suppliersHidden` folds the supplier strip away on small screens — on a
+ * collapsed list card there is no empty half to ride, and who a job's
+ * suppliers are is what you open the card to find out.
+ */
+export function RequestLinks({
+  request,
+  suppliersHidden = false,
+  className,
+}: {
+  request: JobRequestRow
+  suppliersHidden?: boolean
+  className?: string
+}) {
+  const customerName = request.customer?.company || request.customer?.name
+  const contact = request.customer?.company && request.customer.name ? request.customer.name : null
+  // Only the stored canonical customer thread is safe to open. Rosie owns
+  // first-contact minting and collision handling; this strip never guesses.
+  const customerThread = request.customer ? customerThreadId(request.customer) : null
+
+  // Only where it is going; the street lives in the details drawer.
+  const locality = [
+    request.shipping.city ?? request.billing.city,
+    request.shipping.state ?? request.billing.state,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  // The engaged suppliers, most recently engaged first — each one pill, so a
+  // job with several suppliers and several requests each still reads as a list
+  // of suppliers rather than a run of loose AR numbers.
+  const supplierPills = [...request.supplierLinks].sort(
+    (a, b) => (b.availabilityRequests[0]?.id ?? 0) - (a.availabilityRequests[0]?.id ?? 0),
+  )
+
+  return (
+    <div className={cn('flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px]', className)}>
+      <span className="font-semibold text-foreground">
+        {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
+      </span>
+      {contact && <span className="text-muted-foreground">· {contact}</span>}
+      {/* The customer's conversation, on the customer's own name — the one
+          place it cannot be mistaken for a supplier's. */}
+      {customerThread && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            openChat({
+              agentId: 'rosie',
+              threadId: customerThread,
+              label: customerName ?? customerThread,
+            })
+          }}
+          title={`Open the customer conversation with ${customerName ?? customerThread}`}
+          aria-label={`Open the customer conversation with ${customerName ?? customerThread}`}
+          className="flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary"
+        >
+          <MessagesSquare size={11} /> Chat
+        </button>
+      )}
+      {locality && (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <MapPinIcon size={11} /> {locality}
+        </span>
+      )}
+      {supplierPills.length > 0 && (
+        <div
+          className={cn(
+            'flex w-full flex-wrap items-center gap-1 md:ml-auto md:w-auto md:justify-end',
+            suppliersHidden && 'hidden md:flex',
+          )}
+        >
+          {supplierPills.map((l) => (
+            <SupplierPill key={l.supplierId} name={l.name}>
+              {l.availabilityRequests.map((ar) => (
+                <LinkSegment
+                  key={ar.id}
+                  title={availabilityRequestLinkLabel(ar.id, l.name, ar.status)}
+                  onOpen={() => openAvailabilityRequest(ar.id)}
+                  className={cn(
+                    'gap-1',
+                    isSubmittedARStatus(ar.status)
+                      ? 'text-[var(--lps-tone-green-dot)]'
+                      : 'text-primary',
+                  )}
+                >
+                  AR-{ar.id}
+                  {isSubmittedARStatus(ar.status) && (
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 flex-none rounded-full bg-[var(--lps-tone-green-dot)]"
+                    />
+                  )}
+                </LinkSegment>
+              ))}
+              {l.rosieThreadId && (
+                <LinkSegment
+                  title={`Open the supplier conversation with ${l.name}`}
+                  onOpen={() =>
+                    openChat({ agentId: 'rosie', threadId: l.rosieThreadId!, label: l.name })
+                  }
+                  className="text-muted-foreground hover:text-primary"
+                >
+                  <MessagesSquare size={11} />
+                </LinkSegment>
+              )}
+            </SupplierPill>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DetailField({
   label,
   ...props

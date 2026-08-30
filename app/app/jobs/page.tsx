@@ -6,9 +6,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, MessageSquare, RefreshCw } from 'lucide-react'
 
-import { RequestBody, StatusPill } from '@/components/workspace/job-request'
+import { RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
 import { JobsTopActions, JobsViewSwitch, Shell } from '@/components/workspace/shell'
-import { openChat } from '@/lib/chat-bus'
+import { withAvailabilityRequestStatus } from '@/lib/availability'
+import { onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
 import { subscribeEvents } from '@/lib/chat-events'
 import {
   canonicalJobThread, hasFocusedIntakeEvidence, jobInboxBackAction, jobInboxEventAction,
@@ -217,6 +218,18 @@ function JobsWorkspace() {
     if (!selectedInList || selection.kind !== 'valid') { setDetail(null); setDetailError(''); return }
     void loadDetail(selection.id)
   }, [loadDetail, selectedInList, selection])
+  // The drawer has already re-read the one AR it wrote; patch that status
+  // into the open job instead of refetching it.
+  useEffect(
+    () => onAvailabilityRequestStatusChanged(({ arId, status }) => {
+      setDetail((current) => {
+        if (!current) return current
+        const supplierLinks = withAvailabilityRequestStatus(current.supplierLinks, arId, status)
+        return supplierLinks === current.supplierLinks ? current : { ...current, supplierLinks }
+      })
+    }),
+    [],
+  )
 
   useEffect(() => {
     const previous = previousSelection.current
@@ -355,6 +368,7 @@ function JobsWorkspace() {
               <StatusPill table="job_requests" id={detail.id} column="status" value={detail.status} label={requestStatusLabel(detail.status)} tone={requestStatusTone(detail.status)} options={REQUEST_STATUS_OPTIONS} onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
               <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(detail.id), label: detail.name || requestRef(detail.id) })} className="flex min-h-11 items-center gap-2 rounded-full px-3 text-[12px] font-semibold text-primary"><Image src="/rosie.png" alt="" width={22} height={22} className="rounded-full"/>Chat with Rosie<MessageSquare size={14}/></button>
             </div>
+            <RequestLinks request={detail} className="border-b border-border px-3 py-2" />
             <RequestBody request={detail} version={version} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen((v) => !v)} emptyItemsCopy="No active line items have been saved for this job yet." onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
           </div>}
           {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">{requestRef(selection.id)} intake is pending</h2><p className="text-sm text-muted-foreground">Nothing is in the active job record yet. The reserved identity is kept; exiting never deletes it.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace(`/jobs?jr=${selection.id}&intake=1`)}>Resume intake</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/jobs') ? marker.returnUrl : '/jobs') }}>Active jobs</button></div></div>}

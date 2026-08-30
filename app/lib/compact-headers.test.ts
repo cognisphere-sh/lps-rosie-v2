@@ -55,10 +55,14 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
     assert.match(route, /rightActions/, path)
   }
 
-  const portal = source('app/partner/[id]/page.tsx')
-  assert.match(portal, /hideHeaderOnDesktop/)
-  assert.match(portal, /toolbar=\{\(rightActions\) =>/)
-  assert.match(portal, /\{rightActions\}/)
+  // The portal's request page joined the compact set with the 2026-08-30
+  // redesign: its header card's strip carries the name.
+  for (const path of ['app/partner/[id]/page.tsx', 'app/partner/[id]/requests/[arId]/page.tsx']) {
+    const portal = source(path)
+    assert.match(portal, /hideHeaderOnDesktop/, path)
+    assert.match(portal, /toolbar=\{\(rightActions\) =>/, path)
+    assert.match(portal, /\{rightActions\}/, path)
+  }
 
   for (const path of [
     'app/agents/page.tsx',
@@ -67,7 +71,6 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
     'app/partner/[id]/orders/page.tsx',
     'app/suppliers/[id]/page.tsx',
     'app/customers/[id]/page.tsx',
-    'app/partner/[id]/requests/[arId]/page.tsx',
   ]) {
     assert.doesNotMatch(source(path), /hideHeaderOnDesktop/, path)
   }
@@ -138,7 +141,7 @@ test('header metadata is relocated into existing toolbars or content', () => {
   for (const route of routeSources) assert.doesNotMatch(route, /subtitle=/)
   assert.match(source('app/photos/page.tsx'), /Ranked by match.*Newest first/)
   assert.match(source('app/requests/page.tsx'), /summary=\{`\$\{total\}.*\$\{summary\.items\} line/)
-  assert.match(source('app/partner/[id]/page.tsx'), /aria-live="polite"/)
+  assert.match(source('app/partner/[id]/page.tsx'), /counts\[t\.id\]/)
   assert.match(source('app/partner/[id]/closed/page.tsx'), /closed\.length.*request/)
   assert.match(source('app/partner/[id]/requests/[arId]/page.tsx'), /request\.items\.length.*pending/)
 })

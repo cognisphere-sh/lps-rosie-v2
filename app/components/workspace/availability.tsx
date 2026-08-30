@@ -20,6 +20,7 @@ import {
   arSubtotal,
   type ARItem,
 } from '@/lib/availability'
+import { ChevronDown } from '@/components/workspace/icons'
 import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
@@ -38,6 +39,17 @@ const GRID_MIN = 1070
 const LEAD_COLUMN = 'minmax(210px,1.3fr)'
 /** Its contribution to the scroll threshold: the track minimum plus its gap. */
 const LEAD_MIN = 218
+
+// The portal's request page (2026-08-30 design) draws the same table without
+// the Line total column and without the tone bar/tint per row: Need · Size ·
+// Plant · Status · Avail qty · Price · Nursery notes over plain hairlines.
+/** The portal design's tracks — the default's, less Line total. */
+const PORTAL_COLUMNS = '56px 90px minmax(220px,1.6fr) 150px 90px 100px minmax(200px,1fr)'
+const PORTAL_GRID_MIN = 960
+/** Which of the two drawings a table uses. */
+type LineTableDesign = 'default' | 'portal'
+/** The portal drawing's one accent: what still needs a price. */
+const PORTAL_PURPLE = '#8F7CF6'
 
 
 /**
@@ -141,22 +153,33 @@ function ResponseSelect({
   value,
   disabled,
   onChange,
+  portal = false,
 }: {
   value: string | null
   disabled: boolean
   onChange: (next: string) => void
+  /** The portal drawing: a neutral outlined pill, `··· Set Status ⌄`. */
+  portal?: boolean
 }) {
   const tone = arResponseTone(value)
   return (
     <span
       className={cn(
-        'relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold',
+        'relative inline-flex items-center gap-1.5',
+        portal
+          ? 'h-7 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground'
+          : 'rounded-full px-2.5 py-1 text-[11px] font-bold',
         !disabled && 'cursor-pointer',
       )}
-      style={toneStyle(tone)}
+      style={portal ? (value ? { color: toneDot(tone) } : undefined) : toneStyle(tone)}
     >
-      <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
-      {arResponseLabel(value)}
+      {portal ? (
+        !value && <span className="text-[10px] tracking-[.1em] text-lps-dim">···</span>
+      ) : (
+        <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
+      )}
+      {portal && !value ? 'Set Status' : arResponseLabel(value)}
+      {portal && <ChevronDown className="size-3 opacity-70" />}
       {!disabled && (
         <select
           aria-label="Line status"
@@ -175,13 +198,15 @@ function ResponseSelect({
 }
 
 /** One answer field — a small input that saves on blur, or plain text. */
-function AnswerCell({
+export function AnswerCell({
   value,
   editable,
   align = 'left',
   placeholder,
   display,
   onCommit,
+  plain = false,
+  attention = false,
 }: {
   value: string
   editable: boolean
@@ -190,6 +215,10 @@ function AnswerCell({
   /** How the committed value reads when not editable (money, thousands). */
   display: string
   onCommit: (next: string) => void
+  /** The portal drawing: no box — grey text on the row until focused. */
+  plain?: boolean
+  /** `plain` only: draw the accent box, for a cell that still needs filling. */
+  attention?: boolean
 }) {
   const [draft, setDraft] = useState(value)
   // The cell is uncontrolled while it is being typed in, but the committed
@@ -227,9 +256,14 @@ function AnswerCell({
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
       }}
       className={cn(
-        'h-7 w-full min-w-0 rounded-md border border-input bg-background px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
+        'h-7 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim',
+        plain
+          ? 'border bg-transparent text-muted-foreground focus-visible:text-foreground'
+          : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
+        plain && !attention && 'border-transparent',
         align === 'right' && 'text-right tabular-nums',
       )}
+      style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
     />
   )
 }
@@ -411,6 +445,54 @@ function StatusAnswerDialog({
   )
 }
 
+/**
+ * A line's status picker with its answer pop-up — how a status is set anywhere
+ * a line is answered (the request page, the By-item view). Picking a status
+ * opens the pop-up rather than saving bare. Two answers write straight through
+ * instead: clearing back to "Set status", and Available — "all of it, as
+ * asked" needs nothing typed, so the demand becomes the available quantity.
+ */
+export function LineStatusPicker({
+  item,
+  editable,
+  onPatch,
+}: {
+  item: ARItem
+  editable: boolean
+  onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
+}) {
+  /** Which status the pop-up is collecting details for; null = closed. */
+  const [answering, setAnswering] = useState<string | null>(null)
+  return (
+    <>
+      <ResponseSelect
+        value={item.status}
+        disabled={!editable}
+        onChange={(next) => {
+          if (!next) void onPatch?.(item.id, { status: '' })
+          else if (next === 'available') {
+            void onPatch?.(item.id, {
+              status: 'available',
+              available_quantity: item.quantity == null ? '' : String(item.quantity),
+            })
+          } else setAnswering(next)
+        }}
+      />
+      {answering && (
+        <StatusAnswerDialog
+          item={item}
+          status={answering}
+          onCancel={() => setAnswering(null)}
+          onSave={(changes) => {
+            setAnswering(null)
+            void onPatch?.(item.id, changes)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
 function LineRow({
   item,
   editable,
@@ -419,6 +501,7 @@ function LineRow({
   columns,
   minWidth,
   leading,
+  design = 'default',
 }: {
   item: ARItem
   editable: boolean
@@ -428,9 +511,9 @@ function LineRow({
   minWidth: number
   /** Rendered as the row's first cell when the table has a leading column. */
   leading?: ReactNode
+  design?: LineTableDesign
 }) {
-  /** Which status the pop-up is collecting details for; null = closed. */
-  const [answering, setAnswering] = useState<string | null>(null)
+  const portal = design === 'portal'
   const commit = (column: string) => (next: string) => {
     void onPatch?.(item.id, { [column]: next.trim() })
   }
@@ -441,14 +524,25 @@ function LineRow({
   return (
     <div
       className="grid items-center gap-x-2 border-b border-lps-hair last:border-b-0"
-      style={{
-        gridTemplateColumns: columns,
-        minWidth,
-        minHeight: 56,
-        padding: '7px 12px',
-        borderLeft: `3px solid ${toneDot(tone)}`,
-        background: toneTint(tone),
-      }}
+      style={
+        portal
+          ? {
+              gridTemplateColumns: columns,
+              minWidth,
+              minHeight: 72,
+              padding: '14px 16px',
+              // The comp's accent divider under a line that still needs a price.
+              ...(editable && item.unitPrice == null ? { borderBottomColor: PORTAL_PURPLE } : {}),
+            }
+          : {
+              gridTemplateColumns: columns,
+              minWidth,
+              minHeight: 56,
+              padding: '7px 12px',
+              borderLeft: `3px solid ${toneDot(tone)}`,
+              background: toneTint(tone),
+            }
+      }
     >
       {leading}
       <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
@@ -475,62 +569,42 @@ function LineRow({
         )}
       </span>
       <div className="px-1">
-        <ResponseSelect
-          value={item.status}
-          disabled={!editable}
-          // Picking a status opens the answer pop-up rather than saving bare.
-          // Two answers write straight through instead: clearing back to
-          // "Set status", and Available — "all of it, as asked" needs nothing
-          // typed, so the demand becomes the available quantity.
-          onChange={(next) => {
-            if (!next) void onPatch?.(item.id, { status: '' })
-            else if (next === 'available') {
-              void onPatch?.(item.id, {
-                status: 'available',
-                available_quantity: item.quantity == null ? '' : String(item.quantity),
-              })
-            } else setAnswering(next)
-          }}
-        />
+        <LineStatusPicker item={item} editable={editable} onPatch={onPatch} />
       </div>
-      {answering && (
-        <StatusAnswerDialog
-          item={item}
-          status={answering}
-          onCancel={() => setAnswering(null)}
-          onSave={(changes) => {
-            setAnswering(null)
-            void onPatch?.(item.id, changes)
-          }}
-        />
-      )}
       <AnswerCell
         value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
         editable={editable}
         align="right"
-        placeholder="Qty"
+        placeholder={portal ? '—' : 'Qty'}
         display={num(item.availableQuantity)}
         onCommit={commit('available_quantity')}
+        plain={portal}
       />
       <AnswerCell
         value={item.unitPrice == null ? '' : String(item.unitPrice)}
         editable={editable}
         align="right"
-        placeholder="$/unit"
+        placeholder={portal ? '-' : '$/unit'}
         display={money(item.unitPrice)}
         onCommit={commit('unit_price')}
+        plain={portal}
+        attention={portal && item.unitPrice == null}
       />
       {/* Quantity × price, never typed — an em dash until the answer carries
-          both, so a half-answered line doesn't read as costing nothing. */}
-      <span className="truncate px-1 text-right text-[12.5px] font-semibold tabular-nums text-foreground">
-        {money(arLineTotal(item)) || <span className="font-normal text-lps-dim">—</span>}
-      </span>
+          both, so a half-answered line doesn't read as costing nothing. The
+          portal drawing leaves it to the subtotal strip. */}
+      {!portal && (
+        <span className="truncate px-1 text-right text-[12.5px] font-semibold tabular-nums text-foreground">
+          {money(arLineTotal(item)) || <span className="font-normal text-lps-dim">—</span>}
+        </span>
+      )}
       <AnswerCell
         value={item.notes ?? ''}
         editable={editable}
-        placeholder="Substitute, ETA, conditions…"
+        placeholder={portal ? 'Add note…' : 'Substitute, ETA, conditions…'}
         display={item.notes ?? ''}
         onCommit={commit('notes')}
+        plain={portal}
       />
     </div>
   )
@@ -550,12 +624,15 @@ export function ARLineTable<T extends ARItem>({
   displayText,
   leadingHeader,
   renderLeading,
+  design = 'default',
 }: {
   items: T[]
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
+  /** `portal`: no Line total column, no tone bars, no subtotal footer. */
+  design?: LineTableDesign
   /**
    * One extra column in front of Need. Both parts go together — the header
    * names it, the renderer fills it per row. The By-item view uses it for the
@@ -565,14 +642,19 @@ export function ARLineTable<T extends ARItem>({
   renderLeading?: (item: T) => ReactNode
 }) {
   const subtotal = arSubtotal(items)
+  const portal = design === 'portal'
   const lead = leadingHeader != null && renderLeading != null
-  const columns = lead ? `${LEAD_COLUMN} ${LINE_COLUMNS}` : LINE_COLUMNS
-  const minWidth = lead ? GRID_MIN + LEAD_MIN : GRID_MIN
+  const base = portal ? PORTAL_COLUMNS : LINE_COLUMNS
+  const columns = lead ? `${LEAD_COLUMN} ${base}` : base
+  const minWidth = (portal ? PORTAL_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card">
       <div
-        className="grid items-center gap-x-2 border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-        style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
+        className={cn(
+          'grid items-center gap-x-2 border-b border-border text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground',
+          !portal && 'bg-lps-headrow',
+        )}
+        style={{ gridTemplateColumns: columns, minWidth, padding: portal ? '16px 16px 14px' : '8px 12px' }}
       >
         {lead && <span className="px-1">{leadingHeader}</span>}
         <span className="px-1">Need</span>
@@ -581,8 +663,8 @@ export function ARLineTable<T extends ARItem>({
         <span className="px-1">Status</span>
         <span className="px-1 text-right">Avail qty</span>
         <span className="px-1 text-right">Price</span>
-        <span className="px-1 text-right">Line total</span>
-        <span className="px-1">Notes</span>
+        {!portal && <span className="px-1 text-right">Line total</span>}
+        <span className="px-1">{portal ? 'Nursery notes' : 'Notes'}</span>
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">
@@ -599,9 +681,10 @@ export function ARLineTable<T extends ARItem>({
           columns={columns}
           minWidth={minWidth}
           leading={lead ? renderLeading(item) : undefined}
+          design={design}
         />
       ))}
-      {items.length > 0 && (
+      {items.length > 0 && !portal && (
         <div
           className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
           style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}

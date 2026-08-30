@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [ -f "$ROOT/config" ] && . "$ROOT/config"
-NAME="${APP_NAME:-$(basename "$ROOT")}"; [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || { echo "invalid APP_NAME" >&2; exit 1; }
+NAME="${APP_NAME:-$(basename "$ROOT")}"
 HARNESS_PORT="${HARNESS_PORT:-3142}"
 APP_PORT="${APP_PORT:-3000}"
 APP_USER="${APP_USER:-operator}"
@@ -35,11 +35,10 @@ $HAS_APP && UNITS+=("$NAME-app.service")
 # secret and the app's env), so generating it here is the only way a fresh
 # deploy comes up working. See scripts/../app/artifacts-routes/README.md.
 gen_secrets() {
-  local GEN_HAS_APP="${1:-$HAS_APP}"
   install -d "$ROOT/harness/.secrets"
   ROOT="$ROOT" APP_USER="$APP_USER" APP_PASS="${APP_PASS:-}" \
   DOMAIN="${DOMAIN:-}" APP_PORT="$APP_PORT" HARNESS_PORT="$HARNESS_PORT" \
-  HAS_APP="$GEN_HAS_APP" ARTIFACTS_AGENT="${ARTIFACTS_AGENT:-}" \
+  HAS_APP="$HAS_APP" ARTIFACTS_AGENT="${ARTIFACTS_AGENT:-}" \
   ARTIFACTS_SESSION_COOKIE="${ARTIFACTS_SESSION_COOKIE:-}" \
   node <<'NODE'
 const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
@@ -88,7 +87,7 @@ if (E.HAS_APP === "true") {
 }
 console.error(`>> operator login: ${user} / ${pass}`);
 NODE
-  if $GEN_HAS_APP; then
+  if $HAS_APP; then
     echo ">> wrote harness/.secrets/users.json + app/.env.local from config"
   else
     echo ">> wrote harness/.secrets/users.json from config"
@@ -97,20 +96,14 @@ NODE
   # deployment-owned scripts/app/secrets.sh (see scripts/app/README.md), never
   # in this file. Sourced, so it sees ROOT/NAME/HAS_APP + everything in config;
   # the resolved operator login is in harness/.secrets/users.json.
-  if $GEN_HAS_APP && [[ -f "$ROOT/scripts/app/secrets.sh" ]]; then
+  if [[ -f "$ROOT/scripts/app/secrets.sh" ]]; then
     echo ">> deployment hook: scripts/app/secrets.sh"
     source "$ROOT/scripts/app/secrets.sh"
   fi
-  if $GEN_HAS_APP && [[ $EUID -eq 0 ]]; then
-    local runtime_user="${RUN_USER:-${SUDO_USER:-}}"
-    install -d -m 0755 "/etc/$NAME"
-    install -o root -g root -m 0600 "$ROOT/app/.env.local" "/etc/$NAME/app.env"
-    [[ -z "$runtime_user" ]] || chown -R "$runtime_user:$(id -gn "$runtime_user")" "$ROOT/app/.env.local" "$ROOT/harness/.secrets"
-  fi
 }
 
-# `build` is an isolated verification. App start/restart is a transactional
-# candidate deployment; only the app unit is stopped during its short swap.
+# Build via scripts/build.sh. Under sudo, drop to the app user so node_modules
+# and .next don't end up root-owned (RUN_USER from config, else the sudo'er).
 do_build() {
   local BUILD_USER="${RUN_USER:-${SUDO_USER:-}}"
   if [[ $EUID -eq 0 && -n "$BUILD_USER" ]]; then
@@ -118,19 +111,6 @@ do_build() {
   else
     bash "$ROOT/scripts/build.sh"
   fi
-}
-do_deploy_app() {
-  [[ $EUID -eq 0 ]] || { echo "app deployment requires sudo" >&2; exit 1; }
-  bash "$ROOT/scripts/app-deploy.sh"
-}
-canonical_app_lock() {
-  local meta="/etc/$NAME/app-pipeline.json"
-  python3 "$ROOT/scripts/app-pipeline.py" validate-metadata "$meta" "$ROOT" "$NAME" >/dev/null
-  python3 "$ROOT/scripts/app-pipeline.py" json-get "$meta" lockPath
-}
-run_locked_app_action() {
-  local action="$1" lock; lock="$(canonical_app_lock)"
-  python3 "$ROOT/scripts/app-pipeline.py" with-lock "$lock" -- env LPS_PIPELINE_INNER=1 bash "$0" "__locked-$action"
 }
 
 # Resolve an optional {app|harness} target ($2) to the unit(s) to act on;
@@ -145,38 +125,17 @@ target_units() {
   esac
 }
 
-# `build` checks only. App start/restart deploys a candidate and rolls back on
-# failed start/health; a harness-only restart never builds or touches app/.next.
+# start/restart = secrets + build + systemctl, so `git pull && sudo
+# ./scripts/server.sh restart` is the whole deploy. `build` alone is for
+# building without touching the running services.
 case "${1:-}" in
-  __locked-deploy) gen_secrets; do_deploy_app; exit ;;
-  __locked-secrets) gen_secrets; exit ;;
-  __locked-stop) systemctl stop "$NAME-app.service"; exit ;;
-  secrets)
-    if $HAS_APP && [[ -f "/etc/$NAME/app-pipeline.json" ]]; then run_locked_app_action secrets; else gen_secrets; fi
-    ;;
+  secrets) gen_secrets ;;
   build)   do_build ;;
-  start|restart)
-    case "${2:-}" in
-      harness) gen_secrets false; systemctl restart "$NAME-harness.service" ;;
-      app) run_locked_app_action deploy ;;
-      "")
-        if $HAS_APP; then run_locked_app_action deploy; else gen_secrets; fi
-        systemctl restart "$NAME-harness.service"
-        ;;
-      *) target_units "${2:-}" >/dev/null ;;
-    esac
-    ;;
-  stop)
-    case "${2:-}" in
-      harness) systemctl stop "$NAME-harness.service" ;;
-      app) run_locked_app_action stop ;;
-      "")
-        if $HAS_APP; then run_locked_app_action stop; fi
-        systemctl stop "$NAME-harness.service"
-        ;;
-      *) target_units "${2:-}" >/dev/null ;;
-    esac
-    ;;
+  # systemctl restart also starts stopped units, so start == restart.
+  # ponytail: build is unconditional even for `restart harness` (rebuilds the
+  # app it won't bounce) — split the build if that ever gets slow enough to hurt.
+  start|restart) gen_secrets; do_build; units=$(target_units "${2:-}"); systemctl restart $units ;;
+  stop)    units=$(target_units "${2:-}"); systemctl stop $units ;;
   status)  systemctl status --no-pager "${UNITS[@]}" ;;
   logs)
     JARGS=(-u "$NAME-harness")
