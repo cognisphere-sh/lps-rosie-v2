@@ -14,12 +14,43 @@ import {
 // read lazily inside `session.ts`, so this is enough.
 process.env.APP_SESSION_SECRET = 'test-secret-value-not-a-real-one'
 
-const admin: SessionUser = { id: 'u-1', username: 'chris', role: 'admin', supplierId: null }
-const partner: SessionUser = { id: 'u-2', username: 'acosta', role: 'partner', supplierId: 42 }
+const admin: SessionUser = {
+  id: 'u-1',
+  username: 'chris',
+  role: 'admin',
+  supplierId: null,
+  mustChangePassword: false,
+}
+const partner: SessionUser = {
+  id: 'u-2',
+  username: 'acosta',
+  role: 'partner',
+  supplierId: 42,
+  mustChangePassword: false,
+}
 
 test('a minted session round-trips, admin and partner alike', async () => {
   assert.deepEqual(await readSession(await createSession(admin)), admin)
   assert.deepEqual(await readSession(await createSession(partner)), partner)
+})
+
+test('a session still on its generated password says so, and only then', async () => {
+  // The flag is what `proxy.ts` holds someone on `/change-password` with, and
+  // it is the only state there is — the gate runs on the edge and cannot ask
+  // the database. So it has to survive the round trip exactly.
+  const fresh: SessionUser = { ...partner, mustChangePassword: true }
+  assert.deepEqual(await readSession(await createSession(fresh)), fresh)
+
+  // Nothing owed writes no `p` key at all, which is also the shape of every
+  // cookie minted before the flag existed: those must read as "nothing owed"
+  // rather than signing an existing session out or trapping it on the form.
+  const token = await createSession(partner)
+  const payload = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString()) as Record<
+    string,
+    unknown
+  >
+  assert.equal('p' in payload, false, 'no `p` key when nothing is owed')
+  assert.deepEqual(await readSession(token), partner)
 })
 
 test('a tampered payload, signature or key is refused', async () => {

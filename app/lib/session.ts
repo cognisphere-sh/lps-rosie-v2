@@ -29,6 +29,13 @@ export interface SessionUser {
   role: Role
   /** Non-null exactly when `role === 'partner'`. */
   supplierId: number | null
+  /**
+   * The account is still on a password we generated for it, so the app lets it
+   * reach nothing but `/change-password` until it sets its own. Minted from
+   * `app_users.must_change_password`; cleared by re-minting the cookie once
+   * the password is changed, so it never outlives the condition.
+   */
+  mustChangePassword: boolean
 }
 
 /** What actually rides in the cookie — short keys, since it is signed whole. */
@@ -39,6 +46,8 @@ type Payload = {
   s: number | null
   /** Expiry, epoch ms. */
   e: number
+  /** Must change password. Absent means no — cookies minted before it existed. */
+  p?: boolean
 }
 
 const enc = new TextEncoder()
@@ -95,6 +104,7 @@ export async function createSession(user: SessionUser): Promise<string> {
     r: user.role,
     s: user.supplierId,
     e: Date.now() + TTL_MS,
+    ...(user.mustChangePassword ? { p: true } : {}),
   }
   const body = b64urlEncode(JSON.stringify(payload))
   const sig = await crypto.subtle.sign('HMAC', await signingKey(), enc.encode(body))
@@ -147,7 +157,13 @@ export async function readSession(token: string | undefined): Promise<SessionUse
   if (payload.r === 'partner' && supplierId === null) return null
   if (payload.r === 'admin' && supplierId !== null) return null
 
-  return { id: payload.i, username: payload.u, role: payload.r, supplierId }
+  return {
+    id: payload.i,
+    username: payload.u,
+    role: payload.r,
+    supplierId,
+    mustChangePassword: payload.p === true,
+  }
 }
 
 /** Pull `app_sid` out of a raw Cookie header. */

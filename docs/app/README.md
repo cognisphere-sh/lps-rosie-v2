@@ -262,7 +262,9 @@ in the desktop rail and through mobile More.
 | `/partner/:id` | client | **Supplier portal home** — the outward-facing app an LPS Partner uses (see *Supplier portal*). **One row per availability request, and the row is a link**: it opens the request's own page (`/partner/:id/requests/:arId`) rather than expanding in place, because answering a request is the work and a list is only how you pick one. **Four tabs and no filters** (2026-08-26): All · New · Processing · Completed (the `submitted` status, labelled as the design does), centred in one card-toned strip pinned under the header, each drawn label-over-count with the selected tab boxed and the count in the tab's accent — blue for New, orange for Completed, quiet for the rest. The tab *is* the selection — the search box, the job-status / item-status / customer chips, the date range, the sort and Expand all are all gone, and a supplier's list is short enough that they cost more than they found. **`closed` requests are not on this page at all** (2026-08-26), not even under All: closing is ours, and a closed request is finished work rather than a fourth thing to triage, so it has its own rail destination instead of a tab. **The row** (redrawn 2026-08-30 to the Figma comp): a fixed-width status pill at the left (blue and outlined for New, quiet with a chevron otherwise), the job name (falling back to *Availability request*; supplier-facing request IDs are deliberately omitted) over **our job-level note to the supplier** (`lpsNotes`, one truncated line, omitted when blank), and the request's subtotal at the right (`—` until a line is priced *and* counted). A New row carries a blue edge. No date and no Delivery/Pickup mark: a request records neither a due date nor a fulfilment method, and the note is where the delivery window lives. The count/subtotal strip the card used to draw is gone from the list; the request page still has it. The generic desktop frame header is absent; the tab strip carries the PartnerFrame-owned bell at its right, and the old `X new jobs · Y rows pending` stats line is gone. **By request / By item** is a floating three-icon toggle (rows · stacked layers · grid) pinned to the bottom centre of the page column, over the list; under By item the strip's tabs become the answer statuses (see *By item*), and under **By status** the strip is empty — the board's cards are the cut (see *By status*). **Gated** — a partner sees only their own company, an admin sees all; see *Auth*. 404-styled message for a supplier that is missing, not an LPS Partner, or not theirs. |
 | `/partner/:id/closed` | client | **Closed requests** — the fourth and last entry in the portal's nav rail (`Closed`, an archive mark), and the only place a `closed` request appears. One list, newest first, no tabs and no filters: a closed request is something you look up, not something you triage between. Its count sits quietly above the cards in content rather than in the compact header. The cards are the requests page's own `PartnerRequestCard`, and still open the request, which reads closed and read-only when it gets there. |
 | `/partner/:id/requests/:arId` | client | **One availability request**, and everything needed to answer it — redrawn 2026-08-30 to the Figma comp. No desktop header: the toolbar is the top row, with a **← Customer Requests** pill (**← Closed requests** on a closed one, since that is the list it was reached from and belongs to — the rail's highlight follows it the same way; 44px minimum target), `N lines · M pending`, and at the right round icon actions — **copy link** (the page's URL to the clipboard, falling back to `execCommand('copy')` where the async clipboard API is unavailable or refuses; the icon turns to a check and a *Link copied* chip shows for two seconds) and **print** (`window.print()` over the **print sheet** — `ar-print-sheet.tsx`, a `<body>` portal shown only under `@media print`, laid out as the availability-request PDF LPS emails, densely enough that a dozen lines fit one page: title, **`Request #: AR-<id>`** — the portal never shows the AR number on screen, but a filled sheet comes back as an upload and the number is how the agent knows which request the answers belong to, so it heads the sheet, repeats in a table footer on every page and opens the disclaimer — the job name at the right, a bordered table of Qty · Size · Name (our per-line note in italics beneath) · Status (the five answers as a checklist two to a line, the given one ticked; *Diff Size/Qty* as the reference sheet abbreviates it) · Avail. Qty · Price · Notes (narrow), an Additional Comments box, a Submitted by line and the quotation disclaimer; `globals.css` hides everything else on paper, since the app's fixed frame would print clipped, and fixes the page to letter portrait) — and the PartnerFrame bell. Then a **header card**: a strip with the status pill (`submitted` reads *Completed*), the job name centred and the requested date as `Wednesday | 08/26/2026`; under it the customer contact (name, phone, email) and the delivery address where the request shares them, and our job-level note under *Delivery instructions*. Then the **summary strip** — Available · Can Order · Diff Size/Qty · Arriving Soon · Unavailable · Total Items (line count) · Subtotal — each count in its own accent, a dash for zero. Then the line table in its **portal drawing** (`ARLineTable design="portal"`): Need · Size · Plant · Status · Avail qty · Price · Nursery notes, plain hairlines with no tone bar, tint, Line total column or subtotal footer (the strip has it); the placeholders read `—`, `-` and `Add note…`. Picking a status behaves per answer (see *Supplier portal*); per-cell saves on blur go through the scoped portal PATCH, which also moves the request to `processing`. The **Submit availability** bar is pinned under the table (**Re-Submit availability** once `submitted_at` exists — including after we added a line and the trigger put the request back to `new`); it stamps the request `submitted` and wakes rosie; re-submitting re-notifies. A notice under the table says so while the request is `new` and carries prefilled prices. It loads the home list's payload (`GET /api/partner/:id`, lines embedded) rather than the single-request route, so one fetch feeds the request, the supplier's name and the bell. **The chat is a second way to answer it** (2026-08-29): a supplier can say what they have and rosie writes it into the lines herself; the page reloads on every reply from Local Plant Supply (`PartnerFrame`'s `onAgentReply`). A closed request is read-only, with no submit bar. The mock's mail / chat / PDF actions, PO number, payment contact and payment method are not drawn: none of them exist on a request. |
+| `/partner/:id/settings` | client | The portal's **Settings** — one card, the supplier's own password, on the shared `ChangePasswordForm`. Reached from the rail's foot and mobile More (not the nav strip); it names who is signed in from `/api/auth/me`, since the portal payload knows the company and not the login. |
 | `/partner/:id/orders` | client | The portal's Orders tab — drawn and empty on purpose, exactly like the admin app's order columns: the order tables are deferred by migration 0055. |
+| `/change-password` | client | **Set your own password** — where the gate holds an account still on the generated one it was handed (`must_change_password`; see *Auth*). The `/login` card again, and the only page such a session may reach. Visiting it with an ordinary session simply changes your password. |
 | `/agents` | client | Know your Agents: the generic shared header is omitted on mobile, where the highlighted Agents action and cards identify the workspace; desktop keeps the compact title row. One card per entry in `lib/agents.ts` — avatar, role, an Active / "Coming soon" / "On Telegram" badge (`chatBlockedReason`), and the full profile banner image. Only `upcoming` fades its banner; an agent reached on another channel is live. |
 | `/settings` | client | The generic shared header is omitted on mobile, where More and the first tab strip identify the workspace; desktop keeps the compact title row. Tabbed: **Global** (the harness's OpenAI Codex login and model allowlist, then the app header/accent palette and Reset all) and one tab per agent (that agent's chat colour and wallpaper with a live preview, model + thinking level, Google account, scheduled tasks). The tab is in `?tab=`. Available from desktop Settings and mobile More. See *Settings*. |
 | `/a/:agent/private/artifacts/:slug` | server | An agent-published page, for signed-in users, with the public/private toggle above it. See *Agent artifacts*. |
@@ -271,8 +273,9 @@ in the desktop rail and through mobile More.
 | API route | Purpose |
 |---|---|
 | `GET /api/suppliers?q=&page=` | Runs the location-level `search_suppliers` result and filters first, attaches each location's `head_branch_id`, groups before pagination, and returns `companies` (50 per page). Each carries the **`head` row** — read from `suppliers`, so it is present whether or not it matched — the matching farms under it, `matchedCount`, `locationCount` and `locationIds`. The head row's source list is the whole company's, newest first, so its **Last ingestion** is the company's. `total`/`pageCount` are company counts. Postgres-incompatible NUL parameter names/values and non-boolean `s.lps_partner` values fail closed with a fixed, non-reflecting JSON `400` rather than becoming database `500`s; valid parameters are unchanged. `?counts=1&ids=` is still the per-location active-item second pass, now asked for **every** location id so the company row's `# Items` is the company's. |
-| `POST /api/auth/login` | Sign in. `{username, password}` → sets the signed `app_sid` cookie and answers `{next}`, the path for that role. A bad username and a bad password fail identically (401); a 502 means the sign-in service is down, not a typo. |
+| `POST /api/auth/login` | Sign in. `{username, password}` → sets the signed `app_sid` cookie and answers `{next}` — the path for that role, or `/change-password` while the account is still on a generated password. A bad username and a bad password fail identically (401); a 502 means the sign-in service is down, not a typo. |
 | `POST /api/auth/logout` | Sign out — drops the cookie. The token is stateless, so that is the whole of it. |
+| `POST /api/auth/password` | Change **your own** password. `{currentPassword, newPassword}` → verifies the current one, writes the new one (10 characters minimum), clears `must_change_password` and **re-mints the cookie** so the forced-change gate lets you through. The account is the caller's own from the signed cookie, never from the body. Either role. |
 | `GET /api/auth/me` | `{user, role, supplierId}`, or `{user: null}`. What the nav rail's avatar reads. 200 either way — the rail asks on pages where signed-out is fine. |
 | `/api/suppliers/:id/partner-account` | **Admin only.** The Portal access panel. `GET` lists the company's logins and the id its portal URL is built from; `POST {username}` adds one (and marks the company an LPS Partner); `PATCH {accountId}` resets one password; `DELETE {accountId}` removes one for good (the `auth.users` delete cascades the `app_users` row). The two password writes answer with the generated password **once** — it is a hash after that. |
 | `GET /api/suppliers/:id` | The whole profile as one payload (`getSupplierProfile`): `subjectId`, `company` (`{id, name, locationCount}`) and `locations` — head branch first, each with its own row, contacts, active sources and item count. On a head-branch id that is every active location of the company; on a farm id it is that farm alone. |
@@ -357,6 +360,13 @@ whole hand-over text, ready to send — and *Copy link*. After that the only
 remedy is **Reset password**, per account, which rolls it and shows the new one
 the same way.
 
+**It is not the password they end up with.** A generated one is a hand-over,
+not a secret — it went down a phone or through an email — so the account is
+held on `/change-password` until its owner replaces it, and a reset arms that
+again (*Auth — Choosing your own password*). What the supplier signs in with
+after that is theirs, unreadable here, and changed from the portal's own
+Settings page.
+
 **Delete** removes a login for good, per account, behind a confirm that names
 it. Deleting the Supabase Auth user is the whole of it — `app_users.id` is an
 FK to it `ON DELETE CASCADE`, so the app-side row goes too and the username is
@@ -424,7 +434,7 @@ second implementation. Its slots, top to bottom and left to right:
   *desktop* panel's — the mobile chat always opens closed and is navigated to.
 - **The nav rail** on desktop (Availability Requests / Orders / Closed
   Requests, supplier identity at its head, then the frame's Dark mode /
-  Install app / Reload and the portal's disabled Settings / Log out at its
+  Install app / Reload and the portal's Settings / Log out at its
   foot). **Closed sits last**, added 2026-08-26: it is where work goes to
   rest, not somewhere a supplier starts. On mobile it joins the bottom bar's
   scrollable strip as *Closed*, which is what that strip was built to absorb —
@@ -442,8 +452,12 @@ second implementation. Its slots, top to bottom and left to right:
 - **The chat column** docked right (see below).
 
 **Log out** is real on both surfaces since sign-in landed (2026-08-30); it
-drops `app_sid` and returns to `/login`. **Settings** is still drawn disabled —
-there is nothing yet for a supplier to set.
+drops `app_sid` and returns to `/login`. **Settings** went live the same day and
+holds one thing — the supplier's own password (`/partner/:id/settings`). That is
+the only portal setting they own: the username, which company the login sees and
+whether it exists at all are ours, and live on the supplier page's Portal access
+tab. It is reached from the rail's foot and mobile More rather than the nav, so
+it is a `PartnerTab` that draws no destination of its own.
 
 Three things to keep straight:
 
@@ -2073,8 +2087,10 @@ That writes both halves — the Supabase Auth user and the `app_users` row,
 rolling back the first if the second fails — and then verifies the credential
 through the same `signInWithPassword` call the login route makes. Run it again
 on an existing admin and it **resets the password**; that is the only way to
-rotate an internal one. It refuses a `partner` username, whose reset belongs to
-the supplier page, where it is scoped to that company.
+rotate an internal one from outside the app — inside it, an admin changes their
+own the same way a partner does (*Choosing your own password*). It refuses a
+`partner` username, whose *admin-side* reset belongs to the supplier page,
+where it is scoped to that company.
 
 This replaced a lazy seed from `ADMIN_USER`/`ADMIN_PASS` in `config` on
 2026-08-30, the same day it was written: a config value that mints privilege on
@@ -2098,6 +2114,42 @@ hypothetical — it shipped on 2026-08-30 and broke portal account creation
 plant photo ("Object not found", Storage's answer to an unauthorized read) for
 whoever had signed in most recently.
 
+### Choosing your own password
+
+A portal login is handed over on a password **we** generated and probably read
+down a phone (*Portal access*), so it is not a secret. Since 2026-08-30 it must
+be replaced before the account can do anything else:
+
+- `app_users.must_change_password` (migration 0087) is true from the moment a
+  password is minted for somebody — the account created, or its password reset
+  from the supplier page — and false again the moment they set their own. It
+  defaults to **false**, because an admin made by `create-admin.mjs` is given a
+  password its operator typed; the two places that generate one set it
+  explicitly.
+- The flag rides in the `app_sid` cookie (`mustChangePassword`), not in a
+  lookup: `proxy.ts` runs on the edge and cannot ask the database. A cookie
+  minted before the flag existed carries no such key and reads as "nothing
+  owed", so nobody was signed out by this landing.
+- While it is set, the gate sends every page to **`/change-password`** and
+  answers 403 on every API call but `/api/auth/*`. That page is the `/login`
+  card again — this is the second half of a first sign-in, not an errand — and
+  it is exempt from the partner gate too, or a partner would ping-pong between
+  it and their portal.
+- `POST /api/auth/password` is the only self-service password write, and works
+  for either role. The account is the caller's own, taken from the signed
+  cookie and never from the body, so it cannot reach anyone else's login; the
+  **current** password is still required, so a borrowed browser is not enough
+  to lock the owner out. On success it clears the flag and **re-mints the
+  cookie** — the gate reads the cookie, so a stale one would send the person
+  back to the form they just completed.
+- The same form is the portal's Settings page (`/partner/:id/settings`), where
+  changing your password is an ordinary thing to do rather than a toll.
+
+A reset from the supplier page sets the flag again, so a rescued account is
+back on a password of its own after one sign-in. That does not touch the live
+cookie of whoever is already signed in on it — but their password no longer
+works, so their next sign-in is the one that re-mints it.
+
 ### The gate
 
 `proxy.ts` (Next 16's replacement for `middleware`) gates every route except
@@ -2109,7 +2161,9 @@ read *and write* Supabase with the project's **secret** key, and nothing
 downstream re-authorizes the call.
 
 A `partner` session is refused every path outside `/partner` and `/api/partner`
-— redirected to their own portal, or 403 on an API call.
+— redirected to their own portal, or 403 on an API call. Ahead of that, a
+session still on a generated password is refused everything but
+`/change-password` (*Choosing your own password*).
 
 **Which supplier a partner may read is not decided there.** `proxy.ts` sees a
 path, not the database, and a portal id may be any branch of the partner's
@@ -2239,6 +2293,8 @@ public/
   lps-cactus-icon-maskable-512.png   Android safe-zone variant
   lps-cactus-apple-touch-icon.png    iOS Add to Home Screen icon
 components/
+  change-password-form.tsx  the one password-change form — drawn on
+                 /change-password and on the portal's Settings page
   ui/            lps-ui primitives (button, input, label, card, alert, badge)
   pwa/           install: provider (SW + beforeinstallprompt), auto popup,
                  rail/menu button, iOS instructions modal
@@ -2276,7 +2332,7 @@ components/
                      also the drag handle that maps a line to a catalogue row
     partner.tsx      the supplier portal's fill-in of the same frame (identity,
                      three destinations, right-docked chat with attachments +
-                     voice, its own bell, disabled Settings+Log out)
+                     voice, its own bell, Settings+Log out)
     toolbar.tsx      search box, multi-select filter chips, count summary
     search-loader.tsx  sprouting-seedlings loader + overlay for ongoing searches
     icons.tsx        the design's icon set
@@ -2327,15 +2383,15 @@ lib/
   session.ts       the app's own signed session: mint, verify, read the cookie.
                    Web Crypto only, no server-only import — proxy.ts runs on the
                    edge and must verify exactly what the routes verify
-  auth.ts          the Supabase-Auth half: verify a password, seed the config
-                   admin, create/reset partner logins, resolve a supplier to its
+  auth.ts          the Supabase-Auth half: verify a password, change your own,
+                   create/reset partner logins, resolve a supplier to its
                    company (server-only)
   partner-auth.ts  requirePartnerAccess() — the per-request gate on
                    /api/partner/:id, which company an id belongs to
   harness.ts       the app's bearer client for the harness (server-only)
 scripts/
-  create-admin.mjs create an internal admin, or reset one's password — the only
-                   way either happens (see Auth)
+  create-admin.mjs create an internal admin, or reset one's password from
+                   outside the app — the only way the first happens (see Auth)
   artifacts.ts     agent allowlist, upstream URLs, signedIn(), header relay
   harness-settings.ts  the harness shapes /settings reads (provider, agent.json,
                    gws status, schedules) + harnessFetch(), which unwraps the

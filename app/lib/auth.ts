@@ -73,10 +73,11 @@ type AppUserRow = {
   username: string
   role: Role
   supplier_id: number | null
+  must_change_password: boolean
   created_at: string
 }
 
-const COLUMNS = 'id, username, role, supplier_id, created_at'
+const COLUMNS = 'id, username, role, supplier_id, must_change_password, created_at'
 
 async function rowByUsername(username: string): Promise<AppUserRow | null> {
   // `eq`, not `ilike`: `_` and `%` are wildcards to LIKE, so `bob_smith` would
@@ -137,6 +138,7 @@ function toSession(row: AppUserRow): SessionUser {
     username: row.username,
     role: row.role,
     supplierId: row.role === 'partner' ? row.supplier_id : null,
+    mustChangePassword: row.must_change_password,
   }
 }
 
@@ -259,7 +261,15 @@ export async function createPartnerAccount(
 
   const { error: insErr } = await supabase
     .from('app_users')
-    .insert({ id: data.user.id, username: handle, role: 'partner', supplier_id: scopeId })
+    .insert({
+      id: data.user.id,
+      username: handle,
+      role: 'partner',
+      supplier_id: scopeId,
+      // Handed over on a password we generated, so the first thing they do
+      // with it is replace it (migration 0087).
+      must_change_password: true,
+    })
   if (insErr) {
     await supabase.auth.admin.deleteUser(data.user.id)
     throw new Error(`app_users insert: ${insErr.message}`)
@@ -333,5 +343,76 @@ export async function resetPartnerPassword(
   const password = generatePassword()
   const { error: updErr } = await supabase.auth.admin.updateUserById(row.id, { password })
   if (updErr) throw new Error(`auth.admin.updateUserById: ${updErr.message}`)
+
+  // A reset puts them back on a generated password, so it owes a change again
+  // exactly as the first hand-over did. Their live cookie still says otherwise
+  // until it is re-minted, which the next sign-in does — and the reset is why
+  // they are signing in again.
+  const { error: flagErr } = await supabase
+    .from('app_users')
+    .update({ must_change_password: true })
+    .eq('id', row.id)
+  if (flagErr) throw new Error(`app_users: ${flagErr.message}`)
+
   return { username: row.username, password }
+}
+
+/**
+ * The minimum a password someone chooses for themselves must clear.
+ *
+ * Length only, and nothing about character classes: a generated password is
+ * what we are getting them off, and composition rules push people towards
+ * `Password1!` rather than towards something long.
+ */
+export const MIN_PASSWORD_LENGTH = 10
+
+/**
+ * Change the signed-in account's own password, having proved they know the
+ * current one. Returns the session to re-mint — the same user with
+ * `mustChangePassword` cleared, because the cookie is what the gate reads and
+ * a stale one would keep sending them back to the form they just completed.
+ *
+ * This is the only self-service password write, and it works for either role:
+ * it is scoped to the caller's own `id` from their session, so there is
+ * nothing here that can reach another account.
+ */
+export async function changeOwnPassword(
+  user: SessionUser,
+  currentPassword: string,
+  newPassword: string,
+): Promise<SessionUser> {
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`the new password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  }
+  if (newPassword === currentPassword) {
+    throw new Error('the new password must be different from the current one')
+  }
+
+  const { data, error } = await supabase
+    .from('app_users')
+    .select(COLUMNS)
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error) throw new Error(`app_users: ${error.message}`)
+  const row = data as AppUserRow | null
+  // The session is signed, so this is a deleted account rather than a forged
+  // one — the cookie outlived the row it names.
+  if (!row) throw new Error('this account no longer exists')
+
+  if (!(await passwordMatches(authEmail(row.username), currentPassword, row.id))) {
+    throw new Error('the current password is not right')
+  }
+
+  const { error: updErr } = await supabase.auth.admin.updateUserById(row.id, {
+    password: newPassword,
+  })
+  if (updErr) throw new Error(`auth.admin.updateUserById: ${updErr.message}`)
+
+  const { error: flagErr } = await supabase
+    .from('app_users')
+    .update({ must_change_password: false })
+    .eq('id', row.id)
+  if (flagErr) throw new Error(`app_users: ${flagErr.message}`)
+
+  return { ...toSession(row), mustChangePassword: false }
 }

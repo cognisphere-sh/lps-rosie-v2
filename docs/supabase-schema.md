@@ -948,6 +948,7 @@ service key like everything else.
 | `username` | text | no | What the person types on `/login`. Unique case-insensitively (`app_users_username_key` on `lower(username)`). The Supabase Auth *email* is derived from it and never typed — a typed address is used as-is, anything else becomes `<username>@AUTH_EMAIL_DOMAIN` (an `.invalid` domain: these mailboxes do not exist and nothing is ever sent to them) |
 | `role` | text | no | **CHECK**: `admin` \| `partner`. `admin` is the internal team, created out of band with `app/scripts/create-admin.mjs`; `partner` is a supplier answering in the portal, created from the supplier page. Nothing in the app creates an admin — there is no bootstrap path and no config credential |
 | `supplier_id` | bigint → `suppliers.id` | yes | The portal this account may see. **CHECK `app_users_role_scope`**: non-null for `partner`, null for `admin` |
+| `must_change_password` | boolean | no, default false | TRUE while the account is still on a password **we** generated for it — set explicitly when one is minted (account created, or reset from the supplier page), cleared when the owner sets their own at `/change-password`. While true the app's gate refuses that session every path but the change-password page; the flag rides in the `app_sid` cookie, since `proxy.ts` runs on the edge and cannot ask this table. Defaults false because an admin from `app/scripts/create-admin.mjs` is given a password its operator typed. Migration 0087; the backfill set every existing `partner` row true, there having been no way to change one before |
 | `created_at` / `updated_at` | timestamptz | no | `updated_at` via `moddatetime` |
 
 **Accounts belong to the company, not to a farm.** `supplier_id` must be a head
@@ -969,6 +970,9 @@ partner cannot learn another's supplier ids.
 Passwords are never readable. `createPartnerAccount` / `resetPartnerPassword`
 return a generated one exactly once, in the reply to the call that made it; the
 supplier page shows it and offers a copy button, and after that it is a hash.
+That generated one is a hand-over rather than the password the account keeps —
+`must_change_password` holds its owner on `/change-password` until they choose
+their own.
 
 ### `supplier_messages` — removed
 

@@ -4,9 +4,9 @@
 // (frame.tsx), filled in for a supplier: their identity and three
 // destinations instead of the operator's pages, a chat with Local Plant Supply
 // instead of the agent panel, a bell of their own. Log out is real since
-// supplier sign-in landed (2026-08-30); Settings is still drawn and disabled,
-// as there is nothing yet for a supplier to set — see docs/app/README.md
-// (Supplier portal).
+// supplier sign-in landed (2026-08-30), and so is Settings since 2026-08-30 —
+// it is the supplier's own password, the one portal setting they own. See
+// docs/app/README.md (Supplier portal).
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -42,10 +42,9 @@ import { subscribeEvents } from '@/lib/chat-events'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
-export type PartnerTab = 'requests' | 'orders' | 'closed'
-
-// Settings is still to come; sign-in landed 2026-08-30, so Log out is real now.
-const AUTH_LATER = 'Available once supplier settings land'
+// `settings` is reached from the rail's bottom rather than the nav, so it is
+// not one of the destinations `nav` draws — but it still owns the highlight.
+export type PartnerTab = 'requests' | 'orders' | 'closed' | 'settings'
 
 // ------------------------------------------------------------------ the chat
 
@@ -495,9 +494,6 @@ export function PartnerRequestCard({
 
 // ------------------------------------------------------------------- frame
 
-const PARTNER_MORE_DISABLED =
-  'flex w-full cursor-not-allowed items-center gap-2 rounded-lg border-none bg-transparent px-2.5 py-[7px] text-left text-[12.5px] font-semibold text-muted-foreground opacity-45'
-
 export function PartnerFrame({
   supplierId,
   supplierName,
@@ -784,10 +780,14 @@ export function PartnerFrame({
       )}
       railBottom={({ navOpen: open, railBtn }) => (
         <>
-          <button type="button" disabled title={`Settings — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
+          <Link
+            href={`/partner/${supplierId}/settings`}
+            title="Settings"
+            className={railBtn(tab === 'settings')}
+          >
             <span className="flex size-4 flex-none items-center justify-center"><SettingsIcon /></span>
             {open && <span>Settings</span>}
-          </button>
+          </Link>
 
           <button type="button" onClick={() => void signOut()} title="Log out" className={railBtn(false, false)}>
             <span className="flex size-4 flex-none items-center justify-center"><LogoutIcon /></span>
@@ -797,10 +797,10 @@ export function PartnerFrame({
       )}
       moreBottom={() => (
         <>
-          <button type="button" disabled title={AUTH_LATER} className={PARTNER_MORE_DISABLED}>
+          <Link href={`/partner/${supplierId}/settings`} className={moreItemClass}>
             <SettingsIcon size={14} />
             Settings
-          </button>
+          </Link>
           <button type="button" onClick={() => void signOut()} className={moreItemClass}>
             <LogoutIcon size={14} />
             Log out

@@ -19,6 +19,41 @@ here).
 
 ### Added
 
+- **A generated password must be replaced, and a supplier can change theirs**
+  (`app/lib/{session,auth}.ts`, `app/proxy.ts`,
+  `app/app/api/auth/password/route.ts`, `app/app/change-password/page.tsx`,
+  `app/components/change-password-form.tsx`,
+  `app/app/partner/[id]/settings/page.tsx`, migration 0087). A portal login is
+  handed over on a password we generated and read down a phone, so it is not a
+  secret yet. `app_users.must_change_password` is true from the moment one is
+  minted — account created, or password reset from the supplier page — and the
+  gate then refuses that session every path but **`/change-password`** (403 on
+  API calls, `/api/auth/*` excepted so the form can post and the rail can sign
+  out). Setting your own clears it.
+
+  The flag rides in the `app_sid` cookie rather than a lookup, because
+  `proxy.ts` runs on the edge and cannot ask the database — so
+  `/api/auth/password` **re-mints the cookie** on success, or the person would
+  be sent back to the form they had just completed. A cookie minted before the
+  flag existed carries no such key and reads as "nothing owed"; nobody was
+  signed out by this. It defaults to false, since an admin from
+  `create-admin.mjs` is given a password its operator typed; the backfill set
+  every existing partner row true, there having been no way to change one
+  before.
+
+  `POST /api/auth/password` is the only self-service password write and works
+  for either role: the account is the caller's own from the signed cookie and
+  never from the body, and the **current** password is still required, so a
+  borrowed browser cannot lock the owner out. Ten characters minimum and no
+  composition rules — the point is getting off a generated password, not
+  towards `Password1!`.
+
+  **The portal's Settings page is live** (`/partner/:id/settings`), drawn and
+  disabled since the portal was built. It holds one card, the same form: the
+  supplier's own password is the only portal setting they own — the username,
+  which company the login sees and whether it exists at all are ours, on the
+  supplier page's Portal access tab.
+
 - **The app owns its sign-in, and suppliers have logins**
   (`app/lib/{session,auth,partner-auth,harness}.ts`, `app/proxy.ts`,
   `app/app/api/auth/*`, migrations 0081–0083). Credentials live in **Supabase
@@ -36,7 +71,7 @@ here).
   `proxy.ts` sees a path, not the database, and a portal id may be any branch
   of the partner's company. It answers **404, not 403**, on another company's
   supplier, so no partner learns another's ids. Portal **Log out** works;
-  Settings stays disabled.
+  Settings landed later the same day (below).
 
   **Accounts belong to the company, never to a farm.** A multi-location
   supplier gets its logins once, on the head branch, and they see every

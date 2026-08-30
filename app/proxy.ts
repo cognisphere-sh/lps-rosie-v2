@@ -23,6 +23,11 @@ import { resolveUser } from '@/lib/session'
 // them out of each other's portals.
 const PUBLIC_PREFIXES = ['/login', '/api/auth']
 
+// Where an account still on a generated password is sent, and the only page it
+// may reach. `/api/auth` is already public, which is what lets the form post
+// the change and the rail sign out from there.
+const CHANGE_PASSWORD = '/change-password'
+
 // Where a partner belongs, and the only thing they may reach.
 const PARTNER_PREFIXES = ['/partner', '/api/partner']
 
@@ -58,7 +63,28 @@ export default async function proxy(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user.role === 'partner' && !under(pathname, PARTNER_PREFIXES)) {
+  // A portal login is handed over on a password we generated and read down a
+  // phone, so it is not a secret yet: until they replace it the session reaches
+  // nothing but the change-password page. The flag rides in the cookie
+  // (`lib/session.ts`), and `/api/auth/password` re-mints it on success — this
+  // file cannot ask the database, so the cookie is the whole state.
+  if (user.mustChangePassword && pathname !== CHANGE_PASSWORD) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'password change required' }, { status: 403 })
+    }
+    const url = req.nextUrl.clone()
+    url.pathname = CHANGE_PASSWORD
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
+
+  // `/change-password` is exempt: it is not under `/partner`, and bouncing a
+  // partner off it would ping-pong against the check above forever.
+  if (
+    user.role === 'partner' &&
+    pathname !== CHANGE_PASSWORD &&
+    !under(pathname, PARTNER_PREFIXES)
+  ) {
     if (pathname.startsWith('/api')) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 })
     }

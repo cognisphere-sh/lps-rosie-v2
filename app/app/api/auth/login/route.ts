@@ -35,7 +35,13 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.json({
-    next: user.role === 'partner' ? `/partner/${user.supplierId}` : '/suppliers',
+    // Still on the password we generated for them: `proxy.ts` would bounce
+    // them there from anywhere else, so send them straight to it.
+    next: user.mustChangePassword
+      ? '/change-password'
+      : user.role === 'partner'
+        ? `/partner/${user.supplierId}`
+        : '/suppliers',
   })
   res.cookies.set(SESSION_COOKIE, await createSession(user), {
     httpOnly: true,
