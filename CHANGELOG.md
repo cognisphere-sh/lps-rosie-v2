@@ -17,7 +17,142 @@ here).
 
 ## 2026-08-30
 
+### Added
+
+- **The app owns its sign-in, and suppliers have logins**
+  (`app/lib/{session,auth,partner-auth,harness}.ts`, `app/proxy.ts`,
+  `app/app/api/auth/*`, migrations 0081–0083). Credentials live in **Supabase
+  Auth**; `/api/auth/login` verifies one and mints `app_sid`, a session this
+  app signs with `APP_SESSION_SECRET`. Two roles sign in through the one
+  `/login` form — `admin` (the internal team) and `partner` (a supplier) — and
+  the reply says where each lands. `public.app_users` holds the login handle,
+  the role, and for a partner the one company they may see.
+
+  **The supplier portal is no longer public.** It was deliberately open from
+  2026-08-19 because suppliers could not be harness users; they are app users
+  now. `proxy.ts` does the coarse half (a partner may only be under `/partner`
+  and `/api/partner`) and `requirePartnerAccess` the real half, applied by all
+  six `/api/partner/:id` routes against the exact id they are about to read —
+  `proxy.ts` sees a path, not the database, and a portal id may be any branch
+  of the partner's company. It answers **404, not 403**, on another company's
+  supplier, so no partner learns another's ids. Portal **Log out** works;
+  Settings stays disabled.
+
+  **Accounts belong to the company, never to a farm.** A multi-location
+  supplier gets its logins once, on the head branch, and they see every
+  branch's portal — enforced in `partnerScopeId()` and again by the
+  `app_users_parent_supplier` trigger. A company may hold several logins;
+  usernames are globally unique and the Supabase Auth email is derived from
+  them (`<username>@AUTH_EMAIL_DOMAIN`, an `.invalid` domain that is never
+  written to).
+
+  **Nothing bootstraps an admin.** No app credential lives in `config`, and
+  `verifyCredentials()` refuses a username with no `app_users` row, so an
+  internal account is created out of band with `app/scripts/create-admin.mjs`
+  — which writes both halves of the identity, rolls back the auth user if the
+  `app_users` insert fails, and verifies the credential through the same
+  `signInWithPassword` the login route uses. Re-running it on an existing
+  admin resets the password, the only way to rotate an internal one; it
+  refuses a `partner`, whose reset belongs to the supplier page where it is
+  scoped to that company. The harness-owned `APP_USER`/`APP_PASS` are
+  untouched and stay the *console's* operator login.
+
+  An earlier cut of this seeded the admin lazily from `ADMIN_USER`/`ADMIN_PASS`
+  in `config`, on the first sign-in presenting that password. It was removed
+  the same day: a config value that mints privilege on first use is a
+  bootstrap path worth not having. `scripts/app/secrets.sh` now passes through
+  only `AUTH_EMAIL_DOMAIN`.
+
+- **Portal access tab on the supplier page**
+  (`app/components/workspace/partner-access.tsx`,
+  `app/app/api/suppliers/[id]/partner-account/route.ts`). Last in the tab
+  strip, at `?tab=access` — account admin is occasional work, not something
+  you triage between, and the tab is the only surface for it. Lists the
+  company's logins, adds one (username defaulted to the primary contact
+  email), resets any password, and **deletes** an account behind a confirm
+  that names it — the `auth.users` delete cascades the `app_users` row, so the
+  username frees up, while `is_lps_partner` is left alone. A header button and
+  mobile quick action opening the same panel in a modal were built and then
+  dropped the same day: two entry points to one panel is one more than it
+  needs. Creating the first also sets `is_lps_partner` on the
+  head branch — the flag and the login are one decision, and a portal without
+  the flag is a 404. A generated password is shown **once**, with the portal
+  URL and a *Copy message* button carrying the whole hand-over text; after
+  that it is a hash and the only remedy is Reset. Every read and write is
+  scoped to the company, so one supplier's page cannot touch another's logins.
+  Admin only.
+
 ### Changed
+
+- **`suppliers.is_lps_partner` is now derived: true exactly while the company
+  has at least one portal login** (migrations 0084/0085). The flag and the
+  logins were independent, so a supplier could be marked an LPS Partner with
+  nobody able to sign in — and availability requests could be sent to a portal
+  no one could open. The `app_users_sync_lps_partner` trigger now maintains it
+  on both sides of every insert, delete and move, so the first login turns it
+  on and the last one deleted turns it off.
+
+  Enforced where it cannot be worked around: the flag left
+  `WRITABLE.suppliers`, its Yes/No dropdown on the supplier profile grid became
+  a read-only value, and `createPartnerAccount` stopped setting it (the trigger
+  had already done so — one writer, not two). Migration 0085 reconciled the
+  existing rows: Keel's Tree Farm, flagged with no login and no active request,
+  was unflagged; Austin Plant Supply was given a login first and kept its flag,
+  so its two active requests never lost their portal.
+
+  The trigger needs **`SECURITY DEFINER`** (migration 0086, caught in
+  end-to-end testing): deleting an account deletes the `auth.users` row and
+  `app_users` cascades from it, so the trigger fires inside GoTrue's own
+  transaction as `supabase_auth_admin` — a role with no rights on
+  `public.suppliers`. As an invoker function the UPDATE was refused and the
+  entire delete failed with an opaque `auth.admin.deleteUser: {}`. It carries
+  `search_path = ''` and fully-qualified names, as any definer function must.
+
+### Fixed
+
+- **A sign-in poisoned the shared Supabase client, and RLS then refused
+  everything it touched** (`app/lib/auth.ts`). `verifyCredentials` called
+  `signInWithPassword` on the module-singleton `supabase` client; supabase-js
+  keeps that session in memory even under `persistSession: false`, so every
+  later PostgREST *and Storage* call sent the signed-in user's JWT instead of
+  the secret key and ran as `authenticated`. One login broke the process until
+  it restarted. Two reported symptoms, one cause: creating a portal account
+  answered `new row violates row-level security policy for table "app_users"`,
+  and every plant photo answered `Object not found` — which is what Storage
+  says to an unauthorized read, not a missing file (the objects were all
+  there). `passwordMatches()` now builds a throwaway client per attempt and
+  drops its session; `lib/auth-client-isolation.test.ts` fails the build if a
+  sign-in reappears on the shared client. `scripts/create-admin.mjs` verifies
+  on its own client for the same reason.
+
+- **The harness crash-looped on an unreadable `app-secret`**
+  (`scripts/app/secrets.sh`). The stock `secrets` step in `scripts/server.sh`
+  runs as root and writes `harness/.secrets/app-secret` as `root:root 0600`,
+  but the harness runs as `RUN_USER` and died on boot with `EACCES ... at
+  AuthStore.loadOrCreateAppSecret`. Nothing bound `HARNESS_PORT`, so every
+  agent-chat call surfaced as *agent unreachable*. **Upstream bug**:
+  `scripts/server.sh` is harness-owned and already drops to `BUILD_USER` for
+  the build so `.next` is not left root-owned, but the app-secret block
+  harness 0.12.0 added did not get the same treatment. The `chown` therefore
+  lives in our own `scripts/app/` hook, which survives
+  `cognisphere-upgrade`; remove it once upstream fixes the file.
+
+### Changed
+
+- **The app reaches the harness as itself, not as its user.** With `pi_sid`
+  gone, `/api/harness/*` and `/api/chat/*` attach
+  `Authorization: Bearer $HARNESS_APP_SECRET` + `X-App-User` (harness 0.12.0,
+  `lib/harness.ts`) and both now require `role === 'admin'` explicitly — the
+  allowlist is the whole security boundary once it is no longer backstopped by
+  the caller's own harness permissions. The `webchat` plugin replays those
+  headers to `/api/auth/me` exactly as it replayed the cookie. `next.config.ts`
+  keeps **one** rewrite, `/api/gws/oauth/callback` (Google redirects the
+  browser there and the harness mounts it outside its auth); the authed half of
+  the OAuth flow moved onto the allowlist, and `/api/auth/*` became real route
+  handlers. `/api/auth/me` is the app's own now, answering
+  `{user, role, supplierId}`. Private artifacts require an admin, not merely a
+  session.
+
 
 - **Harness upgraded 0.11.1 → 0.12.0.** Upstream makes app→harness auth a
   bearer secret: `scripts/server.sh secrets` no longer writes `HARNESS_USER`/
@@ -54,6 +189,13 @@ here).
 
 ### Fixed
 
+- **The supplier tab row pans instead of widening the page on mobile**
+  (`app/app/suppliers/[id]/page.tsx`, `app/app/globals.css`). Six tabs with
+  their counts are wider than a phone, and the row laid them out `flex-nowrap
+  justify-between`, so the whole supplier page scrolled sideways under them.
+  The row now scrolls inside its own width (`.lps-tab-scroll`, the same
+  hidden-scrollbar treatment the mobile bottom nav uses) and starts at the
+  left edge.
 - **`app-pipeline.py exec-as` sets `HOME`/`USER`/`LOGNAME` to the build
   user's.** It dropped uid but kept root's environment, so every pnpm it ran
   for setup and deploy — the frozen harness install, the pipeline install's

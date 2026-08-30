@@ -10,9 +10,10 @@
  *      `<appBaseUrl>/<public|private>/artifacts/<slug>` — so each agent gets
  *      its own `appBaseUrl` (`https://$DOMAIN/a/<agent>`) and one route tree
  *      serves them all. `ARTIFACTS_AGENTS` is the allowlist.
- *   2. **`signedIn()` verifies the session** against the harness instead of
- *      checking that a cookie exists — the same call `proxy.ts` makes, shared
- *      via `lib/session.ts`.
+ *   2. **`signedIn()` verifies the session** instead of checking that a cookie
+ *      exists — the same check `proxy.ts` makes, shared via `lib/session.ts`.
+ *      A private artifact is internal, so it takes an admin: a supplier with a
+ *      portal login is signed in to the app but has no business here.
  *
  * Env (server-side only — none of this reaches the browser):
  *   HARNESS_URL           http://127.0.0.1:<HARNESS_PORT>  (scripts/server.sh secrets)
@@ -71,7 +72,8 @@ function secretHeader(): Record<string, string> {
  * shut even if the matcher ever changes.
  */
 export async function signedIn(req: Request): Promise<boolean> {
-  return (await resolveUser(req.headers.get('cookie') ?? '')) !== null
+  const user = await resolveUser(req.headers.get('cookie') ?? '')
+  return user?.role === 'admin'
 }
 
 /** Current flag + links for one artifact; null when it doesn't exist. */

@@ -254,13 +254,16 @@ body:has([data-workspace-shell]) {
   overscroll-behavior: none;
 }
 
-/* The mobile page destinations scroll inside the bottom bar, not the document.
-   Hide its platform scrollbar without disabling touch or trackpad scrolling. */
-.lps-mobile-nav-scroll {
+/* Rows that pan sideways inside their own width—the mobile bottom navigation,
+   the supplier tab row—rather than widening the page. Hide the platform
+   scrollbar without disabling touch or trackpad scrolling. */
+.lps-mobile-nav-scroll,
+.lps-tab-scroll {
   scrollbar-width: none;
 }
 
-.lps-mobile-nav-scroll::-webkit-scrollbar {
+.lps-mobile-nav-scroll::-webkit-scrollbar,
+.lps-tab-scroll::-webkit-scrollbar {
   display: none;
 }
 

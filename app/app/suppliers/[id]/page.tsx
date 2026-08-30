@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
   MapPinIcon, PencilIcon, PhoneIcon, TrashIcon, UploadIcon,
 } from '@/components/workspace/icons'
+import { PartnerAccessPanel } from '@/components/workspace/partner-access'
 import { PlantHeaderRow, PlantRowLine, plantsWidth } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
@@ -36,7 +37,7 @@ import { cn } from '@/lib/utils'
 
 type Tab =
   | 'notes' | 'contacts' | 'inventory' | 'files' | 'farms'
-  | 'requests'
+  | 'requests' | 'access'
 const DIMENSION_FILTERS = [
   { key: 'h', label: 'Height (ft)' },
   { key: 'w', label: 'Width (in)' },
@@ -82,7 +83,12 @@ const FIELDS: ProfileFieldDefinition[] = [
   { key: 'hosted_availability_url', label: 'Hosted availability', column: 'hosted_availability_url' },
   // The partner flag (migrations 0062/0074): an LPS Partner answers availability
   // requests at /partner/<id>; everyone else is reached through daisy's channels.
-  { key: 'is_lps_partner', label: 'LPS Partner', column: 'is_lps_partner', options: ['true', 'false'] },
+  // **Read-only since 2026-08-30** — no `column`, so no editor. It is derived:
+  // true exactly while the company has at least one portal login, maintained by
+  // the `app_users_sync_lps_partner` trigger (migration 0084). Move it from the
+  // Portal access tab, by creating or deleting a login; a dropdown here could
+  // only put the flag out of step with who can actually sign in.
+  { key: 'is_lps_partner', label: 'LPS Partner' },
   { key: 'item_count', label: 'Active items' },
   { key: 'last_ingestion_date', label: 'Last inventory ingestion' },
   { key: 'updated', label: 'Profile last updated' },
@@ -550,7 +556,7 @@ export default function SupplierProfilePage() {
     if (
       requested === 'notes' || requested === 'contacts' ||
       requested === 'inventory' || requested === 'files' || requested === 'farms' ||
-      requested === 'requests'
+      requested === 'requests' || requested === 'access'
     ) {
       setTab(requested)
     }
@@ -1032,6 +1038,7 @@ export default function SupplierProfilePage() {
     ['requests', `Availability requests (${ars.length})`],
     ['notes', 'Notes'],
     ['files', `Files (${fileCount})`],
+    ['access', 'Portal access'],
   ]
   // `?tab=farms` on a single-site supplier asks for a tab that isn't there.
   const activeTab = tabs.some(([t]) => t === tab) ? tab : 'inventory'
@@ -1272,7 +1279,7 @@ export default function SupplierProfilePage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex flex-nowrap items-center justify-between gap-1 border-b border-border bg-card px-3 py-2.5 sm:justify-start sm:gap-1.5 sm:px-4">
+        <div className="lps-tab-scroll flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-border bg-card px-3 py-2.5 touch-pan-x sm:gap-1.5 sm:px-4">
           {tabs.map(([id_, label]) => (
             <button
               key={id_}
@@ -1780,6 +1787,17 @@ export default function SupplierProfilePage() {
               )}
               <SearchOverlay show={searchingPlants} labels={PLANT_SEARCH_LABELS} />
             </div>
+          </div>
+        )}
+
+        {activeTab === 'access' && subject && (
+          <div className="max-w-[560px] p-4">
+            <PartnerAccessPanel
+              supplierId={subject.row.id}
+              supplierName={companyName}
+              defaultUsername={quickEmail ? String(quickEmail) : undefined}
+              onChanged={() => void loadProfile().catch(() => {})}
+            />
           </div>
         )}
 

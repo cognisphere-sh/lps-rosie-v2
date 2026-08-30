@@ -356,8 +356,11 @@ export function Shell({
   const [desktopChatFull, setDesktopChatFull] = useState(false)
   const [desktopPeekOpen, setDesktopPeekOpen] = useState(false)
   const [userMenu, setUserMenu] = useState(false)
-  // The temporary "see the portal as a supplier" picker — a stand-in until
-  // supplier sign-in exists. Lists the LPS Partners, lazily on first open.
+  // The "see the portal as a supplier" picker. It began as a stand-in for
+  // supplier sign-in; now that suppliers really do sign in (2026-08-30) it is
+  // the admin's way into any portal without their credentials — `admin` passes
+  // `canAccessSupplier` for every company. Lists the LPS Partners, lazily on
+  // first open.
   const [supplierViewMenu, setSupplierViewMenu] = useState(false)
   const [partnerSuppliers, setPartnerSuppliers] = useState<{ id: number; name: string }[]>([])
   const [supplierLoadState, setSupplierLoadState] = useState<SupplierLoadState>('idle')

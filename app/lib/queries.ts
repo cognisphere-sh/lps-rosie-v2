@@ -991,10 +991,13 @@ const WRITABLE: Record<string, string[]> = {
   // No `communication_notes`: retired by migration 0063, and the
   // `supplier_messages` transcript that replaced it was dropped 2026-08-23 —
   // the frozen column archive remains, and nothing may write it.
+  // No `is_lps_partner`: it is derived from the company's portal logins and
+  // maintained by the `app_users_sync_lps_partner` trigger (migration 0084).
+  // A write here would be overwritten the next time an account moved, and in
+  // the meantime would claim a portal that nobody can sign into.
   suppliers: [
     'name', 'category', 'address', 'city', 'state', 'zip', 'notes',
     'availability_source_type', 'availability_update_days', 'hosted_availability_url',
-    'is_lps_partner',
   ],
   // No `name`: it is derived by the database from the three name parts
   // (migration 0040), so writing it here would be silently overwritten by
@@ -1070,9 +1073,11 @@ const ARRAY = new Set(['tags'])
 // `availability_update_days` is an integer column, so a fractional value would
 // be rejected by Postgres rather than rounded. Say so here instead.
 const INTEGER = new Set(['availability_update_days'])
-// Boolean columns arrive as the strings a dropdown produces. `is_lps_partner`
-// is NOT NULL DEFAULT false, so anything but a literal 'true' means false.
-const BOOLEAN = new Set(['is_lps_partner'])
+// Boolean columns arrive as the strings a dropdown produces; anything but a
+// literal 'true' means false. Empty since `is_lps_partner` became derived
+// (2026-08-30) — kept because the coercion below is the contract for the next
+// writable boolean, not because one exists today.
+const BOOLEAN = new Set<string>([])
 
 /**
  * Update one cell. The table/column pair is checked against a whitelist here,

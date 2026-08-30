@@ -3,26 +3,28 @@ import type { NextRequest } from 'next/server'
 
 import { resolveUser } from '@/lib/session'
 
-// Gate the app behind the harness login — the same credentials as the harness
-// user store (harness/.secrets/users.json, written from `config`'s APP_USER /
-// APP_PASS). The app has no sign-in of its own: its users are harness users.
+// The app-wide gate. Since 2026-08-30 the app owns its own sign-in: a session
+// is the `app_sid` cookie minted by `/api/auth/login` against Supabase Auth,
+// verified here by signature (`lib/session.ts`) rather than by asking anyone.
 //
-// `pi_sid` is a *signed* stateless session cookie minted by the harness, so
-// checking that it merely exists proves nothing. That distinction matters here:
-// every page reads Supabase server-side with the project's secret key, and the
-// harness is no longer in the path to re-check the session on each data call.
-// A presence-only gate would therefore let a hand-set `pi_sid=anything` read
-// the whole supplier and inventory database. So verify the cookie for real, by
-// asking the harness who it belongs to.
+// Two populations get through, and they see different halves of the app:
 //
-// `proxy` is Next 16's replacement for the `middleware` file convention.
+//   admin    — the internal team. Everything.
+//   partner  — a supplier. The portal and nothing else, and within the portal
+//              only their own company's suppliers.
 //
-// `/partner` and `/api/partner` are the supplier portal: suppliers are not
-// harness users, and portal auth is a deliberately deferred step (Bhoumik,
-// 2026-08-19), so for now the routes are open and scope themselves to the
-// supplier id in the URL — LPS Partners only, customer details only
-// where `share_customer_details` says so. Revisit this line when auth lands.
-const PUBLIC_PREFIXES = ['/login', '/api/auth', '/partner', '/api/partner']
+// **That last clause is not enforced here.** This file sees a path, not the
+// database, and a portal id may be any branch of the partner's company — a
+// relation only `suppliers.head_branch_id` can resolve. So the gate below is
+// the coarse half (a partner may only be under /partner and /api/partner) and
+// `canAccessSupplier()` in `lib/auth.ts` is the real one, applied by every
+// `/api/partner/:id` route against the id it is about to read. Both halves are
+// needed: this one keeps suppliers out of the internal app, that one keeps
+// them out of each other's portals.
+const PUBLIC_PREFIXES = ['/login', '/api/auth']
+
+// Where a partner belongs, and the only thing they may reach.
+const PARTNER_PREFIXES = ['/partner', '/api/partner']
 
 // A published artifact is meant to be readable by anyone with the link — that
 // is the whole point of its public flag — so this one path shape is exempt from
@@ -30,29 +32,43 @@ const PUBLIC_PREFIXES = ['/login', '/api/auth', '/partner', '/api/partner']
 // it, and the harness serves an artifact here only while it is flagged public.
 const PUBLIC_ARTIFACT = /^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/
 
+const under = (pathname: string, prefixes: string[]) =>
+  prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (
-    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
-    PUBLIC_ARTIFACT.test(pathname)
-  ) {
+  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_ARTIFACT.test(pathname)) {
     return NextResponse.next()
   }
 
-  const cookie = req.headers.get('cookie') ?? ''
-  const user = req.cookies.has('pi_sid') ? await resolveUser(cookie) : null
-  if (user) return NextResponse.next()
+  const user = await resolveUser(req.headers.get('cookie') ?? '')
 
-  // Don't redirect API calls into HTML — a fetch() following the redirect would
-  // get the login page back instead of an error it can act on.
-  if (pathname.startsWith('/api')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!user) {
+    // Don't redirect API calls into HTML — a fetch() following the redirect would
+    // get the login page back instead of an error it can act on.
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+    const url = req.nextUrl.clone()
+    url.pathname = '/login'
+    url.search = ''
+    // So a shared deep link survives the sign-in it triggers.
+    url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
   }
 
-  const url = req.nextUrl.clone()
-  url.pathname = '/login'
-  return NextResponse.redirect(url)
+  if (user.role === 'partner' && !under(pathname, PARTNER_PREFIXES)) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    }
+    const url = req.nextUrl.clone()
+    url.pathname = `/partner/${user.supplierId}`
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
+
+  return NextResponse.next()
 }
 
 export const config = {

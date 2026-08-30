@@ -1,16 +1,24 @@
 import { NextResponse } from 'next/server'
 
 import { agentById } from '@/lib/agents'
+import { harnessAuthHeaders } from '@/lib/harness'
+import { resolveUser } from '@/lib/session'
 
 /**
  * Pass-through to an agent's `webchat` plugin inbox
- * (`<harness>/webhook/<agent>/webchat/api/<action>`).
+ * (`<harness>/webhook/<agent>/webchat/api/<action>`) — the internal team's
+ * agent chat panels.
  *
- * The browser can't call the harness directly — it's on another origin with no
- * CORS headers, and the plugin authenticates with the `pi_sid` cookie, which is
- * scoped to this app's domain. So this route forwards the cookie and the body
- * unchanged; `proxy.ts` has already verified the session before we get here,
- * and the plugin verifies it again on its side.
+ * The browser can't call the harness directly: it's on another origin with no
+ * CORS headers. It also no longer has anything the harness would accept —
+ * since 2026-08-30 app users are not harness users — so this route attaches
+ * the app's own bearer and names the signed-in admin, and the plugin verifies
+ * that pair by forwarding it to `/api/auth/me` exactly as it used to forward
+ * the cookie.
+ *
+ * The supplier portal's chat does NOT come through here: it has no harness
+ * identity at all and uses the plugin's `api/app-*` endpoints with
+ * `WEBCHAT_APP_SECRET` instead (`lib/partner-chat.ts`).
  *
  * ponytail: one catch-all instead of five route files — every action has the
  *   same shape (forward, return).
@@ -27,10 +35,17 @@ async function forward(req: Request, path: string[]): Promise<Response> {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 
+  // Agent chat is the internal team's. A partner reaches their own thread
+  // through the portal's `app-*` endpoints, never this one.
+  const user = await resolveUser(req.headers.get('cookie') ?? '')
+  if (user?.role !== 'admin') {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
   const query = new URL(req.url).search
   const target = `${HARNESS_URL}/webhook/${agentId}/webchat/api/${action}${query}`
 
-  const headers: Record<string, string> = { cookie: req.headers.get('cookie') ?? '' }
+  const headers: Record<string, string> = harnessAuthHeaders(user.username)
   for (const h of ['content-type', 'x-file-name']) {
     const v = req.headers.get(h)
     if (v) headers[h] = v

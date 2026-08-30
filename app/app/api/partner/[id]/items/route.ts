@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { listPortalItemLines, partnerSupplier } from '@/lib/availability-queries'
+import { requirePartnerAccess } from '@/lib/partner-auth'
 
-// See ../route.ts for why these routes are outside the session gate and how
-// they are scoped in its absence.
+// See ../route.ts for how these routes are gated and scoped.
 
 /**
  * Every line of this supplier's open requests, flat — what the portal's **By
@@ -14,14 +14,12 @@ import { listPortalItemLines, partnerSupplier } from '@/lib/availability-queries
  * prints.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: raw } = await params
-  const id = Number.parseInt(raw, 10)
-  if (!Number.isInteger(id)) {
-    return NextResponse.json({ error: 'bad id' }, { status: 400 })
-  }
+  const gate = await requirePartnerAccess(req, (await params).id)
+  if (!gate.ok) return gate.res
+  const id = gate.supplierId
   try {
     const supplier = await partnerSupplier(id)
     if (!supplier) return NextResponse.json({ error: 'not found' }, { status: 404 })

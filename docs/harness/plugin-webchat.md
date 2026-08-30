@@ -65,17 +65,27 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 The webhook router does **not** authenticate; each plugin does its own. This
 one has two kinds of caller, so it has two checks:
 
-- **Browser routes** require a real harness session: the plugin forwards the
-  request's cookie to the harness's own `/api/auth/me` and refuses unless a user
-  comes back. Presence of `pi_sid` is not enough — it is a signed stateless
-  token, so it must actually be resolved. Without this, anyone who can reach the
-  port could chat as the operator and write files into the agent's inbox.
+- **Browser routes** require a real harness identity: the plugin replays the
+  caller's own credentials to the harness's `/api/auth/me` (`authHeaders()`)
+  and refuses unless a user comes back. Two credentials qualify, and the plugin
+  does not care which it got — the harness decides:
+  - the console's `pi_sid` cookie. Its presence is not enough: it is a signed
+    stateless token, so it must actually be resolved.
+  - the app's `Authorization: Bearer <app-secret>` + `X-App-User` (harness
+    0.12.0). **This is what the Next app sends now** — its users stopped being
+    harness users on 2026-08-30, so there is no cookie to forward
+    (`docs/app/README.md`, *Auth*). The app's `/api/chat/*` route requires an
+    admin session of its own before it attaches the bearer.
+
+  Without this check, anyone who could reach the port would chat as the
+  operator and write files into the agent's inbox.
 - **`api/reply`** requires `COGNISPHERE_WEBHOOK_SECRET`, which only in-harness
   processes have (the harness injects it into every agent's env).
 - **All four `api/app-*` routes** require `WEBCHAT_APP_SECRET`
   (`X-App-Secret`) — presented by the app's *server* routes for the supplier
-  portal, whose users are not harness users (portal auth is a deliberately
-  deferred step, so this inherits the portal's public-by-URL posture). Portal
+  portal, whose users are app users and not harness users. The portal is behind
+  the app's own sign-in as of 2026-08-30, and the app's routes gate it to the
+  signed-in supplier's own company before presenting this secret. Portal
   uploads accept only raster images, common text/office documents and common
   audio containers; HTML/SVG and path-like names are refused or sanitized.
   Unreferenced portal uploads expire after one hour and are removed on startup

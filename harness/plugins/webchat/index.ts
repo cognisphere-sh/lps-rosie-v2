@@ -44,8 +44,11 @@
  *
  * Auth is three-sided, because the callers differ:
  *   - browser routes (upload/send/messages/threads/file/reset) require a valid
- *     harness session — the plugin forwards the request's cookie to the
- *     harness's own `/api/auth/me`.
+ *     harness identity — the plugin forwards the request's own credentials to
+ *     the harness's `/api/auth/me` and takes its word. That is a `pi_sid`
+ *     cookie from the console, or (harness 0.12.0) the app's
+ *     `Authorization: Bearer <app-secret>` + `X-App-User`, which is what the
+ *     Next app sends now that its users are no longer harness users.
  *   - `api/reply` requires COGNISPHERE_WEBHOOK_SECRET, which only in-harness
  *     processes (i.e. the agent) have.
  *   - `api/app-*` endpoints require the optional WEBCHAT_APP_SECRET
@@ -462,13 +465,24 @@ export default class WebchatPlugin {
     return true;
   }
 
-  /** Ask the harness whose session this cookie is. Null = not signed in. */
-  private async sessionUser(cookie: string): Promise<string | null> {
-    if (!this.apiBase || !cookie) return null;
+  /**
+   * The caller's credentials, as headers to replay upstream: the console's
+   * cookie, or the app's bearer + acting user. Empty when there are none.
+   */
+  private authHeaders(req: { headers: Record<string, unknown> }): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const h of ["cookie", "authorization", "x-app-user"]) {
+      const v = req.headers[h];
+      if (typeof v === "string" && v) out[h] = v;
+    }
+    return "cookie" in out || "authorization" in out ? out : {};
+  }
+
+  /** Ask the harness who this caller is. Null = not signed in. */
+  private async sessionUser(headers: Record<string, string>): Promise<string | null> {
+    if (!this.apiBase || !Object.keys(headers).length) return null;
     try {
-      const res = await fetch(`${this.apiBase}/api/auth/me`, {
-        headers: { cookie },
-      });
+      const res = await fetch(`${this.apiBase}/api/auth/me`, { headers });
       if (!res.ok) return null;
       // /me answers 200 {"user":null} for a bad session — the status is not the answer.
       const body = (await res.json()) as { user?: string | null };
@@ -484,12 +498,12 @@ export default class WebchatPlugin {
    * `pendingSince` only knows about web messages, so without this the
    * indicator reads "Online" while the agent is visibly busy elsewhere.
    */
-  private async hasInFlightEvent(cookie: string): Promise<boolean> {
+  private async hasInFlightEvent(headers: Record<string, string>): Promise<boolean> {
     if (!this.apiBase || !this.ctx) return false;
     try {
       const res = await fetch(
         `${this.apiBase}/api/agents/${this.ctx.agentId}/events?status=in_flight&limit=1`,
-        { headers: { cookie } },
+        { headers },
       );
       if (!res.ok) return false;
       const body = (await res.json()) as { total?: number };
@@ -799,9 +813,9 @@ export default class WebchatPlugin {
         return json(404, { error: "not found" });
       }
 
-      // --- browser side: everything below needs a real harness session ------
-      const cookie = String(req.headers.cookie ?? "");
-      const user = await this.sessionUser(cookie);
+      // --- browser side: everything below needs a real harness identity -----
+      const auth = this.authHeaders(req);
+      const user = await this.sessionUser(auth);
       if (!user) return json(401, { error: "unauthorized" });
 
       if (req.method === "GET" && path === "/api/messages") {
@@ -814,7 +828,7 @@ export default class WebchatPlugin {
         return json(200, {
           ...page,
           readId: this.cursors(threadId).web,
-          pending: this.isPending(t) || (await this.hasInFlightEvent(cookie)),
+          pending: this.isPending(t) || (await this.hasInFlightEvent(auth)),
         });
       }
 

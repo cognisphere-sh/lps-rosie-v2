@@ -3,11 +3,13 @@
 // The supplier portal's chrome — the admin Shell's `WorkspaceFrame`
 // (frame.tsx), filled in for a supplier: their identity and three
 // destinations instead of the operator's pages, a chat with Local Plant Supply
-// instead of the agent panel, a bell of their own. Settings and Log out are
-// drawn but disabled: both belong to supplier sign-in, which is a deliberately
-// deferred step — see docs/app/README.md (Supplier portal).
+// instead of the agent panel, a bell of their own. Log out is real since
+// supplier sign-in landed (2026-08-30); Settings is still drawn and disabled,
+// as there is nothing yet for a supplier to set — see docs/app/README.md
+// (Supplier portal).
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Bell, Leaf, MessagesSquare, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -16,7 +18,7 @@ import {
   type ChatFile, type ChatMessage,
 } from '@/components/workspace/chat-kit'
 import { ARResponseSummary, ARStatusPill } from '@/components/workspace/availability'
-import { WorkspaceFrame, useIsMobile, useTheme } from '@/components/workspace/frame'
+import { WorkspaceFrame, moreItemClass, useIsMobile, useTheme } from '@/components/workspace/frame'
 import {
   ArchiveIcon, ChevronRight, FileIcon, LogoutIcon, RequestsIcon, SettingsIcon,
 } from '@/components/workspace/icons'
@@ -42,7 +44,8 @@ import { cn } from '@/lib/utils'
 
 export type PartnerTab = 'requests' | 'orders' | 'closed'
 
-const AUTH_LATER = 'Available once supplier sign-in lands'
+// Settings is still to come; sign-in landed 2026-08-30, so Log out is real now.
+const AUTH_LATER = 'Available once supplier settings land'
 
 // ------------------------------------------------------------------ the chat
 
@@ -532,6 +535,17 @@ export function PartnerFrame({
 }) {
   const isMobile = useIsMobile()
   const theme = useTheme()
+  const router = useRouter()
+  // Drop the `app_sid` cookie and go back to the shared sign-in page. Same
+  // route the admin Shell uses — there is one session kind now.
+  const signOut = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+      router.push('/login')
+      router.refresh()
+    }
+  }
   // The frame owns the rail; the chat's Full width is what is left beside it.
   const [navOpen, setNavOpen] = useState(false)
   // The chat with Local Plant Supply, opened from the right-hand rail
@@ -775,7 +789,7 @@ export function PartnerFrame({
             {open && <span>Settings</span>}
           </button>
 
-          <button type="button" disabled title={`Log out — ${AUTH_LATER.toLowerCase()}`} className={railBtn(false, false)}>
+          <button type="button" onClick={() => void signOut()} title="Log out" className={railBtn(false, false)}>
             <span className="flex size-4 flex-none items-center justify-center"><LogoutIcon /></span>
             {open && <span>Log out</span>}
           </button>
@@ -787,7 +801,7 @@ export function PartnerFrame({
             <SettingsIcon size={14} />
             Settings
           </button>
-          <button type="button" disabled title={AUTH_LATER} className={PARTNER_MORE_DISABLED}>
+          <button type="button" onClick={() => void signOut()} className={moreItemClass}>
             <LogoutIcon size={14} />
             Log out
           </button>

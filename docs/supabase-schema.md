@@ -131,7 +131,7 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `availability_source_type` | text | yes | **CHECK**: `Email` \| `Hosted` — how the availability list reaches us. Null = not established yet |
 | `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
 | `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
-| `is_lps_partner` | boolean | no, default false | TRUE = an **LPS Partner**: they answer **availability requests in the supplier portal** (`/partner/<id>`, migration 0062). FALSE = reached only through our own channels. Not a login — portal auth is a deliberately deferred step. Independent of whether daisy has *onboarded* them into the database; renamed from `is_onboarded` 2026-08-25 (migration 0074), which projected it from `search_suppliers` so Supplier Search can filter on it |
+| `is_lps_partner` | boolean | no, default false | TRUE = an **LPS Partner**: they answer **availability requests in the supplier portal** (`/partner/<id>`, migration 0062). FALSE = reached only through our own channels. **Derived, not hand-set** (migration 0084): true exactly while the company has at least one `app_users` portal login, maintained by the `app_users_sync_lps_partner` trigger. Creating a company's first login turns it on; deleting its last turns it off. Not writable from the app — it is out of `WRITABLE.suppliers` and read-only on the profile grid, because a flag claiming a portal nobody can sign into is how requests get sent into a void. Independent of whether daisy has *onboarded* them into the database; renamed from `is_onboarded` 2026-08-25 (migration 0074), which projected it from `search_suppliers` so Supplier Search can filter on it |
 | `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the router thread (and per-supplier gws rules) send supplier traffic here. Added 2026-08-23 (migration 0064) |
 | `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for the company — the **same `supplier-<slug>` value** as `daisy_thread_id` (thread ids are per-agent namespaces, so the shared string names two distinct threads), one per head branch. All order-side coordination with the supplier runs there: availability requests, follow-ups, portal-save notifications. Set with `daisy_thread_id` at onboarding. Added 2026-08-23 (migration 0068) |
 | `rosie_thread_ref` / `daisy_thread_ref` | bigint → `threads.id` ON DELETE SET NULL | yes | **Derived** from the two text columns by the `suppliers_link_threads` trigger — writing a text id upserts the `threads` row for (agent, id) and links it. Never write these. Added 2026-08-26 (migration 0078) |
@@ -935,6 +935,41 @@ Both tables are in the `supabase_realtime` publication: the app server holds
 one subscription on `threads` and relays changes to browsers over SSE
 (`docs/app/README.md`, *Agent chat*).
 
+### `app_users`
+
+Who may sign into the **Next app** — added 2026-08-30 by migrations 0081–0083,
+when the app took over its own sign-in. Supabase Auth owns the passwords; this
+table is the app-side half of the identity, and the app reads it with the
+service key like everything else.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | uuid | no | PK **and** FK → `auth.users.id`, `ON DELETE CASCADE`. The row is the auth user's app half and dies with it — which is how the Portal access tab's **Delete** works: it deletes the auth user and this row follows, freeing the username |
+| `username` | text | no | What the person types on `/login`. Unique case-insensitively (`app_users_username_key` on `lower(username)`). The Supabase Auth *email* is derived from it and never typed — a typed address is used as-is, anything else becomes `<username>@AUTH_EMAIL_DOMAIN` (an `.invalid` domain: these mailboxes do not exist and nothing is ever sent to them) |
+| `role` | text | no | **CHECK**: `admin` \| `partner`. `admin` is the internal team, created out of band with `app/scripts/create-admin.mjs`; `partner` is a supplier answering in the portal, created from the supplier page. Nothing in the app creates an admin — there is no bootstrap path and no config credential |
+| `supplier_id` | bigint → `suppliers.id` | yes | The portal this account may see. **CHECK `app_users_role_scope`**: non-null for `partner`, null for `admin` |
+| `created_at` / `updated_at` | timestamptz | no | `updated_at` via `moddatetime` |
+
+**Accounts belong to the company, not to a farm.** `supplier_id` must be a head
+branch, enforced by the `app_users_parent_supplier` trigger (0083): a
+multi-location supplier gets its logins once, on the head branch, and those
+logins see every branch's portal. There is no per-branch account and no way to
+make one.
+
+A company may have **several** logins — an owner and a yard manager answering
+the same requests — so there is no one-per-supplier unique index; 0082 dropped
+the one 0081 created. Usernames stay globally unique.
+
+Nothing here decides what a session may *read*: that is
+`app/lib/partner-auth.ts`, which resolves the requested supplier to its head
+branch and compares. An `admin` reads every portal, a `partner` only their own
+company's, and the app answers 404 — not 403 — on anyone else's, so one
+partner cannot learn another's supplier ids.
+
+Passwords are never readable. `createPartnerAccount` / `resetPartnerPassword`
+return a generated one exactly once, in the reply to the call that made it; the
+supplier page shows it and offers a copy button, and after that it is a hash.
+
 ### `supplier_messages` — removed
 
 The broker↔supplier chat transcript (added 2026-08-19 by migrations 0062/0063)
@@ -1215,11 +1250,13 @@ by default.
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
 | `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
 | `availability_request_items_reopen` | availability_request_items | AFTER INSERT | `availability_request_reopen_on_new_line()`: puts the parent request back to `new` when it was `processing` or `submitted`. Adding a line to a request the supplier already worked on is a new question, and it must reach their portal's New tab whoever added it — the app or an agent script. `closed` is left alone; `submitted_at` is untouched, so the portal's button still reads *Re-Submit*. Added 2026-08-26 (migration 0075) |
-| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items, threads | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `thread_messages` — messages are append-only and never updated |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items, threads, app_users | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `thread_messages` — messages are append-only and never updated |
 | `suppliers_link_threads` / `customers_link_threads` / `job_requests_link_threads` | suppliers, customers, job_requests | BEFORE INSERT (OR UPDATE OF the `*_thread_id` columns) | `link_thread(agent, id)`: upserts the `threads` row for the text id and sets the derived `*_thread_ref` FK. Job requests link `jr-<id>` on insert. Migration 0078 |
 | `job_requests_drop_thread` | job_requests | AFTER DELETE | Deletes the job's `threads` row (transcript cascades). Migration 0079 |
 | `job_requests_close_thread` | job_requests | AFTER INSERT OR UPDATE OF `status`, `is_active` | Sets `threads.closed_at` when the job is `closed_won` / `closed_lost` / `archived` or inactive; clears it otherwise. Migration 0080 |
 | `thread_messages_preview` | thread_messages | AFTER INSERT | Copies the row into the thread's `last_*` preview columns (forward only) |
+| `app_users_parent_supplier` | app_users | BEFORE INSERT OR UPDATE OF `supplier_id` | Refuses a `supplier_id` that is not its own head branch. Portal accounts belong to the company, never to one of its farms. Migration 0083 |
+| `app_users_sync_lps_partner` | app_users | AFTER INSERT OR DELETE OR UPDATE OF `supplier_id`, `role` | `sync_supplier_lps_partner()`: sets `suppliers.is_lps_partner` on every supplier the change touched (both sides of a move) to whether it still has a `partner` login. This is what makes the flag derived; migration 0085 backfilled the rows that disagreed. **`SECURITY DEFINER` with `search_path = ''` and fully-qualified names, and it must stay that way** — deleting an account deletes the `auth.users` row and `app_users` cascades from it, so this fires inside GoTrue's transaction as `supabase_auth_admin`, which has no rights on `public.suppliers`; as an invoker function the UPDATE is refused and the whole delete fails with an opaque `auth.admin.deleteUser: {}`. Migrations 0084/0086 |
 
 ## Indexes that matter
 

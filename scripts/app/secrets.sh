@@ -8,6 +8,42 @@ if [[ -f "$ROOT/app/.env.local" ]]; then
     "${SUPABASE_URL:-}" "${SUPABASE_SECRET_KEY:-}" >> "$ROOT/app/.env.local"
 fi
 
+# ---- workaround: harness/.secrets/app-secret must be readable by RUN_USER ----
+# The stock `secrets` step in ../server.sh runs as root and writes
+# harness/.secrets/app-secret with write600() — owner root, mode 0600. The
+# harness itself runs as RUN_USER, so it cannot read the file and dies on boot:
+#
+#   EACCES: permission denied, open '.../harness/.secrets/app-secret'
+#     at AuthStore.loadOrCreateAppSecret ... "fatal"
+#
+# It then crash-loops, nothing binds HARNESS_PORT, and every app call to the
+# harness fails as "agent unreachable" (2026-08-30). ../server.sh already
+# guards against exactly this for the build (`sudo -u "$BUILD_USER"`, so .next
+# is not left root-owned); the app-secret block added in harness 0.12.0 did not
+# get the same treatment. **This is an upstream bug** — ../server.sh is
+# harness-owned and refreshed on upgrade, so the fix lives here in our own hook
+# rather than in the file the next `cognisphere-upgrade` would overwrite.
+# Remove this block once upstream chowns the file.
+_APP_SECRET="$ROOT/harness/.secrets/app-secret"
+_SECRET_OWNER="${RUN_USER:-${SUDO_USER:-}}"
+if [[ -f "$_APP_SECRET" && -n "$_SECRET_OWNER" && "$(id -u)" -eq 0 ]]; then
+  chown "$_SECRET_OWNER" "$_APP_SECRET"
+  echo ">> app-secret: owner set to $_SECRET_OWNER so the harness can read it" >&2
+fi
+
+# ---- app sign-in: how a username becomes a Supabase Auth email --------------
+# The app owns its own sign-in (Supabase Auth, app/lib/auth.ts) and holds no
+# credential of its own here: internal accounts are created directly in
+# Supabase, partner logins from the supplier page. All this hook passes through
+# is the domain that fabricates an auth email from a username without an `@`.
+#
+# Effectively immutable once accounts exist — changing it orphans every account
+# whose username was not a full email address.
+if [[ -f "$ROOT/app/.env.local" ]]; then
+  printf 'AUTH_EMAIL_DOMAIN=%s\n' "${AUTH_EMAIL_DOMAIN:-lps-app.invalid}" \
+    >> "$ROOT/app/.env.local"
+fi
+
 # ---- artifacts: the shared app↔harness secret, for SEVERAL agents ----------
 # The stock `gen_secrets` block in ../server.sh wires exactly one agent
 # (ARTIFACTS_AGENT) and writes its plugin config.json as `https://$DOMAIN`.

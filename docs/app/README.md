@@ -252,14 +252,14 @@ in the desktop rail and through mobile More.
 | `/` | server | Redirects to `/suppliers`. |
 | `/login` | client | Harness sign-in → `/api/auth/login`, then `/suppliers`. |
 | `/suppliers` | client | Supplier Search, **one row per company** — see *Companies and farms*. The row is the head office's own record; only `# Items` and the ingestion columns speak for the whole company. A leading chevron expands the farms that answered the query beneath it, as full rows with their own profile links. The toolbar keeps broad typo-tolerant Search plus touch-sized **Supplier type** and **State** multiselects visible at every width. Its 44px icon-only **Advanced filters** trigger carries an accessible label, tooltip and nested active count, and opens strict **Name contains**, searchable **City** and the exclusive **LPS Partner** choice (*LPS Partners* / *Not partners*, over `suppliers.is_lps_partner`) without duplicating Type or State. On desktop this is an anchored popover beside `shown/total Companies`, pagination and Notifications. On mobile it is a modal bottom sheet with a handle, title, explicit close, backdrop/swipe dismissal and sticky **Clear all** / **Show results** actions; it is portalled outside the app, makes the background inert/hidden, locks body scroll, traps Tab/Shift+Tab and restores trigger focus. Clear all clears broad Search and every criterion. Mobile omits the top pager and appends each next bounded 50-company server page behind a quiet **Load 50 more** action; HTTP/network failure keeps the committed page and loaded companies in place and offers an explicit retry of that same page. Changing or clearing filters resets that progressive list to page one, including Clear all when nothing is selected. The narrow-screen State menu aligns inward rather than clipping off the viewport. Desktop pagination is unchanged. Table headers keep labels, sort, resize/reorder and the column picker but render no duplicate filter widgets. Filters still run on locations before grouping, so a company can appear because one farm matched and its expander reads `2 of 5 farms`. Company pagination is 50 results at a time. Rows retain the column picker, sort, resize, inline edit and view-only hiding; compact non-shrinking cards serve mobile and the card column owns the page’s result scrolling. A company row carries **Rosie** and **Daisy** buttons — in the sticky actions column beside its hide button on desktop, at the card's bottom-right on mobile — opening the company's two agent threads. The nested farm rows carry none: the threads belong to the company, and a farm's row would only reopen the same two. |
-| `/suppliers/:id` | client | Profile — **one page per company** on a head-branch id, one farm on a farm id (*Companies and farms*). One compact Shell header carries the supplier name; category/farm/inactive context remains in the profile content, and on desktop the header also carries explicit, touch-sized **Chat with Rosie** and **Chat with Daisy** actions opening this company's stored per-agent threads (`rosie_thread_id` / `daisy_thread_id`, the same slug under two agents) in the docked panel. A missing stored id omits its action rather than guessing a thread. On mobile those same avatar actions move into the compact **Supplier details** quick-action group beside call/email/web/map, avoiding a duplicate set in the header; the details are collapsed by default; expanding it reveals separate **Address** and **Details** grids and its bottom-right pencil, making expand → edit an intentional safety gate. Address always shows the stored street, city, state and ZIP as four independent values (including partial/blank records), and the same staged Save/Cancel edit updates those fields without composing or inferring them. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Farms** / **Availability requests** / Notes / Files (the old Communications tab is gone — migration 0063 folded its log into a transcript that was itself dropped 2026-08-23, migration 0066); on a company page every one of them covers all the company's locations and **tags each entry with the farm it belongs to**. Opening Contacts performs a no-store profile read, so active links added by Daisy while the page is mounted appear without a browser refresh. **Farms** lists each location as a card with the same editable Address and Details grids the header has — including street/city/state/ZIP and the **Type** dropdown (Grower / Wholesale Supplier / Retail / Broker/Platform / unset) — plus a link to that farm's own page, and is offered only where there is more than one location (`?tab=farms` on a single-site supplier falls back to Inventory). **Availability requests** lists every request sent to the company's locations and opens one inline (deep-linkable as `?tab=requests&ar=<id>`): the same line table the portal shows, read-only, with a **Portal view** link and a Close/Reopen button; there is no per-request chat. The profile field grid gains **LPS Partner** (`suppliers.is_lps_partner`, migrations 0062/0074, a Yes/No dropdown in edit mode), and an LPS Partner shows the **LPS tag** beside its breadcrumb and on the Suppliers list. Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Mobile inventory cards also show the supplier's raw caliper text when present. Desktop keeps details expanded, its back link visible and its pencil in the header. |
+| `/suppliers/:id` | client | Profile — **one page per company** on a head-branch id, one farm on a farm id (*Companies and farms*). One compact Shell header carries the supplier name; category/farm/inactive context remains in the profile content, and on desktop the header also carries explicit, touch-sized **Chat with Rosie** and **Chat with Daisy** actions opening this company's stored per-agent threads (`rosie_thread_id` / `daisy_thread_id`, the same slug under two agents) in the docked panel. A missing stored id omits its action rather than guessing a thread. On mobile those same avatar actions move into the compact **Supplier details** quick-action group beside call/email/web/map, avoiding a duplicate set in the header; the details are collapsed by default; expanding it reveals separate **Address** and **Details** grids and its bottom-right pencil, making expand → edit an intentional safety gate. Address always shows the stored street, city, state and ZIP as four independent values (including partial/blank records), and the same staged Save/Cancel edit updates those fields without composing or inferring them. Save/Cancel move into the Shell header during editing. Inventory opens by default, followed by Contacts / **Farms** / **Availability requests** / Notes / Files / **Portal access** (the old Communications tab is gone — migration 0063 folded its log into a transcript that was itself dropped 2026-08-23, migration 0066); on a company page every one of them covers all the company's locations and **tags each entry with the farm it belongs to**. The tab row scrolls sideways inside its own width on a narrow screen — seven labelled, counted tabs are wider than a phone, and they would otherwise drag the whole page into horizontal scroll. Opening Contacts performs a no-store profile read, so active links added by Daisy while the page is mounted appear without a browser refresh. **Farms** lists each location as a card with the same editable Address and Details grids the header has — including street/city/state/ZIP and the **Type** dropdown (Grower / Wholesale Supplier / Retail / Broker/Platform / unset) — plus a link to that farm's own page, and is offered only where there is more than one location (`?tab=farms` on a single-site supplier falls back to Inventory). **Availability requests** lists every request sent to the company's locations and opens one inline (deep-linkable as `?tab=requests&ar=<id>`): the same line table the portal shows, read-only, with a **Portal view** link and a Close/Reopen button; there is no per-request chat. The profile field grid shows **LPS Partner** (`suppliers.is_lps_partner`, migrations 0062/0074) **read-only** — it is derived from the company's portal logins (migration 0084) and moves only from the Portal access tab, and an LPS Partner shows the **LPS tag** beside its breadcrumb and on the Suppliers list. **Portal access** (`?tab=access`) is where that company's portal logins are made, reset and deleted (*Portal access*). Inventory height (ft), width (in) and caliper (in) ranges are sent to the server before its 100-row pagination; desktop uses column headers and mobile shows the same three controls under the supplier-list search. Mobile inventory cards also show the supplier's raw caliper text when present. Desktop keeps details expanded, its back link visible and its pencil in the header. |
 | `/plants` | client | Plant search, **one card per company**, with every matching row from every one of its farms beside it and a **Branch** column naming the farm each row is at. Every plant retains its original `supplier_id` and source; the card links to the company page. The generic Shell title is hidden on mobile; the search toolbar carries natural size tokens, available-size/cultivar/type/city/state controls and pagination through the whole match set 300 plants at a time. Desktop keeps the resizable company panel and plant columns; mobile starts each company collapsed and lets each plant expose its branch, notes, dates and source inline. A long mobile plant name scrolls horizontally inside its own row value (touch/trackpad or ←/→, Home/End while the disclosure is focused), preserving the price/action column and preventing page-level sideways overflow. |
 | `/photos` | client | Photo catalogue: a responsive thumbnail grid (2 up on mobile, to 5 on a wide screen) over `plant_photos`, with the same search toolbar shape as Plant search — one query box plus searchable multiselects for supplier, size, **cultivar** and tag. **50 photos at a time behind a Load more button**, which appends rather than flipping pages — a wall of photos is scanned downwards, and a pager loses everything already looked at. The button carries the remaining count so it isn't a mystery box. Each card carries a **delete** control in its top corner (always visible, not hover-only — this grid is used on touch screens): it confirms, then soft-deletes through `DELETE /api/rows`, and says plainly that the image file itself is kept in storage. **A blank query browses**, newest first, rather than showing an empty prompt: browsing is the normal way to use a photo catalogue. The existing toolbar summary says **Newest first** or **Ranked by match** beside its result count; ordering is not duplicated in the compact header. Each card shows plant name, supplier, size/dimension line and the captured (or received) date. Tapping one opens an in-page lightbox — full image, ←/→ and Esc, every identity/size/tag/provenance field, and a link to the supplier — so closing it returns to the same search, filters and page with no refetch. The lightbox's pencil turns that panel into a **form**: the three name parts, size, height/width/caliper, tags (comma separated) and caption/notes, staged locally and written as one atomic update on Save, exactly as the supplier profile does. While editing, Esc backs out of the form rather than closing the lightbox and the arrows belong to the text fields, so a draft can't be lost by reaching for the next photo. |
 | `/customers` | client | **Customers** — a table, one row per person, in the same shape Suppliers uses: sticky header with per-column sort, filter, resize and drag-to-reorder, a column picker at the right edge, and the layout persisted per table. Columns are Name (opens their page), Company, Email, Phone, **Active requests**, **Active request value**, **Orders**, **Total order value**, City, State, Street, ZIP, Notes, Added, Last updated — Street, ZIP, Notes and Added hidden by default. The two request figures are summed **in the browser** from the rollup each customer already carries (`sourcing` + `quoted`); the two order figures are **empty on purpose** — there are no order tables (migration 0055 defers them), and a column reading a request figure under an order's name would be a lie. Every cell but the four figures and the two dates is **edited in place** through `PATCH /api/rows`. Search matches name, company, email or phone; a **State** chip and a **With requests · N** toggle narrow further, both server-side. The **column header's** sort and filters run over the page in view rather than the whole table — two of the columns are summed in the browser and have no database column to order on. Each row also carries a **Rosie** button — in the actions column at the right edge on desktop, at the card's bottom-right on mobile — opening that customer's conversation. On mobile the table gives way to one card per customer, opening the same page. Cards no longer expand here: everything the old drawer held moved to `/customers/:id`. **No create form, deliberately** — see the deviations table. |
 | `/customers/:id` | client | **One customer.** A details card — the contact routes, a four-figure summary (Active requests, Active request value, Orders, Total order value, the last two reading `—` until order tables exist), **Who they are** and **Address** as editable field grids, **Notes** edited in place (the append-only **Contact log** beside it went with `customers.communication_notes` on 2026-08-25, migration 0073) — and under it two tabs. The header carries an explicit, touch-sized **Chat with Rosie** action opening the customer's stored `rosie_thread_id` conversation, which is the contact history now; when that id has not been minted, the action is omitted rather than deriving a slug that could create a duplicate thread. The live environment currently has no customer rows to backfill; before rolling this policy into another environment with legacy customers, audit null-id web transcripts and reconcile them to stored canonical ids rather than deriving new ones in the UI. **Requests** lists their active requests with status pill, line count, total and date, and each line **opens** into the same body the Job Requests page draws (compact request/contact/delivery/billing-payment summary, status strip, editable line-item table, secondary details-and-notes drawer, Change history), minus the line checkboxes and the delete column: this page has no selection bar to act on them, and a customer's page lists their jobs rather than administering them — deleting one is done where requests are managed. The opened request is fetched on its own from `GET /api/requests/:id` and re-fetched after any write. **Orders** is drawn and empty, saying why. Nothing is behind a second chevron here — this is where a customer is corrected, not scanned. |
 | `/jobs` | client | **Active Jobs inbox.** Bare desktop `/jobs` is a no-selection landing in the ordinary shell: its Inbox/All jobs switch is the sole list toolbar/header surface, with labelled 44px New job and Notifications controls at the right. Activating a valid row pushes `/jobs?jr=<id>` and enters the focused desktop shell: a 292px active-JR/thread rail replaces the normal app rail, a labelled 44px Back control restores the bare list, and the non-management work pane — the job head, then the shared `RequestLinks` strip (customer, Chat chip, ship-to locality, one segmented pill per engaged supplier with its `AR-<id>` and conversation segments, exactly as on the `/requests` card), then `RequestBody` — has one Shell-owned New job/Notifications row. Row switches replace the current history entry, and New from any selected desktop or mobile detail replaces it with the reserved intake entry so exit + Back still returns to the original bare landing; only New from bare Jobs pushes. The labelled in-app Back on a direct/reloaded link replaces to `/jobs`; native browser Back remains ordinary browser history and may leave the app when no app entry preceded the deep link. List scroll and the originating row/New trigger are restored only on an intentional focused/detail → bare transition—not polls, SSE reorder or responsive resize—and intentional row activation alone focuses the work pane. The unchanged global `AgentChat` remains the sole right column in collapsed/docked/full/peek modes; the selected Rosie action opens canonical `jr-<id>` there, never in an embedded chat. Mobile retains the ordinary shell/bottom nav and drills list → selected detail without an in-page Back control; browser/device Back returns through the existing pushed history entry. Selection parsing and successful-list membership are strict: invalid/closed ids never fall through, while a failed initial list fetch remains a retryable verification error rather than claiming unavailability. Layout changes at exactly 900px (899 stays one-column mobile; 900 gains the focused split). Every row exposes JR/name/status/preview/time/read state and current selection. A bare/copied `&intake=1` on an existing job—including zero-line jobs—remains normal selected detail unless this tab holds its exact reservation marker; markerless no-row URLs are unavailable and intake never auto-exits. Rows cover only active `sourcing|quoted` jobs and order by the maximum of canonical Rosie web-thread activity and request update/create time; shared team-web unread is `last_seq > web_read_id`. Polls snapshot per-row SSE revisions: unchanged rows accept authoritative membership/`thread:null`, while rows changed after request start merge message preview and web-read cursor as independent monotonic dimensions; unknown reopen-like SSE is API-verified, never inserted client-side. New enters the manual-exit focused intake described above. |
 | `/requests` | client | **All jobs management**, from the Order Requests design comp. Inbox/All jobs switches preserve this route's validated query, filters and page in tab-scoped state. One **collapsed card per request** carrying everything it is judged on without opening it — `JR-<id>`, **the job's name** (`job_requests.name`, click to rename — which also retitles the job's Rosie thread, see *Agent chat*; blank on an unnamed request, because `JR-<id>` beside it is already its name), status pill, customer/company, contact name, ship-to city/state, the updated date (created is its tooltip), a **one-line demand strip** — every line status with its count, then item count and subtotal, zeros included but dimmed, so "nothing is unavailable" and "nobody has looked yet" cannot render alike — and **the newest note on the request, truncated to one line** and tagged with its audience. The head is deliberately spare: the customer's email and phone belong to the customer and are a click away on their card, and one date is enough to triage by. The card head carries **no checkbox**: selection is per line, in the table the card opens. Clicking the card expands it into a compact four-block summary (request identity, real customer/contact routes, ship-to delivery address, and billing address/payment state), one full-width status/count/item/subtotal strip, the line-item table, and a **Change history** drawer at the foot. Unsupported PO, delivery schedule/method and payment-method data are never fabricated: the summary explicitly says when schedule or payment details are not recorded. The editable **More details & notes** drawer is **shut by default** — a second level of expansion — and preserves the shipping/billing fields plus all three audience-specific note blocks, with a one-line summary of what it is hiding while closed. The **sourcing note** block is an ordinary editable field there, like the shared note: it is free text kept current, not a log that grows without bound. Order particulars are read when a request is being actioned, not when it is being scanned, so the head keeps only the destination city and state. The table is Select / Demand / Avail / Size / Plant Name / Status / Unit price / Total / Shared note / Sourcing note, plus a trailing unlabelled **delete** column, colour-keyed by status down a left edge. Each line's **name carries the customer's note about that line** underneath it, in italics — the ask and what they said about it, read together. **The counts on a collapsed card always describe the whole request**, never the filtered subset the expanded table draws — so a card can honestly read `4 lines` while showing one. A search or an item-level filter auto-expands the cards it matched, since the question was about lines. **Expand all / Collapse all** in the toolbar; its existing result summary also keeps the line-item count that no longer lives in the compact header. Selecting lines offers **Availability request** in the selection bar: a dialog with the LPS Partner dropdown and a share-customer-details checkbox that creates one `availability_requests` row per job involved, snapshotting the selected lines and **prefilling each line's price** where our own catalogue answers it for that supplier at that size (exact identity match, one agreed price, or the box goes out blank). Everything the job opens hangs off the customer line, in the empty half of a row the card already draws — so the card is no taller for it. The customer's end sits with the customer's name: a **Chat** chip opening only their stored `rosie_thread_id` conversation; no chip is drawn for a missing/blank id, because the Job Request card must not guess Rosie's collision-safe slug. Right-aligned opposite it, **one segmented pill per engaged supplier**, most recently engaged first: the rail's supplier mark and the name written once, then a segment for **every availability request this job has with them** (`AR-<id>`, newest first, opening the request as a drawer); an AR whose current lifecycle status is exactly `submitted` turns green and carries a matching compact round dot in that same segment, while its accessible name says **Submitted**. The indicator deliberately does not infer submission from `submitted_at`, so a request reset to `new` or moved to `closed` is not mislabeled. A successful drawer write signals its re-read status back into only the matching mounted link (no page/facet refetch), and the drawer remains the only detail view. One final segment opens **their conversation**. A job can have several suppliers and several requests with each, so the supplier is the unit — a flat run of `AR-<id>` chips would be the same links in an order nobody can scan. **Below `md` the supplier pills are drawn only on an expanded card**, and take a full-width line of their own rather than hanging off the right edge: a narrow card has no empty half for them to ride, and who a job's suppliers are is what the card is opened to find out. The customer line, its Chat chip and the demand strip are unchanged there. These live on the card and not under the sourcing notes, where they used to be: a note is free text, so a link in it can only be built from the job's actual engagement anyway, and that engagement belongs to the job rather than to a sentence about it. The denser line table scrolls sideways below ~1050px rather than crushing its columns, and each card is `flex-none` so the card list scrolls vertically instead of the card being shrunk and clipping its own contents. **Fields are edited inline**: click a line's name, size, demand, avail or unit price to edit it (Enter or blur commits, Esc abandons, an unchanged value is never written), rename the job from the card head, pick a status from the pill's dropdown, and edit the ship-to/bill-to parts and both note fields in the More details & notes drawer. Every write goes through `PATCH /api/rows`, and the page refetches afterwards because `total` and every count are derived. **Change history** is the request's whole audit trail — every edit to it or its lines, by this app *and* by the agents, since `job_request_changelog` is trigger-written and neither write path has to cooperate. Each entry names the actor in words (`service_role` → "This app", `postgres` → "An agent script"), says whether it was a create or a change and what it was about, and lists each column as `old → new`. It is fetched only when opened, and re-fetched after any write, so an edit you just made shows up in the history you are looking at. Nothing in it is editable — the rows are immutable by design. **Whole-request deletion is mobile-safe.** Desktop and expanded mobile cards keep the established whole-request trash control, while a collapsed mobile card moves it into a labelled, 44px **Actions** menu separated from Rosie's own 44px target. Choosing **Delete request** opens an accessible confirmation naming the JR and job, stating that deletion is permanent, and giving the authoritative line count plus a nonnumeric warning that all related availability requests and their answers, and the change history, will be removed; Cancel, Escape or dismiss leaves it unchanged. Each line keeps its existing permanent-delete control and confirmation at the right end of the line table. The toast afterwards reports what the server actually removed. **Not editable, deliberately:** `total` (generated) and `customer_notes` (the customer's own words) — see *Row tinting and selection* and *Job requests* below. |
-| `/partner/:id` | client | **Supplier portal home** — the outward-facing app an LPS Partner uses (see *Supplier portal*). **One row per availability request, and the row is a link**: it opens the request's own page (`/partner/:id/requests/:arId`) rather than expanding in place, because answering a request is the work and a list is only how you pick one. **Four tabs and no filters** (2026-08-26): All · New · Processing · Completed (the `submitted` status, labelled as the design does), centred in one card-toned strip pinned under the header, each drawn label-over-count with the selected tab boxed and the count in the tab's accent — blue for New, orange for Completed, quiet for the rest. The tab *is* the selection — the search box, the job-status / item-status / customer chips, the date range, the sort and Expand all are all gone, and a supplier's list is short enough that they cost more than they found. **`closed` requests are not on this page at all** (2026-08-26), not even under All: closing is ours, and a closed request is finished work rather than a fourth thing to triage, so it has its own rail destination instead of a tab. **The row** (redrawn 2026-08-30 to the Figma comp): a fixed-width status pill at the left (blue and outlined for New, quiet with a chevron otherwise), the job name (falling back to *Availability request*; supplier-facing request IDs are deliberately omitted) over **our job-level note to the supplier** (`lpsNotes`, one truncated line, omitted when blank), and the request's subtotal at the right (`—` until a line is priced *and* counted). A New row carries a blue edge. No date and no Delivery/Pickup mark: a request records neither a due date nor a fulfilment method, and the note is where the delivery window lives. The count/subtotal strip the card used to draw is gone from the list; the request page still has it. The generic desktop frame header is absent; the tab strip carries the PartnerFrame-owned bell at its right, and the old `X new jobs · Y rows pending` stats line is gone. **By request / By item** is a floating three-icon toggle (rows · stacked layers · grid) pinned to the bottom centre of the page column, over the list; under By item the strip's tabs become the answer statuses (see *By item*), and under **By status** the strip is empty — the board's cards are the cut (see *By status*). **Ungated** — see *Auth*. 404-styled message for a supplier that is missing or not an LPS Partner. |
+| `/partner/:id` | client | **Supplier portal home** — the outward-facing app an LPS Partner uses (see *Supplier portal*). **One row per availability request, and the row is a link**: it opens the request's own page (`/partner/:id/requests/:arId`) rather than expanding in place, because answering a request is the work and a list is only how you pick one. **Four tabs and no filters** (2026-08-26): All · New · Processing · Completed (the `submitted` status, labelled as the design does), centred in one card-toned strip pinned under the header, each drawn label-over-count with the selected tab boxed and the count in the tab's accent — blue for New, orange for Completed, quiet for the rest. The tab *is* the selection — the search box, the job-status / item-status / customer chips, the date range, the sort and Expand all are all gone, and a supplier's list is short enough that they cost more than they found. **`closed` requests are not on this page at all** (2026-08-26), not even under All: closing is ours, and a closed request is finished work rather than a fourth thing to triage, so it has its own rail destination instead of a tab. **The row** (redrawn 2026-08-30 to the Figma comp): a fixed-width status pill at the left (blue and outlined for New, quiet with a chevron otherwise), the job name (falling back to *Availability request*; supplier-facing request IDs are deliberately omitted) over **our job-level note to the supplier** (`lpsNotes`, one truncated line, omitted when blank), and the request's subtotal at the right (`—` until a line is priced *and* counted). A New row carries a blue edge. No date and no Delivery/Pickup mark: a request records neither a due date nor a fulfilment method, and the note is where the delivery window lives. The count/subtotal strip the card used to draw is gone from the list; the request page still has it. The generic desktop frame header is absent; the tab strip carries the PartnerFrame-owned bell at its right, and the old `X new jobs · Y rows pending` stats line is gone. **By request / By item** is a floating three-icon toggle (rows · stacked layers · grid) pinned to the bottom centre of the page column, over the list; under By item the strip's tabs become the answer statuses (see *By item*), and under **By status** the strip is empty — the board's cards are the cut (see *By status*). **Gated** — a partner sees only their own company, an admin sees all; see *Auth*. 404-styled message for a supplier that is missing, not an LPS Partner, or not theirs. |
 | `/partner/:id/closed` | client | **Closed requests** — the fourth and last entry in the portal's nav rail (`Closed`, an archive mark), and the only place a `closed` request appears. One list, newest first, no tabs and no filters: a closed request is something you look up, not something you triage between. Its count sits quietly above the cards in content rather than in the compact header. The cards are the requests page's own `PartnerRequestCard`, and still open the request, which reads closed and read-only when it gets there. |
 | `/partner/:id/requests/:arId` | client | **One availability request**, and everything needed to answer it — redrawn 2026-08-30 to the Figma comp. No desktop header: the toolbar is the top row, with a **← Customer Requests** pill (**← Closed requests** on a closed one, since that is the list it was reached from and belongs to — the rail's highlight follows it the same way; 44px minimum target), `N lines · M pending`, and at the right round icon actions — **copy link** (the page's URL to the clipboard, falling back to `execCommand('copy')` where the async clipboard API is unavailable or refuses; the icon turns to a check and a *Link copied* chip shows for two seconds) and **print** (`window.print()` over the **print sheet** — `ar-print-sheet.tsx`, a `<body>` portal shown only under `@media print`, laid out as the availability-request PDF LPS emails, densely enough that a dozen lines fit one page: title, **`Request #: AR-<id>`** — the portal never shows the AR number on screen, but a filled sheet comes back as an upload and the number is how the agent knows which request the answers belong to, so it heads the sheet, repeats in a table footer on every page and opens the disclaimer — the job name at the right, a bordered table of Qty · Size · Name (our per-line note in italics beneath) · Status (the five answers as a checklist two to a line, the given one ticked; *Diff Size/Qty* as the reference sheet abbreviates it) · Avail. Qty · Price · Notes (narrow), an Additional Comments box, a Submitted by line and the quotation disclaimer; `globals.css` hides everything else on paper, since the app's fixed frame would print clipped, and fixes the page to letter portrait) — and the PartnerFrame bell. Then a **header card**: a strip with the status pill (`submitted` reads *Completed*), the job name centred and the requested date as `Wednesday | 08/26/2026`; under it the customer contact (name, phone, email) and the delivery address where the request shares them, and our job-level note under *Delivery instructions*. Then the **summary strip** — Available · Can Order · Diff Size/Qty · Arriving Soon · Unavailable · Total Items (line count) · Subtotal — each count in its own accent, a dash for zero. Then the line table in its **portal drawing** (`ARLineTable design="portal"`): Need · Size · Plant · Status · Avail qty · Price · Nursery notes, plain hairlines with no tone bar, tint, Line total column or subtotal footer (the strip has it); the placeholders read `—`, `-` and `Add note…`. Picking a status behaves per answer (see *Supplier portal*); per-cell saves on blur go through the scoped portal PATCH, which also moves the request to `processing`. The **Submit availability** bar is pinned under the table (**Re-Submit availability** once `submitted_at` exists — including after we added a line and the trigger put the request back to `new`); it stamps the request `submitted` and wakes rosie; re-submitting re-notifies. A notice under the table says so while the request is `new` and carries prefilled prices. It loads the home list's payload (`GET /api/partner/:id`, lines embedded) rather than the single-request route, so one fetch feeds the request, the supplier's name and the bell. **The chat is a second way to answer it** (2026-08-29): a supplier can say what they have and rosie writes it into the lines herself; the page reloads on every reply from Local Plant Supply (`PartnerFrame`'s `onAgentReply`). A closed request is read-only, with no submit bar. The mock's mail / chat / PDF actions, PO number, payment contact and payment method are not drawn: none of them exist on a request. |
 | `/partner/:id/orders` | client | The portal's Orders tab — drawn and empty on purpose, exactly like the admin app's order columns: the order tables are deferred by migration 0055. |
@@ -271,6 +271,10 @@ in the desktop rail and through mobile More.
 | API route | Purpose |
 |---|---|
 | `GET /api/suppliers?q=&page=` | Runs the location-level `search_suppliers` result and filters first, attaches each location's `head_branch_id`, groups before pagination, and returns `companies` (50 per page). Each carries the **`head` row** — read from `suppliers`, so it is present whether or not it matched — the matching farms under it, `matchedCount`, `locationCount` and `locationIds`. The head row's source list is the whole company's, newest first, so its **Last ingestion** is the company's. `total`/`pageCount` are company counts. Postgres-incompatible NUL parameter names/values and non-boolean `s.lps_partner` values fail closed with a fixed, non-reflecting JSON `400` rather than becoming database `500`s; valid parameters are unchanged. `?counts=1&ids=` is still the per-location active-item second pass, now asked for **every** location id so the company row's `# Items` is the company's. |
+| `POST /api/auth/login` | Sign in. `{username, password}` → sets the signed `app_sid` cookie and answers `{next}`, the path for that role. A bad username and a bad password fail identically (401); a 502 means the sign-in service is down, not a typo. |
+| `POST /api/auth/logout` | Sign out — drops the cookie. The token is stateless, so that is the whole of it. |
+| `GET /api/auth/me` | `{user, role, supplierId}`, or `{user: null}`. What the nav rail's avatar reads. 200 either way — the rail asks on pages where signed-out is fine. |
+| `/api/suppliers/:id/partner-account` | **Admin only.** The Portal access panel. `GET` lists the company's logins and the id its portal URL is built from; `POST {username}` adds one (and marks the company an LPS Partner); `PATCH {accountId}` resets one password; `DELETE {accountId}` removes one for good (the `auth.users` delete cascades the `app_users` row). The two password writes answer with the generated password **once** — it is a hash after that. |
 | `GET /api/suppliers/:id` | The whole profile as one payload (`getSupplierProfile`): `subjectId`, `company` (`{id, name, locationCount}`) and `locations` — head branch first, each with its own row, contacts, active sources and item count. On a head-branch id that is every active location of the company; on a farm id it is that farm alone. |
 | `GET /api/plants?q=&page=` | Plant search is still paged at inventory-row grain (300), then grouped into **company** `groups`: `companyId`, `companyName`, the head-office `company` row carrying the aggregates, `locationCount`, `matchedLocations` and the plants themselves, each with `values.branch` naming its farm. Plant and location filters — including city/state — run before the page and the grouping. `sort=&dir=` orders the whole inventory match set ahead of relevance. `?supplierId=&page=` is the profile's inventory and takes a **comma-separated set** of farm ids — the profile's whole scope — so a company page pages through its farms as one list. |
 | `GET /api/photos?q=&offset=` | Photo catalogue, 50 per batch, with the match `total`. **An `offset`, not a page number** — the grid appends, so it asks for "the next batch after what I hold", which stays correct after a photo is deleted out of the middle; a page number would skip the row that moved up. An offset past the end returns an **empty batch with the true total**, not an error. `p.supplier` / `p.size` / `p.cultivar` / `p.tag` filter in SQL over the result (or over the table when `q` is blank). `?facets=1&q=` returns the option lists — sizes, tags, cultivar display names and `{id,name,city,state}` suppliers — for that search without its filters. |
@@ -308,6 +312,58 @@ in the desktop rail and through mobile More.
 Pages are client components that fetch from these routes — the workspace is
 interaction-heavy (column layout, filters, editing), so there is one data path
 rather than a server-rendered one and a client one that drift apart.
+
+## Portal access
+
+How a supplier gets a login. `components/workspace/partner-access.tsx` over
+`/api/suppliers/:id/partner-account`.
+
+It lives on the supplier page's **Portal access** tab (`?tab=access`, last in
+the strip — account admin is occasional work, not something you triage
+between), and that tab is the only surface for it. A header button and a
+mobile quick action that opened the same panel in a modal were dropped on
+2026-08-30: two entry points to one panel is one more than the thing needs.
+
+**Accounts belong to the company, never to a farm.** Opened from any branch
+page it shows and edits the *head branch's* accounts, and the URL it hands you
+is that company's portal. The rule is enforced three deep: `partnerScopeId()`
+resolves the id before every read and write, and the `app_users_parent_supplier`
+trigger (migration 0083) rejects a branch id outright.
+
+A company may have **several** logins — an owner and a yard manager answering
+the same requests — so the dialog is a list with an add form, not a single
+button. Usernames are globally unique and case-insensitive; the admin types
+one, defaulted to the supplier's primary contact email. It is a *handle*, not
+an address: Supabase Auth needs an email, so one is derived
+(`<username>@AUTH_EMAIL_DOMAIN`, an `.invalid` domain) and never written to.
+
+**`is_lps_partner` follows the logins.** Since 2026-08-30 the flag is derived,
+not hand-set: true exactly while the company has at least one portal account,
+maintained by a database trigger (migration 0084). Creating a company's first
+login turns it on, deleting its last turns it off, and nothing else moves it —
+it is out of `WRITABLE.suppliers` and read-only on the profile grid, where it
+was a Yes/No dropdown until then. The two were previously independent, so a
+company could be marked an LPS Partner with nobody able to sign in, and
+availability requests could be sent to a portal no one could open.
+
+The flag lives on the head branch **alone**: that is the row the
+availability-request picker offers and the row the shared URL names, so a
+company answers on one portal rather than one per farm.
+
+**The password is shown once.** Supabase stores a hash and nothing can read it
+back, so the reply to the call that made it is the only sighting. The panel
+prints it with the portal URL and the username, and offers *Copy message* — the
+whole hand-over text, ready to send — and *Copy link*. After that the only
+remedy is **Reset password**, per account, which rolls it and shows the new one
+the same way.
+
+**Delete** removes a login for good, per account, behind a confirm that names
+it. Deleting the Supabase Auth user is the whole of it — `app_users.id` is an
+FK to it `ON DELETE CASCADE`, so the app-side row goes too and the username is
+free again. It is scoped by company like the reset, so one supplier's page
+cannot delete another's login by id. Deleting a company's **last** login clears
+`is_lps_partner`, which also takes them out of the availability-request picker:
+nobody can open their portal, so nothing should be sent to it.
 
 ## Supplier portal
 
@@ -385,21 +441,24 @@ second implementation. Its slots, top to bottom and left to right:
   container.
 - **The chat column** docked right (see below).
 
-Settings and Log out are drawn **disabled** on both surfaces — both belong to
-supplier sign-in, which doesn't exist yet; a control that pretended otherwise
-would misrepresent the system.
+**Log out** is real on both surfaces since sign-in landed (2026-08-30); it
+drops `app_sid` and returns to `/login`. **Settings** is still drawn disabled —
+there is nothing yet for a supplier to set.
 
 Three things to keep straight:
 
-- **No auth, deliberately and temporarily** (Bhoumik, 2026-08-19). Suppliers
-  are not harness users, so the portal sits outside `proxy.ts`'s gate and every
-  route scopes itself instead: `portalSupplier()` refuses any supplier that is
-  missing, inactive or not an LPS Partner; a request belonging to another supplier
-  is 404; customer details cross only when the request was created with
-  `share_customer_details`; and the portal PATCH can write exactly the four
-  answer columns. **Revisit the `PUBLIC_PREFIXES` line when supplier sign-in
-  lands.** Until then the nav rail's **Supplier view** entry is the stand-in:
-  a picker of LPS Partners that opens their portal in a new tab.
+- **The portal is behind auth** (2026-08-30). It was deliberately open from
+  2026-08-19, when suppliers were not app users and could not be; they have
+  their own logins now (*Auth*, *Portal access*). A supplier signs in and sees
+  **their own company** — the head branch their account hangs off, and every
+  branch of it — and 404s on anyone else's, decided per request by
+  `requirePartnerAccess` in `lib/partner-auth.ts`. The old scoping all still
+  stands on top of it: `partnerSupplier()` refuses any supplier that is
+  missing, inactive or not an LPS Partner; customer details cross only when the
+  request was created with `share_customer_details`; and the portal PATCH can
+  write exactly the four answer columns. The nav rail's **Supplier view**
+  picker survives the change — an `admin` passes the check for every company,
+  so it is now how the team looks at a portal without the supplier's password.
 - **The ask is a snapshot.** A portal request's lines carry the name/size/
   quantity copied at share time — editing the job request afterwards does not
   rewrite the question the supplier is answering.
@@ -1406,11 +1465,13 @@ swap the conversation in place. On mobile it is the tab bar's agent tabs
 so the sheet's header carries the back button instead.
 
 **Transport.** `app/api/chat/[...path]/route.ts` forwards to
-`<harness>/webhook/<agent>/webchat/api/<action>`, passing the cookie and
-streaming the body (uploads need `duplex: 'half'`). The browser can't call the
-harness directly — different origin, no CORS, and the plugin authenticates with
-`pi_sid`, which is scoped to this app's domain. `proxy.ts` gates the route
-before it runs, and the plugin re-checks the session on its side; the agent and
+`<harness>/webhook/<agent>/webchat/api/<action>`, attaching the app's bearer +
+`X-App-User` and streaming the body (uploads need `duplex: 'half'`). The
+browser can't call the harness directly — different origin, no CORS — and since
+2026-08-30 it has nothing the harness would accept either, so the route
+authenticates as the app and names the signed-in admin. The plugin re-checks
+that pair on `/api/auth/me` exactly as it used to re-check the cookie
+(`plugin-webchat.md`). The route requires `role === 'admin'`; the agent and
 action are both checked against allowlists, since the path comes from the
 browser. A harness that is down answers 502 rather than hanging the poll.
 
@@ -1616,17 +1677,21 @@ Two paths, both same-origin so the browser never makes a cross-origin call to a
 server that ships no CORS headers:
 
 - **`/api/harness/*`** (`app/api/harness/[...path]/route.ts`) forwards to the
-  harness's authenticated `/api/*` with the user's own `pi_sid` cookie. App
-  users *are* harness users — that is what `proxy.ts` gates on — so the harness
-  re-checks the very same session it minted, and the app holds no harness
-  credentials of its own for this. **The allowlist in that file is the security
-  boundary**: only the endpoints below are reachable, and
-  `/api/agents/:id/fs/file` in particular is pinned to the scheduler's one state
-  file, because it can otherwise read and write anywhere under an agent's
-  directory.
-- **`/api/gws/oauth/*`** is a plain `next.config.ts` rewrite, because Google
-  redirects the *browser* to `/api/gws/oauth/callback` and the harness
-  authenticates that callback with its own single-use `state` nonce.
+  harness's authenticated `/api/*` as **the app itself**:
+  `Authorization: Bearer $HARNESS_APP_SECRET` plus `X-App-User: <admin>`
+  (`lib/harness.ts`, harness 0.12.0). App users stopped being harness users on
+  2026-08-30, so there is no cookie to forward. **The allowlist in that file is
+  the whole security boundary** — it is no longer backstopped by the caller's
+  own harness permissions, because the caller has none. Hence also the explicit
+  `role === 'admin'` check there. `/api/agents/:id/fs/file` stays pinned to the
+  scheduler's one state file, because it can otherwise read and write anywhere
+  under an agent's directory. The authed half of the Google OAuth flow comes
+  through here too (`gws/oauth`, `gws/oauth/:agent/start`, `DELETE
+  gws/oauth/:agent`).
+- **`/api/gws/oauth/callback`** — the *only* remaining `next.config.ts`
+  rewrite. Google redirects the **browser** there, and a browser redirect can
+  carry no bearer; the harness mounts that one route outside its own auth and
+  authenticates it with the single-use `state` nonce its start route issued.
 
 | Endpoint | Used for |
 |---|---|
@@ -1973,30 +2038,92 @@ edges, and the note is the instruction the line is answered against.
 
 ## Auth
 
-Credentials belong to the **cognisphere harness** (`harness/.secrets/users.json`,
-from `config`'s `APP_USER` / `APP_PASS`). `next.config.ts` rewrites
-`/api/auth/*` to the harness so the browser stays same-origin and the harness
-sets its `pi_sid` cookie. It rewrites `/api/gws/oauth/*` for the same reason
-(*Settings*), and `/api/harness/*` forwards that cookie to the harness's
-authenticated admin API behind an allowlist — every app user is a harness user,
-so the harness re-checks its own session there.
+**The app owns its sign-in.** Credentials live in **Supabase Auth**; the app
+mints its own session. Until 2026-08-30 app users *were* harness users —
+`next.config.ts` rewrote `/api/auth/*` to the harness and the harness set its
+`pi_sid` cookie — which could not survive giving suppliers logins, since a
+supplier must never be a harness operator.
+
+Two populations sign in through one form (`/login`):
+
+| Role | Who | Sees |
+|---|---|---|
+| `admin` | the internal team | everything |
+| `partner` | a supplier | their own company's portal, nothing else |
+
+`public.app_users` (migrations 0081–0083) is the app-side half of each
+identity: the login handle, the role, and for a partner the one **company**
+(head branch) they may see. Supabase Auth owns the password and nothing else —
+`lib/auth.ts` verifies it with `signInWithPassword`, then throws the Supabase
+session away and mints `app_sid`, a token this app signs with
+`APP_SESSION_SECRET`. See [`../supabase-schema.md`](../supabase-schema.md) for
+the table, and *Portal access* below for how partner accounts are made.
+
+**Nothing bootstraps an admin.** No credential of the app's own lives in
+`config`, and `verifyCredentials()` refuses a username with no `app_users`
+row, so an internal account must exist before anyone can sign in. It is
+created out of band:
+
+```sh
+cd app && set -a && source ../config && set +a \
+  && node scripts/create-admin.mjs <username> '<password>'
+```
+
+That writes both halves — the Supabase Auth user and the `app_users` row,
+rolling back the first if the second fails — and then verifies the credential
+through the same `signInWithPassword` call the login route makes. Run it again
+on an existing admin and it **resets the password**; that is the only way to
+rotate an internal one. It refuses a `partner` username, whose reset belongs to
+the supplier page, where it is scoped to that company.
+
+This replaced a lazy seed from `ADMIN_USER`/`ADMIN_PASS` in `config` on
+2026-08-30, the same day it was written: a config value that mints privilege on
+first use is a bootstrap path worth not having.
+
+`lib/session.ts` is deliberately Web Crypto and string maths only, with no
+`server-only` import: `proxy.ts` runs on the edge runtime, where `node:crypto`
+does not exist, and it must verify exactly what the route handlers verify.
+`lib/auth.ts` is where the Supabase half lives.
+
+**Never call `signInWithPassword` on the shared `supabase` client.**
+supabase-js keeps the session in memory even under `persistSession: false`,
+and every later PostgREST or Storage call on that client then sends the user's
+JWT instead of the secret key — running as `authenticated`, which RLS refuses.
+`lib/supabase.ts` exports a module singleton, so one sign-in poisons every
+query in the process until it restarts. `passwordMatches()` therefore builds a
+throwaway client per attempt, and `lib/auth-client-isolation.test.ts` fails the
+build if anyone reaches for the convenient one again. This is not
+hypothetical — it shipped on 2026-08-30 and broke portal account creation
+("new row violates row-level security policy for table app_users") and every
+plant photo ("Object not found", Storage's answer to an unauthorized read) for
+whoever had signed in most recently.
+
+### The gate
 
 `proxy.ts` (Next 16's replacement for `middleware`) gates every route except
-`/login`, `/api/auth/*`, the public artifact path (*Agent artifacts*) and the
-supplier portal (`/portal`, `/api/partner` — suppliers are not harness users and
-portal auth is a deliberately deferred step; see *Supplier portal*), and
-**verifies the session rather than just looking for the cookie**: `pi_sid` is a
-signed stateless token, so it calls the harness `/api/auth/me` with the incoming
-cookie and only proceeds when a user comes back. That call lives in
-`lib/session.ts` so the gate and the private artifact routes share one
-definition of a real session rather than each carrying its own.
+`/login`, `/api/auth/*` and the public artifact path (*Agent artifacts*). It
+**verifies the signature**, so a hand-set `app_sid=anything` is nothing; a
+missing or rotated `APP_SESSION_SECRET` fails closed, signing everyone out
+rather than letting stale cookies through. That check is load-bearing: pages
+read *and write* Supabase with the project's **secret** key, and nothing
+downstream re-authorizes the call.
 
-That check is load-bearing. Pages read Supabase with the project's **secret**
-key and can now *write*, and the harness is no longer in the path to reauthorize
-each call — a presence-only gate would let a hand-set `pi_sid=anything` read and
-edit the whole catalogue. `/api/auth/me` answers `200 {"user":null}` for a bad
-session, so the status code alone is not the answer. If the harness is
-unreachable the check **fails closed**.
+A `partner` session is refused every path outside `/partner` and `/api/partner`
+— redirected to their own portal, or 403 on an API call.
+
+**Which supplier a partner may read is not decided there.** `proxy.ts` sees a
+path, not the database, and a portal id may be any branch of the partner's
+company — a relation only `suppliers.head_branch_id` resolves. So
+`lib/partner-auth.ts` (`requirePartnerAccess`) is the real scoping, applied by
+every `/api/partner/:id` route against the exact id it is about to read. It
+answers **404, not 403**, on another company's supplier: "forbidden" would
+confirm the id exists, which is precisely what one partner should not learn
+about another. Both halves are needed — the coarse one keeps suppliers out of
+the internal app, the precise one keeps them out of each other's portals.
+
+`/api/harness/*` and `/api/chat/*` check `role === 'admin'` themselves rather
+than inheriting the guarantee, because what they reach carries full operator
+access.
 
 `lib/supabase.ts` is `server-only`, so importing it from a client component is a
 build error rather than a leaked credential. It holds the secret key
@@ -2197,8 +2324,18 @@ lib/
   use-debounced.ts query + filter/sort state debounced as one request
   format.ts        money / number / date formatting
   supabase.ts      server-only client
-  session.ts       resolveUser() — the one definition of a real session,
-                   shared by proxy.ts and the artifact routes
+  session.ts       the app's own signed session: mint, verify, read the cookie.
+                   Web Crypto only, no server-only import — proxy.ts runs on the
+                   edge and must verify exactly what the routes verify
+  auth.ts          the Supabase-Auth half: verify a password, seed the config
+                   admin, create/reset partner logins, resolve a supplier to its
+                   company (server-only)
+  partner-auth.ts  requirePartnerAccess() — the per-request gate on
+                   /api/partner/:id, which company an id belongs to
+  harness.ts       the app's bearer client for the harness (server-only)
+scripts/
+  create-admin.mjs create an internal admin, or reset one's password — the only
+                   way either happens (see Auth)
   artifacts.ts     agent allowlist, upstream URLs, signedIn(), header relay
   harness-settings.ts  the harness shapes /settings reads (provider, agent.json,
                    gws status, schedules) + harnessFetch(), which unwraps the
@@ -2217,6 +2354,11 @@ the stock script; `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ARTIFACTS_AGENTS`,
 `ARTIFACTS_APP_SECRET`, `SUPPLIER_EVENTS_APP_SECRET` and `WEBCHAT_APP_SECRET`
 appended by the `scripts/app/secrets.sh` deploy hook. Both `config` and
 `.env.local` are gitignored — keep it that way.
+
+`AUTH_EMAIL_DOMAIN` is appended by the same hook. It is what turns a username
+without an `@` into a Supabase Auth email, and is **effectively immutable once
+accounts exist** — changing it orphans every account whose username was not a
+full address.
 
 The stock script also writes `APP_USER`, `APP_PASS`, `APP_SESSION_SECRET` and
 `HARNESS_APP_SECRET` (harness 0.12.0), for apps that own their sign-in and

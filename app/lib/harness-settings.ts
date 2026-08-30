@@ -3,10 +3,11 @@
  *
  * The browser can't call the harness directly — it's on another origin with no
  * CORS headers — so everything here goes through `/api/harness/*`, an
- * allowlisted pass-through that forwards the user's `pi_sid` cookie (the same
- * cookie the harness console authenticates with; app users *are* harness
- * users). The one exception is Google sign-in, which `next.config.ts` rewrites
- * straight through so Google's redirect lands back on this origin.
+ * allowlisted pass-through that attaches the app's own `HARNESS_APP_SECRET`
+ * bearer (app users stopped being harness users on 2026-08-30). The one
+ * exception is Google's redirect back, `/api/gws/oauth/callback`, which
+ * `next.config.ts` rewrites straight through — the harness mounts that route
+ * outside its auth and validates it with its own single-use `state` nonce.
  *
  * Shapes mirror the harness API — `src/api/models.ts`, `src/api/agents.ts`,
  * `src/api/gws-oauth.ts` and the scheduler plugin's `state/schedules.json`.

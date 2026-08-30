@@ -54,7 +54,7 @@ export function AgentSettings({
       const next = await harnessFetch<AgentInfo>(`/api/harness/agents/${agent.id}`)
       setInfo(next)
       if (next.installedPlugins.includes('gws')) {
-        setGws(await harnessFetch<GwsStatus>('/api/gws/oauth'))
+        setGws(await harnessFetch<GwsStatus>('/api/harness/gws/oauth'))
       } else {
         setGws(null)
       }
@@ -95,7 +95,7 @@ export function AgentSettings({
 
   const signIn = () =>
     run(async () => {
-      const { url } = await harnessFetch<{ url: string }>(`/api/gws/oauth/${agent.id}/start`, {
+      const { url } = await harnessFetch<{ url: string }>(`/api/harness/gws/oauth/${agent.id}/start`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +108,7 @@ export function AgentSettings({
 
   const signOut = () =>
     run(async () => {
-      await harnessFetch(`/api/gws/oauth/${agent.id}`, { method: 'DELETE' })
+      await harnessFetch(`/api/harness/gws/oauth/${agent.id}`, { method: 'DELETE' })
       await load()
     })
 

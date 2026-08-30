@@ -19,3 +19,20 @@ SUPABASE_SECRET_KEY=     # sb_secret_... (Project settings → API keys)
 # harness/agents/<agent>/plugins/artifacts/config.json with
 # {"appBaseUrl":"https://$DOMAIN/a/<agent>"}, then `server.sh restart`.
 ARTIFACTS_AGENTS=daisy,nova
+
+# ---- app sign-in ----
+# The app owns its own sign-in as of 2026-08-30 (Supabase Auth; see
+# app/lib/auth.ts). **No app credential lives in `config`.** Internal accounts
+# are created directly in Supabase — an auth user plus its `app_users` row
+# (docs/app/README.md, *Auth*) — and partner logins are made from the supplier
+# page. Nothing bootstraps an admin out of a config value.
+#
+# Not to be confused with the harness-owned APP_USER/APP_PASS in
+# ../../config.example, which are the *harness console's* operator login on
+# port 3142. The two sign-ins are unrelated.
+
+# Supabase Auth identifies a user by email, this app by a username, so the
+# email is derived: a typed address is used as-is, anything else becomes
+# <username>@AUTH_EMAIL_DOMAIN. These mailboxes do not exist and are never
+# written to — keep the `.invalid` TLD (RFC 2606) so nothing can be.
+AUTH_EMAIL_DOMAIN=lps-app.invalid

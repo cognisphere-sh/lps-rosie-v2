@@ -1,20 +1,27 @@
 import type { NextConfig } from 'next'
 
 // The app reads its data straight from Supabase, so what it still needs from
-// the cognisphere harness is proxied same-origin: the browser must stay off a
-// cross-origin call (the harness ships no CORS headers) and the `pi_sid` cookie
-// must ride along on the app's own domain.
+// the cognisphere harness is proxied same-origin — the browser must stay off a
+// cross-origin call, since the harness ships no CORS headers.
 //
-//   /api/auth/*      — login, which mints that cookie
-//   /api/gws/oauth/* — Google sign-in for the settings page. Rewritten rather
-//                      than proxied through a route handler because Google
-//                      redirects the *browser* to `/api/gws/oauth/callback`,
-//                      which the harness authenticates with its own single-use
-//                      `state` nonce. Register that URL on the app's domain as
-//                      an authorized redirect URI on the Google OAuth client.
+// Exactly one path is rewritten straight through:
 //
-// Everything else (models, agent config, scheduler state) goes through
-// `app/api/harness/[...path]`, which allowlists the reachable endpoints.
+//   /api/gws/oauth/callback — where Google redirects the *browser* after the
+//                      admin approves. The harness mounts this one route
+//                      OUTSIDE its auth (core/main.ts) and authenticates it
+//                      with the single-use `state` nonce its start route
+//                      issued, so it needs no credential from us — which is
+//                      just as well, because a browser redirect can carry no
+//                      bearer. Register that URL on the app's domain as an
+//                      authorized redirect URI on the Google OAuth client.
+//
+// Everything else — models, agent config, scheduler state, and the authed half
+// of the OAuth flow — goes through `app/api/harness/[...path]`, which
+// allowlists the reachable endpoints and attaches the app's bearer.
+//
+// `/api/auth/*` was rewritten here until 2026-08-30, when the app took over
+// its own sign-in (Supabase Auth). Those are real route handlers now, and a
+// rewrite would shadow them.
 const harness = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 
 const config: NextConfig = {
@@ -29,8 +36,7 @@ const config: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/api/auth/:path*', destination: `${harness}/api/auth/:path*` },
-      { source: '/api/gws/oauth/:path*', destination: `${harness}/api/gws/oauth/:path*` },
+      { source: '/api/gws/oauth/callback', destination: `${harness}/api/gws/oauth/callback` },
     ]
   },
 }

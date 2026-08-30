@@ -8,8 +8,8 @@
 // supplier's list is short enough that search and chips cost more than they
 // find. **Closed requests are not on this page at all**, not even under All:
 // they live at ./closed, their own rail destination. The conversation is the docked chat sidebar (one thread per supplier),
-// not part of any card. See app/api/partner/[supplierId]/route.ts for the auth
-// caveat — these pages are outside the session gate until supplier auth lands.
+// not part of any card. These pages are behind the session gate: a supplier
+// signs in and sees their own company only — see app/lib/partner-auth.ts.
 
 import { LayoutGrid, Layers, List } from 'lucide-react'
 import Link from 'next/link'

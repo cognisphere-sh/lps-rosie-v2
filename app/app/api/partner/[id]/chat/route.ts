@@ -1,20 +1,24 @@
 import { NextResponse } from 'next/server'
 
+import { requirePartnerAccess } from '@/lib/partner-auth'
 import { partnerChatFetch, partnerChatTarget } from '@/lib/partner-chat'
 
 /**
  * The portal's chat with Local Plant Supply (rosie), on the supplier's own
  * thread. GET pages the portal-visible transcript or streams one scoped file;
- * POST uploads a file or sends the supplier's text/attachments. Public like
- * the rest of the portal (supplier sign-in is a
- * deliberately deferred step); the harness side is server-to-server, authed
- * by WEBCHAT_APP_SECRET, and answers 404 here when the chat isn't wired.
+ * POST uploads a file or sends the supplier's text/attachments.
+ *
+ * Gated like the rest of the portal (`requirePartnerAccess`) — a transcript is
+ * the most disclosing thing here, so it is emphatically not readable by
+ * another supplier. The harness side stays server-to-server, authed by
+ * WEBCHAT_APP_SECRET, and answers 404 here when the chat isn't wired.
  */
 
-async function target(rawSupplier: string) {
-  const supplierId = Number.parseInt(rawSupplier, 10)
-  if (!Number.isInteger(supplierId)) return null
-  return partnerChatTarget(supplierId)
+/** The gate and the thread in one, since every handler needs both. */
+async function target(req: Request, rawSupplier: string) {
+  const gate = await requirePartnerAccess(req, rawSupplier)
+  if (!gate.ok) return { gate }
+  return { gate, t: await partnerChatTarget(gate.supplierId) }
 }
 
 export async function GET(
@@ -22,7 +26,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const t = await target((await params).id)
+    const { gate, t } = await target(req, (await params).id)
+    if (!gate.ok) return gate.res
     if (!t) return NextResponse.json({ error: 'chat unavailable' }, { status: 404 })
     const search = new URL(req.url).searchParams
     const file = search.get('file')
@@ -75,7 +80,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const t = await target((await params).id)
+    const { gate, t } = await target(req, (await params).id)
+    if (!gate.ok) return gate.res
     if (!t) return NextResponse.json({ error: 'chat unavailable' }, { status: 404 })
     const search = new URL(req.url).searchParams
     if (search.get('upload') === '1') {

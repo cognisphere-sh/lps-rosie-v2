@@ -6,27 +6,29 @@ import {
   setARItemMapping,
   updateARItem,
 } from '@/lib/availability-queries'
+import { requirePartnerAccess } from '@/lib/partner-auth'
 
-// See ../../route.ts for why these routes are outside the session gate and how
-// they are scoped in its absence.
+// See ../../route.ts for how these routes are gated and scoped.
 
-async function scope(rawSupplier: string, rawAr: string) {
-  const supplierId = Number.parseInt(rawSupplier, 10)
+async function scope(req: Request, rawSupplier: string, rawAr: string) {
+  const gate = await requirePartnerAccess(req, rawSupplier)
+  if (!gate.ok) return { gate }
   const arId = Number.parseInt(rawAr, 10)
-  if (!Number.isInteger(supplierId) || !Number.isInteger(arId)) return null
-  const supplier = await partnerSupplier(supplierId)
-  if (!supplier) return null
-  return { supplierId, arId, supplier }
+  if (!Number.isInteger(arId)) return { gate, s: null }
+  const supplier = await partnerSupplier(gate.supplierId)
+  if (!supplier) return { gate, s: null }
+  return { gate, s: { supplierId: gate.supplierId, arId, supplier } }
 }
 
 /** One availability request, as the supplier may see it. */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string; arId: string }> },
 ) {
   const { id: supplierId, arId } = await params
   try {
-    const s = await scope(supplierId, arId)
+    const { gate, s } = await scope(req, supplierId, arId)
+    if (!gate.ok) return gate.res
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
     const request = await availabilityRequest(s.arId, { forSupplierId: s.supplierId })
     if (!request) return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -52,7 +54,8 @@ export async function PATCH(
 ) {
   const { id: supplierId, arId } = await params
   try {
-    const s = await scope(supplierId, arId)
+    const { gate, s } = await scope(req, supplierId, arId)
+    if (!gate.ok) return gate.res
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
     const body = (await req.json()) as {
       itemId?: number
