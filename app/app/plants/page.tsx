@@ -1,17 +1,20 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
+import {
+  PlantAdvancedFilters, usePlantFilterContainer,
+} from '@/components/workspace/plant-filters'
 import {
   PlantHeaderRow, PlantRowLine, plantsWidth,
 } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
-import { ColumnPicker, FilterControl, MultiFilter, badgeFor, fileHref } from '@/components/workspace/table-parts'
-import { Toolbar } from '@/components/workspace/toolbar'
+import { ColumnPicker, MultiFilter, badgeFor, fileHref } from '@/components/workspace/table-parts'
+import { PageControls, Toolbar } from '@/components/workspace/toolbar'
 import { MASTER_COLS, PLANT_COLS, plantEditPatch, type ColumnDef } from '@/lib/columns'
 import { formatDate, money, num } from '@/lib/format'
 import { scrollPlantNameWithKeyboard } from '@/lib/plant-name-scroll'
@@ -37,45 +40,15 @@ const RETIRED_PLANT_SIZE_KEYS = [
   'lps.plant-search.size.v1', 'lps.plant-search.size-choice.v1', 'lps.plant-search.size-choice.v2',
 ]
 
-// Size and supplier/location filters appear beside the search field. These
-// remaining numeric filters use a compact disclosure in that same toolbar.
-const MOBILE_FILTERS = [
-  { key: 'price', label: 'Price', master: false },
-  { key: 'h', label: 'Height (ft)', master: false },
-  { key: 'w', label: 'Width (in)', master: false },
-  { key: 'cal', label: 'Caliper (in)', master: false },
-] as const
-
-function ResultSizeControl({
-  options,
-  selected,
-  onSelect,
-}: {
-  options: string[]
-  selected: string[]
-  onSelect: (sizes: string[]) => void
-}) {
-  return (
-    <div className="w-[calc(50%-4px)] md:w-[170px]">
-      <MultiFilter
-        allLabel="Size: Any"
-        options={options}
-        selected={selected}
-        selectionLabel="Size"
-        buttonClassName="h-8 text-[12px] px-2"
-        filterPlaceholder="Filter sizes…"
-        onChange={onSelect}
-      />
-    </div>
-  )
-}
-
 export default function PlantSearchPage() {
   const router = useRouter()
   const isMobile = useIsMobile()
   const toast = useToast()
   const plantCfg = useTableConfig('plants')
   const masterCfg = useTableConfig('plantMaster')
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const visibleQuickFiltersRef = useRef<HTMLDivElement>(null)
+  const compactQuickFilters = usePlantFilterContainer(toolbarRef)
 
   const [query, setQuery] = useState('')
   const [searchHydrated, setSearchHydrated] = useState(false)
@@ -85,6 +58,7 @@ export default function PlantSearchPage() {
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(false)
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
+  const [cultivarOpen, setCultivarOpen] = useState(false)
   const [facets, setFacets] = useState<Record<string, string[]>>({})
   const hasQuery = query.trim().length > 0
 
@@ -117,7 +91,6 @@ export default function PlantSearchPage() {
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenCompanies, setHiddenCompanies] = useState<number[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
-  const [filtersOpen, setFiltersOpen] = useState(false)
   // Which companies are collapsed. Mobile only — the desktop layout puts the
   // card beside its rows rather than above them, so there is nothing to fold.
   const [collapsed, setCollapsed] = useState<number[]>([])
@@ -360,21 +333,26 @@ export default function PlantSearchPage() {
     document.addEventListener('mouseup', up)
   }
 
-  // Cultivar is a plant-level column, so the toolbar dropdown and the column
-  // header's own filter are the same piece of state — set one, both show it.
+  // Cultivar is a plant-level column, so the visible toolbar dropdown keeps
+  // using the same filter state that the former column-head control used.
   const cultivarOptions = useMemo(() => optionList('cultivar'), [optionList])
   const cultivarFilter = Array.isArray(plantCfg.filters.cultivar) ? plantCfg.filters.cultivar : []
   const categoryFilter = Array.isArray(masterCfg.filters.category) ? masterCfg.filters.category : []
-  const cityFilter = Array.isArray(masterCfg.filters.city) ? masterCfg.filters.city : []
   const stateFilter = Array.isArray(masterCfg.filters.state) ? masterCfg.filters.state : []
   const activeFilterCount =
     (supplierPick.length > 0 ? 1 : 0) +
     (selectedSizes.length > 0 ? 1 : 0) +
     Object.keys(plantCfg.filters).length +
     Object.keys(masterCfg.filters).length
-  const advancedFilterCount = MOBILE_FILTERS.filter(({ key }) => plantCfg.filters[key] != null).length
 
   const hasFilters = !!query || activeFilterCount > 0
+  const clearAll = () => {
+    setQuery('')
+    setSelectedSizes([])
+    setSupplierPick([])
+    plantCfg.clearFilters()
+    masterCfg.clearFilters()
+  }
 
   const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
@@ -384,12 +362,26 @@ export default function PlantSearchPage() {
       onQuery={setQuery}
       controls={
         <>
-          <ResultSizeControl
-            options={sizeOptions}
-            selected={selectedSizes}
-            onSelect={setSelectedSizes}
-          />
-          <div className="w-[calc(50%-4px)] md:w-[170px]">
+          <div
+            ref={visibleQuickFiltersRef}
+            data-plant-wide-filters
+            className="hidden @min-[900px]:contents"
+          >
+          <div className="w-[82px]">
+            <MultiFilter
+              allLabel="Size: Any"
+              options={sizeOptions}
+              selected={selectedSizes}
+              selectionLabel="Size"
+              accessibleName="Size"
+              buttonClassName="min-h-11 px-2 text-[12px]"
+              filterPlaceholder="Filter sizes…"
+              onChange={setSelectedSizes}
+              largeTargets
+              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
+            />
+          </div>
+          <div data-plant-cultivar className="w-[100px]">
             <MultiFilter
               allLabel="Cultivar: Any"
               selectionLabel="Cultivar"
@@ -399,96 +391,82 @@ export default function PlantSearchPage() {
               onChange={(next) => plantCfg.setColFilter('cultivar', next)}
               buttonClassName="min-h-11 px-2 text-[12px]"
               filterPlaceholder="Filter cultivars…"
+              largeTargets
               restoreFocusOnClose
+              open={cultivarOpen}
+              onOpenChange={setCultivarOpen}
+              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
             />
           </div>
-          <div className="w-[calc(50%-4px)] md:w-[160px]">
+          <div className="w-[108px]">
             <MultiFilter
-              allLabel="All supplier types"
+              allLabel="Supplier type"
               selectionLabel="Type"
+              accessibleName="Supplier type"
               options={optionList('category')}
               selected={categoryFilter}
               onChange={(next) => masterCfg.setColFilter('category', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="min-h-11 px-2 text-[12px]"
               filterPlaceholder="Filter supplier types…"
+              largeTargets
+              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
             />
           </div>
-          <div className="w-[calc(50%-4px)] md:w-[160px]">
+          <div className="w-[64px]">
             <MultiFilter
-              allLabel="All cities"
-              selectionLabel="City"
-              options={optionList('city')}
-              selected={cityFilter}
-              onChange={(next) => masterCfg.setColFilter('city', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
-              filterPlaceholder="Filter cities…"
-            />
-          </div>
-          <div className="w-[calc(50%-4px)] md:w-[140px]">
-            <MultiFilter
-              allLabel="All states"
+              allLabel="State"
               selectionLabel="State"
+              accessibleName="State"
               options={optionList('state')}
               selected={stateFilter}
               onChange={(next) => masterCfg.setColFilter('state', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="min-h-11 px-2 text-[12px]"
               filterPlaceholder="Filter states…"
+              largeTargets
+              menuAlign="right"
+              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((value) => !value)}
-            aria-expanded={filtersOpen}
-            className="flex h-8 w-full items-center justify-between rounded-[7px] border border-border bg-background px-2.5 text-left text-[12px] md:hidden"
-          >
-            <span>Price &amp; dimensions</span>
-            <span className="flex items-center gap-1.5">
-              {advancedFilterCount > 0 && (
-                <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-secondary-foreground">
-                  {advancedFilterCount}
-                </span>
-              )}
-              <ChevronDown size={14} className={cn(filtersOpen && 'rotate-180')} />
-            </span>
-          </button>
-          {filtersOpen && (
-            <div className="grid w-full grid-cols-2 gap-3 rounded-xl border border-border bg-background p-3 md:hidden">
-              {MOBILE_FILTERS.map(({ key, label }) => {
-                const col = PLANT_COLS.find((candidate) => candidate.key === key)!
-                return (
-                  <div key={key} className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-                      {label}
-                    </span>
-                    <FilterControl
-                      col={col}
-                      value={plantCfg.filters[key]}
-                      options={[]}
-                      onFilter={(value) => plantCfg.setColFilter(key, value)}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          </div>
+          <PlantAdvancedFilters
+            companyOptions={supplierNames}
+            companies={supplierPick}
+            onCompanies={setSupplierPick}
+            plantFilters={plantCfg.filters}
+            onPlantFilter={(key, value) => plantCfg.setColFilter(key, value)}
+            sizeOptions={sizeOptions}
+            selectedSizes={selectedSizes}
+            onSizes={setSelectedSizes}
+            cultivarOptions={cultivarOptions}
+            cultivars={cultivarFilter}
+            onCultivars={(next) => plantCfg.setColFilter('cultivar', next)}
+            categoryOptions={optionList('category')}
+            categories={categoryFilter}
+            onCategories={(next) => masterCfg.setColFilter('category', next)}
+            stateOptions={optionList('state')}
+            states={stateFilter}
+            onStates={(next) => masterCfg.setColFilter('state', next)}
+            compactForFocus={compactQuickFilters}
+            focusSourceRef={visibleQuickFiltersRef}
+            cultivarOpen={cultivarOpen}
+            onCultivarOpenChange={setCultivarOpen}
+            activeCount={activeFilterCount}
+            onClear={clearAll}
+          />
         </>
       }
       hasFilters={hasFilters}
-      onClear={() => {
-        setQuery('')
-        setSelectedSizes([])
-        setSupplierPick([])
-        plantCfg.clearFilters()
-        masterCfg.clearFilters()
-      }}
+      onClear={clearAll}
+      showClear={false}
+      containerResponsive
+      toolbarRef={toolbarRef}
       summary={
         searching
           ? 'Searching…'
           : hasQuery
-            ? `${visibleGroups.length} companies · Showing ${shownPlants} of ${total.toLocaleString('en-US')} plants`
+            ? `${visibleGroups.length.toLocaleString('en-US')} Companies: ${shownPlants.toLocaleString('en-US')}/${total.toLocaleString('en-US')} Plants`
             : 'Search by plant name'
       }
-      pagination={hasQuery ? { page, pageCount, onPage: setPage, busy: searching } : undefined}
     />
   )
 
@@ -735,6 +713,12 @@ export default function PlantSearchPage() {
     </div>
   )
 
+  const resultPager = pageCount > 1 ? (
+    <div data-plant-pagination="footer" className="flex flex-none items-center justify-center border-t border-border bg-card px-3 py-2">
+      <PageControls page={page} pageCount={pageCount} onPage={setPage} busy={searching} />
+    </div>
+  ) : null
+
   return (
     <Shell page="inventory" title="Plant search" toolbar={toolbar} hideHeaderOnMobile hideHeaderOnDesktop>
       {!searchHydrated ? null : !hasQuery ? (
@@ -751,6 +735,7 @@ export default function PlantSearchPage() {
           {!searching && visibleGroups.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches this search.</div>
           )}
+          {resultPager}
         </div>
       ) : (
         <div className="mx-4 mb-4 mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
@@ -779,18 +764,12 @@ export default function PlantSearchPage() {
                       size="sm"
                     />
                   </div>
-                  <MultiFilter
-                    allLabel="All companies"
-                    options={supplierNames}
-                    selected={supplierPick}
-                    onChange={setSupplierPick}
-                  />
                   <div
                     onMouseDown={startPanelResize}
                     className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-lps-edge"
                   />
                 </div>
-                <PlantHeaderRow cfg={plantCfg} options={optionList} />
+                <PlantHeaderRow cfg={plantCfg} options={optionList} showFilters={false} />
               </div>
 
               {visibleGroups.map(desktopCompanyGroup)}
@@ -825,6 +804,7 @@ export default function PlantSearchPage() {
               </button>
             </div>
           )}
+          {resultPager}
         </div>
       )}
       <SearchOverlay show={searching} labels={PLANT_SEARCH_LABELS} />

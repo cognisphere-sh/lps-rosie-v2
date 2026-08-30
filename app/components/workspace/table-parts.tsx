@@ -132,6 +132,10 @@ export function MultiFilter({
   largeTargets = false,
   restoreFocusOnClose = false,
   menuAlign = 'left',
+  menuClassName,
+  wrapOptionLabels = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   allLabel: string
   options: string[]
@@ -144,26 +148,47 @@ export function MultiFilter({
   largeTargets?: boolean
   restoreFocusOnClose?: boolean
   menuAlign?: 'left' | 'right'
+  menuClassName?: string
+  /** Lets cell-bounded menus wrap long options instead of creating horizontal overflow. */
+  wrapOptionLabels?: boolean
+  /** Optional shared state for one logical filter rendered in two responsive copies. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const controlled = controlledOpen !== undefined
   const [needle, setNeedle] = useState('')
   const trigger = useRef<HTMLButtonElement>(null)
+  const setOpen = useCallback((next: boolean) => {
+    if (!controlled) setInternalOpen(next)
+    onOpenChange?.(next)
+  }, [controlled, onOpenChange])
   const close = useCallback(() => {
     setOpen(false)
-    if (restoreFocusOnClose) requestAnimationFrame(() => trigger.current?.focus())
-  }, [restoreFocusOnClose])
-  const pop = useOutsideClose(open, close)
+    if (restoreFocusOnClose) {
+      requestAnimationFrame(() => {
+        if (!controlled || trigger.current?.getClientRects().length) trigger.current?.focus()
+      })
+    }
+  }, [controlled, restoreFocusOnClose, setOpen])
+  const closeIfVisible = useCallback(() => {
+    if (controlled && trigger.current && trigger.current.getClientRects().length === 0) return
+    close()
+  }, [close, controlled])
+  const pop = useOutsideClose(open, closeIfVisible)
 
   useEffect(() => {
     if (!open || !restoreFocusOnClose) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (controlled && trigger.current && trigger.current.getClientRects().length === 0) return
       event.preventDefault()
       close()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [close, open, restoreFocusOnClose])
+  }, [close, controlled, open, restoreFocusOnClose])
 
   const shown = needle
     ? options.filter((o) => o.toLowerCase().includes(needle.toLowerCase()))
@@ -176,7 +201,7 @@ export function MultiFilter({
         type="button"
         aria-label={accessibleName ? `${accessibleName}${selected.length ? `, ${selected.length} selected` : ''}` : undefined}
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         className={cn(
           'flex h-6 w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] text-[11px] font-medium',
           selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
@@ -191,8 +216,9 @@ export function MultiFilter({
         <ChevronDown size={10} className={cn('flex-none opacity-50', accessibleName && 'transition-transform', accessibleName && open && 'rotate-180')} />
       </button>
       {open && (
-        <div className={cn(
-          'lps-pop absolute top-[calc(100%+4px)] z-[96] max-h-[300px] w-[240px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
+        <div data-multi-filter-menu className={cn(
+          'lps-pop absolute top-[calc(100%+4px)] z-[96] min-w-0 max-h-[300px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
+          menuClassName ?? 'w-[240px]',
           menuAlign === 'right' ? 'right-0' : 'left-0',
         )}>
           <input
@@ -200,7 +226,7 @@ export function MultiFilter({
             onChange={(e) => setNeedle(e.target.value)}
             placeholder={filterPlaceholder}
             aria-label={filterPlaceholder}
-            className={cn('mb-1 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] outline-none', largeTargets ? 'h-11' : 'h-7')}
+            className={cn('mb-1 min-w-0 w-full rounded-[7px] border border-input bg-background px-2 text-[11.5px] outline-none', largeTargets ? 'h-11' : 'h-7')}
           />
           {selected.length > 0 && (
             <button
@@ -226,7 +252,7 @@ export function MultiFilter({
                 title={o}
               >
                 <span className={checkBox(on)}>{on && <CheckIcon size={10} />}</span>
-                <span className="truncate">{o}</span>
+                <span className={cn('min-w-0 flex-1', wrapOptionLabels ? 'whitespace-normal break-words' : 'truncate')}>{o}</span>
               </button>
             )
           })}
@@ -245,12 +271,14 @@ export function FilterControl({
   value,
   options,
   small,
+  largeTargets = false,
   onFilter,
 }: {
   col: ColumnDef
   value: ColFilter | undefined
   options: string[]
   small?: boolean
+  largeTargets?: boolean
   onFilter: (value: ColFilter) => void
 }) {
   const [multiOpen, setMultiOpen] = useState(false)
@@ -271,7 +299,7 @@ export function FilterControl({
         placeholder="Filter…"
         className={cn(
           'w-full rounded-[7px] border border-input bg-background px-2 font-normal text-foreground outline-none',
-          small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+          largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
         )}
       />
     )
@@ -292,7 +320,7 @@ export function FilterControl({
             aria-label={`${col.label} ${bound === 'min' ? 'minimum' : 'maximum'}${col.filterUnit ? ` in ${col.filterUnit}` : ''}`}
             className={cn(
               'w-full min-w-0 rounded-[7px] border border-input bg-background px-1.5 font-normal text-foreground outline-none',
-              small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+              largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
             )}
           />
         ))}
@@ -311,7 +339,7 @@ export function FilterControl({
         onClick={() => setMultiOpen((v) => !v)}
         className={cn(
           'flex w-full cursor-pointer items-center justify-between gap-1 rounded-[7px] border bg-background px-[7px] font-medium',
-          small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
+          largeTargets ? 'h-11 text-[12px]' : small ? 'h-6 text-[11px]' : 'h-[26px] text-[11.5px]',
           selected.length ? 'border-primary text-primary' : 'border-input text-foreground',
         )}
       >

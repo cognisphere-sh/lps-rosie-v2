@@ -108,7 +108,7 @@ export interface Pagination {
 }
 
 /** Previous / next across server pages. Hidden while a search fits on one page. */
-function PageControls({ page, pageCount, onPage, busy }: Pagination) {
+export function PageControls({ page, pageCount, onPage, busy }: Pagination) {
   return (
     <div className="flex items-center gap-1.5">
       <Button
@@ -147,6 +147,9 @@ export function Toolbar({
   onClear,
   summary,
   pagination,
+  containerResponsive = false,
+  toolbarRef,
+  showClear = true,
 }: {
   placeholder: string
   query: string
@@ -159,10 +162,20 @@ export function Toolbar({
   onClear: () => void
   summary: string
   pagination?: Pagination
+  /** Let descendants respond to this toolbar's actual inline size. */
+  containerResponsive?: boolean
+  toolbarRef?: React.Ref<HTMLDivElement>
+  showClear?: boolean
 }) {
   return (
-    <div className="flex flex-none flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2.5">
-      <div className="w-full min-w-0 md:w-[290px]">
+    <div
+      ref={toolbarRef}
+      className={cn(
+        'flex flex-none items-center border-b border-border bg-card py-2.5',
+        containerResponsive ? '@container relative flex-nowrap gap-1 px-2' : 'flex-wrap gap-2 px-4',
+      )}
+    >
+      <div className={containerResponsive ? 'w-auto min-w-[96px] flex-1 md:w-auto' : 'w-full min-w-0 md:w-[290px]'}>
         <Input
           value={query}
           onChange={(e) => onQuery(e.target.value)}
@@ -175,7 +188,7 @@ export function Toolbar({
       {chips.map((chip) => (
         <ChipMenu key={chip.label} chip={chip} />
       ))}
-      {hasFilters && (
+      {showClear && hasFilters && (
         <button
           type="button"
           onClick={onClear}
@@ -184,8 +197,14 @@ export function Toolbar({
           Clear all
         </button>
       )}
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-3 min-[900px]:w-full min-[1024px]:w-auto">
-        <span className="hidden whitespace-nowrap text-[12px] text-muted-foreground md:inline">
+      <div className={cn(
+        'ml-auto flex items-center justify-end',
+        containerResponsive ? 'w-auto flex-none flex-nowrap gap-1.5' : 'flex-wrap gap-3 min-[900px]:w-full min-[1024px]:w-auto',
+      )}>
+        <span className={cn(
+          'hidden whitespace-nowrap text-[12px] text-muted-foreground md:inline',
+          containerResponsive && 'md:text-[10px]',
+        )}>
           {summary}
         </span>
         {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}

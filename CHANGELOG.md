@@ -133,6 +133,36 @@ here).
   Existing direct Available/clear writes, follow-up dialogs and API payloads
   are unchanged; admin availability surfaces keep their native select.
 
+- **Plant Search now keeps one compact filter row and clean table heads**
+  (`app/app/plants/page.tsx`, `app/components/workspace/{plant-filters,plant-table,table-parts,toolbar}.tsx`).
+  Search, Size, Cultivar, Supplier type and State remain visible in that order;
+  City is gone, and one Suppliers-style 44px icon moves Company, the three
+  plant-name filters, Price, Quantity, Height, Width, Caliper and the two note
+  filters out of the table headers into a content-sized surface with Clear all.
+  The table heads retain labels, sorting, resize/reorder and column selection
+  without duplicate filtering controls. Cultivar keeps its shared open
+  multi-select/focus behavior, dropdowns lose their fixed dead width, and the
+  live summary now reads exactly `<Companies> Companies: <shown>/<total>
+  Plants` before Notifications on the same row. CSS container queries alone
+  decide which filter copy is displayed and therefore focusable/accessibility-
+  visible; a matching ResizeObserver observes only to transfer focus and
+  coordinate shared open state. They keep all four quick filters visible at
+  900px of actual page-column space, but fold
+  them into the same icon on mobile or when nav/chat narrows the desktop pane;
+  they reappear with selections and open/closed state intact. Cultivar uses one
+  controlled open state across both copies, so either crossing keeps its menu
+  open and focuses the newly visible trigger; every other MultiFilter retains
+  its established uncontrolled behavior. The advanced surface itself uses
+  container-driven one/two/three-column layouts with no field minimum and stays
+  within 8px of 390/514/658px panes. Its nested multiselect menus now take the
+  exact grid-cell width (`w-full min-w-0 max-w-full`) rather than viewport or
+  max-content bounds; inputs shrink and long option labels wrap, including in
+  right-column cells, so no outer overflow mask or horizontal menu scroll is
+  needed. This is deterministic from first paint and
+  never wraps, clips or scrolls the toolbar. The unchanged previous/next
+  pagination state moved to a compact result
+  footer, so paged searches do not consume the row.
+
 - **Jobs now has one list: All jobs** (`app/app/{requests,jobs}/page.tsx`,
   `app/components/workspace/shell.tsx`). The Jobs rail/bottom-nav destination
   goes to `/requests`, and the duplicate Inbox/All jobs switch is gone. Bare

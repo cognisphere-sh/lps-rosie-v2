@@ -25,10 +25,12 @@ export function PlantHeaderRow({
   cfg,
   options,
   showDelete = false,
+  showFilters = true,
 }: {
   cfg: PlantConfig
   options: (key: string) => string[]
   showDelete?: boolean
+  showFilters?: boolean
 }) {
   const width = actionsWidth(showDelete)
 
@@ -45,10 +47,10 @@ export function PlantHeaderRow({
             small
             width={cfg.widthOf(col)}
             sort={cfg.sort}
-            filters={cfg.filters}
-            options={options(col.key)}
+            filters={showFilters ? cfg.filters : undefined}
+            options={showFilters ? options(col.key) : undefined}
             onSort={() => cfg.cycleSort(col.key)}
-            onFilter={(v) => cfg.setColFilter(col.key, v)}
+            onFilter={showFilters ? (v) => cfg.setColFilter(col.key, v) : undefined}
             onResize={(w) => cfg.resizeColumn(col.key, w)}
             onMove={(from) => cfg.moveColumn(from, col.key)}
           />
