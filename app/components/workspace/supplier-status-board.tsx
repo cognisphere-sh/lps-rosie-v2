@@ -18,6 +18,7 @@ import {
   type SupplierItemLine,
 } from '@/lib/availability'
 import { money, num } from '@/lib/format'
+import { redactPartnerRequestRefs } from '@/lib/partner-display'
 
 /**
  * The board's cards: the five answers a line can carry, in the comp's order,
@@ -41,6 +42,10 @@ const demandOf = (lines: SupplierItemLine[]) =>
 type Patch = (itemId: number, changes: Record<string, string>) => Promise<void>
 
 function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color: string; onPatch: Patch }) {
+  // Our note about the plant, where every ask carries the same one; asks that
+  // differ keep their own under their chip.
+  const notes = [...new Set(group.lines.map((l) => l.lpsNotes).filter((n): n is string => !!n))]
+  const shared = notes.length === 1 ? redactPartnerRequestRefs(notes[0]) : null
   return (
     <div className="flex flex-col gap-1.5 py-1.5 pl-3" style={{ borderLeft: `3px solid ${color}`, borderRadius: 2 }}>
       <span className="flex min-w-0 items-baseline gap-2">
@@ -50,12 +55,17 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
           {group.name}
         </span>
       </span>
+      {shared && (
+        <span className="truncate text-[11px] italic text-muted-foreground" title={shared}>
+          {shared}
+        </span>
+      )}
       {/* One row per request that asked — its chip with how many it asked
           for, the line's status picker and its unit price, since each
           request's line is answered on its own. */}
       <span className="flex flex-col gap-1.5">
         {group.lines.map((line) => (
-          <span key={line.id} className="flex min-w-0 items-center gap-2">
+          <span key={line.id} className="flex min-w-0 flex-wrap items-center gap-2">
             <span
               className="inline-flex min-w-0 flex-1 items-center gap-1 rounded-md border border-border bg-secondary/45 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
               title={line.arName}
@@ -63,6 +73,11 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
               <span className="truncate">{line.arName}</span>
               {line.quantity != null && <span className="flex-none">×{num(line.quantity)}</span>}
             </span>
+            {!shared && line.lpsNotes && (
+              <span className="w-full truncate text-[10.5px] italic text-muted-foreground" title={redactPartnerRequestRefs(line.lpsNotes)}>
+                {redactPartnerRequestRefs(line.lpsNotes)}
+              </span>
+            )}
             <span className="flex-none"><LineStatusPicker item={line} editable onPatch={onPatch} /></span>
             <span className="w-20 flex-none">
               <AnswerCell

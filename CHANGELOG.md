@@ -63,6 +63,45 @@ here).
   switch is a floating icon toggle at the foot of the list. The stats line, the
   requested date and the card's count strip are gone from the list. `PartnerRequestCard` is now used
   only by `/partner/:id/closed`.
+- **Portal request page redrawn to the Figma comp**
+  (`app/partner/[id]/requests/[arId]/page.tsx`, `components/workspace/availability.tsx`).
+  No desktop header; the toolbar carries the back pill, line counts, copy-link
+  and print actions and the bell. A header card (status · name · requested
+  date strip, contact, address, our note as *Delivery instructions*), a
+  seven-cell summary strip with accent-coloured counts (the comp's *Missing
+  Price* cell is not drawn — it is not a line status), and the line table in a
+  new `design="portal"` drawing — no Line total column, tone bars or subtotal
+  footer. Submit is a wide bar pinned under the table. Admin and By-item
+  tables are unchanged (`design` defaults to the old drawing).
+- **Portal request page: copy link and print** (`ar-print-sheet.tsx`,
+  `globals.css`). Copy link falls back to `execCommand('copy')` outside a
+  secure context; Print puts a `@media print`-only sheet on paper in the
+  layout of the availability-request PDF LPS emails — Quantity · Size · Name
+  (note beneath) · Status checklist (two answers a line) · Avail. Qty · Price ·
+  narrow Notes, Additional Comments, Submitted by, disclaimer — dense enough
+  for a dozen lines a page. The sheet carries **`AR-<id>`** in its head, in a
+  table footer repeated on every page, and in the disclaimer, so a filled
+  sheet uploaded back tells the agent which request it answers. LPS's per-line note also shows under the
+  request name in By item's sub-rows and under the plant on the By status
+  board.
+- **Portal By-item view redrawn to the Figma comp**
+  (`components/workspace/supplier-items.tsx`, `app/partner/[id]/page.tsx`).
+  One flat table — Demand · Size · Name · Date · Status · Avail. Qty · Your
+  Notes — every plant row opens into one sub-row per request (one or many),
+  which is where the line is answered. The home tab strip carries
+  answer-status tabs (All · Available · Can Order · Arriving Soon · Diff
+  Size/Qty/Sub · Unavailable) under By item. The per-plant answer strip and the
+  catalogue/unmatched tags are gone; drag-to-map (request name → catalogue
+  row) stays. `LineStatusPicker` and `AnswerCell` are exported from
+  `availability.tsx` so both tables share the same answering behaviour.
+- **Portal By-status board** (`components/workspace/supplier-status-board.tsx`,
+  third entry in the home page's view toggle). One fixed-height, inner-scrolling
+  card per line status — Need to Order · Arriving Soon · Diff Size/Qty/Sub ·
+  Available · Unavailable, plus Set Status for unanswered lines (nothing
+  derived; no Missing Price card) — each with the summed quantity, its plants
+  grouped as By item groups them, and a row per requesting job (request name ×
+  qty; admin JR refs stay off the portal) carrying the line's status picker and
+  unit price cell, so an answer can be set and priced from the card.
 
 ## 2026-08-29
 

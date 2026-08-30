@@ -10,12 +10,13 @@
 // embedded) rather than the single-request route: one fetch feeds the request,
 // the supplier's name and the header bell, which is on every portal page.
 
-import { Link2, Printer } from 'lucide-react'
+import { Check, Link2, Printer } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ARLineTable } from '@/components/workspace/availability'
+import { ARPrintSheet } from '@/components/workspace/ar-print-sheet'
 import { ChevronDown, ChevronLeft } from '@/components/workspace/icons'
 import {
   PartnerFrame,
@@ -198,11 +199,31 @@ export default function PartnerRequestPage() {
   // both the back link and the rail's highlight follow it there.
   const isClosed = request?.status === 'closed'
   const pending = request ? request.items.length - request.answeredCount : 0
+  /**
+   * Copy this page's URL. The async clipboard API needs a secure context and
+   * a user gesture; where it is missing or refuses, a hidden textarea and the
+   * old `execCommand('copy')` still work.
+   */
   const copyLink = useCallback(() => {
-    void navigator.clipboard?.writeText(window.location.href).then(() => {
+    const url = window.location.href
+    const done = () => {
       setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
-    })
+      window.setTimeout(() => setCopied(false), 2000)
+    }
+    const fallback = () => {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      ta.remove()
+      if (ok) done()
+    }
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, fallback)
+    else fallback()
   }, [])
   const back = (rightActions: React.ReactNode = null) => (
     /* The back pill at the left; the request's own actions — copy its link,
@@ -222,8 +243,16 @@ export default function PartnerRequestPage() {
       )}
       {request && (
         <div className="ml-auto flex items-center gap-2.5 print:hidden">
+          {/* The copy's confirmation: the icon turns to a check and a chip
+              says so for a moment, since a clipboard write is otherwise
+              invisible. */}
+          {copied && (
+            <span role="status" className="rounded-full bg-secondary px-2.5 py-1 text-[11.5px] font-semibold text-foreground">
+              Link copied
+            </span>
+          )}
           <IconAction label={copied ? 'Link copied' : 'Copy link'} onClick={copyLink}>
-            <Link2 className="size-4" />
+            {copied ? <Check className="size-4 text-[#3DBB6A]" /> : <Link2 className="size-4" />}
           </IconAction>
           <IconAction label="Print" onClick={() => window.print()}>
             <Printer className="size-4" />
@@ -333,6 +362,8 @@ export default function PartnerRequestPage() {
                 </div>
               )}
             </div>
+
+            <ARPrintSheet request={request} name={requestName(request)} displayText={redactPartnerRequestRefs} />
 
             <SummaryStrip items={request.items} />
 

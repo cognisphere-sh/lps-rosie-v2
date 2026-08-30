@@ -117,6 +117,12 @@ function RequestCell({
           {line.arCustomer}
         </span>
       )}
+      {/* Our note about this line — what LPS said when it asked. */}
+      {line.lpsNotes && (
+        <span className="block truncate text-[10.5px] italic text-muted-foreground" title={redactPartnerRequestRefs(line.lpsNotes)}>
+          {redactPartnerRequestRefs(line.lpsNotes)}
+        </span>
+      )}
     </span>
   )
 }

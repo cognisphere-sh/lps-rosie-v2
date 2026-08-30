@@ -317,3 +317,26 @@ body:has([data-workspace-shell]) {
 @media (prefers-reduced-motion: reduce) {
   .lps-sprout { animation: none; }
 }
+
+/* The portal's printable availability request (`ar-print-sheet.tsx`): on
+   paper only the sheet exists — the app's fixed, overflow-hidden frame would
+   otherwise be printed clipped, on top of it. */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  body > *:not(#ar-print-sheet) {
+    display: none !important;
+  }
+  #ar-print-sheet {
+    display: block !important;
+    padding: 0;
+    color: #000;
+    background: #fff;
+  }
+  @page {
+    size: letter portrait;
+    margin: 0.4in;
+  }
+}
