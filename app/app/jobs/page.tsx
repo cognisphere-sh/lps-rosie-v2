@@ -4,16 +4,17 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, MessageSquare, RefreshCw } from 'lucide-react'
+import { MessageSquare, RefreshCw } from 'lucide-react'
 
+import { FocusedJobsRailLayout } from '@/components/workspace/focused-jobs-rail'
 import { RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
 import { JobsTopActions, Shell } from '@/components/workspace/shell'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
 import { onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
 import { subscribeEvents } from '@/lib/chat-events'
 import {
-  canonicalJobThread, hasFocusedIntakeEvidence, jobInboxEventAction,
-  jobInboxLayout, jobInboxNavigationAction, jobInboxRowAriaLabel,
+  canonicalJobThread, hasFocusedIntakeEvidence, jobInboxEventAction, jobInboxLayout,
+  jobInboxNavigationAction, jobInboxRowAriaLabel,
   mergeJobInbox, orderJobInbox, parseJobSelection, patchJobInbox, shouldRestoreJobInbox,
   type JobInboxRow, type JobThreadPatch,
 } from '@/lib/job-inbox'
@@ -340,19 +341,11 @@ function JobsWorkspace() {
       focusedJobsDesktop
       replaceNewJobEntry
     >
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <section aria-label="Active job inbox" className={cn(
-          'flex w-full flex-none flex-col border-r border-border bg-card',
-          'min-[900px]:w-[292px]',
-          breakpoint === true && 'hidden',
-        )}>
-          {focusedDesktop && (
-            <button type="button" onClick={backToList} className="flex min-h-11 items-center gap-2 border-b border-border px-3 text-[12px] font-semibold text-primary">
-              <ArrowLeft size={16}/>Back to All jobs
-            </button>
-          )}
-          <div className="border-b border-border px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Active jobs</div>
-          <div ref={listRef} onScroll={saveListPosition} className="min-h-0 flex-1 overflow-y-auto p-2">
+      <FocusedJobsRailLayout
+        desktop={focusedDesktop}
+        mobile={breakpoint === true}
+        onBack={backToList}
+        rail={<div ref={listRef} onScroll={saveListPosition} className="min-h-0 flex-1 overflow-y-auto p-2">
             {listError && <div role="alert" className="rounded-lg border border-destructive/40 p-3 text-[12px] text-destructive">{listError}<button className="mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => void refreshList()}><RefreshCw size={14}/>Retry</button></div>}
             {loading && !ordered.length && <div role="status" className="p-4 text-[12px] text-muted-foreground">Loading active jobs…</div>}
             {listReady && !listError && !ordered.length && <div className="p-4 text-[12px] text-muted-foreground"><p className="font-semibold text-foreground">No active jobs</p><p>Start a new request with Rosie, or review completed work in All jobs.</p><Link className="font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
@@ -364,8 +357,8 @@ function JobsWorkspace() {
                 <span className="mt-1 block text-[10px] text-lps-dim">{activity}{row.unread ? ' · Unread in team web chat' : ''}</span>
               </button>
             })}
-          </div>
-        </section>
+          </div>}
+      >
         <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
           {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions /></div>}
           {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
@@ -382,7 +375,7 @@ function JobsWorkspace() {
           </div>}
           {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">{requestRef(selection.id)} intake is pending</h2><p className="text-sm text-muted-foreground">Nothing is in the active job record yet. The reserved identity is kept; exiting never deletes it.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace(`/jobs?jr=${selection.id}&intake=1`)}>Resume intake</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/requests') ? marker.returnUrl : '/requests') }}>All jobs</button></div></div>}
         </main>
-      </div>
+      </FocusedJobsRailLayout>
     </Shell>
   )
 }

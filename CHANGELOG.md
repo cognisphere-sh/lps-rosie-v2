@@ -145,6 +145,20 @@ here).
   Rosie, delete and Actions controls retain their own behavior without click
   propagation or double navigation.
 
+- **The selected desktop Job workspace can release its 292px active-jobs rail**
+  (`app/app/jobs/page.tsx`, `app/components/workspace/focused-jobs-rail.tsx`,
+  `app/lib/job-inbox.ts`). A compact Active jobs header
+  now keeps independent 44px icon controls for Back to All jobs and collapse;
+  collapsed mode leaves a non-overlapping 44px expand edge and gives the rest
+  to the selected-job pane. The first visit remains expanded and the per-device
+  choice persists separately from the ordinary navigation rail. SSR/hydration
+  holds a neutral hidden shell until a before-paint layout read resolves that
+  choice, preventing a saved collapse from flashing 292px even on remount. The
+  toggle is presentation-only: the rail stays mounted but becomes inert and
+  `aria-hidden`, focus transfers from any hidden descendant to the replacement
+  control, and job order/unread/scroll, selection, URL/history, detail drawers,
+  Rosie chat and intake are untouched. Mobile below 900px is unchanged.
+
 - **`suppliers.is_lps_partner` is now derived: true exactly while the company
   has at least one portal login** (migrations 0084/0085). The flag and the
   logins were independent, so a supplier could be marked an LPS Partner with

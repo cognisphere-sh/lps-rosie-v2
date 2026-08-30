@@ -160,6 +160,11 @@ export function jobInboxEventAction(rows: JobInboxRow[], event: JobThreadPatch):
 
 export const jobInboxLayout = (width: number): 'mobile' | 'desktop' => width < 900 ? 'mobile' : 'desktop'
 
+export const FOCUSED_JOBS_RAIL_STORE = 'lps.jobs.rail.open.v1'
+
+/** An unset or malformed preference keeps the discoverable first-visit default open. */
+export const focusedJobsRailOpen = (stored: string | null): boolean => stored !== '0'
+
 /** Focused-row switches replace; the redirecting bare parser state retains its legacy result. */
 export const jobInboxNavigationAction = (selection: 'bare' | 'valid' | 'invalid'): 'push' | 'replace' =>
   selection === 'bare' ? 'push' : 'replace'

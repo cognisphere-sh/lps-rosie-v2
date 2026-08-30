@@ -8,8 +8,9 @@ import { JSDOM } from 'jsdom'
 
 import { JobIdentityLink } from '../components/workspace/shell.tsx'
 import {
-  hasFocusedIntakeEvidence, jobInboxEventAction, jobInboxLayout,
-  jobInboxMembership, jobInboxNavigationAction, jobInboxNewNavigationAction,
+  FOCUSED_JOBS_RAIL_STORE, focusedJobsRailOpen, hasFocusedIntakeEvidence,
+  jobInboxEventAction, jobInboxLayout, jobInboxMembership,
+  jobInboxNavigationAction, jobInboxNewNavigationAction,
   jobInboxRowAriaLabel, mergeJobInbox, orderJobInbox, parseJobSelection, patchJobInbox,
   shouldRestoreJobInbox, type JobInboxRow,
 } from './job-inbox.ts'
@@ -173,6 +174,15 @@ test('responsive behavior changes at exactly 900px', () => {
   assert.equal(jobInboxLayout(1440), 'desktop')
 })
 
+test('focused Jobs rail preference is separate and defaults expanded', () => {
+  assert.equal(FOCUSED_JOBS_RAIL_STORE, 'lps.jobs.rail.open.v1')
+  assert.notEqual(FOCUSED_JOBS_RAIL_STORE, 'lps.nav.open')
+  assert.equal(focusedJobsRailOpen(null), true)
+  assert.equal(focusedJobsRailOpen('1'), true)
+  assert.equal(focusedJobsRailOpen('bad'), true)
+  assert.equal(focusedJobsRailOpen('0'), false)
+})
+
 const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
 
 test('API query is bounded, complete, batched, active-only and privacy-scoped', () => {
@@ -211,15 +221,20 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
   const shell = source('components/workspace/shell.tsx')
   const frame = source('components/workspace/frame.tsx')
   const jobs = source('app/jobs/page.tsx')
+  const rail = source('components/workspace/focused-jobs-rail.tsx')
   assert.doesNotMatch(jobs, /ordered\[0\][\s\S]{0,120}router\.replace/)
   assert.match(shell, /railHidden=\{desktopChatFull \|\| focusedJobsDesktop \|\| !!focusedIntake\}/)
   assert.match(shell, /rightColumn=\{\(\{ setNavOpen \}\) => \([\s\S]*<AgentChat/)
   assert.match(frame, /!isMobile && rightColumn\?\.\(state\)/)
   assert.match(jobs, /focusedJobsDesktop\n/)
   assert.match(jobs, /replaceNewJobEntry\n/)
-  assert.match(jobs, /<section aria-label="Active job inbox"[\s\S]*<main ref=\{workRef\}/)
+  assert.match(jobs, /<FocusedJobsRailLayout[\s\S]*<main ref=\{workRef\}/)
+  assert.match(rail, /<section[\s\S]*aria-label="Active job inbox"/)
   assert.match(jobs, /<JobsTopActions \/>/)
-  assert.match(jobs, /min-h-11[\s\S]{0,180}Back to All jobs/)
+  assert.match(rail, /<button type="button" aria-label="Back to All jobs"/)
+  assert.doesNotMatch(rail, /title="Back to All jobs"/)
+  assert.match(rail, /aria-label="Back to All jobs"[^>]*className="[^"]*size-11/)
+  assert.match(rail, /<ArrowLeft size=\{18\}\/>/)
   assert.match(jobs, /tabIndex=\{-1\}/)
   assert.match(jobs, /aria-label=\{jobInboxRowAriaLabel/)
   assert.match(jobs, /aria-current=/)
@@ -228,11 +243,30 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
   assert.doesNotMatch(jobs, /<AgentChat|useChat\(/)
 })
 
-test('selected mobile job relies on browser Back while desktop keeps its rail control', () => {
+test('focused desktop rail has compact independent Back/collapse controls and mobile stays unchanged', () => {
   const jobs = source('app/jobs/page.tsx')
-  assert.doesNotMatch(jobs, /Back to active jobs/)
-  assert.doesNotMatch(jobs, /breakpoint === true && <button[^>]*onClick=\{backToList\}/)
-  assert.match(jobs, /\{focusedDesktop && \([\s\S]{0,180}<button[^>]*onClick=\{backToList\}[\s\S]{0,180}Back to All jobs/)
+  const rail = source('components/workspace/focused-jobs-rail.tsx')
+  assert.doesNotMatch(rail, />Back to All jobs</)
+  const header = rail.slice(rail.indexOf('<div className="flex h-11'), rail.indexOf('{rail}'))
+  assert.match(header, /aria-label="Back to All jobs"/)
+  assert.match(header, /aria-label="Collapse active jobs"/)
+  assert.equal(header.indexOf('Back to All jobs') < header.indexOf('Collapse active jobs'), true)
+  assert.match(jobs, /mobile=\{breakpoint === true\}/)
+  assert.match(rail, /\(mobile \|\| open !== true\) && 'hidden'/)
+  assert.match(rail, /className="flex size-11[^\"]*focus-visible:ring-2/)
+})
+
+test('focused desktop rail collapse preserves mounted state, persistence and logical toggle focus', () => {
+  const rail = source('components/workspace/focused-jobs-rail.tsx')
+  assert.match(rail, /localStorage\.getItem\(FOCUSED_JOBS_RAIL_STORE\)/)
+  assert.match(rail, /localStorage\.setItem\(FOCUSED_JOBS_RAIL_STORE, next \? '1' : '0'\)/)
+  assert.match(rail, /focusedInRail = railRef\.current\?\.contains\(document\.activeElement\)/)
+  assert.match(rail, /requestAnimationFrame\(\(\) => \(next \? collapseRef : expandRef\)\.current\?\.focus\(\{ preventScroll: true \}\)\)/)
+  assert.match(rail, /desktop && open === false && \([\s\S]{0,700}aria-expanded=\{false\}/)
+  assert.match(rail, /id=\{FOCUSED_JOBS_RAIL_ID\}[\s\S]{0,500}inert=\{mobile \|\| open !== true \? true : undefined\}/)
+  assert.match(rail, /aria-label="Collapse active jobs"[\s\S]{0,120}aria-expanded=\{true\}/)
+  assert.match(rail, /<aside className="w-11 flex-none border-r/)
+  assert.doesNotMatch(rail, /router\.|setJobs\(|setDetail\(|refreshList|sessionStorage/)
 })
 
 test('focused route restores scroll/focus and uses push entry then replace switching', () => {
@@ -260,7 +294,7 @@ test('focused intake reuses one AgentChat/useChat/composer upload path and manua
   assert.doesNotMatch(jobs, /JobsViewSwitch|rightActions=\{rightActions\}/)
   assert.doesNotMatch(jobs, /md:/)
   assert.doesNotMatch(chat.slice(chat.indexOf('if (focusedIntake)')), /md:/)
-  assert.match(jobs, /min-\[900px\]:w-\[292px\]/)
+  assert.match(source('components/workspace/focused-jobs-rail.tsx'), /min-\[900px\]:w-\[292px\]/)
   assert.match(chat, /min-\[900px\]:flex-row/)
   assert.match(shell, /focusedIntake \? 'flex-1 min-\[900px\]:w-0 min-\[900px\]:flex-none'/)
   assert.equal((shell.match(/fetch\('\/api\/requests\/reserve'/g) ?? []).length, 1)
