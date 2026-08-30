@@ -11,7 +11,7 @@ Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
 
 ## This deployment
 
-- `harness.json` — version **0.10.2**, timezone **America/Chicago**.
+- `harness.json` — version **0.11.1**, timezone **America/Chicago**.
 - This is the **LPS · Rosie** deployment — Local/Austin Plant Supply, a
   wholesale plant nursery. Four agents split the work: supplier side,
   customer side, and dev — plus one, `lily`, whose scope is the whole:
@@ -82,7 +82,9 @@ These are byte-identical in every agent dir:
   were removed in harness 0.8.0 — delegation now runs through task threads via
   the core agent-messaging plugin.)
 - **Bootstrap** (`bootstrap/bootstrap.sh` + `requirements.txt`): provisions the
-  Python `.venv` (`ddgs`, `markitdown`) and npm globals on every start.
+  Python `.venv` (`ddgs`, `markitdown`) and npm globals on every start; since
+  harness 0.11.1 it also pins the global `pi` to `PI_VERSION` (0.84.4),
+  installing that exact version on any mismatch.
 - **Base system prompts**: `0-base_prompt.md` (identity, tools, workspace,
   skills, threads, task threads), `0.1-agent-directory.md` (roster), then the
   per-agent `1-*.md` persona. Since harness 0.8.12 the ownership split is a

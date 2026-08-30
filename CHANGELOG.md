@@ -48,6 +48,19 @@ here).
 
 ### Changed
 
+- **Harness upgraded 0.11.0 → 0.11.1** (`harness/package.json`, data version
+  stamped in `harness/harness.json`, previously left at 0.10.2). Why: nova's
+  `main` thread had grown to ~256K context and pi's threshold compaction —
+  ~80 s of summarizing, run in prompt preflight *before* the prompt ack —
+  tripped the harness's 60 s ack timeout every attempt (`pi did not ack rpc
+  frame within 60000ms`, events #975/#976), killing pi before the compaction
+  was persisted so every retry redid it. 0.11.1's `PiRpcClient` suspends the
+  ack timeout between `compaction_start`/`compaction_end` and logs both.
+  Breaking change applied: every agent's `bootstrap/bootstrap.sh` reseeded
+  from the base agent — it now pins the global `pi` to `PI_VERSION` (0.84.4)
+  instead of installing whatever npm resolved when `pi` was missing.
+  `docs/base-harness/` refreshed; no other scaffold drift.
+
 - **Active job detail carries the request's links** (`app/jobs/page.tsx`).
   The selected job on `/jobs` now shows the same customer / Chat / ship-to /
   supplier-pill strip as the `/requests` card — every availability request

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@cognisphere-sh/cognisphere-harness": "0.11.0",
+    "@cognisphere-sh/cognisphere-harness": "0.11.1",
     "@supabase/supabase-js": "^2.110.8"
   },
   "pnpm": {
