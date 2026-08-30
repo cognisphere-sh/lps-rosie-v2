@@ -5,7 +5,8 @@
 // the answers are read). Nothing here knows which side it is on beyond the
 // `editable` prop on the line table.
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 import {
   AR_RESPONSES,
@@ -143,11 +144,270 @@ export function ARResponseSummary({
 }
 
 /** Where a message actually happened — portal, email, text, or internal. */
+/** The unanswered state plus the five saved answers, in their canonical order. */
+const RESPONSE_PICKER_OPTIONS = [
+  { value: '', label: 'Set status' },
+  ...AR_RESPONSE_OPTIONS,
+]
+
 /**
- * The supplier's per-line answer, as a pill-styled picker.
- *
- * A native <select> under a styled face: the five answers plus the blank
- * "Set status" state, which is a real state (unanswered), not a default.
+ * The supplier portal's dark, compact replacement for a native opened select.
+ * It is portalled out of the scrolling table so the choice surface cannot be
+ * clipped, while retaining ordinary listbox keyboard and touch interaction.
+ */
+function PortalResponseSelect({
+  value,
+  onChange,
+}: {
+  value: string | null
+  onChange: (next: string) => void
+}) {
+  const trigger = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  const optionId = useId()
+  const selectedIndex = Math.max(0, RESPONSE_PICKER_OPTIONS.findIndex((option) => option.value === (value ?? '')))
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(selectedIndex)
+  const [position, setPosition] = useState({ left: 8, top: 8, width: 196, maxHeight: 228 })
+  const typeahead = useRef('')
+  const typeaheadAt = useRef(0)
+  const typeaheadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const frames = useRef(new Set<number>())
+  const tone = arResponseTone(value)
+
+  const cancelFrames = () => {
+    for (const frame of frames.current) cancelAnimationFrame(frame)
+    frames.current.clear()
+  }
+
+  const scheduleFrame = (callback: () => void) => {
+    const frame = requestAnimationFrame(() => {
+      frames.current.delete(frame)
+      callback()
+    })
+    frames.current.add(frame)
+  }
+
+  const positionMenu = () => {
+    const rect = trigger.current?.getBoundingClientRect()
+    if (!rect) return
+    const availableWidth = Math.max(0, window.innerWidth - 16)
+    const availableHeight = Math.max(0, window.innerHeight - 16)
+    const width = Math.min(Math.max(196, rect.width), availableWidth)
+    const maxHeight = Math.min(RESPONSE_PICKER_OPTIONS.length * 36 + 12, availableHeight)
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
+    const below = rect.bottom + 6
+    const preferredTop = below + maxHeight <= window.innerHeight - 8
+      ? below
+      : rect.top - maxHeight - 6
+    const top = Math.max(8, Math.min(preferredTop, window.innerHeight - maxHeight - 8))
+    setPosition({ left, top, width, maxHeight })
+  }
+
+  const show = (nextActive = selectedIndex) => {
+    cancelFrames()
+    setActive(nextActive)
+    positionMenu()
+    setOpen(true)
+  }
+
+  const close = (restoreFocus = false) => {
+    cancelFrames()
+    setOpen(false)
+    typeahead.current = ''
+    typeaheadAt.current = 0
+    if (typeaheadTimer.current) {
+      clearTimeout(typeaheadTimer.current)
+      typeaheadTimer.current = null
+    }
+    if (restoreFocus) scheduleFrame(() => trigger.current?.focus())
+  }
+
+  const choose = (next: string) => {
+    if ((next || null) !== value) onChange(next)
+    // Follow-up answers mount an autofocus dialog; do not steal focus back
+    // from it. The two direct actions return focus to the line trigger.
+    close(next === '' || next === 'available')
+  }
+
+  useEffect(() => {
+    if (!open) return
+    cancelFrames()
+    positionMenu()
+    scheduleFrame(() => {
+      const option = menu.current?.querySelector<HTMLElement>(`[data-option-index="${active}"]`)
+      option?.focus({ preventScroll: true })
+      option?.scrollIntoView?.({ block: 'nearest' })
+    })
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!trigger.current?.contains(target) && !menu.current?.contains(target)) close()
+    }
+    document.addEventListener('pointerdown', outside)
+    const queuePosition = () => scheduleFrame(positionMenu)
+    window.addEventListener('resize', queuePosition)
+    window.addEventListener('scroll', queuePosition, true)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      window.removeEventListener('resize', queuePosition)
+      window.removeEventListener('scroll', queuePosition, true)
+    }
+  }, [open, active])
+
+  useEffect(() => () => {
+    cancelFrames()
+    if (typeaheadTimer.current) clearTimeout(typeaheadTimer.current)
+  }, [])
+
+  const focusTriggerNeighbor = (direction: -1 | 1) => {
+    const current = trigger.current
+    if (!current) return
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>(
+      'a[href], button, input, select, textarea, [tabindex]',
+    )).filter((element) => {
+      const style = getComputedStyle(element)
+      return element.tabIndex >= 0
+        && !element.matches(':disabled')
+        && !element.closest('[hidden], [inert], [aria-hidden="true"]')
+        && !menu.current?.contains(element)
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && element.getClientRects().length > 0
+    })
+    const index = candidates.indexOf(current)
+    for (let cursor = index + direction; cursor >= 0 && cursor < candidates.length; cursor += direction) {
+      const candidate = candidates[cursor]
+      candidate.focus()
+      if (document.activeElement === candidate) return
+    }
+    ;(document.activeElement as HTMLElement | null)?.blur()
+  }
+
+  const moveByTypeahead = (key: string, index: number) => {
+    const now = Date.now()
+    const prior = now - typeaheadAt.current <= 500 ? typeahead.current : ''
+    const repeated = prior.length > 0 && [...prior].every((char) => char === key)
+    const query = repeated ? key : `${prior}${key}`
+    const start = repeated ? index + 1 : 0
+    const ordered = [...RESPONSE_PICKER_OPTIONS.keys()].map((offset) => (start + offset) % RESPONSE_PICKER_OPTIONS.length)
+    const match = ordered.find((optionIndex) => RESPONSE_PICKER_OPTIONS[optionIndex].label.toLowerCase().startsWith(query))
+    typeahead.current = query
+    typeaheadAt.current = now
+    if (typeaheadTimer.current) clearTimeout(typeaheadTimer.current)
+    typeaheadTimer.current = setTimeout(() => {
+      typeahead.current = ''
+      typeaheadAt.current = 0
+      typeaheadTimer.current = null
+    }, 500)
+    if (match != null) setActive(match)
+  }
+
+  const onTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      if (event.key === 'ArrowDown') show((selectedIndex + 1) % RESPONSE_PICKER_OPTIONS.length)
+      else if (event.key === 'ArrowUp') show((selectedIndex - 1 + RESPONSE_PICKER_OPTIONS.length) % RESPONSE_PICKER_OPTIONS.length)
+      else show(event.key === 'Home' ? 0 : RESPONSE_PICKER_OPTIONS.length - 1)
+    }
+  }
+
+  const onOptionKeyDown = (event: KeyboardEvent<HTMLDivElement>, index: number) => {
+    let next = index
+    if (event.key === 'ArrowDown') next = (index + 1) % RESPONSE_PICKER_OPTIONS.length
+    else if (event.key === 'ArrowUp') next = (index - 1 + RESPONSE_PICKER_OPTIONS.length) % RESPONSE_PICKER_OPTIONS.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = RESPONSE_PICKER_OPTIONS.length - 1
+    else if (event.key === 'Escape') {
+      event.preventDefault()
+      close(true)
+      return
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      choose(RESPONSE_PICKER_OPTIONS[index].value)
+      return
+    } else if (event.key === 'Tab') {
+      event.preventDefault()
+      close()
+      scheduleFrame(() => focusTriggerNeighbor(event.shiftKey ? -1 : 1))
+      return
+    } else if (event.key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      moveByTypeahead(event.key.toLowerCase(), index)
+      return
+    } else return
+    event.preventDefault()
+    setActive(next)
+  }
+
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        aria-label={`Line status, ${arResponseLabel(value)}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={`${optionId}-listbox`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          if (open) close()
+          else show()
+        }}
+        onKeyDown={onTriggerKeyDown}
+        className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        style={value ? { color: toneDot(tone) } : undefined}
+      >
+        {!value && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
+        <span>{arResponseLabel(value)}</span>
+        <ChevronDown aria-hidden="true" className="size-3 opacity-70" />
+      </button>
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={menu}
+          id={`${optionId}-listbox`}
+          role="listbox"
+          aria-label="Line status"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          className="fixed z-[100] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[var(--lps-shadow)]"
+          style={position}
+        >
+          {RESPONSE_PICKER_OPTIONS.map((option, index) => {
+            const selected = option.value === (value ?? '')
+            const optionTone = arResponseTone(option.value || null)
+            return (
+              <div
+                key={option.value || 'unanswered'}
+                id={`${optionId}-${index}`}
+                role="option"
+                aria-selected={selected}
+                tabIndex={index === active ? 0 : -1}
+                data-option-index={index}
+                onFocus={() => setActive(index)}
+                onClick={() => choose(option.value)}
+                onKeyDown={(event) => onOptionKeyDown(event, index)}
+                className={cn(
+                  'flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-[12px] font-semibold outline-none hover:bg-secondary focus-visible:bg-secondary focus-visible:ring-2 focus-visible:ring-ring/50',
+                  selected && 'bg-secondary',
+                )}
+              >
+                <span aria-hidden="true" className="size-1.5 flex-none rounded-full" style={{ background: toneDot(optionTone) }} />
+                <span>{option.label}</span>
+                {selected && <span aria-hidden="true" className="ml-auto text-primary">✓</span>}
+              </div>
+            )
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+/**
+ * The supplier's per-line answer, as a pill-styled picker. Admin surfaces keep
+ * their existing native control; only the portal uses the custom dark listbox.
  */
 function ResponseSelect({
   value,
@@ -158,16 +418,16 @@ function ResponseSelect({
   value: string | null
   disabled: boolean
   onChange: (next: string) => void
-  /** The portal drawing: a neutral outlined pill, `··· Set Status ⌄`. */
   portal?: boolean
 }) {
   const tone = arResponseTone(value)
+  if (portal && !disabled) return <PortalResponseSelect value={value} onChange={onChange} />
   return (
     <span
       className={cn(
         'relative inline-flex items-center gap-1.5',
         portal
-          ? 'h-7 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground'
+          ? 'min-h-8 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground'
           : 'rounded-full px-2.5 py-1 text-[11px] font-bold',
         !disabled && 'cursor-pointer',
       )}
@@ -178,7 +438,7 @@ function ResponseSelect({
       ) : (
         <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
       )}
-      {portal && !value ? 'Set Status' : arResponseLabel(value)}
+      {portal && !value ? 'Set status' : arResponseLabel(value)}
       {portal && <ChevronDown className="size-3 opacity-70" />}
       {!disabled && (
         <select
@@ -483,10 +743,13 @@ export function LineStatusPicker({
   item,
   editable,
   onPatch,
+  portal = false,
 }: {
   item: ARItem
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
+  /** Use the portal's themed listbox rather than the admin native select. */
+  portal?: boolean
 }) {
   /** Which status the pop-up is collecting details for; null = closed. */
   const [answering, setAnswering] = useState<string | null>(null)
@@ -495,6 +758,7 @@ export function LineStatusPicker({
       <ResponseSelect
         value={item.status}
         disabled={!editable}
+        portal={portal}
         onChange={(next) => {
           if (!next) void onPatch?.(item.id, { status: '' })
           else if (next === 'available') {
@@ -596,7 +860,7 @@ function LineRow({
         )}
       </span>
       <div className="px-1">
-        <LineStatusPicker item={item} editable={editable} onPatch={onPatch} />
+        <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} />
       </div>
       <AnswerCell
         value={item.availableQuantity == null ? '' : String(item.availableQuantity)}

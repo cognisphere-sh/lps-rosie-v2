@@ -119,6 +119,20 @@ here).
 
 ### Changed
 
+- **The Nursery Portal line-status picker now opens in the portal theme**
+  (`app/components/workspace/availability.tsx`). Its unthemeable transparent
+  native select is replaced on portal request lines only by a compact,
+  portalled dark-readable listbox: Set status remains the unanswered state,
+  followed by Available, Can order, Diff Size/Qty/Sub, Arriving soon and
+  Unavailable in their existing order. The selected answer is marked, and the
+  surface supports touch, arrows, Home/End, Enter/Space, buffered
+  multi-character/repeated-letter type-ahead, Escape, and logical Tab/Shift+Tab
+  exit around its body portal, skipping disabled and ancestor-hidden/inert
+  controls. The menu caps itself inside 8px viewport margins and scrolls its
+  options when the viewport is smaller than its natural surface.
+  Existing direct Available/clear writes, follow-up dialogs and API payloads
+  are unchanged; admin availability surfaces keep their native select.
+
 - **Jobs now has one list: All jobs** (`app/app/{requests,jobs}/page.tsx`,
   `app/components/workspace/shell.tsx`). The Jobs rail/bottom-nav destination
   goes to `/requests`, and the duplicate Inbox/All jobs switch is gone. Bare

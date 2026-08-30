@@ -1,0 +1,461 @@
+import assert from 'node:assert/strict'
+import test, { afterEach, beforeEach } from 'node:test'
+import React from 'react'
+import { JSDOM } from 'jsdom'
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+
+import { ARLineTable, LineStatusPicker } from '../components/workspace/availability.tsx'
+import type { ARItem } from './availability.ts'
+
+let dom: JSDOM
+
+beforeEach(() => {
+  dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/partner/4/requests/9' })
+  const win = dom.window
+  const globals = {
+    window: win,
+    document: win.document,
+    navigator: win.navigator,
+    HTMLElement: win.HTMLElement,
+    Node: win.Node,
+    MouseEvent: win.MouseEvent,
+    KeyboardEvent: win.KeyboardEvent,
+    getComputedStyle: win.getComputedStyle,
+    requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0),
+    cancelAnimationFrame: (id: number) => clearTimeout(id),
+    IS_REACT_ACT_ENVIRONMENT: true,
+  }
+  for (const [key, value] of Object.entries(globals)) {
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
+  }
+  Object.defineProperty(win.HTMLElement.prototype, 'getClientRects', {
+    configurable: true,
+    value() { return [{ width: 1, height: 1 }] },
+  })
+  // React's legacy input-event fallback probes these IE hooks in JSDOM.
+  Object.defineProperty(win.HTMLElement.prototype, 'attachEvent', { configurable: true, value() {} })
+  Object.defineProperty(win.HTMLElement.prototype, 'detachEvent', { configurable: true, value() {} })
+})
+
+afterEach(() => {
+  cleanup()
+  dom.window.close()
+})
+
+const item = (changes: Partial<ARItem> = {}): ARItem => ({
+  id: 19,
+  jobRequestItemId: 27,
+  name: 'Live Oak',
+  size: '30 G',
+  quantity: 12,
+  status: null,
+  availableQuantity: null,
+  unitPrice: 12.5,
+  notes: null,
+  lpsNotes: null,
+  ...changes,
+})
+
+test('portal picker opens a themed listbox with unanswered plus the five canonical answers in order', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<[number, Record<string, string>]> = []
+  const view = render(
+    <ARLineTable
+      items={[item({ status: 'arriving_soon' })]}
+      editable
+      design="portal"
+      onPatch={async (id, changes) => { patches.push([id, changes]) }}
+    />,
+  )
+
+  const trigger = view.getByRole('button', { name: 'Line status, Arriving soon' })
+  assert.equal(trigger.getAttribute('aria-haspopup'), 'listbox')
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false')
+  assert.equal(view.queryByRole('combobox'), null)
+
+  await user.click(trigger)
+  const listbox = view.getByRole('listbox', { name: 'Line status' })
+  assert.match(listbox.className, /bg-popover/)
+  assert.match(listbox.className, /fixed/)
+  const options = within(listbox).getAllByRole('option')
+  assert.deepEqual(
+    options.map((option) => option.children[1]?.textContent),
+    ['Set status', 'Available', 'Can order', 'Diff Size/Qty/Sub', 'Arriving soon', 'Unavailable'],
+  )
+  assert.equal(within(listbox).getByRole('option', { name: 'Arriving soon' }).getAttribute('aria-selected'), 'true')
+  assert.match(within(listbox).getByRole('option', { name: 'Unavailable' }).className, /min-h-9/)
+
+  await user.click(within(listbox).getByRole('option', { name: 'Set status' }))
+  assert.deepEqual(patches, [[19, { status: '' }]])
+  assert.equal(view.queryByRole('listbox'), null)
+  assert.equal(document.activeElement, trigger)
+})
+
+test('portal picker supports arrow, Enter and Escape while preserving direct Available behavior', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<[number, Record<string, string>]> = []
+  const view = render(
+    <LineStatusPicker
+      item={item()}
+      editable
+      portal
+      onPatch={async (id, changes) => { patches.push([id, changes]) }}
+    />,
+  )
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  trigger.focus()
+  await user.keyboard('{ArrowDown}')
+  const available = view.getByRole('option', { name: 'Available' })
+  assert.equal(document.activeElement, available)
+  await user.keyboard('{Enter}')
+  assert.deepEqual(patches, [[19, { status: 'available', available_quantity: '12' }]])
+  assert.equal(document.activeElement, trigger)
+
+  await user.click(trigger)
+  await user.keyboard('{Escape}')
+  assert.equal(view.queryByRole('listbox'), null)
+  assert.equal(document.activeElement, trigger)
+})
+
+test('portal picker keeps follow-up answers in the existing dialog and payload path', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<[number, Record<string, string>]> = []
+  const view = render(
+    <LineStatusPicker
+      item={item()}
+      editable
+      portal
+      onPatch={async (id, changes) => { patches.push([id, changes]) }}
+    />,
+  )
+
+  await user.click(view.getByRole('button', { name: 'Line status, Set status' }))
+  await user.click(view.getByRole('option', { name: 'Can order' }))
+  assert.equal(view.getByLabelText('Price per unit').getAttribute('value'), '12.5')
+  await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
+  await user.click(view.getByRole('button', { name: 'Save answer' }))
+  assert.deepEqual(patches, [[19, { status: 'can_order', notes: 'Ready next week', unit_price: '12.5' }]])
+})
+
+test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed focus candidates', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(
+    <>
+      <button type="button">Before status</button>
+      <div hidden><button type="button">Hidden before</button></div>
+      <div inert><button type="button">Inert before</button></div>
+      <div aria-hidden="true"><button type="button">Aria-hidden before</button></div>
+      <fieldset disabled><button type="button">Fieldset-disabled before</button></fieldset>
+      <button type="button" disabled>Disabled before</button>
+      <button type="button" data-refuses-focus="before">Refuses focus before</button>
+      <LineStatusPicker item={item()} editable portal onPatch={async () => {}} />
+      <button type="button" data-refuses-focus="after">Refuses focus after</button>
+      <button type="button" disabled>Disabled after</button>
+      <fieldset disabled><button type="button">Fieldset-disabled after</button></fieldset>
+      <div aria-hidden="true"><button type="button">Aria-hidden after</button></div>
+      <div inert><button type="button">Inert after</button></div>
+      <div hidden><button type="button">Hidden after</button></div>
+      <button type="button">After status</button>
+    </>,
+  )
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const before = view.getByRole('button', { name: 'Before status' })
+  const after = view.getByRole('button', { name: 'After status' })
+  for (const candidate of document.querySelectorAll<HTMLElement>('[data-refuses-focus]')) {
+    Object.defineProperty(candidate, 'focus', { configurable: true, value() {} })
+  }
+  assert.equal(document.querySelector<HTMLButtonElement>('fieldset button')?.matches(':disabled'), true)
+
+  await user.click(trigger)
+  await user.keyboard('{Tab}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(view.queryByRole('listbox'), null)
+  assert.equal(document.activeElement, after)
+
+  await user.click(trigger)
+  await user.keyboard('{Shift>}{Tab}{/Shift}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(view.queryByRole('listbox'), null)
+  assert.equal(document.activeElement, before)
+})
+
+test('Tab boundaries close the portal and release focus deterministically', async () => {
+  const user = userEvent.setup({ document })
+  const forward = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
+  const forwardTrigger = forward.getByRole('button', { name: 'Line status, Set status' })
+  await user.click(forwardTrigger)
+  await user.keyboard('{Tab}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(forward.queryByRole('listbox'), null)
+  assert.equal(document.activeElement, document.body)
+  forward.unmount()
+
+  const backward = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
+  const backwardTrigger = backward.getByRole('button', { name: 'Line status, Set status' })
+  await user.click(backwardTrigger)
+  await user.keyboard('{Shift>}{Tab}{/Shift}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(backward.queryByRole('listbox'), null)
+  assert.equal(document.activeElement, document.body)
+})
+
+test('buffered typeahead reaches multi-character matches and repeated letters cycle matches', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+
+  await user.click(trigger)
+  await user.keyboard('ar')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving soon' }))
+
+  await user.keyboard('{Escape}')
+  await user.click(trigger)
+  await user.keyboard('a')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
+  await user.keyboard('a')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving soon' }))
+
+  await new Promise((resolve) => setTimeout(resolve, 550))
+  await user.keyboard('a')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
+})
+
+test('ArrowUp wraps and Home, End and Space operate the focused choice', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  trigger.focus()
+
+  await user.keyboard('{ArrowUp}')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Unavailable' }))
+  await user.keyboard('{Home}')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Set status' }))
+  await user.keyboard('{End}')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Unavailable' }))
+  await user.keyboard('{ArrowUp}')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving soon' }))
+  await user.keyboard(' ')
+  assert.equal(view.queryByRole('listbox'), null)
+  assert.ok(view.getByRole('button', { name: 'Save answer' }))
+})
+
+test('pointer and touch dismissal, repeated opening and portal clicks do not reach the row', async () => {
+  const user = userEvent.setup({ document })
+  let rowClicks = 0
+  const patches: Array<[number, Record<string, string>]> = []
+  const view = render(
+    <>
+      <div onClick={() => { rowClicks += 1 }}>
+        <LineStatusPicker
+          item={item()}
+          editable
+          portal
+          onPatch={async (id, changes) => { patches.push([id, changes]) }}
+        />
+      </div>
+      <button type="button">Outside picker</button>
+    </>,
+  )
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const outside = view.getByRole('button', { name: 'Outside picker' })
+
+  await user.click(trigger)
+  assert.equal(rowClicks, 0)
+  fireEvent.pointerDown(outside, { pointerType: 'touch' })
+  assert.equal(view.queryByRole('listbox'), null)
+
+  await user.click(trigger)
+  await user.click(trigger)
+  assert.equal(view.queryByRole('listbox'), null)
+  await user.click(trigger)
+  await user.click(view.getByRole('option', { name: 'Available' }))
+  assert.equal(rowClicks, 0)
+  assert.deepEqual(patches, [[19, { status: 'available', available_quantity: '12' }]])
+})
+
+test('portalled surface repositions above or below, clamps to the viewport, and cleans up on unmount', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const add = document.addEventListener.bind(document)
+  const remove = document.removeEventListener.bind(document)
+  let pointerAdds = 0
+  let pointerRemoves = 0
+  document.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+    if (type === 'pointerdown') pointerAdds += 1
+    add(type, listener, options)
+  }) as typeof document.addEventListener
+  document.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+    if (type === 'pointerdown') pointerRemoves += 1
+    remove(type, listener, options)
+  }) as typeof document.removeEventListener
+  let rect = { left: 100, top: 100, right: 220, bottom: 132, width: 120, height: 32 }
+  Object.defineProperty(trigger, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({ ...rect, x: rect.left, y: rect.top, toJSON: () => ({}) }),
+  })
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 500 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, writable: true, value: 500 })
+
+  await user.click(trigger)
+  let listbox = view.getByRole('listbox', { name: 'Line status' })
+  assert.equal(listbox.parentElement, document.body)
+  assert.match(listbox.className, /z-\[100\]/)
+  assert.equal(listbox.style.left, '100px')
+  assert.equal(listbox.style.top, '138px')
+  assert.equal(listbox.style.width, '196px')
+  assert.equal(listbox.style.maxHeight, '228px')
+  assert.match(listbox.className, /overflow-y-auto/)
+
+  fireEvent.pointerDown(document.body)
+  rect = { left: 210, top: 450, right: 330, bottom: 482, width: 120, height: 32 }
+  await user.click(trigger)
+  listbox = view.getByRole('listbox', { name: 'Line status' })
+  assert.equal(listbox.style.left, '210px')
+  assert.equal(listbox.style.top, '216px')
+
+  const assertInsideViewport = () => {
+    const left = Number.parseFloat(listbox.style.left)
+    const top = Number.parseFloat(listbox.style.top)
+    const width = Number.parseFloat(listbox.style.width)
+    const height = Number.parseFloat(listbox.style.maxHeight)
+    assert.ok(left >= 8)
+    assert.ok(top >= 8)
+    assert.ok(left + width <= window.innerWidth - 8)
+    assert.ok(top + height <= window.innerHeight - 8)
+  }
+
+  rect = { left: 200, top: 5, right: 320, bottom: 37, width: 120, height: 32 }
+  window.innerWidth = 180
+  window.innerHeight = 180
+  await act(async () => {
+    fireEvent(window, new dom.window.Event('resize'))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  })
+  assert.equal(listbox.style.left, '8px')
+  assert.equal(listbox.style.top, '8px')
+  assert.equal(listbox.style.width, '164px')
+  assert.equal(listbox.style.maxHeight, '164px')
+  assertInsideViewport()
+
+  rect = { left: -40, top: 90, right: 460, bottom: 122, width: 500, height: 32 }
+  window.innerWidth = 300
+  window.innerHeight = 180
+  await act(async () => {
+    fireEvent(window, new dom.window.Event('resize'))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  })
+  assert.equal(listbox.style.width, '284px')
+  assertInsideViewport()
+
+  rect = { left: 10, top: 50, right: 130, bottom: 82, width: 120, height: 32 }
+  window.innerWidth = 500
+  window.innerHeight = 500
+  await act(async () => {
+    fireEvent.scroll(window)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  })
+  assert.equal(listbox.style.left, '10px')
+  assert.equal(listbox.style.top, '88px')
+
+  rect = { left: -40, top: 90, right: 460, bottom: 122, width: 500, height: 32 }
+  window.innerWidth = 300
+  window.innerHeight = 180
+  await act(async () => {
+    fireEvent(window, new dom.window.Event('resize'))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  })
+  const unavailable = view.getByRole('option', { name: 'Unavailable' })
+  let scrollCalls = 0
+  Object.defineProperty(unavailable, 'scrollIntoView', {
+    configurable: true,
+    value: () => { scrollCalls += 1 },
+  })
+  await user.keyboard('{End}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(document.activeElement, unavailable)
+  assert.ok(scrollCalls >= 1)
+  await user.keyboard(' ')
+  assert.equal(view.queryByRole('listbox'), null)
+  assert.ok(view.getByRole('button', { name: 'Save answer' }))
+
+  view.unmount()
+  assert.equal(document.querySelector('[role="listbox"]'), null)
+  assert.ok(pointerAdds >= 2)
+  assert.equal(pointerRemoves, pointerAdds)
+  fireEvent.pointerDown(document.body)
+  fireEvent(window, new dom.window.Event('resize'))
+  fireEvent.scroll(window)
+  assert.equal(document.querySelector('[role="listbox"]'), null)
+  document.addEventListener = add
+  document.removeEventListener = remove
+})
+
+test('close, rapid reopen and unmount cancel stale focus and position animation frames', async () => {
+  const callbacks = new Map<number, FrameRequestCallback>()
+  const cancelled = new Set<number>()
+  let nextFrame = 1
+  const request = (callback: FrameRequestCallback) => {
+    const id = nextFrame++
+    callbacks.set(id, callback)
+    return id
+  }
+  const cancel = (id: number) => {
+    cancelled.add(id)
+    callbacks.delete(id)
+  }
+  Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, writable: true, value: request })
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable: true, writable: true, value: cancel })
+  Object.defineProperty(window, 'requestAnimationFrame', { configurable: true, writable: true, value: request })
+  Object.defineProperty(window, 'cancelAnimationFrame', { configurable: true, writable: true, value: cancel })
+
+  const user = userEvent.setup({ document })
+  const view = render(
+    <>
+      <LineStatusPicker item={item()} editable portal onPatch={async () => {}} />
+      <button type="button">Stable outside focus</button>
+    </>,
+  )
+  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const outside = view.getByRole('button', { name: 'Stable outside focus' })
+
+  await user.click(trigger)
+  const firstOpenFrames = [...callbacks.keys()]
+  assert.ok(firstOpenFrames.length > 0)
+  await user.click(trigger)
+  assert.equal(callbacks.size, 0)
+  assert.ok(firstOpenFrames.every((id) => cancelled.has(id)))
+  outside.focus()
+  assert.equal(document.activeElement, outside)
+
+  await user.click(trigger)
+  const reopenedFrames = [...callbacks.entries()]
+  assert.ok(reopenedFrames.length > 0)
+  await act(async () => {
+    for (const [id, callback] of reopenedFrames) {
+      callbacks.delete(id)
+      callback(0)
+    }
+  })
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Set status' }))
+
+  await user.click(trigger)
+  await user.click(trigger)
+  const unmountFrames = [...callbacks.keys()]
+  assert.ok(unmountFrames.length > 0)
+  outside.focus()
+  view.unmount()
+  assert.equal(callbacks.size, 0)
+  assert.ok(unmountFrames.every((id) => cancelled.has(id)))
+  assert.equal(document.activeElement, document.body)
+})
+
+test('admin line picker remains the existing native select', () => {
+  const view = render(<LineStatusPicker item={item()} editable onPatch={async () => {}} />)
+  const select = view.getByRole('combobox', { name: 'Line status' })
+  assert.deepEqual(
+    within(select).getAllByRole('option').map((option) => option.textContent),
+    ['Set status…', 'Available', 'Can order', 'Diff Size/Qty/Sub', 'Arriving soon', 'Unavailable'],
+  )
+})
