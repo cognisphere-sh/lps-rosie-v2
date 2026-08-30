@@ -11,9 +11,8 @@ import {
   onAvailabilityRequestStatusChanged,
   onRenameThread,
   openChat,
-  renameThread,
 } from '@/lib/chat-bus'
-import { EditableText, patchRow } from '@/components/workspace/editable'
+import { patchRow } from '@/components/workspace/editable'
 import {
   DemandSummary,
   NOTE_KIND,
@@ -22,7 +21,7 @@ import {
   StatusPill,
   newestNote,
 } from '@/components/workspace/job-request'
-import { JobsViewSwitch, Shell, useToast } from '@/components/workspace/shell'
+import { JobIdentityLink, Shell, useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import { Toolbar, type Chip } from '@/components/workspace/toolbar'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
@@ -132,50 +131,24 @@ function RequestCard({
       // with nothing to scroll it back into view.
       className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
     >
-      {/* The head is a div, not a button: it carries the status picker, and a
-          button inside a button is invalid HTML. The chevron is the
-          keyboard-reachable control; clicking the head also toggles. */}
-      <div onClick={onToggle} className="flex cursor-pointer flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
+      {/* The head contains independent interactive controls, so it is not
+          clickable itself. The job link navigates; only the chevron toggles. */}
+      <div className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             aria-expanded={expanded}
+            aria-controls={`request-body-${request.id}`}
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
-            onClick={(e) => {
-              e.stopPropagation()
+            onClick={(event) => {
+              event.stopPropagation()
               onToggle()
             }}
-            className="flex size-5 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
-          <span className="text-[13.5px] font-bold tracking-tight text-primary">
-            {requestRef(request.id)}
-          </span>
-          {/* What the job is called. Unnamed requests show nothing here rather
-              than a stand-in: `JR-<id>` beside it is already their name. */}
-          <span
-            className="min-w-0 max-w-[22rem] truncate text-[13.5px] font-semibold text-foreground"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <EditableText
-              {...edit}
-              column="name"
-              value={request.name}
-              placeholder="Name this job"
-              title="Click to rename this job"
-              // The job's thread is called after the job, so a rename here is
-              // a rename there — the picker rereads the name on its next open,
-              // and this tells a panel already sitting on the thread.
-              onSaved={(next) => {
-                onSaved()
-                renameThread({
-                  threadId: `jr-${request.id}`,
-                  label: next?.trim() || requestRef(request.id),
-                })
-              }}
-            />
-          </span>
+          <JobIdentityLink request={request} />
           <StatusPill
             {...edit}
             column="status"
@@ -308,18 +281,20 @@ function RequestCard({
         )}
       </div>
 
-      {expanded && (
-        <RequestBody
-          request={request}
-          version={version}
-          detailsOpen={detailsOpen}
-          onToggleDetails={() => setDetailsOpen((v) => !v)}
-          selected={selected}
-          onSelect={onSelect}
-          onDeleteItem={onDeleteItem}
-          onSaved={onSaved}
-        />
-      )}
+      <div id={`request-body-${request.id}`}>
+        {expanded && (
+          <RequestBody
+            request={request}
+            version={version}
+            detailsOpen={detailsOpen}
+            onToggleDetails={() => setDetailsOpen((v) => !v)}
+            selected={selected}
+            onSelect={onSelect}
+            onDeleteItem={onDeleteItem}
+            onSaved={onSaved}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -749,8 +724,8 @@ export default function RequestsPage() {
     sessionStorage.setItem(REQUESTS_VISIT_STORE, JSON.stringify({ query, status, itemStatus, customer, created, updated, page }))
   }, [restored, query, status, itemStatus, customer, created, updated, page])
 
-  // A job renamed from the chat panel's thread picker wrote the same column
-  // this page edits, so the cards behind it are one refetch out of date.
+  // Job names are renamed from the chat panel's thread picker, not on this
+  // page. That writes the name shown on these cards, so refetch it here.
   useEffect(
     () => onRenameThread(({ threadId }) => { if (threadId.startsWith('jr-')) reload() }),
     [reload],
@@ -1045,8 +1020,6 @@ export default function RequestsPage() {
       hideHeaderOnMobile
       hideHeaderOnDesktop
       toolbar={(rightActions) => (
-        <>
-        <JobsViewSwitch active="all" />
         <Toolbar
           rightActions={rightActions}
           placeholder="Search plants, customers, JR-…"
@@ -1071,7 +1044,6 @@ export default function RequestsPage() {
             </>
           }
         />
-        </>
       )}
     >
       {/* The Shell hands its children a fixed, overflow-hidden box, so this is

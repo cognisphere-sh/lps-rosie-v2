@@ -43,18 +43,24 @@ export { useIsMobile, useTheme, useToast } from '@/components/workspace/frame'
 export type PageId =
   | 'suppliers' | 'inventory' | 'photos' | 'customers' | 'requests' | 'agents' | 'settings'
 
-/** One shared switch on both Jobs routes; the nav remains active for either. */
-export function JobsViewSwitch({ active, rightActions }: { active: 'inbox' | 'all'; rightActions?: React.ReactNode }) {
+/** The All jobs identity opens the focused job; disclosure remains a sibling control. */
+export function JobIdentityLink({ request }: { request: { id: number; name: string | null } }) {
   return (
-    <nav aria-label="Jobs views" className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-3 py-1.5">
-      <Link href="/jobs" aria-current={active === 'inbox' ? 'page' : undefined} className={cn('flex min-h-11 items-center rounded-full px-3 text-[12px] font-semibold', active === 'inbox' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}>Inbox</Link>
-      <Link href="/requests" aria-current={active === 'all' ? 'page' : undefined} className={cn('flex min-h-11 items-center rounded-full px-3 text-[12px] font-semibold', active === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}>All jobs</Link>
-      {rightActions && (
-        <span className="ml-auto hidden w-full items-center justify-end gap-1 min-[900px]:flex min-[1024px]:w-auto">
-          {rightActions}
+    <Link
+      href={`/jobs?jr=${request.id}`}
+      aria-label={`Open ${requestRef(request.id)}${request.name ? ` — ${request.name}` : ''}`}
+      onClick={(event) => event.stopPropagation()}
+      className="flex min-h-11 min-w-0 max-w-[30rem] items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="flex-none text-[13.5px] font-bold tracking-tight text-primary">
+        {requestRef(request.id)}
+      </span>
+      {request.name && (
+        <span className="min-w-0 truncate text-[13.5px] font-semibold text-foreground">
+          {request.name}
         </span>
       )}
-    </nav>
+    </Link>
   )
 }
 
@@ -76,7 +82,7 @@ const NAV = [
   // The customer side, in the order it is worked: who they are, then what they
   // asked for.
   { id: 'customers', label: 'Customers', href: '/customers', Icon: CustomersIcon, enabled: true },
-  { id: 'requests', label: 'Jobs', href: '/jobs', Icon: RequestsIcon, enabled: true },
+  { id: 'requests', label: 'Jobs', href: '/requests', Icon: RequestsIcon, enabled: true },
 ] as const
 
 const ChatAppearanceCtx = createContext<{
@@ -344,7 +350,7 @@ export function Shell({
   hideHeaderOnDesktop?: boolean
   /** Selected desktop Jobs replaces the ordinary app rail; mobile chrome is unchanged. */
   focusedJobsDesktop?: boolean
-  /** New replaces a selected Jobs detail entry; bare Jobs and other routes push. */
+  /** New replaces a selected Jobs detail entry; the All jobs list and other routes push. */
   replaceNewJobEntry?: boolean
   focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
   children: React.ReactNode

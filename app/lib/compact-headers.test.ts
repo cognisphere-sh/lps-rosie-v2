@@ -48,12 +48,15 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
     'app/photos/page.tsx',
     'app/customers/page.tsx',
     'app/requests/page.tsx',
-    'app/jobs/page.tsx',
   ]) {
     const route = source(path)
     assert.match(route, /hideHeaderOnDesktop/, path)
     assert.match(route, /rightActions/, path)
   }
+
+  const focusedJobs = source('app/jobs/page.tsx')
+  assert.match(focusedJobs, /hideHeaderOnDesktop/)
+  assert.match(focusedJobs, /<JobsTopActions \/>/)
 
   // The portal's request page joined the compact set with the 2026-08-30
   // redesign: its header card's strip carries the name.
@@ -86,7 +89,6 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
   assert.match(partner, /\{bell\(\)\}/)
   assert.match(toolbar, /rightActions\?: React\.ReactNode/)
   assert.match(toolbar, /min-\[900px\]:w-full min-\[1024px\]:w-auto/)
-  assert.match(source('components/workspace/shell.tsx'), /min-\[900px\]:flex min-\[1024px\]:w-auto/)
 })
 
 test('header and mobile detail actions keep a 44px target and honest row geometry', () => {

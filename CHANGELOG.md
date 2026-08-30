@@ -119,6 +119,18 @@ here).
 
 ### Changed
 
+- **Jobs now has one list: All jobs** (`app/app/{requests,jobs}/page.tsx`,
+  `app/components/workspace/shell.tsx`). The Jobs rail/bottom-nav destination
+  goes to `/requests`, and the duplicate Inbox/All jobs switch is gone. Bare
+  `/jobs` redirects there, while established `/jobs?jr=<id>` and focused Rosie
+  intake URLs remain intact; the focused page now loads any extant job status,
+  not only active inbox membership. On each All jobs card, the JR/name is a
+  labelled 44px link to that focused page and the independent labelled 44px
+  chevron alone expands or collapses the card with explicit expanded/control
+  state. Header clicks no longer double as disclosures, so nested status,
+  Rosie, delete and Actions controls retain their own behavior without click
+  propagation or double navigation.
+
 - **`suppliers.is_lps_partner` is now derived: true exactly while the company
   has at least one portal login** (migrations 0084/0085). The flag and the
   logins were independent, so a supplier could be marked an LPS Partner with

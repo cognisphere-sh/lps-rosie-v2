@@ -160,15 +160,11 @@ export function jobInboxEventAction(rows: JobInboxRow[], event: JobThreadPatch):
 
 export const jobInboxLayout = (width: number): 'mobile' | 'desktop' => width < 900 ? 'mobile' : 'desktop'
 
-/** Bare-list activation adds one history entry; changing the focused row mutates it. */
+/** Focused-row switches replace; the redirecting bare parser state retains its legacy result. */
 export const jobInboxNavigationAction = (selection: 'bare' | 'valid' | 'invalid'): 'push' | 'replace' =>
   selection === 'bare' ? 'push' : 'replace'
 
-/** A mounted entry deliberately pushed from the landing may safely use browser Back. */
-export const jobInboxBackAction = (enteredFromLanding: boolean): 'back' | 'replace' =>
-  enteredFromLanding ? 'back' : 'replace'
-
-/** New replaces any selected/detail entry; only a bare landing adds an entry. */
+/** New replaces a selected/detail entry; starting from All jobs adds an entry. */
 export const jobInboxNewNavigationAction = (fromSelectedEntry: boolean): 'push' | 'replace' =>
   fromSelectedEntry ? 'replace' : 'push'
 

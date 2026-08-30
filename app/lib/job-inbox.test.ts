@@ -2,9 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { JSDOM } from 'jsdom'
 
+import { JobIdentityLink } from '../components/workspace/shell.tsx'
 import {
-  hasFocusedIntakeEvidence, jobInboxBackAction, jobInboxEventAction, jobInboxLayout,
+  hasFocusedIntakeEvidence, jobInboxEventAction, jobInboxLayout,
   jobInboxMembership, jobInboxNavigationAction, jobInboxNewNavigationAction,
   jobInboxRowAriaLabel, mergeJobInbox, orderJobInbox, parseJobSelection, patchJobInbox,
   shouldRestoreJobInbox, type JobInboxRow,
@@ -89,33 +93,48 @@ test('focused intake requires exact same-tab evidence, not active list membershi
   assert.equal(hasFocusedIntakeEvidence(9, { id: 9 }), true)
 })
 
-test('focused navigation has one landing entry, replace-only row/New switching and explicit Back', () => {
-  assert.equal(jobInboxNavigationAction('bare'), 'push')
+test('focused switching and intake preserve one All jobs history entry', () => {
   assert.equal(jobInboxNavigationAction('valid'), 'replace')
   assert.equal(jobInboxNavigationAction('invalid'), 'replace')
   assert.equal(jobInboxNewNavigationAction(true), 'replace')
   assert.equal(jobInboxNewNavigationAction(false), 'push')
-  assert.equal(jobInboxBackAction(true), 'back')
-  assert.equal(jobInboxBackAction(false), 'replace')
 
-  const history = ['/jobs']
-  if (jobInboxNavigationAction('bare') === 'push') history.push('/jobs?jr=1')
-  if (jobInboxNavigationAction('valid') === 'replace') history[history.length - 1] = '/jobs?jr=2'
-  if (jobInboxNewNavigationAction(true) === 'replace') history[history.length - 1] = '/jobs?jr=3&intake=1'
-  history[history.length - 1] = '/jobs?jr=3' // manual Exit also replaces
-  assert.deepEqual(history, ['/jobs', '/jobs?jr=3'])
-  if (jobInboxBackAction(true) === 'back') history.pop()
-  assert.deepEqual(history, ['/jobs'])
+  const selected = ['/requests', '/jobs?jr=1']
+  if (jobInboxNavigationAction('valid') === 'replace') selected[1] = '/jobs?jr=2'
+  if (jobInboxNewNavigationAction(true) === 'replace') selected[1] = '/jobs?jr=3&intake=1'
+  selected[1] = '/jobs?jr=3' // manual Exit also replaces the intake entry
+  selected.pop() // browser/device Back from focused mobile detail
+  assert.deepEqual(selected, ['/requests'])
 
-  // Mobile uses the same selected-entry rule: selecting A pushes, New B
-  // replaces A, manual Exit replaces intake B, and Back reaches bare.
-  const mobile = ['/jobs']
-  mobile.push('/jobs?jr=21')
-  if (jobInboxNewNavigationAction(true) === 'replace') mobile[1] = '/jobs?jr=22&intake=1'
-  mobile[1] = '/jobs?jr=22'
-  mobile.pop()
-  assert.deepEqual(mobile, ['/jobs'])
-  assert.equal(jobInboxNewNavigationAction(false), 'push') // bare-mobile New
+  const fromAllJobs = ['/requests']
+  if (jobInboxNewNavigationAction(false) === 'push') fromAllJobs.push('/jobs?jr=22&intake=1')
+  fromAllJobs.pop()
+  assert.deepEqual(fromAllJobs, ['/requests'])
+})
+
+test('All jobs identity navigation and browser Back return to the real list URL', async () => {
+  const markup = renderToStaticMarkup(
+    React.createElement(JobIdentityLink, { request: { id: 27, name: 'Courtyard' } }),
+  )
+  const dom = new JSDOM(`<!doctype html><html><body>${markup}</body></html>`, {
+    url: 'http://localhost/requests',
+  })
+  try {
+    const link = dom.window.document.querySelector('a')
+    assert.ok(link)
+    assert.equal(link.getAttribute('aria-label'), 'Open JR-27 — Courtyard')
+    assert.equal(link.getAttribute('href'), '/jobs?jr=27')
+
+    dom.window.history.pushState(null, '', link.href)
+    assert.equal(dom.window.location.pathname + dom.window.location.search, '/jobs?jr=27')
+
+    const back = new Promise<void>((resolve) => dom.window.addEventListener('popstate', () => resolve(), { once: true }))
+    dom.window.history.back()
+    await back
+    assert.equal(dom.window.location.pathname + dom.window.location.search, '/requests')
+  } finally {
+    dom.window.close()
+  }
 })
 
 test('list restoration is edge-triggered, not caused by polling or breakpoint changes', () => {
@@ -169,6 +188,25 @@ test('API query is bounded, complete, batched, active-only and privacy-scoped', 
   assert.match(source('proxy.ts'), /pathname\.startsWith\('\/api'\)[\s\S]*status: 401/)
 })
 
+test('Jobs navigation has one All jobs list and independent job/open disclosure targets', () => {
+  const shell = source('components/workspace/shell.tsx')
+  const requests = source('app/requests/page.tsx')
+  const jobs = source('app/jobs/page.tsx')
+
+  assert.match(shell, /label: 'Jobs', href: '\/requests'/)
+  assert.doesNotMatch(shell, /JobsViewSwitch|>Inbox<|aria-label="Jobs views"/)
+  assert.doesNotMatch(requests, /JobsViewSwitch/)
+  assert.match(requests, /aria-expanded=\{expanded\}[\s\S]{0,120}aria-controls=\{`request-body-\$\{request\.id\}`\}/)
+  assert.match(requests, /className="flex size-11[^"]*"[\s\S]{0,120}<Chevron/)
+  assert.match(requests, /<JobIdentityLink request=\{request\} \/>/)
+  assert.match(shell, /href=\{`\/jobs\?jr=\$\{request\.id\}`\}[\s\S]{0,180}aria-label=\{`Open/)
+  assert.match(shell, /className="flex min-h-11[^"]*"/)
+  assert.doesNotMatch(requests, /<div onClick=\{onToggle\}/)
+  assert.match(jobs, /selection\.kind === 'bare'[\s\S]{0,80}router\.replace\('\/requests'\)/)
+  assert.doesNotMatch(jobs, /ACTIVE_JOB_STATUSES/)
+  assert.match(jobs, /if \(!response\.ok \|\| !body\.request\)[\s\S]*setDetail\(body\.request\)/)
+})
+
 test('focused desktop shell replaces only the nav rail and keeps global AgentChat', () => {
   const shell = source('components/workspace/shell.tsx')
   const frame = source('components/workspace/frame.tsx')
@@ -177,16 +215,16 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
   assert.match(shell, /railHidden=\{desktopChatFull \|\| focusedJobsDesktop \|\| !!focusedIntake\}/)
   assert.match(shell, /rightColumn=\{\(\{ setNavOpen \}\) => \([\s\S]*<AgentChat/)
   assert.match(frame, /!isMobile && rightColumn\?\.\(state\)/)
-  assert.match(jobs, /focusedJobsDesktop=\{selection\.kind !== 'bare'\}/)
-  assert.match(jobs, /replaceNewJobEntry=\{selection\.kind !== 'bare'\}/)
+  assert.match(jobs, /focusedJobsDesktop\n/)
+  assert.match(jobs, /replaceNewJobEntry\n/)
   assert.match(jobs, /<section aria-label="Active job inbox"[\s\S]*<main ref=\{workRef\}/)
   assert.match(jobs, /<JobsTopActions \/>/)
-  assert.match(jobs, /min-h-11[\s\S]{0,180}Back to Jobs/)
+  assert.match(jobs, /min-h-11[\s\S]{0,180}Back to All jobs/)
   assert.match(jobs, /tabIndex=\{-1\}/)
   assert.match(jobs, /aria-label=\{jobInboxRowAriaLabel/)
   assert.match(jobs, /aria-current=/)
   assert.match(jobs, /response\.status === 404[\s\S]*setDetailError\(''\)[\s\S]*current\.filter\(\(row\) => row\.id !== id\)[\s\S]*refreshList\(\)[\s\S]*return/)
-  assert.match(jobs, /membership === 'listed' && detailError/)
+  assert.match(jobs, /membership === 'error'[\s\S]{0,300}loadDetail\(selection\.id\)/)
   assert.doesNotMatch(jobs, /<AgentChat|useChat\(/)
 })
 
@@ -194,7 +232,7 @@ test('selected mobile job relies on browser Back while desktop keeps its rail co
   const jobs = source('app/jobs/page.tsx')
   assert.doesNotMatch(jobs, /Back to active jobs/)
   assert.doesNotMatch(jobs, /breakpoint === true && <button[^>]*onClick=\{backToList\}/)
-  assert.match(jobs, /\{focusedDesktop && \([\s\S]{0,180}<button[^>]*onClick=\{backToList\}[\s\S]{0,180}Back to Jobs/)
+  assert.match(jobs, /\{focusedDesktop && \([\s\S]{0,180}<button[^>]*onClick=\{backToList\}[\s\S]{0,180}Back to All jobs/)
 })
 
 test('focused route restores scroll/focus and uses push entry then replace switching', () => {
@@ -208,7 +246,7 @@ test('focused route restores scroll/focus and uses push entry then replace switc
   assert.match(jobs, /workRef\.current\?\.focus\(\{ preventScroll: true \}\)/)
   assert.match(jobs, /if \(action === 'push'\)[\s\S]*router\.push[\s\S]*router\.replace/)
   assert.match(jobs, /newOrigin[\s\S]*LIST_ORIGIN_ID[\s\S]*selection\.id[\s\S]*sessionStorage\.setItem\(LIST_ORIGIN, String\(selection\.id\)\)/)
-  assert.match(jobs, /jobInboxBackAction\(enteredFromLanding\.current\)/)
+  assert.match(jobs, /backToList[\s\S]*router\.replace\('\/requests'/)
 })
 
 test('focused intake reuses one AgentChat/useChat/composer upload path and manual exit', () => {
@@ -219,7 +257,7 @@ test('focused intake reuses one AgentChat/useChat/composer upload path and manua
   assert.match(shell, /focusedIntake=\{focusedIntake\}/)
   assert.match(shell, /hideHeader=\{!!focusedIntake\}/)
   assert.match(jobs, /hideHeaderOnDesktop/)
-  assert.match(jobs, /rightActions=\{rightActions\}/)
+  assert.doesNotMatch(jobs, /JobsViewSwitch|rightActions=\{rightActions\}/)
   assert.doesNotMatch(jobs, /md:/)
   assert.doesNotMatch(chat.slice(chat.indexOf('if (focusedIntake)')), /md:/)
   assert.match(jobs, /min-\[900px\]:w-\[292px\]/)

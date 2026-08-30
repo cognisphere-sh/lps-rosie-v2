@@ -7,17 +7,17 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { ArrowLeft, MessageSquare, RefreshCw } from 'lucide-react'
 
 import { RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
-import { JobsTopActions, JobsViewSwitch, Shell } from '@/components/workspace/shell'
+import { JobsTopActions, Shell } from '@/components/workspace/shell'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
 import { onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
 import { subscribeEvents } from '@/lib/chat-events'
 import {
-  canonicalJobThread, hasFocusedIntakeEvidence, jobInboxBackAction, jobInboxEventAction,
-  jobInboxLayout, jobInboxMembership, jobInboxNavigationAction, jobInboxRowAriaLabel,
+  canonicalJobThread, hasFocusedIntakeEvidence, jobInboxEventAction,
+  jobInboxLayout, jobInboxNavigationAction, jobInboxRowAriaLabel,
   mergeJobInbox, orderJobInbox, parseJobSelection, patchJobInbox, shouldRestoreJobInbox,
   type JobInboxRow, type JobThreadPatch,
 } from '@/lib/job-inbox'
-import { ACTIVE_JOB_STATUSES, REQUEST_STATUS_OPTIONS, requestRef, requestStatusLabel, requestStatusTone } from '@/lib/job-requests'
+import { REQUEST_STATUS_OPTIONS, requestRef, requestStatusLabel, requestStatusTone } from '@/lib/job-requests'
 import type { JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
@@ -105,8 +105,8 @@ function JobsWorkspace() {
   const [listReady, setListReady] = useState(false)
   const [listError, setListError] = useState('')
   const [detail, setDetail] = useState<JobRequestRow | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
+  const [detailResolvedId, setDetailResolvedId] = useState<number | null>(null)
   const [version, setVersion] = useState(0)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
@@ -175,17 +175,17 @@ function JobsWorkspace() {
     return () => { clearInterval(timer); window.removeEventListener('focus', focus); off(); fetchGeneration.current++ }
   }, [refreshList])
 
-  const selectedInList = selection.kind === 'valid' && ordered.some((row) => row.id === selection.id)
   const loadDetail = useCallback(async (id: number) => {
     const mine = ++detailGeneration.current
     const controller = new AbortController()
-    setDetailLoading(true); setDetailError(''); setDetail(null)
+    setDetailError(''); setDetail(null); setDetailResolvedId(null)
     try {
       const response = await fetch(`/api/requests/${id}`, { cache: 'no-store', signal: controller.signal })
       const body = await response.json() as { request?: JobRequestRow; error?: string }
       if (response.status === 404) {
         if (mine === detailGeneration.current) {
           setDetailError('')
+          setDetailResolvedId(id)
           setJobs((current) => {
             const next = current.filter((row) => row.id !== id)
             jobsRef.current = next
@@ -196,28 +196,25 @@ function JobsWorkspace() {
         return
       }
       if (!response.ok || !body.request) throw new Error(body.error ?? 'Could not load this job')
-      if (!(ACTIVE_JOB_STATUSES as readonly string[]).includes(body.request.status)) {
-        if (mine === detailGeneration.current) {
-          setDetailError('')
-          setJobs((current) => {
-            const next = current.filter((row) => row.id !== id)
-            jobsRef.current = next
-            return next
-          })
-        }
-        void refreshList()
-        return
+      if (mine === detailGeneration.current) {
+        setDetail(body.request)
+        setDetailResolvedId(id)
       }
-      if (mine === detailGeneration.current) setDetail(body.request)
     } catch (cause) {
-      if (mine === detailGeneration.current && (cause as Error).name !== 'AbortError') setDetailError((cause as Error).message)
-    } finally { if (mine === detailGeneration.current) setDetailLoading(false) }
+      if (mine === detailGeneration.current && (cause as Error).name !== 'AbortError') {
+        setDetailError((cause as Error).message)
+        setDetailResolvedId(id)
+      }
+    }
     return () => controller.abort()
   }, [refreshList])
   useEffect(() => {
-    if (!selectedInList || selection.kind !== 'valid') { setDetail(null); setDetailError(''); return }
+    if (selection.kind !== 'valid') {
+      setDetail(null); setDetailError(''); setDetailResolvedId(null)
+      return
+    }
     void loadDetail(selection.id)
-  }, [loadDetail, selectedInList, selection])
+  }, [loadDetail, selection])
   // The drawer has already re-read the one AR it wrote; patch that status
   // into the open job instead of refetching it.
   useEffect(
@@ -286,8 +283,7 @@ function JobsWorkspace() {
       }
     }
     pendingListRestore.current = true
-    if (jobInboxBackAction(enteredFromLanding.current) === 'back') router.back()
-    else router.replace('/jobs', { scroll: false })
+    router.replace('/requests', { scroll: false })
   }
 
   const marker = useMemo(() => {
@@ -296,10 +292,10 @@ function JobsWorkspace() {
   }, [selection])
   const focused = intakeRequested && selection.kind === 'valid' && hasFocusedIntakeEvidence(selection.id, marker)
   useEffect(() => {
-    if (!intakeRequested && selection.kind === 'valid' && selectedInList && marker?.id === selection.id) {
+    if (!intakeRequested && selection.kind === 'valid' && detail?.id === selection.id && marker?.id === selection.id) {
       sessionStorage.removeItem(INTAKE)
     }
-  }, [intakeRequested, marker?.id, selectedInList, selection])
+  }, [detail?.id, intakeRequested, marker?.id, selection])
   const exitIntake = () => {
     if (selection.kind !== 'valid') return
     // Exit is presentation-only: keep the same-tab marker so a pre-record
@@ -307,7 +303,14 @@ function JobsWorkspace() {
     router.replace(`/jobs?jr=${selection.id}`, { scroll: false })
   }
 
-  const switcher = (rightActions: React.ReactNode) => <JobsViewSwitch active="inbox" rightActions={rightActions} />
+  useEffect(() => {
+    if (selection.kind === 'bare') router.replace('/requests')
+  }, [router, selection.kind])
+
+  if (selection.kind === 'bare') {
+    return <div role="status" className="p-8 text-center text-muted-foreground">Opening all jobs…</div>
+  }
+
   if (focused && selection.kind === 'valid') {
     return <Shell page="requests" title={`JR-${selection.id} · New request with Rosie`} hideHeaderOnMobile toolbar={undefined}
       focusedIntake={{ id: selection.id, onExit: exitIntake, savedPanel: <IntakeSaved id={selection.id} /> }}>
@@ -315,28 +318,37 @@ function JobsWorkspace() {
     </Shell>
   }
 
-  const pendingMarker = selection.kind === 'valid' && marker?.id === selection.id && !selectedInList
-  const membership = jobInboxMembership(selection.kind, listReady, Boolean(listError), selectedInList, pendingMarker)
-  const focusedDesktop = breakpoint === false && selection.kind !== 'bare'
+  const pendingMarker = selection.kind === 'valid' && marker?.id === selection.id && detailResolvedId === selection.id && !detail
+  const membership = selection.kind === 'invalid'
+    ? 'unavailable'
+    : detailResolvedId !== selection.id
+      ? 'loading'
+      : detailError
+        ? 'error'
+        : detail
+          ? 'listed'
+          : pendingMarker
+            ? 'pending'
+            : 'unavailable'
+  const focusedDesktop = breakpoint === false
   return (
     <Shell
       page="requests"
       title="Jobs"
       hideHeaderOnMobile
       hideHeaderOnDesktop
-      focusedJobsDesktop={selection.kind !== 'bare'}
-      replaceNewJobEntry={selection.kind !== 'bare'}
-      toolbar={focusedDesktop ? undefined : switcher}
+      focusedJobsDesktop
+      replaceNewJobEntry
     >
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <section aria-label="Active job inbox" className={cn(
           'flex w-full flex-none flex-col border-r border-border bg-card',
-          selection.kind === 'bare' ? 'min-[900px]:w-full min-[900px]:border-r-0' : 'min-[900px]:w-[292px]',
-          breakpoint === true && selection.kind !== 'bare' && 'hidden',
+          'min-[900px]:w-[292px]',
+          breakpoint === true && 'hidden',
         )}>
           {focusedDesktop && (
             <button type="button" onClick={backToList} className="flex min-h-11 items-center gap-2 border-b border-border px-3 text-[12px] font-semibold text-primary">
-              <ArrowLeft size={16}/>Back to Jobs
+              <ArrowLeft size={16}/>Back to All jobs
             </button>
           )}
           <div className="border-b border-border px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Active jobs</div>
@@ -354,14 +366,12 @@ function JobsWorkspace() {
             })}
           </div>
         </section>
-        <main ref={workRef} tabIndex={-1} aria-label="Selected job" className={cn('min-w-0 flex-1 overflow-y-auto bg-background outline-none', breakpoint !== true && selection.kind === 'bare' && 'hidden')}>
+        <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
           {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions /></div>}
-          {membership === 'loading' && selection.kind !== 'bare' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
-          {membership === 'error' && selection.kind !== 'bare' && <div role="alert" className="p-8 text-center text-destructive">Could not verify this job because the active list failed to load.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => void refreshList()}><RefreshCw size={14}/>Retry</button></div>}
-          {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-lg font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid, closed, deleted, or not in the active inbox. Another job was not selected for you.</p><div className="flex justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace('/jobs')}>Active jobs</button><Link className="flex min-h-11 items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div></div>}
-          {membership === 'listed' && detailLoading && <div role="status" className="p-8 text-center text-muted-foreground">Loading job details…</div>}
-          {membership === 'listed' && detailError && <div role="alert" className="p-8 text-center text-destructive">{detailError}<button className="mx-auto mt-2 flex min-h-11 items-center font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}>Retry</button></div>}
-          {detail && <div className="m-3 overflow-hidden rounded-xl border border-border bg-card">
+          {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
+          {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
+          {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-lg font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid or the job was deleted. Another job was not selected for you.</p><Link className="mx-auto flex min-h-11 w-fit items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
+          {membership === 'listed' && detail && <div className="m-3 overflow-hidden rounded-xl border border-border bg-card">
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
               <span className="font-bold text-primary">{requestRef(detail.id)}</span><span className="min-w-0 flex-1 truncate font-semibold">{detail.name || detail.customer?.company || detail.customer?.name || 'Unnamed job'}</span>
               <StatusPill table="job_requests" id={detail.id} column="status" value={detail.status} label={requestStatusLabel(detail.status)} tone={requestStatusTone(detail.status)} options={REQUEST_STATUS_OPTIONS} onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
@@ -370,7 +380,7 @@ function JobsWorkspace() {
             <RequestLinks request={detail} className="border-b border-border px-3 py-2" />
             <RequestBody request={detail} version={version} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen((v) => !v)} emptyItemsCopy="No active line items have been saved for this job yet." onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
           </div>}
-          {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">{requestRef(selection.id)} intake is pending</h2><p className="text-sm text-muted-foreground">Nothing is in the active job record yet. The reserved identity is kept; exiting never deletes it.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace(`/jobs?jr=${selection.id}&intake=1`)}>Resume intake</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/jobs') ? marker.returnUrl : '/jobs') }}>Active jobs</button></div></div>}
+          {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">{requestRef(selection.id)} intake is pending</h2><p className="text-sm text-muted-foreground">Nothing is in the active job record yet. The reserved identity is kept; exiting never deletes it.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace(`/jobs?jr=${selection.id}&intake=1`)}>Resume intake</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/requests') ? marker.returnUrl : '/requests') }}>All jobs</button></div></div>}
         </main>
       </div>
     </Shell>
