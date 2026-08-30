@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -126,22 +126,44 @@ export function MultiFilter({
   selected,
   onChange,
   selectionLabel,
+  accessibleName,
   buttonClassName,
   filterPlaceholder = 'Filter suppliers…',
   largeTargets = false,
+  restoreFocusOnClose = false,
+  menuAlign = 'left',
 }: {
   allLabel: string
   options: string[]
   selected: string[]
   onChange: (next: string[]) => void
   selectionLabel?: string
+  accessibleName?: string
   buttonClassName?: string
   filterPlaceholder?: string
   largeTargets?: boolean
+  restoreFocusOnClose?: boolean
+  menuAlign?: 'left' | 'right'
 }) {
   const [open, setOpen] = useState(false)
   const [needle, setNeedle] = useState('')
-  const pop = useOutsideClose(open, () => setOpen(false))
+  const trigger = useRef<HTMLButtonElement>(null)
+  const close = useCallback(() => {
+    setOpen(false)
+    if (restoreFocusOnClose) requestAnimationFrame(() => trigger.current?.focus())
+  }, [restoreFocusOnClose])
+  const pop = useOutsideClose(open, close)
+
+  useEffect(() => {
+    if (!open || !restoreFocusOnClose) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      close()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [close, open, restoreFocusOnClose])
 
   const shown = needle
     ? options.filter((o) => o.toLowerCase().includes(needle.toLowerCase()))
@@ -150,7 +172,9 @@ export function MultiFilter({
   return (
     <div ref={pop} data-menu className="relative w-full">
       <button
+        ref={trigger}
         type="button"
+        aria-label={accessibleName ? `${accessibleName}${selected.length ? `, ${selected.length} selected` : ''}` : undefined}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
@@ -164,10 +188,13 @@ export function MultiFilter({
             ? `${selectionLabel ? `${selectionLabel}: ` : ''}${selected.length} selected`
             : allLabel}
         </span>
-        <ChevronDown size={10} className="flex-none opacity-50" />
+        <ChevronDown size={10} className={cn('flex-none opacity-50', accessibleName && 'transition-transform', accessibleName && open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="lps-pop absolute left-0 top-[calc(100%+4px)] z-[96] max-h-[300px] w-[240px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+        <div className={cn(
+          'lps-pop absolute top-[calc(100%+4px)] z-[96] max-h-[300px] w-[240px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]',
+          menuAlign === 'right' ? 'right-0' : 'left-0',
+        )}>
           <input
             value={needle}
             onChange={(e) => setNeedle(e.target.value)}

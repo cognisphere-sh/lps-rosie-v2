@@ -190,6 +190,13 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
   assert.doesNotMatch(jobs, /<AgentChat|useChat\(/)
 })
 
+test('selected mobile job relies on browser Back while desktop keeps its rail control', () => {
+  const jobs = source('app/jobs/page.tsx')
+  assert.doesNotMatch(jobs, /Back to active jobs/)
+  assert.doesNotMatch(jobs, /breakpoint === true && <button[^>]*onClick=\{backToList\}/)
+  assert.match(jobs, /\{focusedDesktop && \([\s\S]{0,180}<button[^>]*onClick=\{backToList\}[\s\S]{0,180}Back to Jobs/)
+})
+
 test('focused route restores scroll/focus and uses push entry then replace switching', () => {
   const jobs = source('app/jobs/page.tsx')
   assert.match(jobs, /onScroll=\{saveListPosition\}/)

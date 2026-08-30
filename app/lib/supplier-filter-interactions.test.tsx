@@ -10,6 +10,8 @@ import { Toolbar } from '../components/workspace/toolbar.tsx'
 import type { ColFilters } from './table-config.ts'
 
 let dom: JSDOM
+let capturedPointers: number[]
+let releasedPointers: number[]
 
 beforeEach(() => {
   dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/suppliers' })
@@ -31,6 +33,20 @@ beforeEach(() => {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
   }
   Object.defineProperty(win.HTMLElement.prototype, 'inert', { configurable: true, writable: true, value: false })
+  capturedPointers = []
+  releasedPointers = []
+  Object.defineProperty(win.HTMLElement.prototype, 'setPointerCapture', {
+    configurable: true,
+    value(pointerId: number) { capturedPointers.push(pointerId) },
+  })
+  Object.defineProperty(win.HTMLElement.prototype, 'hasPointerCapture', {
+    configurable: true,
+    value(pointerId: number) { return capturedPointers.includes(pointerId) && !releasedPointers.includes(pointerId) },
+  })
+  Object.defineProperty(win.HTMLElement.prototype, 'releasePointerCapture', {
+    configurable: true,
+    value(pointerId: number) { releasedPointers.push(pointerId) },
+  })
   Object.defineProperty(win.HTMLElement.prototype, 'getClientRects', {
     configurable: true,
     value() { return [{ width: 1, height: 1 }] },
@@ -59,7 +75,25 @@ function Harness({ mobile = false }: { mobile?: boolean }) {
       filters={filters}
       options={(key) => OPTIONS[key] ?? []}
       onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+      onClear={() => setFilters({})}
     />
+  )
+}
+
+function MobileClearHarness() {
+  const [page, setPage] = useState(2)
+  const [filters, setFilters] = useState<ColFilters>({})
+  return (
+    <>
+      <span>Committed page {page}</span>
+      <SupplierFilters
+        mobile
+        filters={filters}
+        options={(key) => OPTIONS[key] ?? []}
+        onFilter={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+        onClear={() => { setPage(1); setFilters({}) }}
+      />
+    </>
   )
 }
 
@@ -67,27 +101,48 @@ function ToolbarHarness() {
   const [query, setQuery] = useState('broad')
   const [filters, setFilters] = useState<ColFilters>({ city: ['Austin'], name: 'oak' })
   const [page, setPage] = useState(3)
+  const clear = () => { setQuery(''); setFilters({}); setPage(1) }
   return (
     <Toolbar
       placeholder="Search name, contact, email, city…"
       query={query}
       onQuery={(value) => { setQuery(value); setPage(1) }}
-      controls={<SupplierFilters mobile={false} filters={filters} options={(key) => OPTIONS[key] ?? []} onFilter={(key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1) }} />}
+      controls={<SupplierFilters mobile={false} filters={filters} options={(key) => OPTIONS[key] ?? []} onFilter={(key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1) }} onClear={clear} />}
       hasFilters={!!query || Object.keys(filters).length > 0}
-      onClear={() => { setQuery(''); setFilters({}); setPage(1) }}
+      onClear={clear}
       summary="50/1336 Companies"
       pagination={{ page, pageCount: 27, onPage: setPage }}
     />
   )
 }
 
-test('desktop popover applies searchable/multiple/exclusive state and closes accessibly', async () => {
+test('visible type/state controls and desktop advanced popover preserve their separate meanings', async () => {
   const user = userEvent.setup({ document })
   const view = render(<Harness />)
-  const trigger = view.getByRole('button', { name: 'Filters' })
+  const type = view.getByRole('button', { name: 'Supplier type' })
+  const state = view.getByRole('button', { name: 'State' })
+  assert.match(type.className, /min-h-11/)
+  assert.match(state.className, /min-h-11/)
+
+  await user.click(type)
+  await user.click(view.getByRole('button', { name: 'Grower' }))
+  assert.match(view.getByRole('button', { name: 'Type: 1 selected' }).className, /min-h-11/)
+
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+  await user.click(state)
+  const stateMenu = view.getByRole('textbox', { name: 'Search states…' }).parentElement!
+  assert.match(stateMenu.className, /right-0/)
+  assert.doesNotMatch(stateMenu.className, /left-0/)
+  await user.click(state)
+
+  const trigger = view.getByRole('button', { name: 'Advanced filters' })
+  assert.equal(trigger.getAttribute('title'), 'Advanced filters')
+  assert.match(trigger.className, /size-11/)
   await user.click(trigger)
 
-  const dialog = view.getByRole('dialog', { name: 'Supplier filters' })
+  const dialog = view.getByRole('dialog', { name: 'Advanced filters' })
+  assert.equal(within(dialog).queryByText('Type'), null)
+  assert.equal(within(dialog).queryByText('State'), null)
   const name = within(dialog).getByRole('textbox', { name: 'Name contains' })
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(document.activeElement, name)
@@ -98,9 +153,8 @@ test('desktop popover applies searchable/multiple/exclusive state and closes acc
   const citySearch = within(dialog).getByRole('textbox', { name: 'Search cities…' })
   await user.type(citySearch, 'Aus')
   assert.equal(within(dialog).queryByRole('button', { name: 'Dallas' }), null)
-  const austin = within(dialog).getByRole('button', { name: 'Austin' })
-  await user.click(austin)
-  assert.notEqual(document.activeElement, trigger, 'selecting inside must not flicker focus to Filters')
+  await user.click(within(dialog).getByRole('button', { name: 'Austin' }))
+  assert.notEqual(document.activeElement, trigger, 'selecting inside must not flicker focus to Advanced filters')
 
   await user.click(within(dialog).getByRole('button', { name: 'LPS Partners' }))
   await user.click(within(dialog).getByRole('button', { name: 'Not partners' }))
@@ -115,6 +169,7 @@ test('desktop popover applies searchable/multiple/exclusive state and closes acc
   assert.match(active.textContent ?? '', /Name: oak/)
   assert.match(active.textContent ?? '', /City: Austin/)
   assert.match(active.textContent ?? '', /Partner: Not partners/)
+  assert.equal(trigger.getAttribute('aria-label'), 'Advanced filters, 3 active')
 
   await user.click(trigger)
   fireEvent.mouseDown(document.body)
@@ -123,7 +178,7 @@ test('desktop popover applies searchable/multiple/exclusive state and closes acc
   assert.equal(document.activeElement, trigger)
 })
 
-test('rendered toolbar clears broad and advanced state and resets paging on any new criterion', async () => {
+test('rendered desktop toolbar clears broad and advanced state and resets paging', async () => {
   const user = userEvent.setup({ document })
   const view = render(<ToolbarHarness />)
   const search = view.getByRole('textbox', { name: 'Search name, contact, email, city…' })
@@ -143,25 +198,30 @@ test('rendered toolbar clears broad and advanced state and resets paging on any 
   assert.match(view.container.textContent ?? '', /Page 2 of 27/)
   await user.type(search, 'Dallas')
   assert.match(view.container.textContent ?? '', /Page 1 of 27/)
-
-  await user.click(view.getByRole('button', { name: 'Next page' }))
-  await user.click(view.getByRole('button', { name: 'Filters' }))
-  await user.type(view.getByRole('textbox', { name: 'Name contains' }), 'oak')
-  assert.match(view.container.textContent ?? '', /Page 1 of 27/)
 })
 
-test('mobile sheet traps focus, isolates background and restores everything on close/unmount', async () => {
+test('mobile sheet Clear all commits page one even with no active criteria', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<MobileClearHarness />)
+  assert.match(view.container.textContent ?? '', /Committed page 2/)
+  await user.click(view.getByRole('button', { name: 'Advanced filters' }))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await user.click(view.getByRole('button', { name: 'Clear all' }))
+  assert.match(view.container.textContent ?? '', /Committed page 1/)
+})
+
+test('mobile sheet traps focus, clears criteria, and supports close, backdrop, and captured swipe dismissal', async () => {
   const user = userEvent.setup({ document })
   const background = document.createElement('button')
   background.textContent = 'Background action'
   document.body.appendChild(background)
   const view = render(<Harness mobile />)
   const appRoot = view.container
-  const trigger = view.getByRole('button', { name: 'Filters' })
+  const trigger = view.getByRole('button', { name: 'Advanced filters' })
   await user.click(trigger)
   await new Promise((resolve) => setTimeout(resolve, 0))
 
-  const dialog = view.getByRole('dialog', { name: 'Supplier filters' })
+  const dialog = view.getByRole('dialog', { name: 'Advanced filters' })
   assert.equal(dialog.getAttribute('aria-modal'), 'true')
   assert.equal(appRoot.inert, true)
   assert.equal(appRoot.getAttribute('aria-hidden'), 'true')
@@ -169,12 +229,16 @@ test('mobile sheet traps focus, isolates background and restores everything on c
   assert.equal(document.body.style.overflow, 'hidden')
   assert.equal(document.activeElement, within(dialog).getByRole('textbox', { name: 'Name contains' }))
 
-  const close = within(dialog).getByRole('button', { name: 'Close supplier filters' })
+  const close = within(dialog).getByRole('button', { name: 'Close advanced filters' })
   close.focus()
   await user.keyboard('{Shift>}{Tab}{/Shift}')
-  assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Not partners' }))
+  assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Show results' }))
   await user.tab()
   assert.equal(document.activeElement, close)
+
+  await user.type(within(dialog).getByRole('textbox', { name: 'Name contains' }), 'oak')
+  await user.click(within(dialog).getByRole('button', { name: 'Clear all' }))
+  assert.equal((within(dialog).getByRole('textbox', { name: 'Name contains' }) as HTMLInputElement).value, '')
 
   await user.click(close)
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -183,6 +247,23 @@ test('mobile sheet traps focus, isolates background and restores everything on c
   assert.equal(appRoot.hasAttribute('aria-hidden'), false)
   assert.equal(background.inert, false)
   assert.equal(document.body.style.overflow, '')
+
+  await user.click(trigger)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const backdrop = document.querySelector<HTMLElement>('[data-supplier-filter-backdrop]')!
+  fireEvent.mouseDown(backdrop)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(view.queryByRole('dialog'), null)
+
+  await user.click(trigger)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const handle = document.querySelector<HTMLElement>('[data-supplier-filter-handle]')!
+  fireEvent.pointerDown(handle, { pointerId: 7, clientY: 20 })
+  assert.deepEqual(capturedPointers, [7], 'the handle captures a drag that leaves its 28px bounds')
+  fireEvent.pointerUp(handle, { pointerId: 7, clientY: 100 })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(releasedPointers, [7])
+  assert.equal(view.queryByRole('dialog'), null)
 
   await user.click(trigger)
   await new Promise((resolve) => setTimeout(resolve, 0))

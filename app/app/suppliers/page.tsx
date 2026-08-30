@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentChatButton } from '@/components/workspace/agent-chat-button'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
@@ -17,6 +17,7 @@ import { formatDate } from '@/lib/format'
 import type { SupplierCompany, SupplierRow } from '@/lib/rows'
 import { SUPPLIER_FILTERS, clientOnlyFilters, filterQuery } from '@/lib/server-filters'
 import { SUPPLIER_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
+import { appendSupplierPage, fetchSupplierPage } from '@/lib/supplier-page-loading'
 import { applyFilters, compareOptions, useTableConfig } from '@/lib/table-config'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 
@@ -38,6 +39,9 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1)
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState(false)
+  const loadRequestId = useRef(0)
   const [hiddenRows, setHiddenRows] = useState<number[]>([])
   const [expandedCompanies, setExpandedCompanies] = useState<number[]>([])
   // Active items per location, from the second pass below. Kept beside the rows
@@ -48,10 +52,16 @@ export default function SuppliersPage() {
   const [facets, setFacets] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
-    const refresh = () => setRefreshNonce((value) => value + 1)
+    const refresh = () => {
+      loadRequestId.current += 1
+      if (isMobile) setPage(1)
+      setLoadingMore(false)
+      setLoadMoreError(false)
+      setRefreshNonce((value) => value + 1)
+    }
     window.addEventListener('lps:refresh', refresh)
     return () => window.removeEventListener('lps:refresh', refresh)
-  }, [])
+  }, [isMobile])
 
   // Column filters and the header sort both run as SQL over the RPC result, so
   // they travel with the request rather than being applied to whichever page
@@ -64,11 +74,16 @@ export default function SuppliersPage() {
         .join('&'),
     [cfg.filters, cfg.sort],
   )
+  // A load-more response belongs only to the exact raw query/filter/sort state
+  // that launched it, including the debounce window before a new fetch begins.
+  const activeRequestKey = useRef('')
+  activeRequestKey.current = `${query}\n${serverQuery}\n${isMobile ? 'mobile' : 'desktop'}\n${refreshNonce}`
   const {
     query: debouncedQuery, filters: debouncedServerQuery, settled,
   } = useDebouncedSearch(query, serverQuery)
   // The loader covers the debounce window too, so it appears on the first
-  // keystroke rather than 300ms later when the fetch actually fires.
+  // keystroke rather than 300ms later when the fetch actually fires. Loading
+  // another mobile page leaves the already revealed cards in place instead.
   const searching = loading || !settled
 
   // A new search, filter or sort starts again at page 1 — page 3 of the old
@@ -79,10 +94,12 @@ export default function SuppliersPage() {
   // so searching from page 3 would cost two requests: one for the stale page,
   // one for page 1.
   const searchKey = `${debouncedQuery}\n${debouncedServerQuery}`
-  const [pagedFor, setPagedFor] = useState(searchKey)
-  if (pagedFor !== searchKey) {
-    setPagedFor(searchKey)
+  const pagingKey = `${searchKey}\n${isMobile ? 'mobile' : 'desktop'}`
+  const [pagedFor, setPagedFor] = useState(pagingKey)
+  if (pagedFor !== pagingKey) {
+    setPagedFor(pagingKey)
     setPage(1)
+    setLoadMoreError(false)
   }
 
   // Option lists for this search, deliberately not narrowed by the active
@@ -103,12 +120,14 @@ export default function SuppliersPage() {
   // Debounced search → search_suppliers RPC. Stale responses are dropped so a
   // slow early query can't overwrite the results of a later one.
   useEffect(() => {
+    // Mobile pages after the first are explicit load-more requests below. The
+    // committed `page` advances only after one succeeds, so retry cannot skip.
+    if (isMobile && page > 1) return
     let cancelled = false
     setLoading(true)
     const filterSuffix = debouncedServerQuery ? `&${debouncedServerQuery}` : ''
-    fetch(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
-      .then((r) => r.json())
-      .then((body: { companies?: SupplierCompany[]; total?: number; pageCount?: number }) => {
+    fetchSupplierPage(`/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${page}${filterSuffix}`)
+      .then((body) => {
         if (cancelled) return
         setCompanies(body.companies ?? [])
         setExpandedCompanies([])
@@ -120,7 +139,7 @@ export default function SuppliersPage() {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, debouncedServerQuery, page, refreshNonce])
+  }, [debouncedQuery, debouncedServerQuery, page, refreshNonce, isMobile])
 
   // Second pass: "# Items" needs one COUNT per location, so it arrives after
   // the table has already rendered rather than holding it up. Every location of
@@ -225,6 +244,48 @@ export default function SuppliersPage() {
 
   const hasFilters = Object.keys(cfg.filters).length > 0 || !!query
 
+  const clearAll = () => {
+    // The sheet exposes Clear all even when no criterion is active. If mobile
+    // has appended pages, restore the committed first page immediately rather
+    // than waiting for a debounced query change that may never happen.
+    loadRequestId.current += 1
+    setPage(1)
+    setLoadingMore(false)
+    setLoadMoreError(false)
+    setExpandedCompanies([])
+    if (!hasFilters) setCompanies((current) => current.slice(0, 50))
+    setQuery('')
+    cfg.clearFilters()
+  }
+
+  const loadMore = async () => {
+    if (loadingMore || page >= pageCount) return
+    const nextPage = page + 1
+    const requestKey = activeRequestKey.current
+    const requestId = ++loadRequestId.current
+    const filterSuffix = debouncedServerQuery ? `&${debouncedServerQuery}` : ''
+    setLoadingMore(true)
+    setLoadMoreError(false)
+    try {
+      const body = await fetchSupplierPage(
+        `/api/suppliers?q=${encodeURIComponent(debouncedQuery)}&page=${nextPage}${filterSuffix}`,
+      )
+      if (activeRequestKey.current !== requestKey || loadRequestId.current !== requestId) return
+      setCompanies((current) => appendSupplierPage(current, body.companies ?? []))
+      if (body.total != null) setTotal(body.total)
+      if (body.pageCount != null) setPageCount(body.pageCount)
+      // Commit only after the exact bounded page succeeded. An HTTP/network
+      // failure leaves this unchanged, so Retry requests this same page.
+      setPage(nextPage)
+    } catch {
+      if (activeRequestKey.current === requestKey && loadRequestId.current === requestId) {
+        setLoadMoreError(true)
+      }
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   const toolbar = (rightActions: React.ReactNode) => (
     <Toolbar
       rightActions={rightActions}
@@ -237,19 +298,17 @@ export default function SuppliersPage() {
           filters={cfg.filters}
           options={optionList}
           onFilter={(key, value) => cfg.setColFilter(key, value)}
+          onClear={clearAll}
         />
       }
       hasFilters={hasFilters}
-      onClear={() => {
-        setQuery('')
-        cfg.clearFilters()
-      }}
+      onClear={clearAll}
       summary={
         searching
           ? 'Searching…'
           : `${visibleCompanies.length}/${total} Companies`
       }
-      pagination={{ page, pageCount, onPage: setPage, busy: searching }}
+      pagination={isMobile ? undefined : { page, pageCount, onPage: setPage, busy: searching }}
     />
   )
 
@@ -447,6 +506,21 @@ export default function SuppliersPage() {
           })}
           {!searching && visibleCompanies.length === 0 && (
             <div className="p-12 text-center text-[13px] text-muted-foreground">Nothing matches these filters.</div>
+          )}
+          {!searching && visibleCompanies.length > 0 && page < pageCount && (
+            <div className="flex flex-none flex-col items-center gap-1.5">
+              {loadMoreError && (
+                <p role="alert" className="text-[12px] text-destructive">Couldn’t load more suppliers.</p>
+              )}
+              <button
+                type="button"
+                disabled={loadingMore}
+                onClick={loadMore}
+                className="min-h-11 rounded-lg px-4 text-[12px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+              >
+                {loadingMore ? 'Loading…' : loadMoreError ? 'Retry load 50 more' : 'Load 50 more'}
+              </button>
+            </div>
           )}
         </div>
       ) : (

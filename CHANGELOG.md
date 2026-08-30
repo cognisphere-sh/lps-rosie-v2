@@ -48,6 +48,26 @@ here).
 
 ### Changed
 
+- **Supplier filters keep the two scan controls visible and quiet mobile paging**
+  (`app/app/suppliers/page.tsx`, `components/workspace/supplier-filters.tsx`).
+  Supplier type and State remain touch-sized in the toolbar while an accessible
+  icon/count opens only Name, City and LPS Partner; phones get a modal bottom
+  sheet with explicit, backdrop and swipe exits plus sticky clear/show actions.
+  Phones now append the next existing bounded 50-company page with **Load 50
+  more** instead of showing the top pager; a failed page keeps its loaded state
+  and retries the same page, Clear all commits page one even when already clear,
+  swipe dismissal captures drags beyond the handle, and the State menu aligns
+  safely on narrow screens. Desktop pagination and all matching, grouping,
+  sorting and action behavior stay unchanged.
+
+- **Plant Search's Cultivar selector is now an explicit touch-sized toggle**
+  (`app/app/plants/page.tsx`, `components/workspace/table-parts.tsx`). Its
+  labelled field and chevron form one 44px trigger with `aria-expanded`,
+  selected options remain available for further choices, and trigger, outside,
+  or Escape closure returns focus to that trigger without a Done/Apply step.
+  Existing option search, clearing, shared column-filter state, and query/match
+  semantics are unchanged.
+
 - **Harness upgraded 0.11.0 → 0.11.1** (`harness/package.json`, data version
   stamped in `harness/harness.json`, previously left at 0.10.2). Why: nova's
   `main` thread had grown to ~256K context and pi's threshold compaction —
@@ -60,6 +80,11 @@ here).
   from the base agent — it now pins the global `pi` to `PI_VERSION` (0.84.4)
   instead of installing whatever npm resolved when `pi` was missing.
   `docs/base-harness/` refreshed; no other scaffold drift.
+
+- **Mobile selected Jobs use browser/device Back** (`app/jobs/page.tsx`). The
+  duplicate in-page **Back to active jobs** control is gone from phone detail;
+  the desktop focused rail's labelled 44px **Back to Jobs** control, focused
+  intake exits and existing URL/history behavior are unchanged.
 
 - **Active job detail carries the request's links** (`app/jobs/page.tsx`).
   The selected job on `/jobs` now shows the same customer / Chat / ship-to /

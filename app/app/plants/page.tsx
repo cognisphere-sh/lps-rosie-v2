@@ -393,11 +393,13 @@ export default function PlantSearchPage() {
             <MultiFilter
               allLabel="Cultivar: Any"
               selectionLabel="Cultivar"
+              accessibleName="Cultivar"
               options={cultivarOptions}
               selected={cultivarFilter}
               onChange={(next) => plantCfg.setColFilter('cultivar', next)}
-              buttonClassName="h-8 px-2 text-[12px]"
+              buttonClassName="min-h-11 px-2 text-[12px]"
               filterPlaceholder="Filter cultivars…"
+              restoreFocusOnClose
             />
           </div>
           <div className="w-[calc(50%-4px)] md:w-[160px]">
