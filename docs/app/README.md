@@ -470,15 +470,17 @@ behaviour:
 | Answer | On picking it |
 |---|---|
 | `available` | **No dialog.** Writes straight through with `available_quantity` = the demand — "all of it, as asked" needs nothing typed |
-| `can_order` | Dialog, notes only, hinting the ETA |
-| `arriving_soon` | Dialog, notes only — when it lands, and how many |
-| `diff_size_qty_sub` | Dialog: the quantity you *can* supply, and a note naming what instead (opens focused — naming it comes before counting it) |
+| `can_order` | Dialog: the unit price (opens focused) and a note hinting the ETA |
+| `arriving_soon` | Dialog: the unit price (opens focused) and a note — when it lands, and how many |
+| `diff_size_qty_sub` | Dialog: the quantity you *can* supply, its unit price, and a note naming what instead (the note opens focused — naming it comes before counting it) |
 | `unavailable` | Dialog, notes only; **clears `available_quantity`**, so a line that was Available a moment ago cannot keep quoting a quantity |
 
-**Price is not in any dialog.** It arrives prefilled from our own catalogue and
-is corrected in the table's own Price cell, which is where a supplier looks for
-it; asking for it twice, in a box that only some answers opened, was how it
-read before 2026-08-26. The dialog follows the browser's `visualViewport` and
+**The three supply answers take a price** (2026-08-30): saying you can order it
+or that it is arriving is an offer, and an offer has a price, so the dialog
+asks for it rather than sending the supplier back to the Price cell afterwards.
+It is prefilled from whatever we already have on file for the line, and an
+emptied box clears the column exactly as that cell does. `available` still asks
+nothing, and `unavailable` is not an offer, so neither takes one. The dialog follows the browser's `visualViewport` and
 scrolls internally, keeping the notes field and its buttons above mobile
 keyboards. The wide editable line grid remains intentionally horizontal on
 narrow screens.
@@ -634,8 +636,8 @@ comp's `JR-6 ×2` chips name the job by its admin ref; the portal deliberately
 never shows those, so the chip carries the request name instead.
 
 **A status is set from the card**: each request's chip carries the line's
-own `LineStatusPicker` — the same pill and answer dialog the request page and
-By item use — and its **unit price** cell (`AnswerCell`, saved on blur), both
+own `LineStatusPicker` — the same pill and the same answer dialog (price
+included) the request page and By item use — and its **unit price** cell (`AnswerCell`, saved on blur), both
 writing through the same scoped PATCH; the page re-reads, so the line moves to
 the card its new answer names. Quantity and notes stay on the request page and
 By item. The comp's *confirmed* mark and the italic
@@ -2210,11 +2212,20 @@ artifacts-routes/  the harness's own route template, refreshed on upgrade and
 ## Environment
 
 `app/.env.local` is **generated from the repo-root `config`** by
-`scripts/server.sh` — do not hand-edit it. `HARNESS_URL`, `HARNESS_USER`,
-`HARNESS_PASS`, `DOMAIN`, `PORT` from the stock script; `SUPABASE_URL`,
-`SUPABASE_SECRET_KEY`, `ARTIFACTS_AGENTS` and `ARTIFACTS_APP_SECRET` appended by
-the `scripts/app/secrets.sh` deploy hook. Both `config` and `.env.local` are
-gitignored — keep it that way.
+`scripts/server.sh` — do not hand-edit it. `HARNESS_URL`, `DOMAIN`, `PORT` from
+the stock script; `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ARTIFACTS_AGENTS`,
+`ARTIFACTS_APP_SECRET`, `SUPPLIER_EVENTS_APP_SECRET` and `WEBCHAT_APP_SECRET`
+appended by the `scripts/app/secrets.sh` deploy hook. Both `config` and
+`.env.local` are gitignored — keep it that way.
+
+The stock script also writes `APP_USER`, `APP_PASS`, `APP_SESSION_SECRET` and
+`HARNESS_APP_SECRET` (harness 0.12.0), for apps that own their sign-in and
+authenticate to the harness with a bearer token. **This app reads none of
+them** — it signs in against the harness itself and its users *are* harness
+users, so a session is the harness's `pi_sid` cookie (`lib/session.ts`), which
+`/api/*` still accepts ahead of the bearer. Until that changes, the four keys
+sit unused in `.env.local`. The harness-owned reference implementation of the
+bearer model is `app/auth-routes/` in the harness package, not vendored here.
 
 ## Scripts
 

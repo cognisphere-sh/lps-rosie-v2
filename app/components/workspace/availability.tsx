@@ -282,6 +282,8 @@ const ANSWER_FIELDS: Record<
     title: string
     /** Whether the answer needs a quantity of its own. */
     qty: boolean
+    /** Whether it takes a unit price — an answer that is a supply offer. */
+    price?: boolean
     /** Wipe a quantity a previous answer left behind — nothing is available. */
     clearQty?: boolean
     /** Which field opens focused — the first thing this answer needs. */
@@ -293,17 +295,23 @@ const ANSWER_FIELDS: Record<
   can_order: {
     title: 'Can order',
     qty: false,
+    // Ordering it in is a price as much as a date — asking here saves the
+    // supplier a second pass over the Price cell.
+    price: true,
     notesLabel: 'ETA / notes',
     notesHint: 'When can you have it? e.g. ready mid-Sep',
   },
   arriving_soon: {
     title: 'Arriving soon',
     qty: false,
+    price: true,
     notesLabel: 'Notes',
     notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
   },
   diff_size_qty_sub: {
     title: 'Diff Size/Qty/Sub',
+    // What you can supply instead is priced on its own terms.
+    price: true,
     // The answer covers a different size, a short quantity or another plant,
     // so it is the one that still needs a number: what you can actually supply.
     qty: true,
@@ -323,10 +331,10 @@ const ANSWER_FIELDS: Record<
 
 /**
  * Picking a status opens this pop-up for the rest of the answer, so a line is
- * answered whole in one go: Diff Size/Qty/Sub takes a quantity and the note;
- * Can order, Arriving soon and Unavailable take the note alone, with the format
- * hinted. Available asks nothing and never opens this. The inline cells stay
- * for later tweaks — price among them.
+ * answered whole in one go: Diff Size/Qty/Sub takes a quantity, a price and
+ * the note; Can order and Arriving soon take a price and the note; Unavailable
+ * the note alone, with the format hinted. Available asks nothing and never
+ * opens this. The inline cells stay for later tweaks.
  */
 function StatusAnswerDialog({
   item,
@@ -349,6 +357,9 @@ function StatusAnswerDialog({
         ? String(item.quantity)
         : '',
   )
+  // Whatever we already have on file for this line is the prefill — the
+  // supplier corrects a price far more often than they type a fresh one.
+  const [price, setPrice] = useState(item.unitPrice == null ? '' : String(item.unitPrice))
   const [notes, setNotes] = useState(item.notes ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
 
@@ -374,6 +385,8 @@ function StatusAnswerDialog({
     // what an emptied box on a Diff Size/Qty/Sub answer means too.
     if (spec.qty) changes.available_quantity = qty.trim()
     else if (spec.clearQty) changes.available_quantity = ''
+    // An emptied price box clears the column, exactly as the Price cell does.
+    if (spec.price) changes.unit_price = price.trim()
     onSave(changes)
   }
 
@@ -412,6 +425,20 @@ function StatusAnswerDialog({
           </label>
         )}
 
+        {spec.price && (
+          <label className="flex flex-col gap-0.5">
+            <span className={label}>Price per unit</span>
+            <input
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              inputMode="decimal"
+              placeholder="$/unit"
+              autoFocus={spec.focus == null && !spec.qty}
+              className={cn(field, 'text-right tabular-nums')}
+            />
+          </label>
+        )}
+
         <label className="flex flex-col gap-0.5">
           <span className={label}>{spec.notesLabel}</span>
           <textarea
@@ -419,7 +446,7 @@ function StatusAnswerDialog({
             onChange={(e) => setNotes(e.target.value)}
             placeholder={spec.notesHint}
             rows={2}
-            autoFocus={!spec.qty || spec.focus === 'notes'}
+            autoFocus={spec.focus === 'notes' || (!spec.qty && !spec.price)}
             className="min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring"
           />
         </label>

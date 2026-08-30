@@ -4,7 +4,8 @@ import type { NextRequest } from 'next/server'
 import { resolveUser } from '@/lib/session'
 
 // Gate the app behind the harness login — the same credentials as the harness
-// user store (harness/.secrets/users.json, i.e. HARNESS_USER / HARNESS_PASS).
+// user store (harness/.secrets/users.json, written from `config`'s APP_USER /
+// APP_PASS). The app has no sign-in of its own: its users are harness users.
 //
 // `pi_sid` is a *signed* stateless session cookie minted by the harness, so
 // checking that it merely exists proves nothing. That distinction matters here:

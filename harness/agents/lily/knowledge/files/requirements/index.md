@@ -38,3 +38,6 @@ A workflow change counts — not everything here is software.
 | `copy-ready-plain-text-quotes` | Make plain-text quotes ready to copy and send | shipped | rosie |
 | `supplier-filter-consolidation` | Put Supplier filters in one place | routed | nova |
 | `account-popover-rail-actions` | Put account actions in the account popover | routed | nova |
+| `mobile-job-navigation-browser-back` | Use the phone’s Back navigation for Jobs | routed | nova |
+| `supplier-filter-mobile-refinements` | Keep essential Supplier filters visible and mobile paging quiet | routed | nova |
+| `plant-search-cultivar-toggle` | Make the Plant Search Cultivar selector a clear toggle | routed | nova |

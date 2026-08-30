@@ -17,6 +17,26 @@ here).
 
 ## 2026-08-30
 
+### Changed
+
+- **Harness upgraded 0.11.1 → 0.12.0.** Upstream makes app→harness auth a
+  bearer secret: `scripts/server.sh secrets` no longer writes `HARNESS_USER`/
+  `HARNESS_PASS` into `app/.env.local` but `APP_USER`/`APP_PASS` (the app's
+  *own* default sign-in), an `APP_SESSION_SECRET`, and `HARNESS_APP_SECRET`
+  from the new `harness/.secrets/app-secret`. **We stayed on the cookie
+  model.** The harness's `resolveRequest()` still checks `pi_sid` before the
+  bearer, and this app's users *are* harness users, so `proxy.ts`,
+  `lib/session.ts` and the `/api/harness` forwarder are unchanged and the four
+  new keys sit unused. Nothing read the two removed keys — only a stale
+  comment in `proxy.ts`, now corrected. Adopting the bearer would mean the
+  app owning its sign-in; the upstream recipe is `app/auth-routes/` in the
+  harness package (not vendored here, unlike `app/artifacts-routes/`).
+  Harness-owned scaffold refreshed with it: `scripts/server.sh`,
+  `config.example`, `docs/base-harness/`, `.claude/skills/`. The audit found
+  no local edits in any of them — the deployment's Supabase, multi-agent
+  artifacts and supplier-events/webchat wiring all live in the
+  `scripts/app/` hooks, which the refresh leaves alone.
+
 ### Removed
 
 - **The immutable app build/deploy pipeline is gone**, reverting `scripts/`
@@ -132,6 +152,12 @@ here).
   catalogue/unmatched tags are gone; drag-to-map (request name → catalogue
   row) stays. `LineStatusPicker` and `AnswerCell` are exported from
   `availability.tsx` so both tables share the same answering behaviour.
+- **The answer dialog takes a unit price** (`components/workspace/availability.tsx`)
+  for the three answers that are supply offers — Can order, Arriving soon and
+  Diff Size/Qty/Sub — prefilled from what is on file, an empty box clearing the
+  column as the Price cell does. Available and Unavailable are unchanged. The
+  dialog is the same one everywhere a status is picked, the By-status board's
+  cards included.
 - **Portal By-status board** (`components/workspace/supplier-status-board.tsx`,
   third entry in the home page's view toggle). One fixed-height, inner-scrolling
   card per line status — Need to Order · Arriving Soon · Diff Size/Qty/Sub ·

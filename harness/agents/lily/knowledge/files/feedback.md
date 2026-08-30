@@ -197,3 +197,14 @@ this file exists.
 
 - **Account popover holds rail actions** — Chris approved moving the desktop rail’s standalone Know your Agents and Supplier view rows into the Chris / Austin Plant Supply account popover, above Log out. Keep the existing mobile More equivalents and existing supplier-view behavior; do not add an Account page. _(via nova handoff)_
   → account-popover-rail-actions
+
+## 2026-08-30
+
+- **Mobile Jobs Back control** — Approved UI direction: remove the mobile in-page Back to jobs control and rely on the browser/device Back action; retain the separate desktop focused-workspace Back behavior. _(via Bhoumik/Lily handoff)_
+  → mobile-job-navigation-browser-back
+
+- **Supplier filter refinements** — Approved UI direction: keep Supplier type and State visible on desktop and mobile; use an icon-only advanced trigger with accessible label/tooltip, 44px target and active count; keep Name, City and LPS Partner nested. Mobile advanced filters use a modal bottom sheet with handle/title, explicit 44px X/Close, secondary swipe/backdrop dismissal and sticky Clear all/Show results. Replace mobile’s top Page n of N with quiet bottom Load 50 more paging, while desktop paging and bounded API behavior remain. _(via Bhoumik/Lily handoff)_
+  → supplier-filter-mobile-refinements
+
+- **Cultivar selector toggle** — Approved UI direction: Plant Search’s existing Cultivar field/header and chevron should be a 44px open/closed multi-select toggle that preserves selections, exposes expanded state and returns focus on close; no Done step for this single dropdown. _(via Bhoumik/Lily handoff)_
+  → plant-search-cultivar-toggle
