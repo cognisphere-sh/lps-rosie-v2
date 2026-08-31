@@ -203,6 +203,11 @@ function sharedAudioContext(): AudioContext {
   return audioCtx
 }
 
+function recordingAudioContext(): AudioContext {
+  const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+  return new Ctor()
+}
+
 /**
  * RMS amplitude per bucket, for the waveform.
  *
@@ -378,49 +383,105 @@ function extForAudio(mime: string): string {
  * worth showing. A throw drops that file only; the rest of a multi-file
  * selection still lands.
  */
-export function useComposer(uploadOne: (file: File) => Promise<ChatFile>) {
+interface ComposerUploadOperation {
+  generation: number
+  controllers: Set<AbortController>
+}
+
+interface ComposerRecordingOwner {
+  generation: number
+  cancelled: boolean
+  recorder: MediaRecorder | null
+  stream: MediaStream | null
+  teardown: (() => void) | null
+}
+
+export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Promise<ChatFile>) {
   const [files, setFiles] = useState<ChatFile[]>([])
   const [busy, setBusy] = useState(false)
   const [recording, setRecording] = useState(false)
   const [levels, setLevels] = useState<number[]>([])
   const [seconds, setSeconds] = useState(0)
   const [notice, setNotice] = useState('')
-  const recorder = useRef<MediaRecorder | null>(null)
-  const cancelled = useRef(false)
+  const generation = useRef(0)
+  const mounted = useRef(true)
+  const uploads = useRef(new Map<symbol, ComposerUploadOperation>())
+  const recordingOwner = useRef<ComposerRecordingOwner | null>(null)
 
-  const upload = useCallback(
-    async (list: File[]) => {
-      if (!list.length) return
+  const generationBusy = useCallback((owner: number) =>
+    [...uploads.current.values()].some((operation) => operation.generation === owner), [])
+
+  const uploadForGeneration = useCallback(
+    async (list: File[], owner: number) => {
+      if (!list.length || !mounted.current || generation.current !== owner) return
+      const token = Symbol('composer-upload')
+      const operation: ComposerUploadOperation = { generation: owner, controllers: new Set() }
+      uploads.current.set(token, operation)
       setBusy(true)
-      for (const f of list) {
+      for (const file of list) {
+        if (!mounted.current || generation.current !== owner) break
+        const controller = new AbortController()
+        operation.controllers.add(controller)
         try {
-          const stored = await uploadOne(f)
-          setFiles((prev) => [...prev, stored])
+          const stored = await uploadOne(file, controller.signal)
+          if (mounted.current && generation.current === owner && !controller.signal.aborted) {
+            setFiles((prev) => [...prev, stored])
+          }
         } catch (cause) {
-          setNotice(cause instanceof Error ? cause.message : 'File failed to upload.')
+          if (mounted.current && generation.current === owner && !controller.signal.aborted) {
+            setNotice(cause instanceof Error ? cause.message : 'File failed to upload.')
+          }
+        } finally {
+          operation.controllers.delete(controller)
         }
       }
-      setBusy(false)
+      uploads.current.delete(token)
+      if (mounted.current && generation.current === owner) setBusy(generationBusy(owner))
     },
-    [uploadOne],
+    [generationBusy, uploadOne],
+  )
+
+  const upload = useCallback(
+    (list: File[]) => uploadForGeneration(list, generation.current),
+    [uploadForGeneration],
   )
 
   const stopRecording = useCallback((discard: boolean) => {
-    cancelled.current = discard
-    recorder.current?.stop()
+    const owner = recordingOwner.current
+    if (!owner) return
+    owner.cancelled = discard
+    if (owner.recorder && owner.recorder.state !== 'inactive') {
+      try {
+        owner.recorder.stop()
+      } catch {
+        owner.cancelled = true
+        owner.teardown?.()
+        if (!owner.teardown) owner.stream?.getTracks().forEach((track) => track.stop())
+      }
+      return
+    }
+    // A second click while permission or AudioContext.resume() is pending
+    // cancels that exact owner; every eventual completion is stale.
+    owner.cancelled = true
+    if (recordingOwner.current === owner) recordingOwner.current = null
+    owner.teardown?.()
+    if (!owner.teardown) owner.stream?.getTracks().forEach((track) => track.stop())
   }, [])
 
   const record = useCallback(async () => {
-    if (recorder.current) {
+    if (recordingOwner.current) {
       stopRecording(false)
       return
     }
+    const owner: ComposerRecordingOwner = {
+      generation: generation.current,
+      cancelled: false,
+      recorder: null,
+      stream: null,
+      teardown: null,
+    }
     setNotice('')
 
-    // Why this check exists: `navigator.mediaDevices` is undefined outside a
-    // secure context, so on a phone hitting this app over plain http:// the old
-    // code threw, was swallowed by the catch, and the button did nothing at all.
-    // Say which of the two it is rather than failing silently.
     if (!navigator.mediaDevices?.getUserMedia) {
       setNotice(
         window.isSecureContext
@@ -435,11 +496,15 @@ export function useComposer(uploadOne: (file: File) => Promise<ChatFile>) {
       return
     }
 
+    recordingOwner.current = owner
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (e) {
-      const name = (e as DOMException)?.name
+    } catch (cause) {
+      const current = recordingOwner.current === owner
+      if (current) recordingOwner.current = null
+      if (!current || !mounted.current || generation.current !== owner.generation || owner.cancelled) return
+      const name = (cause as DOMException)?.name
       setNotice(
         name === 'NotAllowedError' || name === 'SecurityError'
           ? 'Microphone permission denied.'
@@ -449,71 +514,177 @@ export function useComposer(uploadOne: (file: File) => Promise<ChatFile>) {
       )
       return
     }
+    owner.stream = stream
+    if (
+      !mounted.current || generation.current !== owner.generation ||
+      owner.cancelled || recordingOwner.current !== owner
+    ) {
+      stream.getTracks().forEach((track) => track.stop())
+      return
+    }
 
-    const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined)
+    let recorder: MediaRecorder
+    try {
+      recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined)
+    } catch {
+      stream.getTracks().forEach((track) => track.stop())
+      if (recordingOwner.current === owner) recordingOwner.current = null
+      if (mounted.current && generation.current === owner.generation) setNotice('Could not start recording.')
+      return
+    }
+    owner.recorder = recorder
     const chunks: Blob[] = []
+    let ctx: AudioContext
+    try {
+      ctx = recordingAudioContext()
+    } catch {
+      stream.getTracks().forEach((track) => { try { track.stop() } catch { /* best effort */ } })
+      if (recordingOwner.current === owner) recordingOwner.current = null
+      if (mounted.current && generation.current === owner.generation) setNotice('Could not start recording.')
+      return
+    }
 
-    // Live amplitude for the waveform, straight off the stream.
-    const ctx = sharedAudioContext()
-    if (ctx.state === 'suspended') await ctx.resume()
-    const analyser = ctx.createAnalyser()
-    analyser.fftSize = 512
-    const source = ctx.createMediaStreamSource(stream)
-    source.connect(analyser)
-    const frame = new Uint8Array(analyser.frequencyBinCount)
-    const started = Date.now()
-    const tick = setInterval(() => {
-      analyser.getByteTimeDomainData(frame)
-      let sum = 0
-      for (const v of frame) sum += (v - 128) ** 2
-      const rms = Math.sqrt(sum / frame.length) / 128
-      setLevels((prev) => [...prev, Math.min(1, Math.max(0.06, rms * 3.2))].slice(-56))
-      setSeconds(Math.floor((Date.now() - started) / 1000))
-    }, 90)
-
+    let source: MediaStreamAudioSourceNode | null = null
+    let tick: ReturnType<typeof setInterval> | null = null
+    let tornDown = false
     const teardown = () => {
-      clearInterval(tick)
-      source.disconnect()
-      stream.getTracks().forEach((t) => t.stop())
-      recorder.current = null
-      setRecording(false)
+      if (tornDown) return
+      tornDown = true
+      try { recorder.ondataavailable = null } catch { /* best effort */ }
+      try { recorder.onstop = null } catch { /* best effort */ }
+      if (tick) clearInterval(tick)
+      try { source?.disconnect() } catch { /* already disconnected */ }
+      stream.getTracks().forEach((track) => { try { track.stop() } catch { /* best effort */ } })
+      try {
+        const closed = ctx.close?.()
+        void closed?.catch(() => undefined)
+      } catch { /* best effort */ }
+      if (recordingOwner.current === owner) recordingOwner.current = null
+      if (mounted.current && generation.current === owner.generation) {
+        setRecording(false)
+        setLevels([])
+        setSeconds(0)
+      }
+    }
+    // Install this before the first await after context creation. Bind/unmount
+    // can now tear down even while AudioContext.resume() never settles.
+    owner.teardown = teardown
+
+    try {
+      if (ctx.state === 'suspended') await ctx.resume()
+    } catch {
+      teardown()
+      if (mounted.current && generation.current === owner.generation && !owner.cancelled) {
+        setNotice('Could not start recording.')
+      }
+      return
+    }
+    if (
+      !mounted.current || generation.current !== owner.generation ||
+      owner.cancelled || recordingOwner.current !== owner
+    ) {
+      teardown()
+      return
+    }
+
+    try {
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 512
+      source = ctx.createMediaStreamSource(stream)
+      source.connect(analyser)
+      const frame = new Uint8Array(analyser.frequencyBinCount)
+      const started = Date.now()
+      tick = setInterval(() => {
+        if (!mounted.current || generation.current !== owner.generation || recordingOwner.current !== owner) return
+        analyser.getByteTimeDomainData(frame)
+        let sum = 0
+        for (const value of frame) sum += (value - 128) ** 2
+        const rms = Math.sqrt(sum / frame.length) / 128
+        setLevels((prev) => [...prev, Math.min(1, Math.max(0.06, rms * 3.2))].slice(-56))
+        setSeconds(Math.floor((Date.now() - started) / 1000))
+      }, 90)
+
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
+      recorder.onstop = async () => {
+        const attach =
+          !owner.cancelled && mounted.current && generation.current === owner.generation &&
+          recordingOwner.current === owner && chunks.length > 0
+        teardown()
+        if (!attach) return
+        const mime = recorder.mimeType || type || 'audio/webm'
+        const blob = new Blob(chunks, { type: mime })
+        await uploadForGeneration(
+          [new File([blob], `voice-note.${extForAudio(mime)}`, { type: mime })],
+          owner.generation,
+        )
+      }
+
+      recorder.start()
       setLevels([])
       setSeconds(0)
-    }
-
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
-    rec.onstop = async () => {
-      const discard = cancelled.current
-      cancelled.current = false
+      setRecording(true)
+    } catch {
       teardown()
-      if (discard || !chunks.length) return
-      const mime = rec.mimeType || type || 'audio/webm'
-      const blob = new Blob(chunks, { type: mime })
-      await upload([new File([blob], `voice-note.${extForAudio(mime)}`, { type: mime })])
+      if (mounted.current && generation.current === owner.generation) setNotice('Could not start recording.')
     }
+  }, [stopRecording, uploadForGeneration])
 
-    recorder.current = rec
-    rec.start()
-    setLevels([])
-    setSeconds(0)
-    setRecording(true)
-  }, [upload, stopRecording])
-
-  // Leaving mid-recording must release the microphone; the take is discarded
-  // rather than uploaded into a panel that is no longer there.
-  useEffect(() => () => {
-    if (recorder.current) {
-      cancelled.current = true
-      recorder.current.stop()
+  const abandonRecording = useCallback(() => {
+    const owner = recordingOwner.current
+    if (!owner) return
+    recordingOwner.current = null
+    owner.cancelled = true
+    try {
+      if (owner.recorder) {
+        owner.recorder.ondataavailable = null
+        owner.recorder.onstop = null
+        if (owner.recorder.state !== 'inactive') owner.recorder.stop()
+      }
+    } catch {
+      // Some browser recorders throw synchronously while being stopped. The
+      // owner is already cancelled; cleanup still completes below.
+    } finally {
+      owner.teardown?.()
+      if (!owner.teardown) owner.stream?.getTracks().forEach((track) => track.stop())
     }
   }, [])
 
+  const abortUploads = useCallback(() => {
+    for (const operation of uploads.current.values()) {
+      for (const controller of operation.controllers) controller.abort()
+    }
+    uploads.current.clear()
+  }, [])
+
+  const invalidate = useCallback(() => {
+    generation.current += 1
+    abandonRecording()
+    abortUploads()
+    if (!mounted.current) return
+    setFiles([])
+    setBusy(false)
+    setNotice('')
+    setRecording(false)
+    setLevels([])
+    setSeconds(0)
+  }, [abandonRecording, abortUploads])
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      generation.current += 1
+      abandonRecording()
+      abortUploads()
+    }
+  }, [abandonRecording, abortUploads])
+
   const onPaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const pasted = Array.from(e.clipboardData.files)
+    (event: React.ClipboardEvent) => {
+      const pasted = Array.from(event.clipboardData.files)
       if (pasted.length) {
-        e.preventDefault()
-        upload(pasted)
+        event.preventDefault()
+        void upload(pasted)
       }
     },
     [upload],
@@ -532,7 +703,8 @@ export function useComposer(uploadOne: (file: File) => Promise<ChatFile>) {
     dismissNotice: () => setNotice(''),
     onPaste,
     clear: () => setFiles([]),
-    drop: (name: string) => setFiles((prev) => prev.filter((f) => f.name !== name)),
+    invalidate,
+    drop: (name: string) => setFiles((prev) => prev.filter((file) => file.name !== name)),
   }
 }
 
@@ -786,7 +958,11 @@ export function Transcript({
       )}
 
       {error && (
-        <div className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[11.5px] font-semibold text-lps-warn-fg">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="self-center rounded-lg bg-lps-warn-bg px-3 py-1.5 text-[11.5px] font-semibold text-lps-warn-fg"
+        >
           {error}
         </div>
       )}
@@ -852,6 +1028,7 @@ export function Transcript({
 /** The bottom half: staged attachments, the recorder, and the send box. */
 export function Composer({
   composer, onSend, draft, setDraft, placeholder, accept, big,
+  disabled = false, gateRef, gateRevision,
 }: {
   composer: ReturnType<typeof useComposer>
   onSend: () => void
@@ -862,13 +1039,25 @@ export function Composer({
   /** Optional `accept` for the file picker, where the route is fussier. */
   accept?: string
   big?: boolean
+  /** Exact-destination commit gate; a disabled fieldset blocks every input path. */
+  disabled?: boolean
+  gateRef?: React.RefObject<HTMLFieldSetElement | null>
+  /** Reconcile an imperative synchronous block after this route commits. */
+  gateRevision?: number
 }) {
   const picker = useRef<HTMLInputElement>(null)
   const box = useRef<HTMLTextAreaElement>(null)
-  const canSend = Boolean(draft.trim() || composer.files.length)
+  const canSend = !disabled && Boolean(draft.trim() || composer.files.length)
 
-  const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  useLayoutEffect(() => {
+    if (!gateRef?.current) return
+    gateRef.current.disabled = disabled
+    gateRef.current.setAttribute('aria-disabled', String(disabled))
+  }, [disabled, gateRef, gateRevision])
+
+  const onDrop = (event: React.DragEvent<HTMLFieldSetElement>) => {
     event.preventDefault()
+    if (disabled) return
     const files = Array.from(event.dataTransfer.files)
     if (files.length) void composer.upload(files)
     const text = event.dataTransfer.getData('text/plain')
@@ -902,9 +1091,15 @@ export function Composer({
   }, [draft])
 
   return (
-    <div
-      className="flex-none border-t border-border bg-background"
-      onDragOver={(event) => { if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/plain')) event.preventDefault() }}
+    <fieldset
+      ref={gateRef}
+      disabled={disabled}
+      aria-disabled={disabled}
+      aria-label={disabled ? 'Chat composer unavailable while conversation changes' : undefined}
+      className="m-0 min-w-0 flex-none border-0 border-t border-border bg-background p-0"
+      onDragOver={(event) => {
+        if (!disabled && (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/plain'))) event.preventDefault()
+      }}
       onDrop={onDrop}
     >
       {composer.files.length > 0 && (
@@ -1018,13 +1213,14 @@ export function Composer({
           rows={1}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={composer.onPaste}
+          disabled={disabled}
           onKeyDown={(e) => {
             // `big` is the mobile sheet: there Enter inserts a newline and
             // only the Send button sends. On desktop Enter sends, Shift+Enter
             // inserts a newline.
             if (e.key === 'Enter' && !e.shiftKey && !big) {
               e.preventDefault()
-              onSend()
+              if (!disabled) onSend()
             }
           }}
           placeholder={composer.busy ? 'Uploading…' : placeholder}
@@ -1047,7 +1243,7 @@ export function Composer({
         </button>
       </div>
       )}
-    </div>
+    </fieldset>
   )
 }
 

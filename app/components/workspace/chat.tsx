@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import {
-  useCallback, useEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject,
 } from 'react'
 import { MessagesSquare, Pencil, Search, Trash2, X } from 'lucide-react'
 
@@ -26,6 +26,8 @@ import { cn } from '@/lib/utils'
 // `/api/chat/events` says this thread moved. The timer still covers the half
 // of the working indicator that lives in the harness queue, not the database.
 const POLL_MS = 10_000
+const SEND_TIMEOUT_MS = 20_000
+const RESET_TIMEOUT_MS = 20_000
 const PAGE = 50
 const MIN_W = 280
 const STORE = 'lps.chat.v1'
@@ -42,141 +44,391 @@ function clampDesktopChatWidth(width: number) {
 
 // ------------------------------------------------------------------ the chat
 
+interface BoundChatDestination {
+  agentId: string
+  threadId: string
+  /** Changes on every explicit bind, including away-and-back switches. */
+  revision: number
+}
+
+const sameDestination = (a: BoundChatDestination, b: BoundChatDestination) =>
+  a.revision === b.revision && a.agentId === b.agentId && a.threadId === b.threadId
+
+const canonicalDestinationKey = (destination: Pick<BoundChatDestination, 'agentId' | 'threadId'>) =>
+  `${destination.agentId}\0${destination.threadId}`
+
+async function boundedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  controller: AbortController,
+  timeoutMs: number,
+): Promise<Response> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(new Error('request timed out'))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      fetch(input, { ...init, signal: controller.signal }),
+      timeout,
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/** Canonical plugin ids occur once; optimistic negative ids stay at the tail. */
+function mergeCanonicalMessages(existing: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+  const canonical = new Map<number, ChatMessage>()
+  for (const message of existing) if (message.id > 0) canonical.set(message.id, message)
+  for (const message of incoming) if (message.id > 0) canonical.set(message.id, message)
+  const optimistic = existing.filter((message) => message.id <= 0)
+  const incomingOptimistic = incoming.filter((message) => message.id <= 0)
+  return [
+    ...[...canonical.values()].sort((a, b) => a.id - b.id),
+    ...optimistic,
+    ...incomingOptimistic,
+  ]
+}
+
+interface ActiveSendRequest {
+  canonicalKey: string
+  settled: Promise<void>
+}
+
 /** Everything the panel and the mobile sheet share: transport + composer state. */
-function useChat(agentId: string, active: boolean, threadId: string) {
+function useChat(
+  committed: BoundChatDestination,
+  active: boolean,
+  binding: MutableRefObject<BoundChatDestination>,
+) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [canonicalResetError, setCanonicalResetError] = useState('')
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [readyRevision, setReadyRevision] = useState<number | null>(null)
+  const [lockedCanonicalKeys, setLockedCanonicalKeys] = useState<Set<string>>(() => new Set())
   const cursor = useRef(0)
-  // Oldest id held, so "load earlier" knows where the page it has starts.
   const oldest = useRef(0)
-  const threadQ = `&thread=${encodeURIComponent(threadId)}`
+  const mounted = useRef(true)
+  const generation = useRef(0)
+  const pollSequence = useRef(0)
+  const loadSequence = useRef(0)
+  const outcomeSequence = useRef(0)
+  const operationSequence = useRef(0)
+  const optimisticSequence = useRef(0)
+  const activeSends = useRef(new Set<number>())
+  const sendRequests = useRef(new Map<number, ActiveSendRequest>())
+  const resetLocks = useRef(new Map<string, symbol>())
+  const resetErrors = useRef(new Map<string, string>())
+  const successfulSendPending = useRef(false)
+  const controllers = useRef(new Set<AbortController>())
+  const resetControllers = useRef(new Set<AbortController>())
+  const pollRef = useRef<(preserveError?: boolean) => Promise<void>>(async () => {})
 
-  // Switching agents or threads means a different transcript — reset before
-  // the next poll.
-  useEffect(() => {
+  const isCurrent = useCallback(
+    (route: BoundChatDestination, scope: number) =>
+      mounted.current && generation.current === scope && sameDestination(binding.current, route),
+    [binding],
+  )
+
+  const beginRequest = useCallback(() => {
+    const controller = new AbortController()
+    controllers.current.add(controller)
+    return controller
+  }, [])
+
+  const finishRequest = useCallback((controller: AbortController) => {
+    controllers.current.delete(controller)
+  }, [])
+
+  const abortRequests = useCallback(() => {
+    for (const controller of controllers.current) controller.abort()
+    controllers.current.clear()
+  }, [])
+
+  const resetClient = useCallback(() => {
     cursor.current = 0
     oldest.current = 0
+    pollSequence.current = 0
+    loadSequence.current = 0
+    outcomeSequence.current = 0
+    operationSequence.current = 0
+    activeSends.current.clear()
+    successfulSendPending.current = false
     setMessages([])
     setPending(false)
     setHasMore(false)
-  }, [agentId, threadId])
+    setLoadingMore(false)
+    setError('')
+  }, [])
 
-  const poll = useCallback(async () => {
-    // First fetch of a transcript takes only the newest page; every poll after
-    // it is a delta, so `limit` would be free to drop a message.
+  const settleError = useCallback((order: number, value: string) => {
+    if (order < outcomeSequence.current) return
+    outcomeSequence.current = order
+    setError(value)
+  }, [])
+
+  // A revision is a new client lifecycle even when agent/thread text is the
+  // same (same-route rebind and ABA). Clear the old transcript in layout phase:
+  // the browser can never paint a new destination label over old messages.
+  useLayoutEffect(() => {
+    setReadyRevision(null)
+    generation.current += 1
+    abortRequests()
+    resetClient()
+    setCanonicalResetError(resetErrors.current.get(canonicalDestinationKey(committed)) ?? '')
+    setReadyRevision(committed.revision)
+    return abortRequests
+  }, [committed.revision, abortRequests, resetClient])
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      generation.current += 1
+      abortRequests()
+      for (const controller of resetControllers.current) controller.abort()
+      resetControllers.current.clear()
+    }
+  }, [abortRequests])
+
+  const poll = useCallback(async (preserveError = false) => {
+    const route = committed
+    if (!sameDestination(binding.current, route)) return
+    const scope = generation.current
+    const sequence = ++pollSequence.current
+    const order = ++operationSequence.current
     const first = cursor.current === 0
+    const controller = beginRequest()
     try {
       const res = await fetch(
-        // `read=1`: this poll only runs while the panel is open on the thread,
-        // so it doubles as "the team has seen this" — plugin-side, any device.
-        `/api/chat/${agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}${threadQ}&read=1`,
-        { cache: 'no-store' },
+        `/api/chat/${route.agentId}/messages?since=${cursor.current}${first ? `&limit=${PAGE}` : ''}&thread=${encodeURIComponent(route.threadId)}&read=1`,
+        { cache: 'no-store', signal: controller.signal },
       )
       if (!res.ok) throw new Error(String(res.status))
       const body = (await res.json()) as {
         messages: ChatMessage[]; hasMore: boolean; pending: boolean; cursor: number
       }
+      if (!isCurrent(route, scope) || sequence !== pollSequence.current) return
       if (body.messages.length) {
-        setMessages((prev) => [...prev, ...body.messages])
-        cursor.current = body.messages[body.messages.length - 1].id
-        if (!oldest.current) oldest.current = body.messages[0].id
+        setMessages((prev) => mergeCanonicalMessages(prev, body.messages))
+        const positive = body.messages.filter((message) => message.id > 0).map((message) => message.id)
+        if (positive.length) {
+          cursor.current = Math.max(cursor.current, body.cursor, ...positive)
+          if (!oldest.current) oldest.current = Math.min(...positive)
+        }
+      } else {
+        cursor.current = Math.max(cursor.current, body.cursor)
       }
       if (first) setHasMore(body.hasMore)
-      setPending(body.pending)
-      setError('')
-      // The request above already moved the server cursor; this only clears
-      // the dot now instead of at the next threads poll.
-      markThreadRead(agentId, threadId, body.cursor)
-    } catch {
-      setError('Can’t reach the agent.')
+      successfulSendPending.current = false
+      setPending(body.pending || activeSends.current.size > 0)
+      if (!preserveError && !resetErrors.current.has(canonicalDestinationKey(route))) settleError(order, '')
+      markThreadRead(route.agentId, route.threadId, body.cursor)
+    } catch (cause) {
+      if (
+        !preserveError && !resetErrors.current.has(canonicalDestinationKey(route)) &&
+        !controller.signal.aborted && isCurrent(route, scope) && sequence === pollSequence.current
+      ) {
+        settleError(order, 'Can’t reach the agent.')
+      }
+    } finally {
+      finishRequest(controller)
     }
-  }, [agentId, threadId, threadQ])
+  }, [committed, binding, beginRequest, finishRequest, isCurrent, settleError])
+
+  useLayoutEffect(() => { pollRef.current = poll }, [poll])
+
+  const reloadCanonical = useCallback((canonicalKey: string, recoveryError = '') => {
+    // The outcome belongs to the canonical conversation even if its request
+    // completes while the user is elsewhere. A later bind reads this map.
+    if (recoveryError) resetErrors.current.set(canonicalKey, recoveryError)
+    else resetErrors.current.delete(canonicalKey)
+    if (!mounted.current || canonicalDestinationKey(binding.current) !== canonicalKey) return
+    const revision = binding.current.revision
+    setReadyRevision(null)
+    generation.current += 1
+    abortRequests()
+    resetClient()
+    setCanonicalResetError(recoveryError)
+    setReadyRevision(revision)
+    // Recovery must never hold the canonical reset lock. The accessible reset
+    // error is already visible if this guarded reload is itself slow/offline.
+    void pollRef.current(!!recoveryError)
+  }, [binding, abortRequests, resetClient])
 
   const loadMore = useCallback(async () => {
-    if (!oldest.current) return
+    const route = committed
+    if (!sameDestination(binding.current, route) || !oldest.current) return
+    const scope = generation.current
+    const sequence = ++loadSequence.current
+    const order = ++operationSequence.current
+    const before = oldest.current
+    const controller = beginRequest()
     setLoadingMore(true)
     try {
       const res = await fetch(
-        `/api/chat/${agentId}/messages?before=${oldest.current}&limit=${PAGE}${threadQ}`,
-        { cache: 'no-store' },
+        `/api/chat/${route.agentId}/messages?before=${before}&limit=${PAGE}&thread=${encodeURIComponent(route.threadId)}`,
+        { cache: 'no-store', signal: controller.signal },
       )
       if (!res.ok) throw new Error(String(res.status))
       const body = (await res.json()) as { messages: ChatMessage[]; hasMore: boolean }
+      if (!isCurrent(route, scope) || sequence !== loadSequence.current) return
       if (body.messages.length) {
-        setMessages((prev) => [...body.messages, ...prev])
-        oldest.current = body.messages[0].id
+        setMessages((prev) => mergeCanonicalMessages(prev, body.messages))
+        const positive = body.messages.filter((message) => message.id > 0).map((message) => message.id)
+        if (positive.length) oldest.current = Math.min(oldest.current || Infinity, ...positive)
       }
       setHasMore(body.hasMore)
-      setError('')
+      settleError(order, '')
     } catch {
-      setError('Can’t load earlier messages.')
+      if (!controller.signal.aborted && isCurrent(route, scope) && sequence === loadSequence.current) {
+        settleError(order, 'Can’t load earlier messages.')
+      }
     } finally {
-      setLoadingMore(false)
+      finishRequest(controller)
+      if (isCurrent(route, scope) && sequence === loadSequence.current) setLoadingMore(false)
     }
-  }, [agentId, threadQ])
+  }, [committed, binding, beginRequest, finishRequest, isCurrent, settleError])
 
   useEffect(() => {
-    if (!active) return
-    poll()
-    const t = setInterval(poll, POLL_MS)
+    if (!active || !sameDestination(binding.current, committed)) return
+    void poll()
+    const timer = setInterval(() => void poll(), POLL_MS)
     const off = subscribeEvents(
       '/api/chat/events',
       (data) => {
-        const ev = data as { type?: string; agent?: string; threadId?: string }
-        if (ev?.type === 'thread' && ev.agent === agentId && ev.threadId === threadId) void poll()
+        const event = data as { type?: string; agent?: string; threadId?: string }
+        if (event?.type === 'thread' && event.agent === committed.agentId && event.threadId === committed.threadId) {
+          void poll()
+        }
       },
       () => void poll(),
     )
     return () => {
-      clearInterval(t)
+      clearInterval(timer)
       off()
     }
-  }, [active, poll, agentId, threadId])
+  }, [active, committed, binding, poll])
 
-  const send = useCallback(
-    async (text: string, files: ChatFile[]) => {
-      // Optimistic: the poll picks up the canonical row, but the user should
-      // see their own message land immediately rather than up to 2s later.
-      const optimistic: ChatMessage = { id: -Date.now(), at: Date.now(), role: 'user', text, files }
-      setMessages((prev) => [...prev, optimistic])
-      setPending(true)
-      try {
-        const res = await fetch(`/api/chat/${agentId}/send`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text, attachments: files, threadId, page: currentPage() }),
-        })
-        if (!res.ok) throw new Error(String(res.status))
-        const { id } = (await res.json()) as { id: number }
-        // Adopt the real id so the poll's copy doesn't duplicate this message.
-        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...m, id } : m)))
-        cursor.current = Math.max(cursor.current, id)
-      } catch {
-        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
-        setPending(false)
-        setError('Message failed to send.')
+  const send = useCallback(async (text: string, files: ChatFile[]) => {
+    const route = committed
+    // This is the transport-side half of the visible commit gate. A stale DOM
+    // event cannot post, even if it was queued in the same act as a rebind.
+    if (!sameDestination(binding.current, route)) return false
+    const scope = generation.current
+    const canonicalKey = canonicalDestinationKey(route)
+    if (resetLocks.current.has(canonicalKey)) return false
+    const order = ++operationSequence.current
+    const optimisticId = -(++optimisticSequence.current)
+    const optimistic: ChatMessage = { id: optimisticId, at: Date.now(), role: 'user', text, files }
+    activeSends.current.add(optimisticId)
+    setMessages((prev) => [...prev, optimistic])
+    setPending(true)
+    const controller = beginRequest()
+    let settleRequest!: () => void
+    const settled = new Promise<void>((resolve) => { settleRequest = resolve })
+    sendRequests.current.set(optimisticId, { canonicalKey, settled })
+    try {
+      const res = await boundedFetch(`/api/chat/${route.agentId}/send`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, attachments: files, threadId: route.threadId, page: currentPage() }),
+      }, controller, SEND_TIMEOUT_MS)
+      if (!res.ok) throw new Error(String(res.status))
+      const { id } = (await res.json()) as { id: number }
+      if (!isCurrent(route, scope)) return false
+      activeSends.current.delete(optimisticId)
+      successfulSendPending.current = true
+      setMessages((prev) => {
+        const withoutOptimistic = prev.filter((message) => message.id !== optimisticId)
+        // A poll may have inserted this canonical row before the POST response.
+        // Keep that authoritative row; otherwise upsert the optimistic payload.
+        return withoutOptimistic.some((message) => message.id === id)
+          ? mergeCanonicalMessages(withoutOptimistic, [])
+          : mergeCanonicalMessages(withoutOptimistic, [{ ...optimistic, id }])
+      })
+      cursor.current = Math.max(cursor.current, id)
+      settleError(order, '')
+      return true
+    } catch {
+      if (isCurrent(route, scope)) {
+        activeSends.current.delete(optimisticId)
+        setMessages((prev) => prev.filter((message) => message.id !== optimisticId))
+        if (activeSends.current.size === 0 && !successfulSendPending.current) setPending(false)
+        if (!controller.signal.aborted) settleError(order, 'Message failed to send.')
       }
-    },
-    [agentId, threadId],
-  )
+      return false
+    } finally {
+      sendRequests.current.delete(optimisticId)
+      settleRequest()
+      finishRequest(controller)
+    }
+  }, [committed, binding, beginRequest, finishRequest, isCurrent, settleError])
 
   const reset = useCallback(async () => {
-    await fetch(`/api/chat/${agentId}/reset`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ threadId }),
-    })
-    cursor.current = 0
-    oldest.current = 0
-    setMessages([])
-    setPending(false)
-    setHasMore(false)
-  }, [agentId, threadId])
+    const route = committed
+    if (!sameDestination(binding.current, route)) return
+    const canonicalKey = canonicalDestinationKey(route)
+    if (resetLocks.current.has(canonicalKey)) return
+    const token = Symbol('canonical-reset')
+    resetLocks.current.set(canonicalKey, token)
+    resetErrors.current.delete(canonicalKey)
+    setCanonicalResetError('')
+    setError('')
+    setLockedCanonicalKeys((current) => new Set(current).add(canonicalKey))
+    let controller: AbortController | null = null
+    let recoveryError = ''
+    try {
+      // The lock is canonical, not revision-scoped: same-route and away/back
+      // binds stay blocked. Every send already issued for this destination is
+      // bounded and settles before reset is allowed onto the server queue.
+      const sends = [...sendRequests.current.values()]
+        .filter((request) => request.canonicalKey === canonicalKey)
+        .map((request) => request.settled)
+      await Promise.allSettled(sends)
+      controller = new AbortController()
+      resetControllers.current.add(controller)
+      const res = await boundedFetch(`/api/chat/${route.agentId}/reset`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ threadId: route.threadId }),
+      }, controller, RESET_TIMEOUT_MS)
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      recoveryError = 'Couldn’t clear the conversation. Try again.'
+    } finally {
+      if (controller) resetControllers.current.delete(controller)
+      if (resetLocks.current.get(canonicalKey) === token) resetLocks.current.delete(canonicalKey)
+      if (mounted.current) {
+        setLockedCanonicalKeys((current) => {
+          const next = new Set(current)
+          next.delete(canonicalKey)
+          return next
+        })
+        reloadCanonical(canonicalKey, recoveryError)
+      }
+    }
+  }, [committed, binding, reloadCanonical])
 
-  return { messages, pending, error, hasMore, loadingMore, send, reset, loadMore, refresh: poll }
+  const ready = readyRevision === committed.revision && sameDestination(binding.current, committed)
+  const locked = lockedCanonicalKeys.has(canonicalDestinationKey(committed))
+  return {
+    messages: ready ? messages : [],
+    pending: ready ? pending : false,
+    error: ready ? canonicalResetError || error : '',
+    hasMore: ready ? hasMore : false,
+    loadingMore: ready ? loadingMore : false,
+    ready,
+    locked,
+    send, reset, loadMore, refresh: poll,
+  }
 }
 
 
@@ -196,6 +448,17 @@ interface ThreadDirectory {
 const GENERAL_THREADS: ThreadEntry[] = [
   { threadId: 'main', title: 'Main', subtitle: 'Chris & Bhoumik coordination' },
 ]
+
+/** Keep a canonical JR identity visible even when the Job also has a name. */
+export function chatDestinationLabel(thread: { id: string; label: string }): string {
+  const job = /^jr-([1-9]\d*)$/i.exec(thread.id)
+  if (!job) return thread.label || thread.id
+  const ref = `JR-${job[1]}`
+  const label = thread.label.trim()
+  return !label || label.toLowerCase() === thread.id.toLowerCase() || label.toLowerCase() === ref.toLowerCase()
+    ? ref
+    : `${ref} · ${label}`
+}
 
 /** The agents whose work runs on dedicated threads, so the picker is theirs. */
 const THREAD_AGENTS = new Set(['rosie', 'daisy'])
@@ -512,35 +775,65 @@ export function AgentChat({
     : { id: 'main', label: 'Main' })
   const [picker, setPicker] = useState(false)
   const hydrated = useRef(false)
+  // A mobile chat-bus action updates AgentChat and Shell independently. This
+  // exact handoff lets the subsequent mobileAgentId render preserve only the
+  // destination produced by that action — never a stale one-bit skip flag.
+  const mobileHandoff = useRef<{ agentId: string; destinationRevision: number } | null>(null)
+  // Routing is committed here synchronously, before React schedules the panel
+  // identity update. Transport reads this exact binding rather than whichever
+  // thread the previous render happened to retain.
+  const destination = useRef<BoundChatDestination>({
+    agentId: focusedIntake ? 'rosie' : CHAT_AGENTS[0].id,
+    threadId: focusedIntake ? `jr-${focusedIntake.id}` : 'main',
+    revision: 0,
+  })
+  const [committedDestination, setCommittedDestination] = useState<BoundChatDestination>(destination.current)
 
-  const activeId = focusedIntake ? 'rosie' : isMobile ? mobileAgentId ?? CHAT_AGENTS[0].id : agentId
+  const activeId = focusedIntake ? 'rosie' : agentId
   const agent = useMemo(() => CHAT_AGENTS.find((a) => a.id === activeId) ?? CHAT_AGENTS[0], [activeId])
   const visible = focusedIntake ? true : isMobile ? mobileOpen : open
-  const chat = useChat(agent.id, visible, thread.id)
-  const uploadOne = useCallback(
-    async (file: File): Promise<ChatFile> => {
-      const res = await fetch(`/api/chat/${agent.id}/upload`, {
-        method: 'POST',
-        // Header values must be ASCII; the display name travels in the send
-        // payload instead, so mangling here is harmless.
-        headers: {
-          'x-file-name': encodeURIComponent(file.name),
-          'content-type': file.type || 'application/octet-stream',
-        },
-        body: file,
-      })
-      if (!res.ok) throw new Error(`Couldn’t upload ${file.name}.`)
-      const stored = (await res.json()) as { name: string }
-      return {
-        name: stored.name,
-        label: file.name,
-        mime: file.type || 'application/octet-stream',
-        size: file.size,
-      }
-    },
-    [agent.id],
-  )
+  const chat = useChat(committedDestination, visible, destination)
+  const uploadOne = useCallback(async (file: File, signal: AbortSignal): Promise<ChatFile> => {
+    // This callback belongs to the visibly committed agent render. useComposer
+    // owns its destination generation and aborts the fetch on every bind; a
+    // response from an old generation is discarded even if the server received
+    // enough bytes to leave the same orphan upload behavior it already had.
+    const res = await fetch(`/api/chat/${agent.id}/upload`, {
+      method: 'POST',
+      headers: {
+        'x-file-name': encodeURIComponent(file.name),
+        'content-type': file.type || 'application/octet-stream',
+      },
+      body: file,
+      signal,
+    })
+    if (!res.ok) throw new Error(`Couldn’t upload ${file.name}.`)
+    return (await res.json()) as ChatFile
+  }, [agent.id])
   const composer = useComposer(uploadOne)
+  const invalidateComposer = composer.invalidate
+  const composerGate = useRef<HTMLFieldSetElement>(null)
+  const bindDestination = useCallback((nextAgentId: string, nextThread: { id: string; label: string }) => {
+    const next = {
+      agentId: nextAgentId,
+      threadId: nextThread.id,
+      revision: destination.current.revision + 1,
+    }
+    // Block the mounted controls synchronously; React removes this imperative
+    // gate only in the commit that also paints the new canonical identity.
+    if (composerGate.current) {
+      composerGate.current.disabled = true
+      composerGate.current.setAttribute('aria-disabled', 'true')
+    }
+    invalidateComposer()
+    setDraft('')
+    destination.current = next
+    setAgentId(nextAgentId)
+    setThread(nextThread)
+    setCommittedDestination(next)
+    setPicker(false)
+    return next
+  }, [invalidateComposer])
   const { unreadByAgent } = useChatNotifications()
 
   const fileHref = useCallback(
@@ -566,21 +859,23 @@ export function AgentChat({
   )
 
   // Deep links from the workspace: a job card's Rosie icon, a supplier or
-  // customer chat chip, a `thread:` button in a transcript. The Shell handles
-  // the mobile sheet's visibility; the thread itself is set here either way.
-  const keepThread = useRef(false)
+  // customer chat chip, a `thread:` button in a transcript. Binding is the
+  // synchronous routing boundary; page metadata is added only after the exact
+  // destination has already been selected.
   useEffect(
     () =>
       onOpenChat(({ agentId: target, threadId, label }) => {
-        if (CHAT_AGENTS.some((a) => a.id === target)) {
-          keepThread.current = true
-          setAgentId(target)
-        }
-        setThread({ id: threadId, label: label ?? threadId })
-        setPicker(false)
+        if (!CHAT_AGENTS.some((a) => a.id === target)) return
+        const next = bindDestination(target, { id: threadId, label: label ?? threadId })
+        // Shell will render the same target agent after its own chat-bus
+        // listener opens the mobile page. Preserve this exact revision only if
+        // that prop handoff is actually pending.
+        mobileHandoff.current = isMobile && mobileAgentId !== target
+          ? { agentId: target, destinationRevision: next.revision }
+          : null
         if (!isMobile) setOpen(true)
       }),
-    [isMobile],
+    [bindDestination, isMobile, mobileAgentId],
   )
 
   // A job renamed anywhere — its card on the Job Requests page, the pencil in
@@ -593,17 +888,23 @@ export function AgentChat({
     [],
   )
 
-  // An agent switch from anywhere else (header avatars, rail, the mobile
-  // Agents list) lands on that agent's main conversation — a jr thread of
-  // rosie's means nothing to daisy.
-  useEffect(() => {
-    if (keepThread.current) {
-      keepThread.current = false
+  // The real mobile Agents page supplies the chosen agent as a prop. A direct
+  // list choice always means that agent's Main conversation. A chat-bus action
+  // may hand off one exact already-bound thread; consume only that revision.
+  useLayoutEffect(() => {
+    if (!isMobile || !mobileOpen || !mobileAgentId) return
+    const handoff = mobileHandoff.current
+    if (
+      handoff?.agentId === mobileAgentId &&
+      handoff.destinationRevision === destination.current.revision &&
+      destination.current.agentId === mobileAgentId
+    ) {
+      mobileHandoff.current = null
       return
     }
-    setThread({ id: 'main', label: 'Main' })
-    setPicker(false)
-  }, [activeId])
+    mobileHandoff.current = null
+    bindDestination(mobileAgentId, { id: 'main', label: 'Main' })
+  }, [isMobile, mobileOpen, mobileAgentId, bindDestination])
 
   // Restore the docked panel's state after mount, so the server render and the
   // first client render agree (same guard the table layout uses).
@@ -635,14 +936,13 @@ export function AgentChat({
       // …and the thread it was on, so a refresh doesn't drop a job or supplier
       // conversation back to Main. Only for the agent that thread belongs to:
       // on mobile the panel comes back on the Agents list's agent, not the
-      // docked one. When the restore also moves the agent, `keepThread` stops
-      // the switch reset above from putting the panel back on Main.
+      // docked one.
       const savedThread = saved?.thread
       if (savedThread?.id && savedThread.agent === (desktopViewport ? restoredAgent : activeId)) {
-        keepThread.current = restoredAgent !== agentId
-        setThread({ id: savedThread.id, label: savedThread.label ?? savedThread.id })
+        bindDestination(restoredAgent, { id: savedThread.id, label: savedThread.label ?? savedThread.id })
+      } else if (restoredAgent !== agentId) {
+        bindDestination(restoredAgent, { id: 'main', label: 'Main' })
       }
-      if (restoredAgent !== agentId) setAgentId(restoredAgent)
       if (saved?.width) {
         // Migrate the previous Full preset (viewport minus rail + 240px peek)
         // into the new true-Full layout instead of restoring it as an arbitrary
@@ -694,18 +994,22 @@ export function AgentChat({
 
   useEffect(() => {
     if (!focusedIntake) return
-    setAgentId('rosie')
-    setThread({ id: `jr-${focusedIntake.id}`, label: `JR-${focusedIntake.id}` })
-    setPicker(false)
-  }, [focusedIntake?.id])
+    bindDestination('rosie', { id: `jr-${focusedIntake.id}`, label: `JR-${focusedIntake.id}` })
+  }, [focusedIntake?.id, bindDestination])
 
+  const destinationCommitted =
+    sameDestination(destination.current, committedDestination) && chat.ready && !chat.locked
   const send = () => {
     const text = draft.trim()
-    if (!text && !composer.files.length) return
-    chat.send(text, composer.files)
+    // Both click and Enter end here. The mounted fieldset is disabled during a
+    // bind, and this exact-revision guard rejects even a synthetic stale event.
+    if (!destinationCommitted || (!text && !composer.files.length)) return
+    void chat.send(text, composer.files)
     setDraft('')
     composer.clear()
   }
+
+  const destinationLabel = chatDestinationLabel(thread)
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -751,15 +1055,15 @@ export function AgentChat({
           <span className="truncate text-[14.5px] font-bold leading-tight [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">{agent.name}</span>
           <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-foreground/80 [text-shadow:0_1px_1px_rgb(0_0_0/.45)]">
             <span className="flex-none">{agent.role}</span>
-            {thread.id !== 'main' && <span className="truncate">· {thread.label}</span>}
+            <span className="truncate" aria-live="polite">· {destinationLabel}</span>
           </span>
         </div>
       ) : (
         <div className="flex min-w-0 flex-1 flex-col gap-px">
           <span className="text-[13.5px] font-bold">{agent.name}</span>
-          {thread.id !== 'main' && (
-            <span className="truncate text-[11px] text-muted-foreground">{thread.label}</span>
-          )}
+          <span className="truncate text-[11px] text-muted-foreground" aria-live="polite">
+            {destinationLabel}
+          </span>
         </div>
       )}
       {/* The thread list — every conversation this agent can be reached on. */}
@@ -789,7 +1093,7 @@ export function AgentChat({
               key={a.id}
               type="button"
               disabled={!!blocked}
-              onClick={() => setAgentId(a.id)}
+              onClick={() => bindDestination(a.id, { id: 'main', label: 'Main' })}
               aria-label={`Switch to ${a.name}`}
               title={blocked ? `${a.name} · ${blocked}` : `Switch to ${a.name} · ${a.role}`}
               className={cn(
@@ -824,7 +1128,7 @@ export function AgentChat({
   if (focusedIntake) {
     const conversation = <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <Transcript messages={chat.messages} pending={chat.pending} error={chat.error} hasMore={chat.hasMore} loadingMore={chat.loadingMore} fileHref={fileHref} empty={emptyState} pendingLabel={`${agent.name} is working…`} suggestions={agent.suggestions} onSuggest={setDraft} onAction={onMarkdownAction} onRefresh={chat.refresh} onLoadMore={chat.loadMore} mobile={isMobile} wallpaper={chatWallpaperForAgent(appearance, agent.id)} />
-      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder="Tell Rosie about the new request…" big={isMobile} />
+      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder="Tell Rosie about the new request…" big={isMobile} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
     </div>
     return <div className={cn('flex min-h-0 flex-1 flex-col bg-background', isMobile ? 'absolute inset-0 z-[80]' : 'w-full')} style={{ ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)), ...chatWallpaperStyle(chatWallpaperForAgent(appearance, agent.id)) }}>
       {intakeHeader}
@@ -850,7 +1154,7 @@ export function AgentChat({
           <ThreadPicker
             agentId={agent.id}
             current={thread.id}
-            onPick={(t) => { setThread(t); setPicker(false) }}
+            onPick={(t) => bindDestination(agent.id, t)}
             onClose={() => setPicker(false)}
             mobile
           />
@@ -872,7 +1176,7 @@ export function AgentChat({
           mobile
           wallpaper={chatWallpaperForAgent(appearance, agent.id)}
         />
-        <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} big />
+        <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} big disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
       </div>
     )
   }
@@ -888,7 +1192,7 @@ export function AgentChat({
             key={a.id}
             type="button"
             disabled={!!blocked}
-            onClick={() => { setAgentId(a.id); setOpen(true) }}
+            onClick={() => { bindDestination(a.id, { id: 'main', label: 'Main' }); setOpen(true) }}
             aria-label={a.name}
             title={blocked ? `${a.name} · ${blocked}` : `${a.name} · ${a.role}`}
             className={cn(
@@ -941,7 +1245,7 @@ export function AgentChat({
         <ThreadPicker
           agentId={agent.id}
           current={thread.id}
-          onPick={(t) => { setThread(t); setPicker(false) }}
+          onPick={(t) => bindDestination(agent.id, t)}
           onClose={() => setPicker(false)}
         />
       )}
@@ -1019,7 +1323,7 @@ export function AgentChat({
         onLoadMore={chat.loadMore}
         wallpaper={chatWallpaperForAgent(appearance, agent.id)}
       />
-      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} />
+      <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder={`Ask ${agent.name}…`} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
     </div>
   )
 }

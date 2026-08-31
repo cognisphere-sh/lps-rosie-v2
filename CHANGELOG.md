@@ -19,6 +19,33 @@ here).
 
 ### Changed
 
+- **Focused Job chat now binds before it can send**
+  (`app/components/workspace/{chat,chat-kit}.tsx`,
+  `app/lib/focused-job-chat-routing.test.tsx`). Opening the focused Job action
+  synchronously selects its existing canonical `jr-<id>` Rosie destination,
+  even when the retained panel was on another Job; click and Enter cannot post
+  until that destination and its cleared transcript lifecycle are visibly
+  committed, and page context never repairs routing. The panel shows the
+  canonical JR identity (and Job name), while Main and deliberate
+  Job/supplier/customer selections remain visibly distinct. Every bind creates
+  a lifecycle revision: stale/reverse poll, history, reset, send, file-upload
+  and voice-upload completions cannot mutate a later destination, including
+  same-route and away/back switches. Canonical send/poll rows deduplicate, reset
+  runs after already-issued sends and blocks new ones, and drafts/staged
+  attachments clear while client-owned upload requests and per-recording
+  resources are aborted/closed on bind, pending permission/resume, setup/start/
+  stop failure or unmount. Canonical reset locks survive rebinds, use finite
+  client timeouts and persist failures on their exact conversation while away.
+  That assertive reset-retry alert is separate from and dominant over transient
+  send, history and poll errors until reset is retried; failed retry restores it
+  and successful retry clears it. The authenticated app API validates canonical
+  thread syntax plus 160-character/
+  256-byte limits and serializes send/reset via collision-proof tuple keys with
+  caps of 8 per key, 64 active keys and 128 total operations plus a 25-second
+  upstream timeout; saturation is 429 and every terminal path releases state.
+  Failure reloads coherently with a visible retry error. The webchat plugin and
+  server upload contract are unchanged.
+
 - **The focused mobile Job header now reads as a Job, not a toolbar**
   (`app/app/jobs/page.tsx`,
   `app/components/workspace/{focused-job-header,job-request}.tsx`). Below 900px
@@ -491,8 +518,8 @@ here).
 
 - **All jobs uses a compact mobile filter and expanded-card action layout**
   (`app/app/requests/page.tsx`, `app/components/workspace/{requests-toolbar,
-  request-list-card,request-card-utilities,request-delete}.tsx`,
-  `app/lib/request-list-state.ts`). The page resolves one 899/900 breakpoint:
+  request-list-card,request-card-utilities,request-delete,job-request}.tsx`,
+  `app/lib/{request-list-state,job-requests}.ts`). The page resolves one 899/900 breakpoint:
   unresolved hydration owns no controls, mobile owns one non-wrapping shrinking
   Search + 44px Filters row, and desktop alone mounts the established shared
   toolbar and Shell actions. Crossings unmount open menus/dialogs and listeners
@@ -504,11 +531,29 @@ here).
   once per opening without stealing focus on filter-state rerenders, and owns
   Status, Item status, Customer, Created and Updated while Expand all / Collapse
   all stays outside. Its count compares Status to the four-selection baseline,
-  so excluding Archived does not falsely read as four active filters. Collapsed
-  mobile cards have no Actions/delete control; expanded cards alone expose the
-  working Delete job utility, preserving confirmation, guarded permanent-delete
-  API, cleanup, retry/error and focus-return behavior. No placeholder utility
-  ships.
+  so excluding Archived does not falsely read as four active filters. Visit-state
+  restore migrates only exact legacy `Quoted` to canonical `Quote Delivered`
+  before validation/deduplication, preserving and re-saving underlying `quoted`.
+  A mobile
+  card’s one-line primary row is exactly Company/Customer · Job name · Status ·
+  Rosie: trimmed nonblank identity fallbacks flex and ellipsize independently,
+  while Status and the canonical `jr-<id>` Rosie action remain fixed 44px
+  targets. Status removes the cramped dot/chevron and visibly maps the canonical
+  full labels Sourcing/Quote Delivered/Closed won/Closed lost/Archived to
+  Src/QD/Won/Lost/Arc; its actual 190px picker retains full accessible labels,
+  keyboard/outside dismissal and 8px phone-viewport clamping, with deterministic
+  nonblank unknown tokens. The sole chevron and JR reference sit in quieter
+  secondary metadata. Mobile summary shows no created/updated date; exact parent
+  Last updated moves inside the existing nested More details & notes disclosure,
+  stays unmounted while that tray is closed, and says Not recorded when missing.
+  It never substitutes Created or invents a future install/Pickup/Delivery date
+  from notes; desktop summary date behavior remains unchanged. The row stays
+  bounded at 320/390/480px. Collapsed mobile cards show only the exact Pending
+  plant-status count; desktop and expanded mobile retain the full status strip.
+  Collapsed mobile cards have no Actions/delete control; expanded cards alone
+  expose the working Delete job utility, preserving confirmation, guarded
+  permanent-delete API, cleanup, retry/error and focus-return behavior. No
+  placeholder utility ships.
 
 ## 2026-08-29
 

@@ -29,6 +29,7 @@ import {
   REQUEST_DATE_RANGES,
   buildRequestFilterQuery,
   buildRequestListUrl,
+  normalizeStoredRequestStatusLabels,
 } from '@/lib/request-list-state'
 import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { useDebouncedSearch } from '@/lib/use-debounced'
@@ -359,12 +360,11 @@ export default function RequestsPage() {
         query: string; status: string[]; itemStatus: string[]; customer: string[]
         created: string[]; updated: string[]; page: number
       }> | null
-      const allowedStatus = new Set(REQUEST_STATUS_OPTIONS.map((o) => o.label))
       const allowedItem = new Set(ITEM_STATUS_OPTIONS.map((o) => o.label))
       const allowedDates = new Set<string>(REQUEST_DATE_RANGES.map((option) => option.label))
       if (saved) {
         setQuery(typeof saved.query === 'string' ? saved.query.slice(0, 500) : '')
-        setStatus(Array.isArray(saved.status) ? saved.status.filter((v) => allowedStatus.has(v)) : OPEN_STATUSES)
+        setStatus(normalizeStoredRequestStatusLabels(saved.status, REQUEST_STATUS_OPTIONS, OPEN_STATUSES))
         setItemStatus(Array.isArray(saved.itemStatus) ? saved.itemStatus.filter((v) => allowedItem.has(v)) : [])
         pendingCustomer.current = Array.isArray(saved.customer) ? saved.customer.filter((v) => typeof v === 'string') : []
         setCreated(Array.isArray(saved.created) ? saved.created.filter((v) => allowedDates.has(v)).slice(0, 1) : [])

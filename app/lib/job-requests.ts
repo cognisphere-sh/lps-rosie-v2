@@ -63,7 +63,7 @@ export const toneTint = (tone: Tone) =>
 
 export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: Tone }> = {
   sourcing: { label: 'Sourcing', tone: 'amber' },
-  quoted: { label: 'Quoted', tone: 'teal' },
+  quoted: { label: 'Quote Delivered', tone: 'teal' },
   closed_won: { label: 'Closed won', tone: 'green' },
   closed_lost: { label: 'Closed lost', tone: 'red' },
   archived: { label: 'Archived', tone: 'grey' },

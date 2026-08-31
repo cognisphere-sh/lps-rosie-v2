@@ -15,6 +15,29 @@ const valuesOf = (labels: string[], options: readonly RequestFilterOption[]) =>
 
 const daysFor = (label: string) => REQUEST_DATE_RANGES.find((range) => range.label === label)?.days
 
+/**
+ * Restore persisted display labels after the quoted-status copy changed.
+ *
+ * The stored filter intentionally remains label-based. Only the one exact
+ * legacy label migrates; malformed/unknown entries keep the old fail-closed
+ * behavior, and mixed old/new copies collapse to one canonical selection.
+ */
+export function normalizeStoredRequestStatusLabels(
+  stored: unknown,
+  options: readonly RequestFilterOption[],
+  fallback: readonly string[],
+): string[] {
+  if (!Array.isArray(stored)) return [...fallback]
+  const allowed = new Set(options.map((option) => option.label))
+  const normalized: string[] = []
+  for (const value of stored) {
+    if (typeof value !== 'string') continue
+    const label = value === 'Quoted' ? 'Quote Delivered' : value
+    if (allowed.has(label) && !normalized.includes(label)) normalized.push(label)
+  }
+  return normalized
+}
+
 /** Exact request-list API filter encoding shared by both responsive toolbar branches. */
 export function buildRequestFilterQuery({
   status,

@@ -5,7 +5,7 @@
 // same order details, line table and history under each of their requests —
 // nothing here knows which page it is drawn on.
 
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import {
@@ -22,7 +22,7 @@ import {
 } from '@/lib/availability'
 import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { customerThreadId } from '@/lib/customers'
-import { money, num } from '@/lib/format'
+import { formatDate, money, num } from '@/lib/format'
 import {
   ITEM_STATUS_OPTIONS,
   coverColor,
@@ -116,17 +116,25 @@ export function StatusPill({
   label,
   tone,
   options,
+  compactLabel,
+  accessibleLabel,
 }: EditProps & {
   value: string
   label: string
   tone: Tone
   options: { value: string; label: string }[]
+  /** Optional 44px presentation; the picker and accessible name stay full. */
+  compactLabel?: string
+  accessibleLabel?: string
 }) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const pop = useOutsideClose<HTMLSpanElement>(open, () => setOpen(false))
+  const trigger = useRef<HTMLButtonElement>(null)
   const [at, setAt] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
+  const menuId = `status-menu-${table}-${id}-${column}`
+  const fullLabel = accessibleLabel ?? label
 
   // The menu is positioned `fixed`, measured off the pill. A card clips its own
   // overflow — it has to, for its rounded corners and its sideways-scrolling
@@ -140,7 +148,7 @@ export function StatusPill({
     // Flip above the pill when the menu would not fit below it. The flipped
     // menu is anchored by its *bottom*, so the estimate only has to be good
     // enough to make the call — it never has to match the drawn height.
-    const left = Math.min(box.left, window.innerWidth - MENU_WIDTH - 8)
+    const left = Math.max(8, Math.min(box.left, window.innerWidth - MENU_WIDTH - 8))
     const fits = window.innerHeight - box.bottom > options.length * 30 + 18
     setAt(fits ? { left, top: box.bottom + 6 } : { left, bottom: window.innerHeight - box.top + 6 })
     // A fixed menu does not travel with the card it belongs to, so any scroll
@@ -156,6 +164,7 @@ export function StatusPill({
 
   const pick = async (next: string) => {
     setOpen(false)
+    trigger.current?.focus()
     if (next === value) return
     setBusy(true)
     try {
@@ -172,28 +181,67 @@ export function StatusPill({
     table === 'job_requests' ? requestStatusTone(v) : itemPill(v, null, null).tone
 
   return (
-    <span ref={pop} data-pop className="inline-block">
+    <span
+      ref={pop}
+      data-pop
+      className={cn('inline-block', compactLabel && 'size-11 flex-none')}
+      onKeyDown={(event) => {
+        if (!open || event.key !== 'Escape') return
+        event.preventDefault()
+        event.stopPropagation()
+        setOpen(false)
+        trigger.current?.focus()
+      }}
+      onBlurCapture={(event) => {
+        if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false)
+        }
+      }}
+    >
       <button
+        ref={trigger}
         type="button"
-        title="Click to update status"
+        title={`Click to update status: ${fullLabel}`}
+        aria-label={fullLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         disabled={busy}
         onClick={(e) => {
           e.stopPropagation()
           setOpen((v) => !v)
         }}
-        className={cn('cursor-pointer border-none bg-transparent p-0', busy && 'opacity-50')}
+        className={cn(
+          'cursor-pointer border-none bg-transparent p-0',
+          compactLabel && 'flex size-11 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          busy && 'opacity-50',
+        )}
       >
-        <span
-          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
-          style={toneStyle(tone)}
-        >
-          <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(tone) }} />
-          {label}
-          <ChevronDown size={10} />
-        </span>
+        {compactLabel ? (
+          <span
+            data-compact-status-token
+            aria-hidden="true"
+            className="inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-md px-1 text-[10.5px] font-bold leading-none"
+            style={toneStyle(tone)}
+          >
+            {compactLabel}
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+            style={toneStyle(tone)}
+          >
+            <span className="size-[7px] flex-none rounded-full" style={{ background: toneDot(tone) }} />
+            {label}
+            <ChevronDown size={10} />
+          </span>
+        )}
       </button>
       {open && at && (
         <div
+          id={menuId}
+          role="menu"
+          aria-label={`Choose status for ${fullLabel}`}
           onClick={(e) => e.stopPropagation()}
           style={{ left: at.left, top: at.top, bottom: at.bottom, width: MENU_WIDTH }}
           className="lps-pop fixed z-[75] rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
@@ -202,6 +250,8 @@ export function StatusPill({
             <button
               key={o.value}
               type="button"
+              role="menuitemradio"
+              aria-checked={o.value === value}
               onClick={() => void pick(o.value)}
               className={cn(
                 'flex w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-2 py-1.5 text-left text-[12.5px] hover:bg-muted',
@@ -1121,6 +1171,9 @@ export function RequestBody({
   const edit = { table: 'job_requests', id: request.id, onSaved }
   const ship = addressLine(request.shipping)
   const bill = addressLine(request.billing)
+  const lastUpdated = request.updatedAt && !Number.isNaN(new Date(request.updatedAt).getTime())
+    ? formatDate(request.updatedAt)
+    : ''
 
   // What the collapsed drawer says it is hiding, so opening it is a decision
   // rather than a guess.
@@ -1170,6 +1223,19 @@ export function RequestBody({
 
         {detailsOpen && (
           <div className="flex flex-col gap-3 bg-lps-tint px-3.5 pb-3.5">
+            <div
+              data-request-last-updated
+              className="flex min-h-11 items-center gap-2 rounded-lg border border-lps-hair bg-card px-3 text-[12px]"
+            >
+              <span className="font-semibold text-muted-foreground">Last updated</span>
+              {lastUpdated ? (
+                <time dateTime={request.updatedAt ?? undefined} className="font-medium text-foreground">
+                  {lastUpdated}
+                </time>
+              ) : (
+                <span className="font-medium text-muted-foreground">Not recorded</span>
+              )}
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               <AddressCard {...edit} label="Shipping address" prefix="shipping"
                 address={request.shipping} />

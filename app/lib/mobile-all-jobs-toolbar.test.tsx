@@ -19,7 +19,11 @@ import {
 } from '../components/workspace/requests-toolbar.tsx'
 import type { Chip } from '../components/workspace/toolbar.tsx'
 import { REQUEST_STATUS_OPTIONS, ITEM_STATUS_OPTIONS } from './job-requests.ts'
-import { buildRequestFilterQuery, buildRequestListUrl } from './request-list-state.ts'
+import {
+  buildRequestFilterQuery,
+  buildRequestListUrl,
+  normalizeStoredRequestStatusLabels,
+} from './request-list-state.ts'
 import type { JobRequestRow } from './rows.ts'
 import { createSession, SESSION_COOKIE } from './session.ts'
 
@@ -86,6 +90,7 @@ beforeEach(() => {
     MouseEvent: win.MouseEvent,
     PointerEvent: win.PointerEvent ?? win.MouseEvent,
     KeyboardEvent: win.KeyboardEvent,
+    CustomEvent: win.CustomEvent,
     getComputedStyle: win.getComputedStyle,
     requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0),
     cancelAnimationFrame: (id: number) => clearTimeout(id),
@@ -107,7 +112,7 @@ afterEach(() => {
   dom.window.close()
 })
 
-const BASELINE = ['Sourcing', 'Quoted', 'Closed won', 'Closed lost']
+const BASELINE = ['Sourcing', 'Quote Delivered', 'Closed won', 'Closed lost']
 
 function useRequestChips() {
   const [status, setStatus] = useState(BASELINE)
@@ -238,6 +243,61 @@ function ToolbarHarness({ resolved }: { resolved: boolean | null }) {
     />
   )
 }
+
+test('legacy persisted Quoted filter restores and saves canonically without losing quoted jobs or creating a false deviation', () => {
+  const storageKey = 'lps.requests.visit.v1'
+  window.sessionStorage.setItem(storageKey, JSON.stringify({
+    status: ['Sourcing', 'Quoted', 'Closed won', 'Closed lost'],
+  }))
+  const stored = JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null') as { status: unknown }
+  const legacy = normalizeStoredRequestStatusLabels(
+    stored.status,
+    REQUEST_STATUS_OPTIONS,
+    BASELINE,
+  )
+  assert.deepEqual(legacy, BASELINE)
+  assert.equal(legacy.includes('Quoted'), false)
+  assert.equal(legacy.includes('Quote Delivered'), true)
+  assert.equal(requestFilterActiveCount([
+    { label: 'Status', values: legacy, options: REQUEST_STATUS_OPTIONS.map((option) => option.label), onChange: () => {}, allLabel: '' },
+  ], BASELINE), 0)
+  const query = buildRequestFilterQuery({
+    status: legacy,
+    itemStatus: [],
+    customer: [],
+    created: [],
+    updated: [],
+    customerIds: new Map(),
+    requestStatusOptions: REQUEST_STATUS_OPTIONS,
+    itemStatusOptions: ITEM_STATUS_OPTIONS,
+  })
+  assert.equal(new URLSearchParams(query).get('status'), 'sourcing,quoted,closed_won,closed_lost')
+  window.sessionStorage.setItem(storageKey, JSON.stringify({ ...stored, status: legacy }))
+  assert.deepEqual(JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null').status, BASELINE)
+
+  assert.deepEqual(
+    normalizeStoredRequestStatusLabels(
+      ['Quoted', 'Quote Delivered', 'Bogus', 7, null, 'Sourcing'],
+      REQUEST_STATUS_OPTIONS,
+      BASELINE,
+    ),
+    ['Quote Delivered', 'Sourcing'],
+  )
+  assert.deepEqual(
+    normalizeStoredRequestStatusLabels({ status: ['Quoted'] }, REQUEST_STATUS_OPTIONS, BASELINE),
+    BASELINE,
+  )
+  assert.deepEqual(
+    normalizeStoredRequestStatusLabels([' quoted ', '', false], REQUEST_STATUS_OPTIONS, BASELINE),
+    [],
+  )
+  window.sessionStorage.setItem(storageKey, '{malformed')
+  assert.throws(() => JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null'))
+  const page = source('app/requests/page.tsx')
+  assert.match(page, /setStatus\(normalizeStoredRequestStatusLabels\(saved\.status, REQUEST_STATUS_OPTIONS, OPEN_STATUSES\)\)/)
+  assert.match(page, /catch \{ \/\* malformed tab state falls back to defaults \*\//)
+  assert.match(page, /sessionStorage\.setItem\(REQUESTS_VISIT_STORE, JSON\.stringify\(\{ query, status,/)
+})
 
 test('mobile filter state rerenders preserve the chosen keyboard control while each reopen initially focuses Close', async () => {
   const user = userEvent.setup({ document })
@@ -466,6 +526,326 @@ const REQUEST: JobRequestRow = {
   createdAt: '2026-08-01T12:00:00Z',
   updatedAt: '2026-08-02T12:00:00Z',
 }
+
+function StaticCard({
+  request,
+  mobile,
+  expanded = false,
+}: {
+  request: JobRequestRow
+  mobile: boolean
+  expanded?: boolean
+}) {
+  return (
+    <RequestCard
+      request={request}
+      expanded={expanded}
+      mobile={mobile}
+      selected={new Set()}
+      version={0}
+      onToggle={() => {}}
+      onSelect={() => {}}
+      onDelete={() => {}}
+      onDeleteItem={() => {}}
+      onSaved={() => {}}
+    />
+  )
+}
+
+test('mobile card primary row is exactly customer, job, fixed status and canonical Rosie action without 320/390/480 overflow pressure', async () => {
+  const user = userEvent.setup({ document })
+  const longStatus = 'Awaiting extraordinarily detailed customer confirmation'
+  const longRequest: JobRequestRow = {
+    ...REQUEST,
+    name: 'Courtyard 🌳 旗艦店 — Extremely long Unicode job name that must ellipsize',
+    status: longStatus,
+    customer: {
+      id: 9,
+      name: 'Renée 山田 Customer',
+      company: 'Société 🌿 超長い会社名 with an exceptionally long company suffix',
+      email: null,
+      phone: null,
+      rosieThreadId: null,
+    },
+  }
+  const view = render(<StaticCard request={longRequest} mobile />)
+  const primary = view.container.querySelector('[data-mobile-request-primary]') as HTMLElement
+  assert.ok(primary)
+  assert.deepEqual(
+    [...primary.children].map((node) => (node as HTMLElement).dataset.mobileRequestCustomer !== undefined
+      ? 'customer'
+      : (node as HTMLElement).dataset.mobileRequestJob !== undefined
+        ? 'job'
+        : (node as HTMLElement).dataset.mobileRequestStatus !== undefined
+          ? 'status'
+          : (node as HTMLElement).dataset.mobileRequestRosie !== undefined
+            ? 'rosie'
+            : 'unexpected'),
+    ['customer', 'job', 'status', 'rosie'],
+  )
+  assert.match(primary.className, /\bflex-nowrap\b/)
+  assert.match(primary.className, /\bw-full\b/)
+  assert.match(primary.className, /\bmax-w-full\b/)
+  assert.match(primary.className, /\bmin-w-0\b/)
+  assert.match(primary.className, /\boverflow-hidden\b/)
+
+  const customer = primary.children[0] as HTMLElement
+  const job = primary.children[1] as HTMLAnchorElement
+  for (const field of [customer, job]) {
+    assert.match(field.className, /\bbasis-0\b/)
+    assert.match(field.className, /\bflex-1\b/)
+    assert.match(field.className, /\bmin-w-0\b/)
+    assert.match(field.className, /\btruncate\b/)
+    assert.doesNotMatch(field.className, /(?:^|\s)(?:w|min-w|max-w)-\[/)
+  }
+  assert.equal(customer.textContent, longRequest.customer?.company)
+  assert.equal(job.textContent, longRequest.name)
+  assert.equal(job.getAttribute('href'), '/jobs?jr=27')
+  assert.equal(job.getAttribute('aria-label'), `Open JR-27 — ${longRequest.name}`)
+
+  const statusOwner = primary.children[2] as HTMLElement
+  const status = within(statusOwner).getByRole('button', { name: longStatus })
+  const statusToken = within(statusOwner).getByText('AED')
+  assert.match(statusOwner.className, /\bsize-11\b/)
+  assert.match(statusOwner.className, /\bflex-none\b/)
+  assert.doesNotMatch(statusOwner.className, /overflow-hidden|truncate/)
+  assert.match(status.className, /\bsize-11\b/)
+  assert.match(status.className, /bg-transparent/)
+  assert.doesNotMatch(statusToken.className, /overflow-hidden|truncate|text-clip/)
+  const rosie = within(primary).getByRole('button', { name: 'Chat with Rosie about JR-27' })
+  assert.match(rosie.className, /\bsize-11\b/)
+  assert.match(rosie.className, /\bflex-none\b/)
+
+  const secondary = view.container.querySelector('[data-mobile-request-secondary]') as HTMLElement
+  assert.ok(secondary)
+  assert.equal(within(primary).queryByRole('button', { name: 'Expand JR-27' }), null)
+  assert.ok(within(secondary).getByRole('button', { name: 'Expand JR-27' }))
+  assert.equal(secondary.textContent?.trim(), 'JR-27')
+  assert.equal(view.container.querySelector('[data-mobile-request-date]'), null)
+
+  // Structural budget only: the page's p-3 costs 24px, the card borders 2px,
+  // head px-3.5 costs 28px, three gap-1 gaps cost 12px, and Status + Rosie
+  // are two exact 44px tracks. The remainder is shared by the two basis-0,
+  // min-w-0 fields; even the 320px viewport leaves each 83px before ellipsis.
+  for (const width of [320, 390, 480]) {
+    await setViewport(width)
+    const flexibleWidth = (width - 24 - 2 - 28 - 12 - 88) / 2
+    assert.ok(flexibleWidth >= 80, `${width}px leaves ${flexibleWidth}px per flexible field`)
+    assert.equal(view.container.querySelectorAll('[data-mobile-request-primary]').length, 1)
+  }
+
+  let opened: unknown
+  window.addEventListener('lps:open-chat', (event) => {
+    opened = (event as CustomEvent).detail
+  }, { once: true })
+  await user.click(rosie)
+  assert.deepEqual(opened, {
+    agentId: 'rosie',
+    threadId: 'jr-27',
+    label: longRequest.name,
+  })
+
+  view.rerender(<StaticCard request={{
+    ...longRequest,
+    name: '   ',
+    customer: { ...longRequest.customer!, company: '   ', name: '  Renée Customer  ' },
+  }} mobile />)
+  let normalizedCustomer = view.container.querySelector('[data-mobile-request-customer]') as HTMLElement
+  let normalizedJob = view.container.querySelector('[data-mobile-request-job]') as HTMLAnchorElement
+  assert.equal(normalizedCustomer.textContent, 'Renée Customer')
+  assert.equal(normalizedCustomer.title, 'Renée Customer')
+  assert.equal(normalizedJob.textContent, 'JR-27')
+  assert.equal(normalizedJob.title, 'JR-27')
+  assert.equal(normalizedJob.getAttribute('aria-label'), 'Open JR-27')
+
+  view.rerender(<StaticCard request={{
+    ...longRequest,
+    name: '',
+    customer: { ...longRequest.customer!, company: '', name: '\t ' },
+  }} mobile />)
+  normalizedCustomer = view.container.querySelector('[data-mobile-request-customer]') as HTMLElement
+  normalizedJob = view.container.querySelector('[data-mobile-request-job]') as HTMLAnchorElement
+  assert.equal(normalizedCustomer.textContent, 'Unassigned customer')
+  assert.match(normalizedCustomer.className, /\btruncate\b/)
+  assert.equal(normalizedJob.textContent, 'JR-27')
+  assert.equal(normalizedJob.getAttribute('aria-label'), 'Open JR-27')
+})
+
+test('mobile status uses readable deterministic tokens with exact full accessible canonical and unknown labels', () => {
+  const canonical = [
+    ['sourcing', 'Sourcing', 'Src'],
+    ['quoted', 'Quote Delivered', 'QD'],
+    ['closed_won', 'Closed won', 'Won'],
+    ['closed_lost', 'Closed lost', 'Lost'],
+    ['archived', 'Archived', 'Arc'],
+  ] as const
+  const view = render(<StaticCard request={{ ...REQUEST, status: canonical[0][0] }} mobile />)
+  for (const [value, label, token] of canonical) {
+    view.rerender(<StaticCard request={{ ...REQUEST, status: value }} mobile />)
+    const owner = view.container.querySelector('[data-mobile-request-status]') as HTMLElement
+    const button = within(owner).getByRole('button', { name: label })
+    const visible = owner.querySelector('[data-compact-status-token]') as HTMLElement
+    assert.equal(visible.textContent, token)
+    assert.equal(button.getAttribute('aria-label'), label)
+    assert.match(button.className, /\bsize-11\b/)
+    assert.equal(owner.querySelector('svg'), null)
+    assert.doesNotMatch(owner.className, /overflow-hidden|truncate/)
+    assert.doesNotMatch(visible.className, /overflow-hidden|truncate|text-clip/)
+  }
+
+  for (const [value, label, token] of [
+    ['Awaiting extraordinarily detailed customer confirmation', 'Awaiting extraordinarily detailed customer confirmation', 'AED'],
+    ['状态等待', '状态等待', '状态等'],
+    ['   ', 'Unknown status', '?'],
+    ['', 'Unknown status', '?'],
+  ]) {
+    view.rerender(<StaticCard request={{ ...REQUEST, status: value }} mobile />)
+    const owner = view.container.querySelector('[data-mobile-request-status]') as HTMLElement
+    const visible = owner.querySelector('[data-compact-status-token]') as HTMLElement
+    assert.equal(visible.textContent, token)
+    assert.doesNotMatch(visible.className, /overflow-hidden|truncate|text-clip/)
+    assert.ok(within(owner).getByRole('button', { name: label }))
+  }
+})
+
+test('actual compact status picker opens by pointer and keyboard, keeps full state labels and closes accessibly inside phone bounds', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<StaticCard request={{ ...REQUEST, status: 'quoted' }} mobile />)
+  const trigger = view.getByRole('button', { name: 'Quote Delivered' })
+  const outside = document.createElement('button')
+  outside.type = 'button'
+  outside.textContent = 'Outside status picker'
+  document.body.appendChild(outside)
+  const expectedLabels = ['Sourcing', 'Quote Delivered', 'Closed won', 'Closed lost', 'Archived']
+  assert.equal(REQUEST_STATUS_OPTIONS.find((option) => option.label === 'Quote Delivered')?.value, 'quoted')
+
+  const assertOpenWithin = async (viewport: number) => {
+    const menu = await waitFor(() => view.getByRole('menu', { name: 'Choose status for Quote Delivered' }))
+    const left = Number.parseFloat(menu.style.left)
+    const menuWidth = Number.parseFloat(menu.style.width)
+    assert.equal(menuWidth, 190)
+    assert.ok(left >= 8)
+    assert.ok(left + menuWidth <= viewport - 8)
+    assert.match(menu.className, /\bfixed\b/)
+    const options = within(menu).getAllByRole('menuitemradio')
+    assert.deepEqual(options.map((option) => option.textContent?.trim()), expectedLabels)
+    assert.equal(within(menu).getByRole('menuitemradio', { name: 'Quote Delivered' }).getAttribute('aria-checked'), 'true')
+    assert.doesNotMatch((view.container.querySelector('[data-mobile-request-status]') as HTMLElement).className, /overflow-hidden/)
+    return menu
+  }
+
+  await setViewport(320)
+  await user.click(trigger)
+  const pointerMenu = await assertOpenWithin(320)
+  await user.click(within(pointerMenu).getByRole('menuitemradio', { name: 'Quote Delivered' }))
+  assert.equal(view.queryByRole('menu'), null)
+  assert.equal(document.activeElement, trigger)
+  assert.equal(trigger.getAttribute('aria-label'), 'Quote Delivered')
+  assert.equal((view.container.querySelector('[data-compact-status-token]') as HTMLElement).textContent, 'QD')
+
+  await setViewport(390)
+  trigger.focus()
+  await user.keyboard('{Enter}')
+  await assertOpenWithin(390)
+  await user.tab()
+  assert.equal(document.activeElement, view.getByRole('menuitemradio', { name: 'Sourcing' }))
+  await user.keyboard('{Escape}')
+  assert.equal(view.queryByRole('menu'), null)
+  assert.equal(document.activeElement, trigger)
+
+  await setViewport(480)
+  trigger.focus()
+  await user.keyboard(' ')
+  const spaceMenu = await assertOpenWithin(480)
+  const lastOption = within(spaceMenu).getByRole('menuitemradio', { name: 'Archived' })
+  lastOption.focus()
+  await user.tab()
+  assert.equal(view.queryByRole('menu'), null)
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'Chat with Rosie about JR-27' }))
+
+  trigger.focus()
+  await user.keyboard(' ')
+  await assertOpenWithin(480)
+  await user.click(outside)
+  assert.equal(view.queryByRole('menu'), null)
+  assert.equal(document.activeElement, outside)
+  assert.equal(trigger.getAttribute('aria-label'), 'Quote Delivered')
+  assert.equal((view.container.querySelector('[data-compact-status-token]') as HTMLElement).textContent, 'QD')
+  outside.remove()
+})
+
+test('Last updated is absent from mobile summary and closed details, appears only inside the disclosure, and never comes from notes', async () => {
+  const user = userEvent.setup({ document })
+  const dated: JobRequestRow = {
+    ...REQUEST,
+    notes: [{ kind: 'internal', stamp: '2026-08-03 09:00', text: 'Possible install 8/8/26; Pickup discussed.' }],
+  }
+  const view = render(<StaticCard request={dated} mobile />)
+  const secondary = view.container.querySelector('[data-mobile-request-secondary]') as HTMLElement
+  assert.equal(secondary.textContent?.trim(), 'JR-27')
+  assert.doesNotMatch(secondary.textContent ?? '', /Aug|2026|8\/8\/26|Pickup/)
+  assert.equal(view.container.querySelector('[data-mobile-request-date]'), null)
+  assert.equal(view.queryByText('Last updated'), null)
+  assert.ok(view.getByText('Possible install 8/8/26; Pickup discussed.'))
+
+  view.rerender(<StaticCard request={dated} mobile expanded />)
+  let details = view.getByRole('button', { name: /More details & notes/ })
+  assert.equal(details.getAttribute('aria-expanded'), 'false')
+  assert.equal(view.container.querySelector('[data-request-last-updated]'), null)
+  assert.equal(view.queryByText('Aug 2, 2026'), null)
+
+  await user.click(details)
+  let lastUpdated = view.container.querySelector('[data-request-last-updated]') as HTMLElement
+  assert.ok(lastUpdated)
+  assert.ok(within(lastUpdated).getByText('Last updated'))
+  const timestamp = within(lastUpdated).getByText('Aug 2, 2026')
+  assert.equal(timestamp.tagName, 'TIME')
+  assert.equal(timestamp.getAttribute('datetime'), dated.updatedAt)
+  assert.doesNotMatch(lastUpdated.textContent ?? '', /8\/8\/26|Pickup/)
+
+  details = view.getByRole('button', { name: /More details & notes/ })
+  await user.click(details)
+  assert.equal(view.container.querySelector('[data-request-last-updated]'), null)
+
+  view.rerender(<StaticCard request={{ ...dated, updatedAt: null }} mobile expanded />)
+  await user.click(view.getByRole('button', { name: /More details & notes/ }))
+  lastUpdated = view.container.querySelector('[data-request-last-updated]') as HTMLElement
+  assert.ok(within(lastUpdated).getByText('Not recorded'))
+  assert.equal(lastUpdated.querySelector('time'), null)
+  await user.click(view.getByRole('button', { name: /More details & notes/ }))
+
+  view.rerender(<StaticCard request={dated} mobile={false} />)
+  const desktopDate = view.getByText('Aug 2, 2026')
+  assert.equal(desktopDate.getAttribute('title'), 'Created Aug 1, 2026')
+})
+
+test('collapsed mobile card shows only exact Pending count while desktop and expanded mobile retain every plant status', () => {
+  const counts = { pending: 7, available: 6, alternative_proposed: 5, unavailable: 4 }
+  const request = { ...REQUEST, itemCount: 22, statusCounts: counts }
+  const view = render(<StaticCard request={request} mobile />)
+  const pending = view.container.querySelector('[data-mobile-pending-summary]') as HTMLElement
+  assert.ok(pending)
+  assert.match(pending.textContent ?? '', /7\s*Pending/)
+  for (const hidden of ['Available', 'Substituted', 'Unavailable']) {
+    assert.equal(within(pending).queryByText(hidden), null)
+    assert.equal(view.queryByText(hidden), null)
+  }
+  assert.match(pending.className, /\bmax-w-full\b/)
+  assert.match(pending.className, /\boverflow-hidden\b/)
+
+  view.rerender(<StaticCard request={request} mobile={false} />)
+  assert.equal(view.container.querySelector('[data-mobile-pending-summary]'), null)
+  for (const [label, count] of [['Pending', 7], ['Available', 6], ['Substituted', 5], ['Unavailable', 4]] as const) {
+    assert.ok(view.getByText(label))
+    assert.ok(view.getByText(String(count)))
+  }
+
+  view.rerender(<StaticCard request={request} mobile expanded />)
+  assert.equal(view.container.querySelector('[data-mobile-pending-summary]'), null)
+  for (const label of ['Pending', 'Available', 'Substituted', 'Unavailable']) {
+    assert.ok(view.getByText(label))
+  }
+})
 
 function CardDeleteHarness({ fetcher }: { fetcher: typeof fetch }) {
   const [expanded, setExpanded] = useState(false)
