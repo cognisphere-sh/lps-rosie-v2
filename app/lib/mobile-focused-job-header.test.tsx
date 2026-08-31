@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import React from 'react'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { JSDOM } from 'jsdom'
 
 import {
   FocusedJobHeader,
   focusedJobChatChoices,
+  focusedJobChatMenuPosition,
   formatEstimatedProjectDate,
   type FocusedJobChatTarget,
 } from '../components/workspace/focused-job-header.tsx'
@@ -31,6 +32,10 @@ beforeEach(() => {
     getComputedStyle: win.getComputedStyle,
     IS_REACT_ACT_ENVIRONMENT: true,
   })) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
+  win.HTMLElement.prototype.getBoundingClientRect = () => ({
+    left: 20, right: 64, top: 20, bottom: 64, width: 44, height: 44,
+    x: 20, y: 20, toJSON: () => ({}),
+  })
 })
 
 afterEach(() => {
@@ -221,14 +226,14 @@ test('chat choices normalize and dedupe existing routes in stable first-seen ord
       onOpenRosie={(target) => { opened = target }} />,
   )
   fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  assert.equal(view.queryByRole('button', { name: 'Supplier chat · Different duplicate label' }), null)
-  assert.equal(view.queryByRole('button', { name: 'Supplier chat · Blank' }), null)
-  assert.equal(view.queryByRole('button', { name: 'Supplier chat · Job collision' }), null)
-  fireEvent.click(view.getByRole('button', { name: 'Supplier chat · First label' }))
+  assert.equal(view.queryByRole('menuitem', { name: 'Supplier chat · Different duplicate label' }), null)
+  assert.equal(view.queryByRole('menuitem', { name: 'Supplier chat · Blank' }), null)
+  assert.equal(view.queryByRole('menuitem', { name: 'Supplier chat · Job collision' }), null)
+  fireEvent.click(view.getByRole('menuitem', { name: 'Supplier chat · First label' }))
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'supplier-shared', label: 'First label' })
 })
 
-test('mobile 44px no-tooltip icon opens exact Job-first and multiple supplier chat choices without ARs', () => {
+test('mobile 44px Rosie avatar opens an exact Job-first anchored menu with supplier routes and no modal chrome', () => {
   const linked = request('Patio')
   linked.supplierLinks = [
     {
@@ -248,127 +253,441 @@ test('mobile 44px no-tooltip icon opens exact Job-first and multiple supplier ch
   ]
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader
-      request={linked}
-      mobile
-      projectDate={null}
-      status={status}
-      preview={preview}
-      onOpenRosie={(target) => { opened = target }}
-    />,
+    <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
+      onOpenRosie={(target) => { opened = target }} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
   assert.match(trigger.className, /size-11/)
   assert.equal(trigger.getAttribute('title'), null)
   assert.equal(trigger.textContent, '')
-  assert.equal(trigger.getAttribute('aria-haspopup'), 'dialog')
+  assert.equal(trigger.getAttribute('aria-haspopup'), 'menu')
   assert.equal(trigger.getAttribute('aria-expanded'), 'false')
-  assert.equal(view.container.querySelector('[data-focused-job-header="mobile"] img'), null)
+  assert.equal(trigger.querySelectorAll('img').length, 1)
 
   fireEvent.click(trigger)
-  const dialog = view.getByRole('dialog', { name: 'Choose a chat' })
-  assert.equal(dialog.getAttribute('aria-modal'), 'true')
+  const menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
   assert.equal(trigger.getAttribute('aria-expanded'), 'true')
-  assert.equal(trigger.getAttribute('aria-controls'), dialog.id)
-  const job = view.getByRole('button', { name: 'Job chat · JR-27' })
-  const supplierOne = view.getByRole('button', { name: 'Supplier chat · Hill Country Native Plant Supply' })
-  const supplierTwo = view.getByRole('button', { name: 'Supplier chat · Oak & Stone Nursery' })
-  assert.deepEqual(
-    [job, supplierOne, supplierTwo].map((option) => option.textContent?.trim()),
-    ['Job chat · JR-27', 'Supplier chat · Hill Country Native Plant Supply', 'Supplier chat · Oak & Stone Nursery'],
-  )
-  assert.equal(document.activeElement, job)
-  assert.equal(view.queryByRole('button', { name: /AR-803|AR-804/ }), null)
+  assert.equal(trigger.getAttribute('aria-controls'), menu.id)
+  assert.equal(view.queryByText('Choose a chat'), null)
+  assert.equal(view.queryByRole('button', { name: /Close chat chooser/ }), null)
+  const items = view.getAllByRole('menuitem')
+  assert.deepEqual(items.map((item) => item.textContent?.trim()), [
+    'Job chat · JR-27',
+    'Supplier chat · Hill Country Native Plant Supply',
+    'Supplier chat · Oak & Stone Nursery',
+  ])
+  assert.equal(document.activeElement, items[0])
+  assert.equal(view.queryByRole('menuitem', { name: /AR-803|AR-804/ }), null)
 
-  fireEvent.click(supplierTwo)
+  fireEvent.click(view.getByRole('menuitem', { name: 'Supplier chat · Oak & Stone Nursery' }))
   assert.deepEqual(opened, {
     agentId: 'rosie',
     threadId: 'supplier-oak-stone-nursery',
     label: 'Oak & Stone Nursery',
   })
-  assert.equal(view.queryByRole('dialog', { name: 'Choose a chat' }), null)
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
   assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-  assert.equal(window.location.href, 'http://localhost/jobs?jr=27')
 })
 
-test('reflected inert property restores exact legacy/absent attributes on Close, select, cross and unmount', () => {
-  const reflectedLegacy = document.createElement('div')
-  const reflectedAbsent = document.createElement('div')
-  const attributeOnly = document.createElement('div')
-  const reflectInert = (element: HTMLElement) => Object.defineProperty(element, 'inert', {
-    configurable: true,
-    get: () => element.hasAttribute('inert'),
-    set: (value: boolean) => {
-      if (value) element.setAttribute('inert', '')
-      else element.removeAttribute('inert')
-    },
+test('zero-supplier trigger and menu support Arrow open plus Enter on the canonical Job route', () => {
+  let opened: FocusedJobChatTarget | null = null
+  const view = render(
+    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview}
+      onOpenRosie={(target) => { opened = target }} />,
+  )
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  trigger.focus()
+  fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+  const menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  const job = view.getByRole('menuitem', { name: 'Job chat · JR-27' })
+  assert.equal(view.getAllByRole('menuitem').length, 1)
+  assert.equal(document.activeElement, job)
+  fireEvent.keyDown(menu, { key: 'Enter' })
+  assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: 'Patio' })
+})
+
+test('menu keyboard navigation wraps, supports Home/End/Space, and routes the focused item', () => {
+  const linked = request('Patio')
+  linked.supplierLinks = [
+    { supplierId: 1, name: 'Supplier One', lpsPartner: true, availabilityRequests: [], rosieThreadId: 'supplier-one' },
+    { supplierId: 2, name: 'Supplier Two', lpsPartner: true, availabilityRequests: [], rosieThreadId: 'supplier-two' },
+  ]
+  let opened: FocusedJobChatTarget | null = null
+  const view = render(
+    <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
+      onOpenRosie={(target) => { opened = target }} />,
+  )
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  trigger.focus()
+  fireEvent.keyDown(trigger, { key: 'ArrowUp' })
+  const menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  const job = view.getByRole('menuitem', { name: 'Job chat · JR-27' })
+  const one = view.getByRole('menuitem', { name: 'Supplier chat · Supplier One' })
+  const two = view.getByRole('menuitem', { name: 'Supplier chat · Supplier Two' })
+  assert.equal(document.activeElement, two)
+  fireEvent.keyDown(menu, { key: 'Home' })
+  assert.equal(document.activeElement, job)
+  fireEvent.keyDown(menu, { key: 'ArrowDown' })
+  assert.equal(document.activeElement, one)
+  fireEvent.keyDown(menu, { key: 'End' })
+  assert.equal(document.activeElement, two)
+  fireEvent.keyDown(menu, { key: 'ArrowDown' })
+  assert.equal(document.activeElement, job)
+  fireEvent.keyDown(menu, { key: 'ArrowUp' })
+  assert.equal(document.activeElement, two)
+  fireEvent.keyDown(menu, { key: ' ' })
+  assert.deepEqual(opened, { agentId: 'rosie', threadId: 'supplier-two', label: 'Supplier Two' })
+})
+
+test('anchored menu clamps inward and chooses above or below from viewport space', () => {
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 4, right: 48, top: 20, bottom: 64 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 8, width: 288, maxHeight: 144, top: 70 },
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: 420, bottom: 464 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 24, width: 288, maxHeight: 144, bottom: 66 },
+  )
+  assert.equal(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: -60, bottom: -16 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    null,
+  )
+  assert.equal(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: -44, bottom: 0 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    null,
+  )
+  assert.equal(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: 480, bottom: 524 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    null,
+  )
+  assert.equal(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: 496, bottom: 540 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    null,
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: -43, bottom: 1 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 24, width: 288, maxHeight: 144, top: 14 },
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: -36, bottom: 8 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 24, width: 288, maxHeight: 144, top: 14 },
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: 479, bottom: 523 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 24, width: 288, maxHeight: 144, bottom: 14 },
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 268, right: 312, top: 472, bottom: 516 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 24, width: 288, maxHeight: 144, bottom: 14 },
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: -20, right: 24, top: -16, bottom: 28 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 8, width: 288, maxHeight: 144, top: 34 },
+  )
+  assert.deepEqual(
+    focusedJobChatMenuPosition(
+      { left: 300, right: 344, top: 460, bottom: 504 },
+      { width: 320, height: 480 },
+      3,
+    ),
+    { left: 24, width: 288, maxHeight: 144, bottom: 26 },
+  )
+
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
+  const view = render(
+    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
+  )
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  trigger.getBoundingClientRect = () => ({
+    left: 268, right: 312, top: 420, bottom: 464, width: 44, height: 44,
+    x: 268, y: 420, toJSON: () => ({}),
   })
-  reflectInert(reflectedLegacy)
-  reflectInert(reflectedAbsent)
-  reflectedLegacy.setAttribute('inert', 'legacy-value')
-  reflectedLegacy.setAttribute('aria-hidden', 'false')
-  attributeOnly.setAttribute('inert', 'attribute-only')
-  attributeOnly.setAttribute('aria-hidden', '')
-  document.body.append(reflectedLegacy, reflectedAbsent, attributeOnly)
-  document.body.style.overflow = 'clip'
-
-  const assertIsolated = () => {
-    const host = document.querySelector<HTMLElement>('[data-focused-job-chat-portal-host]')
-    assert.ok(host)
-    assert.equal(host.hasAttribute('inert'), false)
-    assert.equal(host.hasAttribute('aria-hidden'), false)
-    for (const sibling of [...document.body.children].filter((child) => child !== host) as HTMLElement[]) {
-      assert.equal(sibling.getAttribute('inert'), '')
-      assert.equal((sibling as HTMLElement & { inert: boolean }).inert, true)
-      assert.equal(sibling.getAttribute('aria-hidden'), 'true')
-    }
-    assert.equal(document.body.style.overflow, 'hidden')
-  }
-  const assertRestored = () => {
-    assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-    assert.equal(document.body.style.overflow, 'clip')
-    assert.equal(reflectedLegacy.getAttribute('inert'), 'legacy-value')
-    assert.equal((reflectedLegacy as HTMLElement & { inert: boolean }).inert, true)
-    assert.equal(reflectedLegacy.getAttribute('aria-hidden'), 'false')
-    assert.equal(reflectedAbsent.hasAttribute('inert'), false)
-    assert.equal((reflectedAbsent as HTMLElement & { inert: boolean }).inert, false)
-    assert.equal(reflectedAbsent.hasAttribute('aria-hidden'), false)
-    assert.equal(attributeOnly.getAttribute('inert'), 'attribute-only')
-    assert.equal('inert' in attributeOnly, false)
-    assert.equal(attributeOnly.getAttribute('aria-hidden'), '')
-  }
-  const props = { request: request('Patio'), projectDate: null, status, preview }
-
-  let view = render(<FocusedJobHeader {...props} mobile />)
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  assertIsolated()
-  fireEvent.click(view.getByRole('button', { name: 'Close chat chooser' }))
-  assertRestored()
-  view.unmount()
-
-  view = render(<FocusedJobHeader {...props} mobile onOpenRosie={() => undefined} />)
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  assertIsolated()
-  fireEvent.click(view.getByRole('button', { name: 'Job chat · JR-27' }))
-  assertRestored()
-  view.unmount()
-
-  view = render(<FocusedJobHeader {...props} mobile />)
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  assertIsolated()
-  view.rerender(<FocusedJobHeader {...props} mobile={false} />)
-  assertRestored()
-  view.unmount()
-
-  view = render(<FocusedJobHeader {...props} mobile />)
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  assertIsolated()
-  view.unmount()
-  assertRestored()
+  fireEvent.click(trigger)
+  const menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  assert.equal(menu.style.left, '24px')
+  assert.equal(menu.style.width, '288px')
+  assert.equal(menu.style.bottom, '66px')
+  assert.equal(menu.style.top, '')
+  assert.equal(menu.style.maxHeight, '56px')
 })
 
-test('tall chooser bounds and scrolls options while the last 44px supplier stays focusable and routable', () => {
+test('captured scroll and resize dismiss fully offscreen anchors without refocusing them or leaving listeners', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
+  const view = render(
+    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
+  )
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  let box = { left: 268, right: 312, top: 20, bottom: 64 }
+  let measurements = 0
+  trigger.getBoundingClientRect = () => {
+    measurements++
+    return {
+      ...box,
+      width: 44,
+      height: 44,
+      x: box.left,
+      y: box.top,
+      toJSON: () => ({}),
+    }
+  }
+
+  fireEvent.click(trigger)
+  const menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  const host = document.querySelector('[data-focused-job-chat-portal-host]')
+  assert.ok(host)
+  for (const partial of [
+    { box: { left: 268, right: 312, top: -43, bottom: 1 }, edge: 'top' as const },
+    { box: { left: 268, right: 312, top: -36, bottom: 8 }, edge: 'top' as const },
+    { box: { left: 268, right: 312, top: 479, bottom: 523 }, edge: 'bottom' as const },
+    { box: { left: 268, right: 312, top: 472, bottom: 516 }, edge: 'bottom' as const },
+  ]) {
+    box = partial.box
+    fireEvent.scroll(window)
+    assert.equal(trigger.getAttribute('aria-expanded'), 'true')
+    assert.equal(view.getByRole('menu', { name: 'Rosie chats for JR-27' }), menu)
+    assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), host)
+    assert.equal(partial.edge === 'top' ? menu.style.top : menu.style.bottom, '14px')
+    assert.equal(menu.style.left, '24px')
+    assert.equal(menu.style.width, '288px')
+  }
+
+  box = { left: 268, right: 312, top: -60, bottom: -16 }
+  fireEvent.scroll(window)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false')
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
+  assert.notEqual(document.activeElement, trigger)
+  const afterAboveDismiss = measurements
+  fireEvent.scroll(window)
+  fireEvent.resize(window)
+  assert.equal(measurements, afterAboveDismiss)
+
+  box = { left: 268, right: 312, top: 20, bottom: 64 }
+  fireEvent.click(trigger)
+  assert.ok(view.getByRole('menu', { name: 'Rosie chats for JR-27' }))
+  box = { left: 268, right: 312, top: 496, bottom: 540 }
+  fireEvent.resize(window)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false')
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
+  assert.notEqual(document.activeElement, trigger)
+  const afterBelowDismiss = measurements
+  fireEvent.scroll(window)
+  fireEvent.resize(window)
+  assert.equal(measurements, afterBelowDismiss)
+})
+
+test('exact zero-visible-pixel boundaries dismiss while one visible pixel remains eligible', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
+  const view = render(
+    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
+  )
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  let box = { left: 268, right: 312, top: -43, bottom: 1 }
+  trigger.getBoundingClientRect = () => ({
+    ...box,
+    width: 44,
+    height: 44,
+    x: box.left,
+    y: box.top,
+    toJSON: () => ({}),
+  })
+
+  fireEvent.click(trigger)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true')
+  box = { left: 268, right: 312, top: -44, bottom: 0 }
+  fireEvent.scroll(window)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false')
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
+
+  box = { left: 268, right: 312, top: 479, bottom: 523 }
+  fireEvent.click(trigger)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true')
+  box = { left: 268, right: 312, top: 480, bottom: 524 }
+  fireEvent.resize(window)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false')
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
+})
+
+test('same-mounted supplier refresh updates and clamps the live menu without replacing its portal host', () => {
+  const supplier = (supplierId: number, name: string, rosieThreadId: string) => ({
+    supplierId,
+    name,
+    lpsPartner: true,
+    availabilityRequests: [],
+    rosieThreadId,
+  })
+  const refreshed = (supplierLinks: JobRequestRow['supplierLinks']) => {
+    const next = request('Patio')
+    next.supplierLinks = supplierLinks
+    return next
+  }
+  const a = supplier(1, 'Supplier A', 'supplier-a')
+  const b = supplier(2, 'Supplier B', 'supplier-b')
+  const c = supplier(3, 'Supplier C', 'supplier-c')
+  const props = { mobile: true, projectDate: null, status, preview }
+  const view = render(<FocusedJobHeader {...props} request={refreshed([a])} />)
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  fireEvent.click(trigger)
+  const host = document.querySelector<HTMLElement>('[data-focused-job-chat-portal-host]')
+  const surface = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  assert.ok(host)
+  assert.equal(document.activeElement, view.getByRole('menuitem', { name: 'Job chat · JR-27' }))
+
+  view.rerender(<FocusedJobHeader {...props} request={refreshed([a, b, c])} />)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), host)
+  assert.equal(view.getByRole('menu', { name: 'Rosie chats for JR-27' }), surface)
+  assert.equal(host.isConnected, true)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true')
+  assert.deepEqual(view.getAllByRole('menuitem').map((item) => item.textContent?.trim()), [
+    'Job chat · JR-27',
+    'Supplier chat · Supplier A',
+    'Supplier chat · Supplier B',
+    'Supplier chat · Supplier C',
+  ])
+  assert.equal(document.activeElement, view.getByRole('menuitem', { name: 'Job chat · JR-27' }))
+
+  act(() => view.getByRole('menuitem', { name: 'Supplier chat · Supplier C' }).focus())
+  view.rerender(<FocusedJobHeader {...props} request={refreshed([
+    a,
+    supplier(4, 'Duplicate A', ' supplier-a '),
+    b,
+  ])} />)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), host)
+  assert.equal(view.getByRole('menu', { name: 'Rosie chats for JR-27' }), surface)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true')
+  assert.deepEqual(view.getAllByRole('menuitem').map((item) => item.textContent?.trim()), [
+    'Job chat · JR-27',
+    'Supplier chat · Supplier A',
+    'Supplier chat · Supplier B',
+  ])
+  assert.equal(document.activeElement, view.getByRole('menuitem', { name: 'Supplier chat · Supplier B' }))
+
+  view.rerender(<FocusedJobHeader {...props} request={refreshed([])} />)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), host)
+  assert.equal(view.getByRole('menu', { name: 'Rosie chats for JR-27' }), surface)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'true')
+  assert.deepEqual(view.getAllByRole('menuitem').map((item) => item.textContent?.trim()), ['Job chat · JR-27'])
+  assert.equal(document.activeElement, view.getByRole('menuitem', { name: 'Job chat · JR-27' }))
+
+  fireEvent.click(trigger)
+  assert.equal(trigger.getAttribute('aria-expanded'), 'false')
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.equal(host.isConnected, false)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
+})
+
+test('outside pointer, Escape, Tab, repeated open and breakpoint cleanup follow menu dismissal semantics', async () => {
+  const props = { request: request('Patio'), projectDate: null, status, preview }
+  const view = render(<FocusedJobHeader {...props} mobile />)
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+
+  fireEvent.click(trigger)
+  let menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  let globalEscapes = 0
+  const globalEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') globalEscapes++ }
+  document.addEventListener('keydown', globalEscape)
+  fireEvent.keyDown(menu, { key: 'Escape' })
+  document.removeEventListener('keydown', globalEscape)
+  assert.equal(globalEscapes, 0)
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.equal(document.activeElement, trigger)
+
+  fireEvent.click(trigger)
+  fireEvent.pointerDown(document.body)
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.equal(document.activeElement, trigger)
+
+  fireEvent.click(trigger)
+  menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  fireEvent.keyDown(menu, { key: 'Tab' })
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.notEqual(document.activeElement, trigger)
+
+  fireEvent.click(trigger)
+  assert.equal(document.activeElement, view.getByRole('menuitem', { name: 'Job chat · JR-27' }))
+  view.rerender(<FocusedJobHeader {...props} mobile={false} />)
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
+  assert.ok(view.getByText('Chat with Rosie'))
+  view.rerender(<FocusedJobHeader {...props} mobile />)
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
+  assert.ok(view.getByRole('menu', { name: 'Rosie chats for JR-27' }))
+})
+
+test('Tab and Shift+Tab dismiss the body-portal menu into the trigger’s document-order neighbours', () => {
+  const view = render(
+    <div>
+      <button type="button">Before Rosie</button>
+      <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />
+      <button type="button">After Rosie</button>
+    </div>,
+  )
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  fireEvent.click(trigger)
+  let menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  fireEvent.keyDown(menu, { key: 'Tab' })
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'After Rosie' }))
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+
+  fireEvent.click(trigger)
+  menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  fireEvent.keyDown(menu, { key: 'Tab', shiftKey: true })
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'Before Rosie' }))
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
+})
+
+test('tall anchored menu scrolls and End plus Enter reaches the last 44px supplier', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
   const linked = request('Patio')
   linked.supplierLinks = Array.from({ length: 48 }, (_, index) => ({
     supplierId: index + 1,
@@ -382,117 +701,22 @@ test('tall chooser bounds and scrolls options while the last 44px supplier stays
     <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
       onOpenRosie={(target) => { opened = target }} />,
   )
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  const dialog = view.getByRole('dialog', { name: 'Choose a chat' })
-  const header = view.getByText('Choose a chat').parentElement
-  const options = document.querySelector<HTMLElement>('[data-focused-job-chat-options]')
-  assert.ok(header)
-  assert.ok(options)
-  assert.match(dialog.className, /max-h-\[calc\(100dvh-1\.5rem\)\]/)
-  assert.match(dialog.className, /flex-col/)
-  assert.match(header.className, /sticky/)
-  assert.match(header.className, /flex-none/)
-  assert.match(options.className, /min-h-0/)
-  assert.match(options.className, /overflow-y-auto/)
-  assert.equal(options.querySelectorAll('button').length, 49)
-  const last = view.getByRole('button', { name: 'Supplier chat · Supplier 48' })
+  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
+  trigger.getBoundingClientRect = () => ({
+    left: 338, right: 382, top: 200, bottom: 244, width: 44, height: 44,
+    x: 338, y: 200, toJSON: () => ({}),
+  })
+  fireEvent.click(trigger)
+  const menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
+  assert.match(menu.className, /overflow-y-auto/)
+  assert.equal(menu.style.maxHeight, '222px')
+  assert.equal(view.getAllByRole('menuitem').length, 49)
+  fireEvent.keyDown(menu, { key: 'End' })
+  const last = view.getByRole('menuitem', { name: 'Supplier chat · Supplier 48' })
   assert.match(last.className, /min-h-11/)
-  last.focus()
   assert.equal(document.activeElement, last)
-  fireEvent.click(last)
+  fireEvent.keyDown(menu, { key: 'Enter' })
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'supplier-48', label: 'Supplier 48' })
-  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-})
-
-test('zero-supplier chooser supports keyboard opening/activation of the canonical Job chat without inventing another destination', async () => {
-  let opened: FocusedJobChatTarget | null = null
-  const view = render(
-    <FocusedJobHeader
-      request={request('Patio')}
-      mobile
-      projectDate={null}
-      status={status}
-      preview={preview}
-      onOpenRosie={(target) => { opened = target }}
-    />,
-  )
-  const user = userEvent.setup({ document })
-  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
-  trigger.focus()
-  await user.keyboard('{Enter}')
-  const dialog = view.getByRole('dialog', { name: 'Choose a chat' })
-  assert.equal(dialog.querySelectorAll('button').length, 2) // Close + Job chat.
-  assert.equal(view.queryByRole('button', { name: /Supplier chat/ }), null)
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Job chat · JR-27' }))
-  await user.keyboard('{Enter}')
-  assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: 'Patio' })
-  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-})
-
-test('chooser contains focus, dismisses predictably, returns focus, repeats, and unmounts at desktop', () => {
-  const props = {
-    request: request('Patio'),
-    projectDate: null,
-    status,
-    preview,
-  }
-  const view = render(<FocusedJobHeader {...props} mobile />)
-  const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
-
-  fireEvent.click(trigger)
-  let dialog = view.getByRole('dialog', { name: 'Choose a chat' })
-  let close = view.getByRole('button', { name: 'Close chat chooser' })
-  let job = view.getByRole('button', { name: 'Job chat · JR-27' })
-  assert.match(close.className, /size-11/)
-  close.focus()
-  fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
-  assert.equal(document.activeElement, job)
-  fireEvent.keyDown(dialog, { key: 'Tab' })
-  assert.equal(document.activeElement, close)
-  let globalEscapes = 0
-  const globalEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') globalEscapes++ }
-  document.addEventListener('keydown', globalEscape)
-  fireEvent.keyDown(dialog, { key: 'Escape' })
-  document.removeEventListener('keydown', globalEscape)
-  assert.equal(globalEscapes, 0)
-  assert.equal(view.queryByRole('dialog', { name: 'Choose a chat' }), null)
-  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-  assert.equal(document.activeElement, trigger)
-
-  fireEvent.click(trigger)
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Job chat · JR-27' }))
-  fireEvent.click(view.getByRole('button', { name: 'Close chat chooser' }))
-  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-  assert.equal(document.activeElement, trigger)
-
-  fireEvent.click(trigger)
-  const backdrop = document.querySelector<HTMLElement>('[data-focused-job-chat-backdrop]')
-  assert.ok(backdrop)
-  fireEvent.pointerDown(backdrop)
-  assert.equal(view.queryByRole('dialog', { name: 'Choose a chat' }), null)
-  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-  assert.equal(document.activeElement, trigger)
-
-  fireEvent.click(trigger)
-  assert.ok(view.getByRole('dialog', { name: 'Choose a chat' }))
-  view.rerender(<FocusedJobHeader {...props} mobile={false} />)
-  assert.equal(view.queryByRole('dialog', { name: 'Choose a chat' }), null)
-  assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.equal(document.body.style.overflow, '')
-  assert.equal(view.queryByRole('button', { name: 'Choose a Rosie chat for JR-27' }), null)
-  assert.ok(view.getByText('Chat with Rosie'))
-  view.rerender(<FocusedJobHeader {...props} mobile />)
-  assert.equal(view.queryByRole('dialog', { name: 'Choose a chat' }), null)
-  fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
-  dialog = view.getByRole('dialog', { name: 'Choose a chat' })
-  close = view.getByRole('button', { name: 'Close chat chooser' })
-  job = view.getByRole('button', { name: 'Job chat · JR-27' })
-  assert.ok(dialog && close && job)
 })
 
 test('desktop branch preserves the labelled avatar treatment, direct canonical route, truncating name and no EPD refinement', () => {
@@ -506,7 +730,7 @@ test('desktop branch preserves the labelled avatar treatment, direct canonical r
   assert.match(view.getByText(longName).className, /truncate/)
   fireEvent.click(view.getByRole('button', { name: 'Chat with Rosie' }))
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: longName })
-  assert.equal(view.queryByRole('dialog', { name: 'Choose a chat' }), null)
+  assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
   assert.equal(view.container.querySelectorAll('img').length, 1)
   assert.equal(view.queryByText('EPD: 8/30/26'), null)
   assert.ok(view.getByTestId('status'))

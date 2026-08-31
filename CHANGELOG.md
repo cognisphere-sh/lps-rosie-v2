@@ -25,19 +25,22 @@ here).
   the JR reference is secondary, the full Job name wraps without truncation or
   page overflow, the status stays compact, and the focused `RequestLinks`
   preview wraps long supplier names plus every AR segment within the phone
-  width. One 44px icon-only, accessibly named chat bubble opens a contained
-  chooser: exact Job chat first, then each stored linked-supplier chat, all
-  routing to their separate existing Rosie threads. Stored thread ids are
-  trimmed once; blank/Job-colliding ids are omitted and normalized duplicates
-  keep the first supplier in stable source order. Supplier chat is not
-  duplicated in the lower preview, ARs remain drawer actions and no thread is
-  merged, minted or substituted. A dedicated portal host is excluded while all
-  body siblings’ exact inert attribute/property and aria state plus body
-  overflow are snapshot, isolated and restored on every exit/unmount. The
-  bounded `100dvh` surface keeps a fixed header above independently scrolling
-  44px options, and supports keyboard/touch, trapped focus, consumed Escape,
-  backdrop/Close dismissal, focus return, repeated opening and breakpoint
-  unmount without changing desktop/global chat. Only a strictly
+  width. One 44px icon-only, accessibly named Rosie avatar with no tooltip
+  opens a compact anchored menu: exact Job chat first, then each stored
+  linked-supplier chat, all routing to their separate existing Rosie threads.
+  Stored thread ids are trimmed once; blank/Job-colliding ids are omitted and
+  normalized duplicates keep the first supplier in stable source order.
+  Supplier chat is not duplicated in the lower preview, ARs remain drawer
+  actions and no thread is merged, minted or substituted. The menu has no
+  backdrop, visible heading, Close chrome, body isolation or scroll lock. It
+  aligns inward from the trigger, clamps all four edges to 8px viewport margins,
+  chooses above or below from available room, scrolls tall option lists, and
+  dismisses without refocusing a fully offscreen anchor. Live supplier refreshes
+  update/dedupe options in the same portal host and preserve or clamp active
+  focus without closing; accessible menu/menuitem semantics, Arrow Up/Down,
+  Home/End, Enter/Space, Tab, Escape,
+  outside pointer/touch dismissal, focus return/handoff, repeated opening and
+  breakpoint cleanup leave desktop/global chat unchanged. Only a strictly
   valid `YYYY-MM-DD` project calendar date is accepted
   and its captured components format directly as `EPD: M/D/YY`, without Date
   parsing, rollover or timezone conversion; the current schema has no such

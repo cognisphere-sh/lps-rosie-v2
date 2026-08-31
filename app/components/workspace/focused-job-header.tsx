@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { createPortal } from 'react-dom'
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { MessageSquare, X } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 
 import { openChat } from '@/lib/chat-bus'
 import { canonicalJobThread } from '@/lib/job-inbox'
@@ -19,6 +19,14 @@ export interface FocusedJobChatTarget {
 export interface FocusedJobChatChoice {
   label: string
   target: FocusedJobChatTarget
+}
+
+export interface FocusedJobChatMenuPosition {
+  left: number
+  width: number
+  maxHeight: number
+  top?: number
+  bottom?: number
 }
 
 /** A strict project calendar date, never a timestamp or Date-parse fallback. */
@@ -71,6 +79,35 @@ export function focusedJobChatChoices(
   return [{ label: `Job chat · ${requestRef(request.id)}`, target: job }, ...suppliers]
 }
 
+/** Fixed-position menu geometry: right-aligned where possible, clamped inward. */
+export function focusedJobChatMenuPosition(
+  trigger: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+  viewport: { width: number; height: number },
+  itemCount: number,
+): FocusedJobChatMenuPosition | null {
+  const margin = 8
+  const gap = 6
+  if (trigger.bottom <= 0 || trigger.top >= viewport.height) return null
+
+  const viewportRight = Math.max(margin, viewport.width - margin)
+  const viewportBottom = Math.max(margin, viewport.height - margin)
+  const width = Math.max(0, Math.min(288, viewportRight - margin))
+  const naturalHeight = itemCount * 44 + 12
+  const anchorTop = Math.min(Math.max(trigger.top, margin), viewportBottom)
+  const anchorBottom = Math.min(Math.max(trigger.bottom, margin), viewportBottom)
+  const belowTop = Math.min(Math.max(anchorBottom + gap, margin), viewportBottom)
+  const aboveBottom = Math.min(Math.max(viewport.height - anchorTop + gap, margin), viewportBottom)
+  const below = Math.max(0, viewportBottom - belowTop)
+  const above = Math.max(0, viewportBottom - aboveBottom)
+  const openAbove = naturalHeight > below && above > below
+  const maxHeight = Math.min(naturalHeight, openAbove ? above : below)
+  const maxLeft = Math.max(margin, viewportRight - width)
+  const left = Math.min(Math.max(trigger.right - width, margin), maxLeft)
+  return openAbove
+    ? { left, width, maxHeight, bottom: aboveBottom }
+    : { left, width, maxHeight, top: belowTop }
+}
+
 function FocusedJobChatChooser({
   request,
   onOpenRosie,
@@ -80,70 +117,51 @@ function FocusedJobChatChooser({
 }) {
   const [open, setOpen] = useState(false)
   const [portalHost, setPortalHost] = useState<HTMLDivElement | null>(null)
+  const [position, setPosition] = useState<FocusedJobChatMenuPosition | null>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
   const portalHostRef = useRef<HTMLDivElement | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
-  const surface = useRef<HTMLDivElement>(null)
-  const firstOption = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
   const restoreFocus = useRef(true)
-  const titleId = useId()
-  const dialogId = useId()
+  const initialFocus = useRef<'first' | 'last'>('first')
+  const activeIndexRef = useRef(0)
+  const focusedThreadRef = useRef<string | null>(null)
+  const menuOwnsFocus = useRef(false)
+  const choiceCountRef = useRef(0)
+  const menuId = useId()
   const choices = focusedJobChatChoices(request)
+  const choiceSignature = choices.map((choice) => `${choice.target.threadId}\u0000${choice.label}`).join('\u0001')
+  choiceCountRef.current = choices.length
 
-  useEffect(() => () => portalHostRef.current?.remove(), [])
-
-  useEffect(() => {
-    if (!open || !portalHost) return
-    const siblings = [...document.body.children]
-      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== portalHost)
-      .map((element) => ({
-        element,
-        hadInertAttribute: element.hasAttribute('inert'),
-        inertAttribute: element.getAttribute('inert'),
-        hadInertProperty: 'inert' in element,
-        inertProperty: (element as HTMLElement & { inert?: boolean }).inert,
-        hadAriaHidden: element.hasAttribute('aria-hidden'),
-        ariaHidden: element.getAttribute('aria-hidden'),
-      }))
-    const overflow = document.body.style.overflow
-
-    for (const snapshot of siblings) {
-      snapshot.element.setAttribute('inert', '')
-      ;(snapshot.element as HTMLElement & { inert: boolean }).inert = true
-      snapshot.element.setAttribute('aria-hidden', 'true')
+  const nextPosition = () => {
+    const box = trigger.current?.getBoundingClientRect()
+    if (!box) return null
+    return focusedJobChatMenuPosition(
+      box,
+      { width: window.innerWidth, height: window.innerHeight },
+      choiceCountRef.current,
+    )
+  }
+  const close = (restore = true) => {
+    restoreFocus.current = restore
+    setOpen(false)
+  }
+  const show = (focus: 'first' | 'last' = 'first') => {
+    if (open) {
+      close()
+      return
     }
-    document.body.style.overflow = 'hidden'
-    firstOption.current?.focus()
-
-    return () => {
-      for (const snapshot of siblings) {
-        // Chromium reflects `.inert` through the boolean attribute. Restore
-        // the property first, then put the exact captured attribute bytes back;
-        // doing this in the opposite order normalizes `inert="legacy-value"`.
-        if (snapshot.hadInertProperty) {
-          ;(snapshot.element as HTMLElement & { inert?: boolean }).inert = snapshot.inertProperty
-        } else {
-          Reflect.deleteProperty(snapshot.element, 'inert')
-        }
-        if (snapshot.hadInertAttribute) {
-          snapshot.element.setAttribute('inert', snapshot.inertAttribute ?? '')
-        } else {
-          snapshot.element.removeAttribute('inert')
-        }
-        if (snapshot.hadAriaHidden) {
-          snapshot.element.setAttribute('aria-hidden', snapshot.ariaHidden ?? '')
-        } else {
-          snapshot.element.removeAttribute('aria-hidden')
-        }
-      }
-      document.body.style.overflow = overflow
-      portalHost.remove()
-      if (portalHostRef.current === portalHost) portalHostRef.current = null
-      if (restoreFocus.current && trigger.current?.isConnected) trigger.current.focus()
-    }
-  }, [open, portalHost])
-
-  const show = () => {
+    const next = nextPosition()
+    if (!next) return
+    const focusIndex = focus === 'first' ? 0 : choices.length - 1
     restoreFocus.current = true
+    initialFocus.current = focus
+    activeIndexRef.current = focusIndex
+    focusedThreadRef.current = choices[focusIndex]?.target.threadId ?? null
+    setActiveIndex(focusIndex)
+    setPosition(next)
+    const oldHost = portalHostRef.current
+    if (oldHost?.isConnected) oldHost.remove()
     const host = document.createElement('div')
     host.dataset.focusedJobChatPortalHost = ''
     document.body.appendChild(host)
@@ -151,38 +169,142 @@ function FocusedJobChatChooser({
     setPortalHost(host)
     setOpen(true)
   }
-  const dismiss = () => {
-    restoreFocus.current = true
-    setOpen(false)
-  }
   const choose = (target: FocusedJobChatTarget) => {
     // The global chat sheet/panel owns focus after routing; do not pull focus
-    // back behind it as this chooser unmounts.
+    // back behind it as this menu unmounts.
     restoreFocus.current = false
+    menuOwnsFocus.current = false
     setOpen(false)
     onOpenRosie(target)
   }
-  const containFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+  const itemButtons = () => [
+    ...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []),
+  ]
+  const focusItem = (index: number) => {
+    const items = itemButtons()
+    if (!items.length) return
+    const next = (index + items.length) % items.length
+    activeIndexRef.current = next
+    focusedThreadRef.current = choices[next]?.target.threadId ?? null
+    menuOwnsFocus.current = true
+    setActiveIndex(next)
+    items[next].focus()
+  }
+  const tabAway = (backward: boolean) => {
+    const host = portalHostRef.current
+    const focusable = [...document.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )].filter((element) => !host?.contains(element) && element.getAttribute('aria-hidden') !== 'true')
+    const triggerIndex = trigger.current ? focusable.indexOf(trigger.current) : -1
+    const destination = focusable[triggerIndex + (backward ? -1 : 1)]
+    menuOwnsFocus.current = false
+    close(false)
+    if (destination) destination.focus()
+    else trigger.current?.blur()
+  }
+
+  // The host belongs only to this open instance. Supplier refreshes update the
+  // live portal contents below; they must never tear down and recreate its root.
+  useEffect(() => {
+    if (!open || !portalHost) return
+    const focusIndex = initialFocus.current === 'first' ? 0 : choiceCountRef.current - 1
+    focusItem(focusIndex)
+    return () => {
+      portalHost.remove()
+      if (portalHostRef.current === portalHost) portalHostRef.current = null
+      if (restoreFocus.current && trigger.current?.isConnected) trigger.current.focus()
+    }
+    // Opening captures one host and one initial focus target; refreshed options
+    // are reconciled by the choice-signature effect without changing this root.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, portalHost])
+
+  useEffect(() => {
+    if (!open || !portalHost) return
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (trigger.current?.contains(target) || menu.current?.contains(target)) return
+      close()
+    }
+    const reposition = () => {
+      const next = nextPosition()
+      if (!next) {
+        menuOwnsFocus.current = false
+        close(false)
+        return
+      }
+      setPosition(next)
+    }
+    const trackFocus = (event: FocusEvent) => {
+      menuOwnsFocus.current = !!menu.current?.contains(event.target as Node | null)
+    }
+    document.addEventListener('pointerdown', outside, true)
+    document.addEventListener('focusin', trackFocus, true)
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
+    return () => {
+      document.removeEventListener('pointerdown', outside, true)
+      document.removeEventListener('focusin', trackFocus, true)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
+    }
+    // Listener identity follows the open host only; current choice count is read
+    // through a ref so a supplier refresh cannot leave stale geometry behind.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, portalHost])
+
+  useEffect(() => {
+    if (!open || !portalHost) return
+    const next = nextPosition()
+    if (!next) {
+      menuOwnsFocus.current = false
+      close(false)
+      return
+    }
+    setPosition(next)
+
+    const preserved = choices.findIndex((choice) => choice.target.threadId === focusedThreadRef.current)
+    const nextActive = preserved >= 0
+      ? preserved
+      : Math.min(activeIndexRef.current, choices.length - 1)
+    activeIndexRef.current = nextActive
+    focusedThreadRef.current = choices[nextActive]?.target.threadId ?? null
+    setActiveIndex(nextActive)
+    if (menuOwnsFocus.current && (preserved < 0 || !menu.current?.contains(document.activeElement))) {
+      itemButtons()[nextActive]?.focus()
+    }
+    // Route+label signature is the option-list lifecycle; the portal host and
+    // global listeners intentionally remain owned by the open instance above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, portalHost, choiceSignature])
+
+  const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = itemButtons()
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      dismiss()
-      return
-    }
-    if (event.key !== 'Tab') return
-    const controls = [...(surface.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])]
-    if (!controls.length) return
-    const first = controls[0]
-    const last = controls[controls.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
+      close()
+    } else if (event.key === 'ArrowDown') {
       event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
+      focusItem(current + 1)
+    } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      first.focus()
-    } else if (!surface.current?.contains(document.activeElement)) {
+      focusItem(current - 1)
+    } else if (event.key === 'Home') {
       event.preventDefault()
-      firstOption.current?.focus()
+      focusItem(0)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      focusItem(items.length - 1)
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      items[current]?.click()
+    } else if (event.key === 'Tab') {
+      // A body-portal is not beside its trigger in DOM order, so hand Tab to
+      // the trigger's real neighbour instead of trapping or wrapping the page.
+      event.preventDefault()
+      tabAway(event.shiftKey)
     }
   }
 
@@ -192,58 +314,50 @@ function FocusedJobChatChooser({
         ref={trigger}
         type="button"
         aria-label={`Choose a Rosie chat for ${requestRef(request.id)}`}
-        aria-haspopup="dialog"
+        aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls={open ? dialogId : undefined}
-        onClick={show}
-        className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border border-border bg-background text-primary hover:bg-muted"
+        aria-controls={open ? menuId : undefined}
+        onClick={() => show('first')}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+          event.preventDefault()
+          if (open) focusItem(event.key === 'ArrowDown' ? 0 : choices.length - 1)
+          else show(event.key === 'ArrowDown' ? 'first' : 'last')
+        }}
+        className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border border-border bg-background hover:bg-muted"
       >
-        <MessageSquare aria-hidden="true" size={20} />
+        <Image src="/rosie.png" alt="" width={28} height={28} className="size-7 rounded-full object-cover" />
       </button>
-      {open && portalHost && createPortal(
+      {open && portalHost && position && createPortal(
         <div
-          role="presentation"
-          data-focused-job-chat-backdrop
-          className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 p-3 sm:items-center"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) dismiss()
-          }}
+          ref={menu}
+          id={menuId}
+          role="menu"
+          aria-label={`Rosie chats for ${requestRef(request.id)}`}
+          data-focused-job-chat-menu
+          onKeyDown={onMenuKeyDown}
+          style={position}
+          className="fixed z-[120] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
         >
-          <div
-            ref={surface}
-            id={dialogId}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            onKeyDown={containFocus}
-            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-popover shadow-[var(--lps-shadow)]"
-          >
-            <div className="sticky top-0 z-10 flex flex-none items-center justify-between gap-2 border-b border-border bg-popover py-1.5 pl-3 pr-1.5">
-              <h2 id={titleId} className="text-[14px] font-bold text-foreground">Choose a chat</h2>
-              <button
-                type="button"
-                aria-label="Close chat chooser"
-                onClick={dismiss}
-                className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X aria-hidden="true" size={18} />
-              </button>
-            </div>
-            <div data-focused-job-chat-options className="flex min-h-0 min-w-0 flex-col overflow-y-auto p-1.5">
-              {choices.map((choice, index) => (
-                <button
-                  key={choice.target.threadId}
-                  ref={index === 0 ? firstOption : undefined}
-                  type="button"
-                  onClick={() => choose(choice.target)}
-                  className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <MessageSquare aria-hidden="true" className="flex-none text-primary" size={16} />
-                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{choice.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          {choices.map((choice, index) => (
+            <button
+              key={choice.target.threadId}
+              type="button"
+              role="menuitem"
+              tabIndex={activeIndex === index ? 0 : -1}
+              onFocus={() => {
+                activeIndexRef.current = index
+                focusedThreadRef.current = choice.target.threadId
+                menuOwnsFocus.current = true
+                setActiveIndex(index)
+              }}
+              onClick={() => choose(choice.target)}
+              className="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] font-semibold text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <MessageSquare aria-hidden="true" className="flex-none text-primary" size={16} />
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{choice.label}</span>
+            </button>
+          ))}
         </div>,
         portalHost,
       )}
