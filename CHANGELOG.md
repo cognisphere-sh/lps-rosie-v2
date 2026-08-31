@@ -15,6 +15,36 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-08-31
+
+### Changed
+
+- **The focused mobile Job header now reads as a Job, not a toolbar**
+  (`app/app/jobs/page.tsx`,
+  `app/components/workspace/{focused-job-header,job-request}.tsx`). Below 900px
+  the JR reference is secondary, the full Job name wraps without truncation or
+  page overflow, the status stays compact, and the focused `RequestLinks`
+  preview wraps long supplier names plus every AR segment within the phone
+  width. One 44px icon-only, accessibly named chat bubble opens a contained
+  chooser: exact Job chat first, then each stored linked-supplier chat, all
+  routing to their separate existing Rosie threads. Stored thread ids are
+  trimmed once; blank/Job-colliding ids are omitted and normalized duplicates
+  keep the first supplier in stable source order. Supplier chat is not
+  duplicated in the lower preview, ARs remain drawer actions and no thread is
+  merged, minted or substituted. A dedicated portal host is excluded while all
+  body siblings’ exact inert attribute/property and aria state plus body
+  overflow are snapshot, isolated and restored on every exit/unmount. The
+  bounded `100dvh` surface keeps a fixed header above independently scrolling
+  44px options, and supports keyboard/touch, trapped focus, consumed Escape,
+  backdrop/Close dismissal, focus return, repeated opening and breakpoint
+  unmount without changing desktop/global chat. Only a strictly
+  valid `YYYY-MM-DD` project calendar date is accepted
+  and its captured components format directly as `EPD: M/D/YY`, without Date
+  parsing, rollover or timezone conversion; the current schema has no such
+  column, so missing data stays omitted rather than substituting created/updated
+  activity or parsing a date out of notes. Desktop and ordinary request cards
+  keep their prior headers and one-row supplier pills exactly.
+
 ## 2026-08-30
 
 ### Added
@@ -135,24 +165,49 @@ here).
 
 - **Plant Search now keeps one compact filter row and clean table heads**
   (`app/app/plants/page.tsx`, `app/components/workspace/{plant-filters,plant-table,table-parts,toolbar}.tsx`).
-  Search, Size, Cultivar, Supplier type and State remain visible in that order;
-  City is gone, and one Suppliers-style 44px icon moves Company, the three
+  On wide containers, Search, Size, Cultivar, Supplier type and State remain
+  visible in that order. Search and the Company/supplier panel now share one
+  live 200–480px resize state (292px default), so both edges remain aligned
+  after every drag; a 16px toolbar inset plus 1px border offset matches the
+  `mx-4` result card. Concise 72/84/92/68px quick tracks begin immediately
+  after it. A conservative content-aware fit reserves the exact nonshrinking
+  summary width: CSS starts wide at 1024px, 900px remains compact, panel/summary
+  pressure can keep 1024px compact, and 1280px re-expands maximum realistic
+  combinations before any wrap, clipping or horizontal scroll. City is gone, and one Suppliers-style 44px icon moves Company, the three
   plant-name filters, Price, Quantity, Height, Width, Caliper and the two note
   filters out of the table headers into a content-sized surface with Clear all.
   The table heads retain labels, sorting, resize/reorder and column selection
   without duplicate filtering controls. Cultivar keeps its shared open
   multi-select/focus behavior, dropdowns lose their fixed dead width, and the
   live summary now reads exactly `<Companies> Companies: <shown>/<total>
-  Plants` before Notifications on the same row. CSS container queries alone
-  decide which filter copy is displayed and therefore focusable/accessibility-
-  visible; a matching ResizeObserver observes only to transfer focus and
-  coordinate shared open state. They keep all four quick filters visible at
-  900px of actual page-column space, but fold
-  them into the same icon on mobile or when nav/chat narrows the desktop pane;
-  they reappear with selections and open/closed state intact. Cultivar uses one
-  controlled open state across both copies, so either crossing keeps its menu
-  open and focuses the newly visible trigger; every other MultiFilter retains
-  its established uncontrolled behavior. The advanced surface itself uses
+  Plants` before Notifications on the same row; it keeps its mobile hiding and
+  waits for a safe 700px actual container in compact desktop panes. A conservative base-1024 CSS
+  branch owns first paint; ResizeObserver content-box width, live panel width
+  and exact summary synchronously add a compact override when the row cannot
+  fit, and the same resolved mode transfers focus/shared Cultivar ownership.
+  Below that actual-container/content boundary,
+  Chris's final compact layout keeps the single Size and Supplier type controls
+  visible after Search and folds only Cultivar and State into More filters; the
+  two visible controls are not duplicated in its DOM or accessibility tree.
+  Compact 82px tracks retain 44px targets and use untruncated `Size` / `Size ·
+  N` and `Type` / `Type · N` labels while their accessible names retain the full
+  control identity and count; compact internal label/icon gaps leave a 106px
+  Search in an outer 390px
+  toolbar. The no-padding outer toolbar now owns both CSS container units and
+  the observer's content-box measurement, so 390/514/658/900px remain compact,
+  ordinary 1024px restores wide order, live drags can fold it immediately, and
+  there is no padding-box or rapid-resize race. Cultivar tracks an explicit wide/compact open owner: either
+  crossing transfers its one menu, outside/Escape listener set and focus to the
+  newly visible trigger without a hidden live copy. Transfer/close focus now
+  runs through one tracked generation-aware animation frame; later mode, owner
+  or open-state changes cancel it, and its callback revalidates current state.
+  A pending/requested intent is discarded once committed mode/owner/dialog
+  state matches neither its source nor destination, so one outside pointer-down
+  closing both the carried-wide Cultivar and More filters cannot leave a dormant
+  More-focus return that revives when Cultivar reopens; separately committed
+  rapid crossings, close-before-flush and unmount also cannot focus stale or
+  intermediate targets. Size and Supplier type retain focus
+  because they never move. The advanced surface itself uses
   container-driven one/two/three-column layouts with no field minimum and stays
   within 8px of 390/514/658px panes. Its nested multiselect menus now take the
   exact grid-cell width (`w-full min-w-0 max-w-full`) rather than viewport or
@@ -430,6 +485,27 @@ here).
   grouped as By item groups them, and a row per requesting job (request name ×
   qty; admin JR refs stay off the portal) carrying the line's status picker and
   unit price cell, so an answer can be set and priced from the card.
+
+- **All jobs uses a compact mobile filter and expanded-card action layout**
+  (`app/app/requests/page.tsx`, `app/components/workspace/{requests-toolbar,
+  request-list-card,request-card-utilities,request-delete}.tsx`,
+  `app/lib/request-list-state.ts`). The page resolves one 899/900 breakpoint:
+  unresolved hydration owns no controls, mobile owns one non-wrapping shrinking
+  Search + 44px Filters row, and desktop alone mounts the established shared
+  toolbar and Shell actions. Crossings unmount open menus/dialogs and listeners
+  and preserve selections; they focus the new Search only when the outgoing
+  toolbar owned focus/open state and no connected outside control or other modal
+  supersedes it. Generation-guarded transfer frames cannot survive another
+  crossing or unmount. The body-portalled filter modal
+  isolates/restores background and body-scroll state, traps focus, focuses Close
+  once per opening without stealing focus on filter-state rerenders, and owns
+  Status, Item status, Customer, Created and Updated while Expand all / Collapse
+  all stays outside. Its count compares Status to the four-selection baseline,
+  so excluding Archived does not falsely read as four active filters. Collapsed
+  mobile cards have no Actions/delete control; expanded cards alone expose the
+  working Delete job utility, preserving confirmation, guarded permanent-delete
+  API, cleanup, retry/error and focus-return behavior. No placeholder utility
+  ships.
 
 ## 2026-08-29
 

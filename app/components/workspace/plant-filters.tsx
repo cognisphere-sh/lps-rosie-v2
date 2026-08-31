@@ -11,32 +11,45 @@ import { cn } from '@/lib/utils'
 export const PLANT_ADVANCED_FILTER_KEYS = [
   'name', 'common_name', 'botanical_name', 'price', 'qty', 'h', 'w', 'cal', 'notes', 'internal_notes',
 ] as const
-export const PLANT_QUICK_FILTER_MIN_WIDTH = 900
+export const PLANT_QUICK_FILTER_MIN_WIDTH = 1024
+/** Wide row excluding Search and summary: padding/inset, gaps, four quick tracks, Filters and action. */
+export const PLANT_WIDE_TOOLBAR_CHROME_WIDTH = 467
 
-export const plantFiltersAreCompact = (width: number) => width < PLANT_QUICK_FILTER_MIN_WIDTH
+export const estimatePlantSummaryWidth = (summary: string) => Math.max(140, summary.length * 7)
+export const plantWideToolbarMinWidth = (panelWidth: number, summary: string) => Math.max(
+  PLANT_QUICK_FILTER_MIN_WIDTH,
+  panelWidth + PLANT_WIDE_TOOLBAR_CHROME_WIDTH + estimatePlantSummaryWidth(summary),
+)
+export const plantFiltersAreCompact = (width: number, panelWidth: number, summary: string) =>
+  width < plantWideToolbarMinWidth(panelWidth, summary)
 
 /**
- * Coordination companion to the CSS container query. CSS alone owns display
- * and accessibility-tree membership from first paint; this state only moves
- * focus and preserves open menus when the page column crosses the boundary.
+ * CSS owns the safe base 1024px branch from first paint. The observed content
+ * box adds a synchronous render-time overflow override for live panel width and
+ * exact summary text; focus/open coordination consumes the same resolved mode.
  */
-export function usePlantFilterContainer(ref: RefObject<HTMLElement | null>) {
-  const [compact, setCompact] = useState(true)
+export function usePlantFilterContainer(
+  ref: RefObject<HTMLElement | null>,
+  panelWidth: number,
+  summary: string,
+) {
+  const [width, setWidth] = useState<number | null>(null)
 
   useEffect(() => {
     const node = ref.current
     if (!node) return
-    const update = (width: number) => setCompact(plantFiltersAreCompact(width))
-    update(node.getBoundingClientRect().width)
+    // Toolbar owns an unpadded container wrapper, so clientWidth and the
+    // observer's content box are the same inline measurement CSS queries use.
+    setWidth(node.clientWidth)
     const observer = new ResizeObserver((entries) => {
       const entry = entries.find((candidate) => candidate.target === node)
-      if (entry) update(entry.contentRect.width)
+      if (entry) setWidth(entry.contentRect.width)
     })
-    observer.observe(node)
+    observer.observe(node, { box: 'content-box' })
     return () => observer.disconnect()
   }, [ref])
 
-  return compact
+  return width === null ? null : plantFiltersAreCompact(width, panelWidth, summary)
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -54,17 +67,11 @@ export function PlantAdvancedFilters({
   onCompanies,
   plantFilters,
   onPlantFilter,
-  sizeOptions,
-  selectedSizes,
-  onSizes,
   cultivarOptions,
   cultivars,
   onCultivars,
-  cultivarOpen,
-  onCultivarOpenChange,
-  categoryOptions,
-  categories,
-  onCategories,
+  cultivarOpenOwner,
+  onCultivarOpenOwnerChange,
   stateOptions,
   states,
   onStates,
@@ -78,17 +85,11 @@ export function PlantAdvancedFilters({
   onCompanies: (next: string[]) => void
   plantFilters: Record<string, ColFilter>
   onPlantFilter: (key: string, value: ColFilter) => void
-  sizeOptions: string[]
-  selectedSizes: string[]
-  onSizes: (next: string[]) => void
   cultivarOptions: string[]
   cultivars: string[]
   onCultivars: (next: string[]) => void
-  cultivarOpen: boolean
-  onCultivarOpenChange: (open: boolean) => void
-  categoryOptions: string[]
-  categories: string[]
-  onCategories: (next: string[]) => void
+  cultivarOpenOwner: 'wide' | 'compact' | null
+  onCultivarOpenOwnerChange: (owner: 'wide' | 'compact' | null) => void
   stateOptions: string[]
   states: string[]
   onStates: (next: string[]) => void
@@ -101,29 +102,141 @@ export function PlantAdvancedFilters({
   const trigger = useRef<HTMLButtonElement>(null)
   const compactFields = useRef<HTMLDivElement>(null)
   const previousCompact = useRef(compactForFocus)
+  const focusFrame = useRef<number | null>(null)
+  const focusGeneration = useRef(0)
+  const pendingFocus = useRef<{
+    target: 'advanced' | 'cultivar'
+    compact: boolean
+    owner: 'wide' | 'compact' | null
+    dialogOpen: boolean
+  } | null>(null)
+  const focusRequest = useRef<{
+    intent: NonNullable<typeof pendingFocus.current>
+    source: { compact: boolean; owner: 'wide' | 'compact' | null; dialogOpen: boolean }
+  } | null>(null)
+  const currentFocusState = useRef({ compact: compactForFocus, owner: cultivarOpenOwner, dialogOpen: open })
+  currentFocusState.current = { compact: compactForFocus, owner: cultivarOpenOwner, dialogOpen: open }
+
+  const cancelScheduledFocus = useCallback(() => {
+    focusGeneration.current += 1
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current)
+    focusFrame.current = null
+  }, [])
+
+  const scheduleFocus = useCallback((intent: NonNullable<typeof pendingFocus.current>) => {
+    cancelScheduledFocus()
+    const generation = focusGeneration.current
+    const frame = requestAnimationFrame(() => {
+      const current = currentFocusState.current
+      if (
+        focusGeneration.current !== generation ||
+        focusFrame.current !== frame ||
+        current.compact !== intent.compact ||
+        current.owner !== intent.owner ||
+        current.dialogOpen !== intent.dialogOpen
+      ) return
+      focusFrame.current = null
+      const source = intent.compact ? compactFields.current : focusSourceRef?.current
+      const target = intent.target === 'advanced'
+        ? trigger.current
+        : source?.querySelector<HTMLButtonElement>('[data-plant-cultivar] button')
+      target?.focus()
+    })
+    focusFrame.current = frame
+  }, [cancelScheduledFocus, focusSourceRef])
+
   const close = useCallback(() => {
+    cancelScheduledFocus()
+    pendingFocus.current = null
+    focusRequest.current = null
+    const nextOwner = compactForFocus && cultivarOpenOwner === 'compact' ? null : cultivarOpenOwner
+    focusRequest.current = {
+      source: currentFocusState.current,
+      intent: {
+        target: 'advanced', compact: compactForFocus, owner: nextOwner, dialogOpen: false,
+      },
+    }
     setOpen(false)
-    if (compactForFocus && cultivarOpen) onCultivarOpenChange(false)
-    requestAnimationFrame(() => trigger.current?.focus())
-  }, [compactForFocus, cultivarOpen, onCultivarOpenChange])
+    if (nextOwner !== cultivarOpenOwner) onCultivarOpenOwnerChange(nextOwner)
+  }, [cancelScheduledFocus, compactForFocus, cultivarOpenOwner, onCultivarOpenOwnerChange])
+  const openDialog = useCallback(() => {
+    cancelScheduledFocus()
+    pendingFocus.current = null
+    focusRequest.current = null
+    setOpen(true)
+  }, [cancelScheduledFocus])
   const pop = useOutsideClose(open, close)
 
   useEffect(() => {
     if (previousCompact.current === compactForFocus) return
+    cancelScheduledFocus()
+    pendingFocus.current = null
+    focusRequest.current = null
     previousCompact.current = compactForFocus
     const active = document.activeElement
     const hiddenSource = compactForFocus ? focusSourceRef?.current : compactFields.current
 
-    if (cultivarOpen) {
+    if (cultivarOpenOwner) {
+      const nextOwner = compactForFocus ? 'compact' : 'wide'
+      focusRequest.current = {
+        source: currentFocusState.current,
+        intent: {
+          target: 'cultivar', compact: compactForFocus, owner: nextOwner, dialogOpen: true,
+        },
+      }
       if (compactForFocus) setOpen(true)
-      requestAnimationFrame(() => {
-        const visibleSource = compactForFocus ? compactFields.current : focusSourceRef?.current
-        visibleSource?.querySelector<HTMLButtonElement>('[data-plant-cultivar] button')?.focus()
-      })
+      if (cultivarOpenOwner !== nextOwner) onCultivarOpenOwnerChange(nextOwner)
       return
     }
-    if (active && hiddenSource?.contains(active)) trigger.current?.focus()
-  }, [compactForFocus, cultivarOpen, focusSourceRef])
+    const foldedWideControl = compactForFocus && active instanceof HTMLElement
+      ? active.closest('[data-plant-folded-filter]')
+      : null
+    if (active && hiddenSource?.contains(active) && (!compactForFocus || foldedWideControl)) {
+      trigger.current?.focus()
+    }
+  }, [cancelScheduledFocus, compactForFocus, cultivarOpenOwner, focusSourceRef, onCultivarOpenOwnerChange])
+
+  useEffect(() => {
+    cancelScheduledFocus()
+    const current = currentFocusState.current
+    const sameState = (candidate: { compact: boolean; owner: 'wide' | 'compact' | null; dialogOpen: boolean }) =>
+      candidate.compact === current.compact &&
+      candidate.owner === current.owner &&
+      candidate.dialogOpen === current.dialogOpen
+
+    const intent = pendingFocus.current
+    if (intent) {
+      if (!sameState(intent)) {
+        pendingFocus.current = null
+        return cancelScheduledFocus
+      }
+      pendingFocus.current = null
+      scheduleFocus(intent)
+      return cancelScheduledFocus
+    }
+
+    const request = focusRequest.current
+    if (!request) return cancelScheduledFocus
+    if (sameState(request.intent)) {
+      focusRequest.current = null
+      pendingFocus.current = request.intent
+      const committedIntent = pendingFocus.current
+      pendingFocus.current = null
+      scheduleFocus(committedIntent)
+      return cancelScheduledFocus
+    }
+    // A request may survive exactly its own state update: before React commits,
+    // the current state is still the captured source. Any third state means the
+    // request was superseded and can never be allowed to become valid later.
+    if (!sameState(request.source)) focusRequest.current = null
+    return cancelScheduledFocus
+  }, [cancelScheduledFocus, compactForFocus, cultivarOpenOwner, open, scheduleFocus])
+
+  useEffect(() => () => {
+    pendingFocus.current = null
+    focusRequest.current = null
+    cancelScheduledFocus()
+  }, [cancelScheduledFocus])
 
   useEffect(() => {
     if (!open) return
@@ -147,7 +260,7 @@ export function PlantAdvancedFilters({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={activeCount ? `More filters, ${activeCount} active` : 'More filters'}
-        onClick={() => open ? close() : setOpen(true)}
+        onClick={() => open ? close() : openDialog()}
         className={cn(
           'relative flex size-11 items-center justify-center rounded-full border bg-background hover:bg-muted',
           activeCount ? 'border-primary text-primary' : 'border-border text-foreground',
@@ -179,23 +292,8 @@ export function PlantAdvancedFilters({
             <div
               ref={compactFields}
               data-plant-compact-filters
-              className="contents @min-[900px]:hidden"
+              className={cn('contents @min-[1024px]:hidden', compactForFocus && '@min-[1024px]:!contents')}
             >
-              <Field label="Size">
-                <MultiFilter
-                  allLabel="Any size"
-                  selectionLabel="Size"
-                  accessibleName="Size"
-                  options={sizeOptions}
-                  selected={selectedSizes}
-                  onChange={onSizes}
-                  buttonClassName="min-h-11 px-2 normal-case tracking-normal"
-                  filterPlaceholder="Filter sizes…"
-                  largeTargets
-                  menuClassName="w-full min-w-0 max-w-full"
-                  wrapOptionLabels
-                />
-              </Field>
               <div data-plant-cultivar className="contents">
                 <Field label="Cultivar">
                   <MultiFilter
@@ -209,28 +307,18 @@ export function PlantAdvancedFilters({
                     filterPlaceholder="Filter cultivars…"
                     largeTargets
                     restoreFocusOnClose
-                    open={cultivarOpen}
-                    onOpenChange={onCultivarOpenChange}
+                    open={cultivarOpenOwner === 'compact'}
+                    onOpenChange={(next) => {
+                      cancelScheduledFocus()
+                      pendingFocus.current = null
+                      focusRequest.current = null
+                      onCultivarOpenOwnerChange(next ? 'compact' : null)
+                    }}
                     menuClassName="w-full min-w-0 max-w-full"
                     wrapOptionLabels
                   />
                 </Field>
               </div>
-              <Field label="Supplier type">
-                <MultiFilter
-                  allLabel="Any type"
-                  selectionLabel="Type"
-                  accessibleName="Supplier type"
-                  options={categoryOptions}
-                  selected={categories}
-                  onChange={onCategories}
-                  buttonClassName="min-h-11 px-2 normal-case tracking-normal"
-                  filterPlaceholder="Filter supplier types…"
-                  largeTargets
-                  menuClassName="w-full min-w-0 max-w-full"
-                  wrapOptionLabels
-                />
-              </Field>
               <Field label="State">
                 <MultiFilter
                   allLabel="Any state"

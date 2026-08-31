@@ -1,53 +1,38 @@
 'use client'
 
-import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MoreHorizontal } from 'lucide-react'
 
-import {
-  ChevronDown, ChevronRight, CloseIcon, TrashIcon,
-} from '@/components/workspace/icons'
+import { ChevronDown, CloseIcon } from '@/components/workspace/icons'
 import {
   onAvailabilityRequestStatusChanged,
   onRenameThread,
-  openChat,
 } from '@/lib/chat-bus'
 import { patchRow } from '@/components/workspace/editable'
-import {
-  DemandSummary,
-  NOTE_KIND,
-  RequestBody,
-  RequestLinks,
-  StatusPill,
-  newestNote,
-} from '@/components/workspace/job-request'
-import { JobIdentityLink, Shell, useToast } from '@/components/workspace/shell'
+import { DeleteRequestDialog, deleteRequestFromApi } from '@/components/workspace/request-delete'
+import { RequestCard } from '@/components/workspace/request-list-card'
+import { Shell, useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
-import { Toolbar, type Chip } from '@/components/workspace/toolbar'
+import {
+  RequestsToolbar,
+  useResolvedRequestsMobile,
+} from '@/components/workspace/requests-toolbar'
+import type { Chip } from '@/components/workspace/toolbar'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
-import { formatDate } from '@/lib/format'
-import { shortStamp } from '@/lib/notes'
 import {
   ITEM_STATUS_OPTIONS,
   REQUEST_STATUS_OPTIONS,
   itemPill,
   requestRef,
-  requestStatusLabel,
-  requestStatusTone,
   toneDot,
-  toneStyle,
 } from '@/lib/job-requests'
+import {
+  REQUEST_DATE_RANGES,
+  buildRequestFilterQuery,
+  buildRequestListUrl,
+} from '@/lib/request-list-state'
 import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
-
-const DATE_RANGES = [
-  { label: 'Today', days: 1 },
-  { label: 'Last 7 days', days: 7 },
-  { label: 'Last 14 days', days: 14 },
-  { label: 'Last 30 days', days: 30 },
-]
-const daysFor = (label: string) => DATE_RANGES.find((r) => r.label === label)?.days
 
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
 const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
@@ -64,240 +49,6 @@ const OPEN_STATUSES = REQUEST_STATUS_OPTIONS.filter((o) => o.value !== 'archived
 )
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v) => b.includes(v))
-
-/** Option labels back to the values the API filters on. */
-const valuesOf = (labels: string[], options: { value: string; label: string }[]) =>
-  labels.map((l) => options.find((o) => o.label === l)?.value).filter(Boolean) as string[]
-
-function RequestCard({
-  request,
-  expanded,
-  selected,
-  version,
-  onToggle,
-  onSelect,
-  onDelete,
-  onDeleteItem,
-  onSaved,
-}: {
-  request: JobRequestRow
-  expanded: boolean
-  /** Every selected line id on the page; the card reads its own out of it. */
-  selected: Set<number>
-  /** Bumped after every write — what makes an open history drawer refresh. */
-  version: number
-  onToggle: () => void
-  /** Select or clear these line ids; the page owns the set. */
-  onSelect: (ids: number[], on: boolean) => void
-  /** Delete the whole request, permanently. Confirmed by the page. */
-  onDelete: (returnFocus: HTMLElement | null) => void
-  /** Delete one of its lines, permanently. Confirmed by the page. */
-  onDeleteItem: (item: JobRequestItem) => void
-  onSaved: () => void
-}) {
-  // The second level of expansion, kept on the card: opening a request's
-  // details is a fact about looking at that card, not about the page, and the
-  // card stays mounted while its lines collapse and reopen.
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  const [actionsOpen, setActionsOpen] = useState(false)
-  const actionsButton = useRef<HTMLButtonElement>(null)
-  const actions = useOutsideClose(actionsOpen, () => setActionsOpen(false))
-
-  useEffect(() => {
-    if (expanded) setActionsOpen(false)
-  }, [expanded])
-
-  useEffect(() => {
-    if (!actionsOpen) return
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setActionsOpen(false)
-      actionsButton.current?.focus()
-    }
-    document.addEventListener('keydown', closeOnEscape)
-    return () => document.removeEventListener('keydown', closeOnEscape)
-  }, [actionsOpen])
-
-  const tone = requestStatusTone(request.status)
-  const edit = { table: 'job_requests', id: request.id, onSaved }
-
-  const latest = newestNote(request.notes)
-
-  return (
-    <div
-      // `flex-none` matters: as a flex child this card would otherwise be
-      // *shrunk* to fit the scroll container, and because it clips its own
-      // overflow (for the rounded corners) the line table would be cut off
-      // with nothing to scroll it back into view.
-      className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
-    >
-      {/* The head contains independent interactive controls, so it is not
-          clickable itself. The job link navigates; only the chevron toggles. */}
-      <div className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-controls={`request-body-${request.id}`}
-            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggle()
-            }}
-            className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-          <JobIdentityLink request={request} />
-          <StatusPill
-            {...edit}
-            column="status"
-            value={request.status}
-            label={requestStatusLabel(request.status)}
-            tone={tone}
-            options={REQUEST_STATUS_OPTIONS}
-          />
-          <span
-            className="ml-auto whitespace-nowrap text-[11px] text-lps-dim"
-            title={`Created ${formatDate(request.createdAt)}`}
-          >
-            {formatDate(request.updatedAt)}
-          </span>
-          {/* This job's own Rosie conversation — the jr-<id> thread. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              openChat({
-                agentId: 'rosie',
-                threadId: `jr-${request.id}`,
-                label: request.name ?? requestRef(request.id),
-              })
-            }}
-            title={`Chat with Rosie about ${requestRef(request.id)}`}
-            aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
-            className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent opacity-75 hover:opacity-100 md:size-[22px]"
-          >
-            <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
-          </button>
-          {/* Desktop and an already-expanded mobile card keep the established
-              direct control. A collapsed mobile card puts this permanent action
-              one deliberate level deeper, away from Rosie's adjacent target. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(e.currentTarget)
-            }}
-            title={`Delete ${requestRef(request.id)} permanently`}
-            aria-label={`Delete ${requestRef(request.id)}`}
-            className={cn(
-              'size-11 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-destructive/10 hover:text-destructive md:size-[22px]',
-              expanded ? 'flex' : 'hidden md:flex',
-            )}
-          >
-            <TrashIcon size={14} />
-          </button>
-          {!expanded && (
-            <div
-              ref={actions}
-              data-menu
-              className="relative flex-none md:hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                ref={actionsButton}
-                type="button"
-                aria-expanded={actionsOpen}
-                aria-controls={`request-actions-${request.id}`}
-                aria-label={`Actions for ${requestRef(request.id)}`}
-                onClick={() => setActionsOpen((open) => !open)}
-                className="flex min-h-11 cursor-pointer items-center gap-1 rounded-lg border border-border bg-card px-3 text-[12px] font-semibold text-foreground"
-              >
-                <MoreHorizontal size={17} aria-hidden="true" /> Actions
-              </button>
-              {actionsOpen && (
-                <div
-                  id={`request-actions-${request.id}`}
-                  aria-label={`Actions for ${requestRef(request.id)}`}
-                  className="lps-pop absolute right-0 top-full z-30 mt-1 min-w-44 rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]"
-                >
-                  <button
-                    type="button"
-                    aria-label={`Delete ${requestRef(request.id)} permanently`}
-                    onClick={() => {
-                      setActionsOpen(false)
-                      onDelete(actionsButton.current)
-                    }}
-                    className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-none bg-transparent px-3 text-left text-[13px] font-semibold text-destructive hover:bg-destructive/10"
-                  >
-                    <TrashIcon size={15} /> Delete request
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Who the job is for on the left, everything it opens on the right —
-            on a wide card the strip rides the empty half of a line the card
-            already draws rather than adding one of its own. */}
-        <RequestLinks request={request} suppliersHidden={!expanded} className="pl-[30px]" />
-
-        {/* Collapsed cards keep the same scan strip. The expanded body owns the
-            single full-width strip so counts and subtotal are never repeated. */}
-        {!expanded && (
-          <div className="pl-[30px]">
-            <DemandSummary
-              lineTotal={request.lineTotal}
-              itemCount={request.itemCount}
-              counts={request.statusCounts}
-            />
-          </div>
-        )}
-
-        {/* The expanded body gives notes their complete secondary drawer; the
-            collapsed card keeps only the latest line for triage. */}
-        {!expanded && latest && (
-          <div
-            className="flex min-w-0 items-baseline gap-2 border-t border-lps-hair pl-[30px] pt-2"
-            title={latest.text}
-          >
-            <span
-              className="flex-none rounded-full px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide"
-              style={toneStyle(NOTE_KIND[latest.kind].tone)}
-            >
-              {NOTE_KIND[latest.kind].label}
-            </span>
-            <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
-              {latest.text}
-            </span>
-            {latest.stamp && (
-              <span className="ml-auto flex-none whitespace-nowrap text-[10.5px] text-lps-dim">
-                {shortStamp(latest.stamp)}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div id={`request-body-${request.id}`}>
-        {expanded && (
-          <RequestBody
-            request={request}
-            version={version}
-            detailsOpen={detailsOpen}
-            onToggleDetails={() => setDetailsOpen((v) => !v)}
-            selected={selected}
-            onSelect={onSelect}
-            onDeleteItem={onDeleteItem}
-            onSaved={onSaved}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
 
 /** The selected lines of one request — an availability request is per job. */
 interface ARGroup {
@@ -565,106 +316,10 @@ function SelectionBar({
 /** "3 lines, 2 availability requests and their answers, its change history". */
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-function DeleteRequestDialog({
-  request,
-  busy,
-  error,
-  returnFocus,
-  onCancel,
-  onConfirm,
-}: {
-  request: JobRequestRow
-  busy: boolean
-  error: string
-  returnFocus: React.RefObject<HTMLElement | null>
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  const cancel = useRef<HTMLButtonElement>(null)
-  const confirm = useRef<HTMLButtonElement>(null)
-  const label = request.name ? `${requestRef(request.id)} — ${request.name}` : requestRef(request.id)
-
-  useEffect(() => {
-    const focusTarget = returnFocus.current
-    cancel.current?.focus()
-    return () => {
-      setTimeout(() => focusTarget?.focus(), 0)
-    }
-  }, [returnFocus])
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-busy={busy}
-      aria-labelledby="delete-request-title"
-      aria-describedby="delete-request-impact delete-request-status"
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/45 p-4 sm:items-center"
-      onClick={() => { if (!busy) onCancel() }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && !busy) onCancel()
-        if (event.key !== 'Tab') return
-        if (event.shiftKey && document.activeElement === cancel.current) {
-          event.preventDefault()
-          confirm.current?.focus()
-        } else if (!event.shiftKey && document.activeElement === confirm.current) {
-          event.preventDefault()
-          cancel.current?.focus()
-        }
-      }}
-    >
-      <div
-        onClick={(event) => event.stopPropagation()}
-        className="lps-pop w-full max-w-md rounded-2xl border border-border bg-popover p-5 shadow-[var(--lps-shadow)]"
-      >
-        <h2 id="delete-request-title" className="text-[17px] font-bold text-foreground">
-          Permanently delete {label}?
-        </h2>
-        <p id="delete-request-impact" className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          This permanently removes {plural(request.itemCount, 'line')}, all related availability
-          requests and their answers, and the request&apos;s change history. This cannot be undone.
-        </p>
-        <p id="delete-request-status" role="status" aria-live="polite" className="mt-3 min-h-5 text-[12px] font-semibold text-muted-foreground">
-          {busy ? 'Deleting request…' : ''}
-        </p>
-        {error && (
-          <p role="alert" aria-live="assertive" className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive">
-            {error}
-          </p>
-        )}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            ref={cancel}
-            type="button"
-            aria-disabled={busy}
-            onClick={() => { if (!busy) onCancel() }}
-            className={cn(
-              'min-h-11 rounded-full border border-border bg-card px-5 text-[13px] font-semibold text-foreground',
-              busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            ref={confirm}
-            type="button"
-            aria-disabled={busy}
-            onClick={() => { if (!busy) onConfirm() }}
-            className={cn(
-              'min-h-11 rounded-full bg-destructive px-5 text-[13px] font-bold text-destructive-foreground',
-              busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-            )}
-          >
-            {busy ? 'Deleting…' : 'Delete permanently'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function RequestsPage() {
   const toast = useToast()
+  const requestsMobile = useResolvedRequestsMobile()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<string[]>(OPEN_STATUSES)
   const [itemStatus, setItemStatus] = useState<string[]>([])
@@ -706,7 +361,7 @@ export default function RequestsPage() {
       }> | null
       const allowedStatus = new Set(REQUEST_STATUS_OPTIONS.map((o) => o.label))
       const allowedItem = new Set(ITEM_STATUS_OPTIONS.map((o) => o.label))
-      const allowedDates = new Set(DATE_RANGES.map((o) => o.label))
+      const allowedDates = new Set<string>(REQUEST_DATE_RANGES.map((option) => option.label))
       if (saved) {
         setQuery(typeof saved.query === 'string' ? saved.query.slice(0, 500) : '')
         setStatus(Array.isArray(saved.status) ? saved.status.filter((v) => allowedStatus.has(v)) : OPEN_STATUSES)
@@ -749,20 +404,16 @@ export default function RequestsPage() {
     return map
   }, [facets.customer])
 
-  const serverQuery = useMemo(() => {
-    const p = new URLSearchParams()
-    // Every list filter goes over as a comma-separated set, which is what the
-    // route has always parsed; an empty one is left off and means "all".
-    if (status.length) p.set('status', valuesOf(status, REQUEST_STATUS_OPTIONS).join(','))
-    if (itemStatus.length) p.set('itemStatus', valuesOf(itemStatus, ITEM_STATUS_OPTIONS).join(','))
-    if (customer.length) {
-      p.set('customer', customer.map((c) => customerIds.get(c)).filter(Boolean).join(','))
-    }
-    // The date chips are single-pick: two ranges back from now are one range.
-    if (created.length) p.set('created', String(daysFor(created[0]) ?? ''))
-    if (updated.length) p.set('updated', String(daysFor(updated[0]) ?? ''))
-    return p.toString()
-  }, [status, itemStatus, customer, created, updated, customerIds])
+  const serverQuery = useMemo(() => buildRequestFilterQuery({
+    status,
+    itemStatus,
+    customer,
+    created,
+    updated,
+    customerIds,
+    requestStatusOptions: REQUEST_STATUS_OPTIONS,
+    itemStatusOptions: ITEM_STATUS_OPTIONS,
+  }), [status, itemStatus, customer, created, updated, customerIds])
 
   const { query: debounced, filters: debouncedFilters, settled } = useDebouncedSearch(query, serverQuery)
 
@@ -803,10 +454,7 @@ export default function RequestsPage() {
     if (!restored || !settled || debounced !== query || debouncedFilters !== serverQuery) return
     let cancelled = false
     setBusy(true)
-    const params = new URLSearchParams(debouncedFilters)
-    params.set('q', debounced)
-    params.set('page', String(page))
-    fetch(`/api/requests?${params.toString()}`)
+    fetch(buildRequestListUrl(debouncedFilters, debounced, page))
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return
@@ -872,12 +520,8 @@ export default function RequestsPage() {
       setDeleteError('')
       setDeleting(true)
       try {
-        const res = await fetch(`/api/requests/${request.id}`, { method: 'DELETE' })
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string
-          deleted?: { items: number; availabilityRequests: number }
-        }
-        if (!res.ok) {
+        const { ok, body } = await deleteRequestFromApi(request.id)
+        if (!ok) {
           const message = `Could not delete ${ref}${body.error ? ` — ${body.error}` : ''}`
           setDeleteError(message)
           toast(message)
@@ -979,7 +623,7 @@ export default function RequestsPage() {
     {
       label: 'Created',
       values: created,
-      options: DATE_RANGES.map((r) => r.label),
+      options: REQUEST_DATE_RANGES.map((range) => range.label),
       onChange: setCreated,
       allLabel: 'All time',
       single: true,
@@ -987,7 +631,7 @@ export default function RequestsPage() {
     {
       label: 'Updated',
       values: updated,
-      options: DATE_RANGES.map((r) => r.label),
+      options: REQUEST_DATE_RANGES.map((range) => range.label),
       onChange: setUpdated,
       allLabel: 'All time',
       single: true,
@@ -1020,12 +664,14 @@ export default function RequestsPage() {
       hideHeaderOnMobile
       hideHeaderOnDesktop
       toolbar={(rightActions) => (
-        <Toolbar
+        <RequestsToolbar
           rightActions={rightActions}
           placeholder="Search plants, customers, JR-…"
           query={query}
           onQuery={setQuery}
           chips={chips}
+          statusBaseline={OPEN_STATUSES}
+          resolvedMobile={requestsMobile}
           hasFilters={hasFilters}
           onClear={clearAll}
           summary={`${total} ${total === 1 ? 'request' : 'requests'} · ${summary.items} line ${summary.items === 1 ? 'item' : 'items'}`}
@@ -1115,6 +761,7 @@ export default function RequestsPage() {
             key={request.id}
             request={request}
             expanded={expanded.has(request.id)}
+            mobile={requestsMobile}
             selected={selected}
             version={reloads}
             onToggle={() => toggle(request.id)}

@@ -1,11 +1,11 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MessageSquare, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 
+import { FocusedJobHeader } from '@/components/workspace/focused-job-header'
 import { FocusedJobsRailLayout } from '@/components/workspace/focused-jobs-rail'
 import { RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
 import { JobsTopActions, Shell } from '@/components/workspace/shell'
@@ -365,12 +365,17 @@ function JobsWorkspace() {
           {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
           {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-lg font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid or the job was deleted. Another job was not selected for you.</p><Link className="mx-auto flex min-h-11 w-fit items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
           {membership === 'listed' && detail && <div className="m-3 overflow-hidden rounded-xl border border-border bg-card">
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-              <span className="font-bold text-primary">{requestRef(detail.id)}</span><span className="min-w-0 flex-1 truncate font-semibold">{detail.name || detail.customer?.company || detail.customer?.name || 'Unnamed job'}</span>
-              <StatusPill table="job_requests" id={detail.id} column="status" value={detail.status} label={requestStatusLabel(detail.status)} tone={requestStatusTone(detail.status)} options={REQUEST_STATUS_OPTIONS} onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
-              <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(detail.id), label: detail.name || requestRef(detail.id) })} className="flex min-h-11 items-center gap-2 rounded-full px-3 text-[12px] font-semibold text-primary"><Image src="/rosie.png" alt="" width={22} height={22} className="rounded-full"/>Chat with Rosie<MessageSquare size={14}/></button>
-            </div>
-            <RequestLinks request={detail} className="border-b border-border px-3 py-2" />
+            <FocusedJobHeader
+              request={detail}
+              mobile={breakpoint === true}
+              // job_requests currently has no project-date column. Created and
+              // updated timestamps are activity metadata, not an honest EPD.
+              projectDate={null}
+              status={
+                <StatusPill table="job_requests" id={detail.id} column="status" value={detail.status} label={requestStatusLabel(detail.status)} tone={requestStatusTone(detail.status)} options={REQUEST_STATUS_OPTIONS} onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
+              }
+              preview={<RequestLinks request={detail} focusedMobile={breakpoint === true} className="border-b border-border px-3 py-2" />}
+            />
             <RequestBody request={detail} version={version} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen((v) => !v)} emptyItemsCopy="No active line items have been saved for this job yet." onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
           </div>}
           {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">{requestRef(selection.id)} intake is pending</h2><p className="text-sm text-muted-foreground">Nothing is in the active job record yet. The reserved identity is kept; exiting never deletes it.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace(`/jobs?jr=${selection.id}&intake=1`)}>Resume intake</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/requests') ? marker.returnUrl : '/requests') }}>All jobs</button></div></div>}

@@ -587,12 +587,32 @@ function ItemRow({
  * them plus their conversation hang off it as segments. A flat run of `AR-<id>`
  * chips is the same links in an order nobody can scan.
  */
-function SupplierPill({ name, children }: { name: string; children: React.ReactNode }) {
+function SupplierPill({
+  name,
+  children,
+  focusedMobile = false,
+}: {
+  name: string
+  children: React.ReactNode
+  focusedMobile?: boolean
+}) {
   return (
-    <span className="inline-flex flex-none items-stretch overflow-hidden rounded-full border border-lps-edge bg-card text-[10.5px] font-semibold">
-      <span className="flex items-center gap-1 px-2 py-0.5 text-foreground">
-        <SuppliersIcon size={11} className="flex-none text-muted-foreground" />
-        <span className="max-w-[11rem] truncate">{name}</span>
+    <span
+      data-focused-mobile-supplier-pill={focusedMobile ? '' : undefined}
+      className={focusedMobile
+        ? 'flex w-full min-w-0 max-w-full flex-wrap items-stretch overflow-visible rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold'
+        : 'inline-flex flex-none items-stretch overflow-hidden rounded-full border border-lps-edge bg-card text-[10.5px] font-semibold'}
+    >
+      <span className={focusedMobile
+        ? 'flex min-w-0 max-w-full basis-full items-start gap-1 border-b border-lps-hair px-2 py-1 text-foreground'
+        : 'flex items-center gap-1 px-2 py-0.5 text-foreground'}>
+        <SuppliersIcon size={11} className={cn(
+          'flex-none text-muted-foreground',
+          focusedMobile && 'mt-0.5',
+        )} />
+        <span className={focusedMobile
+          ? 'min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]'
+          : 'max-w-[11rem] truncate'}>{name}</span>
       </span>
       {children}
     </span>
@@ -639,15 +659,19 @@ function LinkSegment({
  *
  * `suppliersHidden` folds the supplier strip away on small screens — on a
  * collapsed list card there is no empty half to ride, and who a job's
- * suppliers are is what you open the card to find out.
+ * suppliers are is what you open the card to find out. `focusedMobile` is the
+ * focused Job's narrow preview only: existing cards keep the segmented pill's
+ * established single-row presentation.
  */
 export function RequestLinks({
   request,
   suppliersHidden = false,
+  focusedMobile = false,
   className,
 }: {
   request: JobRequestRow
   suppliersHidden?: boolean
+  focusedMobile?: boolean
   className?: string
 }) {
   const customerName = request.customer?.company || request.customer?.name
@@ -672,11 +696,24 @@ export function RequestLinks({
   )
 
   return (
-    <div className={cn('flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px]', className)}>
-      <span className="font-semibold text-foreground">
+    <div
+      data-focused-mobile-request-links={focusedMobile ? '' : undefined}
+      className={cn(
+        'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px]',
+        focusedMobile && 'w-full max-w-full [overflow-wrap:anywhere]',
+        className,
+      )}
+    >
+      <span className={cn(
+        'font-semibold text-foreground',
+        focusedMobile && 'min-w-0 max-w-full break-words',
+      )}>
         {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
       </span>
-      {contact && <span className="text-muted-foreground">· {contact}</span>}
+      {contact && <span className={cn(
+        'text-muted-foreground',
+        focusedMobile && 'min-w-0 max-w-full break-words',
+      )}>· {contact}</span>}
       {/* The customer's conversation, on the customer's own name — the one
           place it cannot be mistaken for a supplier's. */}
       {customerThread && (
@@ -698,19 +735,24 @@ export function RequestLinks({
         </button>
       )}
       {locality && (
-        <span className="inline-flex items-center gap-1 text-muted-foreground">
+        <span className={cn(
+          'inline-flex items-center gap-1 text-muted-foreground',
+          focusedMobile && 'min-w-0 max-w-full flex-wrap',
+        )}>
           <MapPinIcon size={11} /> {locality}
         </span>
       )}
       {supplierPills.length > 0 && (
         <div
           className={cn(
-            'flex w-full flex-wrap items-center gap-1 md:ml-auto md:w-auto md:justify-end',
+            focusedMobile
+              ? 'flex w-full min-w-0 max-w-full flex-wrap items-center gap-1'
+              : 'flex w-full flex-wrap items-center gap-1 md:ml-auto md:w-auto md:justify-end',
             suppliersHidden && 'hidden md:flex',
           )}
         >
           {supplierPills.map((l) => (
-            <SupplierPill key={l.supplierId} name={l.name}>
+            <SupplierPill key={l.supplierId} name={l.name} focusedMobile={focusedMobile}>
               {l.availabilityRequests.map((ar) => (
                 <LinkSegment
                   key={ar.id}
@@ -732,7 +774,7 @@ export function RequestLinks({
                   )}
                 </LinkSegment>
               ))}
-              {l.rosieThreadId && (
+              {l.rosieThreadId && !focusedMobile && (
                 <LinkSegment
                   title={`Open the supplier conversation with ${l.name}`}
                   onOpen={() =>

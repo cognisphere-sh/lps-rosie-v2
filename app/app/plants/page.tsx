@@ -9,7 +9,7 @@ import {
   PlantAdvancedFilters, usePlantFilterContainer,
 } from '@/components/workspace/plant-filters'
 import {
-  PlantHeaderRow, PlantRowLine, plantsWidth,
+  PlantHeaderRow, PlantRowLine, plantsWidth, usePlantCompanyPanelWidth,
 } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
@@ -47,8 +47,7 @@ export default function PlantSearchPage() {
   const plantCfg = useTableConfig('plants')
   const masterCfg = useTableConfig('plantMaster')
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const visibleQuickFiltersRef = useRef<HTMLDivElement>(null)
-  const compactQuickFilters = usePlantFilterContainer(toolbarRef)
+  const quickFiltersRef = useRef<HTMLDivElement>(null)
 
   const [query, setQuery] = useState('')
   const [searchHydrated, setSearchHydrated] = useState(false)
@@ -58,7 +57,7 @@ export default function PlantSearchPage() {
   const [pageCount, setPageCount] = useState(1)
   const [loading, setLoading] = useState(false)
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
-  const [cultivarOpen, setCultivarOpen] = useState(false)
+  const [cultivarOpenOwner, setCultivarOpenOwner] = useState<'wide' | 'compact' | null>(null)
   const [facets, setFacets] = useState<Record<string, string[]>>({})
   const hasQuery = query.trim().length > 0
 
@@ -87,7 +86,7 @@ export default function PlantSearchPage() {
   // The loader covers the debounce window too, so it appears on the first
   // keystroke rather than 300ms later when the fetch actually fires.
   const searching = searchHydrated && hasQuery && (loading || !settled)
-  const [panelW, setPanelW] = useState(292)
+  const { panelWidth: panelW, startPanelResize } = usePlantCompanyPanelWidth()
   const [hiddenPlants, setHiddenPlants] = useState<string[]>([])
   const [hiddenCompanies, setHiddenCompanies] = useState<number[]>([])
   const [supplierPick, setSupplierPick] = useState<string[]>([])
@@ -297,6 +296,14 @@ export default function PlantSearchPage() {
   )
 
   const shownPlants = visibleGroups.reduce((n, g) => n + g.plants.length, 0)
+  const toolbarSummary = searching
+    ? 'Searching…'
+    : hasQuery
+      ? `${visibleGroups.length.toLocaleString('en-US')} Companies: ${shownPlants.toLocaleString('en-US')}/${total.toLocaleString('en-US')} Plants`
+      : 'Search by plant name'
+  const compactMode = usePlantFilterContainer(toolbarRef, panelW, toolbarSummary)
+  const compactQuickFilters = compactMode ?? true
+  const forceCompactToolbar = compactMode === true
 
   // Options come from the facet call, which sees the whole match set rather
   // than this page of it — so ticking one value never removes the others.
@@ -318,20 +325,6 @@ export default function PlantSearchPage() {
     (c) => !masterCfg.config.hidden.includes(c.key) && !PANEL_FIXED.includes(c.key),
   )
   const panelH = Math.max(140, 100 + panelDetailCols.length * 18)
-
-  const startPanelResize = (e: React.MouseEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startW = panelW
-    const move = (ev: MouseEvent) =>
-      setPanelW(Math.min(Math.max(startW + (ev.clientX - startX), 200), 480))
-    const up = () => {
-      document.removeEventListener('mousemove', move)
-      document.removeEventListener('mouseup', up)
-    }
-    document.addEventListener('mousemove', move)
-    document.addEventListener('mouseup', up)
-  }
 
   // Cultivar is a plant-level column, so the visible toolbar dropdown keeps
   // using the same filter state that the former column-head control used.
@@ -362,71 +355,84 @@ export default function PlantSearchPage() {
       onQuery={setQuery}
       controls={
         <>
-          <div
-            ref={visibleQuickFiltersRef}
-            data-plant-wide-filters
-            className="hidden @min-[900px]:contents"
-          >
-          <div className="w-[82px]">
-            <MultiFilter
-              allLabel="Size: Any"
-              options={sizeOptions}
-              selected={selectedSizes}
-              selectionLabel="Size"
-              accessibleName="Size"
-              buttonClassName="min-h-11 px-2 text-[12px]"
-              filterPlaceholder="Filter sizes…"
-              onChange={setSelectedSizes}
-              largeTargets
-              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
-            />
-          </div>
-          <div data-plant-cultivar className="w-[100px]">
-            <MultiFilter
-              allLabel="Cultivar: Any"
-              selectionLabel="Cultivar"
-              accessibleName="Cultivar"
-              options={cultivarOptions}
-              selected={cultivarFilter}
-              onChange={(next) => plantCfg.setColFilter('cultivar', next)}
-              buttonClassName="min-h-11 px-2 text-[12px]"
-              filterPlaceholder="Filter cultivars…"
-              largeTargets
-              restoreFocusOnClose
-              open={cultivarOpen}
-              onOpenChange={setCultivarOpen}
-              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
-            />
-          </div>
-          <div className="w-[108px]">
-            <MultiFilter
-              allLabel="Supplier type"
-              selectionLabel="Type"
-              accessibleName="Supplier type"
-              options={optionList('category')}
-              selected={categoryFilter}
-              onChange={(next) => masterCfg.setColFilter('category', next)}
-              buttonClassName="min-h-11 px-2 text-[12px]"
-              filterPlaceholder="Filter supplier types…"
-              largeTargets
-              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
-            />
-          </div>
-          <div className="w-[64px]">
-            <MultiFilter
-              allLabel="State"
-              selectionLabel="State"
-              accessibleName="State"
-              options={optionList('state')}
-              selected={stateFilter}
-              onChange={(next) => masterCfg.setColFilter('state', next)}
-              buttonClassName="min-h-11 px-2 text-[12px]"
-              filterPlaceholder="Filter states…"
-              largeTargets
-              menuAlign="right"
-              menuClassName="w-max min-w-full max-w-[calc(100vw-2rem)]"
-            />
-          </div>
+          <div ref={quickFiltersRef} data-plant-quick-filters className="contents">
+            <div className={cn('w-[82px] @min-[1024px]:w-[72px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+              <MultiFilter
+                allLabel="Size"
+                options={sizeOptions}
+                selected={selectedSizes}
+                selectionLabel="Size"
+                compactCountLabel="Size"
+                accessibleName="Size"
+                truncateLabel={false}
+                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                filterPlaceholder="Filter sizes…"
+                onChange={setSelectedSizes}
+                largeTargets
+                menuClassName="w-max min-w-full max-w-[240px]"
+              />
+            </div>
+            <div
+              data-plant-folded-filter
+              data-plant-cultivar
+              className={cn('hidden w-[84px] @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
+            >
+              <MultiFilter
+                allLabel="Cultivar"
+                selectionLabel="Cultivar"
+                compactCountLabel="Cultivar"
+                accessibleName="Cultivar"
+                truncateLabel={false}
+                options={cultivarOptions}
+                selected={cultivarFilter}
+                onChange={(next) => plantCfg.setColFilter('cultivar', next)}
+                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                filterPlaceholder="Filter cultivars…"
+                largeTargets
+                restoreFocusOnClose
+                open={cultivarOpenOwner === 'wide'}
+                onOpenChange={(next) => setCultivarOpenOwner(next ? 'wide' : null)}
+                menuClassName="w-max min-w-full max-w-[240px]"
+              />
+            </div>
+            <div className={cn('w-[82px] @min-[1024px]:w-[92px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+              <MultiFilter
+                allLabel="Type"
+                wideAllLabel="Supplier type"
+                selectionLabel="Type"
+                compactCountLabel="Type"
+                accessibleName="Supplier type"
+                truncateLabel={false}
+                options={optionList('category')}
+                selected={categoryFilter}
+                onChange={(next) => masterCfg.setColFilter('category', next)}
+                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                filterPlaceholder="Filter supplier types…"
+                largeTargets
+                menuAlign="right"
+                menuClassName="w-max min-w-full max-w-[240px]"
+              />
+            </div>
+            <div
+              data-plant-folded-filter
+              className={cn('hidden w-[68px] @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
+            >
+              <MultiFilter
+                allLabel="State"
+                selectionLabel="State"
+                compactCountLabel="State"
+                accessibleName="State"
+                truncateLabel={false}
+                options={optionList('state')}
+                selected={stateFilter}
+                onChange={(next) => masterCfg.setColFilter('state', next)}
+                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                filterPlaceholder="Filter states…"
+                largeTargets
+                menuAlign="right"
+                menuClassName="w-max min-w-full max-w-[240px]"
+              />
+            </div>
           </div>
           <PlantAdvancedFilters
             companyOptions={supplierNames}
@@ -434,22 +440,16 @@ export default function PlantSearchPage() {
             onCompanies={setSupplierPick}
             plantFilters={plantCfg.filters}
             onPlantFilter={(key, value) => plantCfg.setColFilter(key, value)}
-            sizeOptions={sizeOptions}
-            selectedSizes={selectedSizes}
-            onSizes={setSelectedSizes}
             cultivarOptions={cultivarOptions}
             cultivars={cultivarFilter}
             onCultivars={(next) => plantCfg.setColFilter('cultivar', next)}
-            categoryOptions={optionList('category')}
-            categories={categoryFilter}
-            onCategories={(next) => masterCfg.setColFilter('category', next)}
             stateOptions={optionList('state')}
             states={stateFilter}
             onStates={(next) => masterCfg.setColFilter('state', next)}
             compactForFocus={compactQuickFilters}
-            focusSourceRef={visibleQuickFiltersRef}
-            cultivarOpen={cultivarOpen}
-            onCultivarOpenChange={setCultivarOpen}
+            focusSourceRef={quickFiltersRef}
+            cultivarOpenOwner={cultivarOpenOwner}
+            onCultivarOpenOwnerChange={setCultivarOpenOwner}
             activeCount={activeFilterCount}
             onClear={clearAll}
           />
@@ -460,13 +460,9 @@ export default function PlantSearchPage() {
       showClear={false}
       containerResponsive
       toolbarRef={toolbarRef}
-      summary={
-        searching
-          ? 'Searching…'
-          : hasQuery
-            ? `${visibleGroups.length.toLocaleString('en-US')} Companies: ${shownPlants.toLocaleString('en-US')}/${total.toLocaleString('en-US')} Plants`
-            : 'Search by plant name'
-      }
+      wideSearchWidth={panelW}
+      forceCompact={forceCompactToolbar}
+      summary={toolbarSummary}
     />
   )
 

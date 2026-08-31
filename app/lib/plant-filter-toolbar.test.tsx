@@ -4,7 +4,7 @@ import test, { afterEach, beforeEach } from 'node:test'
 import React, { useRef, useState } from 'react'
 import { renderToString } from 'react-dom/server'
 import { JSDOM } from 'jsdom'
-import { act, cleanup, render, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import {
@@ -14,6 +14,12 @@ import {
   plantFiltersAreCompact,
   usePlantFilterContainer,
 } from '../components/workspace/plant-filters.tsx'
+import {
+  PLANT_COMPANY_PANEL_MAX_WIDTH,
+  PLANT_COMPANY_PANEL_MIN_WIDTH,
+  PLANT_COMPANY_PANEL_WIDTH,
+  usePlantCompanyPanelWidth,
+} from '../components/workspace/plant-table.tsx'
 import { MultiFilter } from '../components/workspace/table-parts.tsx'
 import { PageControls, Toolbar } from '../components/workspace/toolbar.tsx'
 
@@ -21,14 +27,17 @@ let dom: JSDOM
 let resizeObservers: MockResizeObserver[]
 
 class MockResizeObserver {
-  private target: Element | null = null
+  target: Element | null = null
 
   constructor(private readonly callback: ResizeObserverCallback) {
     resizeObservers.push(this)
   }
 
-  observe(target: Element) {
+  observedBox: ResizeObserverBoxOptions | undefined
+
+  observe(target: Element, options?: ResizeObserverOptions) {
     this.target = target
+    this.observedBox = options?.box
   }
 
   disconnect() {
@@ -59,6 +68,40 @@ const raceContainerWidths = async (...widths: number[]) => {
 }
 
 const settleFocus = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+
+function trackDocumentFilterListeners() {
+  const active = new Map<string, Set<EventListenerOrEventListenerObject>>([
+    ['mousedown', new Set()],
+    ['keydown', new Set()],
+  ])
+  const originalAdd = document.addEventListener.bind(document) as (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ) => void
+  const originalRemove = document.removeEventListener.bind(document) as (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | EventListenerOptions,
+  ) => void
+  document.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+    // Count only MultiFilter/useOutsideClose effects, not user-event or React's
+    // own document delegation that may be installed lazily by a test action.
+    if (new Error().stack?.includes('table-parts.tsx')) active.get(type)?.add(listener)
+    originalAdd(type, listener, options)
+  }) as typeof document.addEventListener
+  document.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+    active.get(type)?.delete(listener)
+    originalRemove(type, listener, options)
+  }) as typeof document.removeEventListener
+  return {
+    count: (type: 'mousedown' | 'keydown') => active.get(type)?.size ?? 0,
+    restore: () => {
+      document.addEventListener = originalAdd as typeof document.addEventListener
+      document.removeEventListener = originalRemove as typeof document.removeEventListener
+    },
+  }
+}
 
 beforeEach(() => {
   resizeObservers = []
@@ -99,17 +142,11 @@ test('advanced Plant Search filter is an active 44px dialog trigger with all mov
       onCompanies={() => {}}
       plantFilters={{ price: { min: '10' } }}
       onPlantFilter={() => {}}
-      sizeOptions={['1 G']}
-      selectedSizes={[]}
-      onSizes={() => {}}
       cultivarOptions={['Natchez']}
       cultivars={[]}
       onCultivars={() => {}}
-      cultivarOpen={false}
-      onCultivarOpenChange={() => {}}
-      categoryOptions={['Grower']}
-      categories={[]}
-      onCategories={() => {}}
+      cultivarOpenOwner={null}
+      onCultivarOpenOwnerChange={() => {}}
       stateOptions={['TX']}
       states={[]}
       onStates={() => {}}
@@ -132,8 +169,13 @@ test('advanced Plant Search filter is an active 44px dialog trigger with all mov
   }
   assert.equal(view.queryByText('City'), null)
   const compactCopy = view.container.querySelector('[data-plant-compact-filters]')!
-  assert.match(compactCopy.className, /@min-\[900px\]:hidden/)
+  assert.match(compactCopy.className, /@min-\[1024px\]:hidden/)
   assert.equal(compactCopy.hasAttribute('aria-hidden'), false)
+  assert.equal(within(compactCopy as HTMLElement).queryByRole('button', { name: /^Size/ }), null)
+  assert.equal(within(compactCopy as HTMLElement).queryByRole('button', { name: 'Supplier type' }), null)
+  for (const name of ['Cultivar', 'State']) {
+    assert.ok(within(compactCopy as HTMLElement).getByRole('button', { name }))
+  }
 
   await user.click(view.getByRole('button', { name: 'Clear all' }))
   assert.equal(cleared, 1)
@@ -144,15 +186,13 @@ test('advanced Plant Search filter is an active 44px dialog trigger with all mov
 })
 
 const LONG_GEOMETRY_OPTIONS = {
-  Size: 'Specimen container size with an intentionally long descriptive label',
   Cultivar: 'Cultivar with an exceptionally long registered trade name that must remain readable',
-  'Supplier type': 'Supplier category with a very long operational description for the buying team',
   State: 'State or growing region with a deliberately extended display name',
   Company: 'Company with a substantially long legal trading name and nursery division suffix',
 } as const
 
 function AdvancedGeometryHarness() {
-  const [cultivarOpen, setCultivarOpen] = useState(false)
+  const [cultivarOpenOwner, setCultivarOpenOwner] = useState<'wide' | 'compact' | null>(null)
   return (
     <PlantAdvancedFilters
       companyOptions={[LONG_GEOMETRY_OPTIONS.Company]}
@@ -160,17 +200,11 @@ function AdvancedGeometryHarness() {
       onCompanies={() => {}}
       plantFilters={{}}
       onPlantFilter={() => {}}
-      sizeOptions={[LONG_GEOMETRY_OPTIONS.Size]}
-      selectedSizes={[]}
-      onSizes={() => {}}
       cultivarOptions={[LONG_GEOMETRY_OPTIONS.Cultivar]}
       cultivars={[]}
       onCultivars={() => {}}
-      cultivarOpen={cultivarOpen}
-      onCultivarOpenChange={setCultivarOpen}
-      categoryOptions={[LONG_GEOMETRY_OPTIONS['Supplier type']]}
-      categories={[]}
-      onCategories={() => {}}
+      cultivarOpenOwner={cultivarOpenOwner}
+      onCultivarOpenOwnerChange={setCultivarOpenOwner}
       stateOptions={[LONG_GEOMETRY_OPTIONS.State]}
       states={[]}
       onStates={() => {}}
@@ -196,10 +230,10 @@ const rect = (left: number, width: number, top = 0, height = 44) => ({
 test('rendered nested menus stay inside their actual grid cells with long reachable content', async () => {
   const user = userEvent.setup({ document })
   const cases = [
-    { container: 390, columns: 1, names: ['Size', 'Cultivar', 'Supplier type', 'State', 'Company'] as const },
-    { container: 514, columns: 2, names: ['Size', 'Cultivar', 'Supplier type', 'State', 'Company'] as const },
-    { container: 658, columns: 3, names: ['Size', 'Cultivar', 'Supplier type', 'State', 'Company'] as const },
-    { container: 900, columns: 3, names: ['Company'] as const },
+    { container: 390, columns: 1, names: ['Cultivar', 'State', 'Company'] as const },
+    { container: 514, columns: 2, names: ['Cultivar', 'State', 'Company'] as const },
+    { container: 658, columns: 3, names: ['Cultivar', 'State', 'Company'] as const },
+    { container: 1024, columns: 3, names: ['Company'] as const },
   ]
 
   for (const geometry of cases) {
@@ -225,9 +259,9 @@ test('rendered nested menus stay inside their actual grid cells with long reacha
       assert.match(menu.className, /\bmin-w-0\b/)
       assert.match(menu.className, /\bmax-w-full\b/)
 
-      // At 900px the compact quartet is CSS-hidden, so Company occupies the
+      // At 1024px the compact pair is CSS-hidden, so Company occupies the
       // first advanced-grid cell. At compact widths DOM order equals grid order.
-      const gridIndex = geometry.container >= 900 ? 0 : visibleIndex
+      const gridIndex = geometry.container >= 1024 ? 0 : visibleIndex
       const column = gridIndex % geometry.columns
       const fieldLeft = surfaceLeft + 13 + (column * (fieldWidth + 12))
       const fieldRight = fieldLeft + fieldWidth
@@ -268,39 +302,168 @@ test('rendered nested menus stay inside their actual grid cells with long reacha
   }
 })
 
-function ResponsiveToolbarHarness() {
+function CompactLabelHarness({ count }: { count: number }) {
+  const selected = Array.from({ length: count }, (_, index) => `Option ${index + 1}`)
+  const options = Array.from({ length: 12 }, (_, index) => `Option ${index + 1}`)
+  return (
+    <div className="flex">
+      <div data-label-track="size" className="w-[82px]">
+        <MultiFilter
+          allLabel="Size"
+          selectionLabel="Size"
+          compactCountLabel="Size"
+          accessibleName="Size"
+          truncateLabel={false}
+          options={options}
+          selected={selected}
+          onChange={() => {}}
+          buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+        />
+      </div>
+      <div data-label-track="type" className="w-[82px]">
+        <MultiFilter
+          allLabel="Type"
+          selectionLabel="Type"
+          compactCountLabel="Type"
+          accessibleName="Supplier type"
+          truncateLabel={false}
+          options={options}
+          selected={selected}
+          onChange={() => {}}
+          buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+        />
+      </div>
+    </div>
+  )
+}
+
+test('compact Size and Type labels remain fully rendered at zero, one and double-digit selections', () => {
+  for (const count of [0, 1, 12]) {
+    const view = render(<CompactLabelHarness count={count} />)
+    const expected = {
+      size: count ? `Size · ${count}` : 'Size',
+      type: count ? `Type · ${count}` : 'Type',
+    }
+    for (const [kind, visible] of Object.entries(expected)) {
+      const track = view.container.querySelector(`[data-label-track="${kind}"]`) as HTMLElement
+      const button = within(track).getByRole('button')
+      const label = button.querySelector('span') as HTMLElement
+      assert.equal(label.textContent, visible)
+      assert.match(label.className, /whitespace-nowrap/)
+      assert.doesNotMatch(label.className, /truncate/)
+      assert.match(button.className, /min-h-11/)
+      assert.match(button.className, /gap-0\.5/)
+      assert.match(button.className, /px-0\.5/)
+      assert.match(track.className, /w-\[82px\]/)
+      const availableLabelWidth = 82 - 4 - 2 - 10 // 2px sides, 2px gap, 10px chevron
+      const conservativeInterWidth = Math.ceil(visible.length * 11 * 0.62)
+      Object.defineProperties(label, {
+        clientWidth: { configurable: true, value: availableLabelWidth },
+        scrollWidth: { configurable: true, value: conservativeInterWidth },
+      })
+      assert.ok(label.scrollWidth <= label.clientWidth, `${visible} fits its rendered 11px label budget`)
+    }
+    assert.equal(
+      within(view.container.querySelector('[data-label-track="size"]') as HTMLElement).getByRole('button').getAttribute('aria-label'),
+      count ? `Size, ${count} selected` : 'Size',
+    )
+    assert.equal(
+      within(view.container.querySelector('[data-label-track="type"]') as HTMLElement).getByRole('button').getAttribute('aria-label'),
+      count ? `Supplier type, ${count} selected` : 'Supplier type',
+    )
+    view.unmount()
+  }
+})
+
+function ContainerModeProbe({
+  width,
+  panelWidth = PLANT_COMPANY_PANEL_WIDTH,
+  summary = '17 Companies: 47/47 Plants',
+}: {
+  width: number
+  panelWidth?: number
+  summary?: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const compact = usePlantFilterContainer(ref, panelWidth, summary)
+  return (
+    <div
+      ref={(node) => {
+        if (node) Object.defineProperty(node, 'clientWidth', { configurable: true, value: width })
+        ref.current = node
+      }}
+      data-container-mode={compact === null ? 'unresolved' : compact ? 'compact' : 'wide'}
+      className="@container"
+    />
+  )
+}
+
+test('initial content-box measurement and exact observer widths agree at every required outer width', async () => {
+  for (const width of [390, 514, 658, 899, 900, 1024, 1280]) {
+    const view = render(<ContainerModeProbe width={width} />)
+    await act(async () => {})
+    const probe = view.container.querySelector('[data-container-mode]') as HTMLElement
+    assert.equal(probe.getAttribute('data-container-mode'), width < 1024 ? 'compact' : 'wide')
+    const observer = resizeObservers.at(-1)!
+    assert.equal(observer.target, probe)
+    assert.equal(observer.observedBox, 'content-box')
+    await resizeContainer(width === 1024 ? 900 : 1024)
+    assert.equal(probe.getAttribute('data-container-mode'), width === 1024 ? 'compact' : 'wide')
+    view.unmount()
+  }
+})
+
+function ResponsiveToolbarHarness({
+  panelWidth = PLANT_COMPANY_PANEL_WIDTH,
+  summary = '17 Companies: 47/47 Plants',
+}: {
+  panelWidth?: number
+  summary?: string
+} = {}) {
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const wideFiltersRef = useRef<HTMLDivElement>(null)
-  const compact = usePlantFilterContainer(toolbarRef)
+  const quickFiltersRef = useRef<HTMLDivElement>(null)
+  const compactMode = usePlantFilterContainer(toolbarRef, panelWidth, summary)
+  const compact = compactMode ?? true
+  const forceCompact = compactMode === true
   const [sizes, setSizes] = useState<string[]>([])
   const [cultivars, setCultivars] = useState<string[]>([])
-  const [cultivarOpen, setCultivarOpen] = useState(false)
+  const [cultivarOpenOwner, setCultivarOpenOwner] = useState<'wide' | 'compact' | null>(null)
 
   return (
     <Toolbar
       toolbarRef={toolbarRef}
       containerResponsive
+      wideSearchWidth={panelWidth}
+      forceCompact={forceCompact}
       placeholder="Plant Search"
       query="thuja"
       onQuery={() => {}}
       controls={
         <>
-          <div ref={wideFiltersRef} data-plant-wide-filters className="hidden @min-[900px]:contents">
-            <MultiFilter allLabel="Size: Any" accessibleName="Size" options={['1 G']} selected={sizes} onChange={setSizes} />
-            <div data-plant-cultivar>
+          <div ref={quickFiltersRef} data-plant-quick-filters className="contents">
+            <MultiFilter allLabel="Size" accessibleName="Size" options={['1 G']} selected={sizes} onChange={setSizes} />
+            <div
+              data-plant-folded-filter
+              data-plant-cultivar
+              className={forceCompact ? 'hidden @min-[1024px]:block @min-[1024px]:!hidden' : 'hidden @min-[1024px]:block'}
+            >
               <MultiFilter
                 allLabel="Cultivar: Any"
                 accessibleName="Cultivar"
                 options={['Natchez']}
                 selected={cultivars}
                 onChange={setCultivars}
-                open={cultivarOpen}
-                onOpenChange={setCultivarOpen}
+                open={cultivarOpenOwner === 'wide'}
+                onOpenChange={(next) => setCultivarOpenOwner(next ? 'wide' : null)}
                 restoreFocusOnClose
               />
             </div>
             <button type="button">Supplier type</button>
-            <button type="button">State</button>
+            <button
+              data-plant-folded-filter
+              className={forceCompact ? 'hidden @min-[1024px]:block @min-[1024px]:!hidden' : 'hidden @min-[1024px]:block'}
+              type="button"
+            >State</button>
           </div>
           <PlantAdvancedFilters
             companyOptions={['Oak Hill']}
@@ -308,22 +471,16 @@ function ResponsiveToolbarHarness() {
             onCompanies={() => {}}
             plantFilters={{}}
             onPlantFilter={() => {}}
-            sizeOptions={['1 G']}
-            selectedSizes={sizes}
-            onSizes={setSizes}
             cultivarOptions={['Natchez']}
             cultivars={cultivars}
             onCultivars={setCultivars}
-            cultivarOpen={cultivarOpen}
-            onCultivarOpenChange={setCultivarOpen}
-            categoryOptions={['Grower']}
-            categories={[]}
-            onCategories={() => {}}
+            cultivarOpenOwner={cultivarOpenOwner}
+            onCultivarOpenOwnerChange={setCultivarOpenOwner}
             stateOptions={['TX']}
             states={[]}
             onStates={() => {}}
             compactForFocus={compact}
-            focusSourceRef={wideFiltersRef}
+            focusSourceRef={quickFiltersRef}
             activeCount={sizes.length}
             onClear={() => setSizes([])}
           />
@@ -333,56 +490,72 @@ function ResponsiveToolbarHarness() {
       hasFilters={sizes.length > 0}
       onClear={() => setSizes([])}
       showClear={false}
-      summary="17 Companies: 47/47 Plants"
+      summary={summary}
     />
   )
 }
 
-test('SSR markup delegates wide-first visibility to CSS without JS aria or tabbability patches', () => {
-  const markup = renderToString(<ResponsiveToolbarHarness />)
-  assert.match(markup, /@container relative flex-nowrap/)
-  assert.match(markup, /data-plant-wide-filters="true" class="hidden @min-\[900px\]:contents"/)
-  assert.doesNotMatch(markup, /data-plant-wide-filters[^>]+aria-hidden/)
-  assert.doesNotMatch(markup, /data-plant-wide-filters[^>]+tabindex/)
+test('ResizeObserver watches the same unpadded content-box element that owns CSS container queries', () => {
+  const view = render(<ResponsiveToolbarHarness />)
+  const container = view.container.querySelector('[data-responsive-toolbar-container]')
+  const row = view.container.querySelector('[data-responsive-toolbar-row]')
+  assert.ok(container)
+  assert.ok(row)
+  assert.equal(resizeObservers.length, 1)
+  assert.equal(resizeObservers[0].target, container)
+  assert.equal(resizeObservers[0].observedBox, 'content-box')
+  assert.match(container.className, /@container/)
+  assert.doesNotMatch(container.className, /px-|py-/)
+  assert.match(row.className, /px-2/)
 })
 
-test('actual container transitions fold quick filters without losing dialog, focus, state, summary or action', async () => {
+test('SSR markup delegates folded-filter visibility to one unpadded CSS container', () => {
+  const markup = renderToString(<ResponsiveToolbarHarness />)
+  assert.match(markup, /data-responsive-toolbar-container="true" class="@container relative flex-none border-b/)
+  assert.match(markup, /data-responsive-toolbar-row="true" class="flex flex-nowrap items-center gap-1 px-2 py-2\.5 @min-\[1024px\]:px-4"/)
+  assert.match(markup, /data-plant-quick-filters="true" class="contents"/)
+  assert.equal((markup.match(/data-plant-folded-filter="true"/g) ?? []).length, 2)
+  assert.match(markup, /data-plant-folded-filter="true"[^>]+class="hidden @min-\[1024px\]:block"/)
+  assert.doesNotMatch(markup, /data-plant-(?:quick-filters|folded-filter)[^>]+aria-hidden/)
+  assert.doesNotMatch(markup, /data-plant-(?:quick-filters|folded-filter)[^>]+tabindex/)
+  assert.doesNotMatch(markup.match(/data-responsive-toolbar-container[^>]+/)?.[0] ?? '', /px-|py-/)
+})
+
+test('actual container transitions keep Size and Supplier type visible while folding Cultivar and State', async () => {
   const user = userEvent.setup({ document })
   const view = render(<ResponsiveToolbarHarness />)
-  const wide = view.container.querySelector('[data-plant-wide-filters]')!
+  const quick = view.container.querySelector('[data-plant-quick-filters]') as HTMLElement
+  const size = within(quick).getByRole('button', { name: 'Size' })
+  const supplierType = within(quick).getByRole('button', { name: 'Supplier type' })
 
-  assert.equal(wide.hasAttribute('aria-hidden'), false)
-  assert.match(wide.className, /hidden @min-\[900px\]:contents/)
+  assert.equal(quick.hasAttribute('aria-hidden'), false)
   assert.equal(view.container.querySelector('[data-plant-compact-filters]'), null)
+  assert.equal(view.getAllByRole('button', { name: 'Size' }).length, 1)
+  assert.equal(view.getAllByRole('button', { name: 'Supplier type' }).length, 1)
   assert.ok(view.getByText('17 Companies: 47/47 Plants'))
   assert.ok(view.getByRole('button', { name: 'Notifications' }))
 
-  await user.click(view.getByRole('button', { name: 'More filters' }))
-  assert.equal(view.getByRole('button', { name: 'More filters' }).getAttribute('aria-expanded'), 'true')
-  const compact = view.container.querySelector('[data-plant-compact-filters]')!
-  assert.equal(compact.hasAttribute('aria-hidden'), false)
-  assert.match(compact.className, /contents @min-\[900px\]:hidden/)
-  for (const name of ['Size', 'Cultivar', 'Supplier type', 'State']) {
-    assert.ok(within(compact as HTMLElement).getByRole('button', { name }))
-  }
-  await user.click(within(compact as HTMLElement).getByRole('button', { name: 'Size' }))
-  await user.click(within(compact as HTMLElement).getByRole('button', { name: '1 G' }))
+  await user.click(size)
+  await user.click(view.getByRole('button', { name: '1 G' }))
+  await user.click(view.getByRole('button', { name: 'More filters, 1 active' }))
+  const compact = view.container.querySelector('[data-plant-compact-filters]') as HTMLElement
+  assert.match(compact.className, /contents @min-\[1024px\]:hidden/)
+  for (const name of ['Cultivar', 'State']) assert.ok(within(compact).getByRole('button', { name }))
+  assert.equal(within(compact).queryByRole('button', { name: /^Size/ }), null)
+  assert.equal(within(compact).queryByRole('button', { name: 'Supplier type' }), null)
+  assert.equal(view.getAllByRole('button', { name: 'Size, 1 selected' }).length, 1)
+  assert.equal(view.getAllByRole('button', { name: 'Supplier type' }).length, 1)
 
-  await resizeContainer(900)
-  assert.equal(wide.hasAttribute('aria-hidden'), false)
-  assert.equal(compact.hasAttribute('aria-hidden'), false)
-  assert.equal(view.getByRole('button', { name: 'More filters, 1 active' }).getAttribute('aria-expanded'), 'true')
-  const wideSize = within(wide as HTMLElement).getByRole('button', { name: 'Size, 1 selected' })
-  assert.ok(wideSize)
-  for (const name of ['Cultivar', 'Supplier type', 'State']) {
-    assert.ok(within(wide as HTMLElement).getByRole('button', { name }))
-  }
+  await resizeContainer(1024)
+  const wideSize = within(quick).getByRole('button', { name: 'Size, 1 selected' })
+  const wideCultivar = within(quick).getByRole('button', { name: 'Cultivar' })
+  const wideState = within(quick).getByRole('button', { name: 'State' })
   const wideOrder = [
     view.getByRole('textbox', { name: 'Plant Search' }),
     wideSize,
-    within(wide as HTMLElement).getByRole('button', { name: 'Cultivar' }),
-    within(wide as HTMLElement).getByRole('button', { name: 'Supplier type' }),
-    within(wide as HTMLElement).getByRole('button', { name: 'State' }),
+    wideCultivar,
+    supplierType,
+    wideState,
     view.getByRole('button', { name: 'More filters, 1 active' }),
     view.getByText('17 Companies: 47/47 Plants'),
     view.getByRole('button', { name: 'Notifications' }),
@@ -393,13 +566,16 @@ test('actual container transitions fold quick filters without losing dialog, foc
 
   wideSize.focus()
   await resizeContainer(658)
+  assert.equal(document.activeElement, wideSize)
+  assert.ok(view.getByText('17 Companies: 47/47 Plants'))
+  assert.ok(view.getByRole('button', { name: 'Notifications' }))
+
+  await resizeContainer(1024)
+  wideState.focus()
+  await resizeContainer(899)
   const trigger = view.getByRole('button', { name: 'More filters, 1 active' })
   assert.equal(document.activeElement, trigger)
   assert.equal(trigger.getAttribute('aria-expanded'), 'true')
-  assert.equal(wide.hasAttribute('aria-hidden'), false)
-  assert.equal(compact.hasAttribute('aria-hidden'), false)
-  assert.ok(view.getByText('17 Companies: 47/47 Plants'))
-  assert.ok(view.getByRole('button', { name: 'Notifications' }))
 
   await user.click(trigger)
   assert.equal(trigger.getAttribute('aria-expanded'), 'false')
@@ -411,25 +587,33 @@ test('actual container transitions fold quick filters without losing dialog, foc
 test('controlled Cultivar stays open and moves focus across both copies and crossing races', async () => {
   const user = userEvent.setup({ document })
   const view = render(<ResponsiveToolbarHarness />)
-  const wide = view.container.querySelector('[data-plant-wide-filters]') as HTMLElement
+  const wide = view.container.querySelector('[data-plant-quick-filters]') as HTMLElement
 
-  await resizeContainer(900)
+  await resizeContainer(1024)
   const wideCultivar = within(wide).getByRole('button', { name: 'Cultivar' })
   await user.click(wideCultivar)
   within(wide).getByRole('textbox', { name: 'Filter suppliers…' }).focus()
+  assert.equal(view.getAllByRole('textbox', { name: /Filter (?:suppliers|cultivars)…/ }).length, 1)
+  assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
 
   await resizeContainer(658)
   await settleFocus()
   const compact = view.container.querySelector('[data-plant-compact-filters]') as HTMLElement
   const compactCultivar = within(compact).getByRole('button', { name: 'Cultivar' })
   assert.equal(compactCultivar.getAttribute('aria-expanded'), 'true')
+  assert.equal(wideCultivar.getAttribute('aria-expanded'), 'false')
   assert.equal(document.activeElement, compactCultivar)
   assert.ok(within(compact).getByRole('textbox', { name: 'Filter cultivars…' }))
+  assert.equal(view.getAllByRole('textbox', { name: /Filter (?:suppliers|cultivars)…/ }).length, 1)
+  assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
 
-  await resizeContainer(900)
+  await resizeContainer(1024)
   await settleFocus()
   assert.equal(wideCultivar.getAttribute('aria-expanded'), 'true')
+  assert.equal(compactCultivar.getAttribute('aria-expanded'), 'false')
   assert.equal(document.activeElement, wideCultivar)
+  assert.equal(view.getAllByRole('textbox', { name: /Filter (?:suppliers|cultivars)…/ }).length, 1)
+  assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
 
   await user.click(wideCultivar)
   assert.equal(wideCultivar.getAttribute('aria-expanded'), 'false')
@@ -441,16 +625,19 @@ test('controlled Cultivar stays open and moves focus across both copies and cros
   const compactCultivarAgain = within(compactAgain).getByRole('button', { name: 'Cultivar' })
   await user.click(compactCultivarAgain)
   within(compactAgain).getByRole('textbox', { name: 'Filter cultivars…' }).focus()
-  await resizeContainer(900)
+  await resizeContainer(1024)
   await settleFocus()
   assert.equal(wideCultivar.getAttribute('aria-expanded'), 'true')
   assert.equal(document.activeElement, wideCultivar)
 
   within(wide).getByRole('textbox', { name: 'Filter suppliers…' }).focus()
-  await raceContainerWidths(658, 900, 514)
+  await raceContainerWidths(658, 1024, 514)
   await settleFocus()
   assert.equal(compactCultivarAgain.getAttribute('aria-expanded'), 'true')
+  assert.equal(wideCultivar.getAttribute('aria-expanded'), 'false')
   assert.equal(document.activeElement, compactCultivarAgain)
+  assert.equal(view.getAllByRole('textbox', { name: /Filter (?:suppliers|cultivars)…/ }).length, 1)
+  assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
 
   Object.defineProperty(compactCultivarAgain, 'getClientRects', {
     configurable: true,
@@ -468,10 +655,233 @@ test('controlled Cultivar stays open and moves focus across both copies and cros
   assert.equal(view.container.querySelectorAll('[id="plant-filters-title"]').length, 1)
 })
 
-test('mobile, constrained and wide widths share the deterministic 900px container boundary', () => {
-  assert.equal(PLANT_QUICK_FILTER_MIN_WIDTH, 900)
-  for (const width of [390, 514, 658, 899]) assert.equal(plantFiltersAreCompact(width), true)
-  for (const width of [900, 1024, 1200]) assert.equal(plantFiltersAreCompact(width), false)
+test('Cultivar owns exactly one menu and one additional outside/Escape listener set across transfers', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<ResponsiveToolbarHarness />)
+  await resizeContainer(658)
+  const listeners = trackDocumentFilterListeners()
+  try {
+    await user.click(view.getByRole('button', { name: 'More filters' }))
+    const dialogListenerCounts = {
+      mousedown: listeners.count('mousedown'),
+      keydown: listeners.count('keydown'),
+    }
+    const compact = view.container.querySelector('[data-plant-compact-filters]') as HTMLElement
+    await user.click(within(compact).getByRole('button', { name: 'Cultivar' }))
+    assert.equal(listeners.count('mousedown'), dialogListenerCounts.mousedown + 1)
+    assert.equal(listeners.count('keydown'), dialogListenerCounts.keydown + 1)
+    assert.equal(view.getAllByRole('textbox', { name: 'Filter cultivars…' }).length, 1)
+    assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
+
+    await resizeContainer(1024)
+    await settleFocus()
+    assert.equal(listeners.count('mousedown'), dialogListenerCounts.mousedown + 1)
+    assert.equal(listeners.count('keydown'), dialogListenerCounts.keydown + 1)
+    assert.equal(view.getAllByRole('textbox', { name: 'Filter suppliers…' }).length, 1)
+    assert.equal(view.queryByRole('textbox', { name: 'Filter cultivars…' }), null)
+    assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
+
+    await raceContainerWidths(900, 1024, 1280, 514)
+    await settleFocus()
+    assert.equal(listeners.count('mousedown'), dialogListenerCounts.mousedown + 1)
+    assert.equal(listeners.count('keydown'), dialogListenerCounts.keydown + 1)
+    assert.equal(view.getAllByRole('textbox', { name: 'Filter cultivars…' }).length, 1)
+    assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
+
+    await raceContainerWidths(1024, 900, 514, 1280)
+    await settleFocus()
+    assert.equal(listeners.count('mousedown'), dialogListenerCounts.mousedown + 1)
+    assert.equal(listeners.count('keydown'), dialogListenerCounts.keydown + 1)
+    assert.equal(view.getAllByRole('textbox', { name: 'Filter suppliers…' }).length, 1)
+    assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
+
+    await raceContainerWidths(900, 1024, 658)
+    await settleFocus()
+    assert.equal(listeners.count('mousedown'), dialogListenerCounts.mousedown + 1)
+    assert.equal(listeners.count('keydown'), dialogListenerCounts.keydown + 1)
+    assert.equal(view.getAllByRole('textbox', { name: 'Filter cultivars…' }).length, 1)
+    assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 1)
+
+    const activeCultivar = within(view.container.querySelector('[data-plant-compact-filters]') as HTMLElement)
+      .getByRole('button', { name: 'Cultivar' })
+    Object.defineProperty(activeCultivar, 'getClientRects', {
+      configurable: true,
+      value: () => [{ width: 82, height: 44 }],
+    })
+    activeCultivar.focus()
+    await act(async () => {
+      activeCultivar.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    await settleFocus()
+    assert.equal(listeners.count('mousedown'), dialogListenerCounts.mousedown)
+    assert.equal(listeners.count('keydown'), dialogListenerCounts.keydown)
+    assert.ok(view.getByRole('dialog', { name: 'More filters' }))
+    assert.equal(view.container.querySelectorAll('[data-multi-filter-menu]').length, 0)
+    view.unmount()
+    assert.equal(listeners.count('mousedown'), 0)
+    assert.equal(listeners.count('keydown'), 0)
+  } finally {
+    listeners.restore()
+  }
+})
+
+test('generation-aware focus scheduling drops stale crossings, close races and unmounted callbacks', async () => {
+  let nextFrame = 1
+  const frames = new Map<number, FrameRequestCallback>()
+  const cancelled = new Set<number>()
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+    const id = nextFrame
+    nextFrame += 1
+    frames.set(id, callback)
+    return id
+  }) as typeof requestAnimationFrame
+  globalThis.cancelAnimationFrame = ((id: number) => {
+    cancelled.add(id)
+  }) as typeof cancelAnimationFrame
+  const activeFrameCount = () => [...frames.keys()].filter((id) => !cancelled.has(id)).length
+  const flushEveryFrame = async () => {
+    const pending = [...frames.entries()]
+    frames.clear()
+    cancelled.clear()
+    await act(async () => {
+      for (const [, callback] of pending) callback(Date.now())
+    })
+  }
+
+  const user = userEvent.setup({ document })
+
+  // Each resize is its own committed React update; no frame flushes between
+  // them. Even if a cancelled browser callback were to run, generation and
+  // current mode/owner checks permit only the latest wide transfer to focus.
+  const crossings = render(<ResponsiveToolbarHarness />)
+  await resizeContainer(1024)
+  const crossingWide = within(crossings.container.querySelector('[data-plant-quick-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  await user.click(crossingWide)
+  await resizeContainer(899)
+  const crossingCompact = within(crossings.container.querySelector('[data-plant-compact-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  const crossingAttempts: string[] = []
+  Object.defineProperty(crossingWide, 'focus', { configurable: true, value: () => crossingAttempts.push('wide') })
+  Object.defineProperty(crossingCompact, 'focus', { configurable: true, value: () => crossingAttempts.push('compact') })
+  await resizeContainer(1024)
+  await resizeContainer(899)
+  await resizeContainer(1024)
+  assert.equal(activeFrameCount(), 1)
+  await flushEveryFrame()
+  assert.deepEqual(crossingAttempts, ['wide'])
+  crossings.unmount()
+
+  // Closing the compact surface before its transfer frame flushes cancels that
+  // focus and schedules only the still-valid advanced-trigger return.
+  const closing = render(<ResponsiveToolbarHarness />)
+  await resizeContainer(1024)
+  const closingWide = within(closing.container.querySelector('[data-plant-quick-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  await user.click(closingWide)
+  await resizeContainer(899)
+  const closingCompact = within(closing.container.querySelector('[data-plant-compact-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  const closingAdvanced = closing.getByRole('button', { name: 'More filters' })
+  const closingAttempts: string[] = []
+  Object.defineProperty(closingCompact, 'focus', { configurable: true, value: () => closingAttempts.push('compact') })
+  Object.defineProperty(closingAdvanced, 'focus', { configurable: true, value: () => closingAttempts.push('advanced') })
+  await user.click(closingAdvanced)
+  closingAttempts.length = 0
+  assert.equal(activeFrameCount(), 1)
+  await flushEveryFrame()
+  assert.deepEqual(closingAttempts, ['advanced'])
+  closing.unmount()
+
+  // Unmount invalidates and cancels the pending owner-transfer generation.
+  const unmounting = render(<ResponsiveToolbarHarness />)
+  await resizeContainer(1024)
+  const unmountWide = within(unmounting.container.querySelector('[data-plant-quick-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  await user.click(unmountWide)
+  await resizeContainer(899)
+  const unmountCompact = within(unmounting.container.querySelector('[data-plant-compact-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  const unmountAttempts: string[] = []
+  Object.defineProperty(unmountCompact, 'focus', { configurable: true, value: () => unmountAttempts.push('compact') })
+  assert.equal(activeFrameCount(), 1)
+  unmounting.unmount()
+  assert.equal(activeFrameCount(), 0)
+  await flushEveryFrame()
+  assert.deepEqual(unmountAttempts, [])
+})
+
+test('simultaneous outside dismissal discards stale advanced focus before Cultivar reopens', async () => {
+  let nextFrame = 1
+  const frames = new Map<number, FrameRequestCallback>()
+  const cancelled = new Set<number>()
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+    const id = nextFrame
+    nextFrame += 1
+    frames.set(id, callback)
+    return id
+  }) as typeof requestAnimationFrame
+  globalThis.cancelAnimationFrame = ((id: number) => {
+    cancelled.add(id)
+  }) as typeof cancelAnimationFrame
+  const flushEveryFrame = async () => {
+    const pending = [...frames.values()]
+    frames.clear()
+    cancelled.clear()
+    await act(async () => {
+      for (const callback of pending) callback(Date.now())
+    })
+  }
+
+  const user = userEvent.setup({ document })
+  const view = render(<ResponsiveToolbarHarness />)
+  await resizeContainer(658)
+  await user.click(view.getByRole('button', { name: 'More filters' }))
+  const compactCultivar = within(view.container.querySelector('[data-plant-compact-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  await user.click(compactCultivar)
+  await resizeContainer(1024)
+  // Leave the valid wide-transfer frame queued. The outside dismissal below
+  // must cancel it, and the test later invokes that cancelled callback too.
+
+  const wideCultivar = within(view.container.querySelector('[data-plant-quick-filters]') as HTMLElement)
+    .getByRole('button', { name: 'Cultivar' })
+  Object.defineProperty(wideCultivar, 'getClientRects', {
+    configurable: true,
+    value: () => [{ width: 100, height: 44 }],
+  })
+  const more = view.getByRole('button', { name: 'More filters' })
+  const focusAttempts: string[] = []
+  Object.defineProperty(wideCultivar, 'focus', { configurable: true, value: () => focusAttempts.push('cultivar') })
+  Object.defineProperty(more, 'focus', { configurable: true, value: () => focusAttempts.push('more') })
+
+  // One real pointer-down reaches both document-level outside handlers: More
+  // closes with a provisional return intent while wide Cultivar clears owner.
+  await act(async () => {
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  })
+  assert.equal(view.queryByRole('dialog', { name: 'More filters' }), null)
+  assert.equal(wideCultivar.getAttribute('aria-expanded'), 'false')
+  assert.ok(cancelled.size >= 1, 'the now-mismatched advanced return frame is cancelled')
+
+  await user.click(wideCultivar)
+  focusAttempts.length = 0
+  assert.equal(wideCultivar.getAttribute('aria-expanded'), 'true')
+  assert.equal(view.queryByRole('dialog', { name: 'More filters' }), null)
+  await flushEveryFrame() // deliberately invokes cancelled callbacks too
+  assert.doesNotMatch(focusAttempts.join(','), /more/)
+  assert.equal(wideCultivar.getAttribute('aria-expanded'), 'true')
+})
+
+test('base 1024px branch and content-aware overflow threshold are deterministic', () => {
+  const summary = '17 Companies: 47/47 Plants'
+  assert.equal(PLANT_QUICK_FILTER_MIN_WIDTH, 1024)
+  for (const width of [390, 514, 658, 899, 900]) {
+    assert.equal(plantFiltersAreCompact(width, PLANT_COMPANY_PANEL_WIDTH, summary), true)
+  }
+  for (const width of [1024, 1200, 1280]) {
+    assert.equal(plantFiltersAreCompact(width, PLANT_COMPANY_PANEL_WIDTH, summary), false)
+  }
 })
 
 test('pager renders as a compact footer control instead of consuming the top-row budget', () => {
@@ -481,13 +891,134 @@ test('pager renders as a compact footer control instead of consuming the top-row
   assert.ok(view.getByRole('button', { name: 'Next page' }))
 })
 
+function LivePanelWidthHarness({ summary = '17 Companies: 47/47 Plants' }: { summary?: string } = {}) {
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const { panelWidth, startPanelResize } = usePlantCompanyPanelWidth()
+  const compactMode = usePlantFilterContainer(toolbarRef, panelWidth, summary)
+  return (
+    <>
+      <Toolbar
+        toolbarRef={toolbarRef}
+        containerResponsive
+        wideSearchWidth={panelWidth}
+        forceCompact={compactMode === true}
+        placeholder="Plant Search"
+        query="thuja"
+        onQuery={() => {}}
+        rightActions={<button type="button">Notifications</button>}
+        hasFilters={false}
+        onClear={() => {}}
+        showClear={false}
+        summary={summary}
+      />
+      <div data-company-track style={{ width: panelWidth, minWidth: panelWidth }}>
+        <button type="button" onMouseDown={startPanelResize}>Resize Company</button>
+      </div>
+    </>
+  )
+}
+
+test('live Company resize drives the same rendered wide Search track at min, default and max', async () => {
+  const view = render(<LivePanelWidthHarness />)
+  await resizeContainer(1280)
+  const search = view.getByRole('textbox', { name: 'Plant Search' }).parentElement as HTMLElement
+  const company = view.container.querySelector('[data-company-track]') as HTMLElement
+  const resize = view.getByRole('button', { name: 'Resize Company' })
+  const assertSharedWidth = (expected: number) => {
+    assert.equal(company.style.width, `${expected}px`)
+    assert.equal(search.style.getPropertyValue('--toolbar-wide-search-width'), `${expected}px`)
+  }
+
+  assertSharedWidth(PLANT_COMPANY_PANEL_WIDTH)
+  fireEvent.mouseDown(resize, { clientX: 100 })
+  fireEvent.mouseMove(document, { clientX: -1000 })
+  fireEvent.mouseUp(document)
+  assertSharedWidth(PLANT_COMPANY_PANEL_MIN_WIDTH)
+
+  fireEvent.mouseDown(resize, { clientX: 100 })
+  fireEvent.mouseMove(document, { clientX: 100 + (PLANT_COMPANY_PANEL_WIDTH - PLANT_COMPANY_PANEL_MIN_WIDTH) })
+  fireEvent.mouseUp(document)
+  assertSharedWidth(PLANT_COMPANY_PANEL_WIDTH)
+  await resizeContainer(1024)
+  assert.equal(view.container.querySelector('[data-responsive-toolbar-container]')?.hasAttribute('data-responsive-compact'), false)
+  await resizeContainer(1280)
+
+  fireEvent.mouseDown(resize, { clientX: 100 })
+  fireEvent.mouseMove(document, { clientX: 2000 })
+  fireEvent.mouseUp(document)
+  assertSharedWidth(PLANT_COMPANY_PANEL_MAX_WIDTH)
+
+  await resizeContainer(1024)
+  assert.equal(view.container.querySelector('[data-responsive-toolbar-container]')?.getAttribute('data-responsive-compact'), 'true')
+  await resizeContainer(1280)
+  assert.equal(view.container.querySelector('[data-responsive-toolbar-container]')?.hasAttribute('data-responsive-compact'), false)
+})
+
+test('content-aware fit covers long exact summaries, live panel widths and rapid container races', async () => {
+  const ordinary = '17 Companies: 47/47 Plants'
+  const long = '300 Companies: 300/12,345 Plants'
+  const larger = '12,345 Companies: 98,765/1,234,567 Plants'
+  const summaries = [ordinary, long, larger]
+  const panels = [PLANT_COMPANY_PANEL_MIN_WIDTH, PLANT_COMPANY_PANEL_WIDTH, PLANT_COMPANY_PANEL_MAX_WIDTH]
+  const expected = new Map<number, boolean[][]>([
+    [900, [[true, true, true], [true, true, true], [true, true, true]]],
+    [1024, [[false, false, false], [false, false, true], [true, true, true]]],
+    [1280, [[false, false, false], [false, false, false], [false, false, false]]],
+  ])
+  for (const [container, rows] of expected) {
+    assert.deepEqual(
+      panels.map((panel) => summaries.map((summary) => plantFiltersAreCompact(container, panel, summary))),
+      rows,
+      `${container}px fit matrix`,
+    )
+  }
+
+  const view = render(<ContainerModeProbe width={1024} panelWidth={PLANT_COMPANY_PANEL_MAX_WIDTH} summary={long} />)
+  await act(async () => {})
+  const probe = view.container.querySelector('[data-container-mode]') as HTMLElement
+  assert.equal(probe.getAttribute('data-container-mode'), 'compact')
+  await raceContainerWidths(1280, 900, 1024, 1280)
+  assert.equal(probe.getAttribute('data-container-mode'), 'wide')
+  await raceContainerWidths(1024, 1280, 900, 1024)
+  assert.equal(probe.getAttribute('data-container-mode'), 'compact')
+})
+
+test('wide Search uses the authoritative Company-panel track and leaves a clipping-safe summary budget', async () => {
+  const view = render(<ResponsiveToolbarHarness />)
+  await resizeContainer(1024)
+  const search = view.getByRole('textbox', { name: 'Plant Search' }).parentElement as HTMLElement
+  const row = view.container.querySelector('[data-responsive-toolbar-row]') as HTMLElement
+  assert.equal(search.getAttribute('data-toolbar-search'), 'true')
+  assert.equal(search.style.getPropertyValue('--toolbar-wide-search-width'), `${PLANT_COMPANY_PANEL_WIDTH}px`)
+  assert.match(search.className, /@min-\[1024px\]:ml-px/)
+  assert.match(search.className, /@min-\[1024px\]:w-\[var\(--toolbar-wide-search-width\)\]/)
+  assert.match(search.className, /@min-\[1024px\]:flex-none/)
+  assert.match(row.className, /@min-\[1024px\]:px-4/)
+
+  // The result card starts at mx-4 (16px); its one-pixel border puts the
+  // Company track at 17px. Wide toolbar px-4 + ml-px yields the same edges.
+  const companyTrack = rect(16 + 1, PLANT_COMPANY_PANEL_WIDTH)
+  const searchTrack = rect(16 + 1, PLANT_COMPANY_PANEL_WIDTH)
+  assert.equal(searchTrack.left, companyTrack.left)
+  assert.equal(searchTrack.right, companyTrack.right)
+
+  const wideWidths = [72, 84, 92, 68]
+  const fixedWithoutSummary = 32 + 1 + (6 * 4) + PLANT_COMPANY_PANEL_WIDTH +
+    wideWidths.reduce((sum, width) => sum + width, 0) + 44 + 44 + 6
+  const summaryWidth = '17 Companies: 47/47 Plants'.length * 7
+  assert.ok(summaryWidth <= 1024 - fixedWithoutSummary)
+  assert.equal(plantFiltersAreCompact(899, PLANT_COMPANY_PANEL_WIDTH, '17 Companies: 47/47 Plants'), true)
+  assert.equal(plantFiltersAreCompact(900, PLANT_COMPANY_PANEL_WIDTH, '17 Companies: 47/47 Plants'), true)
+  assert.equal(plantFiltersAreCompact(1024, PLANT_COMPANY_PANEL_WIDTH, '17 Companies: 47/47 Plants'), false)
+})
+
 test('Plant Search source keeps the approved visible order and removes every table-head filter', () => {
   const page = readFileSync(new URL('../app/plants/page.tsx', import.meta.url), 'utf8')
   const controls = page.slice(page.indexOf('controls={'), page.indexOf('hasFilters={hasFilters}'))
   const ordered = [
-    'allLabel="Size: Any"',
-    'allLabel="Cultivar: Any"',
-    'allLabel="Supplier type"',
+    'allLabel="Size"',
+    'allLabel="Cultivar"',
+    'allLabel="Type"',
     'allLabel="State"',
     '<PlantAdvancedFilters',
   ].map((token) => controls.indexOf(token))
@@ -507,43 +1038,77 @@ test('Plant Search source keeps the approved visible order and removes every tab
   ])
 })
 
-test('container source contracts fit compact and wide rows without clipping or raw viewport decisions', () => {
+test('container source contracts fit the exact compact and wide rows without clipping or viewport JS', () => {
   const page = readFileSync(new URL('../app/plants/page.tsx', import.meta.url), 'utf8')
   const controls = page.slice(page.indexOf('controls={'), page.indexOf('hasFilters={hasFilters}'))
   const filters = readFileSync(new URL('../components/workspace/plant-filters.tsx', import.meta.url), 'utf8')
   const toolbar = readFileSync(new URL('../components/workspace/toolbar.tsx', import.meta.url), 'utf8')
-  const widths = [...controls.matchAll(/className="w-\[(\d+)px\]"/g)].slice(0, 4).map((match) => Number(match[1]))
+  const plantTable = readFileSync(new URL('../components/workspace/plant-table.tsx', import.meta.url), 'utf8')
 
-  assert.deepEqual(widths, [82, 100, 108, 64])
-  assert.match(page, /className="hidden @min-\[900px\]:contents"/)
-  assert.match(filters, /className="contents @min-\[900px\]:hidden"/)
+  assert.match(plantTable, /export const PLANT_COMPANY_PANEL_MIN_WIDTH = 200/)
+  assert.match(plantTable, /export const PLANT_COMPANY_PANEL_WIDTH = 292/)
+  assert.match(plantTable, /export const PLANT_COMPANY_PANEL_MAX_WIDTH = 480/)
+  assert.match(plantTable, /export function usePlantCompanyPanelWidth\(\)/)
+  assert.match(page, /usePlantCompanyPanelWidth\(\)/)
+  assert.match(page, /wideSearchWidth=\{panelW\}/)
+  assert.match(page, /forceCompact=\{forceCompactToolbar\}/)
+  assert.match(page, /className="mx-4 mb-4 mt-3[^"\n]+border border-border/)
+  assert.ok((page.match(/style=\{\{ width: panelW, minWidth: panelW \}\}/g) ?? []).length >= 2)
+  assert.match(controls, /data-plant-quick-filters[^>]+className="contents"/)
+  assert.equal((controls.match(/data-plant-folded-filter/g) ?? []).length, 2)
+  assert.equal((controls.match(/hidden w-\[\d+px\] @min-\[1024px\]:block/g) ?? []).length, 2)
+  assert.match(controls, /w-\[82px\] @min-\[1024px\]:w-\[72px\]/)
+  assert.match(controls, /hidden w-\[84px\] @min-\[1024px\]:block/)
+  assert.match(controls, /w-\[82px\] @min-\[1024px\]:w-\[92px\]/)
+  assert.match(controls, /hidden w-\[68px\] @min-\[1024px\]:block/)
+  assert.equal((controls.match(/@min-\[1024px\]:!hidden/g) ?? []).length, 2)
+  assert.equal((controls.match(/@min-\[1024px\]:!w-\[82px\]/g) ?? []).length, 2)
+  assert.equal((controls.match(/compactCountLabel="(?:Size|Cultivar|Type|State)"/g) ?? []).length, 4)
+  assert.match(controls, /wideAllLabel="Supplier type"/)
+  assert.equal((controls.match(/truncateLabel=\{false\}/g) ?? []).length, 4)
+  assert.match(filters, /cn\('contents @min-\[1024px\]:hidden', compactForFocus && '@min-\[1024px\]:!contents'\)/)
   assert.match(filters, /right-2[^"\n]+w-\[calc\(100cqw-1rem\)\] max-w-\[498px\][^"\n]+overflow-y-auto/)
   assert.doesNotMatch(filters, /max-w-\[498px\][^"\n]+overflow-x-hidden/)
-  assert.equal((filters.match(/menuClassName="w-full min-w-0 max-w-full"/g) ?? []).length, 5)
+  assert.equal((filters.match(/menuClassName="w-full min-w-0 max-w-full"/g) ?? []).length, 3)
   assert.doesNotMatch(filters, /menuClassName="[^"]*(?:100vw|w-max)/)
+  assert.equal((controls.match(/menuClassName="w-max min-w-full max-w-\[240px\]"/g) ?? []).length, 4)
   assert.match(filters, /grid min-w-0 grid-cols-1[^"\n]+@\[480px\]:grid-cols-2 @\[640px\]:grid-cols-3/)
   assert.doesNotMatch(filters, /min-w-\[150px\]|max-\[620px\]:grid-cols|max-\[420px\]:grid-cols/)
   assert.doesNotMatch(page, /aria-hidden=\{compactQuickFilters\}/)
   assert.doesNotMatch(filters, /aria-hidden=\{!compact/)
-  assert.equal((page.match(/open=\{cultivarOpen\}/g) ?? []).length, 1)
-  assert.equal((filters.match(/open=\{cultivarOpen\}/g) ?? []).length, 1)
-  assert.match(toolbar, /containerResponsive \? '@container relative flex-nowrap gap-1 px-2'/)
+  assert.equal((page.match(/open=\{cultivarOpenOwner === 'wide'\}/g) ?? []).length, 1)
+  assert.equal((filters.match(/open=\{cultivarOpenOwner === 'compact'\}/g) ?? []).length, 1)
+  assert.match(filters, /setWidth\(node\.clientWidth\)/)
+  assert.match(filters, /panelWidth \+ PLANT_WIDE_TOOLBAR_CHROME_WIDTH \+ estimatePlantSummaryWidth\(summary\)/)
+  assert.match(filters, /observer\.observe\(node, \{ box: 'content-box' \}\)/)
+  assert.doesNotMatch(filters, /getBoundingClientRect\(\)\.width/)
+  assert.match(toolbar, /data-responsive-toolbar-container/)
+  assert.match(toolbar, /className="@container relative flex-none border-b border-border bg-card"/)
+  assert.match(toolbar, /data-responsive-toolbar-row/)
+  assert.match(toolbar, /@min-\[1024px\]:px-4/)
+  assert.match(toolbar, /@min-\[1024px\]:ml-px @min-\[1024px\]:w-\[var\(--toolbar-wide-search-width\)\]/)
+  assert.match(toolbar, /forceCompact && '@min-\[1024px\]:!ml-0[^']+!w-auto[^']+!flex-1'/)
+  assert.match(toolbar, /forceCompact && '@min-\[1024px\]:!px-2'/)
   assert.match(toolbar, /containerResponsive \? 'w-auto min-w-\[96px\] flex-1 md:w-auto'/)
   assert.doesNotMatch(toolbar, /containerResponsive[^\n]+overflow-x|containerResponsive[^\n]+overflow-hidden/)
   assert.doesNotMatch(page, /window\.innerWidth|matchMedia/)
 
-  // Wide fixed budget: 16px toolbar padding + six 4px outer gaps + four
-  // quick filters + 44px icon + 96px Search + 44px notification + 6px inner
-  // gap. At the 900px container threshold, 316px remains for the summary.
-  const wideFixed = 16 + (6 * 4) + widths.reduce((sum, width) => sum + width, 0) + 44 + 96 + 44 + 6
-  assert.equal(900 - wideFixed, 316)
-  assert.equal(1024 - wideFixed, 440)
+  const wideWidths = [72, 84, 92, 68]
+  const wideFixedWithoutSummary = 32 + 1 + (6 * 4) + PLANT_COMPANY_PANEL_WIDTH +
+    wideWidths.reduce((sum, width) => sum + width, 0) + 44 + 44 + 6
+  assert.equal(wideFixedWithoutSummary, 759)
+  assert.equal(1024 - wideFixedWithoutSummary, 265)
+  assert.ok('17 Companies: 47/47 Plants'.length * 7 <= 1024 - wideFixedWithoutSummary)
 
-  // Compact has only Search, icon and trailing cluster: even a 514px pane
-  // reserves 300px for the summary after every fixed width and gap.
-  const compactFixed = 16 + (2 * 4) + 44 + 96 + 44 + 6
-  assert.equal(514 - compactFixed, 300)
-  assert.equal(658 - compactFixed, 444)
+  // At outer/content-box 390px the exact visible row is Search · Size · Type ·
+  // Filters · action. Four gaps and inner-row padding leave 106px for Search,
+  // while each 82px filter retains 66px for its untruncated 11px label.
+  const compactFixedWithoutSearch = 16 + (4 * 4) + 82 + 82 + 44 + 44
+  assert.equal(390 - compactFixedWithoutSearch, 106)
+  assert.ok(390 - compactFixedWithoutSearch >= 96)
+  for (const width of [390, 514, 658, 899, 900, 1024]) {
+    assert.ok(width - compactFixedWithoutSearch >= 96)
+  }
 
   const surfaceBounds = (container: number) => {
     const width = Math.min(container - 16, 498)
@@ -553,14 +1118,16 @@ test('container source contracts fit compact and wide rows without clipping or r
   assert.deepEqual(surfaceBounds(390), { width: 374, left: 8, right: 382 })
   assert.deepEqual(surfaceBounds(514), { width: 498, left: 8, right: 506 })
   assert.deepEqual(surfaceBounds(658), { width: 498, left: 152, right: 650 })
+  assert.deepEqual(surfaceBounds(899), { width: 498, left: 393, right: 891 })
   assert.deepEqual(surfaceBounds(900), { width: 498, left: 394, right: 892 })
+  assert.deepEqual(surfaceBounds(1024), { width: 498, left: 518, right: 1016 })
 
   const fieldWidth = (container: number, columns: number) => {
-    const inner = surfaceBounds(container).width - 26 // two borders + 24px padding
+    const inner = surfaceBounds(container).width - 26
     return (inner - ((columns - 1) * 12)) / columns
   }
   assert.equal(fieldWidth(390, 1), 348)
   assert.equal(fieldWidth(514, 2), 230)
   assert.ok(fieldWidth(658, 3) >= 149)
-  assert.ok(fieldWidth(900, 3) >= 149)
+  assert.ok(fieldWidth(1024, 3) >= 149)
 })

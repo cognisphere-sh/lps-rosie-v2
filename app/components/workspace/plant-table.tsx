@@ -1,5 +1,7 @@
 'use client'
 
+import { useCallback, useState } from 'react'
+
 import { EyeOffIcon, TrashIcon } from '@/components/workspace/icons'
 import { Cell, ColumnHead, ColumnPicker } from '@/components/workspace/table-parts'
 import { PLANT_COLS, type ColumnDef } from '@/lib/columns'
@@ -8,6 +10,35 @@ import type { PlantRow } from '@/lib/rows'
 import type { useTableConfig } from '@/lib/table-config'
 
 export type PlantConfig = ReturnType<typeof useTableConfig>
+
+/** Supported width range of the sticky Company/supplier panel in Plant Search. */
+export const PLANT_COMPANY_PANEL_MIN_WIDTH = 200
+export const PLANT_COMPANY_PANEL_WIDTH = 292
+export const PLANT_COMPANY_PANEL_MAX_WIDTH = 480
+
+/** One live width owner shared by the Company track and its aligned Search. */
+export function usePlantCompanyPanelWidth() {
+  const [panelWidth, setPanelWidth] = useState(PLANT_COMPANY_PANEL_WIDTH)
+  const startPanelResize = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = panelWidth
+    const move = (next: MouseEvent) => {
+      setPanelWidth(Math.min(
+        Math.max(startWidth + (next.clientX - startX), PLANT_COMPANY_PANEL_MIN_WIDTH),
+        PLANT_COMPANY_PANEL_MAX_WIDTH,
+      ))
+    }
+    const up = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+  }, [panelWidth])
+
+  return { panelWidth, startPanelResize }
+}
 
 /** actions gutter: 16px padding + one 24px hide button, plus delete where enabled. */
 export const SUB_ACTIONS_W = 16 + 24

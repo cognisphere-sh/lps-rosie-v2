@@ -126,8 +126,11 @@ export function MultiFilter({
   selected,
   onChange,
   selectionLabel,
+  compactCountLabel,
+  wideAllLabel,
   accessibleName,
   buttonClassName,
+  truncateLabel = true,
   filterPlaceholder = 'Filter suppliers…',
   largeTargets = false,
   restoreFocusOnClose = false,
@@ -142,8 +145,14 @@ export function MultiFilter({
   selected: string[]
   onChange: (next: string[]) => void
   selectionLabel?: string
+  /** Concise visible count label; the accessible name still carries the full count semantics. */
+  compactCountLabel?: string
+  /** Optional full label restored when the owning toolbar container is wide. */
+  wideAllLabel?: string
   accessibleName?: string
   buttonClassName?: string
+  /** Fixed compact tracks can opt into an exact non-truncated label contract. */
+  truncateLabel?: boolean
   filterPlaceholder?: string
   largeTargets?: boolean
   restoreFocusOnClose?: boolean
@@ -208,10 +217,19 @@ export function MultiFilter({
           buttonClassName,
         )}
       >
-        <span className="truncate">
+        <span className={truncateLabel ? 'truncate' : 'whitespace-nowrap'}>
           {selected.length
-            ? `${selectionLabel ? `${selectionLabel}: ` : ''}${selected.length} selected`
-            : allLabel}
+            ? compactCountLabel
+              ? `${compactCountLabel} · ${selected.length}`
+              : `${selectionLabel ? `${selectionLabel}: ` : ''}${selected.length} selected`
+            : wideAllLabel
+              ? (
+                  <>
+                    <span className="@min-[900px]:hidden">{allLabel}</span>
+                    <span className="hidden @min-[900px]:inline">{wideAllLabel}</span>
+                  </>
+                )
+              : allLabel}
         </span>
         <ChevronDown size={10} className={cn('flex-none opacity-50', accessibleName && 'transition-transform', accessibleName && open && 'rotate-180')} />
       </button>
