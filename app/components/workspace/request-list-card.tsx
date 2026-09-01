@@ -108,6 +108,7 @@ export function RequestCard({
     ?? 'Unassigned customer'
   const mobileJobName = trimmedIdentity(request.name)
   const mobileJob = mobileJobName ?? requestRef(request.id)
+  const mobileIdentity = `${mobileCustomer} · ${mobileJob}`
   const mobileStatus = mobileStatusPresentation(request.status)
 
   return (
@@ -118,26 +119,30 @@ export function RequestCard({
         {mobile === true ? (
           <>
             <div
+              data-mobile-request-row="identity"
               data-mobile-request-primary
-              className="flex w-full max-w-full min-w-0 flex-nowrap items-center gap-1 overflow-hidden"
+              className="flex w-full max-w-full min-w-0 flex-nowrap items-center gap-1"
             >
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={`request-body-${request.id}`}
+                aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggle()
+                }}
+                data-mobile-request-chevron
+                className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
               <span
-                data-mobile-request-customer
-                className="min-w-0 basis-0 flex-1 truncate text-[12.5px] font-medium text-foreground"
-                title={mobileCustomer}
+                data-mobile-request-jr
+                className="flex-none whitespace-nowrap text-[10.5px] font-semibold text-primary"
               >
-                {mobileCustomer}
+                {requestRef(request.id)}
               </span>
-              <Link
-                href={`/jobs?jr=${request.id}`}
-                aria-label={`Open ${requestRef(request.id)}${mobileJobName ? ` — ${mobileJobName}` : ''}`}
-                onClick={(event) => event.stopPropagation()}
-                data-mobile-request-job
-                className="flex min-h-11 min-w-0 basis-0 flex-1 items-center truncate rounded-md text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={mobileJob}
-              >
-                <span className="min-w-0 truncate">{mobileJob}</span>
-              </Link>
               <div
                 data-mobile-request-status
                 className="flex size-11 flex-none items-center justify-center"
@@ -153,6 +158,39 @@ export function RequestCard({
                   options={REQUEST_STATUS_OPTIONS}
                 />
               </div>
+              <Link
+                href={`/jobs?jr=${request.id}`}
+                aria-label={`Open ${requestRef(request.id)}${mobileJobName ? ` — ${mobileJobName}` : ''}`}
+                onClick={(event) => event.stopPropagation()}
+                data-mobile-request-identity
+                className="block min-h-11 min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded-md text-[12.5px] leading-[44px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                title={mobileIdentity}
+              >
+                <span data-mobile-request-customer className="font-medium">{mobileCustomer}</span>
+                <span aria-hidden="true" className="text-muted-foreground"> · </span>
+                <span data-mobile-request-job className="font-semibold">{mobileJob}</span>
+              </Link>
+            </div>
+            <div
+              data-mobile-request-row="pending-chat"
+              data-mobile-request-secondary
+              className="flex w-full max-w-full min-w-0 flex-nowrap items-center justify-between gap-2"
+            >
+              {!expanded && (
+                <div
+                  data-mobile-pending-summary
+                  className="inline-flex h-7 min-w-0 flex-none items-center gap-1.5 rounded-full border border-lps-hair bg-secondary/45 px-2"
+                >
+                  <span
+                    className="size-[6px] flex-none rounded-full"
+                    style={{ background: toneDot(itemPill('pending', null, null).tone) }}
+                  />
+                  <span className="flex-none text-[12px] font-bold tabular-nums text-foreground">
+                    {request.statusCounts.pending ?? 0}
+                  </span>
+                  <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">Pending</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={(event) => {
@@ -166,29 +204,10 @@ export function RequestCard({
                 title={`Chat with Rosie about ${requestRef(request.id)}`}
                 aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
                 data-mobile-request-rosie
-                className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent opacity-75 hover:opacity-100"
+                className="ml-auto flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent opacity-75 hover:opacity-100"
               >
                 <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
               </button>
-            </div>
-            <div
-              data-mobile-request-secondary
-              className="flex w-full min-w-0 items-center gap-1.5 text-[10.5px] text-lps-dim"
-            >
-              <button
-                type="button"
-                aria-expanded={expanded}
-                aria-controls={`request-body-${request.id}`}
-                aria-label={`${expanded ? 'Collapse' : 'Expand'} ${requestRef(request.id)}`}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onToggle()
-                }}
-                className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </button>
-              <span className="min-w-0 truncate font-semibold text-primary">{requestRef(request.id)}</span>
             </div>
           </>
         ) : (
@@ -255,35 +274,21 @@ export function RequestCard({
           </div>
         )}
 
-        <RequestLinks request={request} suppliersHidden={!expanded} className="pl-[30px]" />
-
-        {!expanded && (
-          mobile === true ? (
-            <div
-              data-mobile-pending-summary
-              className="flex min-h-11 max-w-full items-center gap-1.5 overflow-hidden rounded-lg border border-lps-hair bg-secondary/45 px-2.5"
-            >
-              <span
-                className="size-[6px] flex-none rounded-full"
-                style={{ background: toneDot(itemPill('pending', null, null).tone) }}
-              />
-              <span className="flex-none text-[12px] font-bold tabular-nums text-foreground">
-                {request.statusCounts.pending ?? 0}
-              </span>
-              <span className="min-w-0 truncate text-[10.5px] text-muted-foreground">Pending</span>
-            </div>
-          ) : (
-            <div className="pl-[30px]">
-              <DemandSummary
-                lineTotal={request.lineTotal}
-                itemCount={request.itemCount}
-                counts={request.statusCounts}
-              />
-            </div>
-          )
+        {(mobile !== true || expanded) && (
+          <RequestLinks request={request} suppliersHidden={!expanded} className="pl-[30px]" />
         )}
 
-        {!expanded && latest && (
+        {!expanded && mobile !== true && (
+          <div className="pl-[30px]">
+            <DemandSummary
+              lineTotal={request.lineTotal}
+              itemCount={request.itemCount}
+              counts={request.statusCounts}
+            />
+          </div>
+        )}
+
+        {!expanded && mobile !== true && latest && (
           <div
             className="flex min-w-0 items-baseline gap-2 border-t border-lps-hair pl-[30px] pt-2"
             title={latest.text}

@@ -15,6 +15,28 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-01
+
+### Changed
+
+- **All jobs mobile cards use the approved two-row compact live shape**
+  (`app/components/workspace/request-list-card.tsx`,
+  `app/lib/mobile-all-jobs-toolbar.test.tsx`, `docs/app/{README,all-jobs}.md`).
+  A resolved-mobile collapsed card now mounts exactly two non-wrapping summary
+  rows. The sole 44px chevron stays at the edge, then the superseding data order
+  is fixed JR · fixed readable sales-status token · one flexible canonical
+  `Company/Customer · Job name` link; that identity region alone ellipsizes.
+  The second row is one intrinsic Pending dot/count at left and the canonical
+  44px Rosie Job-thread action at right, not a full-width bar. Duplicate
+  customer/contact links, note preview, full status counts, dates, PO and
+  fulfillment facts are absent from collapsed DOM/AT. Expansion restores the
+  existing RequestLinks, overview/contact, full DemandSummary, nested notes and
+  Last updated, line actions and compact permanent Delete. Future structured
+  Install Date and Delivery/Pickup slots remain wholly omitted until schema/API
+  fields exist—no placeholder, updated-date substitution or note inference.
+  Desktop layout, filters, order, paging, APIs, status model and routing are
+  unchanged.
+
 ## 2026-08-31
 
 ### Changed
