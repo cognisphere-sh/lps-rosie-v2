@@ -156,7 +156,7 @@ test('purpose-built overlay headers remain separate from WorkspaceFrame', () => 
 
   assert.match(chat, /top-\[calc\(env\(safe-area-inset-top\)\+0\.5rem\)\].*min-h-14/)
   assert.match(chat, /size-11/)
-  assert.match(drawer, /pt-\[calc\(1rem\+env\(safe-area-inset-top\)\)\]/)
+  assert.match(drawer, /pt-\[max\(12px,env\(safe-area-inset-top\)\)\]/)
   assert.match(drawer, /size-11/)
   assert.match(photos, /fixed inset-0 z-\[120\]/)
   assert.match(partner, /top-\[calc\(env\(safe-area-inset-top\)\+0\.5rem\)\].*min-h-14/)

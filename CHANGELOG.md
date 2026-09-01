@@ -19,6 +19,26 @@ here).
 
 ### Changed
 
+- **The LPS Ops availability-request drawer is now deliberate, race-safe phone
+  work rather than a squeezed desktop table**
+  (`app/components/workspace/{ar-drawer,availability,body-modal-portal}.tsx`,
+  `app/lib/{mobile-availability-request-view,compact-headers}.test.*`,
+  `docs/app/README.md`). At 320–899px only wrapping cards render, with 44px
+  labelled editors, one body scroller and a `visualViewport`/four-edge-safe-area
+  Close header and always-reachable submit footer; at 900px only the unchanged
+  1,070px table renders. Truthful request/state/supplier/Job and separate stored
+  Sent/Submitted facts remain in the drawer; no Last updated/change provenance
+  was invented and compact Job cards are unchanged. Dedicated nested body hosts
+  share a document-level stack that captures one exact baseline, isolates
+  dynamic children, exposes only its top modal and restores inert property/
+  attribute bytes plus overflow in either cleanup order; drawer-only focus/
+  Escape/fallback behavior does not alter portal/profile/By-item answer dialogs. AR generations, abort controllers,
+  per-load/line/status/submit sequences and serialized writes reject stale
+  reverse completions and double submit. Submit/Submit again derives solely from
+  stored `submitted_at`, exact success is announced, and loading, Retry/error,
+  empty, closed, long Unicode, zero/null and breakpoint states are rendered-test
+  covered.
+
 - **All jobs mobile cards use the approved two-row compact live shape**
   (`app/components/workspace/request-list-card.tsx`,
   `app/lib/mobile-all-jobs-toolbar.test.tsx`, `docs/app/{README,all-jobs}.md`).

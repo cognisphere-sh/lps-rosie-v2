@@ -129,6 +129,41 @@ repeating the title in content. `hideHeaderOnMobile` continues to remove generic
 titles from list/workspace routes, including Agents and Settings, where active
 navigation or the first toolbar/tab/content identifies the page.
 
+The Shell-mounted **LPS Ops availability-request drawer**
+(`components/workspace/ar-drawer.tsx`) remains the one detail opened by an AR
+link on a Job card or an `ar:` chat action. Below 900px it renders only a stacked
+phone branch: full width, `visualViewport` height, `max(12px, safe-area)` on both
+horizontal edges plus the top Close row and bottom completion footer, and one
+independently scrolling body between them. Each line is a wrapping card with a
+44px status target, separately labelled 44px available-quantity/price/notes
+inputs, line total and subtotal. At 900px the cards unmount and only the existing
+1,070px horizontal table renders. The summary names request state, supplier and
+Job, then separately labels stored **Sent** and optional **Submitted**; it renders
+no Last updated, actor, provenance or inferred change/freshness.
+
+The drawer is portalled into its own body host through
+`components/workspace/body-modal-portal.tsx`. All instances register with one
+document-level modal stack: it captures one exact baseline for body overflow and
+each non-host body child, observes dynamically added children, and recomputes
+isolation after every registration or removal. Only the top host is exposed;
+when the stack empties it restores inert property presence/value first, exact
+inert/`aria-hidden` attribute bytes last, overflow value/priority, then drops its
+observer and retained state before removing the final host. This remains correct
+for nested whole-tree cleanup in either effect-disposal order. A drawer
+line-answer modal opts into the second host; portal/profile/By-item answer
+dialogs retain their prior non-isolating behavior and sizes.
+Both drawer-only modal levels trap focus and contain Escape; parent close/switch,
+breakpoint teardown, missing openers/triggers, reopen races and unmount cancel
+queued focus work and restore a connected visible logical target. Request
+sessions carry an AR id plus monotonically increasing generation; initial/Retry
+loads and serialized line/status/submit writes have abort controllers and
+operation sequences, so reverse stale completions cannot paint another AR,
+error or success. Submit is synchronously single-flight, announces only an exact
+success, and says **Submit again** only when stored `submitted_at` exists—not
+from current status. Loading, Retry/error, empty and closed states stay inside
+the closeable modal. The compact Job card remains only its existing AR
+link/attention signal; no drawer dates or answers are copied into it.
+
 **New job request** starts from the All jobs toolbar at `/requests`. After a JR
 is selected, the focused work pane owns one action row with labelled 44px **New
 job** and Notifications controls. On mobile the action remains floating while

@@ -21,6 +21,7 @@ import {
   arSubtotal,
   type ARItem,
 } from '@/lib/availability'
+import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@/components/workspace/body-modal-portal'
 import { ChevronDown } from '@/components/workspace/icons'
 import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
@@ -61,15 +62,18 @@ const PORTAL_PURPLE = '#8F7CF6'
 export function ARStatusPill({
   status,
   onChange,
+  touch = false,
 }: {
   status: string
   onChange?: (next: string) => void
+  touch?: boolean
 }) {
   return (
     <span
       className={cn(
         'relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold',
         onChange && 'cursor-pointer',
+        touch && 'min-h-11 min-[900px]:min-h-0',
       )}
       style={toneStyle(arStatusTone(status))}
     >
@@ -414,11 +418,15 @@ function ResponseSelect({
   disabled,
   onChange,
   portal = false,
+  ariaLabel = 'Line status',
+  touch = false,
 }: {
   value: string | null
   disabled: boolean
   onChange: (next: string) => void
   portal?: boolean
+  ariaLabel?: string
+  touch?: boolean
 }) {
   const tone = arResponseTone(value)
   if (portal && !disabled) return <PortalResponseSelect value={value} onChange={onChange} />
@@ -428,7 +436,7 @@ function ResponseSelect({
         'relative inline-flex items-center gap-1.5',
         portal
           ? 'min-h-8 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground'
-          : 'rounded-full px-2.5 py-1 text-[11px] font-bold',
+          : cn('rounded-full px-2.5 py-1 text-[11px] font-bold', touch && 'min-h-11'),
         !disabled && 'cursor-pointer',
       )}
       style={portal ? (value ? { color: toneDot(tone) } : undefined) : toneStyle(tone)}
@@ -442,7 +450,7 @@ function ResponseSelect({
       {portal && <ChevronDown className="size-3 opacity-70" />}
       {!disabled && (
         <select
-          aria-label="Line status"
+          aria-label={ariaLabel}
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value)}
           className="absolute inset-0 cursor-pointer opacity-0"
@@ -467,6 +475,8 @@ export function AnswerCell({
   onCommit,
   plain = false,
   attention = false,
+  ariaLabel,
+  touch = false,
 }: {
   value: string
   editable: boolean
@@ -479,6 +489,9 @@ export function AnswerCell({
   plain?: boolean
   /** `plain` only: draw the accent box, for a cell that still needs filling. */
   attention?: boolean
+  ariaLabel?: string
+  /** Give a phone card's standalone input a full touch target. */
+  touch?: boolean
 }) {
   const [draft, setDraft] = useState(value)
   // The cell is uncontrolled while it is being typed in, but the committed
@@ -494,7 +507,9 @@ export function AnswerCell({
     return (
       <span
         className={cn(
-          'truncate px-1 text-[12.5px] tabular-nums',
+          touch
+            ? 'break-words px-1 text-[12.5px] tabular-nums'
+            : 'truncate px-1 text-[12.5px] tabular-nums',
           align === 'right' && 'text-right',
           display ? 'text-foreground' : 'text-lps-dim',
         )}
@@ -507,6 +522,7 @@ export function AnswerCell({
   return (
     <input
       value={draft}
+      aria-label={ariaLabel}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
@@ -516,7 +532,9 @@ export function AnswerCell({
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
       }}
       className={cn(
-        'h-7 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim',
+        touch
+          ? 'h-11 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim'
+          : 'h-7 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim',
         plain
           ? 'border bg-transparent text-muted-foreground focus-visible:text-foreground'
           : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
@@ -601,11 +619,14 @@ function StatusAnswerDialog({
   status,
   onCancel,
   onSave,
+  drawerModal = false,
 }: {
   item: ARItem
   status: string
   onCancel: () => void
   onSave: (changes: Record<string, string>) => void
+  /** LPS Ops drawer only: isolate as a nested body modal with phone controls. */
+  drawerModal?: boolean
 }) {
   const spec = ANSWER_FIELDS[status]
   // Demand is the prefill: a short quantity is the common shape of this answer,
@@ -622,6 +643,8 @@ function StatusAnswerDialog({
   const [price, setPrice] = useState(item.unitPrice == null ? '' : String(item.unitPrice))
   const [notes, setNotes] = useState(item.notes ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
+  const titleId = useId()
+  const dialog = useRef<HTMLDivElement>(null)
 
   // Android/iOS keyboards resize and sometimes pan the visual viewport without
   // changing the layout viewport used by `position: fixed`. Pin the dialog to
@@ -650,21 +673,53 @@ function StatusAnswerDialog({
     onSave(changes)
   }
 
-  const field = 'h-9 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring'
+  const field = cn(
+    'h-9 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:border-ring',
+    drawerModal && 'max-[899px]:h-11',
+  )
   const label = 'text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground'
 
-  return (
+  const keepFocusInside = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!drawerModal) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      onCancel()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    ) ?? []).filter(validModalFocusTarget)
+    if (controls.length === 0) return
+    const first = controls[0]
+    const last = controls[controls.length - 1]
+    if (event.shiftKey && (document.activeElement === first || !dialog.current?.contains(document.activeElement))) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && (document.activeElement === last || !dialog.current?.contains(document.activeElement))) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  const surface = (
     <div
       className="fixed inset-x-0 top-0 z-[90] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
       style={{ top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }}
       onClick={onCancel}
     >
       <div
+        ref={dialog}
+        role={drawerModal ? 'dialog' : undefined}
+        aria-modal={drawerModal ? true : undefined}
+        aria-labelledby={drawerModal ? titleId : undefined}
+        onKeyDown={drawerModal ? keepFocusInside : undefined}
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-full w-full max-w-[420px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
         <div className="flex flex-col gap-0.5">
-          <span className="text-[14px] font-bold text-foreground">{spec.title}</span>
+          <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{spec.title}</span>
           <span className="text-[12px] text-muted-foreground">
             {num(item.quantity) || '—'} × {item.name}
             {item.size ? ` · ${item.size}` : ''}
@@ -715,14 +770,20 @@ function StatusAnswerDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground"
+            className={cn(
+              'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
+              drawerModal && 'max-[899px]:min-h-11',
+            )}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={save}
-            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground"
+            className={cn(
+              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
+              drawerModal && 'max-[899px]:min-h-11',
+            )}
           >
             Save answer
           </button>
@@ -730,6 +791,10 @@ function StatusAnswerDialog({
       </div>
     </div>
   )
+
+  return drawerModal ? (
+    <BodyModalPortal hostAttribute="data-ar-answer-dialog-host">{surface}</BodyModalPortal>
+  ) : surface
 }
 
 /**
@@ -744,38 +809,74 @@ export function LineStatusPicker({
   editable,
   onPatch,
   portal = false,
+  ariaLabel,
+  touch = false,
+  drawerModal = false,
 }: {
   item: ARItem
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Use the portal's themed listbox rather than the admin native select. */
   portal?: boolean
+  ariaLabel?: string
+  touch?: boolean
+  /** LPS Ops drawer only: nested modal isolation and focus restoration. */
+  drawerModal?: boolean
 }) {
   /** Which status the pop-up is collecting details for; null = closed. */
   const [answering, setAnswering] = useState<string | null>(null)
+  const triggerHost = useRef<HTMLSpanElement>(null)
+  const restoreFrame = useRef<number | null>(null)
+
+  useEffect(() => () => {
+    if (restoreFrame.current != null) cancelAnimationFrame(restoreFrame.current)
+  }, [])
+
+  const closeDrawerAnswer = () => {
+    setAnswering(null)
+    if (restoreFrame.current != null) cancelAnimationFrame(restoreFrame.current)
+    restoreFrame.current = requestAnimationFrame(() => {
+      restoreFrame.current = null
+      const trigger = triggerHost.current?.querySelector<HTMLElement>('button, select')
+      if (validModalFocusTarget(trigger)) trigger.focus()
+      else {
+        const parent = document.querySelector<HTMLElement>('[data-ar-drawer-host]')
+        firstModalFocusTarget(parent ?? document.body)?.focus()
+      }
+    })
+  }
+
+  const response = (
+    <ResponseSelect
+      value={item.status}
+      disabled={!editable}
+      portal={portal}
+      ariaLabel={ariaLabel}
+      touch={touch}
+      onChange={(next) => {
+        if (!next) void onPatch?.(item.id, { status: '' })
+        else if (next === 'available') {
+          void onPatch?.(item.id, {
+            status: 'available',
+            available_quantity: item.quantity == null ? '' : String(item.quantity),
+          })
+        } else setAnswering(next)
+      }}
+    />
+  )
+
   return (
     <>
-      <ResponseSelect
-        value={item.status}
-        disabled={!editable}
-        portal={portal}
-        onChange={(next) => {
-          if (!next) void onPatch?.(item.id, { status: '' })
-          else if (next === 'available') {
-            void onPatch?.(item.id, {
-              status: 'available',
-              available_quantity: item.quantity == null ? '' : String(item.quantity),
-            })
-          } else setAnswering(next)
-        }}
-      />
+      {drawerModal ? <span ref={triggerHost} className="contents">{response}</span> : response}
       {answering && (
         <StatusAnswerDialog
           item={item}
           status={answering}
-          onCancel={() => setAnswering(null)}
+          drawerModal={drawerModal}
+          onCancel={drawerModal ? closeDrawerAnswer : () => setAnswering(null)}
           onSave={(changes) => {
-            setAnswering(null)
+            if (drawerModal) closeDrawerAnswer()
+            else setAnswering(null)
             void onPatch?.(item.id, changes)
           }}
         />
@@ -793,6 +894,7 @@ function LineRow({
   minWidth,
   leading,
   design = 'default',
+  drawerModal = false,
 }: {
   item: ARItem
   editable: boolean
@@ -803,6 +905,7 @@ function LineRow({
   /** Rendered as the row's first cell when the table has a leading column. */
   leading?: ReactNode
   design?: LineTableDesign
+  drawerModal?: boolean
 }) {
   const portal = design === 'portal'
   const commit = (column: string) => (next: string) => {
@@ -860,7 +963,13 @@ function LineRow({
         )}
       </span>
       <div className="px-1">
-        <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} />
+        <LineStatusPicker
+          item={item}
+          editable={editable}
+          onPatch={onPatch}
+          portal={portal}
+          drawerModal={drawerModal}
+        />
       </div>
       <AnswerCell
         value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
@@ -916,6 +1025,8 @@ export function ARLineTable<T extends ARItem>({
   leadingHeader,
   renderLeading,
   design = 'default',
+  mobileCards = false,
+  drawerModal = false,
 }: {
   items: T[]
   editable: boolean
@@ -924,6 +1035,10 @@ export function ARLineTable<T extends ARItem>({
   displayText?: (text: string) => string
   /** `portal`: no Line total column, no tone bars, no subtotal footer. */
   design?: LineTableDesign
+  /** Render only the stacked phone cards; false preserves the exact table DOM. */
+  mobileCards?: boolean
+  /** LPS Ops drawer only: nested answer-modal behavior. */
+  drawerModal?: boolean
   /**
    * One extra column in front of Need. Both parts go together — the header
    * names it, the renderer fills it per row. The By-item view uses it for the
@@ -938,6 +1053,108 @@ export function ARLineTable<T extends ARItem>({
   const base = portal ? PORTAL_COLUMNS : LINE_COLUMNS
   const columns = lead ? `${LEAD_COLUMN} ${base}` : base
   const minWidth = (portal ? PORTAL_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
+  const mobile = (
+    <div className="space-y-2.5" data-testid="availability-mobile-lines">
+          {items.length === 0 && (
+            <p className="m-0 rounded-xl border border-border bg-card px-3 py-4 text-[12.5px] text-muted-foreground">
+              No lines on this request.
+            </p>
+          )}
+          {items.map((item, index) => {
+            const commit = (column: string) => (next: string) => {
+              void onPatch?.(item.id, { [column]: next.trim() })
+            }
+            const lineName = `Line ${index + 1}, ${item.name}`
+            const tone = arResponseTone(item.status)
+            return (
+              <article
+                key={item.id}
+                aria-label={lineName}
+                className="min-w-0 overflow-hidden rounded-xl border border-border bg-card"
+                style={{ borderLeft: `3px solid ${toneDot(tone)}` }}
+              >
+                <div className="min-w-0 border-b border-lps-hair px-3 py-3" style={{ background: toneTint(tone) }}>
+                  <p className="m-0 break-words text-[14px] font-bold leading-5 text-foreground">{item.name}</p>
+                  <p className="m-0 mt-0.5 break-words text-[12px] text-muted-foreground">
+                    Need {num(item.quantity) || '—'}{item.size ? ` · ${item.size}` : ''}
+                  </p>
+                  {item.lpsNotes && (
+                    <p className="m-0 mt-2 break-words text-[12px] leading-5 text-muted-foreground">
+                      <span className="mr-1 font-bold text-foreground">LPS note:</span>
+                      {displayText?.(item.lpsNotes) ?? item.lpsNotes}
+                    </p>
+                  )}
+                </div>
+                <div className="grid min-w-0 grid-cols-2 gap-3 p-3">
+                  <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</span>
+                    <span className="relative flex min-h-11 items-center">
+                      <LineStatusPicker
+                        item={item}
+                        editable={editable}
+                        onPatch={onPatch}
+                        ariaLabel={`${lineName} status`}
+                        touch
+                        drawerModal={drawerModal}
+                      />
+                    </span>
+                  </label>
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
+                    <AnswerCell
+                      value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
+                      editable={editable}
+                      align="right"
+                      placeholder="Qty"
+                      display={num(item.availableQuantity)}
+                      onCommit={commit('available_quantity')}
+                      ariaLabel={`${lineName} available quantity`}
+                      touch
+                    />
+                  </label>
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Price</span>
+                    <AnswerCell
+                      value={item.unitPrice == null ? '' : String(item.unitPrice)}
+                      editable={editable}
+                      align="right"
+                      placeholder="$/unit"
+                      display={money(item.unitPrice)}
+                      onCommit={commit('unit_price')}
+                      ariaLabel={`${lineName} price per unit`}
+                      touch
+                    />
+                  </label>
+                  <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Notes</span>
+                    <AnswerCell
+                      value={item.notes ?? ''}
+                      editable={editable}
+                      placeholder="Substitute, ETA, conditions…"
+                      display={item.notes ?? ''}
+                      onCommit={commit('notes')}
+                      ariaLabel={`${lineName} notes`}
+                      touch
+                    />
+                  </label>
+                  <div className="col-span-2 flex items-center justify-between border-t border-lps-hair pt-2 text-[12px]">
+                    <span className="font-bold uppercase tracking-[.04em] text-muted-foreground">Line total</span>
+                    <span className="font-bold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+          {items.length > 0 && (
+            <div className="flex items-center justify-between rounded-xl border border-border bg-lps-headrow px-3 py-2.5 text-[12px]">
+              <span className="font-bold uppercase tracking-[.04em] text-muted-foreground">Subtotal</span>
+              <span className="font-bold tabular-nums text-foreground">{money(subtotal) || '—'}</span>
+            </div>
+        )}
+      </div>
+  )
+  if (mobileCards) return mobile
+
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-card">
       <div
@@ -973,26 +1190,27 @@ export function ARLineTable<T extends ARItem>({
           minWidth={minWidth}
           leading={lead ? renderLeading(item) : undefined}
           design={design}
+          drawerModal={drawerModal}
         />
       ))}
-      {items.length > 0 && !portal && (
-        <div
-          className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
-          style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
-        >
-          {/* The label spans everything up to Line total, so it still sits
-              directly under Price whether or not there is a leading column. */}
-          <span
-            className="px-1 text-right text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-            style={{ gridColumn: lead ? '1 / 8' : '1 / 7' }}
+        {items.length > 0 && !portal && (
+          <div
+            className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
+            style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
           >
-            Subtotal
-          </span>
-          <span className="px-1 text-right text-[13px] font-bold tabular-nums text-foreground">
-            {money(subtotal) || '—'}
-          </span>
-        </div>
-      )}
+            {/* The label spans everything up to Line total, so it still sits
+                directly under Price whether or not there is a leading column. */}
+            <span
+              className="px-1 text-right text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
+              style={{ gridColumn: lead ? '1 / 8' : '1 / 7' }}
+            >
+              Subtotal
+            </span>
+            <span className="px-1 text-right text-[13px] font-bold tabular-nums text-foreground">
+              {money(subtotal) || '—'}
+            </span>
+          </div>
+        )}
     </div>
   )
 }
