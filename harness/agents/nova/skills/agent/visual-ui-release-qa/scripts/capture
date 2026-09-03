@@ -16,7 +16,8 @@ done
 if [[ -z $height ]]; then [[ $width == 320 ]] && height=800 || { [[ $width == 390 ]] && height=844 || { [[ $width == 480 ]] && height=900 || height=1000; }; }; fi
 [[ $height =~ ^[0-9]+$ ]] || usage
 evidence=$(mkdir -p "$evidence/screenshots" && cd "$evidence" && pwd)
-browser=${AGENT_BROWSER:-scripts/agent/agent-browser}
+agent_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
+browser=${AGENT_BROWSER:-$agent_root/scripts/agent/agent-browser}
 url=$("$browser" --session "$session" --json get url | jq -r '.data.url // .url // empty')
 [[ $url == "http://127.0.0.1:$port"* ]] || { echo "browser is not on the isolated preview" >&2; exit 1; }
 [[ ${url#"http://127.0.0.1:$port"} == "$path"* ]] || { echo "browser route does not match $path" >&2; exit 1; }

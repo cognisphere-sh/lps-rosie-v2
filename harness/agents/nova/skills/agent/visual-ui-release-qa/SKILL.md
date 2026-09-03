@@ -1,9 +1,9 @@
 ---
 name: visual-ui-release-qa
-description: Gate every UI/UX app release on an independent real-browser visual review before deployment. Covers exact-commit isolated Next.js preview start/stop, secret-safe browser login, 320/390/480/desktop state screenshots, reference and usability assessment, retained manifest/evidence, blocking PASS/FAIL rules, and the separate technical gate. Includes safe preview/login/capture scripts and a review template. Use before restarting/deploying any change that can affect rendered app behavior, and when repeating visual review after fixes. (v1.0.0)
+description: Gate every UI/UX app release on an independent real-browser visual review before deployment. Covers exact-commit isolated Next.js preview start/stop, secret-safe browser login, 320/390/480/desktop state screenshots, reference and usability assessment, retained manifest/evidence, blocking PASS/FAIL rules, and the separate technical gate. Includes safe preview/login/capture scripts and a review template. Use before restarting/deploying any change that can affect rendered app behavior, and when repeating visual review after fixes. (v1.0.1)
 metadata:
   author: nova
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # Visual UI release QA
@@ -77,7 +77,7 @@ Use a dedicated ephemeral `agent-browser --session` name. Credentials must alrea
 The helper suppresses browser command output and writes no state file. Do not use `--session-name` or `state save`, because those persist cookies. After review, run:
 
 ```bash
-scripts/agent/agent-browser --session visual-ui-qa --json close
+harness/agents/nova/scripts/agent/agent-browser --session visual-ui-qa --json close
 unset VISUAL_QA_USERNAME VISUAL_QA_PASSWORD
 ```
 
@@ -87,7 +87,7 @@ If credentials are not safely available in the environment, stop and ask the ope
 
 For **each state at each width** 320, 390, 480 and desktop 1440:
 
-1. Set the viewport before navigating: `agent-browser --session visual-ui-qa --json set viewport <width> <height>` (recommended heights: 800, 844, 900, 1000).
+1. Set the viewport before navigating with `harness/agents/nova/scripts/agent/agent-browser --session visual-ui-qa --json set viewport <width> <height>` (recommended heights: 800, 844, 900, 1000).
 2. Open the exact loopback preview route.
 3. Use snapshots and real clicks/keyboard input to establish that state. Do not infer an expanded/open state from source code. Use representative long and empty data where available; do not mutate production data merely to manufacture evidence.
 4. Confirm state and page content in the browser, then capture it:

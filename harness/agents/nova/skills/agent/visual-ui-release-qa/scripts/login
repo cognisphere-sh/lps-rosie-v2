@@ -6,7 +6,8 @@ set -euo pipefail
 : "${VISUAL_QA_PASSWORD:?set VISUAL_QA_PASSWORD in the environment}"
 port=${1:-3100}; session=${2:-visual-ui-qa}
 [[ $port =~ ^[0-9]+$ ]] && (( port >= 1024 && port <= 65535 && port != 3000 )) || { echo "unsafe port" >&2; exit 2; }
-browser=${AGENT_BROWSER:-scripts/agent/agent-browser}
+agent_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
+browser=${AGENT_BROWSER:-$agent_root/scripts/agent/agent-browser}
 "$browser" --session "$session" --json open "http://127.0.0.1:$port/login" >/dev/null
 "$browser" --session "$session" --json fill '#username' "$VISUAL_QA_USERNAME" >/dev/null
 "$browser" --session "$session" --json fill '#password' "$VISUAL_QA_PASSWORD" >/dev/null
