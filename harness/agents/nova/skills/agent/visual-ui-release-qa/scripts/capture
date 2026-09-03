@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+usage() { echo "usage: capture --evidence DIR --screen SLUG --state SLUG --path /route --width 320|390|480|1440 [--height PX] [--port PORT] [--session NAME]" >&2; exit 2; }
+evidence= screen= state= path= width= height= port=3100 session=visual-ui-qa
+while (($#)); do
+  case "$1" in
+    --evidence) evidence=${2:-}; shift 2;; --screen) screen=${2:-}; shift 2;;
+    --state) state=${2:-}; shift 2;; --path) path=${2:-}; shift 2;;
+    --width) width=${2:-}; shift 2;; --height) height=${2:-}; shift 2;;
+    --port) port=${2:-}; shift 2;; --session) session=${2:-}; shift 2;; *) usage;;
+  esac
+done
+[[ -n $evidence && $screen =~ ^[a-z0-9][a-z0-9-]*$ && $state =~ ^[a-z0-9][a-z0-9-]*$ && $path == /* ]] || usage
+[[ $width == 320 || $width == 390 || $width == 480 || $width == 1440 ]] || { echo "width must be 320, 390, 480, or 1440" >&2; exit 2; }
+[[ $port =~ ^[0-9]+$ ]] && (( port >= 1024 && port <= 65535 && port != 3000 )) || { echo "unsafe port" >&2; exit 2; }
+if [[ -z $height ]]; then [[ $width == 320 ]] && height=800 || { [[ $width == 390 ]] && height=844 || { [[ $width == 480 ]] && height=900 || height=1000; }; }; fi
+[[ $height =~ ^[0-9]+$ ]] || usage
+evidence=$(mkdir -p "$evidence/screenshots" && cd "$evidence" && pwd)
+browser=${AGENT_BROWSER:-scripts/agent/agent-browser}
+url=$("$browser" --session "$session" --json get url | jq -r '.data.url // .url // empty')
+[[ $url == "http://127.0.0.1:$port"* ]] || { echo "browser is not on the isolated preview" >&2; exit 1; }
+[[ ${url#"http://127.0.0.1:$port"} == "$path"* ]] || { echo "browser route does not match $path" >&2; exit 1; }
+"$browser" --session "$session" --json set viewport "$width" "$height" >/dev/null
+file="screenshots/$screen--$state--${width}x${height}.png"
+"$browser" --session "$session" --json screenshot "$evidence/$file" >/dev/null
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$screen" "$state" "$width" "$height" "$path" "$file" >>"$evidence/manifest.tsv"
+echo "$file"

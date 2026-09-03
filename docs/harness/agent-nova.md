@@ -27,9 +27,15 @@ not conversation but **owning and modifying the app-home code**: `app/`
 (`node_modules/@cognisphere-sh/cognisphere-harness` — read-only).
 
 It can ship `app/` changes itself (`sudo ./scripts/server.sh restart app`) but
-defers harness restarts to the operator (it lives inside the harness). It
-maintains `docs/harness/` and `docs/app/`, and reads (never edits)
-`docs/base-harness/`. Reachable on **Telegram** (`/reset` wipes its context)
+defers harness restarts to the operator (it lives inside the harness). Every
+release that can affect rendered UI is first blocked on the Nova-owned
+`visual-ui-release-qa` process: an independent task thread reviews an isolated
+exact-commit browser preview at 320/390/480/desktop, retains state screenshots
+and a PASS/FAIL record under the parent thread's files, and a FAIL prohibits the
+app restart. This visual gate is additional to, not a replacement for, Nova's
+technical review and checks; non-UI-only releases are exempt. It maintains
+`docs/harness/` and `docs/app/`, and reads (never edits) `docs/base-harness/`.
+Reachable on **Telegram** (`/reset` wipes its context)
 and the **web app's chat panel** ([`webchat`](plugin-webchat.md)); both target
 the `main` thread — webchat pins it in config, telegram via a `main` chat
 route (daisy's pattern; until that route exists in
@@ -95,8 +101,16 @@ the four shared ones.
   (minimal `hello` interval plugin).
 - **create-skill** — authors or updates a versioned agent skill, and
   migrates a procedure out of a prompt file or `knowledge/` into one.
+- **visual-ui-release-qa** — mandatory pre-deploy visual gate for rendered UI:
+  creates a detached exact-commit Next.js preview in a temporary worktree on a
+  safe loopback port, authenticates without retaining credentials, captures
+  every affected state at 320/390/480/1440, and records an independent
+  reference/usability PASS or release-blocking FAIL. Its helper scripts never
+  touch the live `app/.next` or restart a service; evidence lives under the
+  coordinating thread's `files/visual-qa/` directory.
 
-These skills are mirrored at the app-home `.claude/skills/` so coding agents run
+The cognisphere-authored skills are mirrored at the app-home `.claude/skills/`
+so coding agents run
 inside the home (e.g. Claude Code) can use them too.
 
 ## Knowledge / migrations

@@ -15,6 +15,21 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-03
+
+### Changed
+
+- **Rendered UI releases now require an independent visual QA PASS before deployment**
+  (`harness/agents/nova/skills/agent/visual-ui-release-qa/`,
+  `docs/harness/agent-nova.md`). Nova previews the exact committed candidate in
+  a temporary detached worktree with isolated Next.js output on a safe loopback
+  port, then a separate task-thread reviewer captures every affected state at
+  320/390/480/1440 and retains a manifest plus reference/usability decision.
+  Missing evidence or a visual FAIL blocks restart/deploy; technical review and
+  build/test/accessibility checks remain a separate required gate. Helpers
+  refuse port 3000 and the live app path, keep credentials out of evidence, and
+  clean preview processes/worktrees without touching production services.
+
 ## 2026-09-01
 
 ### Changed

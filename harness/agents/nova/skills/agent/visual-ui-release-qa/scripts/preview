@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() { echo "usage: preview <start|stop|status> [--commit SHA] [--port PORT]" >&2; exit 2; }
+command=${1:-}; shift || true
+commit=; port=3100
+while (($#)); do
+  case "$1" in
+    --commit) commit=${2:-}; shift 2 ;;
+    --port) port=${2:-}; shift 2 ;;
+    *) usage ;;
+  esac
+done
+[[ $port =~ ^[0-9]+$ ]] || { echo "refusing non-numeric port" >&2; exit 2; }
+(( port >= 1024 && port <= 65535 && port != 3000 )) || { echo "refusing reserved/unsafe port $port (3000 is live)" >&2; exit 2; }
+repo=$(git rev-parse --show-toplevel)
+# Keep the temporary tree on the repo's filesystem so dependency files can be
+# hard-linked without copying hundreds of MB; this private cache is still wholly
+# outside the live checkout and is removed by stop/error cleanup.
+cache_root=${XDG_CACHE_HOME:-${HOME:?}/.cache}
+runtime="$cache_root/nova-visual-ui-preview-$port"
+worktree="$runtime/worktree"
+pidfile="$runtime/server.pid"
+
+stop_preview() {
+  if [[ -f $pidfile ]]; then
+    pid=$(<"$pidfile")
+    # start creates a dedicated process group; stop the whole group so pnpm
+    # cannot exit while leaving next-server orphaned.
+    if [[ $pid =~ ^[0-9]+$ ]] && kill -0 -- "-$pid" 2>/dev/null; then
+      kill -TERM -- "-$pid" 2>/dev/null || true
+      for _ in {1..30}; do kill -0 -- "-$pid" 2>/dev/null || break; sleep .2; done
+      kill -KILL -- "-$pid" 2>/dev/null || true
+    fi
+  fi
+  git -C "$repo" worktree remove --force "$worktree" >/dev/null 2>&1 || true
+  rm -rf "$runtime"
+}
+
+case "$command" in
+  stop) stop_preview; echo "preview stopped; isolated worktree removed"; exit 0 ;;
+  status)
+    if [[ -f $pidfile ]] && kill -0 "$(<"$pidfile")" 2>/dev/null; then
+      cat "$runtime/preview.json"; exit 0
+    fi
+    echo "preview is not running on port $port" >&2; exit 1 ;;
+  start) ;;
+  *) usage ;;
+esac
+
+[[ -n $commit ]] || { echo "--commit is required for an exact committed candidate" >&2; exit 2; }
+resolved=$(git -C "$repo" rev-parse --verify "$commit^{commit}") || exit 2
+[[ ! -e $runtime ]] || { echo "preview runtime already exists; run stop first" >&2; exit 1; }
+if command -v ss >/dev/null && ss -ltnH "sport = :$port" | grep -q .; then
+  echo "refusing occupied port $port" >&2; exit 1
+fi
+mkdir -m 700 "$runtime"
+cleanup_on_error=1
+on_error() {
+  rc=$?
+  if (( rc != 0 && cleanup_on_error )); then
+    echo "preview failed; last non-secret runtime log lines:" >&2
+    [[ -f $runtime/install.log ]] && tail -n 30 "$runtime/install.log" >&2
+    [[ -f $runtime/build.log ]] && tail -n 30 "$runtime/build.log" >&2
+    [[ -f $runtime/server.log ]] && tail -n 30 "$runtime/server.log" >&2
+    stop_preview
+  fi
+  exit "$rc"
+}
+trap on_error EXIT INT TERM
+
+git -C "$repo" worktree add --detach "$worktree" "$resolved" >"$runtime/worktree.log" 2>&1
+[[ $(readlink -f "$worktree/app") != $(readlink -f "$repo/app") ]] || { echo "refusing live app path" >&2; exit 1; }
+# Materialize the candidate's locked dependencies inside the worktree. An
+# external app/node_modules symlink is unsafe here: Turbopack rejects links that
+# escape its filesystem root. Seed a hard-linked local copy of the installed
+# pnpm tree, then make pnpm verify it against the candidate lock in offline mode.
+# A dependency absent locally fails closed rather than reaching the network.
+[[ -d "$repo/node_modules" && -d "$repo/app/node_modules" ]] || { echo "installed dependencies are missing" >&2; exit 1; }
+cp -al "$repo/node_modules" "$worktree/node_modules"
+cp -a "$repo/app/node_modules" "$worktree/app/node_modules"
+pnpm --dir "$worktree" install --offline --frozen-lockfile --ignore-scripts >"$runtime/install.log" 2>&1
+
+# Export the existing local app environment into build/start without copying it
+# into the worktree or evidence. Never run this script with xtrace enabled.
+if [[ -f "$repo/app/.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$repo/app/.env.local"
+  set +a
+fi
+pnpm --dir "$worktree/app" build >"$runtime/build.log" 2>&1
+(
+  cd "$worktree/app"
+  exec setsid pnpm start --hostname 127.0.0.1 --port "$port"
+) >"$runtime/server.log" 2>&1 &
+echo $! >"$pidfile"
+for _ in {1..120}; do
+  if curl -fsS "http://127.0.0.1:$port/login" >/dev/null 2>&1; then break; fi
+  kill -0 "$(<"$pidfile")" 2>/dev/null || { echo "preview server exited; inspect $runtime/server.log" >&2; exit 1; }
+  sleep .5
+done
+curl -fsS "http://127.0.0.1:$port/login" >/dev/null || { echo "preview did not become ready" >&2; exit 1; }
+printf '{"commit":"%s","port":%s,"url":"http://127.0.0.1:%s","worktree":"%s"}\n' "$resolved" "$port" "$port" "$worktree" >"$runtime/preview.json"
+cleanup_on_error=0
+trap - EXIT INT TERM
+cat "$runtime/preview.json"

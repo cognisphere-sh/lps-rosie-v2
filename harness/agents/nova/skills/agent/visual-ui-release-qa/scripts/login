@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Credentials are read only from the process environment. This script suppresses
+# browser command output and never writes credentials or browser state to evidence.
+: "${VISUAL_QA_USERNAME:?set VISUAL_QA_USERNAME in the environment}"
+: "${VISUAL_QA_PASSWORD:?set VISUAL_QA_PASSWORD in the environment}"
+port=${1:-3100}; session=${2:-visual-ui-qa}
+[[ $port =~ ^[0-9]+$ ]] && (( port >= 1024 && port <= 65535 && port != 3000 )) || { echo "unsafe port" >&2; exit 2; }
+browser=${AGENT_BROWSER:-scripts/agent/agent-browser}
+"$browser" --session "$session" --json open "http://127.0.0.1:$port/login" >/dev/null
+"$browser" --session "$session" --json fill '#username' "$VISUAL_QA_USERNAME" >/dev/null
+"$browser" --session "$session" --json fill '#password' "$VISUAL_QA_PASSWORD" >/dev/null
+"$browser" --session "$session" --json find role button click --name 'Sign in' >/dev/null
+"$browser" --session "$session" --json wait 1000 >/dev/null
+url=$("$browser" --session "$session" --json get url | jq -r '.data.url // .url // empty')
+[[ $url != *'/login'* ]] || { echo "login did not complete" >&2; exit 1; }
+echo "authenticated browser session $session (credentials were not recorded)"
