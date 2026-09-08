@@ -33,6 +33,17 @@ Realtime → SSE) instead of polling on a timer.
 | `pendingTimeoutSec` | `900` | How long an unanswered web message may keep the "working…" indicator up before the panel drops it. Does not bound the queue half of the indicator. |
 | `historyLimit` | `200` | Messages kept in memory and returned to the browser, per thread. |
 
+The public app proxy carries the same per-file contract. The deployment-owned
+`scripts/app/setup-server.sh` runs after the stock Nginx/Certbot provisioning and
+idempotently adds `client_max_body_size 25m` only to the internal agent upload
+path (`/api/chat/:agent/upload`) and the supplier portal chat path
+(`/api/partner/:id/chat`; its `?upload=1` request shares that route with small
+GET/JSON calls). The helper refuses to edit unless exactly one generated app
+vhost matches the configured domain and app port. This keeps the harness console
+and unrelated app endpoints at Nginx's smaller default. Re-running server setup
+reconciles the managed block, validates Nginx and reloads it; the helper's unit
+test also verifies idempotence.
+
 Secrets — all wired by `scripts/app/secrets.sh`:
 
 | Key | Required | Meaning |

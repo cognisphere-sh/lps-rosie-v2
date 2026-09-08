@@ -15,6 +15,21 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-08
+
+### Fixed
+
+- **Public webchat uploads now retain the plugin's documented 25 MiB allowance
+  through the production proxy**
+  (`scripts/app/{setup-server.sh,configure-nginx-upload-limit.py,configure-nginx-upload-limit.test.py}`,
+  `docs/harness/plugin-webchat.md`). The deployment-owned post-provision hook
+  idempotently adds a fail-closed managed Nginx location for internal agent
+  uploads and supplier portal chat uploads only, leaving unrelated app routes
+  and the harness console under their existing limits. This removes the hidden
+  Nginx 1 MiB ceiling that returned HTTP 413 before otherwise-valid image files
+  reached Next.js or the webchat plugin; generated-config tests cover route
+  scope, reconciliation, ambiguity refusal and byte-identical reruns.
+
 ## 2026-09-03
 
 ### Changed
