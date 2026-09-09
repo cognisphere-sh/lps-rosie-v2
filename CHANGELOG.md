@@ -71,6 +71,27 @@ here).
   refuse port 3000 and the live app path, keep credentials out of evidence, and
   clean preview processes/worktrees without touching production services.
 
+- **Supplier availability requests now open on truthful, race-safe multi-select work buckets**
+  (`app/app/partner/[id]/page.tsx`,
+  `app/components/workspace/partner-request-buckets.tsx`,
+  `app/lib/{partner-request-work-buckets,partner-request-work-buckets-page}.test.tsx`,
+  `docs/app/README.md`). The By request view defaults each fresh visit to New +
+  Processing, leaves Completed excluded, supports independent toggles plus
+  Select all, and keeps its global workload counts unchanged as rows filter.
+  New blue, Processing amber/orange and Completed green now use explicit
+  light/dark text, tint and border pairs: rendered contrast math covers 4.5:1
+  written/check content and 3:1 UI affordances on normal and tinted surfaces.
+  Its centralized exact request read aborts predecessors and generation-guards
+  reverse completions, supplier changes and unmount; refresh failure retains
+  the last truthful snapshot behind a non-destructive Retry banner, and current
+  success clears it. Actual PartnerHomePage tests cover 320/390/480/desktop,
+  keyboard/touch/Select all, remount/back defaults, global counts and all empty
+  distinctions, Submit/Re-Submit/reopen snapshots, rapid reverse replies,
+  failure/retry, abort lifetime, closed separation, exact API path and the
+  existing desktop bell. Stored statuses, transitions, permissions, APIs,
+  closed work, request detail and Submit/Re-Submit behavior are unchanged; no
+  date or fulfillment fact is invented.
+
 - **Plant Search controls now read as one deliberate toolbar**
   (`app/app/plants/page.tsx`,
   `app/components/workspace/{plant-filters,table-parts,toolbar}.tsx`,

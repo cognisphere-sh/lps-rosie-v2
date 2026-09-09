@@ -143,7 +143,7 @@ test('header metadata is relocated into existing toolbars or content', () => {
   for (const route of routeSources) assert.doesNotMatch(route, /subtitle=/)
   assert.match(source('app/photos/page.tsx'), /Ranked by match.*Newest first/)
   assert.match(source('app/requests/page.tsx'), /summary=\{`\$\{total\}.*\$\{summary\.items\} line/)
-  assert.match(source('app/partner/[id]/page.tsx'), /counts\[t\.id\]/)
+  assert.match(source('app/partner/[id]/page.tsx'), /<RequestBucketControls[\s\S]{0,200}counts=\{counts\}/)
   assert.match(source('app/partner/[id]/closed/page.tsx'), /closed\.length.*request/)
   assert.match(source('app/partner/[id]/requests/[arId]/page.tsx'), /request\.items\.length.*pending/)
 })

@@ -1,27 +1,31 @@
 'use client'
 
 // The portal home: this supplier's **open** availability requests as one card
-// per request, grouped by the four tabs the work actually moves through — All,
-// New, Processing, Completed. A card is a link, not a disclosure: it opens the
-// request's own page, where the lines are answered and submitted. There are no
-// filters here on purpose (2026-08-26) — the tab is the whole selection, and a
-// supplier's list is short enough that search and chips cost more than they
-// find. **Closed requests are not on this page at all**, not even under All:
+// per request. New, Processing and Completed are independently selectable work
+// buckets; a fresh visit begins with New + Processing, the active work queue.
+// A card is a link, not a disclosure: it opens the request's own page, where
+// the lines are answered and submitted. **Closed requests are not on this page
+// at all**:
 // they live at ./closed, their own rail destination. The conversation is the docked chat sidebar (one thread per supplier),
 // not part of any card. These pages are behind the session gate: a supplier
 // signs in and sees their own company only — see app/lib/partner-auth.ts.
 
 import { LayoutGrid, Layers, List } from 'lucide-react'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { ChevronDown } from '@/components/workspace/icons'
 import {
   PartnerFrame,
   partnerRequestName,
   type PartnerAlert,
 } from '@/components/workspace/partner'
+import {
+  DEFAULT_REQUEST_BUCKETS,
+  RequestBucketControls,
+  RequestBucketList,
+  requestBucketCounts,
+  type RequestBucketId,
+} from '@/components/workspace/partner-request-buckets'
 import {
   ITEM_FILTERS,
   SupplierItemGroups,
@@ -29,29 +33,10 @@ import {
   type ItemFilterId,
 } from '@/components/workspace/supplier-items'
 import { SupplierStatusBoard } from '@/components/workspace/supplier-status-board'
-import { arSubtotal, arStatusLabel, type ARDetail, type SupplierItemLine } from '@/lib/availability'
-import { money } from '@/lib/format'
+import { type ARDetail, type SupplierItemLine } from '@/lib/availability'
 import { cn } from '@/lib/utils'
 
-/**
- * The four groups the list is cut into. `All` is every **open** request —
- * closing is ours, not theirs, and a closed request is finished work rather
- * than a fourth thing to triage, so it is off this page entirely.
- */
-const TABS = [
-  { id: 'all', label: 'All', status: null },
-  { id: 'new', label: 'New', status: 'new' },
-  { id: 'processing', label: 'Processing', status: 'processing' },
-  { id: 'submitted', label: 'Completed', status: 'submitted' },
-] as const
-type TabId = (typeof TABS)[number]['id']
-
-/**
- * The page's own accents (2026-08-30 design): the list is read by colour
- * before it is read by text, so each status owns one. Blue is New, orange is
- * Completed; Processing is quiet. Fixed hexes with translucent fills so they
- * read on both themes.
- */
+/** By item's tabs are answers, each in its own accent. */
 const ACCENT = {
   blue: '#3B8BF5',
   orange: '#E08A3A',
@@ -60,8 +45,6 @@ const ACCENT = {
   red: '#E5484D',
 } as const
 type Accent = keyof typeof ACCENT
-const TAB_ACCENT: Record<TabId, Accent | null> = { all: null, new: 'blue', processing: null, submitted: 'orange' }
-/** By item's tabs are answers, each in its own accent. */
 const ITEM_ACCENT: Record<ItemFilterId, Accent | null> = {
   all: null,
   available: 'green',
@@ -108,76 +91,6 @@ function Tab({
   )
 }
 
-/** A bordered pill in one accent — the status mark on a row. */
-function AccentPill({
-  accent,
-  className,
-  children,
-}: {
-  accent: Accent | null
-  className?: string
-  children: React.ReactNode
-}) {
-  const c = accent ? ACCENT[accent] : undefined
-  return (
-    <span
-      className={cn(
-        'inline-flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium',
-        !accent && 'border-border bg-secondary/60 text-muted-foreground',
-        className,
-      )}
-      style={
-        c
-          ? {
-              color: c,
-              borderColor: `color-mix(in srgb, ${c} 45%, transparent)`,
-              background: `color-mix(in srgb, ${c} 14%, transparent)`,
-            }
-          : undefined
-      }
-    >
-      {children}
-    </span>
-  )
-}
-
-/**
- * One open request as a row: status on the left, name over our note to the
- * supplier in the middle, the amount on the right. New rows carry the blue edge.
- */
-function RequestRow({ request, href }: { request: ARDetail; href: string }) {
-  const isNew = request.status === 'new'
-  const total = arSubtotal(request.items)
-  const note = request.lpsNotes?.trim()
-  return (
-    <Link
-      href={href}
-      className="flex flex-none items-center gap-4 rounded-xl border bg-card px-5 py-4 no-underline transition-colors hover:bg-lps-tint"
-      style={isNew ? { borderColor: `color-mix(in srgb, ${ACCENT.blue} 55%, var(--border))` } : undefined}
-    >
-      <AccentPill accent={isNew ? 'blue' : null} className="w-[8.5rem] flex-none">
-        {request.status === 'submitted' ? 'Completed' : arStatusLabel(request.status)}
-        {!isNew && <ChevronDown className="size-3.5 opacity-80" />}
-      </AccentPill>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate text-[16px] font-semibold leading-tight text-foreground">
-          {partnerRequestName(request)}
-        </span>
-        {note && (
-          <span className="truncate text-[13px] text-muted-foreground" title={note}>
-            {note}
-          </span>
-        )}
-      </div>
-
-      <span className="w-[6.5rem] flex-none text-right text-[15px] font-semibold tabular-nums text-foreground">
-        {total == null ? '—' : money(total)}
-      </span>
-    </Link>
-  )
-}
-
 /**
  * The two ways the same workload is cut. **By request** is one row per job —
  * what that job wants. **By item** is one row per plant, across every request
@@ -185,8 +98,8 @@ function RequestRow({ request, href }: { request: ARDetail; href: string }) {
  *
  * **By status** is the same lines as a board, one card per answer.
  *
- * By request and By item each have their own tabs — a request's lifecycle
- * status, a line's answer. By status has none: the cards are the cut.
+ * By request has multi-select lifecycle buckets; By item has single-choice
+ * answer tabs. By status has neither: the cards are the cut.
  */
 const VIEWS = [
   { id: 'request', label: 'By request', Icon: List },
@@ -202,32 +115,69 @@ export default function PartnerHomePage() {
   const [supplierName, setSupplierName] = useState<string | null>(null)
   const [requests, setRequests] = useState<ARDetail[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
-  const [tab, setTab] = useState<TabId>('all')
+  const [requestLoadError, setRequestLoadError] = useState('')
+  const requestLoadSequence = useRef(0)
+  const requestLoadController = useRef<AbortController | null>(null)
+  const [requestBuckets, setRequestBuckets] = useState<RequestBucketId[]>([...DEFAULT_REQUEST_BUCKETS])
   const [view, setView] = useState<ViewId>('request')
   const [itemFilter, setItemFilter] = useState<ItemFilterId>('all')
   const [itemLines, setItemLines] = useState<SupplierItemLine[] | null>(null)
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/partner/${supplierId}`)
-    if (!res.ok) {
-      setState('missing')
-      return
+  /**
+   * The one read behind request rows, global counts and alert rows. Every new
+   * read retires its predecessor, and the sequence check remains authoritative
+   * even if a fetch implementation resolves after abort. A refresh failure
+   * keeps the last coherent snapshot on screen and makes recovery explicit.
+   */
+  const loadRequests = useCallback(async (initial = false) => {
+    const sequence = ++requestLoadSequence.current
+    requestLoadController.current?.abort()
+    const controller = new AbortController()
+    requestLoadController.current = controller
+
+    try {
+      const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store', signal: controller.signal })
+      if (controller.signal.aborted || sequence !== requestLoadSequence.current) return false
+      if (!res.ok) {
+        if (initial) setState('missing')
+        else setRequestLoadError('Could not refresh requests. The last loaded list is still shown.')
+        return false
+      }
+      const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
+      if (controller.signal.aborted || sequence !== requestLoadSequence.current) return false
+      setSupplierName(body.supplier.name)
+      // Closed requests belong to the Closed page, not any work bucket here.
+      setRequests(body.requests.filter((request) => request.status !== 'closed'))
+      setRequestLoadError('')
+      setState('ready')
+      return true
+    } catch {
+      if (controller.signal.aborted || sequence !== requestLoadSequence.current) return false
+      if (initial) setState('missing')
+      else setRequestLoadError('Could not refresh requests. The last loaded list is still shown.')
+      return false
+    } finally {
+      if (requestLoadController.current === controller) requestLoadController.current = null
     }
-    const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
-    setSupplierName(body.supplier.name)
-    // Closed requests belong to the Closed page — dropping them here is what
-    // keeps them out of All as well as out of the three status tabs.
-    setRequests(body.requests.filter((r) => r.status !== 'closed'))
-    setState('ready')
   }, [supplierId])
 
   useEffect(() => {
+    setSupplierName(null)
+    setRequests([])
+    setRequestLoadError('')
+    setState('loading')
+    setRequestBuckets([...DEFAULT_REQUEST_BUCKETS])
     if (!Number.isInteger(supplierId)) {
       setState('missing')
       return
     }
-    void load().catch(() => setState('missing'))
-  }, [supplierId, load])
+    void loadRequests(true)
+    return () => {
+      requestLoadSequence.current += 1
+      requestLoadController.current?.abort()
+      requestLoadController.current = null
+    }
+  }, [supplierId, loadRequests])
 
   /**
    * The lines behind By item and By status — a second read over the same
@@ -245,9 +195,9 @@ export default function PartnerHomePage() {
   }, [view, supplierId, loadItemLines])
 
   const refreshAfterReply = useCallback(() => {
-    void load().catch(() => {})
+    void loadRequests()
     if (view !== 'request') void loadItemLines().catch(() => {})
-  }, [load, view, loadItemLines])
+  }, [loadRequests, view, loadItemLines])
 
   /**
    * One line's answer, from the By-item view. Each row there belongs to its
@@ -264,9 +214,9 @@ export default function PartnerHomePage() {
       if (!res.ok) return
       // Both lists are derived from the answer — the group's counts and
       // subtotal here, and the request's status and counts on the cards.
-      await Promise.all([loadItemLines().catch(() => {}), load().catch(() => {})])
+      await Promise.all([loadItemLines().catch(() => {}), loadRequests()])
     },
-    [supplierId, loadItemLines, load],
+    [supplierId, loadItemLines, loadRequests],
   )
 
   /**
@@ -294,22 +244,10 @@ export default function PartnerHomePage() {
     [requests],
   )
 
-  const counts = useMemo(() => {
-    const by: Record<TabId, number> = { all: requests.length, new: 0, processing: 0, submitted: 0 }
-    for (const r of requests) {
-      if (r.status === 'new') by.new += 1
-      else if (r.status === 'processing') by.processing += 1
-      else if (r.status === 'submitted') by.submitted += 1
-    }
-    return by
-  }, [requests])
-
+  // These remain global workload counts as buckets are toggled; filtering is
+  // applied only to the rows below, never to the numbers in the controls.
+  const counts = useMemo(() => requestBucketCounts(requests), [requests])
   const itemCounts = useMemo(() => countItemFilters(itemLines ?? []), [itemLines])
-
-  const shown = useMemo(() => {
-    const status = TABS.find((t) => t.id === tab)?.status
-    return requests.filter((r) => (status ? r.status === status : true))
-  }, [requests, tab])
 
   if (state === 'missing') {
     return (
@@ -341,26 +279,22 @@ export default function PartnerHomePage() {
       alerts={alerts}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       toolbar={(rightActions) => (
-        /* One dark strip pinned under the header, the tabs centred in it —
-           label over count, the selected one boxed, the count in the tab's
-           own accent. By request cuts by the request's status; By item cuts
-           by the line's answer, because that view is looking at plants. */
+        /* One dark strip pinned under the header. By request has short-lived,
+           multi-select lifecycle buckets; By item keeps its single-choice
+           answer tabs because that view is looking at plants. */
         <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
           <div className="relative flex min-h-[4.75rem] w-full items-center justify-center rounded-2xl bg-card px-3 py-2.5">
             <div className="flex gap-2 overflow-x-auto">
               {view === 'status'
                 ? null
                 : view === 'request'
-                ? TABS.map((t) => (
-                    <Tab
-                      key={t.id}
-                      label={t.label}
-                      count={counts[t.id]}
-                      accent={TAB_ACCENT[t.id]}
-                      selected={tab === t.id}
-                      onClick={() => setTab(t.id)}
+                ? (
+                    <RequestBucketControls
+                      counts={counts}
+                      selected={requestBuckets}
+                      onChange={setRequestBuckets}
                     />
-                  ))
+                  )
                 : ITEM_FILTERS.map((f) => (
                     <Tab
                       key={f.id}
@@ -384,6 +318,18 @@ export default function PartnerHomePage() {
           builds inside the Shell. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-24 md:p-4 md:pb-24">
+          {requestLoadError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#9A661F] bg-[#FFF5E6] px-4 py-3 text-[13px] text-[#633B08] dark:border-[#D69A45] dark:bg-[#332512] dark:text-[#FFD18D]">
+              <span>{requestLoadError}</span>
+              <button
+                type="button"
+                onClick={() => void loadRequests()}
+                className="min-h-11 cursor-pointer rounded-lg border border-current px-4 font-semibold"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {view !== 'request' ? (
             itemLines == null ? (
               <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
@@ -400,22 +346,13 @@ export default function PartnerHomePage() {
             )
           ) : (
             <>
-              {state === 'ready' && shown.length === 0 && (
-                <div className="flex flex-col items-center gap-2 py-16 text-center">
-                  <span className="text-[14px] font-semibold text-foreground">
-                    {requests.length ? 'Nothing in this tab' : 'No availability requests yet'}
-                  </span>
-                  <span className="text-[12.5px] text-muted-foreground">
-                    {requests.length
-                      ? 'Try All to see every request.'
-                      : 'Requests appear here as Local Plant Supply sends them.'}
-                  </span>
-                </div>
+              {state === 'ready' && (
+                <RequestBucketList
+                  requests={requests}
+                  selected={requestBuckets}
+                  supplierId={supplierId}
+                />
               )}
-
-              {shown.map((r) => (
-                <RequestRow key={r.id} request={r} href={`/partner/${supplierId}/requests/${r.id}`} />
-              ))}
 
               {state === 'loading' && (
                 <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
