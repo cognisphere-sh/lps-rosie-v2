@@ -744,7 +744,10 @@ export async function searchPlantGroups(
       groups.set(headId, group)
       matchedFarms.set(headId, new Set())
     }
-    group.plants.push(plant)
+    group.plants.push({
+      ...plant,
+      stockLocation: { name: record.name, city: record.city, state: record.state },
+    })
     matchedFarms.get(headId)!.add(plant.supplierId)
   }
 

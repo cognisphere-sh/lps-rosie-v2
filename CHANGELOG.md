@@ -30,6 +30,32 @@ here).
   reached Next.js or the webchat plugin; generated-config tests cover route
   scope, reconciliation, ambiguity refusal and byte-identical reruns.
 
+## 2026-09-04
+
+### Changed
+
+- **Plant Search now labels where every matching inventory row is located**
+  (`app/app/plants/page.tsx`,
+  `app/components/workspace/plant-table.tsx`, `app/lib/{queries,rows}.ts`,
+  `app/lib/plant-location-clarity.test.tsx`, `docs/app/README.md`). Every desktop
+  and expanded-mobile match prefers its inventory supplier/farm name and
+  city/state under explicit **Stock location** copy. A distinct company-head
+  city/state is separately labelled **Supplier location**; supplier-only facts
+  use that honest fallback, and wholly missing evidence reads **Location not
+  recorded**. Collapsed mobile company cards preserve first-seen order while
+  showing at most three whitespace/case-deduplicated locality cues plus an exact
+  `+N more locations`; `Intl.Segmenter` bounds cues by whole grapheme clusters
+  and bytes. Without it, a deliberately conservative fallback includes only
+  complete whitespace-delimited tokens that fit its code-point/byte caps (or a
+  sole ellipsis), never slicing a token or claiming partial Unicode segmentation.
+  A Georgia row therefore remains
+  visible under a Florida company grouping without a pathological 300-location
+  header, while expanded rows retain their full details. Long and Unicode row
+  cues wrap without clipping or page-level horizontal scrolling. The
+  existing supplier-row fetch supplies these facts—source paths, delivery,
+  distance and freight are never inferred—and relevance, optional State filter,
+  grouping, totals, pagination and API query behavior are unchanged.
+
 ## 2026-09-03
 
 ### Changed
@@ -44,6 +70,24 @@ here).
   build/test/accessibility checks remain a separate required gate. Helpers
   refuse port 3000 and the live app path, keep credentials out of evidence, and
   clean preview processes/worktrees without touching production services.
+
+- **Plant Search controls now read as one deliberate toolbar**
+  (`app/app/plants/page.tsx`,
+  `app/components/workspace/{plant-filters,table-parts,toolbar}.tsx`,
+  `app/lib/{plant-filter-toolbar,plant-cultivar-toggle}.test.tsx`,
+  `docs/app/README.md`). Search, Size, Cultivar, Supplier type, State and More
+  filters now share a 44px height, one-pixel input border, medium radius, field
+  background, aligned centres and consistent 11px medium text chrome. Compact
+  selected controls split label and tabular count into collision-safe tokens;
+  nonshrinking 74/108/100/80px wide tracks reserve label, realistic counts and
+  chevrons, and the fit budget folds sooner when needed. An 84px minimum Search preserves the
+  exact one-row 320px mobile fit, where no action means Toolbar omits the empty
+  trailing cluster: four visible items, three 4px gaps. Active primary colour
+  remains a state cue. The existing actual-container,
+  live-panel and summary-budget folding decision, exact visible order, query and
+  filter state, Cultivar focus ownership, results and saved layouts are
+  unchanged; rendered coverage exercises wide and constrained desktop plus
+  320/390/480 folded states without adding wrapping or horizontal overflow.
 
 ## 2026-09-01
 

@@ -6,10 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, EyeOffIcon } from '@/components/workspace/icons'
 import {
-  PlantAdvancedFilters, usePlantFilterContainer,
+  PLANT_TOOLBAR_SELECT_CLASS, PlantAdvancedFilters, usePlantFilterContainer,
 } from '@/components/workspace/plant-filters'
 import {
-  PlantHeaderRow, PlantRowLine, plantsWidth, usePlantCompanyPanelWidth,
+  PlantHeaderRow, PlantLocationCue, PlantRowLine, plantGroupLocationSummary,
+  plantsWidth, usePlantCompanyPanelWidth,
 } from '@/components/workspace/plant-table'
 import { PLANT_SEARCH_LABELS, SearchOverlay } from '@/components/workspace/search-loader'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
@@ -356,7 +357,7 @@ export default function PlantSearchPage() {
       controls={
         <>
           <div ref={quickFiltersRef} data-plant-quick-filters className="contents">
-            <div className={cn('w-[82px] @min-[1024px]:w-[72px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+            <div className={cn('w-[82px] flex-none @min-[1024px]:w-[74px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
               <MultiFilter
                 allLabel="Size"
                 options={sizeOptions}
@@ -365,7 +366,7 @@ export default function PlantSearchPage() {
                 compactCountLabel="Size"
                 accessibleName="Size"
                 truncateLabel={false}
-                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
                 filterPlaceholder="Filter sizes…"
                 onChange={setSelectedSizes}
                 largeTargets
@@ -375,7 +376,7 @@ export default function PlantSearchPage() {
             <div
               data-plant-folded-filter
               data-plant-cultivar
-              className={cn('hidden w-[84px] @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
+              className={cn('hidden w-[108px] flex-none @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
             >
               <MultiFilter
                 allLabel="Cultivar"
@@ -386,7 +387,7 @@ export default function PlantSearchPage() {
                 options={cultivarOptions}
                 selected={cultivarFilter}
                 onChange={(next) => plantCfg.setColFilter('cultivar', next)}
-                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
                 filterPlaceholder="Filter cultivars…"
                 largeTargets
                 restoreFocusOnClose
@@ -395,7 +396,7 @@ export default function PlantSearchPage() {
                 menuClassName="w-max min-w-full max-w-[240px]"
               />
             </div>
-            <div className={cn('w-[82px] @min-[1024px]:w-[92px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
+            <div className={cn('w-[82px] flex-none @min-[1024px]:w-[100px]', forceCompactToolbar && '@min-[1024px]:!w-[82px]')}>
               <MultiFilter
                 allLabel="Type"
                 wideAllLabel="Supplier type"
@@ -406,7 +407,7 @@ export default function PlantSearchPage() {
                 options={optionList('category')}
                 selected={categoryFilter}
                 onChange={(next) => masterCfg.setColFilter('category', next)}
-                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
                 filterPlaceholder="Filter supplier types…"
                 largeTargets
                 menuAlign="right"
@@ -415,7 +416,7 @@ export default function PlantSearchPage() {
             </div>
             <div
               data-plant-folded-filter
-              className={cn('hidden w-[68px] @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
+              className={cn('hidden w-[80px] flex-none @min-[1024px]:block', forceCompactToolbar && '@min-[1024px]:!hidden')}
             >
               <MultiFilter
                 allLabel="State"
@@ -426,7 +427,7 @@ export default function PlantSearchPage() {
                 options={optionList('state')}
                 selected={stateFilter}
                 onChange={(next) => masterCfg.setColFilter('state', next)}
-                buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
                 filterPlaceholder="Filter states…"
                 largeTargets
                 menuAlign="right"
@@ -489,6 +490,11 @@ export default function PlantSearchPage() {
       prev.includes(id) ? prev.filter((companyId) => companyId !== id) : [...prev, id],
     )
 
+  const companyLocation = (g: PlantGroup) =>
+    [g.company.values.city, g.company.values.state]
+      .filter((value) => typeof value === 'string' && value.trim())
+      .join(', ')
+
   /** "3 farms" — only worth saying when the company has more than one. */
   const farmLabel = (g: PlantGroup) =>
     g.locationCount > 1
@@ -509,12 +515,12 @@ export default function PlantSearchPage() {
               >
                 {g.companyName}
               </button>
-              {g.company.values.state && (
-                <span className="flex-none text-[11.5px] font-semibold text-muted-foreground">
-                  {String(g.company.values.state)}
-                </span>
-              )}
             </div>
+            {companyLocation(g) && (
+              <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
+                Supplier location: {companyLocation(g)}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-1.5">
               {g.company.values.category && (
                 <Badge variant={badgeFor(String(g.company.values.category)) as 'default' | 'secondary' | 'outline'}>
@@ -532,6 +538,12 @@ export default function PlantSearchPage() {
               {farmLabel(g) && (
                 <span className="text-[11.5px] text-muted-foreground">{farmLabel(g)}</span>
               )}
+            </div>
+            <div
+              data-plant-group-location-summary
+              className="min-w-0 whitespace-normal break-words text-[11px] font-medium text-muted-foreground"
+            >
+              {plantGroupLocationSummary(g.plants, g.company)}
             </div>
           </div>
           <button
@@ -571,12 +583,7 @@ export default function PlantSearchPage() {
                     >
                       {String(p.values.name ?? '')}
                     </div>
-                    {/* The card is the company; this row's stock sits at one farm. */}
-                    {g.locationCount > 1 && p.values.branch && (
-                      <div className="mt-0.5 truncate text-[11px] font-semibold text-primary">
-                        {String(p.values.branch)}
-                      </div>
-                    )}
+                    <PlantLocationCue row={p} company={g.company} className="mt-0.5" />
                     {mobilePlantSpecs(p).length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
                         {mobilePlantSpecs(p).map((spec) => (
@@ -650,11 +657,6 @@ export default function PlantSearchPage() {
           >
             {g.companyName}
           </button>
-          {g.company.values.state && (
-            <span className="flex-none pt-px text-[11.5px] font-semibold text-muted-foreground">
-              {String(g.company.values.state)}
-            </span>
-          )}
           <button
             type="button"
             onClick={() => setHiddenCompanies((prev) => [...prev, g.companyId])}
@@ -665,6 +667,11 @@ export default function PlantSearchPage() {
             <EyeOffIcon size={13} />
           </button>
         </div>
+        {companyLocation(g) && (
+          <div className="min-w-0 whitespace-normal break-words text-[11px] font-semibold text-muted-foreground">
+            Supplier location: {companyLocation(g)}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-1.5">
           {g.company.values.category && (
             <Badge variant={badgeFor(String(g.company.values.category)) as 'default' | 'secondary' | 'outline'}>
@@ -700,6 +707,7 @@ export default function PlantSearchPage() {
           <PlantRowLine
             key={p.id}
             row={p}
+            company={g.company}
             cfg={plantCfg}
             onHide={() => setHiddenPlants((prev) => [...prev, p.id])}
             onEdit={(col, next) => savePlant(p, col, next)}

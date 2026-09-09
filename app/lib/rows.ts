@@ -115,6 +115,8 @@ export interface PlantRow {
   id: string
   /** The farm that holds this row — never the company. `values.branch` names it. */
   supplierId: number | null
+  /** Existing supplier-row facts for the inventory location; never inferred from its source file. */
+  stockLocation?: { name: string | null; city: string | null; state: string | null } | null
   values: Record<string, CellValue>
   /** Raw `inventory_sources.file_path` this row came from, if any. */
   sourcePath: string | null

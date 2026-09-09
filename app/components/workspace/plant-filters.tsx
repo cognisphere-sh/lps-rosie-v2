@@ -13,7 +13,9 @@ export const PLANT_ADVANCED_FILTER_KEYS = [
 ] as const
 export const PLANT_QUICK_FILTER_MIN_WIDTH = 1024
 /** Wide row excluding Search and summary: padding/inset, gaps, four quick tracks, Filters and action. */
-export const PLANT_WIDE_TOOLBAR_CHROME_WIDTH = 467
+export const PLANT_WIDE_TOOLBAR_CHROME_WIDTH = 513
+/** Shared selector chrome for the visible Plant Search toolbar. */
+export const PLANT_TOOLBAR_SELECT_CLASS = 'h-11 gap-1 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-background'
 
 export const estimatePlantSummaryWidth = (summary: string) => Math.max(140, summary.length * 7)
 export const plantWideToolbarMinWidth = (panelWidth: number, summary: string) => Math.max(
@@ -262,8 +264,8 @@ export function PlantAdvancedFilters({
         aria-label={activeCount ? `More filters, ${activeCount} active` : 'More filters'}
         onClick={() => open ? close() : openDialog()}
         className={cn(
-          'relative flex size-11 items-center justify-center rounded-full border bg-background hover:bg-muted',
-          activeCount ? 'border-primary text-primary' : 'border-border text-foreground',
+          'relative flex size-11 items-center justify-center rounded-md border border-input bg-background shadow-none transition-[color,box-shadow] outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-background',
+          activeCount ? 'text-primary' : 'text-foreground',
         )}
       >
         <SlidersHorizontal size={17} />

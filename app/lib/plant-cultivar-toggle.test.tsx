@@ -124,7 +124,7 @@ test('Plant Search wires the toggle to the existing shared Cultivar column filte
   assert.ok(label >= 0)
   assert.ok(start >= 0)
   assert.match(cultivar, /accessibleName="Cultivar"/)
-  assert.match(cultivar, /buttonClassName="min-h-11/)
+  assert.match(cultivar, /buttonClassName=\{PLANT_TOOLBAR_SELECT_CLASS\}/)
   assert.match(cultivar, /aria|restoreFocusOnClose/)
   assert.match(cultivar, /selected=\{cultivarFilter\}/)
   assert.match(cultivar, /setColFilter\('cultivar', next\)/)

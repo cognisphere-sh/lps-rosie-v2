@@ -217,10 +217,23 @@ export function MultiFilter({
           buttonClassName,
         )}
       >
-        <span className={truncateLabel ? 'truncate' : 'whitespace-nowrap'}>
+        <span className={cn(
+          truncateLabel ? 'truncate' : 'whitespace-nowrap',
+          selected.length && compactCountLabel && 'flex min-w-0 flex-1 items-center gap-1',
+        )}>
           {selected.length
             ? compactCountLabel
-              ? `${compactCountLabel} · ${selected.length}`
+              ? (
+                  <>
+                    <span data-filter-count-label className="flex-none whitespace-nowrap">{compactCountLabel}</span>
+                    <span
+                      data-filter-count
+                      className="flex h-4 min-w-4 flex-none items-center justify-center rounded-full bg-primary/10 px-1 text-[10px] leading-none tabular-nums text-primary"
+                    >
+                      {selected.length}
+                    </span>
+                  </>
+                )
               : `${selectionLabel ? `${selectionLabel}: ` : ''}${selected.length} selected`
             : wideAllLabel
               ? (

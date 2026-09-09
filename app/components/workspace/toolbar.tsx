@@ -179,7 +179,7 @@ export function Toolbar({
         data-toolbar-search
         style={wideSearchWidth ? ({ '--toolbar-wide-search-width': `${wideSearchWidth}px` } as React.CSSProperties) : undefined}
         className={cn(
-          containerResponsive ? 'w-auto min-w-[96px] flex-1 md:w-auto' : 'w-full min-w-0 md:w-[290px]',
+          containerResponsive ? 'w-auto min-w-[84px] flex-1 md:w-auto' : 'w-full min-w-0 md:w-[290px]',
           containerResponsive && wideSearchWidth && '@min-[1024px]:ml-px @min-[1024px]:w-[var(--toolbar-wide-search-width)] @min-[1024px]:flex-none',
           containerResponsive && forceCompact && '@min-[1024px]:!ml-0 @min-[1024px]:!w-auto @min-[1024px]:!flex-1',
         )}
@@ -189,7 +189,10 @@ export function Toolbar({
           onChange={(e) => onQuery(e.target.value)}
           placeholder={placeholder}
           aria-label={placeholder}
-          className="h-9"
+          className={cn(
+            'h-9',
+            containerResponsive && 'h-11 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px]',
+          )}
         />
       </div>
       {controls}
@@ -205,19 +208,24 @@ export function Toolbar({
           Clear all
         </button>
       )}
-      <div className={cn(
-        'ml-auto flex items-center justify-end',
-        containerResponsive ? 'w-auto flex-none flex-nowrap gap-1.5' : 'flex-wrap gap-3 min-[900px]:w-full min-[1024px]:w-auto',
-      )}>
-        <span className={cn(
-          'hidden whitespace-nowrap text-[12px] text-muted-foreground',
-          containerResponsive ? 'md:@min-[700px]:inline md:text-[10px]' : 'md:inline',
-        )}>
-          {summary}
-        </span>
-        {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}
-        {rightActions}
-      </div>
+      {(!containerResponsive || rightActions || (pagination && pagination.pageCount > 1)) && (
+        <div
+          data-toolbar-trailing
+          className={cn(
+            'ml-auto flex items-center justify-end',
+            containerResponsive ? 'w-auto flex-none flex-nowrap gap-1.5' : 'flex-wrap gap-3 min-[900px]:w-full min-[1024px]:w-auto',
+          )}
+        >
+          <span className={cn(
+            'hidden whitespace-nowrap text-[12px] text-muted-foreground',
+            containerResponsive ? 'md:@min-[700px]:inline md:text-[10px]' : 'md:inline',
+          )}>
+            {summary}
+          </span>
+          {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}
+          {rightActions}
+        </div>
+      )}
     </>
   )
 

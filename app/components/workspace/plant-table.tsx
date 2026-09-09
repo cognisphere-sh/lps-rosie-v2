@@ -6,10 +6,138 @@ import { EyeOffIcon, TrashIcon } from '@/components/workspace/icons'
 import { Cell, ColumnHead, ColumnPicker } from '@/components/workspace/table-parts'
 import { PLANT_COLS, type ColumnDef } from '@/lib/columns'
 import { formatDate } from '@/lib/format'
-import type { PlantRow } from '@/lib/rows'
+import type { PlantRow, SupplierRow } from '@/lib/rows'
+import { cn } from '@/lib/utils'
 import type { useTableConfig } from '@/lib/table-config'
 
 export type PlantConfig = ReturnType<typeof useTableConfig>
+
+export type PlantLocationFacts = {
+  primaryLabel: 'Stock location' | 'Supplier location' | 'Location'
+  primary: string
+  supplier: string | null
+}
+
+const locationPart = (value: unknown) => typeof value === 'string' && value.trim()
+  ? value.trim().replace(/\s+/gu, ' ')
+  : null
+const locality = (city: unknown, state: unknown) => [locationPart(city), locationPart(state)].filter(Boolean).join(', ')
+
+export const PLANT_GROUP_LOCATION_LIMIT = 3
+export const PLANT_GROUP_LOCATION_CUE_MAX_UNITS = 28
+export const PLANT_GROUP_LOCATION_CUE_BYTES = 64
+
+const utf8Bytes = (value: string) => new TextEncoder().encode(value).length
+const codePoints = (value: string) => Array.from(value).length
+
+const boundWholeTokens = (value: string) => {
+  const tokens = value.trim().split(/\s+/u).filter(Boolean)
+  const shown: string[] = []
+  for (const token of tokens) {
+    const candidate = [...shown, token].join(' ')
+    if (
+      codePoints(`${candidate}…`) > PLANT_GROUP_LOCATION_CUE_MAX_UNITS ||
+      utf8Bytes(`${candidate}…`) > PLANT_GROUP_LOCATION_CUE_BYTES
+    ) break
+    shown.push(token)
+  }
+  return shown.length ? `${shown.join(' ')}…` : '…'
+}
+
+export function boundPlantGroupLocation(value: string) {
+  if (typeof Intl.Segmenter !== 'function') {
+    if (
+      codePoints(value) <= PLANT_GROUP_LOCATION_CUE_MAX_UNITS &&
+      utf8Bytes(value) <= PLANT_GROUP_LOCATION_CUE_BYTES
+    ) return value
+    return boundWholeTokens(value)
+  }
+
+  const clusters = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)]
+    .map((part) => part.segment)
+  if (
+    clusters.length <= PLANT_GROUP_LOCATION_CUE_MAX_UNITS &&
+    utf8Bytes(value) <= PLANT_GROUP_LOCATION_CUE_BYTES
+  ) return value
+  const shown: string[] = []
+  for (const cluster of clusters) {
+    if (shown.length >= PLANT_GROUP_LOCATION_CUE_MAX_UNITS - 1) break
+    if (utf8Bytes(shown.join('') + cluster + '…') > PLANT_GROUP_LOCATION_CUE_BYTES) break
+    shown.push(cluster)
+  }
+  return `${shown.join('')}…`
+}
+
+/** Truthful location facts for one inventory match, with no source/delivery inference. */
+export function plantLocationFacts(row: PlantRow, company: SupplierRow): PlantLocationFacts {
+  const stockName = locationPart(row.stockLocation?.name) ?? locationPart(row.values.branch)
+  const stockLocality = locality(row.stockLocation?.city, row.stockLocation?.state)
+  const stock = [stockName, stockLocality].filter((part, index, parts) => part && parts.indexOf(part) === index).join(' · ')
+  const supplier = locality(company.values.city, company.values.state)
+
+  if (stock) {
+    const distinctSupplier = row.supplierId !== company.id && supplier && supplier.toLocaleLowerCase() !== stockLocality.toLocaleLowerCase()
+      ? supplier
+      : null
+    return { primaryLabel: 'Stock location', primary: stock, supplier: distinctSupplier }
+  }
+  if (supplier) return { primaryLabel: 'Supplier location', primary: supplier, supplier: null }
+  return { primaryLabel: 'Location', primary: 'not recorded', supplier: null }
+}
+
+export function plantGroupLocationSummary(plants: PlantRow[], company: SupplierRow) {
+  const locations: string[] = []
+  const seen = new Set<string>()
+  const supplier = locality(company.values.city, company.values.state)
+  for (const plant of plants) {
+    const stockLocality = locality(plant.stockLocation?.city, plant.stockLocation?.state)
+    const stockName = locationPart(plant.stockLocation?.name) ?? locationPart(plant.values.branch)
+    const display = stockLocality || stockName || (supplier ? `Supplier: ${supplier}` : 'Not recorded')
+    const key = display.normalize('NFKC').toLocaleLowerCase('en-US')
+    if (seen.has(key)) continue
+    seen.add(key)
+    locations.push(display)
+  }
+  if (!locations.length) locations.push('Not recorded')
+  const shown = locations.slice(0, PLANT_GROUP_LOCATION_LIMIT).map(boundPlantGroupLocation)
+  const omitted = locations.length - shown.length
+  const remainder = omitted ? ` · +${omitted} more locations` : ''
+  return `Match location${locations.length === 1 ? '' : 's'}: ${shown.join(' · ')}${remainder}`
+}
+
+export function PlantLocationCue({
+  row,
+  company,
+  className,
+}: {
+  row: PlantRow
+  company: SupplierRow
+  className?: string
+}) {
+  const facts = plantLocationFacts(row, company)
+  return (
+    <div
+      data-plant-location-cue
+      data-location-kind={facts.primaryLabel.toLowerCase().replace(' ', '-')}
+      className={cn('flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] leading-snug', className)}
+    >
+      {facts.primaryLabel === 'Location' ? (
+        <span className="font-semibold text-muted-foreground">Location not recorded</span>
+      ) : (
+        <span className="min-w-0 whitespace-normal break-words">
+          <span className="font-semibold text-lps-dim">{facts.primaryLabel}: </span>
+          <span className="text-muted-foreground">{facts.primary}</span>
+        </span>
+      )}
+      {facts.supplier && (
+        <span className="min-w-0 whitespace-normal break-words">
+          <span className="font-semibold text-lps-dim">Supplier location: </span>
+          <span className="text-muted-foreground">{facts.supplier}</span>
+        </span>
+      )}
+    </div>
+  )
+}
 
 /** Supported width range of the sticky Company/supplier panel in Plant Search. */
 export const PLANT_COMPANY_PANEL_MIN_WIDTH = 200
@@ -105,12 +233,14 @@ export function PlantHeaderRow({
 
 export function PlantRowLine({
   row,
+  company,
   cfg,
   onHide,
   onDelete,
   onEdit,
 }: {
   row: PlantRow
+  company?: SupplierRow
   cfg: PlantConfig
   onHide: () => void
   onDelete?: () => void
@@ -119,7 +249,15 @@ export function PlantRowLine({
   const width = actionsWidth(!!onDelete)
 
   return (
-    <div className="lps-row flex items-stretch bg-card transition-colors hover:bg-muted">
+    <div className="lps-row flex flex-col bg-card transition-colors hover:bg-muted">
+      {company && (
+        <PlantLocationCue
+          row={row}
+          company={company}
+          className="border-b border-lps-hair bg-lps-tint px-2 py-1"
+        />
+      )}
+      <div className="flex items-stretch">
       {cfg.visible.map((col) => (
         <div
           key={col.key}
@@ -168,6 +306,7 @@ export function PlantRowLine({
             <TrashIcon size={13} />
           </button>
         )}
+      </div>
       </div>
     </div>
   )

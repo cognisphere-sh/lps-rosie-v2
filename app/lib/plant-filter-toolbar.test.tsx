@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event'
 import {
   PLANT_ADVANCED_FILTER_KEYS,
   PLANT_QUICK_FILTER_MIN_WIDTH,
+  PLANT_TOOLBAR_SELECT_CLASS,
   PlantAdvancedFilters,
   plantFiltersAreCompact,
   usePlantFilterContainer,
@@ -304,7 +305,7 @@ test('rendered nested menus stay inside their actual grid cells with long reacha
 
 function CompactLabelHarness({ count }: { count: number }) {
   const selected = Array.from({ length: count }, (_, index) => `Option ${index + 1}`)
-  const options = Array.from({ length: 12 }, (_, index) => `Option ${index + 1}`)
+  const options = Array.from({ length: Math.max(12, count) }, (_, index) => `Option ${index + 1}`)
   return (
     <div className="flex">
       <div data-label-track="size" className="w-[82px]">
@@ -317,7 +318,7 @@ function CompactLabelHarness({ count }: { count: number }) {
           options={options}
           selected={selected}
           onChange={() => {}}
-          buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+          buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
         />
       </div>
       <div data-label-track="type" className="w-[82px]">
@@ -330,47 +331,51 @@ function CompactLabelHarness({ count }: { count: number }) {
           options={options}
           selected={selected}
           onChange={() => {}}
-          buttonClassName="min-h-11 gap-0.5 px-0.5 text-[11px]"
+          buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
         />
       </div>
     </div>
   )
 }
 
-test('compact Size and Type labels remain fully rendered at zero, one and double-digit selections', () => {
-  for (const count of [0, 1, 12]) {
+test('compact Size and Type keep separate collision-free count tokens through realistic maximums', () => {
+  for (const count of [0, 12, 999]) {
     const view = render(<CompactLabelHarness count={count} />)
-    const expected = {
-      size: count ? `Size · ${count}` : 'Size',
-      type: count ? `Type · ${count}` : 'Type',
-    }
-    for (const [kind, visible] of Object.entries(expected)) {
+    for (const [kind, visible, accessible] of [
+      ['size', 'Size', 'Size'],
+      ['type', 'Type', 'Supplier type'],
+    ] as const) {
       const track = view.container.querySelector(`[data-label-track="${kind}"]`) as HTMLElement
       const button = within(track).getByRole('button')
-      const label = button.querySelector('span') as HTMLElement
-      assert.equal(label.textContent, visible)
-      assert.match(label.className, /whitespace-nowrap/)
-      assert.doesNotMatch(label.className, /truncate/)
-      assert.match(button.className, /min-h-11/)
-      assert.match(button.className, /gap-0\.5/)
-      assert.match(button.className, /px-0\.5/)
+      assert.match(button.className, /h-11/)
+      assert.match(button.className, /gap-1/)
+      assert.match(button.className, /px-1/)
+      assert.match(button.className, /rounded-md/)
+      assert.match(button.className, /border-input/)
+      assert.match(button.className, /bg-background/)
+      assert.match(button.className, /text-\[11px\]/)
+      assert.match(button.className, /font-medium/)
       assert.match(track.className, /w-\[82px\]/)
-      const availableLabelWidth = 82 - 4 - 2 - 10 // 2px sides, 2px gap, 10px chevron
-      const conservativeInterWidth = Math.ceil(visible.length * 11 * 0.62)
-      Object.defineProperties(label, {
-        clientWidth: { configurable: true, value: availableLabelWidth },
-        scrollWidth: { configurable: true, value: conservativeInterWidth },
-      })
-      assert.ok(label.scrollWidth <= label.clientWidth, `${visible} fits its rendered 11px label budget`)
+      assert.equal(button.getAttribute('aria-label'), count ? `${accessible}, ${count} selected` : accessible)
+      assert.doesNotMatch(button.textContent ?? '', / · |selected/)
+
+      if (count) {
+        const label = button.querySelector('[data-filter-count-label]') as HTMLElement
+        const token = button.querySelector('[data-filter-count]') as HTMLElement
+        assert.equal(label.textContent, visible)
+        assert.equal(token.textContent, String(count))
+        assert.match(label.className, /whitespace-nowrap/)
+        assert.match(token.className, /flex-none/)
+        assert.match(token.className, /tabular-nums/)
+        const labelWidth = visible.length * 6
+        const tokenWidth = Math.max(16, String(count).length * 6 + 8)
+        const renderedWidth = 8 + labelWidth + 4 + tokenWidth + 4 + 10
+        assert.ok(renderedWidth <= 82, `${visible} + ${count} token + chevron fits 82px (${renderedWidth}px)`)
+      } else {
+        assert.equal(button.querySelector('[data-filter-count]'), null)
+        assert.equal(button.textContent, visible)
+      }
     }
-    assert.equal(
-      within(view.container.querySelector('[data-label-track="size"]') as HTMLElement).getByRole('button').getAttribute('aria-label'),
-      count ? `Size, ${count} selected` : 'Size',
-    )
-    assert.equal(
-      within(view.container.querySelector('[data-label-track="type"]') as HTMLElement).getByRole('button').getAttribute('aria-label'),
-      count ? `Supplier type, ${count} selected` : 'Supplier type',
-    )
     view.unmount()
   }
 })
@@ -416,18 +421,32 @@ test('initial content-box measurement and exact observer widths agree at every r
 function ResponsiveToolbarHarness({
   panelWidth = PLANT_COMPANY_PANEL_WIDTH,
   summary = '17 Companies: 47/47 Plants',
+  showAction = true,
+  initialCounts = {},
 }: {
   panelWidth?: number
   summary?: string
+  showAction?: boolean
+  initialCounts?: Partial<Record<'size' | 'cultivar' | 'type' | 'state', number>>
 } = {}) {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const quickFiltersRef = useRef<HTMLDivElement>(null)
   const compactMode = usePlantFilterContainer(toolbarRef, panelWidth, summary)
   const compact = compactMode ?? true
   const forceCompact = compactMode === true
-  const [sizes, setSizes] = useState<string[]>([])
-  const [cultivars, setCultivars] = useState<string[]>([])
+  const values = (label: string, count = 0) => Array.from({ length: count }, (_, index) => `${label} ${index + 1}`)
+  const [sizes, setSizes] = useState<string[]>(() => values('Size', initialCounts.size))
+  const [cultivars, setCultivars] = useState<string[]>(() => values('Cultivar', initialCounts.cultivar))
+  const [types, setTypes] = useState<string[]>(() => values('Type', initialCounts.type))
+  const [states, setStates] = useState<string[]>(() => values('State', initialCounts.state))
   const [cultivarOpenOwner, setCultivarOpenOwner] = useState<'wide' | 'compact' | null>(null)
+  const activeCount = [sizes, cultivars, types, states].filter((selected) => selected.length > 0).length
+  const clearAll = () => {
+    setSizes([])
+    setCultivars([])
+    setTypes([])
+    setStates([])
+  }
 
   return (
     <Toolbar
@@ -441,29 +460,69 @@ function ResponsiveToolbarHarness({
       controls={
         <>
           <div ref={quickFiltersRef} data-plant-quick-filters className="contents">
-            <MultiFilter allLabel="Size" accessibleName="Size" options={['1 G']} selected={sizes} onChange={setSizes} />
+            <div
+              data-visual-track="size"
+              className={forceCompact ? 'w-[82px] flex-none @min-[1024px]:w-[74px] @min-[1024px]:!w-[82px]' : 'w-[82px] flex-none @min-[1024px]:w-[74px]'}
+            >
+              <MultiFilter
+                allLabel="Size"
+                compactCountLabel="Size"
+                accessibleName="Size"
+                options={[...new Set(['1 G', ...sizes])]}
+                selected={sizes}
+                onChange={setSizes}
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
+              />
+            </div>
             <div
               data-plant-folded-filter
               data-plant-cultivar
-              className={forceCompact ? 'hidden @min-[1024px]:block @min-[1024px]:!hidden' : 'hidden @min-[1024px]:block'}
+              data-visual-track="cultivar"
+              className={forceCompact ? 'hidden w-[108px] flex-none @min-[1024px]:block @min-[1024px]:!hidden' : 'hidden w-[108px] flex-none @min-[1024px]:block'}
             >
               <MultiFilter
-                allLabel="Cultivar: Any"
+                allLabel="Cultivar"
+                compactCountLabel="Cultivar"
                 accessibleName="Cultivar"
-                options={['Natchez']}
+                options={[...new Set(['Natchez', ...cultivars])]}
                 selected={cultivars}
                 onChange={setCultivars}
                 open={cultivarOpenOwner === 'wide'}
                 onOpenChange={(next) => setCultivarOpenOwner(next ? 'wide' : null)}
                 restoreFocusOnClose
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
               />
             </div>
-            <button type="button">Supplier type</button>
-            <button
+            <div
+              data-visual-track="type"
+              className={forceCompact ? 'w-[82px] flex-none @min-[1024px]:w-[100px] @min-[1024px]:!w-[82px]' : 'w-[82px] flex-none @min-[1024px]:w-[100px]'}
+            >
+              <MultiFilter
+                allLabel="Type"
+                wideAllLabel="Supplier type"
+                accessibleName="Supplier type"
+                options={[...new Set(['Grower', ...types])]}
+                selected={types}
+                onChange={setTypes}
+                compactCountLabel="Type"
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
+              />
+            </div>
+            <div
               data-plant-folded-filter
-              className={forceCompact ? 'hidden @min-[1024px]:block @min-[1024px]:!hidden' : 'hidden @min-[1024px]:block'}
-              type="button"
-            >State</button>
+              data-visual-track="state"
+              className={forceCompact ? 'hidden w-[80px] flex-none @min-[1024px]:block @min-[1024px]:!hidden' : 'hidden w-[80px] flex-none @min-[1024px]:block'}
+            >
+              <MultiFilter
+                allLabel="State"
+                accessibleName="State"
+                options={[...new Set(['TX', ...states])]}
+                selected={states}
+                onChange={setStates}
+                compactCountLabel="State"
+                buttonClassName={PLANT_TOOLBAR_SELECT_CLASS}
+              />
+            </div>
           </div>
           <PlantAdvancedFilters
             companyOptions={['Oak Hill']}
@@ -477,23 +536,130 @@ function ResponsiveToolbarHarness({
             cultivarOpenOwner={cultivarOpenOwner}
             onCultivarOpenOwnerChange={setCultivarOpenOwner}
             stateOptions={['TX']}
-            states={[]}
-            onStates={() => {}}
+            states={states}
+            onStates={setStates}
             compactForFocus={compact}
             focusSourceRef={quickFiltersRef}
-            activeCount={sizes.length}
-            onClear={() => setSizes([])}
+            activeCount={activeCount}
+            onClear={clearAll}
           />
         </>
       }
-      rightActions={<button type="button">Notifications</button>}
-      hasFilters={sizes.length > 0}
-      onClear={() => setSizes([])}
+      rightActions={showAction ? <button type="button">Notifications</button> : undefined}
+      hasFilters={activeCount > 0}
+      onClear={clearAll}
       showClear={false}
       summary={summary}
     />
   )
 }
+
+const assertUnifiedToolbarChrome = (element: HTMLElement, textControl = false) => {
+  assert.match(element.className, /h-11|size-11/)
+  assert.match(element.className, /rounded-md/)
+  assert.match(element.className, /border/)
+  assert.match(element.className, /border-input/)
+  assert.match(element.className, /bg-background/)
+  assert.match(element.className, /shadow-none/)
+  assert.match(element.className, /outline-none/)
+  assert.match(element.className, /focus-visible:border-ring/)
+  assert.match(element.className, /focus-visible:ring-\[3px\]/)
+  if (textControl) {
+    assert.match(element.className, /px-1/)
+    assert.match(element.className, /text-\[11px\]/)
+    assert.match(element.className, /font-medium/)
+  }
+}
+
+const filterButton = (scope: HTMLElement, accessibleName: string) => within(scope).getByRole(
+  'button',
+  { name: new RegExp(`^${accessibleName}(?:,|$)`) },
+)
+
+const assertFilterContentFits = (
+  button: HTMLElement,
+  visibleLabel: string,
+  accessibleName: string,
+  count: number,
+  trackWidth: number,
+) => {
+  assertUnifiedToolbarChrome(button, true)
+  assert.equal(button.getAttribute('aria-label'), count ? `${accessibleName}, ${count} selected` : accessibleName)
+  assert.doesNotMatch(button.textContent ?? '', / · |selected/)
+  const token = button.querySelector('[data-filter-count]') as HTMLElement | null
+  const label = button.querySelector('[data-filter-count-label]') as HTMLElement | null
+  if (!count) {
+    assert.equal(token, null)
+    const renderedWidth = visibleLabel.length * 6 + 8 + 4 + 10
+    assert.ok(renderedWidth <= trackWidth, `${visibleLabel} + chevron fits ${trackWidth}px`)
+    return
+  }
+  assert.equal(label?.textContent, visibleLabel)
+  assert.equal(token?.textContent, String(count))
+  assert.match(label?.className ?? '', /flex-none|whitespace-nowrap/)
+  assert.match(token?.className ?? '', /flex-none/)
+  assert.match(token?.className ?? '', /tabular-nums/)
+  const tokenWidth = Math.max(16, String(count).length * 6 + 8)
+  const renderedWidth = visibleLabel.length * 6 + tokenWidth + 8 + 4 + 4 + 10
+  assert.ok(renderedWidth <= trackWidth, `${visibleLabel} + ${count} token + chevron fits ${trackWidth}px (${renderedWidth}px)`)
+}
+
+test('rendered toolbar has collision-free 0, two-digit and maximum counts in every responsive state', async () => {
+  const scenarios = [
+    { counts: {}, expected: { size: 0, cultivar: 0, type: 0, state: 0 } },
+    { counts: { size: 12, cultivar: 12, type: 12, state: 12 }, expected: { size: 12, cultivar: 12, type: 12, state: 12 } },
+    { counts: { size: 99, cultivar: 999, type: 99, state: 50 }, expected: { size: 99, cultivar: 999, type: 99, state: 50 } },
+  ] as const
+
+  for (const { counts, expected } of scenarios) {
+    const view = render(<ResponsiveToolbarHarness showAction={false} initialCounts={counts} />)
+    const container = view.container.querySelector('[data-responsive-toolbar-container]') as HTMLElement
+    const row = view.container.querySelector('[data-responsive-toolbar-row]') as HTMLElement
+    const quick = view.container.querySelector('[data-plant-quick-filters]') as HTMLElement
+    const search = view.getByRole('textbox', { name: 'Plant Search' })
+    const more = view.getByRole('button', { name: /^More filters/ })
+
+    assert.equal(row.querySelector('[data-toolbar-trailing]'), null, 'no empty summary/action flex item')
+    assert.equal(row.children.length, 3, 'Search, display:contents filters, and Filters are the only DOM children')
+    assert.match(row.className, /flex-nowrap/)
+    assert.match(row.className, /items-center/)
+    assert.match(row.className, /gap-1/)
+    assert.doesNotMatch(row.className, /flex-wrap|overflow-x/)
+    assert.doesNotMatch(container.className, /overflow-x/)
+    assertUnifiedToolbarChrome(search, true)
+    assertUnifiedToolbarChrome(more)
+    for (const track of quick.querySelectorAll<HTMLElement>('[data-visual-track]')) {
+      assert.match(track.className, /flex-none/, 'fixed filter tracks cannot shrink into their label/token/chevron budget')
+    }
+
+    for (const width of [320, 390, 480, 900]) {
+      await resizeContainer(width)
+      assert.equal(container.getAttribute('data-responsive-compact'), 'true', `${width}px stays folded`)
+      const activeTracks = Array.from(quick.children).filter((child) => !child.hasAttribute('data-plant-folded-filter'))
+      assert.equal(1 + activeTracks.length + 1, 4, `${width}px has exactly Search + Size + Type + Filters`)
+      assertFilterContentFits(filterButton(quick, 'Size'), 'Size', 'Size', expected.size, 82)
+      assertFilterContentFits(filterButton(quick, 'Supplier type'), 'Type', 'Supplier type', expected.type, 82)
+      for (const folded of quick.querySelectorAll<HTMLElement>('[data-plant-folded-filter]')) {
+        assert.match(folded.className, /hidden/)
+      }
+      const innerWidth = width - 16
+      const minimumLayoutWidth = 84 + 82 + 82 + 44 + (3 * 4)
+      assert.ok(minimumLayoutWidth <= innerWidth, `${width}px has ${innerWidth}px inside for ${minimumLayoutWidth}px controls`)
+      if (width === 320) assert.equal(minimumLayoutWidth, innerWidth)
+    }
+
+    await resizeContainer(1280)
+    assert.equal(container.hasAttribute('data-responsive-compact'), false)
+    assert.equal(1 + quick.children.length + 1, 6, 'wide layout has Search + four selectors + Filters')
+    assertFilterContentFits(filterButton(quick, 'Size'), 'Size', 'Size', expected.size, 74)
+    assertFilterContentFits(filterButton(quick, 'Cultivar'), 'Cultivar', 'Cultivar', expected.cultivar, 108)
+    assertFilterContentFits(filterButton(quick, 'Supplier type'), expected.type ? 'Type' : 'Supplier type', 'Supplier type', expected.type, 100)
+    assertFilterContentFits(filterButton(quick, 'State'), 'State', 'State', expected.state, 80)
+    assertUnifiedToolbarChrome(search, true)
+    assertUnifiedToolbarChrome(more)
+    view.unmount()
+  }
+})
 
 test('ResizeObserver watches the same unpadded content-box element that owns CSS container queries', () => {
   const view = render(<ResponsiveToolbarHarness />)
@@ -515,7 +681,7 @@ test('SSR markup delegates folded-filter visibility to one unpadded CSS containe
   assert.match(markup, /data-responsive-toolbar-row="true" class="flex flex-nowrap items-center gap-1 px-2 py-2\.5 @min-\[1024px\]:px-4"/)
   assert.match(markup, /data-plant-quick-filters="true" class="contents"/)
   assert.equal((markup.match(/data-plant-folded-filter="true"/g) ?? []).length, 2)
-  assert.match(markup, /data-plant-folded-filter="true"[^>]+class="hidden @min-\[1024px\]:block"/)
+  assert.match(markup, /data-plant-folded-filter="true"[^>]+class="hidden w-\[108px\] flex-none @min-\[1024px\]:block"/)
   assert.doesNotMatch(markup, /data-plant-(?:quick-filters|folded-filter)[^>]+aria-hidden/)
   assert.doesNotMatch(markup, /data-plant-(?:quick-filters|folded-filter)[^>]+tabindex/)
   assert.doesNotMatch(markup.match(/data-responsive-toolbar-container[^>]+/)?.[0] ?? '', /px-|py-/)
@@ -962,7 +1128,7 @@ test('content-aware fit covers long exact summaries, live panel widths and rapid
   const panels = [PLANT_COMPANY_PANEL_MIN_WIDTH, PLANT_COMPANY_PANEL_WIDTH, PLANT_COMPANY_PANEL_MAX_WIDTH]
   const expected = new Map<number, boolean[][]>([
     [900, [[true, true, true], [true, true, true], [true, true, true]]],
-    [1024, [[false, false, false], [false, false, true], [true, true, true]]],
+    [1024, [[false, false, false], [false, true, true], [true, true, true]]],
     [1280, [[false, false, false], [false, false, false], [false, false, false]]],
   ])
   for (const [container, rows] of expected) {
@@ -1002,7 +1168,7 @@ test('wide Search uses the authoritative Company-panel track and leaves a clippi
   assert.equal(searchTrack.left, companyTrack.left)
   assert.equal(searchTrack.right, companyTrack.right)
 
-  const wideWidths = [72, 84, 92, 68]
+  const wideWidths = [74, 108, 100, 80]
   const fixedWithoutSummary = 32 + 1 + (6 * 4) + PLANT_COMPANY_PANEL_WIDTH +
     wideWidths.reduce((sum, width) => sum + width, 0) + 44 + 44 + 6
   const summaryWidth = '17 Companies: 47/47 Plants'.length * 7
@@ -1043,6 +1209,7 @@ test('container source contracts fit the exact compact and wide rows without cli
   const controls = page.slice(page.indexOf('controls={'), page.indexOf('hasFilters={hasFilters}'))
   const filters = readFileSync(new URL('../components/workspace/plant-filters.tsx', import.meta.url), 'utf8')
   const toolbar = readFileSync(new URL('../components/workspace/toolbar.tsx', import.meta.url), 'utf8')
+  const tableParts = readFileSync(new URL('../components/workspace/table-parts.tsx', import.meta.url), 'utf8')
   const plantTable = readFileSync(new URL('../components/workspace/plant-table.tsx', import.meta.url), 'utf8')
 
   assert.match(plantTable, /export const PLANT_COMPANY_PANEL_MIN_WIDTH = 200/)
@@ -1056,16 +1223,20 @@ test('container source contracts fit the exact compact and wide rows without cli
   assert.ok((page.match(/style=\{\{ width: panelW, minWidth: panelW \}\}/g) ?? []).length >= 2)
   assert.match(controls, /data-plant-quick-filters[^>]+className="contents"/)
   assert.equal((controls.match(/data-plant-folded-filter/g) ?? []).length, 2)
-  assert.equal((controls.match(/hidden w-\[\d+px\] @min-\[1024px\]:block/g) ?? []).length, 2)
-  assert.match(controls, /w-\[82px\] @min-\[1024px\]:w-\[72px\]/)
-  assert.match(controls, /hidden w-\[84px\] @min-\[1024px\]:block/)
-  assert.match(controls, /w-\[82px\] @min-\[1024px\]:w-\[92px\]/)
-  assert.match(controls, /hidden w-\[68px\] @min-\[1024px\]:block/)
+  assert.equal((controls.match(/hidden w-\[\d+px\] flex-none @min-\[1024px\]:block/g) ?? []).length, 2)
+  assert.match(controls, /w-\[82px\] flex-none @min-\[1024px\]:w-\[74px\]/)
+  assert.match(controls, /hidden w-\[108px\] flex-none @min-\[1024px\]:block/)
+  assert.match(controls, /w-\[82px\] flex-none @min-\[1024px\]:w-\[100px\]/)
+  assert.match(controls, /hidden w-\[80px\] flex-none @min-\[1024px\]:block/)
   assert.equal((controls.match(/@min-\[1024px\]:!hidden/g) ?? []).length, 2)
   assert.equal((controls.match(/@min-\[1024px\]:!w-\[82px\]/g) ?? []).length, 2)
   assert.equal((controls.match(/compactCountLabel="(?:Size|Cultivar|Type|State)"/g) ?? []).length, 4)
   assert.match(controls, /wideAllLabel="Supplier type"/)
   assert.equal((controls.match(/truncateLabel=\{false\}/g) ?? []).length, 4)
+  assert.equal((controls.match(/buttonClassName=\{PLANT_TOOLBAR_SELECT_CLASS\}/g) ?? []).length, 4)
+  assert.match(filters, /PLANT_TOOLBAR_SELECT_CLASS = 'h-11 gap-1 rounded-md border-input bg-background px-1 text-\[11px\] font-medium shadow-none[^'\n]+dark:bg-background'/)
+  assert.match(filters, /PLANT_TOOLBAR_SELECT_CLASS[^\n]+focus-visible:border-ring[^\n]+focus-visible:ring-\[3px\]/)
+  assert.match(filters, /size-11[^'\n]+rounded-md[^'\n]+border-input[^'\n]+bg-background[^'\n]+shadow-none/)
   assert.match(filters, /cn\('contents @min-\[1024px\]:hidden', compactForFocus && '@min-\[1024px\]:!contents'\)/)
   assert.match(filters, /right-2[^"\n]+w-\[calc\(100cqw-1rem\)\] max-w-\[498px\][^"\n]+overflow-y-auto/)
   assert.doesNotMatch(filters, /max-w-\[498px\][^"\n]+overflow-x-hidden/)
@@ -1079,36 +1250,45 @@ test('container source contracts fit the exact compact and wide rows without cli
   assert.equal((page.match(/open=\{cultivarOpenOwner === 'wide'\}/g) ?? []).length, 1)
   assert.equal((filters.match(/open=\{cultivarOpenOwner === 'compact'\}/g) ?? []).length, 1)
   assert.match(filters, /setWidth\(node\.clientWidth\)/)
+  assert.match(filters, /export const PLANT_WIDE_TOOLBAR_CHROME_WIDTH = 513/)
   assert.match(filters, /panelWidth \+ PLANT_WIDE_TOOLBAR_CHROME_WIDTH \+ estimatePlantSummaryWidth\(summary\)/)
   assert.match(filters, /observer\.observe\(node, \{ box: 'content-box' \}\)/)
   assert.doesNotMatch(filters, /getBoundingClientRect\(\)\.width/)
   assert.match(toolbar, /data-responsive-toolbar-container/)
   assert.match(toolbar, /className="@container relative flex-none border-b border-border bg-card"/)
   assert.match(toolbar, /data-responsive-toolbar-row/)
+  assert.match(toolbar, /\(!containerResponsive \|\| rightActions \|\| \(pagination && pagination\.pageCount > 1\)\)/)
+  assert.match(toolbar, /data-toolbar-trailing/)
+  assert.match(tableParts, /data-filter-count-label/)
+  assert.match(tableParts, /data-filter-count/)
+  assert.match(tableParts, /tabular-nums/)
+  assert.doesNotMatch(tableParts, /`\$\{compactCountLabel\} · \$\{selected\.length\}`/)
   assert.match(toolbar, /@min-\[1024px\]:px-4/)
   assert.match(toolbar, /@min-\[1024px\]:ml-px @min-\[1024px\]:w-\[var\(--toolbar-wide-search-width\)\]/)
   assert.match(toolbar, /forceCompact && '@min-\[1024px\]:!ml-0[^']+!w-auto[^']+!flex-1'/)
   assert.match(toolbar, /forceCompact && '@min-\[1024px\]:!px-2'/)
-  assert.match(toolbar, /containerResponsive \? 'w-auto min-w-\[96px\] flex-1 md:w-auto'/)
+  assert.match(toolbar, /containerResponsive \? 'w-auto min-w-\[84px\] flex-1 md:w-auto'/)
   assert.doesNotMatch(toolbar, /containerResponsive[^\n]+overflow-x|containerResponsive[^\n]+overflow-hidden/)
   assert.doesNotMatch(page, /window\.innerWidth|matchMedia/)
 
-  const wideWidths = [72, 84, 92, 68]
+  const wideWidths = [74, 108, 100, 80]
   const wideFixedWithoutSummary = 32 + 1 + (6 * 4) + PLANT_COMPANY_PANEL_WIDTH +
     wideWidths.reduce((sum, width) => sum + width, 0) + 44 + 44 + 6
-  assert.equal(wideFixedWithoutSummary, 759)
-  assert.equal(1024 - wideFixedWithoutSummary, 265)
+  assert.equal(wideFixedWithoutSummary, 805)
+  assert.equal(1024 - wideFixedWithoutSummary, 219)
   assert.ok('17 Companies: 47/47 Plants'.length * 7 <= 1024 - wideFixedWithoutSummary)
 
   // At outer/content-box 390px the exact visible row is Search · Size · Type ·
   // Filters · action. Four gaps and inner-row padding leave 106px for Search,
-  // while each 82px filter retains 66px for its untruncated 11px label.
+  // while each 82px filter retains 60px for its untruncated 11px label.
   const compactFixedWithoutSearch = 16 + (4 * 4) + 82 + 82 + 44 + 44
   assert.equal(390 - compactFixedWithoutSearch, 106)
-  assert.ok(390 - compactFixedWithoutSearch >= 96)
+  assert.ok(390 - compactFixedWithoutSearch >= 84)
   for (const width of [390, 514, 658, 899, 900, 1024]) {
-    assert.ok(width - compactFixedWithoutSearch >= 96)
+    assert.ok(width - compactFixedWithoutSearch >= 84)
   }
+  const phoneFixedWithoutSearch = 16 + (3 * 4) + 82 + 82 + 44
+  assert.equal(320 - phoneFixedWithoutSearch, 84)
 
   const surfaceBounds = (container: number) => {
     const width = Math.min(container - 16, 498)
