@@ -79,7 +79,7 @@ test('one horizontally scrolling RequestBody layout serves every consumer at saf
   assert.match(component, /className="overflow-x-auto border-t border-border"/)
   assert.match(component, /GRID_MIN - \(onSelect \? 0 : SELECT_COLUMN\) \+ \(onDeleteItem \? ACTION_COLUMN : 0\)/)
 
-  for (const path of ['app/jobs/page.tsx', 'components/workspace/request-list-card.tsx', 'app/customers/[id]/page.tsx']) {
+  for (const path of ['components/workspace/focused-job-record.tsx', 'components/workspace/request-list-card.tsx', 'app/customers/[id]/page.tsx']) {
     assert.match(source(path), /<RequestBody/)
   }
   assert.match(

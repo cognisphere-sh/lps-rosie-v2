@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 
-import { FocusedJobHeader } from '@/components/workspace/focused-job-header'
-import { FocusedJobsRailLayout } from '@/components/workspace/focused-jobs-rail'
-import { RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
+import { FocusedJobRecord } from '@/components/workspace/focused-job-record'
+import { focusConnectedJobNameTrigger } from '@/components/workspace/focused-job-header'
+import { FocusedJobsRailLayout, FocusedJobsRailRow } from '@/components/workspace/focused-jobs-rail'
 import { JobsTopActions, Shell } from '@/components/workspace/shell'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
 import { onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
@@ -18,9 +18,8 @@ import {
   mergeJobInbox, orderJobInbox, parseJobSelection, patchJobInbox, shouldRestoreJobInbox,
   type JobInboxRow, type JobThreadPatch,
 } from '@/lib/job-inbox'
-import { REQUEST_STATUS_OPTIONS, requestRef, requestStatusLabel, requestStatusTone } from '@/lib/job-requests'
+import { requestRef, requestStatusLabel } from '@/lib/job-requests'
 import type { JobRequestRow } from '@/lib/rows'
-import { cn } from '@/lib/utils'
 
 const RESYNC_MS = 60_000
 const LIST_SCROLL = 'lps.jobs.scroll.v1'
@@ -109,7 +108,6 @@ function JobsWorkspace() {
   const [detailError, setDetailError] = useState('')
   const [detailResolvedId, setDetailResolvedId] = useState<number | null>(null)
   const [version, setVersion] = useState(0)
-  const [detailsOpen, setDetailsOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const workRef = useRef<HTMLElement>(null)
   const rowsRef = useRef(new Map<number, HTMLButtonElement>())
@@ -121,6 +119,7 @@ function JobsWorkspace() {
   const pendingListRestore = useRef(false)
   const previousSelection = useRef(selection.kind)
   const pendingWorkFocus = useRef<number | null>(null)
+  const pendingNameFocus = useRef<number | null>(null)
 
   useEffect(() => { jobsRef.current = jobs }, [jobs])
 
@@ -209,10 +208,29 @@ function JobsWorkspace() {
     }
     return () => controller.abort()
   }, [refreshList])
+
+  const savedJobName = useCallback((id: number) => {
+    pendingNameFocus.current = id
+    setVersion((n) => n + 1)
+    void Promise.all([loadDetail(id), refreshList()]).then(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (pendingNameFocus.current !== id) return
+        if (selection.kind !== 'valid' || selection.id !== id) return
+        const rail = rowsRef.current.get(id)
+        if (!rail?.isConnected || !focusConnectedJobNameTrigger(workRef.current, id)) return
+        pendingNameFocus.current = null
+      }))
+    })
+  }, [loadDetail, refreshList, selection])
+
   useEffect(() => {
     if (selection.kind !== 'valid') {
+      pendingNameFocus.current = null
       setDetail(null); setDetailError(''); setDetailResolvedId(null)
       return
+    }
+    if (pendingNameFocus.current != null && pendingNameFocus.current !== selection.id) {
+      pendingNameFocus.current = null
     }
     void loadDetail(selection.id)
   }, [loadDetail, selection])
@@ -351,11 +369,21 @@ function JobsWorkspace() {
             {listReady && !listError && !ordered.length && <div className="p-4 text-[12px] text-muted-foreground"><p className="font-semibold text-foreground">No active jobs</p><p>Start a new request with Rosie, or review completed work in All jobs.</p><Link className="font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
             {ordered.map((row) => {
               const activity = fmt(row.activityAt)
-              return <button key={row.id} ref={(el) => { if (el) rowsRef.current.set(row.id, el); else rowsRef.current.delete(row.id) }} type="button" onClick={() => pick(row.id)} aria-label={jobInboxRowAriaLabel(row, requestStatusLabel(row.status), activity)} aria-current={selection.kind === 'valid' && selection.id === row.id ? 'page' : undefined} className={cn('mb-1 min-h-11 w-full rounded-xl border border-transparent px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring', selection.kind === 'valid' && selection.id === row.id && 'border-border bg-muted')}>
-                <span className="flex items-center gap-2"><span className="font-bold text-primary">{requestRef(row.id)}</span><span className="truncate text-[12.5px] font-semibold">{row.name || row.customer || 'Unnamed job'}</span>{row.unread && <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">New web chat</span>}</span>
-                <span className="mt-1 flex items-center gap-2 text-[10.5px] text-muted-foreground"><span>{requestStatusLabel(row.status)}</span><span aria-hidden>·</span><span className="truncate">{row.preview}</span></span>
-                <span className="mt-1 block text-[10px] text-lps-dim">{activity}{row.unread ? ' · Unread in team web chat' : ''}</span>
-              </button>
+              return (
+                <FocusedJobsRailRow
+                  key={row.id}
+                  row={row}
+                  selected={selection.kind === 'valid' && selection.id === row.id}
+                  statusLabel={requestStatusLabel(row.status)}
+                  activityLabel={activity}
+                  ariaLabel={jobInboxRowAriaLabel(row, requestStatusLabel(row.status), activity)}
+                  buttonRef={(element) => {
+                    if (element) rowsRef.current.set(row.id, element)
+                    else rowsRef.current.delete(row.id)
+                  }}
+                  onSelect={() => pick(row.id)}
+                />
+              )
             })}
           </div>}
       >
@@ -364,20 +392,20 @@ function JobsWorkspace() {
           {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
           {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
           {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-lg font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid or the job was deleted. Another job was not selected for you.</p><Link className="mx-auto flex min-h-11 w-fit items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
-          {membership === 'listed' && detail && <div className="m-3 overflow-hidden rounded-xl border border-border bg-card">
-            <FocusedJobHeader
+          {membership === 'listed' && detail && (
+            <FocusedJobRecord
               request={detail}
               mobile={breakpoint === true}
-              // job_requests currently has no project-date column. Created and
-              // updated timestamps are activity metadata, not an honest EPD.
-              projectDate={null}
-              status={
-                <StatusPill table="job_requests" id={detail.id} column="status" value={detail.status} label={requestStatusLabel(detail.status)} tone={requestStatusTone(detail.status)} options={REQUEST_STATUS_OPTIONS} onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
-              }
-              preview={<RequestLinks request={detail} focusedMobile={breakpoint === true} className="border-b border-border px-3 py-2" />}
+              version={version}
+              onSaved={() => {
+                setVersion((n) => n + 1)
+                void loadDetail(detail.id)
+                void refreshList()
+              }}
+              onNameSaved={savedJobName}
+              onDeleted={backToList}
             />
-            <RequestBody request={detail} version={version} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen((v) => !v)} emptyItemsCopy="No active line items have been saved for this job yet." onSaved={() => { setVersion((n) => n + 1); void loadDetail(detail.id); void refreshList() }}/>
-          </div>}
+          )}
           {membership === 'pending' && selection.kind === 'valid' && <div className="p-8 text-center"><h2 className="font-bold">{requestRef(selection.id)} intake is pending</h2><p className="text-sm text-muted-foreground">Nothing is in the active job record yet. The reserved identity is kept; exiting never deletes it.</p><div className="flex flex-wrap justify-center gap-3"><button className="min-h-11 font-semibold text-primary underline" onClick={() => router.replace(`/jobs?jr=${selection.id}&intake=1`)}>Resume intake</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => openChat({ agentId: 'rosie', threadId: canonicalJobThread(selection.id), label: requestRef(selection.id) })}>Open Rosie</button><button className="min-h-11 font-semibold text-primary underline" onClick={() => { sessionStorage.removeItem(INTAKE); router.replace(marker?.returnUrl?.startsWith('/requests') ? marker.returnUrl : '/requests') }}>All jobs</button></div></div>}
         </main>
       </FocusedJobsRailLayout>

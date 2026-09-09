@@ -49,6 +49,32 @@ here).
 
 ### Changed
 
+- **Focused Jobs now lead with exact stored identity and keep secondary facts in one compact tray**
+  (`app/app/{api/rows/route,jobs/page,requests/page}.ts*`, `app/components/workspace/{editable,focused-job-header,focused-job-record,focused-jobs-rail,job-request,request-delete,request-list-card}.tsx`,
+  `app/lib/{job-identity,job-inbox,job-inbox-queries,desktop-job-details,mobile-all-jobs-toolbar}.ts*`,
+  `docs/app/{README,all-jobs}.md`). Focused desktop and mobile work and expanded
+  desktop All Jobs keep truthful totals and the complete plant table before one
+  collapsed **Job details & notes** tray and history. The tray owns only exact
+  stored Contact, editable billing/delivery addresses, Last updated, notes and
+  existing customer/supplier/AR routes; no Install Date, Delivery/Pickup,
+  payment method, Gate or Tax fact is inferred. Balanced desktop identity and
+  the 292px Active Jobs rail use raw values only—`company | Job | contact`, no
+  literal field-name prefixes—with exact omission of any missing company, Job
+  or contact segment and its separator. The focused Job/Site component alone
+  edits a trimmed nonblank `job_requests.name` of at most 160 characters, with
+  visible 44px Save/Cancel beside Enter/Escape; missing names say **Add Job
+  name** rather than borrowing identity text, and the API enforces the same
+  bound. Success refetches detail plus rail before parent-owned focus reaches
+  the connected replacement trigger; errors retain editor focus, while switch/
+  unmount aborts stale work. Focused-only edit/status/history targets are 44px
+  opt-ins, leaving shared customer/default controls compact. The active-inbox
+  query now selects/returns only Job name and separate company/contact identity
+  values—no unused shipping address parts. Focused permanent Delete catches
+  network/HTTP/malformed responses, suppresses duplicate submits, and closes/
+  navigates only after validating the real server count object; its existing
+  toast reports exact line and availability-request counts. Rendered geometry,
+  omission, disclosure, routing, focus, deletion and rail tests cover the behavior.
+
 - **The LPS Ops availability-request drawer is now deliberate, race-safe phone
   work rather than a squeezed desktop table**
   (`app/components/workspace/{ar-drawer,availability,body-modal-portal}.tsx`,
@@ -69,23 +95,22 @@ here).
   empty, closed, long Unicode, zero/null and breakpoint states are rendered-test
   covered.
 
-- **All jobs mobile cards use the approved two-row compact live shape**
+- **All jobs mobile cards now navigate instead of expanding inline**
   (`app/components/workspace/request-list-card.tsx`,
   `app/lib/mobile-all-jobs-toolbar.test.tsx`, `docs/app/{README,all-jobs}.md`).
-  A resolved-mobile collapsed card now mounts exactly two non-wrapping summary
-  rows. The sole 44px chevron stays at the edge, then the superseding data order
-  is fixed JR · fixed readable sales-status token · one flexible canonical
-  `Company/Customer · Job name` link; that identity region alone ellipsizes.
-  The second row is one intrinsic Pending dot/count at left and the canonical
-  44px Rosie Job-thread action at right, not a full-width bar. Duplicate
-  customer/contact links, note preview, full status counts, dates, PO and
-  fulfillment facts are absent from collapsed DOM/AT. Expansion restores the
-  existing RequestLinks, overview/contact, full DemandSummary, nested notes and
-  Last updated, line actions and compact permanent Delete. Future structured
-  Install Date and Delivery/Pickup slots remain wholly omitted until schema/API
-  fields exist—no placeholder, updated-date substitution or note inference.
-  Desktop layout, filters, order, paging, APIs, status model and routing are
-  unchanged.
+  Every resolved-mobile card is exactly two tight non-wrapping rows with 10px
+  vertical padding and a 6px row gap. Row 1 is JR · full plain-language Sales
+  status · one flexible canonical Company/Customer · Job identity link, with no
+  chevron and no repeated-JR fallback for a blank Job. Row 2 is labelled Pending
+  at left and a visible named, minimum-44px **Rosie Chat** canonical Job-thread
+  action at right. No hidden expansion height or collapsed details/future fields
+  mount; the identity opens the complete focused Job for totals, lines, Delete,
+  details, routes and history. Desktop cards, filters, ordering, paging, APIs and
+  status values are unchanged. Mobile Filters also omits Item status from its
+  DOM/AT, effective query and active badge; a desktop Item status selection is
+  parked separately across mobile and session restore, then returns unchanged
+  at 900px. Implementation screenshots at 320px, 390px and 480px are preliminary
+  evidence only; release still requires independent exact-commit visual QA.
 
 ## 2026-08-31
 

@@ -1,8 +1,13 @@
+import { structuredJobIdentityLine } from '@/lib/job-identity'
+
 export interface JobInboxRow {
   id: number
   name: string | null
   status: string
+  /** Legacy compact display value; structured identity must not read this. */
   customer: string | null
+  customerCompany: string | null
+  customerContact: string | null
   createdAt: string | null
   updatedAt: string | null
   thread: null | {
@@ -200,14 +205,31 @@ export function jobInboxMembership(
   return pending ? 'pending' : 'unavailable'
 }
 
+export function jobInboxIdentityLine(
+  row: Pick<JobInboxRow, 'name' | 'customerCompany' | 'customerContact'>,
+): string {
+  return structuredJobIdentityLine({
+    name: row.name,
+    customer: row.customerCompany || row.customerContact
+      ? { company: row.customerCompany, name: row.customerContact }
+      : null,
+  })
+}
+
+export const jobInboxRailPrimaryLine = (
+  row: Pick<JobInboxRow, 'id' | 'name' | 'customerCompany' | 'customerContact'>,
+): string => {
+  const identity = jobInboxIdentityLine(row)
+  return identity ? `JR-${row.id} · ${identity}` : `JR-${row.id}`
+}
+
 export function jobInboxRowAriaLabel(
-  row: Pick<JobInboxViewRow, 'id' | 'name' | 'customer' | 'status' | 'preview' | 'unread'>,
+  row: Pick<JobInboxViewRow, 'id' | 'name' | 'customerCompany' | 'customerContact' | 'status' | 'preview' | 'unread'>,
   statusLabel: string,
   activityLabel: string,
 ): string {
-  const name = row.name || row.customer || 'Unnamed job'
   const readState = row.unread ? 'Unread web chat' : 'No unread web chat'
-  return `JR-${row.id}, ${name}, ${statusLabel}, ${row.preview}, ${activityLabel}, ${readState}`
+  return `${jobInboxRailPrimaryLine(row)}, ${statusLabel}, ${row.preview}, ${activityLabel}, ${readState}`
 }
 
 export function hasFocusedIntakeEvidence(

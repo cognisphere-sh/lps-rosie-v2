@@ -1,0 +1,673 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test, { afterEach, beforeEach } from 'node:test'
+import React, { useEffect, useRef, useState } from 'react'
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { JSDOM } from 'jsdom'
+
+import { FocusedJobHeader, FocusedJobNameEditor, focusConnectedJobNameTrigger } from '../components/workspace/focused-job-header.tsx'
+import { EditableText, EditableTextarea } from '../components/workspace/editable.tsx'
+import { FocusedJobRecord } from '../components/workspace/focused-job-record.tsx'
+import { FocusedJobsRailRow } from '../components/workspace/focused-jobs-rail.tsx'
+import { DeleteRequestDialog, requestDeletionCounts } from '../components/workspace/request-delete.tsx'
+import { StatusPill } from '../components/workspace/job-request.tsx'
+import { RequestCard } from '../components/workspace/request-list-card.tsx'
+import {
+  balancedHeaderGeometry,
+  structuredJobIdentityLine,
+} from './job-identity.ts'
+import { jobInboxRowAriaLabel, orderJobInbox, type JobInboxRow } from './job-inbox.ts'
+import type { JobRequestRow } from './rows.ts'
+
+let dom: JSDOM
+const originalFetch = globalThis.fetch
+
+beforeEach(() => {
+  dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/jobs?jr=19' })
+  const win = dom.window
+  Object.defineProperty(win.HTMLElement.prototype, 'attachEvent', { configurable: true, value() {} })
+  Object.defineProperty(win.HTMLElement.prototype, 'detachEvent', { configurable: true, value() {} })
+  for (const [key, value] of Object.entries({
+    window: win,
+    self: win,
+    document: win.document,
+    navigator: win.navigator,
+    HTMLElement: win.HTMLElement,
+    HTMLButtonElement: win.HTMLButtonElement,
+    Node: win.Node,
+    MouseEvent: win.MouseEvent,
+    KeyboardEvent: win.KeyboardEvent,
+    CustomEvent: win.CustomEvent,
+    getComputedStyle: win.getComputedStyle,
+    requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(callback, 0),
+    IS_REACT_ACT_ENVIRONMENT: true,
+  })) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
+})
+
+afterEach(() => {
+  cleanup()
+  Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: originalFetch })
+  dom.window.close()
+})
+
+function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
+  return {
+    id: 19,
+    name: 'Oak Grove Rd. planting',
+    status: 'sourcing',
+    customer: {
+      id: 4,
+      name: 'Johnathan',
+      company: 'Urban Landscape Group',
+      email: 'johnathan@example.com',
+      phone: '+1 512 555 0100',
+      rosieThreadId: 'customer-johnathan',
+    },
+    billing: { address: '401 Billing Ave', city: 'Austin', state: 'TX', zip: '78701' },
+    shipping: { address: '16202 Oak Grove Rd.', city: 'Buda', state: 'TX', zip: '78610' },
+    customerNotes: 'Use the south entrance.',
+    notes: [{ kind: 'customer', stamp: '2026-09-01 09:00', text: 'Use the south entrance.' }],
+    externalNotes: 'Share delivery updates.',
+    sourcingNotes: 'Call before loading.',
+    itemCount: 0,
+    statusCounts: { pending: 0, available: 0, substituted: 0, unavailable: 0 },
+    lineTotal: 0,
+    supplierLinks: [],
+    items: [],
+    createdAt: '2026-09-01T12:00:00Z',
+    updatedAt: '2026-09-01T13:00:00Z',
+    ...overrides,
+  }
+}
+
+const status = <span data-testid="sales-status">Sourcing</span>
+
+test('structured identity is exact nonblank Company | Job/Site | Contact values with honest omission', () => {
+  const exact = structuredJobIdentityLine(request())
+  assert.equal(exact, 'Urban Landscape Group | Oak Grove Rd. planting | Johnathan')
+  assert.doesNotMatch(exact, /(?:Contractor|Company|Job|Contact)\s*:/i)
+  assert.equal(structuredJobIdentityLine(request({
+    id: 34,
+    name: 'Ox Eye Phase II',
+    customer: { ...request().customer!, company: 'Land Water Light', name: 'Dior Goodwin' },
+  })), 'Land Water Light | Ox Eye Phase II | Dior Goodwin')
+  assert.equal(structuredJobIdentityLine(request({
+    id: 36,
+    name: '803 Redbud',
+    customer: { ...request().customer!, company: 'Outdoor Renovations', name: 'Kyle Stoutenger' },
+  })), 'Outdoor Renovations | 803 Redbud | Kyle Stoutenger')
+
+  const blank = request({ name: '  ' })
+  assert.equal(structuredJobIdentityLine(blank), 'Urban Landscape Group | Johnathan')
+  const hostile: JobRequestRow = {
+    ...blank,
+    customer: { ...blank.customer!, company: '  ', name: ' Johnathan ' },
+    shipping: { address: 'must not infer site', city: 'Buda', state: 'TX', zip: '78610' },
+    createdAt: '2026-09-01T12:00:00Z',
+    updatedAt: '2026-09-01T13:00:00Z',
+    billing: { address: 'must never become identity', city: 'Austin', state: 'TX', zip: null },
+    sourcingNotes: 'Install date 9/8; pickup; PO-44',
+  }
+  assert.equal(structuredJobIdentityLine(hostile), 'Johnathan')
+  assert.equal(structuredJobIdentityLine({ ...blank, customer: null }), '')
+})
+
+test('pure balanced geometry and rendered tracks keep exact center with 44px nonoverlapping flanks', () => {
+  for (const viewport of [900, 1024, 1440]) {
+    const focusedWidth = viewport - 292
+    const focused = balancedHeaderGeometry(focusedWidth)
+    const expanded = balancedHeaderGeometry(viewport, 44)
+    assert.ok(focused)
+    assert.ok(expanded)
+    for (const geometry of [focused, expanded]) {
+      assert.ok(geometry.flank >= 44)
+      assert.ok(geometry.identity > 0)
+      assert.equal(geometry.edge * 2 + geometry.flank * 2 + geometry.identity, geometry.width)
+      assert.equal(geometry.identityCenter, geometry.width / 2)
+    }
+  }
+  assert.equal(balancedHeaderGeometry(87), null)
+
+  const long = request({
+    name: 'Courtyard 🌳'.repeat(40),
+    customer: {
+      ...request().customer!,
+      company: '設計施工会社'.repeat(30),
+      name: 'Dior Goodwin — José 🚚'.repeat(16),
+    },
+  })
+  const expected = structuredJobIdentityLine(long)
+  for (const width of [900, 1024, 1440]) {
+    const view = render(
+      <div style={{ width }}>
+        <FocusedJobHeader request={long} mobile={false} projectDate={null} status={status} preview={null} />
+      </div>,
+    )
+    const header = view.container.querySelector<HTMLElement>('[data-focused-job-header="desktop"]')
+    const identityRegion = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
+    const editor = view.getByRole('button', { name: 'Edit job name for JR-19' })
+    assert.ok(header)
+    assert.ok(identityRegion)
+    assert.equal(identityRegion.textContent, expected)
+    assert.equal(identityRegion.firstElementChild?.getAttribute('title'), expected)
+    assert.equal(editor.textContent, long.name)
+    assert.match(identityRegion.firstElementChild?.className ?? '', /whitespace-nowrap/)
+    assert.match(identityRegion.firstElementChild?.className ?? '', /text-ellipsis/)
+    assert.match(identityRegion.firstElementChild?.className ?? '', /overflow-hidden/)
+    assert.doesNotMatch(identityRegion.firstElementChild?.className ?? '', /break-words|whitespace-normal/)
+    assert.match(header.className, /grid-cols-\[minmax\(44px,1fr\)_minmax\(0,2fr\)_minmax\(44px,1fr\)\]/)
+    const flanks = header.querySelectorAll<HTMLElement>('[data-balanced-header-flank]')
+    assert.equal(flanks.length, 2)
+    assert.match(flanks[0].className, /overflow-hidden/)
+    assert.match(flanks[1].className, /overflow-hidden/)
+    const chat = view.getByRole('button', { name: 'Chat with Rosie' })
+    assert.match(chat.className, /size-11/)
+    assert.equal(view.queryByText(/EPD:|Pickup|Delivery\/Pickup|Install Date/), null)
+    view.unmount()
+  }
+})
+
+test('focused header, expanded desktop card and Active Jobs rail share exact stored identity while Job editor stays atomic', () => {
+  const value = request({
+    id: 34,
+    name: 'Ox Eye Phase II',
+    customer: { ...request().customer!, company: 'Land Water Light', name: 'Dior Goodwin' },
+  })
+  const expected = 'Land Water Light | Ox Eye Phase II | Dior Goodwin'
+
+  let view = render(<FocusedJobHeader request={value} mobile={false} projectDate={null} status={status} preview={null} />)
+  assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, expected)
+  assert.equal(view.getByRole('button', { name: 'Edit job name for JR-34' }).textContent, 'Ox Eye Phase II')
+  view.unmount()
+
+  view = render(<RequestCard request={value} expanded selected={new Set()} version={0} onToggle={() => undefined} onSelect={() => undefined} onDelete={() => undefined} onDeleteItem={() => undefined} onSaved={() => undefined} mobile={false} />)
+  assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, expected)
+  view.unmount()
+
+  const inbox: JobInboxRow = {
+    id: 34, name: value.name, status: value.status, customer: 'legacy must stay unused',
+    customerCompany: value.customer?.company ?? null, customerContact: value.customer?.name ?? null,
+    createdAt: value.createdAt, updatedAt: value.updatedAt, thread: null,
+  }
+  const row = orderJobInbox([inbox])[0]
+  const aria = jobInboxRowAriaLabel(row, 'Quote Delivered', 'Sep 2, 10:00 AM')
+  view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote Delivered" activityLabel="Sep 2, 10:00 AM" ariaLabel={aria} onSelect={() => undefined} />)
+  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, `JR-34 · ${expected}`)
+})
+
+test('rendered missing and invalid identity candidates stay honest in the desktop strip', () => {
+  const missing = request({
+    name: '  ',
+    customer: null,
+    shipping: { address: null, city: null, state: null, zip: null },
+    billing: { address: 'Ignored Billing', city: 'Austin', state: 'TX', zip: null },
+    createdAt: 'invalid',
+    updatedAt: '2026-09-01T13:00:00Z',
+    sourcingNotes: 'PO-44 | Pickup | Install 9/9',
+  })
+  const view = render(
+    <FocusedJobHeader request={missing} mobile={false} projectDate={null} status={status} preview={null} />,
+  )
+  const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
+  assert.ok(identity)
+  assert.equal(identity.textContent, '')
+  const add = view.getByRole('button', { name: 'Add job name for JR-19' })
+  assert.equal(add.textContent, '')
+  assert.doesNotMatch(identity.textContent, /Ignored Billing|PO-44|Pickup|Install|2026|Unassigned|JR-19/)
+  view.unmount()
+  const mobile = render(<FocusedJobHeader request={{ ...missing, customer: { ...request().customer!, company: 'Company only', name: 'Contact only' } }} mobile projectDate={null} status={status} preview={null} />)
+  const mobileAdd = mobile.getByRole('button', { name: 'Add job name for JR-19' })
+  assert.equal(mobileAdd.textContent, 'Add Job name')
+  assert.doesNotMatch(mobileAdd.textContent ?? '', /Company only|Contact only/)
+  assert.equal(mobile.container.querySelector('[data-mobile-job-identity]')?.textContent, 'Company only | Contact only')
+})
+
+test('expanded desktop All Jobs removes Request boxes and keeps totals/table before a keyboard-operable compact tray', async () => {
+  const value = request()
+  const view = render(
+    <RequestCard
+      request={value}
+      expanded
+      selected={new Set()}
+      version={0}
+      onToggle={() => undefined}
+      onSelect={() => undefined}
+      onDelete={() => undefined}
+      onDeleteItem={() => undefined}
+      onSaved={() => undefined}
+      mobile={false}
+    />,
+  )
+  const head = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
+  const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
+  assert.ok(head)
+  assert.ok(identity)
+  assert.equal(identity.textContent, 'Urban Landscape Group | Oak Grove Rd. planting | Johnathan')
+  assert.equal(view.queryByText('Request'), null)
+  assert.equal(view.queryByText('Billing & payment'), null)
+  assert.ok(view.getByText('Total items'))
+  assert.ok(view.getByText('Plant Name'))
+
+  const disclosure = view.getByRole('button', { name: 'Job details & notes' })
+  assert.equal(disclosure.getAttribute('aria-expanded'), 'false')
+  assert.match(disclosure.className, /min-h-11/)
+  assert.match(disclosure.className, /focus-visible:ring-2/)
+  assert.equal(view.container.querySelector('[data-compact-job-details]'), null)
+  assert.equal(view.queryByText('Payment contact / billing'), null)
+  assert.equal(disclosure.textContent?.trim(), 'Job details & notes')
+  const summary = view.container.querySelector<HTMLElement>('[data-demand-summary]')
+  const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')
+  const disclosureRegion = view.container.querySelector<HTMLElement>('[data-compact-job-details-disclosure]')
+  assert.ok(summary)
+  assert.ok(table)
+  assert.ok(disclosureRegion)
+  assert.ok(summary.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
+  assert.ok(table.compareDocumentPosition(disclosureRegion) & Node.DOCUMENT_POSITION_FOLLOWING)
+  assert.ok(disclosureRegion.compareDocumentPosition(view.getByRole('button', { name: /Change history/ })) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+  const expandedHeader = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
+  assert.ok(expandedHeader)
+  assert.match(expandedHeader.className, /grid-cols-\[44px_minmax\(44px,1fr\)_minmax\(0,2fr\)_minmax\(44px,1fr\)_44px\]/)
+  assert.match(view.getByRole('button', { name: 'Sourcing' }).className, /size-11|(?:min-h-11.*min-w-11)/)
+  assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-19' }).className, /size-11/)
+  assert.match(view.getByRole('button', { name: 'Delete JR-19' }).className, /size-11/)
+
+  disclosure.focus()
+  await userEvent.setup({ document }).keyboard('{Enter}')
+  assert.equal(disclosure.getAttribute('aria-expanded'), 'true')
+  assert.equal(document.activeElement, disclosure)
+  const tray = view.container.querySelector<HTMLElement>('[data-compact-job-details]')
+  assert.ok(tray)
+  assert.match(tray.className, /grid-cols-1/)
+  assert.match(tray.className, /min-\[1100px\]:grid-cols-2/)
+  assert.match(tray.className, /min-\[1500px\]:grid-cols-4/)
+  for (const label of ['Contact', 'Payment contact / billing', 'Delivery', 'Other / notes']) {
+    assert.ok(within(tray).getByRole('heading', { name: label }))
+  }
+  assert.ok(within(tray).getByText('Johnathan'))
+  assert.ok(within(tray).getByText('+1 512 555 0100 · johnathan@example.com'))
+  assert.ok(within(tray).getByText('Last updated'))
+  assert.equal(within(tray).queryByText(/Payment method|Gate code|Tax status|Delivery\/Pickup/i), null)
+  assert.equal(within(tray).queryByText('Oak Grove Rd. planting'), null)
+  assert.equal(within(tray).queryByText('JR-19'), null)
+})
+
+test('focused mobile uses the compact post-table tray and switching JR closes it', async () => {
+  const view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} />)
+  assert.equal(view.queryByText('Request'), null)
+  const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')
+  const disclosureRegion = view.container.querySelector<HTMLElement>('[data-compact-job-details-disclosure]')
+  assert.ok(table)
+  assert.ok(disclosureRegion)
+  assert.ok(table.compareDocumentPosition(disclosureRegion) & Node.DOCUMENT_POSITION_FOLLOWING)
+  const disclosure = view.getByRole('button', { name: 'Job details & notes' })
+  await userEvent.setup({ document }).click(disclosure)
+  assert.equal(disclosure.getAttribute('aria-expanded'), 'true')
+  view.rerender(<FocusedJobRecord request={request({ id: 20, name: 'Second Job' })} mobile version={0} onSaved={() => undefined} />)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(view.getByRole('button', { name: 'Job details & notes' }).getAttribute('aria-expanded'), 'false')
+})
+
+test('closed compact disclosure label stays neutral for every independently stored tray fact', () => {
+  const empty = request({
+    customer: null,
+    billing: { address: null, city: null, state: null, zip: null },
+    shipping: { address: null, city: null, state: null, zip: null },
+    notes: [], externalNotes: null, sourcingNotes: null, supplierLinks: [], updatedAt: null,
+  })
+  const variants: JobRequestRow[] = [
+    { ...empty, sourcingNotes: 'Exact sourcing fact' },
+    { ...empty, updatedAt: '2026-09-01T13:00:00Z' },
+    { ...empty, customer: { ...request().customer!, rosieThreadId: 'customer-johnathan' } },
+    { ...empty, supplierLinks: [{ supplierId: 8, name: 'Supplier', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }] },
+    { ...empty, notes: [{ kind: 'customer', stamp: null, text: 'Exact note' }] },
+    { ...empty, shipping: { address: '1 Main', city: null, state: null, zip: null } },
+  ]
+  for (const value of variants) {
+    const view = render(<FocusedJobRecord request={value} mobile={false} version={0} onSaved={() => undefined} />)
+    const disclosure = view.getByRole('button', { name: 'Job details & notes' })
+    assert.equal(disclosure.textContent?.trim(), 'Job details & notes')
+    assert.doesNotMatch(disclosure.textContent ?? '', /No secondary|No address|saved details/i)
+    view.unmount()
+  }
+})
+
+test('compact tray preserves customer, AR and supplier routes with 44px targets', async () => {
+  const linked = request({ supplierLinks: [{ supplierId: 8, name: 'Hill Country', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }] })
+  const chatRoutes: unknown[] = []
+  const ars: number[] = []
+  window.addEventListener('lps:open-chat', (event) => chatRoutes.push((event as CustomEvent).detail))
+  window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent<number>).detail))
+  const view = render(<FocusedJobRecord request={linked} mobile={false} version={0} onSaved={() => undefined} />)
+  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Job details & notes' }))
+  const customer = view.getByRole('button', { name: /Open the customer conversation/ })
+  const ar = view.getByRole('button', { name: /AR-81/ })
+  const supplier = view.getByRole('button', { name: /Open the supplier conversation/ })
+  for (const control of [customer, ar, supplier]) assert.match(control.className, /min-h-11/)
+  await userEvent.setup({ document }).click(customer)
+  await userEvent.setup({ document }).click(ar)
+  await userEvent.setup({ document }).click(supplier)
+  assert.equal(chatRoutes.length, 2)
+  assert.deepEqual(ars, [81])
+})
+
+test('shared editable defaults stay compact while focused work explicitly opts into 44px controls', () => {
+  const source = readFileSync(new URL('../components/workspace/editable.tsx', import.meta.url), 'utf8')
+  assert.match(source, /touchTarget = false/)
+  assert.match(source, /touchTarget && 'min-h-11'/)
+  const normal = render(<EditableText table="customers" id={4} column="name" value="Jamie" onSaved={() => undefined} />)
+  assert.doesNotMatch(normal.getByRole('button').className, /min-h-11/)
+  normal.unmount()
+  const focused = render(<EditableText table="job_requests" id={19} column="name" value="Patio" touchTarget onSaved={() => undefined} />)
+  assert.match(focused.getByRole('button').className, /min-h-11/)
+  focused.unmount()
+  const textareaDefault = render(<EditableTextarea table="customers" id={4} column="notes" value="Note" placeholder="Add" onSaved={() => undefined} />)
+  assert.doesNotMatch(textareaDefault.getByRole('button').className, /min-h-11/)
+  textareaDefault.unmount()
+  const textareaFocused = render(<EditableTextarea table="job_requests" id={19} column="sourcing_notes" value="Note" placeholder="Add" touchTarget onSaved={() => undefined} />)
+  assert.match(textareaFocused.getByRole('button').className, /min-h-11/)
+  textareaFocused.unmount()
+  const statusDefault = render(<StatusPill table="customers" id={4} column="status" value="active" label="Active" tone="green" options={[{ value: 'active', label: 'Active' }]} onSaved={() => undefined} />)
+  assert.doesNotMatch(statusDefault.getByRole('button').className, /min-h-11|min-w-11|size-11/)
+  statusDefault.unmount()
+  const statusFocused = render(<StatusPill table="job_requests" id={19} column="status" value="sourcing" label="Sourcing" tone="amber" options={[{ value: 'sourcing', label: 'Sourcing' }]} touchTarget onSaved={() => undefined} />)
+  assert.match(statusFocused.getByRole('button').className, /min-h-11/)
+  assert.match(source, /if \(e\.key === 'Escape'\)[\s\S]*setEditing\(false\)[\s\S]*restoreTrigger\(\)/)
+  assert.match(source, /target\?\.isConnected && !target\.closest\('\[inert\]'\)/)
+})
+
+test('focused Job name editor trims and PATCHes only name, cancels blank/Escape, handles failure and ignores a stale JR', async () => {
+  const user = userEvent.setup({ document })
+  const calls: Array<{ url: string; init: RequestInit }> = []
+  let responses: Array<Promise<{ ok: boolean; json: () => Promise<{ error?: string }> }>> = []
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    writable: true,
+    value: (url: string, init: RequestInit) => {
+      calls.push({ url, init })
+      return responses.shift() ?? Promise.resolve({ ok: true, json: async () => ({}) })
+    },
+  })
+  let refetches = 0
+  const view = render(<FocusedJobNameEditor request={request()} mobile onSaved={() => { refetches += 1 }} />)
+
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  let input = view.getByRole('textbox', { name: 'Job name for JR-19' })
+  await user.clear(input)
+  await user.type(input, '   ')
+  await user.keyboard('{Enter}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(calls.length, 0)
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' }))
+
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  await user.keyboard('{Escape}')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(calls.length, 0)
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' }))
+
+  responses = [Promise.resolve({ ok: true, json: async () => ({}) })]
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  input = view.getByRole('textbox', { name: 'Job name for JR-19' })
+  await user.clear(input)
+  await user.type(input, '  Renamed Job  {Enter}')
+  await waitFor(() => assert.equal(refetches, 1))
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, '/api/rows')
+  assert.equal(calls[0].init.method, 'PATCH')
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
+    table: 'job_requests', id: 19, column: 'name', value: 'Renamed Job',
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' }))
+
+  responses = [Promise.resolve({ ok: false, json: async () => ({ error: 'Denied' }) })]
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  await user.clear(view.getByRole('textbox'))
+  await user.type(view.getByRole('textbox'), 'Failed name{Enter}')
+  await waitFor(() => assert.equal(calls.length, 2))
+  await waitFor(() => assert.equal((view.getByRole('textbox', { name: 'Job name for JR-19' }) as HTMLInputElement).disabled, false))
+  assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Job name for JR-19' }))
+  assert.equal(refetches, 1)
+  await user.click(view.getByRole('button', { name: 'Cancel' }))
+
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  await user.clear(view.getByRole('textbox'))
+  await user.type(view.getByRole('textbox'), 'x'.repeat(161))
+  await user.click(view.getByRole('button', { name: 'Save' }))
+  assert.match(view.getByRole('alert').textContent ?? '', /160 characters or fewer/)
+  assert.equal(calls.length, 2)
+  assert.equal(document.activeElement, view.getByRole('textbox'))
+  await user.click(view.getByRole('button', { name: 'Cancel' }))
+
+  responses = [Promise.resolve({ ok: true, json: async () => ({}) })]
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  await user.clear(view.getByRole('textbox'))
+  await user.type(view.getByRole('textbox'), 'y'.repeat(160))
+  await user.click(view.getByRole('button', { name: 'Save' }))
+  await waitFor(() => assert.equal(refetches, 2))
+  assert.equal(calls.length, 3)
+  assert.equal(JSON.parse(String(calls[2].init.body)).value.length, 160)
+
+  let resolveDouble!: (value: { ok: boolean; json: () => Promise<Record<string, never>> }) => void
+  responses = [new Promise((resolve) => { resolveDouble = resolve })]
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  input = view.getByRole('textbox')
+  await user.clear(input)
+  await user.type(input, 'One write')
+  fireEvent.keyDown(input, { key: 'Enter' })
+  fireEvent.keyDown(input, { key: 'Enter' })
+  assert.equal(calls.length, 4)
+  resolveDouble({ ok: true, json: async () => ({}) })
+  await waitFor(() => assert.equal(refetches, 3))
+
+  let resolveStale!: (value: { ok: boolean; json: () => Promise<Record<string, never>> }) => void
+  responses = [new Promise((resolve) => { resolveStale = resolve })]
+  await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+  await user.clear(view.getByRole('textbox'))
+  await user.type(view.getByRole('textbox'), 'Old JR rename{Enter}')
+  view.rerender(<FocusedJobNameEditor request={request({ id: 20, name: 'Current JR' })} mobile onSaved={() => { refetches += 1 }} />)
+  resolveStale({ ok: true, json: async () => ({}) })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.equal(refetches, 3)
+  assert.ok(view.getByRole('button', { name: 'Edit job name for JR-20' }))
+
+  const older = { ...({ id: 19, name: 'Old', status: 'sourcing', customer: null, customerCompany: null, customerContact: null, createdAt: '2026-09-01T10:00:00Z', updatedAt: '2026-09-01T10:00:00Z', thread: null } satisfies JobInboxRow) }
+  const newer = { ...older, id: 20, name: 'New', updatedAt: '2026-09-01T11:00:00Z' }
+  assert.deepEqual(orderJobInbox([older, newer]).map((row) => row.id), [20, 19])
+  const rowsRoute = readFileSync(new URL('../app/api/rows/route.ts', import.meta.url), 'utf8')
+  assert.match(rowsRoute, /body\.table === 'job_requests' && body\.column === 'name'/)
+  assert.match(rowsRoute, /value\.trim\(\)\.length > JOB_NAME_MAX_LENGTH/)
+})
+
+test('parent refetch lifecycle remounts both detail and rail before restoring the live Job-name trigger on mobile and desktop', async () => {
+  for (const mobile of [true, false]) {
+    let savedName = ''
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: async (_url: string, init: RequestInit) => {
+        savedName = JSON.parse(String(init.body)).value
+        return { ok: true, json: async () => ({}) }
+      },
+    })
+    function Parent() {
+      const [value, setValue] = useState(request())
+      const root = useRef<HTMLDivElement>(null)
+      const pending = useRef<number | null>(null)
+      useEffect(() => {
+        if (pending.current !== value.id) return
+        requestAnimationFrame(() => {
+          if (focusConnectedJobNameTrigger(root.current, value.id)) pending.current = null
+        })
+      }, [value])
+      const inbox = orderJobInbox([{
+        id: value.id, name: value.name, status: value.status, customer: 'legacy',
+        customerCompany: value.customer?.company ?? null, customerContact: value.customer?.name ?? null,
+        createdAt: value.createdAt, updatedAt: value.updatedAt, thread: null,
+      }])[0]
+      return <div ref={root}>
+        <FocusedJobsRailRow row={inbox} selected statusLabel="Sourcing" activityLabel="Now" ariaLabel="Focused row" onSelect={() => undefined} />
+        <FocusedJobRecord request={value} mobile={mobile} version={0} onSaved={() => undefined} onNameSaved={(id) => {
+          pending.current = id
+          setValue(request({ id, name: savedName, updatedAt: '2026-09-01T14:00:00Z' }))
+        }} />
+      </div>
+    }
+    const view = render(<Parent />)
+    const user = userEvent.setup({ document })
+    await user.click(view.getByRole('button', { name: 'Edit job name for JR-19' }))
+    const textbox = view.getByRole('textbox')
+    await user.clear(textbox)
+    await user.type(textbox, mobile ? 'Mobile rename' : 'Desktop rename')
+    for (const action of [view.getByRole('button', { name: 'Save' }), view.getByRole('button', { name: 'Cancel' })]) {
+      assert.match(action.className, /min-h-11/)
+    }
+    if (mobile) await user.click(view.getByRole('button', { name: 'Save' }))
+    else fireEvent.keyDown(textbox, { key: 'Enter' })
+    const expected = mobile ? 'Mobile rename' : 'Desktop rename'
+    await waitFor(() => assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, `JR-19 · Urban Landscape Group | ${expected} | Johnathan`))
+    await waitFor(() => assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' })))
+    assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent ?? view.container.querySelector('[data-mobile-job-identity]')?.textContent, `Urban Landscape Group | ${expected} | Johnathan`)
+    view.unmount()
+  }
+  const page = readFileSync(new URL('../app/jobs/page.tsx', import.meta.url), 'utf8')
+  assert.match(page, /pendingNameFocus\.current = id[\s\S]*Promise\.all\(\[loadDetail\(id\), refreshList\(\)\]\)[\s\S]*focusConnectedJobNameTrigger/)
+})
+
+test('expanded desktop Delete opens the real confirmation and Cancel returns focus', async () => {
+  function Harness() {
+    const [open, setOpen] = useState(false)
+    const returnFocus = useRef<HTMLElement | null>(null)
+    return <><RequestCard request={request()} expanded selected={new Set()} version={0} onToggle={() => undefined} onSelect={() => undefined} onDelete={(target) => { returnFocus.current = target; setOpen(true) }} onDeleteItem={() => undefined} onSaved={() => undefined} mobile={false} />{open && <DeleteRequestDialog request={request()} busy={false} error="" returnFocus={returnFocus} onCancel={() => setOpen(false)} onConfirm={() => undefined} />}</>
+  }
+  const view = render(<Harness />)
+  const trigger = view.getByRole('button', { name: 'Delete JR-19' })
+  assert.match(trigger.className, /size-11/)
+  await userEvent.setup({ document }).click(trigger)
+  assert.ok(view.getByRole('dialog', { name: /Permanently delete JR-19/ }))
+  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Cancel' }))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(document.activeElement, trigger)
+})
+
+test('focused compact Delete keeps the permanent confirmation, focus return and success return callback', async () => {
+  const user = userEvent.setup({ document })
+  let deleted = 0
+  const view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { deleted += 1 }} />)
+  let trigger = view.getByRole('button', { name: 'Delete JR-19' })
+  assert.match(trigger.className, /min-h-11/)
+  await user.click(trigger)
+  let dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
+  assert.match(dialog.textContent ?? '', /change history/i)
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  trigger = view.getByRole('button', { name: 'Delete JR-19' })
+  assert.equal(document.activeElement, trigger)
+
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    writable: true,
+    value: async (url: string, init: RequestInit) => {
+      assert.equal(url, '/api/requests/19')
+      assert.equal(init.method, 'DELETE')
+      return { ok: true, json: async () => ({ ok: true, deleted: { items: 0, availabilityRequests: 0, availabilityRequestItems: 0, changelog: 0, answers: 0 } }) }
+    },
+  })
+  await user.click(trigger)
+  dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
+  await user.click(within(dialog).getByRole('button', { name: /Delete permanently/ }))
+  await waitFor(() => assert.equal(deleted, 1))
+  assert.equal(view.queryByRole('dialog'), null)
+})
+
+test('focused Delete rejects network, 403, malformed and duplicate confirms, then accepts truthful nonzero counts', async () => {
+  const user = userEvent.setup({ document })
+  let navigations = 0
+  const response = (ok: boolean, status: number, body: object) => ({ ok, status, json: async () => body })
+
+  Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: async () => { throw new Error('offline') } })
+  let view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
+  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'Delete permanently' }))
+  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /check your connection/))
+  assert.equal(navigations, 0)
+  view.unmount()
+
+  Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: async () => response(false, 403, { error: 'Forbidden' }) })
+  view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
+  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'Delete permanently' }))
+  await waitFor(() => assert.equal(view.getByRole('alert').textContent, 'Could not delete JR-19 — Forbidden'))
+  assert.equal(navigations, 0)
+  view.unmount()
+
+  Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: async () => response(true, 200, { ok: true, deleted: { items: '2' } }) })
+  view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
+  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'Delete permanently' }))
+  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /invalid response/))
+  assert.equal(navigations, 0)
+  view.unmount()
+
+  let calls = 0
+  let resolveDelete!: (value: ReturnType<typeof response>) => void
+  Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: () => {
+    calls += 1
+    return new Promise((resolve) => { resolveDelete = resolve })
+  } })
+  view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
+  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  const confirm = view.getByRole('button', { name: 'Delete permanently' })
+  fireEvent.click(confirm)
+  fireEvent.click(confirm)
+  assert.equal(calls, 1)
+  resolveDelete(response(true, 200, { ok: true, deleted: { items: 2, availabilityRequests: 1, availabilityRequestItems: 4, changelog: 3, answers: 0 } }))
+  await waitFor(() => assert.equal(navigations, 1))
+  assert.equal(view.queryByRole('dialog'), null)
+  assert.deepEqual(requestDeletionCounts({ deleted: { items: 2, availabilityRequests: 1, availabilityRequestItems: 4, changelog: 3, answers: 0 } }), { items: 2, availabilityRequests: 1, availabilityRequestItems: 4, changelog: 3, answers: 0 })
+  assert.equal(requestDeletionCounts({ deleted: { items: -1, availabilityRequests: 0, availabilityRequestItems: 0, changelog: 0, answers: 0 } }), null)
+})
+
+test('expanded rail selected and unselected rows use the same exact primary line and quiet secondary facts', () => {
+  const base: JobInboxRow = {
+    id: 34,
+    name: 'Courtyard 🌿'.repeat(20),
+    status: 'quoted',
+    customer: 'must not be used',
+    customerCompany: 'Land Water Light',
+    customerContact: 'Dior Goodwin',
+    createdAt: '2026-09-01T12:00:00Z',
+    updatedAt: '2026-09-01T13:00:00Z',
+    thread: { lastId: 5, lastAt: '2026-09-01T14:00:00Z', lastText: 'Long snippet '.repeat(20), webReadId: 4 },
+  }
+  const row = orderJobInbox([base])[0]
+  const expected = `JR-34 · Land Water Light | ${base.name} | Dior Goodwin`
+  for (const selected of [false, true]) {
+    const label = jobInboxRowAriaLabel(row, 'Quote Delivered', 'Sep 1, 2:00 PM')
+    const view = render(
+      <div style={{ width: 292 }}>
+        <FocusedJobsRailRow
+          row={row}
+          selected={selected}
+          statusLabel="Quote Delivered"
+          activityLabel="Sep 1, 2:00 PM"
+          ariaLabel={label}
+          onSelect={() => undefined}
+        />
+      </div>,
+    )
+    const button = view.getByRole('button', { name: label })
+    const primary = view.container.querySelector<HTMLElement>('[data-focused-job-rail-primary]')
+    assert.ok(primary)
+    assert.equal(primary.textContent, expected)
+    assert.equal(primary.title, expected)
+    assert.match(primary.className, /whitespace-nowrap/)
+    assert.match(primary.className, /text-ellipsis/)
+    assert.match(primary.className, /overflow-hidden/)
+    assert.equal(button.getAttribute('aria-current'), selected ? 'page' : null)
+    assert.match(button.textContent ?? '', /Quote Delivered.*Long snippet.*New web chat.*Sep 1, 2:00 PM/s)
+    view.unmount()
+  }
+})

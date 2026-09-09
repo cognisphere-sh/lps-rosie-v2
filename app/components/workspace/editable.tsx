@@ -15,11 +15,18 @@ import { cn } from '@/lib/utils'
  * One field write, through the same whitelisted endpoint every other table
  * edits through. The server decides what may be written — this only asks.
  */
-export async function patchRow(table: string, id: number, column: string, value: string): Promise<void> {
+export async function patchRow(
+  table: string,
+  id: number,
+  column: string,
+  value: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const res = await fetch('/api/rows', {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ table, id, column, value }),
+    signal,
   })
   const body = (await res.json().catch(() => ({}))) as { error?: string }
   if (!res.ok) throw new Error(body.error ?? 'Could not save')
@@ -33,6 +40,8 @@ export interface EditProps {
    *  `EditableText` also hands over what it wrote, for the callers that have
    *  somewhere else to carry the new value (a rename, into the chat panel). */
   onSaved: (value?: string) => void
+  /** Opt-in 44px targets for focused/compact Job work only. */
+  touchTarget?: boolean
 }
 
 /**
@@ -53,6 +62,7 @@ export function EditableText({
   numeric = false,
   align = 'left',
   title,
+  touchTarget = false,
 }: EditProps & {
   value: string | number | null
   /** How the committed value reads when not editing (money, thousands, …). */
@@ -67,14 +77,22 @@ export function EditableText({
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const done = useRef(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const restoreTrigger = () => requestAnimationFrame(() => {
+    const target = trigger.current
+    if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true })
+  })
 
-  const commit = async () => {
+  const commit = async (restoreFocus = false) => {
     if (done.current) return
     done.current = true
     const next = draft.trim()
     const before = value == null ? '' : String(value)
     setEditing(false)
-    if (next === before) return
+    if (next === before) {
+      if (restoreFocus) restoreTrigger()
+      return
+    }
     setBusy(true)
     try {
       await patchRow(table, id, column, next)
@@ -83,6 +101,7 @@ export function EditableText({
       toast((e as Error).message)
     } finally {
       setBusy(false)
+      if (restoreFocus) restoreTrigger()
     }
   }
 
@@ -94,20 +113,22 @@ export function EditableText({
         step="any"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
+        onBlur={() => void commit(false)}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            void commit()
+            void commit(true)
           } else if (e.key === 'Escape') {
             e.preventDefault()
             done.current = true
             setEditing(false)
+            restoreTrigger()
           }
         }}
         className={cn(
           'w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-[12.5px] text-foreground outline-none',
+          touchTarget && 'min-h-11',
           align === 'right' && 'text-right tabular-nums',
         )}
       />
@@ -117,6 +138,7 @@ export function EditableText({
   const shown = render ? render(value) : value == null ? '' : String(value)
   return (
     <button
+      ref={trigger}
       type="button"
       title={title ?? 'Click to edit'}
       disabled={busy}
@@ -128,6 +150,7 @@ export function EditableText({
       }}
       className={cn(
         'w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'text-right tabular-nums',
         busy && 'opacity-50',
       )}
@@ -145,19 +168,28 @@ export function EditableTextarea({
   onSaved,
   value,
   placeholder,
+  touchTarget = false,
 }: EditProps & { value: string | null; placeholder: string }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const done = useRef(false)
+  const trigger = useRef<HTMLButtonElement>(null)
   const current = value ?? ''
+  const restoreTrigger = () => requestAnimationFrame(() => {
+    const target = trigger.current
+    if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true })
+  })
 
-  const commit = async () => {
+  const commit = async (restoreFocus = false) => {
     if (done.current) return
     done.current = true
     setEditing(false)
-    if (draft === current) return
+    if (draft === current) {
+      if (restoreFocus) restoreTrigger()
+      return
+    }
     setBusy(true)
     try {
       await patchRow(table, id, column, draft)
@@ -166,6 +198,7 @@ export function EditableTextarea({
       toast((e as Error).message)
     } finally {
       setBusy(false)
+      if (restoreFocus) restoreTrigger()
     }
   }
 
@@ -176,22 +209,30 @@ export function EditableTextarea({
         rows={3}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
+        onBlur={() => void commit(false)}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault()
+            void commit(true)
+          } else if (e.key === 'Escape') {
             e.preventDefault()
             done.current = true
             setEditing(false)
+            restoreTrigger()
           }
         }}
-        className="w-full resize-y rounded-lg border border-primary bg-card p-2 text-[12.5px] text-foreground outline-none"
+        className={cn(
+          'w-full resize-y rounded-lg border border-primary bg-card p-2 text-[12.5px] text-foreground outline-none',
+          touchTarget && 'min-h-11',
+        )}
       />
     )
   }
 
   return (
     <button
+      ref={trigger}
       type="button"
       disabled={busy}
       onClick={(e) => {
@@ -202,6 +243,7 @@ export function EditableTextarea({
       }}
       className={cn(
         'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         busy && 'opacity-50',
       )}
     >

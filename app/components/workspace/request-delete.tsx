@@ -10,7 +10,23 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 export interface DeleteRequestBody {
   error?: string
-  deleted?: { items: number; availabilityRequests: number }
+  deleted?: {
+    items: number
+    availabilityRequests: number
+    availabilityRequestItems: number
+    changelog: number
+    answers: number
+  }
+}
+
+/** Accept only the exact count object returned by the permanent DELETE route. */
+export function requestDeletionCounts(body: DeleteRequestBody): NonNullable<DeleteRequestBody['deleted']> | null {
+  const deleted = body.deleted
+  if (!deleted) return null
+  for (const value of [deleted.items, deleted.availabilityRequests, deleted.availabilityRequestItems, deleted.changelog, deleted.answers]) {
+    if (!Number.isSafeInteger(value) || value < 0) return null
+  }
+  return deleted
 }
 
 /** The one client path to the guarded permanent whole-request DELETE route. */

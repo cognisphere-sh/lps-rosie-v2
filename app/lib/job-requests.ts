@@ -78,6 +78,14 @@ export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }>
 
 export const requestStatusLabel = (s: string) =>
   REQUEST_STATUS_META[s as RequestStatus]?.label ?? s
+export const REQUEST_STATUS_TOKENS: Record<RequestStatus, string> = {
+  sourcing: 'Src',
+  quoted: 'QD',
+  closed_won: 'Won',
+  closed_lost: 'Lost',
+  archived: 'Arc',
+}
+export const requestStatusToken = (s: string) => REQUEST_STATUS_TOKENS[s as RequestStatus] ?? '?'
 export const requestStatusTone = (s: string): Tone =>
   REQUEST_STATUS_META[s as RequestStatus]?.tone ?? 'grey'
 

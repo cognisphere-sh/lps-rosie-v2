@@ -118,6 +118,7 @@ export function StatusPill({
   options,
   compactLabel,
   accessibleLabel,
+  touchTarget = false,
 }: EditProps & {
   value: string
   label: string
@@ -213,6 +214,7 @@ export function StatusPill({
         }}
         className={cn(
           'cursor-pointer border-none bg-transparent p-0',
+          touchTarget && 'min-h-11 min-w-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
           compactLabel && 'flex size-11 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
           busy && 'opacity-50',
         )}
@@ -286,7 +288,7 @@ export function DemandSummary({
   counts: Record<string, number>
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
+    <div data-demand-summary className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
       <div className="grid min-w-[630px] grid-cols-[repeat(4,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
         {ITEM_STATUS_OPTIONS.map((o) => {
           const count = counts[o.value] ?? 0
@@ -396,6 +398,7 @@ function NoteCell({
   title,
   value,
   onSaved,
+  touchTarget,
 }: {
   kind: 'shared' | 'internal'
   table: string
@@ -405,6 +408,7 @@ function NoteCell({
   /** Raw column text — both audiences are one editable field. */
   value: string | null
   onSaved: () => void
+  touchTarget: boolean
 }) {
   const [open, setOpen] = useState(false)
   const pop = useOutsideClose(open, () => setOpen(false))
@@ -462,6 +466,7 @@ function NoteCell({
                 column="external_notes"
                 value={value}
                 onSaved={onSaved}
+                touchTarget={touchTarget}
                 placeholder="Add a note to share with the customer…"
               />
             </>
@@ -473,6 +478,7 @@ function NoteCell({
                 column="sourcing_notes"
                 value={value}
                 onSaved={onSaved}
+                touchTarget={touchTarget}
                 placeholder="Add a sourcing note…"
               />
             </>
@@ -489,6 +495,7 @@ function ItemRow({
   onSelect,
   onDelete,
   onSaved,
+  touchTarget,
 }: {
   item: JobRequestItem
   selected: boolean
@@ -497,10 +504,11 @@ function ItemRow({
   /** Omitted where lines are read, not managed — the customer's own page. */
   onDelete?: () => void
   onSaved: () => void
+  touchTarget: boolean
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
-  const edit = { table: 'job_request_items', id: item.id, onSaved }
+  const edit = { table: 'job_request_items', id: item.id, onSaved, touchTarget }
   const title = [item.name, item.size].filter(Boolean).join(' · ')
 
   // A selected row reads as selected; otherwise the status tints it. The
@@ -601,6 +609,7 @@ function ItemRow({
         title={title}
         value={item.externalNotes}
         onSaved={onSaved}
+        touchTarget={touchTarget}
       />
       <NoteCell
         kind="internal"
@@ -609,6 +618,7 @@ function ItemRow({
         title={title}
         value={item.sourcingNotes}
         onSaved={onSaved}
+        touchTarget={touchTarget}
       />
       {onDelete && (
         <div className="flex justify-center px-1">
@@ -717,11 +727,14 @@ export function RequestLinks({
   request,
   suppliersHidden = false,
   focusedMobile = false,
+  relatedOnly = false,
   className,
 }: {
   request: JobRequestRow
   suppliersHidden?: boolean
   focusedMobile?: boolean
+  /** Route actions only, for the compact desktop details tray. */
+  relatedOnly?: boolean
   className?: string
 }) {
   const customerName = request.customer?.company || request.customer?.name
@@ -754,13 +767,15 @@ export function RequestLinks({
         className,
       )}
     >
-      <span className={cn(
-        'font-semibold text-foreground',
-        focusedMobile && 'min-w-0 max-w-full break-words',
-      )}>
-        {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
-      </span>
-      {contact && <span className={cn(
+      {!relatedOnly && (
+        <span className={cn(
+          'font-semibold text-foreground',
+          focusedMobile && 'min-w-0 max-w-full break-words',
+        )}>
+          {customerName ?? <span className="italic text-muted-foreground">Unassigned customer</span>}
+        </span>
+      )}
+      {!relatedOnly && contact && <span className={cn(
         'text-muted-foreground',
         focusedMobile && 'min-w-0 max-w-full break-words',
       )}>· {contact}</span>}
@@ -779,12 +794,15 @@ export function RequestLinks({
           }}
           title={`Open the customer conversation with ${customerName ?? customerThread}`}
           aria-label={`Open the customer conversation with ${customerName ?? customerThread}`}
-          className="flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary"
+          className={cn(
+            'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary',
+            relatedOnly && 'min-h-11',
+          )}
         >
           <MessagesSquare size={11} /> Chat
         </button>
       )}
-      {locality && (
+      {!relatedOnly && locality && (
         <span className={cn(
           'inline-flex items-center gap-1 text-muted-foreground',
           focusedMobile && 'min-w-0 max-w-full flex-wrap',
@@ -810,6 +828,7 @@ export function RequestLinks({
                   onOpen={() => openAvailabilityRequest(ar.id)}
                   className={cn(
                     'gap-1',
+                    relatedOnly && 'min-h-11',
                     isSubmittedARStatus(ar.status)
                       ? 'text-[var(--lps-tone-green-dot)]'
                       : 'text-primary',
@@ -830,7 +849,10 @@ export function RequestLinks({
                   onOpen={() =>
                     openChat({ agentId: 'rosie', threadId: l.rosieThreadId!, label: l.name })
                   }
-                  className="text-muted-foreground hover:text-primary"
+                  className={cn(
+                    'text-muted-foreground hover:text-primary',
+                    relatedOnly && 'min-h-11',
+                  )}
                 >
                   <MessagesSquare size={11} />
                 </LinkSegment>
@@ -959,6 +981,138 @@ function NoteBlock({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
+/** A compact desktop signature column: separation without another boxed panel. */
+function SignatureBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section className="flex min-w-0 flex-col gap-1 border-l border-lps-hair pl-3 first:border-l-0 first:pl-0">
+      <h3 className="m-0 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+        {label}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+function SignatureAddress({
+  prefix,
+  address,
+  ...edit
+}: Omit<EditProps, 'column'> & { prefix: string; address: JobAddress }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <DetailField {...edit} label="Street" column={`${prefix}_address`} value={address.address} placeholder="street" />
+      <div className="grid grid-cols-[minmax(0,1fr)_56px_72px] gap-1.5">
+        <DetailField {...edit} label="City" column={`${prefix}_city`} value={address.city} placeholder="city" />
+        <DetailField {...edit} label="State" column={`${prefix}_state`} value={address.state} placeholder="—" />
+        <DetailField {...edit} label="ZIP" column={`${prefix}_zip`} value={address.zip} placeholder="—" />
+      </div>
+    </div>
+  )
+}
+
+function CompactJobDetails({
+  request,
+  edit,
+  open,
+  onToggle,
+  lastUpdated,
+}: {
+  request: JobRequestRow
+  edit: Omit<EditProps, 'column'>
+  open: boolean
+  onToggle: () => void
+  lastUpdated: string
+}) {
+  const contactValues = request.customer
+    ? [request.customer.name, request.customer.phone, request.customer.email]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value))
+    : []
+  const hasRelatedRoutes = Boolean(
+    request.customer?.rosieThreadId?.trim() || request.supplierLinks.length,
+  )
+
+  return (
+    <div data-compact-job-details-disclosure className="border-t border-border">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex min-h-11 w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
+          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </span>
+        <span className="min-w-0 truncate text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+          Job details & notes
+        </span>
+      </button>
+
+      {open && (
+        <div
+          data-compact-job-details
+          className="grid grid-cols-1 gap-3 bg-lps-tint px-3.5 pb-3.5 min-[1100px]:grid-cols-2 min-[1500px]:grid-cols-4"
+        >
+          {contactValues.length > 0 && (
+            <SignatureBlock label="Contact">
+              {request.customer?.name?.trim() && (
+                <span className="break-words text-[12.5px] font-semibold [overflow-wrap:anywhere]">
+                  {request.customer.name.trim()}
+                </span>
+              )}
+              {(request.customer?.phone?.trim() || request.customer?.email?.trim()) && (
+                <span className="break-words text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">
+                  {[request.customer.phone?.trim(), request.customer.email?.trim()].filter(Boolean).join(' · ')}
+                </span>
+              )}
+            </SignatureBlock>
+          )}
+          <SignatureBlock label="Payment contact / billing">
+            <SignatureAddress {...edit} prefix="billing" address={request.billing} />
+          </SignatureBlock>
+          <SignatureBlock label="Delivery">
+            <SignatureAddress {...edit} prefix="shipping" address={request.shipping} />
+          </SignatureBlock>
+          <SignatureBlock label="Other / notes">
+            <div data-request-last-updated className="flex min-h-11 items-center gap-2 text-[12px]">
+              <span className="font-semibold text-muted-foreground">Last updated</span>
+              {lastUpdated ? (
+                <time dateTime={request.updatedAt ?? undefined} className="font-medium text-foreground">
+                  {lastUpdated}
+                </time>
+              ) : (
+                <span className="font-medium text-muted-foreground">Not recorded</span>
+              )}
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              The customer's own words
+            </span>
+            <NoteThread entries={entriesOf(request.notes, 'customer')} empty="Nothing on file." />
+            <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              Shared note — the customer sees this
+            </span>
+            <EditableTextarea {...edit} column="external_notes" value={request.externalNotes}
+              placeholder="Add a note to share with the customer…" />
+            <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              Sourcing note — job changes only
+            </span>
+            <EditableTextarea {...edit} column="sourcing_notes" value={request.sourcingNotes}
+              placeholder="Add a sourcing note…" />
+            {hasRelatedRoutes && (
+              <>
+                <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+                  Related
+                </span>
+                <RequestLinks request={request} relatedOnly />
+              </>
+            )}
+          </SignatureBlock>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * The roles the changelog records, in words.
  *
@@ -1059,7 +1213,7 @@ function ChangeEntry({ entry }: { entry: JobChange }) {
  * record — the app's edits and the agents' land in it identically, because
  * neither write path has to cooperate for the trigger to fire.
  */
-function ChangeHistory({ requestId, version }: { requestId: number; version: number }) {
+function ChangeHistory({ requestId, version, touchTarget = false }: { requestId: number; version: number; touchTarget?: boolean }) {
   const [open, setOpen] = useState(false)
   const [entries, setEntries] = useState<JobChange[] | null>(null)
   const [error, setError] = useState('')
@@ -1097,7 +1251,10 @@ function ChangeHistory({ requestId, version }: { requestId: number; version: num
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left hover:bg-muted"
+        className={cn(
+          'flex w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left hover:bg-muted',
+          touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        )}
       >
         <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
           {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -1143,6 +1300,8 @@ export function RequestBody({
   version,
   detailsOpen,
   onToggleDetails,
+  compactJobDetails = false,
+  touchTargets = false,
   selected,
   onSelect,
   onDeleteItem,
@@ -1155,6 +1314,10 @@ export function RequestBody({
   /** Held by the card, so it survives the lines collapsing and reopening. */
   detailsOpen: boolean
   onToggleDetails: () => void
+  /** Focused Job on both breakpoints plus expanded desktop All Jobs. */
+  compactJobDetails?: boolean
+  /** Explicitly enlarge shared edit/status controls only on focused/compact Job work. */
+  touchTargets?: boolean
   /** Every selected line id on the page; the body reads its own out of it. */
   selected?: Set<number>
   /** Select or clear these line ids; the page owns the set. */
@@ -1168,7 +1331,7 @@ export function RequestBody({
   emptyItemsCopy?: string
   onSaved: () => void
 }) {
-  const edit = { table: 'job_requests', id: request.id, onSaved }
+  const edit = { table: 'job_requests', id: request.id, onSaved, touchTarget: touchTargets }
   const ship = addressLine(request.shipping)
   const bill = addressLine(request.billing)
   const lastUpdated = request.updatedAt && !Number.isNaN(new Date(request.updatedAt).getTime())
@@ -1191,7 +1354,7 @@ export function RequestBody({
   return (
     <>
       <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
-        <RequestOverview request={request} />
+        {!compactJobDetails && <RequestOverview request={request} />}
         <DemandSummary
           lineTotal={request.lineTotal}
           itemCount={request.itemCount}
@@ -1199,84 +1362,70 @@ export function RequestBody({
         />
       </div>
 
-      {/* Addresses and audience-specific notes remain editable and complete,
-          but sit behind one compact secondary-information drawer. */}
-      <div className="border-t border-border">
-        <button
-          type="button"
-          aria-expanded={detailsOpen}
-          onClick={onToggleDetails}
-          className="flex w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left hover:bg-muted"
-        >
-          <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
-            {detailsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          </span>
-          <span className="flex-none text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-            More details & notes
-          </span>
-          {!detailsOpen && (
-            <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
-              {detailSummary}
+      {!compactJobDetails && (
+        <div className="border-t border-border">
+          <button
+            type="button"
+            aria-expanded={detailsOpen}
+            onClick={onToggleDetails}
+            className="flex min-h-11 w-full cursor-pointer items-center gap-2 border-none bg-lps-tint px-3.5 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <span className="flex size-4 flex-none items-center justify-center text-muted-foreground">
+              {detailsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </span>
+            <span className="flex-none text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
+              More details & notes
+            </span>
+            {!detailsOpen && (
+              <span className="min-w-0 truncate text-[11.5px] text-muted-foreground">
+                {detailSummary}
+              </span>
+            )}
+          </button>
+
+          {detailsOpen && (
+            <div className="flex flex-col gap-3 bg-lps-tint px-3.5 pb-3.5">
+              <div
+                data-request-last-updated
+                className="flex min-h-11 items-center gap-2 rounded-lg border border-lps-hair bg-card px-3 text-[12px]"
+              >
+                <span className="font-semibold text-muted-foreground">Last updated</span>
+                {lastUpdated ? (
+                  <time dateTime={request.updatedAt ?? undefined} className="font-medium text-foreground">
+                    {lastUpdated}
+                  </time>
+                ) : (
+                  <span className="font-medium text-muted-foreground">Not recorded</span>
+                )}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <AddressCard {...edit} label="Shipping address" prefix="shipping"
+                  address={request.shipping} />
+                <AddressCard {...edit} label="Billing address" prefix="billing"
+                  address={request.billing} />
+              </div>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <NoteBlock label="The customer's own words">
+                  <NoteThread entries={entriesOf(request.notes, 'customer')} empty="Nothing on file." />
+                </NoteBlock>
+                <NoteBlock label="Shared note — the customer sees this">
+                  <EditableTextarea {...edit} column="external_notes" value={request.externalNotes}
+                    placeholder="Add a note to share with the customer…" />
+                </NoteBlock>
+                <NoteBlock label="Sourcing note — job changes only">
+                  <EditableTextarea {...edit} column="sourcing_notes" value={request.sourcingNotes}
+                    placeholder="Add a sourcing note…" />
+                </NoteBlock>
+              </div>
+            </div>
           )}
-        </button>
-
-        {detailsOpen && (
-          <div className="flex flex-col gap-3 bg-lps-tint px-3.5 pb-3.5">
-            <div
-              data-request-last-updated
-              className="flex min-h-11 items-center gap-2 rounded-lg border border-lps-hair bg-card px-3 text-[12px]"
-            >
-              <span className="font-semibold text-muted-foreground">Last updated</span>
-              {lastUpdated ? (
-                <time dateTime={request.updatedAt ?? undefined} className="font-medium text-foreground">
-                  {lastUpdated}
-                </time>
-              ) : (
-                <span className="font-medium text-muted-foreground">Not recorded</span>
-              )}
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <AddressCard {...edit} label="Shipping address" prefix="shipping"
-                address={request.shipping} />
-              <AddressCard {...edit} label="Billing address" prefix="billing"
-                address={request.billing} />
-            </div>
-
-            {/* The three audiences, in the order they are read: what they
-                said, what we told them, what we know. Only the middle one
-                is a field. */}
-            <div className="grid gap-3 lg:grid-cols-3">
-              <NoteBlock label="The customer's own words">
-                <NoteThread entries={entriesOf(request.notes, 'customer')} empty="Nothing on file." />
-              </NoteBlock>
-              <NoteBlock label="Shared note — the customer sees this">
-                <EditableTextarea
-                  {...edit}
-                  column="external_notes"
-                  value={request.externalNotes}
-                  placeholder="Add a note to share with the customer…"
-                />
-              </NoteBlock>
-              <NoteBlock label="Sourcing note — job changes only">
-                {/* The line-by-line sourcing detail lives on the lines. What
-                    belongs here is what moved about the job itself. */}
-                <EditableTextarea
-                  {...edit}
-                  column="sourcing_notes"
-                  value={request.sourcingNotes}
-                  placeholder="Add a sourcing note…"
-                />
-              </NoteBlock>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* The line table scrolls sideways rather than crushing its columns —
           the design fixes a min width for exactly this reason, and the two
           note columns are what would otherwise be squeezed out of existence. */}
-      <div className="overflow-x-auto border-t border-border">
+      <div data-request-line-table className="overflow-x-auto border-t border-border">
         <div
           style={{
             minWidth:
@@ -1313,6 +1462,7 @@ export function RequestBody({
                 onSelect={onSelect && (() => onSelect([item.id], !selected?.has(item.id)))}
                 onDelete={onDeleteItem && (() => onDeleteItem(item))}
                 onSaved={onSaved}
+                touchTarget={touchTargets}
               />
             ))
           ) : (
@@ -1323,7 +1473,17 @@ export function RequestBody({
         </div>
       </div>
 
-      <ChangeHistory requestId={request.id} version={version} />
+      {compactJobDetails && (
+        <CompactJobDetails
+          request={request}
+          edit={edit}
+          open={detailsOpen}
+          onToggle={onToggleDetails}
+          lastUpdated={lastUpdated}
+        />
+      )}
+
+      <ChangeHistory requestId={request.id} version={version} touchTarget={touchTargets} />
     </>
   )
 }

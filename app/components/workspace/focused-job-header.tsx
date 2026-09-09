@@ -3,9 +3,12 @@
 import Image from 'next/image'
 import { createPortal } from 'react-dom'
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, Pencil } from 'lucide-react'
 
 import { openChat } from '@/lib/chat-bus'
+import { patchRow } from '@/components/workspace/editable'
+import { useToast } from '@/components/workspace/shell'
+import { JOB_NAME_MAX_LENGTH, jobRequestIdentityLine, storedJobIdentityComponents } from '@/lib/job-identity'
 import { canonicalJobThread } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
 import type { JobRequestRow } from '@/lib/rows'
@@ -365,6 +368,215 @@ function FocusedJobChatChooser({
   )
 }
 
+export function focusConnectedJobNameTrigger(root: ParentNode | null, requestId: number): boolean {
+  const target = root?.querySelector<HTMLButtonElement>(`[data-job-name-trigger="${requestId}"]`)
+  if (!target?.isConnected || target.closest('[inert]')) return false
+  target.focus({ preventScroll: true })
+  return true
+}
+
+export function FocusedJobNameEditor({
+  request,
+  mobile,
+  onSaved,
+}: {
+  request: JobRequestRow
+  mobile: boolean
+  onSaved: (requestId: number) => void
+}) {
+  const toast = useToast()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [validationError, setValidationError] = useState('')
+  const trigger = useRef<HTMLButtonElement>(null)
+  const input = useRef<HTMLInputElement>(null)
+  const controller = useRef<AbortController | null>(null)
+  const generation = useRef(0)
+  const submitting = useRef(false)
+  const name = request.name?.trim() || ''
+  const identity = storedJobIdentityComponents(request)
+  const identityLine = jobRequestIdentityLine(request)
+
+  const restoreFocus = () => requestAnimationFrame(() => {
+    const target = trigger.current
+    if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true })
+  })
+
+  useEffect(() => {
+    generation.current += 1
+    controller.current?.abort()
+    controller.current = null
+    submitting.current = false
+    setEditing(false)
+    setBusy(false)
+    setDraft('')
+    setValidationError('')
+    return () => {
+      generation.current += 1
+      controller.current?.abort()
+      controller.current = null
+      submitting.current = false
+    }
+  }, [request.id])
+
+  const cancel = () => {
+    controller.current?.abort()
+    controller.current = null
+    submitting.current = false
+    setEditing(false)
+    setBusy(false)
+    setValidationError('')
+    restoreFocus()
+  }
+
+  const save = () => {
+    if (submitting.current) return
+    const next = draft.trim()
+    if (!next || next === name) {
+      cancel()
+      return
+    }
+    if (next.length > JOB_NAME_MAX_LENGTH) {
+      setValidationError(`Job name must be ${JOB_NAME_MAX_LENGTH} characters or fewer.`)
+      requestAnimationFrame(() => input.current?.focus())
+      return
+    }
+    setValidationError('')
+    submitting.current = true
+    const expected = generation.current
+    const abort = new AbortController()
+    controller.current = abort
+    setBusy(true)
+    void patchRow('job_requests', request.id, 'name', next, abort.signal)
+      .then(() => {
+        if (generation.current !== expected || abort.signal.aborted) return
+        setEditing(false)
+        onSaved(request.id)
+      })
+      .catch((error: unknown) => {
+        if (generation.current !== expected || abort.signal.aborted) return
+        toast(error instanceof Error ? error.message : 'Could not save')
+        requestAnimationFrame(() => input.current?.focus())
+      })
+      .finally(() => {
+        if (generation.current !== expected || abort.signal.aborted) return
+        controller.current = null
+        submitting.current = false
+        setBusy(false)
+        restoreFocus()
+      })
+  }
+
+  if (editing) {
+    const errorId = `job-name-error-${request.id}`
+    return (
+      <div data-job-name-editor className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-1">
+          <input
+            ref={input}
+            autoFocus
+            aria-label={`Job name for JR-${request.id}`}
+            aria-describedby={validationError ? errorId : undefined}
+            aria-invalid={Boolean(validationError)}
+            value={draft}
+            placeholder="Job name"
+            disabled={busy}
+            onChange={(event) => {
+              const next = event.target.value
+              setDraft(next)
+              setValidationError(next.trim().length > JOB_NAME_MAX_LENGTH
+                ? `Job name must be ${JOB_NAME_MAX_LENGTH} characters or fewer.`
+                : '')
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                save()
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                cancel()
+              }
+            }}
+            className={mobile
+              ? 'min-h-11 min-w-0 flex-1 rounded-md border border-primary bg-card px-2 text-[16px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-ring'
+              : 'min-h-11 min-w-[12rem] flex-1 rounded-md border border-primary bg-card px-2 text-center text-[12px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring'}
+          />
+          <button type="button" disabled={busy} onClick={save} className="min-h-11 rounded-md px-3 text-[12px] font-bold text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">Save</button>
+          <button type="button" disabled={busy} onClick={cancel} className="min-h-11 rounded-md px-3 text-[12px] font-semibold text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">Cancel</button>
+        </div>
+        {validationError && <p id={errorId} role="alert" className="mt-1 text-[11px] font-semibold text-destructive">{validationError}</p>}
+      </div>
+    )
+  }
+
+  const begin = () => {
+    setDraft(name)
+    setValidationError('')
+    setEditing(true)
+  }
+
+  if (mobile) {
+    return (
+      <button
+        ref={trigger}
+        type="button"
+        disabled={busy}
+        aria-label={`${name ? 'Edit' : 'Add'} job name for JR-${request.id}`}
+        title={name ? `Edit Job name: ${name}` : 'Add Job name'}
+        data-job-name-trigger={request.id}
+        onClick={begin}
+        className="min-h-11 w-full min-w-0 break-words rounded-md text-left text-[18px] font-bold leading-tight outline-none [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+      >
+        {name || 'Add Job name'}
+      </button>
+    )
+  }
+
+  const beforeJob = Boolean(identity.company && identity.job)
+  const afterJob = Boolean(identity.job && identity.contact)
+  const companyToContact = Boolean(identity.company && !identity.job && identity.contact)
+  return (
+    <div
+      title={identityLine || 'No stored identity values'}
+      className="min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center font-semibold leading-[44px]"
+    >
+      {identity.company && <span>{identity.company}</span>}
+      {(beforeJob || companyToContact) && <span aria-hidden="true"> | </span>}
+      {identity.job && (
+        <button
+          ref={trigger}
+          type="button"
+          disabled={busy}
+          aria-label={`Edit job name for JR-${request.id}`}
+          title={`Edit Job name: ${identity.job}`}
+          data-job-name-trigger={request.id}
+          onClick={begin}
+          className="inline-flex min-h-11 max-w-full items-center rounded-md align-top font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          {identity.job}
+        </button>
+      )}
+      {afterJob && <span aria-hidden="true"> | </span>}
+      {identity.contact && <span>{identity.contact}</span>}
+      {!identity.job && (
+        <button
+          ref={trigger}
+          type="button"
+          disabled={busy}
+          aria-label={`Add job name for JR-${request.id}`}
+          title="Add Job name"
+          data-job-name-trigger={request.id}
+          onClick={begin}
+          className="ml-1 inline-flex size-11 items-center justify-center rounded-md align-top text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <Pencil aria-hidden="true" size={14} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 /**
  * The selected Job's identity row. The breakpoint is resolved by /jobs once,
  * so only one status control and one Rosie action are mounted at a time.
@@ -375,6 +587,7 @@ export function FocusedJobHeader({
   projectDate,
   status,
   preview,
+  onNameSaved = () => undefined,
   onOpenRosie = openChat,
 }: {
   request: JobRequestRow
@@ -383,9 +596,9 @@ export function FocusedJobHeader({
   projectDate: string | null
   status: ReactNode
   preview: ReactNode
+  onNameSaved?: (requestId: number) => void
   onOpenRosie?: (target: FocusedJobChatTarget) => void
 }) {
-  const name = request.name || request.customer?.company || request.customer?.name || 'Unnamed job'
   const projectDateLabel = formatEstimatedProjectDate(projectDate)
 
   return (
@@ -397,9 +610,14 @@ export function FocusedJobHeader({
               <div className="text-[10px] font-bold uppercase tracking-[.06em] text-primary">
                 {requestRef(request.id)}
               </div>
-              <h1 className="m-0 min-w-0 break-words text-[18px] font-bold leading-tight [overflow-wrap:anywhere]">
-                {name}
+              <h1 className="m-0 min-w-0">
+                <FocusedJobNameEditor key={request.id} request={request} mobile onSaved={onNameSaved} />
               </h1>
+              {jobRequestIdentityLine(request) && (
+                <p data-mobile-job-identity className="m-0 min-w-0 break-words text-[11px] font-semibold text-muted-foreground [overflow-wrap:anywhere]">
+                  {jobRequestIdentityLine(request)}
+                </p>
+              )}
               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
                 {projectDateLabel && (
                   <span className="whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
@@ -413,19 +631,29 @@ export function FocusedJobHeader({
           </div>
         </div>
       ) : (
-        <div data-focused-job-header="desktop" className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-          <span className="font-bold text-primary">{requestRef(request.id)}</span>
-          <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
-          {status}
-          <button
-            type="button"
-            onClick={() => onOpenRosie(focusedJobChatTarget(request))}
-            className="flex min-h-11 items-center gap-2 rounded-full px-3 text-[12px] font-semibold text-primary"
-          >
-            <Image src="/rosie.png" alt="" width={22} height={22} className="rounded-full" />
-            Chat with Rosie
-            <MessageSquare size={14} />
-          </button>
+        <div
+          data-focused-job-header="desktop"
+          className="grid min-h-14 grid-cols-[minmax(44px,1fr)_minmax(0,2fr)_minmax(44px,1fr)] items-center border-b border-border px-3 py-1.5"
+        >
+          <div data-balanced-header-flank="left" className="flex min-w-0 items-center gap-1 overflow-hidden">
+            <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
+            {status}
+          </div>
+          <div data-desktop-job-identity className="min-w-0">
+            <FocusedJobNameEditor key={request.id} request={request} mobile={false} onSaved={onNameSaved} />
+          </div>
+          <div data-balanced-header-flank="right" className="flex min-w-0 justify-end overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onOpenRosie(focusedJobChatTarget(request))}
+              title={`Chat with Rosie about ${requestRef(request.id)}`}
+              aria-label="Chat with Rosie"
+              className="flex size-11 flex-none items-center justify-center rounded-full text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Image src="/rosie.png" alt="" width={24} height={24} className="size-6 rounded-full" />
+              <MessageSquare aria-hidden="true" className="sr-only" size={14} />
+            </button>
+          </div>
         </div>
       )}
       {preview}

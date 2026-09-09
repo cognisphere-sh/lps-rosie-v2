@@ -84,9 +84,12 @@ test('rendered mobile header gives the full long Job name a wrapping, non-trunca
   assert.ok(header)
   assert.equal(view.queryByText(longName)?.textContent, longName)
   const heading = view.getByRole('heading', { level: 1 })
-  assert.match(heading.className, /break-words/)
-  assert.match(heading.className, /\[overflow-wrap:anywhere\]/)
-  assert.doesNotMatch(heading.className, /truncate|text-ellipsis|overflow-hidden|whitespace-nowrap/)
+  const nameControl = view.getByRole('button', { name: 'Edit job name for JR-27' })
+  assert.match(nameControl.className, /break-words/)
+  assert.match(nameControl.className, /\[overflow-wrap:anywhere\]/)
+  assert.match(nameControl.className, /min-h-11/)
+  assert.doesNotMatch(nameControl.className, /truncate|text-ellipsis|overflow-hidden|whitespace-nowrap/)
+  assert.match(heading.className, /min-w-0/)
   assert.match(heading.parentElement?.className ?? '', /min-w-0/)
   assert.equal(view.getByTestId('preview').textContent, 'Long Landscape · Austin, TX')
 })
@@ -656,7 +659,7 @@ test('outside pointer, Escape, Tab, repeated open and breakpoint cleanup follow 
   view.rerender(<FocusedJobHeader {...props} mobile={false} />)
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
   assert.equal(document.querySelector('[data-focused-job-chat-portal-host]'), null)
-  assert.ok(view.getByText('Chat with Rosie'))
+  assert.ok(view.getByRole('button', { name: 'Chat with Rosie' }))
   view.rerender(<FocusedJobHeader {...props} mobile />)
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
   await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
@@ -681,7 +684,7 @@ test('Tab and Shift+Tab dismiss the body-portal menu into the trigger’s docume
   fireEvent.click(trigger)
   menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
   fireEvent.keyDown(menu, { key: 'Tab', shiftKey: true })
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Before Rosie' }))
+  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-27' }))
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
 })
 
@@ -719,7 +722,7 @@ test('tall anchored menu scrolls and End plus Enter reaches the last 44px suppli
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'supplier-48', label: 'Supplier 48' })
 })
 
-test('desktop branch preserves the labelled avatar treatment, direct canonical route, truncating name and no EPD refinement', () => {
+test('desktop branch keeps labelled avatar/direct route and uses the structured one-line identity with no EPD refinement', () => {
   const longName = 'Long Landscape | Courtyard Installation'
   let opened: FocusedJobChatTarget | null = null
   const view = render(
@@ -727,7 +730,12 @@ test('desktop branch preserves the labelled avatar treatment, direct canonical r
   )
   assert.ok(view.container.querySelector('[data-focused-job-header="desktop"]'))
   assert.equal(view.container.querySelector('[data-focused-job-header="mobile"]'), null)
-  assert.match(view.getByText(longName).className, /truncate/)
+  const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
+  assert.ok(identity)
+  assert.equal(identity.textContent, `Long Landscape | ${longName} | Jamie Long`)
+  assert.match(identity.firstElementChild?.className ?? '', /text-ellipsis/)
+  assert.match(identity.firstElementChild?.className ?? '', /whitespace-nowrap/)
+  assert.equal(view.getByRole('button', { name: 'Edit job name for JR-27' }).textContent, longName)
   fireEvent.click(view.getByRole('button', { name: 'Chat with Rosie' }))
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: longName })
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)

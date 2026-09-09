@@ -323,6 +323,8 @@ export default function RequestsPage() {
   const requestsMobile = useResolvedRequestsMobile()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<string[]>(OPEN_STATUSES)
+  // Desktop owns Item status. Mobile always queries all item statuses while
+  // this value remains parked for a truthful return to desktop/session restore.
   const [itemStatus, setItemStatus] = useState<string[]>([])
   const [customer, setCustomer] = useState<string[]>([])
   const [created, setCreated] = useState<string[]>([])
@@ -404,16 +406,17 @@ export default function RequestsPage() {
     return map
   }, [facets.customer])
 
+  const effectiveItemStatus = requestsMobile === false ? itemStatus : []
   const serverQuery = useMemo(() => buildRequestFilterQuery({
     status,
-    itemStatus,
+    itemStatus: effectiveItemStatus,
     customer,
     created,
     updated,
     customerIds,
     requestStatusOptions: REQUEST_STATUS_OPTIONS,
     itemStatusOptions: ITEM_STATUS_OPTIONS,
-  }), [status, itemStatus, customer, created, updated, customerIds])
+  }), [status, effectiveItemStatus, customer, created, updated, customerIds])
 
   const { query: debounced, filters: debouncedFilters, settled } = useDebouncedSearch(query, serverQuery)
 
@@ -481,7 +484,7 @@ export default function RequestsPage() {
 
   // A search or an item filter is asking about *lines*, so the cards that
   // matched open themselves — otherwise the answer is hidden behind a chevron.
-  const drillingIn = debounced.trim() !== '' || itemStatus.length > 0
+  const drillingIn = debounced.trim() !== '' || effectiveItemStatus.length > 0
   useEffect(() => {
     if (drillingIn) setExpanded(new Set(requests.map((r) => r.id)))
   }, [drillingIn, requests])
@@ -642,7 +645,7 @@ export default function RequestsPage() {
   // all", since the Status chip opens with Archived left out.
   const hasFilters =
     !sameSet(status, OPEN_STATUSES) ||
-    itemStatus.length > 0 ||
+    effectiveItemStatus.length > 0 ||
     customer.length > 0 ||
     created.length > 0 ||
     updated.length > 0 ||
@@ -651,7 +654,7 @@ export default function RequestsPage() {
   const clearAll = () => {
     setQuery('')
     setStatus(OPEN_STATUSES)
-    setItemStatus([])
+    if (requestsMobile === false) setItemStatus([])
     setCustomer([])
     setCreated([])
     setUpdated([])
@@ -676,19 +679,17 @@ export default function RequestsPage() {
           onClear={clearAll}
           summary={`${total} ${total === 1 ? 'request' : 'requests'} · ${summary.items} line ${summary.items === 1 ? 'item' : 'items'}`}
           pagination={{ page, pageCount, onPage: setPage, busy }}
-          controls={
-            <>
-              <button
-                type="button"
-                onClick={() =>
-                  setExpanded(allExpanded ? new Set() : new Set(requests.map((r) => r.id)))
-                }
-                className="cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground"
-              >
-                {allExpanded ? 'Collapse all' : 'Expand all'}
-              </button>
-            </>
-          }
+          controls={requestsMobile === false ? (
+            <button
+              type="button"
+              onClick={() =>
+                setExpanded(allExpanded ? new Set() : new Set(requests.map((r) => r.id)))
+              }
+              className="cursor-pointer rounded-full border border-border bg-card px-[11px] py-[5px] text-[12px] font-semibold text-muted-foreground"
+            >
+              {allExpanded ? 'Collapse all' : 'Expand all'}
+            </button>
+          ) : undefined}
         />
       )}
     >

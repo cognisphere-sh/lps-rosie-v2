@@ -31,6 +31,10 @@ let dom: JSDOM
 let viewportWidth = 390
 const mediaQueries = new Set<MockMediaQueryList>()
 
+function source(path: string): string {
+  return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+}
+
 class MockMediaQueryList {
   readonly media: string
   matches: boolean
@@ -155,9 +159,11 @@ test('mobile Filters portals one real modal, isolates/restores exact background 
   assert.equal(prior.inert, true)
   assert.equal(prior.getAttribute('aria-hidden'), 'true')
   assert.equal(document.body.style.overflow, 'hidden')
-  for (const group of ['Status', 'Item status', 'Customer', 'Created', 'Updated']) {
+  for (const group of ['Status', 'Customer', 'Created', 'Updated']) {
     assert.ok(within(dialog).getByText(group, { selector: 'legend' }))
   }
+  assert.equal(within(dialog).queryByText('Item status'), null)
+  assert.equal(within(dialog).queryByRole('checkbox', { name: 'Pending' }), null)
   for (const status of BASELINE) {
     assert.equal((within(dialog).getByRole('checkbox', { name: status }) as HTMLInputElement).checked, true)
   }
@@ -208,7 +214,7 @@ test('baseline status is zero active groups while real deviations and other grou
   const portal = document.body.querySelector('[data-request-filter-portal]') as HTMLElement
   await user.click(within(portal).getByRole('checkbox', { name: 'Archived' }))
   assert.equal(trigger.getAttribute('aria-label'), 'Filters, 1 active')
-  await user.click(within(portal).getByRole('checkbox', { name: 'Pending' }))
+  await user.click(within(portal).getByRole('checkbox', { name: 'Oak Hill' }))
   assert.equal(trigger.getAttribute('aria-label'), 'Filters, 2 active')
   assert.equal(requestFilterActiveCount([
     { label: 'Status', values: [...BASELINE].reverse(), options: [], onChange: () => {}, allLabel: '' },
@@ -225,6 +231,24 @@ function DesktopAction() {
   return <button id="jobs-new-trigger" type="button">New job</button>
 }
 
+function ItemStatusIsolationHarness({ resolved }: { resolved: boolean }) {
+  const [itemStatus, setItemStatus] = useState(['Pending'])
+  const chips: Chip[] = [
+    { label: 'Status', values: BASELINE, options: [...BASELINE, 'Archived'], onChange: () => {}, allLabel: 'All statuses' },
+    { label: 'Item status', values: itemStatus, options: ['Pending', 'Available'], onChange: setItemStatus, allLabel: 'All item statuses' },
+  ]
+  const effective = resolved === false ? itemStatus : []
+  const filters = buildRequestFilterQuery({
+    status: BASELINE, itemStatus: effective, customer: [], created: [], updated: [], customerIds: new Map(),
+    requestStatusOptions: REQUEST_STATUS_OPTIONS, itemStatusOptions: ITEM_STATUS_OPTIONS,
+  })
+  return <div data-effective-query={filters}>
+    <RequestsToolbar resolvedMobile={resolved} placeholder="Search plants, customers, JR-…" query="" onQuery={() => {}}
+      chips={chips} statusBaseline={BASELINE} controls={null} hasFilters={effective.length > 0}
+      onClear={() => { if (resolved === false) setItemStatus([]) }} summary="12 requests" />
+  </div>
+}
+
 function ToolbarHarness({ resolved }: { resolved: boolean | null }) {
   const chips = useRequestChips()
   return (
@@ -235,7 +259,7 @@ function ToolbarHarness({ resolved }: { resolved: boolean | null }) {
       onQuery={() => {}}
       chips={chips}
       statusBaseline={BASELINE}
-      controls={<button type="button">Expand all</button>}
+      controls={resolved === false ? <button type="button">Expand all</button> : null}
       rightActions={<DesktopAction />}
       hasFilters={false}
       onClear={() => {}}
@@ -243,6 +267,34 @@ function ToolbarHarness({ resolved }: { resolved: boolean | null }) {
     />
   )
 }
+
+test('desktop Item status is parked across mobile with no mobile DOM, badge or query constraint', async () => {
+  const user = userEvent.setup({ document })
+  const view = render(<ItemStatusIsolationHarness resolved={false} />)
+  assert.equal(new URLSearchParams(view.container.firstElementChild?.getAttribute('data-effective-query') ?? '').get('itemStatus'), 'pending')
+  assert.ok(view.getByRole('button', { name: 'Pending' }))
+
+  view.rerender(<ItemStatusIsolationHarness resolved />)
+  assert.equal(new URLSearchParams(view.container.firstElementChild?.getAttribute('data-effective-query') ?? '').has('itemStatus'), false)
+  const filter = view.getByRole('button', { name: 'Filters' })
+  await user.click(filter)
+  await waitFor(() => assert.ok(document.body.querySelector('[data-request-filter-portal]')))
+  const dialog = within(document.body.querySelector('[data-request-filter-portal]') as HTMLElement).getByRole('dialog', { name: 'Filters' })
+  assert.equal(within(dialog).queryByText('Item status'), null)
+  assert.equal(within(dialog).queryByRole('checkbox', { name: 'Pending' }), null)
+  await user.keyboard('{Escape}')
+  await settle()
+
+  view.rerender(<ItemStatusIsolationHarness resolved={false} />)
+  assert.equal(new URLSearchParams(view.container.firstElementChild?.getAttribute('data-effective-query') ?? '').get('itemStatus'), 'pending')
+  assert.ok(view.getByRole('button', { name: 'Pending' }))
+  const page = source('app/requests/page.tsx')
+  assert.match(page, /setItemStatus\(Array\.isArray\(saved\.itemStatus\)/)
+  assert.match(page, /JSON\.stringify\(\{ query, status, itemStatus, customer/)
+  assert.match(page, /effectiveItemStatus = requestsMobile === false \? itemStatus : \[\]/)
+  assert.match(page, /itemStatus: effectiveItemStatus/)
+  assert.match(page, /if \(requestsMobile === false\) setItemStatus\(\[\]\)/)
+})
 
 test('legacy persisted Quoted filter restores and saves canonically without losing quoted jobs or creating a false deviation', () => {
   const storageKey = 'lps.requests.visit.v1'
@@ -315,11 +367,8 @@ test('mobile filter state rerenders preserve the chosen keyboard control while e
   assert.equal(document.activeElement, archived)
   assert.ok(document.body.contains(dialog))
 
-  const pending = within(dialog).getByRole('checkbox', { name: 'Pending' }) as HTMLInputElement
-  await user.click(pending)
-  assert.equal(pending.checked, true)
-  assert.equal(document.activeElement, pending)
-  assert.ok(document.body.contains(dialog))
+  assert.equal(within(dialog).queryByText('Item status'), null)
+  assert.equal(within(dialog).queryByRole('checkbox', { name: 'Pending' }), null)
 
   const createdGroup = within(dialog).getByText('Created', { selector: 'legend' }).closest('fieldset') as HTMLElement
   const createdToday = within(createdGroup).getByRole('radio', { name: 'Today' }) as HTMLInputElement
@@ -345,7 +394,8 @@ test('mobile filter state rerenders preserve the chosen keyboard control while e
   dialog = within(portal).getByRole('dialog', { name: 'Filters' })
   assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Close filters' }))
   assert.equal((within(dialog).getByRole('checkbox', { name: 'Archived' }) as HTMLInputElement).checked, true)
-  assert.equal((within(dialog).getByRole('checkbox', { name: 'Pending' }) as HTMLInputElement).checked, true)
+  assert.equal(within(dialog).queryByText('Item status'), null)
+  assert.equal(within(dialog).queryByRole('checkbox', { name: 'Pending' }), null)
   assert.equal((within(within(dialog).getByText('Created', { selector: 'legend' }).closest('fieldset') as HTMLElement)
     .getByRole('radio', { name: 'Today' }) as HTMLInputElement).checked, true)
   assert.equal((within(within(dialog).getByText('Updated', { selector: 'legend' }).closest('fieldset') as HTMLElement)
@@ -459,13 +509,13 @@ function ResolvedToolbarHarness() {
   return <ToolbarHarness resolved={mobile} />
 }
 
-test('real media-query resolution is neutral in SSR and structural budgets bound 320/390/514/899 mobile rows before desktop at 900', async () => {
+test('real media-query resolution is neutral in SSR and structural budgets bound 320/390/480/514/899 mobile rows before desktop at 900', async () => {
   const server = renderToString(<ResolvedToolbarHarness />)
   assert.match(server, /data-requests-toolbar-branch="neutral"/)
   assert.doesNotMatch(server, /jobs-new-trigger|request-filter-surface|<input/)
   const view = render(<ResolvedToolbarHarness />)
   await settle()
-  for (const width of [320, 390, 514, 899]) {
+  for (const width of [320, 390, 480, 514, 899]) {
     await setViewport(width)
     const mobile = view.container.querySelector('[data-requests-toolbar-branch="mobile"]') as HTMLElement
     assert.ok(mobile, `${width}px owns mobile branch`)
@@ -495,15 +545,28 @@ test('real media-query resolution is neutral in SSR and structural budgets bound
     assert.match(input.className, /\bmin-w-0\b/)
     assert.match(filter.className, /\bsize-11\b/)
     assert.match(filter.className, /\bflex-none\b/)
-    assert.equal(within(row).queryByRole('button', { name: 'Expand all' }), null)
+    assert.equal([...view.container.querySelectorAll('button')].some((button) => button.textContent === 'Expand all'), false)
+    assert.equal(view.container.querySelector('[hidden] button'), null)
+    if ([320, 390, 480].includes(width)) {
+      fireEvent.click(filter)
+      await waitFor(() => assert.ok(document.body.querySelector('[data-request-filter-portal]')))
+      const portal = document.body.querySelector('[data-request-filter-portal]') as HTMLElement
+      assert.equal([...portal.querySelectorAll('legend')].some((legend) => legend.textContent === 'Item status'), false)
+      assert.equal([...portal.querySelectorAll('input')].some((control) => control.getAttribute('name') === 'requests-Item status'), false)
+      fireEvent.click(portal.querySelector('button[aria-label="Close filters"]')!)
+      await settle()
+    }
   }
   await setViewport(900)
   assert.ok(view.container.querySelector('[data-requests-toolbar-branch="desktop"]'))
+  assert.ok(view.getByRole('button', { name: 'Expand all' }))
+  assert.ok(view.getByRole('button', { name: /Item status/ }))
   assert.equal(view.container.querySelector('[data-request-mobile-search-row]'), null)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   const frame = source('components/workspace/frame.tsx')
   const page = source('app/requests/page.tsx')
   assert.match(frame, /flex min-h-0 min-w-0 flex-col overflow-hidden/)
+  assert.match(page, /controls=\{requestsMobile === false \? \(/)
   assert.match(page, /className="flex min-h-0 flex-1 flex-col gap-2\.5 overflow-auto/)
 })
 
@@ -554,509 +617,101 @@ function StaticCard({
   )
 }
 
-test('photo488 live shape is exactly two compact rows with chevron · JR · status · flexible identity, then Pending · Rosie', async () => {
+test('v3 mobile All Jobs card is exactly two tight rows with full sales status, flexible identity and named Rosie Chat', async () => {
   const user = userEvent.setup({ document })
-  const longStatus = 'Awaiting extraordinarily detailed customer confirmation'
+  let toggles = 0
   const longRequest: JobRequestRow = {
     ...REQUEST,
-    name: 'Courtyard 🌳 旗艦店 — Extremely long Unicode job name that must ellipsize',
-    status: longStatus,
-    customer: {
-      id: 9,
-      name: 'Renée 山田 Customer',
-      company: 'Société 🌿 超長い会社名 with an exceptionally long company suffix',
-      email: null,
-      phone: null,
-      rosieThreadId: null,
-    },
+    name: 'Courtyard planting and irrigation improvements across the entire east entrance',
+    status: 'quoted',
+    customer: { ...REQUEST.customer!, company: 'Land Water Light', name: 'Dior Goodwin' },
   }
-  let toggles = 0
-  const view = render(<StaticCard request={longRequest} mobile onToggle={() => { toggles += 1 }} />)
+  const view = render(<RequestCard request={longRequest} expanded={false} selected={new Set()} version={0} onToggle={() => { toggles += 1 }} onSelect={() => undefined} onDelete={() => undefined} onDeleteItem={() => undefined} onSaved={() => undefined} mobile />)
   const rows = [...view.container.querySelectorAll<HTMLElement>('[data-mobile-request-row]')]
   assert.equal(rows.length, 2)
-  const primary = rows[0]
-  const secondary = rows[1]
-  assert.equal(primary.dataset.mobileRequestRow, 'identity')
-  assert.equal(secondary.dataset.mobileRequestRow, 'pending-chat')
-  assert.deepEqual(
-    [...primary.children].map((node) => {
-      const data = (node as HTMLElement).dataset
-      if (data.mobileRequestChevron !== undefined) return 'chevron'
-      if (data.mobileRequestJr !== undefined) return 'jr'
-      if (data.mobileRequestStatus !== undefined) return 'status'
-      if (data.mobileRequestIdentity !== undefined) return 'identity'
-      return 'unexpected'
-    }),
-    ['chevron', 'jr', 'status', 'identity'],
-  )
-  assert.deepEqual(
-    [...secondary.children].map((node) => {
-      const data = (node as HTMLElement).dataset
-      if (data.mobilePendingSummary !== undefined) return 'pending'
-      if (data.mobileRequestRosie !== undefined) return 'rosie'
-      return 'unexpected'
-    }),
-    ['pending', 'rosie'],
-  )
+  assert.deepEqual([...rows[0].children].map((node) => {
+    const data = (node as HTMLElement).dataset
+    if (data.mobileRequestJr !== undefined) return 'jr'
+    if (data.mobileRequestStatus !== undefined) return 'status'
+    if (data.mobileRequestIdentity !== undefined) return 'identity'
+    return 'unexpected'
+  }), ['jr', 'status', 'identity'])
+  assert.deepEqual([...rows[1].children].map((node) => {
+    const data = (node as HTMLElement).dataset
+    if (data.mobilePendingSummary !== undefined) return 'pending'
+    if (data.mobileRequestRosie !== undefined) return 'rosie'
+    return 'unexpected'
+  }), ['pending', 'rosie'])
+  assert.equal(view.queryByRole('button', { name: /Expand|Collapse/ }), null)
+  assert.equal(view.container.querySelector('[data-mobile-request-chevron]'), null)
+  assert.equal(view.container.querySelector('[data-compact-status-token]'), null)
+  assert.equal(view.getByRole('button', { name: 'Quote Delivered' }).textContent?.replace(/\s+/g, ' ').trim(), 'Quote Delivered')
+  assert.equal(view.getByRole('link', { name: `Open JR-27 — ${longRequest.name}` }).textContent, `Land Water Light · ${longRequest.name}`)
+  assert.equal(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).textContent?.trim(), 'Rosie Chat')
+  assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).className, /min-h-11/)
+  const head = view.container.querySelector<HTMLElement>('[data-request-card-head]')
+  assert.ok(head)
+  assert.match(head.className, /gap-1\.5/)
+  assert.match(head.className, /py-2\.5/)
+  assert.doesNotMatch(head.className, /min-h-|h-\[/)
   for (const row of rows) {
-    assert.match(row.className, /\bflex-nowrap\b/)
-    assert.match(row.className, /\bw-full\b/)
-    assert.match(row.className, /\bmax-w-full\b/)
-    assert.match(row.className, /\bmin-w-0\b/)
+    assert.match(row.className, /flex-nowrap/)
+    assert.match(row.className, /min-w-0/)
     assert.doesNotMatch(row.className, /flex-wrap|overflow-x-auto|overflow-x-scroll/)
   }
-
-  const chevron = primary.children[0] as HTMLButtonElement
-  const jr = primary.children[1] as HTMLElement
-  const statusOwner = primary.children[2] as HTMLElement
-  const identity = primary.children[3] as HTMLAnchorElement
-  const customer = identity.querySelector('[data-mobile-request-customer]') as HTMLElement
-  const job = identity.querySelector('[data-mobile-request-job]') as HTMLElement
-  assert.equal(primary.querySelectorAll('a').length, 1)
-  assert.match(chevron.className, /\bsize-11\b/)
-  assert.equal(chevron.getAttribute('aria-expanded'), 'false')
-  assert.equal(jr.textContent, 'JR-27')
-  assert.match(jr.className, /\bflex-none\b/)
-  assert.match(jr.className, /\bwhitespace-nowrap\b/)
-  assert.match(identity.className, /\bflex-1\b/)
-  assert.match(identity.className, /\bmin-w-0\b/)
-  assert.match(identity.className, /\boverflow-hidden\b/)
-  assert.match(identity.className, /\btext-ellipsis\b/)
-  assert.match(identity.className, /\bwhitespace-nowrap\b/)
-  assert.doesNotMatch(identity.className, /(?:^|\s)(?:w|min-w|max-w)-\[/)
-  assert.equal(identity.textContent, `${longRequest.customer?.company} · ${longRequest.name}`)
-  assert.equal(identity.title, `${longRequest.customer?.company} · ${longRequest.name}`)
-  assert.equal(identity.getAttribute('href'), '/jobs?jr=27')
-  assert.equal(identity.getAttribute('aria-label'), `Open JR-27 — ${longRequest.name}`)
-  assert.equal(customer.textContent, longRequest.customer?.company)
-  assert.equal(job.textContent, longRequest.name)
-
-  const status = within(statusOwner).getByRole('button', { name: longStatus })
-  const statusToken = within(statusOwner).getByText('AED')
-  assert.match(statusOwner.className, /\bsize-11\b/)
-  assert.match(statusOwner.className, /\bflex-none\b/)
-  assert.doesNotMatch(statusOwner.className, /overflow-hidden|truncate/)
-  assert.match(status.className, /\bsize-11\b/)
-  assert.match(status.className, /bg-transparent/)
-  assert.doesNotMatch(statusToken.className, /overflow-hidden|truncate|text-clip/)
-
-  const pending = secondary.children[0] as HTMLElement
-  const rosie = secondary.children[1] as HTMLButtonElement
-  assert.match(pending.textContent ?? '', /0\s*Pending/)
-  assert.match(pending.className, /\binline-flex\b/)
-  assert.doesNotMatch(pending.className, /\bw-full\b|\bmax-w-full\b|min-h-11/)
-  assert.match(rosie.className, /\bsize-11\b/)
-  assert.match(rosie.className, /\bflex-none\b/)
-  assert.match(rosie.className, /\bml-auto\b/)
-  assert.equal(view.getAllByRole('button', { name: 'Expand JR-27' }).length, 1)
-  assert.equal(view.container.querySelector('[data-mobile-request-date]'), null)
-  for (const absent of ['PO', 'Install Date', 'Pickup', 'Delivery', 'Created', 'Last updated']) {
-    assert.equal(view.queryByText(absent), null)
-  }
-
-  identity.addEventListener('click', (event) => event.preventDefault(), { once: true })
-  await user.click(identity)
-  assert.equal(toggles, 0)
-  await user.click(chevron)
-  assert.equal(toggles, 1)
-
-  // Structural budget only: viewport p-3, card border and head px-3.5 consume
-  // 54px; row 1 then reserves 44px Chevron + a conservative 40px JR-27 +
-  // 44px Status + three 4px gaps. Only the one min-w-0 identity track yields.
+  const identity = view.container.querySelector<HTMLElement>('[data-mobile-request-identity]')
+  assert.ok(identity)
+  assert.match(identity.className, /flex-1/)
+  assert.match(identity.className, /min-w-0/)
+  assert.match(identity.className, /overflow-hidden/)
   for (const width of [320, 390, 480]) {
     await setViewport(width)
-    const identityWidth = width - 24 - 2 - 28 - 44 - 40 - 44 - 12
-    assert.ok(identityWidth >= 120, `${width}px leaves ${identityWidth}px for the one identity region`)
     assert.equal(view.container.querySelectorAll('[data-mobile-request-row]').length, 2)
+    assert.equal(view.container.querySelector('[data-mobile-request-chevron]'), null)
   }
 
   let opened: unknown
-  window.addEventListener('lps:open-chat', (event) => {
-    opened = (event as CustomEvent).detail
-  }, { once: true })
-  await user.click(rosie)
-  assert.deepEqual(opened, {
-    agentId: 'rosie',
-    threadId: 'jr-27',
-    label: longRequest.name,
-  })
-
-  view.rerender(<StaticCard request={{
-    ...longRequest,
-    name: '   ',
-    customer: { ...longRequest.customer!, company: '   ', name: '  Renée Customer  ' },
-  }} mobile />)
-  let normalizedIdentity = view.container.querySelector('[data-mobile-request-identity]') as HTMLAnchorElement
-  let normalizedCustomer = view.container.querySelector('[data-mobile-request-customer]') as HTMLElement
-  let normalizedJob = view.container.querySelector('[data-mobile-request-job]') as HTMLElement
-  assert.equal(normalizedCustomer.textContent, 'Renée Customer')
-  assert.equal(normalizedJob.textContent, 'JR-27')
-  assert.equal(normalizedIdentity.textContent, 'Renée Customer · JR-27')
-  assert.equal(normalizedIdentity.title, 'Renée Customer · JR-27')
-  assert.equal(normalizedIdentity.getAttribute('aria-label'), 'Open JR-27')
-
-  view.rerender(<StaticCard request={{
-    ...longRequest,
-    name: '',
-    customer: { ...longRequest.customer!, company: '', name: '\t ' },
-  }} mobile />)
-  normalizedIdentity = view.container.querySelector('[data-mobile-request-identity]') as HTMLAnchorElement
-  normalizedCustomer = view.container.querySelector('[data-mobile-request-customer]') as HTMLElement
-  normalizedJob = view.container.querySelector('[data-mobile-request-job]') as HTMLElement
-  assert.equal(normalizedCustomer.textContent, 'Unassigned customer')
-  assert.equal(normalizedJob.textContent, 'JR-27')
-  assert.equal(normalizedIdentity.textContent, 'Unassigned customer · JR-27')
-  assert.equal(normalizedIdentity.getAttribute('aria-label'), 'Open JR-27')
+  window.addEventListener('lps:open-chat', (event) => { opened = (event as CustomEvent).detail }, { once: true })
+  await user.click(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }))
+  assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: longRequest.name })
+  assert.equal(toggles, 0)
 })
 
-test('mobile status uses readable deterministic tokens with exact full accessible canonical and unknown labels', () => {
+test('v3 mobile sales states remain fully written and blank Job never repeats the JR fallback in identity', () => {
   const canonical = [
-    ['sourcing', 'Sourcing', 'Src'],
-    ['quoted', 'Quote Delivered', 'QD'],
-    ['closed_won', 'Closed won', 'Won'],
-    ['closed_lost', 'Closed lost', 'Lost'],
-    ['archived', 'Archived', 'Arc'],
+    ['sourcing', 'Sourcing'],
+    ['quoted', 'Quote Delivered'],
+    ['closed_won', 'Closed won'],
+    ['closed_lost', 'Closed lost'],
+    ['archived', 'Archived'],
   ] as const
   const view = render(<StaticCard request={{ ...REQUEST, status: canonical[0][0] }} mobile />)
-  for (const [value, label, token] of canonical) {
+  for (const [value, label] of canonical) {
     view.rerender(<StaticCard request={{ ...REQUEST, status: value }} mobile />)
     const owner = view.container.querySelector('[data-mobile-request-status]') as HTMLElement
     const button = within(owner).getByRole('button', { name: label })
-    const visible = owner.querySelector('[data-compact-status-token]') as HTMLElement
-    assert.equal(visible.textContent, token)
-    assert.equal(button.getAttribute('aria-label'), label)
-    assert.match(button.className, /\bsize-11\b/)
-    assert.equal(owner.querySelector('svg'), null)
-    assert.doesNotMatch(owner.className, /overflow-hidden|truncate/)
-    assert.doesNotMatch(visible.className, /overflow-hidden|truncate|text-clip/)
+    assert.equal(button.textContent?.replace(/\s+/g, ' ').trim(), label)
+    assert.equal(owner.querySelector('[data-compact-status-token]'), null)
   }
-
-  for (const [value, label, token] of [
-    ['Awaiting extraordinarily detailed customer confirmation', 'Awaiting extraordinarily detailed customer confirmation', 'AED'],
-    ['状态等待', '状态等待', '状态等'],
-    ['   ', 'Unknown status', '?'],
-    ['', 'Unknown status', '?'],
-  ]) {
-    view.rerender(<StaticCard request={{ ...REQUEST, status: value }} mobile />)
-    const owner = view.container.querySelector('[data-mobile-request-status]') as HTMLElement
-    const visible = owner.querySelector('[data-compact-status-token]') as HTMLElement
-    assert.equal(visible.textContent, token)
-    assert.doesNotMatch(visible.className, /overflow-hidden|truncate|text-clip/)
-    assert.ok(within(owner).getByRole('button', { name: label }))
-  }
+  view.rerender(<StaticCard request={{ ...REQUEST, name: ' ', customer: { ...REQUEST.customer!, company: ' ', name: ' Renée Customer ' } }} mobile />)
+  const identity = view.container.querySelector('[data-mobile-request-identity]') as HTMLAnchorElement
+  assert.equal(identity.textContent, 'Renée Customer')
+  assert.equal(identity.title, 'Renée Customer')
+  assert.equal(identity.querySelector('[data-mobile-request-job]'), null)
+  assert.equal(view.getAllByText('JR-27').length, 1)
 })
 
-test('actual compact status picker opens by pointer and keyboard, keeps full state labels and closes accessibly inside phone bounds', async () => {
-  const user = userEvent.setup({ document })
-  const view = render(<StaticCard request={{ ...REQUEST, status: 'quoted' }} mobile />)
-  const trigger = view.getByRole('button', { name: 'Quote Delivered' })
-  const outside = document.createElement('button')
-  outside.type = 'button'
-  outside.textContent = 'Outside status picker'
-  document.body.appendChild(outside)
-  const expectedLabels = ['Sourcing', 'Quote Delivered', 'Closed won', 'Closed lost', 'Archived']
-  assert.equal(REQUEST_STATUS_OPTIONS.find((option) => option.label === 'Quote Delivered')?.value, 'quoted')
-
-  const assertOpenWithin = async (viewport: number) => {
-    const menu = await waitFor(() => view.getByRole('menu', { name: 'Choose status for Quote Delivered' }))
-    const left = Number.parseFloat(menu.style.left)
-    const menuWidth = Number.parseFloat(menu.style.width)
-    assert.equal(menuWidth, 190)
-    assert.ok(left >= 8)
-    assert.ok(left + menuWidth <= viewport - 8)
-    assert.match(menu.className, /\bfixed\b/)
-    const options = within(menu).getAllByRole('menuitemradio')
-    assert.deepEqual(options.map((option) => option.textContent?.trim()), expectedLabels)
-    assert.equal(within(menu).getByRole('menuitemradio', { name: 'Quote Delivered' }).getAttribute('aria-checked'), 'true')
-    assert.doesNotMatch((view.container.querySelector('[data-mobile-request-status]') as HTMLElement).className, /overflow-hidden/)
-    return menu
-  }
-
-  await setViewport(320)
-  await user.click(trigger)
-  const pointerMenu = await assertOpenWithin(320)
-  await user.click(within(pointerMenu).getByRole('menuitemradio', { name: 'Quote Delivered' }))
-  assert.equal(view.queryByRole('menu'), null)
-  assert.equal(document.activeElement, trigger)
-  assert.equal(trigger.getAttribute('aria-label'), 'Quote Delivered')
-  assert.equal((view.container.querySelector('[data-compact-status-token]') as HTMLElement).textContent, 'QD')
-
-  await setViewport(390)
-  trigger.focus()
-  await user.keyboard('{Enter}')
-  await assertOpenWithin(390)
-  await user.tab()
-  assert.equal(document.activeElement, view.getByRole('menuitemradio', { name: 'Sourcing' }))
-  await user.keyboard('{Escape}')
-  assert.equal(view.queryByRole('menu'), null)
-  assert.equal(document.activeElement, trigger)
-
-  await setViewport(480)
-  trigger.focus()
-  await user.keyboard(' ')
-  const spaceMenu = await assertOpenWithin(480)
-  const lastOption = within(spaceMenu).getByRole('menuitemradio', { name: 'Archived' })
-  lastOption.focus()
-  await user.tab()
-  assert.equal(view.queryByRole('menu'), null)
-  assert.equal(document.activeElement, view.getByRole('link', { name: 'Open JR-27 — Courtyard' }))
-
-  trigger.focus()
-  await user.keyboard(' ')
-  await assertOpenWithin(480)
-  await user.click(outside)
-  assert.equal(view.queryByRole('menu'), null)
-  assert.equal(document.activeElement, outside)
-  assert.equal(trigger.getAttribute('aria-label'), 'Quote Delivered')
-  assert.equal((view.container.querySelector('[data-compact-status-token]') as HTMLElement).textContent, 'QD')
-  outside.remove()
-})
-
-test('Last updated is absent from mobile summary and closed details, appears only inside the disclosure, and never comes from notes', async () => {
-  const user = userEvent.setup({ document })
-  const dated: JobRequestRow = {
-    ...REQUEST,
-    customer: {
-      id: 8,
-      name: 'Chris Customer',
-      company: 'Oak Hill',
-      email: 'chris@example.com',
-      phone: '512-555-0100',
-      rosieThreadId: 'customer-8',
-    },
-    externalNotes: 'Shared detail only after expansion',
-    sourcingNotes: 'Possible install 8/8/26; Pickup discussed.',
-    notes: [{ kind: 'customer', stamp: '2026-08-03 09:00', text: 'Customer note only after expansion' }],
-  }
-  const view = render(<StaticCard request={dated} mobile />)
-  const secondary = view.container.querySelector('[data-mobile-request-secondary]') as HTMLElement
-  assert.match(secondary.textContent ?? '', /0\s*Pending/)
-  assert.doesNotMatch(secondary.textContent ?? '', /JR-27|Aug|2026|8\/8\/26|Pickup/)
-  assert.equal(view.container.querySelector('[data-mobile-request-date]'), null)
-  assert.equal(view.queryByText('Last updated'), null)
-  for (const collapsedOnly of [
-    'Chris Customer', 'chris@example.com', '512-555-0100',
-    'Possible install 8/8/26; Pickup discussed.', 'Customer note only after expansion',
-    'Shared detail only after expansion',
-    'Available', 'Substituted', 'Unavailable',
-  ]) {
-    assert.equal(view.queryByText(collapsedOnly), null)
-  }
+test('v3 ignores inline expansion state on mobile while expanded desktop keeps complete request actions and data', () => {
+  const request = { ...REQUEST, itemCount: 22, statusCounts: { pending: 7, available: 6, alternative_proposed: 5, unavailable: 4 }, externalNotes: 'Private exact detail' }
+  const view = render(<StaticCard request={request} mobile expanded />)
   assert.equal(view.container.querySelectorAll('[data-mobile-request-row]').length, 2)
-  assert.equal(view.getAllByText('Oak Hill').length, 1)
-  assert.equal(view.queryByRole('button', { name: 'Open the customer conversation with Oak Hill' }), null)
+  assert.equal(view.queryByRole('button', { name: /More details|Job details/ }), null)
+  assert.equal(view.queryByText('Private exact detail'), null)
+  assert.equal(view.queryByText('Available'), null)
+  assert.match((view.container.querySelector('[data-mobile-pending-summary]') as HTMLElement).textContent ?? '', /7\s*Pending/)
 
-  view.rerender(<StaticCard request={dated} mobile expanded />)
-  let details = view.getByRole('button', { name: /More details & notes/ })
-  assert.equal(details.getAttribute('aria-expanded'), 'false')
-  assert.equal(view.container.querySelector('[data-request-last-updated]'), null)
-  assert.equal(view.queryByText('Aug 2, 2026'), null)
-  assert.ok(view.getByText('512-555-0100 · chris@example.com'))
-  assert.ok(view.getByRole('button', { name: 'Open the customer conversation with Oak Hill' }))
-  for (const label of ['Pending', 'Available', 'Substituted', 'Unavailable']) {
-    assert.ok(view.getByText(label))
-  }
-
-  await user.click(details)
-  let lastUpdated = view.container.querySelector('[data-request-last-updated]') as HTMLElement
-  assert.ok(lastUpdated)
-  assert.ok(within(lastUpdated).getByText('Last updated'))
-  const timestamp = within(lastUpdated).getByText('Aug 2, 2026')
-  assert.equal(timestamp.tagName, 'TIME')
-  assert.equal(timestamp.getAttribute('datetime'), dated.updatedAt)
-  assert.doesNotMatch(lastUpdated.textContent ?? '', /8\/8\/26|Pickup/)
-  assert.ok(view.getByText('Customer note only after expansion'))
-  assert.ok(view.getByRole('button', { name: 'Shared detail only after expansion' }))
-  assert.ok(view.getByRole('button', { name: 'Possible install 8/8/26; Pickup discussed.' }))
-
-  details = view.getByRole('button', { name: /More details & notes/ })
-  await user.click(details)
-  assert.equal(view.container.querySelector('[data-request-last-updated]'), null)
-
-  view.rerender(<StaticCard request={{ ...dated, updatedAt: null }} mobile expanded />)
-  await user.click(view.getByRole('button', { name: /More details & notes/ }))
-  lastUpdated = view.container.querySelector('[data-request-last-updated]') as HTMLElement
-  assert.ok(within(lastUpdated).getByText('Not recorded'))
-  assert.equal(lastUpdated.querySelector('time'), null)
-  await user.click(view.getByRole('button', { name: /More details & notes/ }))
-
-  view.rerender(<StaticCard request={dated} mobile={false} />)
-  const desktopDate = view.getByText('Aug 2, 2026')
-  assert.equal(desktopDate.getAttribute('title'), 'Created Aug 1, 2026')
-})
-
-test('collapsed mobile card shows only exact Pending count while desktop and expanded mobile retain every plant status', () => {
-  const counts = { pending: 7, available: 6, alternative_proposed: 5, unavailable: 4 }
-  const request = { ...REQUEST, itemCount: 22, statusCounts: counts }
-  const view = render(<StaticCard request={request} mobile />)
-  const pending = view.container.querySelector('[data-mobile-pending-summary]') as HTMLElement
-  assert.ok(pending)
-  assert.match(pending.textContent ?? '', /7\s*Pending/)
-  for (const hidden of ['Available', 'Substituted', 'Unavailable']) {
-    assert.equal(within(pending).queryByText(hidden), null)
-    assert.equal(view.queryByText(hidden), null)
-  }
-  assert.match(pending.className, /\binline-flex\b/)
-  assert.match(pending.className, /\bh-7\b/)
-  assert.doesNotMatch(pending.className, /\bw-full\b|\bmax-w-full\b|overflow-hidden|min-h-11/)
-  const row2 = view.container.querySelector('[data-mobile-request-row="pending-chat"]') as HTMLElement
-  assert.equal(row2.children[0], pending)
-  assert.equal((row2.children[1] as HTMLElement).dataset.mobileRequestRosie, 'true')
-
-  view.rerender(<StaticCard request={request} mobile={false} />)
-  assert.equal(view.container.querySelector('[data-mobile-pending-summary]'), null)
-  for (const [label, count] of [['Pending', 7], ['Available', 6], ['Substituted', 5], ['Unavailable', 4]] as const) {
-    assert.ok(view.getByText(label))
-    assert.ok(view.getByText(String(count)))
-  }
-
-  view.rerender(<StaticCard request={request} mobile expanded />)
-  assert.equal(view.container.querySelector('[data-mobile-pending-summary]'), null)
-  for (const label of ['Pending', 'Available', 'Substituted', 'Unavailable']) {
-    assert.ok(view.getByText(label))
-  }
-})
-
-function CardDeleteHarness({ fetcher }: { fetcher: typeof fetch }) {
-  const [expanded, setExpanded] = useState(false)
-  const [visible, setVisible] = useState(true)
-  const [target, setTarget] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const returnFocus = useRef<HTMLElement | null>(null)
-  const list = useRef<HTMLDivElement>(null)
-  return (
-    <div ref={list} tabIndex={-1} aria-label="Job requests">
-      {visible && (
-        <RequestCard
-          request={REQUEST}
-          expanded={expanded}
-          mobile
-          selected={new Set()}
-          version={0}
-          onToggle={() => setExpanded((value) => !value)}
-          onSelect={() => {}}
-          onDelete={(focus) => { returnFocus.current = focus; setTarget(true); setError('') }}
-          onDeleteItem={() => {}}
-          onSaved={() => {}}
-        />
-      )}
-      {target && (
-        <DeleteRequestDialog
-          request={REQUEST}
-          busy={busy}
-          error={error}
-          returnFocus={returnFocus}
-          onCancel={() => setTarget(false)}
-          onConfirm={() => {
-            setBusy(true)
-            void deleteRequestFromApi(REQUEST.id, fetcher).then(({ ok, body }) => {
-              setBusy(false)
-              if (!ok) {
-                setError(`Could not delete JR-27${body.error ? ` — ${body.error}` : ''}`)
-                return
-              }
-              returnFocus.current = list.current
-              setVisible(false)
-              setTarget(false)
-            })
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-test('real RequestCard owns no collapsed mobile action and expanded Delete drives cancel, 403 error, success and focus/API behavior', async () => {
-  const calls: { input: string; method?: string }[] = []
-  let attempts = 0
-  const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
-    calls.push({ input: String(input), method: init?.method })
-    attempts += 1
-    if (attempts === 1) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })
-    return new Response(JSON.stringify({ ok: true, deleted: { items: 0, availabilityRequests: 0 } }), { status: 200 })
-  }) as typeof fetch
-  const user = userEvent.setup({ document })
-  const view = render(<CardDeleteHarness fetcher={fetcher} />)
-  assert.equal(view.queryByRole('button', { name: /Delete JR-27/ }), null)
-  assert.equal(view.queryByRole('button', { name: /Actions/ }), null)
-  await user.click(view.getByRole('button', { name: 'Expand JR-27' }))
-  const remove = view.getByRole('button', { name: 'Delete JR-27 permanently' })
-  assert.match(remove.className, /min-h-11/)
-  await user.click(remove)
-  assert.ok(view.getByRole('dialog', { name: 'Permanently delete JR-27 — Courtyard?' }))
-  assert.match(view.getByText(/change history/).textContent ?? '', /cannot be undone/i)
-  await user.click(view.getByRole('button', { name: 'Cancel' }))
-  await settle()
-  assert.equal(document.activeElement, remove)
-
-  await user.click(remove)
-  await user.click(view.getByRole('button', { name: 'Delete permanently' }))
-  await waitFor(() => assert.ok(view.getByRole('alert')))
-  assert.match(view.getByRole('alert').textContent ?? '', /forbidden/)
-  assert.deepEqual(calls[0], { input: '/api/requests/27', method: 'DELETE' })
-  assert.ok(view.getByRole('dialog'))
-
-  await user.click(view.getByRole('button', { name: 'Delete permanently' }))
-  await waitFor(() => assert.equal(view.queryByRole('dialog'), null))
-  await settle()
-  assert.equal(view.queryByRole('button', { name: 'Collapse JR-27' }), null)
-  assert.equal(document.activeElement, view.getByLabelText('Job requests'))
-  assert.deepEqual(calls[1], { input: '/api/requests/27', method: 'DELETE' })
-})
-
-test('actual proxy permission path rejects unsigned and partner whole-request DELETE access while admin passes', async () => {
-  process.env.APP_SESSION_SECRET = 'test-secret-with-enough-entropy-for-proxy-contract'
-  const unsigned = await proxy(new NextRequest('http://localhost/api/requests/27', { method: 'DELETE' }))
-  assert.equal(unsigned.status, 401)
-  const partner = await createSession({ id: 'p1', username: 'partner', role: 'partner', supplierId: 9, mustChangePassword: false })
-  const forbidden = await proxy(new NextRequest('http://localhost/api/requests/27', {
-    method: 'DELETE', headers: { cookie: `${SESSION_COOKIE}=${partner}` },
-  }))
-  assert.equal(forbidden.status, 403)
-  const admin = await createSession({ id: 'a1', username: 'admin', role: 'admin', supplierId: null, mustChangePassword: false })
-  const allowed = await proxy(new NextRequest('http://localhost/api/requests/27', {
-    method: 'DELETE', headers: { cookie: `${SESSION_COOKIE}=${admin}` },
-  }))
-  assert.equal(allowed.status, 200)
-  assert.equal(allowed.headers.get('x-middleware-next'), '1')
-})
-
-test('real query builder preserves exact filter selections, rolling date values, broad query and paging', () => {
-  const filters = buildRequestFilterQuery({
-    status: ['Sourcing', 'Closed won'],
-    itemStatus: ['Pending', 'Unavailable'],
-    customer: ['Oak Hill', 'Missing'],
-    created: ['Last 14 days'],
-    updated: ['Today'],
-    customerIds: new Map([['Oak Hill', 41]]),
-    requestStatusOptions: REQUEST_STATUS_OPTIONS,
-    itemStatusOptions: ITEM_STATUS_OPTIONS,
-  })
-  assert.equal(
-    filters,
-    'status=sourcing%2Cclosed_won&itemStatus=pending%2Cunavailable&customer=41&created=14&updated=1',
-  )
-  assert.equal(
-    buildRequestListUrl(filters, 'oak JR-27', 3),
-    '/api/requests?status=sourcing%2Cclosed_won&itemStatus=pending%2Cunavailable&customer=41&created=14&updated=1&q=oak+JR-27&page=3',
-  )
-})
-
-const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
-
-test('untouched route/query layer keeps parent updated DESC NULLS LAST then id DESC, rolling windows, paging and history cleanup', () => {
-  const route = source('app/api/requests/route.ts')
-  const requestRoute = source('app/api/requests/[id]/route.ts')
-  const queries = source('lib/job-request-queries.ts')
-  assert.match(route, /createdWithin: days\(url\.searchParams\.get\('created'\)\)/)
-  assert.match(route, /updatedWithin: days\(url\.searchParams\.get\('updated'\)\)/)
-  assert.match(queries, /gte\('created_at', daysAgoIso\(filters\.createdWithin\)\)/)
-  assert.match(queries, /gte\('updated_at', daysAgoIso\(filters\.updatedWithin\)\)/)
-  assert.match(queries, /\.order\('updated_at', \{ ascending: false, nullsFirst: false \}\)\s*\.order\('id', \{ ascending: false \}\)\s*\.range\(from, from \+ JOB_REQUEST_PAGE_SIZE - 1\)/)
-  assert.match(requestRoute, /export async function DELETE/)
-  assert.match(requestRoute, /deleteJobRequest\(id\)/)
-  assert.match(queries, /export async function deleteJobRequest/)
-  assert.match(queries, /job_request_changelog/)
-  assert.doesNotMatch(source('components/workspace/request-card-utilities.tsx'), /Print|Copy|Actions/)
+  view.rerender(<StaticCard request={request} mobile={false} expanded />)
+  for (const label of ['Pending', 'Available', 'Substituted', 'Unavailable']) assert.ok(view.getByText(label))
+  assert.ok(view.getByRole('button', { name: 'Delete JR-27' }))
+  assert.ok(view.getByRole('button', { name: 'Job details & notes' }))
 })

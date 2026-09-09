@@ -17,6 +17,7 @@ import {
 
 const row = (id: number, overrides: Partial<JobInboxRow> = {}): JobInboxRow => ({
   id, name: null, status: 'sourcing', customer: null,
+  customerCompany: null, customerContact: null,
   createdAt: '2026-08-29T10:00:00Z', updatedAt: null, thread: null, ...overrides,
 })
 
@@ -163,7 +164,7 @@ test('row accessible name always states identity, activity and read state', () =
   })])[0]
   assert.equal(
     jobInboxRowAriaLabel(view, 'Sourcing', 'Aug 29, 1:00 PM'),
-    'JR-9, Courtyard, Sourcing, Need more yaupon, Aug 29, 1:00 PM, Unread web chat',
+    'JR-9 · Courtyard, Sourcing, Need more yaupon, Aug 29, 1:00 PM, Unread web chat',
   )
   assert.match(jobInboxRowAriaLabel({ ...view, unread: false }, 'Sourcing', 'Now'), /No unread web chat$/)
 })
@@ -190,6 +191,12 @@ test('API query is bounded, complete, batched, active-only and privacy-scoped', 
   assert.match(query, /JOB_INBOX_MAX_ROWS = 5000/)
   assert.match(query, /JOB_INBOX_MAX_ROWS \+ 1/)
   assert.match(query, /throw new JobInboxCapacityError/)
+  assert.doesNotMatch(query, /shipping_(?:address|city|state|zip)/)
+  assert.match(query, /\.select\('id, customer_id, name, status, created_at, updated_at'\)/)
+  assert.match(query, /customerCompany: customer\?\.company \?\? null/)
+  assert.match(query, /customerContact: customer\?\.name \?\? null/)
+  assert.doesNotMatch(query, /shipping:\s*\{/)
+  assert.doesNotMatch(source('lib/job-inbox.ts'), /jobInboxIdentityLine[\s\S]{0,700}row\.customer(?:\W|$)/)
   assert.match(query, /\.eq\('is_active', true\)[\s\S]*\.in\('status', \[\.\.\.ACTIVE_JOB_STATUSES\]\)/)
   assert.match(query, /\.eq\('agent', 'rosie'\)[\s\S]*\.is\('closed_at', null\)[\s\S]*\.in\('thread_id', ids\)/)
   assert.doesNotMatch(query, /for \(const request of requests\)[\s\S]*await supabase/)
@@ -238,8 +245,8 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
   assert.match(rail, /aria-label="Back to All jobs"[^>]*className="[^"]*size-11/)
   assert.match(rail, /<ArrowLeft size=\{18\}\/>/)
   assert.match(jobs, /tabIndex=\{-1\}/)
-  assert.match(jobs, /aria-label=\{jobInboxRowAriaLabel/)
-  assert.match(jobs, /aria-current=/)
+  assert.match(jobs, /ariaLabel=\{jobInboxRowAriaLabel/)
+  assert.match(rail, /aria-current=\{selected \? 'page' : undefined\}/)
   assert.match(jobs, /response\.status === 404[\s\S]*setDetailError\(''\)[\s\S]*current\.filter\(\(row\) => row\.id !== id\)[\s\S]*refreshList\(\)[\s\S]*return/)
   assert.match(jobs, /membership === 'error'[\s\S]{0,300}loadDetail\(selection\.id\)/)
   assert.doesNotMatch(jobs, /<AgentChat|useChat\(/)

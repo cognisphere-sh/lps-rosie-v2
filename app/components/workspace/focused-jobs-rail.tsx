@@ -3,10 +3,69 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
-import { FOCUSED_JOBS_RAIL_STORE, focusedJobsRailOpen } from '@/lib/job-inbox'
+import {
+  FOCUSED_JOBS_RAIL_STORE,
+  focusedJobsRailOpen,
+  jobInboxRailPrimaryLine,
+  type JobInboxViewRow,
+} from '@/lib/job-inbox'
 import { cn } from '@/lib/utils'
 
 export const FOCUSED_JOBS_RAIL_ID = 'focused-jobs-rail'
+
+export function FocusedJobsRailRow({
+  row,
+  selected,
+  statusLabel,
+  activityLabel,
+  buttonRef,
+  onSelect,
+  ariaLabel,
+}: {
+  row: JobInboxViewRow
+  selected: boolean
+  statusLabel: string
+  activityLabel: string
+  buttonRef?: (element: HTMLButtonElement | null) => void
+  onSelect: () => void
+  ariaLabel: string
+}) {
+  const primary = jobInboxRailPrimaryLine(row)
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={onSelect}
+      aria-label={ariaLabel}
+      aria-current={selected ? 'page' : undefined}
+      className={cn(
+        'mb-1 min-h-11 w-full rounded-xl border border-transparent px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring',
+        selected && 'border-border bg-muted',
+      )}
+    >
+      <span
+        data-focused-job-rail-primary
+        className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] font-semibold text-foreground"
+        title={primary}
+      >
+        {primary}
+      </span>
+      <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] text-muted-foreground">
+        <span className="flex-none">{statusLabel}</span>
+        <span aria-hidden>·</span>
+        <span className="min-w-0 flex-1 truncate">{row.preview}</span>
+        {row.unread && (
+          <span className="flex-none rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">
+            New web chat
+          </span>
+        )}
+      </span>
+      <span className="mt-1 block truncate text-[10px] text-lps-dim">
+        {activityLabel}{row.unread ? ' · Unread in team web chat' : ''}
+      </span>
+    </button>
+  )
+}
 
 export function FocusedJobsRailLayout({
   desktop,

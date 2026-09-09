@@ -19,6 +19,9 @@ const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value) => b.includes(value))
 
 /** Count narrowed filter groups, treating the archived-excluding status set as baseline. */
+export const mobileRequestFilterChips = (chips: Chip[]): Chip[] =>
+  chips.filter((chip) => chip.label !== 'Item status')
+
 export function requestFilterActiveCount(chips: Chip[], statusBaseline: string[]) {
   return chips.reduce((count, chip) => {
     const active = chip.label === 'Status'
@@ -132,13 +135,14 @@ export function RequestFilters({
 }) {
   const [open, setOpen] = useState(false)
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null)
+  const visibleChips = useMemo(() => mobileRequestFilterChips(chips), [chips])
   const trigger = useRef<HTMLButtonElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
   const surface = useRef<HTMLDivElement>(null)
   const restoreFrame = useRef<number | null>(null)
   const activeCount = useMemo(
-    () => requestFilterActiveCount(chips, statusBaseline),
-    [chips, statusBaseline],
+    () => requestFilterActiveCount(visibleChips, statusBaseline),
+    [visibleChips, statusBaseline],
   )
 
   const dismiss = useCallback((restoreFocus = true) => {
@@ -293,7 +297,7 @@ export function RequestFilters({
               </button>
             </div>
             <div className="flex min-w-0 flex-col gap-4">
-              {chips.map((chip) => <FilterGroup key={chip.label} chip={chip} />)}
+              {visibleChips.map((chip) => <FilterGroup key={chip.label} chip={chip} />)}
             </div>
             <div className="mt-4 flex justify-end border-t border-border pt-3">
               <button

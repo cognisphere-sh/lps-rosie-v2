@@ -96,6 +96,8 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       name: request.name,
       status: request.status,
       customer: customer ? customer.company || customer.name : null,
+      customerCompany: customer?.company ?? null,
+      customerContact: customer?.name ?? null,
       createdAt: request.created_at,
       updatedAt: request.updated_at,
       thread: thread ? {
