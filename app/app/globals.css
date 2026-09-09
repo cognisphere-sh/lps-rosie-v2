@@ -70,6 +70,20 @@
   --lps-warn-fg: #8A5A00;
   --lps-warn-dot: #D99A2B;
 
+  /* Hue-named, semantic-neutral accents sampled from the Rosie / reference-rail
+     artwork. Components opt into these families; they do not encode status,
+     selection or workflow state. */
+  --lps-accent-turquoise-text: #24736C;
+  --lps-accent-turquoise-border: #46958D;
+  --lps-accent-turquoise-soft: #E6F5F3;
+  --lps-accent-turquoise-solid: #69C4BB;
+  --lps-accent-turquoise-on-solid: #123A37;
+  --lps-accent-light-blue-text: #1C679C;
+  --lps-accent-light-blue-border: #438FC6;
+  --lps-accent-light-blue-soft: #E8F4FC;
+  --lps-accent-light-blue-solid: #63AEE4;
+  --lps-accent-light-blue-on-solid: #102E43;
+
   /* Job-request status palettes, from the Order Requests design's STATUS map.
      Six tones, not seven statuses: a status picks a tone, and "partial" is a
      tone the UI derives from availability rather than a stored value. */
@@ -159,6 +173,17 @@
   --lps-warn-fg: #E0B461;
   --lps-warn-dot: #D99A2B;
 
+  --lps-accent-turquoise-text: #8DDCD3;
+  --lps-accent-turquoise-border: #4C9E96;
+  --lps-accent-turquoise-soft: #163330;
+  --lps-accent-turquoise-solid: #69C4BB;
+  --lps-accent-turquoise-on-solid: #07191B;
+  --lps-accent-light-blue-text: #8CCAF3;
+  --lps-accent-light-blue-border: #4F9ACF;
+  --lps-accent-light-blue-soft: #142F43;
+  --lps-accent-light-blue-solid: #6BB7EA;
+  --lps-accent-light-blue-on-solid: #071522;
+
   /* Same six tones against the dark ground: the dots keep their hue so a status
      is recognisable across themes, while bg/fg swap to a deep tint and a light
      ink that clear contrast on #0A0A0A. */
@@ -233,6 +258,16 @@
   --color-lps-bubble: var(--lps-bubble);
   --color-lps-warn-bg: var(--lps-warn-bg);
   --color-lps-warn-fg: var(--lps-warn-fg);
+  --color-lps-accent-turquoise-text: var(--lps-accent-turquoise-text);
+  --color-lps-accent-turquoise-border: var(--lps-accent-turquoise-border);
+  --color-lps-accent-turquoise-soft: var(--lps-accent-turquoise-soft);
+  --color-lps-accent-turquoise-solid: var(--lps-accent-turquoise-solid);
+  --color-lps-accent-turquoise-on-solid: var(--lps-accent-turquoise-on-solid);
+  --color-lps-accent-light-blue-text: var(--lps-accent-light-blue-text);
+  --color-lps-accent-light-blue-border: var(--lps-accent-light-blue-border);
+  --color-lps-accent-light-blue-soft: var(--lps-accent-light-blue-soft);
+  --color-lps-accent-light-blue-solid: var(--lps-accent-light-blue-solid);
+  --color-lps-accent-light-blue-on-solid: var(--lps-accent-light-blue-on-solid);
 }
 
 @layer base {

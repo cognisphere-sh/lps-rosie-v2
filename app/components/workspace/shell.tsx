@@ -52,7 +52,7 @@ export function JobIdentityLink({ request }: { request: { id: number; name: stri
       onClick={(event) => event.stopPropagation()}
       className="flex min-h-11 min-w-0 max-w-[30rem] items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex-none text-[13.5px] font-bold tracking-tight text-primary">
+      <span className="flex-none text-[13.5px] font-bold tracking-tight text-lps-accent-light-blue-text">
         {requestRef(request.id)}
       </span>
       {request.name && (

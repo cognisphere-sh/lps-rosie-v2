@@ -42,6 +42,22 @@ the real schema. Two things the design owns that are easy to lose:
   **Edge Teal** (`#087F8C` light / `#42C7C9` dark), with contrast-matched
   foregrounds; signed-in users can replace it in Settings without changing
   the per-agent chat colors.
+- **Reusable visual accents.** Two hue-named, semantic-neutral families sampled
+  from the Rosie / reference-rail artwork are available in both themes as
+  `--lps-accent-{turquoise,light-blue}-{text,border,soft,solid,on-solid}` (and
+  matching Tailwind `lps-accent-*` colors). `text` is for readable accent copy
+  on normal card/page or `soft`; `border` is a restrained outline or rail;
+  `solid` must be paired with `on-solid`. Fully opaque normal, hover and
+  keyboard-focus treatments keep text at 4.5:1 or better and boundaries at
+  3:1 or better against their actual card, hover-tint and matching soft
+  surfaces. The solid hues remain at least 25° apart (about 30° in the source
+  reference), so turquoise and light blue do not collapse into interchangeable
+  cyans. These are color families, never status/selection/workflow meanings.
+  The All Jobs Rosie label/avatar ring and written `JR-*` reference are
+  representative identity and reference uses; their words/avatar retain the
+  meaning without color.
+  They do not change the saved App header & accent, agent chat themes,
+  status/destructive palettes or mappings.
 - **Dark-mode contrast.** Muted copy, empty states, borders, input outlines,
   header rows and table hairlines use brighter dark-mode tokens than the design
   mock so the dense search workspace remains legible on typical displays.

@@ -15,6 +15,24 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-09
+
+### Changed
+
+- **Rosie turquoise and light-blue reference accents are now reusable without
+  becoming business-state colors** (`app/app/globals.css`,
+  `app/components/workspace/{request-list-card,shell}.tsx`,
+  `app/lib/accent-palette-tokens.test.ts`, `docs/app/README.md`). Two
+  photo-sampled light/dark token families expose text, border, soft, solid and
+  on-solid roles. Tests resolve the real card/hover tokens and require fully
+  opaque normal, hover and keyboard-focus treatments to keep 4.5:1 text, 3:1
+  boundaries and at least 25° turquoise/light-blue solid-hue separation. All
+  Jobs uses turquoise only for its written/avatar Rosie identity cue and light
+  blue only for written `JR-*` references; words and the avatar preserve the
+  meaning.
+  The saved app accent, agent chat themes, status/destructive palettes,
+  selection/workflow semantics, data and behavior are unchanged.
+
 ## 2026-09-08
 
 ### Fixed

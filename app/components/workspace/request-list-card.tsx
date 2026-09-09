@@ -94,7 +94,7 @@ export function RequestCard({
             >
               <span
                 data-mobile-request-jr
-                className="flex-none whitespace-nowrap text-[10.5px] font-semibold text-primary"
+                className="flex-none whitespace-nowrap text-[10.5px] font-semibold text-lps-accent-light-blue-text"
               >
                 {requestRef(request.id)}
               </span>
@@ -157,9 +157,9 @@ export function RequestCard({
                 title={`Chat with Rosie about ${requestRef(request.id)}`}
                 aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
                 data-mobile-request-rosie
-                className="ml-auto flex min-h-11 flex-none cursor-pointer items-center justify-center gap-1.5 rounded-full border-none bg-transparent px-2 text-[11px] font-semibold text-primary opacity-75 hover:opacity-100"
+                className="ml-auto flex min-h-11 flex-none cursor-pointer items-center justify-center gap-1.5 rounded-full border-none bg-transparent px-2 text-[11px] font-semibold text-lps-accent-turquoise-text"
               >
-                <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
+                <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
                 <span className="whitespace-nowrap">Rosie Chat</span>
               </button>
             </div>
@@ -183,7 +183,7 @@ export function RequestCard({
               <ChevronDown size={16} />
             </button>
             <div data-balanced-header-flank="left" className="flex min-w-0 items-center gap-1 overflow-hidden">
-              <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
+              <span className="min-w-0 truncate font-bold text-lps-accent-light-blue-text">{requestRef(request.id)}</span>
               <StatusPill
                 {...edit}
                 column="status"
@@ -217,9 +217,9 @@ export function RequestCard({
                 }}
                 title={`Chat with Rosie about ${requestRef(request.id)}`}
                 aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
-                className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent opacity-75 outline-none hover:bg-muted hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <Image src="/rosie.png" alt="" width={24} height={24} className="size-6 rounded-full object-cover" />
+                <Image src="/rosie.png" alt="" width={24} height={24} className="size-6 rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
               </button>
             </div>
             <button
@@ -277,9 +277,9 @@ export function RequestCard({
               }}
               title={`Chat with Rosie about ${requestRef(request.id)}`}
               aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
-              className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent opacity-75 hover:opacity-100 md:size-[22px]"
+              className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent hover:bg-muted md:size-[22px]"
             >
-              <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover" />
+              <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
             </button>
             {/* Exactly one resolved responsive branch owns whole-job deletion. */}
             {mobile === false && (
