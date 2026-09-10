@@ -353,6 +353,11 @@ this file exists.
 - **Supplier access should match the work** — Chris’s access design: web access should be frictionless for a single availability request, while nursery power users can install/authenticate. LPS Ops or Nursery Ops can share a public link for one request; it expires when that request changes status. A nursery power user needs a fast way to share with their team for updates, and prospective nurseries must not be forced to authenticate. Authentication/device trust is for Nursery Ops’ aggregate sensitive data, not a prerequisite to a one-off request. _(via telegram / Lily task handoff)_
   → supplier-access-authentication + out-of-network-public-availability-request
 
+## 2026-09-10
+
+- **Public availability requests delivered** — Bhoumik reports that Share → Make public now creates a no-sign-in, single-request supplier URL for active LPS Partners; it supports the portal request layout, response, printing and submission, Copy/Copied confirmation, Make private revocation, agent-created public requests, and expiry when the Job status changes. Audit confirms that bounded active-Partner slice. It does **not** yet let a prospective out-of-network non-Partner receive the request; nor does it deliver the authenticated Nursery Ops/team/device/aggregate-access or access-audit contract Chris described. _(via Bhoumik / Lily task handoff)_
+  → supplier-access-authentication + out-of-network-public-availability-request
+
 - **Wholesale request work buckets** — Chris defined the portal/wholesale request buckets as **New**, **Processing**, **Completed**: New blue, Processing amber/orange, Completed green, with the same semantic treatment in filters/counts and rows/cards. Red is only error/blocked/destructive; labels/icons must not rely on color. He wants multi-select rather than one tab: New + Processing opens by default, Completed excluded; Select all gets all three; a completed request leaves the active selection immediately; counts and all-caught-up state must be truthful. The future date and Delivery/Pickup top line waits for Bhoumik’s persisted contract—no inference. _(via nova handoff)_
   → portal-request-work-buckets
 

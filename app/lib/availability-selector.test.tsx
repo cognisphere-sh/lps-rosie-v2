@@ -69,7 +69,7 @@ test('portal picker opens a themed listbox with unanswered plus the five canonic
     />,
   )
 
-  const trigger = view.getByRole('button', { name: 'Line status, Arriving soon' })
+  const trigger = view.getByRole('button', { name: 'Line status, Arriving Soon' })
   assert.equal(trigger.getAttribute('aria-haspopup'), 'listbox')
   assert.equal(trigger.getAttribute('aria-expanded'), 'false')
   assert.equal(view.queryByRole('combobox'), null)
@@ -81,12 +81,12 @@ test('portal picker opens a themed listbox with unanswered plus the five canonic
   const options = within(listbox).getAllByRole('option')
   assert.deepEqual(
     options.map((option) => option.children[1]?.textContent),
-    ['Set status', 'Available', 'Can order', 'Diff Size/Qty/Sub', 'Arriving soon', 'Unavailable'],
+    ['Available', 'Unavailable', 'Different Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
   )
-  assert.equal(within(listbox).getByRole('option', { name: 'Arriving soon' }).getAttribute('aria-selected'), 'true')
+  assert.equal(within(listbox).getByRole('option', { name: 'Arriving Soon' }).getAttribute('aria-selected'), 'true')
   assert.match(within(listbox).getByRole('option', { name: 'Unavailable' }).className, /min-h-9/)
 
-  await user.click(within(listbox).getByRole('option', { name: 'Set status' }))
+  await user.click(within(listbox).getByRole('option', { name: 'Pending' }))
   assert.deepEqual(patches, [[19, { status: '' }]])
   assert.equal(view.queryByRole('listbox'), null)
   assert.equal(document.activeElement, trigger)
@@ -103,7 +103,7 @@ test('portal picker supports arrow, Enter and Escape while preserving direct Ava
       onPatch={async (id, changes) => { patches.push([id, changes]) }}
     />,
   )
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   trigger.focus()
   await user.keyboard('{ArrowDown}')
   const available = view.getByRole('option', { name: 'Available' })
@@ -130,8 +130,8 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
     />,
   )
 
-  await user.click(view.getByRole('button', { name: 'Line status, Set status' }))
-  await user.click(view.getByRole('option', { name: 'Can order' }))
+  await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
+  await user.click(view.getByRole('option', { name: 'Need to Order' }))
   assert.equal(view.getByLabelText('Price per unit').getAttribute('value'), '12.5')
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
@@ -159,7 +159,7 @@ test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed
       <button type="button">After status</button>
     </>,
   )
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   const before = view.getByRole('button', { name: 'Before status' })
   const after = view.getByRole('button', { name: 'After status' })
   for (const candidate of document.querySelectorAll<HTMLElement>('[data-refuses-focus]')) {
@@ -183,7 +183,7 @@ test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed
 test('Tab boundaries close the portal and release focus deterministically', async () => {
   const user = userEvent.setup({ document })
   const forward = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
-  const forwardTrigger = forward.getByRole('button', { name: 'Line status, Set status' })
+  const forwardTrigger = forward.getByRole('button', { name: 'Line status, Pending' })
   await user.click(forwardTrigger)
   await user.keyboard('{Tab}')
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -192,7 +192,7 @@ test('Tab boundaries close the portal and release focus deterministically', asyn
   forward.unmount()
 
   const backward = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
-  const backwardTrigger = backward.getByRole('button', { name: 'Line status, Set status' })
+  const backwardTrigger = backward.getByRole('button', { name: 'Line status, Pending' })
   await user.click(backwardTrigger)
   await user.keyboard('{Shift>}{Tab}{/Shift}')
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -203,18 +203,18 @@ test('Tab boundaries close the portal and release focus deterministically', asyn
 test('buffered typeahead reaches multi-character matches and repeated letters cycle matches', async () => {
   const user = userEvent.setup({ document })
   const view = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
 
   await user.click(trigger)
   await user.keyboard('ar')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving soon' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
 
   await user.keyboard('{Escape}')
   await user.click(trigger)
   await user.keyboard('a')
   assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
   await user.keyboard('a')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving soon' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
 
   await new Promise((resolve) => setTimeout(resolve, 550))
   await user.keyboard('a')
@@ -224,17 +224,17 @@ test('buffered typeahead reaches multi-character matches and repeated letters cy
 test('ArrowUp wraps and Home, End and Space operate the focused choice', async () => {
   const user = userEvent.setup({ document })
   const view = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   trigger.focus()
 
   await user.keyboard('{ArrowUp}')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Unavailable' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
   await user.keyboard('{Home}')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Set status' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
   await user.keyboard('{End}')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Unavailable' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Pending' }))
   await user.keyboard('{ArrowUp}')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving soon' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
   await user.keyboard(' ')
   assert.equal(view.queryByRole('listbox'), null)
   assert.ok(view.getByRole('button', { name: 'Save answer' }))
@@ -257,7 +257,7 @@ test('pointer and touch dismissal, repeated opening and portal clicks do not rea
       <button type="button">Outside picker</button>
     </>,
   )
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   const outside = view.getByRole('button', { name: 'Outside picker' })
 
   await user.click(trigger)
@@ -277,7 +277,7 @@ test('pointer and touch dismissal, repeated opening and portal clicks do not rea
 test('portalled surface repositions above or below, clamps to the viewport, and cleans up on unmount', async () => {
   const user = userEvent.setup({ document })
   const view = render(<LineStatusPicker item={item()} editable portal onPatch={async () => {}} />)
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   const add = document.addEventListener.bind(document)
   const remove = document.removeEventListener.bind(document)
   let pointerAdds = 0
@@ -366,13 +366,13 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
     fireEvent(window, new dom.window.Event('resize'))
     await new Promise((resolve) => setTimeout(resolve, 5))
   })
-  const unavailable = view.getByRole('option', { name: 'Unavailable' })
+  const unavailable = view.getByRole('option', { name: 'Arriving Soon' })
   let scrollCalls = 0
   Object.defineProperty(unavailable, 'scrollIntoView', {
     configurable: true,
     value: () => { scrollCalls += 1 },
   })
-  await user.keyboard('{End}')
+  await user.keyboard('{End}{ArrowUp}{ArrowUp}{ArrowDown}')
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(document.activeElement, unavailable)
   assert.ok(scrollCalls >= 1)
@@ -417,7 +417,7 @@ test('close, rapid reopen and unmount cancel stale focus and position animation 
       <button type="button">Stable outside focus</button>
     </>,
   )
-  const trigger = view.getByRole('button', { name: 'Line status, Set status' })
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   const outside = view.getByRole('button', { name: 'Stable outside focus' })
 
   await user.click(trigger)
@@ -438,7 +438,7 @@ test('close, rapid reopen and unmount cancel stale focus and position animation 
       callback(0)
     }
   })
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Set status' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Pending' }))
 
   await user.click(trigger)
   await user.click(trigger)
@@ -456,6 +456,6 @@ test('admin line picker remains the existing native select', () => {
   const select = view.getByRole('combobox', { name: 'Line status' })
   assert.deepEqual(
     within(select).getAllByRole('option').map((option) => option.textContent),
-    ['Set status…', 'Available', 'Can order', 'Diff Size/Qty/Sub', 'Arriving soon', 'Unavailable'],
+    ['Available', 'Unavailable', 'Different Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
   )
 })

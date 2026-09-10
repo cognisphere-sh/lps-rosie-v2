@@ -13,27 +13,22 @@
 
 import { AnswerCell, LineStatusPicker } from '@/components/workspace/availability'
 import {
+  AR_RESPONSE_OPTIONS,
+  arResponseTone,
   groupSupplierItems,
   type SupplierItemGroup,
   type SupplierItemLine,
 } from '@/lib/availability'
+import { toneDot } from '@/lib/job-requests'
 import { money, num } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 
-/**
- * The board's cards: the five answers a line can carry, in the comp's order,
- * plus the unanswered state (the *Set status* pill's own words) for the lines
- * nobody has answered yet — which would otherwise be on no card at all.
- * Nothing derived: a card is exactly `availability_request_items.status`.
- */
-const CARDS: { status: string | null; label: string; color: string }[] = [
-  { status: 'can_order', label: 'Need to Order', color: '#E08A3A' },
-  { status: 'arriving_soon', label: 'Arriving Soon', color: '#3B8BF5' },
-  { status: 'diff_size_qty_sub', label: 'Diff Size/Qty/Sub', color: '#8F7CF6' },
-  { status: 'available', label: 'Available', color: '#3DBB6A' },
-  { status: 'unavailable', label: 'Unavailable', color: '#E5484D' },
-  { status: null, label: 'Set Status', color: '#8C9E8E' },
-]
+/** Same six choices as every availability-request line picker. */
+const CARDS = AR_RESPONSE_OPTIONS.map((o) => ({
+  status: o.value || null,
+  label: o.label,
+  color: toneDot(arResponseTone(o.value || null)),
+}))
 
 /** The quantity asked across some lines — the card's total and a plant's. */
 const demandOf = (lines: SupplierItemLine[]) =>

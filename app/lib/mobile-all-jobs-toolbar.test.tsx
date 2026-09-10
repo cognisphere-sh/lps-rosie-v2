@@ -116,7 +116,7 @@ afterEach(() => {
   dom.window.close()
 })
 
-const BASELINE = ['Sourcing', 'Quote Delivered', 'Closed won', 'Closed lost']
+const BASELINE = ['New', 'In Progress', 'Confirmed', 'Closed Won', 'Closed Lost']
 
 function useRequestChips() {
   const [status, setStatus] = useState(BASELINE)
@@ -125,7 +125,7 @@ function useRequestChips() {
   const [created, setCreated] = useState<string[]>([])
   const [updated, setUpdated] = useState<string[]>([])
   return [
-    { label: 'Status', values: status, options: [...BASELINE, 'Archived'], onChange: setStatus, allLabel: 'All statuses' },
+    { label: 'Status', values: status, options: BASELINE, onChange: setStatus, allLabel: 'All statuses' },
     { label: 'Item status', values: itemStatus, options: ['Pending', 'Available'], onChange: setItemStatus, allLabel: 'All item statuses' },
     { label: 'Customer', values: customer, options: ['Oak Hill'], onChange: setCustomer, allLabel: 'All customers' },
     { label: 'Created', values: created, options: ['Today', 'Last 7 days'], onChange: setCreated, allLabel: 'All time', single: true },
@@ -167,7 +167,7 @@ test('mobile Filters portals one real modal, isolates/restores exact background 
   for (const status of BASELINE) {
     assert.equal((within(dialog).getByRole('checkbox', { name: status }) as HTMLInputElement).checked, true)
   }
-  assert.equal((within(dialog).getByRole('checkbox', { name: 'Archived' }) as HTMLInputElement).checked, false)
+  assert.equal((within(dialog).getByRole('checkbox', { name: 'Confirmed' }) as HTMLInputElement).checked, true)
   const close = within(dialog).getByRole('button', { name: 'Close filters' })
   const clear = within(dialog).getByRole('button', { name: 'Clear all filters' })
   assert.equal(document.activeElement, close)
@@ -212,7 +212,7 @@ test('baseline status is zero active groups while real deviations and other grou
   await user.click(trigger)
   await waitFor(() => assert.ok(document.body.querySelector('[data-request-filter-portal]')))
   const portal = document.body.querySelector('[data-request-filter-portal]') as HTMLElement
-  await user.click(within(portal).getByRole('checkbox', { name: 'Archived' }))
+  await user.click(within(portal).getByRole('checkbox', { name: 'Confirmed' }))
   assert.equal(trigger.getAttribute('aria-label'), 'Filters, 1 active')
   await user.click(within(portal).getByRole('checkbox', { name: 'Oak Hill' }))
   assert.equal(trigger.getAttribute('aria-label'), 'Filters, 2 active')
@@ -234,7 +234,7 @@ function DesktopAction() {
 function ItemStatusIsolationHarness({ resolved }: { resolved: boolean }) {
   const [itemStatus, setItemStatus] = useState(['Pending'])
   const chips: Chip[] = [
-    { label: 'Status', values: BASELINE, options: [...BASELINE, 'Archived'], onChange: () => {}, allLabel: 'All statuses' },
+    { label: 'Status', values: BASELINE, options: BASELINE, onChange: () => {}, allLabel: 'All statuses' },
     { label: 'Item status', values: itemStatus, options: ['Pending', 'Available'], onChange: setItemStatus, allLabel: 'All item statuses' },
   ]
   const effective = resolved === false ? itemStatus : []
@@ -289,7 +289,7 @@ test('desktop Item status is parked across mobile with no mobile DOM, badge or q
   assert.equal(new URLSearchParams(view.container.firstElementChild?.getAttribute('data-effective-query') ?? '').get('itemStatus'), 'pending')
   assert.ok(view.getByRole('button', { name: 'Pending' }))
   const page = source('app/requests/page.tsx')
-  assert.match(page, /setItemStatus\(Array\.isArray\(saved\.itemStatus\)/)
+  assert.match(page, /setItemStatus\(normalizeStoredRequestStatusLabels\(saved\.itemStatus/)
   assert.match(page, /JSON\.stringify\(\{ query, status, itemStatus, customer/)
   assert.match(page, /effectiveItemStatus = requestsMobile === false \? itemStatus : \[\]/)
   assert.match(page, /itemStatus: effectiveItemStatus/)
@@ -299,7 +299,7 @@ test('desktop Item status is parked across mobile with no mobile DOM, badge or q
 test('legacy persisted Quoted filter restores and saves canonically without losing quoted jobs or creating a false deviation', () => {
   const storageKey = 'lps.requests.visit.v1'
   window.sessionStorage.setItem(storageKey, JSON.stringify({
-    status: ['Sourcing', 'Quoted', 'Closed won', 'Closed lost'],
+    status: ['Sourcing', 'Quoted', 'Availability', 'Confirmed', 'Closed won', 'Closed lost'],
   }))
   const stored = JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null') as { status: unknown }
   const legacy = normalizeStoredRequestStatusLabels(
@@ -309,7 +309,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
   )
   assert.deepEqual(legacy, BASELINE)
   assert.equal(legacy.includes('Quoted'), false)
-  assert.equal(legacy.includes('Quote Delivered'), true)
+  assert.equal(legacy.includes('In Progress'), true)
   assert.equal(requestFilterActiveCount([
     { label: 'Status', values: legacy, options: REQUEST_STATUS_OPTIONS.map((option) => option.label), onChange: () => {}, allLabel: '' },
   ], BASELINE), 0)
@@ -323,17 +323,17 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
     requestStatusOptions: REQUEST_STATUS_OPTIONS,
     itemStatusOptions: ITEM_STATUS_OPTIONS,
   })
-  assert.equal(new URLSearchParams(query).get('status'), 'sourcing,quoted,closed_won,closed_lost')
+  assert.equal(new URLSearchParams(query).get('status'), 'sourcing,quoted,confirmed,closed_won,closed_lost')
   window.sessionStorage.setItem(storageKey, JSON.stringify({ ...stored, status: legacy }))
   assert.deepEqual(JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null').status, BASELINE)
 
   assert.deepEqual(
     normalizeStoredRequestStatusLabels(
-      ['Quoted', 'Quote Delivered', 'Bogus', 7, null, 'Sourcing'],
+      ['Quoted', 'Quote', 'Bogus', 7, null, 'Active'],
       REQUEST_STATUS_OPTIONS,
       BASELINE,
     ),
-    ['Quote Delivered', 'Sourcing'],
+    ['In Progress', 'New'],
   )
   assert.deepEqual(
     normalizeStoredRequestStatusLabels({ status: ['Quoted'] }, REQUEST_STATUS_OPTIONS, BASELINE),
@@ -361,10 +361,10 @@ test('mobile filter state rerenders preserve the chosen keyboard control while e
   let dialog = within(portal).getByRole('dialog', { name: 'Filters' })
   assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Close filters' }))
 
-  const archived = within(dialog).getByRole('checkbox', { name: 'Archived' }) as HTMLInputElement
-  await user.click(archived)
-  assert.equal(archived.checked, true)
-  assert.equal(document.activeElement, archived)
+  const confirmed = within(dialog).getByRole('checkbox', { name: 'Confirmed' }) as HTMLInputElement
+  await user.click(confirmed)
+  assert.equal(confirmed.checked, false)
+  assert.equal(document.activeElement, confirmed)
   assert.ok(document.body.contains(dialog))
 
   assert.equal(within(dialog).queryByText('Item status'), null)
@@ -393,7 +393,7 @@ test('mobile filter state rerenders preserve the chosen keyboard control while e
   portal = document.body.querySelector('[data-request-filter-portal]') as HTMLElement
   dialog = within(portal).getByRole('dialog', { name: 'Filters' })
   assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Close filters' }))
-  assert.equal((within(dialog).getByRole('checkbox', { name: 'Archived' }) as HTMLInputElement).checked, true)
+  assert.equal((within(dialog).getByRole('checkbox', { name: 'Confirmed' }) as HTMLInputElement).checked, false)
   assert.equal(within(dialog).queryByText('Item status'), null)
   assert.equal(within(dialog).queryByRole('checkbox', { name: 'Pending' }), null)
   assert.equal((within(within(dialog).getByText('Created', { selector: 'legend' }).closest('fieldset') as HTMLElement)
@@ -417,14 +417,14 @@ test('unresolved/mobile/desktop each own exactly one branch and crossings close 
   assert.equal(view.getAllByRole('textbox', { name: 'Search plants, customers, JR-…' }).length, 1)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   assert.equal(actionMounts, 1)
-  await user.click(view.getByRole('button', { name: 'Status · 4' }))
-  assert.ok(view.getByRole('button', { name: 'Archived' }))
+  await user.click(view.getByRole('button', { name: 'Status · 5' }))
+  assert.ok(view.getByRole('button', { name: 'Confirmed' }))
 
   view.rerender(<ToolbarHarness resolved />)
   await settle()
   assert.ok(view.container.querySelector('[data-requests-toolbar-branch="mobile"]'))
   assert.equal(view.getAllByRole('textbox', { name: 'Search plants, customers, JR-…' }).length, 1)
-  assert.equal(view.queryByRole('button', { name: 'Status · 4' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Status · 5' }), null)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 0)
   assert.equal(actionUnmounts, 1)
   assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Search plants, customers, JR-…' }))
@@ -439,10 +439,10 @@ test('unresolved/mobile/desktop each own exactly one branch and crossings close 
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Search plants, customers, JR-…' }))
 
-  await user.click(view.getByRole('button', { name: 'Status · 4' }))
+  await user.click(view.getByRole('button', { name: 'Status · 5' }))
   view.rerender(<ToolbarHarness resolved />)
   await settle()
-  assert.equal(view.queryByRole('button', { name: 'Archived' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Confirmed' }), null)
   await user.click(view.getByRole('button', { name: 'Filters' }))
   await waitFor(() => assert.equal(document.querySelectorAll('#request-filter-surface').length, 1))
   await user.keyboard('{Escape}')
@@ -645,7 +645,7 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
   assert.equal(view.queryByRole('button', { name: /Expand|Collapse/ }), null)
   assert.equal(view.container.querySelector('[data-mobile-request-chevron]'), null)
   assert.equal(view.container.querySelector('[data-compact-status-token]'), null)
-  assert.equal(view.getByRole('button', { name: 'Quote Delivered' }).textContent?.replace(/\s+/g, ' ').trim(), 'Quote Delivered')
+  assert.equal(view.getByRole('button', { name: 'In Progress' }).textContent?.replace(/\s+/g, ' ').trim(), 'In Progress')
   assert.equal(view.getByRole('link', { name: `Open JR-27 — ${longRequest.name}` }).textContent, `Land Water Light · ${longRequest.name}`)
   assert.equal(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).textContent?.trim(), 'Rosie Chat')
   assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).className, /min-h-11/)
@@ -679,10 +679,11 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
 
 test('v3 mobile sales states remain fully written and blank Job never repeats the JR fallback in identity', () => {
   const canonical = [
-    ['sourcing', 'Sourcing'],
-    ['quoted', 'Quote Delivered'],
-    ['closed_won', 'Closed won'],
-    ['closed_lost', 'Closed lost'],
+    ['sourcing', 'New'],
+    ['quoted', 'In Progress'],
+    ['confirmed', 'Confirmed'],
+    ['closed_won', 'Closed Won'],
+    ['closed_lost', 'Closed Lost'],
     ['archived', 'Archived'],
   ] as const
   const view = render(<StaticCard request={{ ...REQUEST, status: canonical[0][0] }} mobile />)
@@ -711,7 +712,7 @@ test('v3 ignores inline expansion state on mobile while expanded desktop keeps c
   assert.match((view.container.querySelector('[data-mobile-pending-summary]') as HTMLElement).textContent ?? '', /7\s*Pending/)
 
   view.rerender(<StaticCard request={request} mobile={false} expanded />)
-  for (const label of ['Pending', 'Available', 'Substituted', 'Unavailable']) assert.ok(view.getByText(label))
+  for (const label of ['Available', 'Unavailable', 'Different Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending']) assert.ok(view.getByText(label))
   assert.ok(view.getByRole('button', { name: 'Delete JR-27' }))
   assert.ok(view.getByRole('button', { name: 'Job details & notes' }))
 })

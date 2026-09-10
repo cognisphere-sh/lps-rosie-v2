@@ -4,21 +4,11 @@ import { ARLineTable } from './availability'
 import { ARPrintSheet } from './ar-print-sheet'
 import { ChevronDown } from './icons'
 import { partnerRequestName as requestName } from './partner'
-import { arStatusLabel, arSubtotal, type ARDetail, type ARItem } from '@/lib/availability'
+import { AR_RESPONSE_OPTIONS, arResponseTone, arStatusLabel, arSubtotal, type ARDetail, type ARItem } from '@/lib/availability'
+import { toneDot } from '@/lib/job-requests'
 import { money } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
-
-/**
- * The page's accents (2026-08-30 design), one per answer. Fixed hexes with translucent fills so they read
- * on both themes — the same set the home list uses for its tabs.
- */
-const ACCENT = {
-  green: '#3DBB6A',
-  blue: '#3B8BF5',
-  orange: '#E08A3A',
-  red: '#E5484D',
-} as const
 
 /** "Friday | 08/29/2026" — the header strip's date. */
 function formatStripDate(value: string) {
@@ -47,17 +37,11 @@ function Field({ label, align = 'left', children }: { label: string; align?: 'le
  * accent, then the line count and the subtotal. A zero is drawn as a dash in the same accent rather than dropped.
  */
 function SummaryStrip({ items }: { items: ARItem[] }) {
-  const counts: Record<string, number> = {}
-  for (const it of items) {
-    if (it.status) counts[it.status] = (counts[it.status] ?? 0) + 1
-  }
-  const cells: { label: string; value: number; color: string }[] = [
-    { label: 'Available', value: counts.available ?? 0, color: ACCENT.green },
-    { label: 'Can Order', value: counts.can_order ?? 0, color: ACCENT.blue },
-    { label: 'Diff Size/Qty', value: counts.diff_size_qty_sub ?? 0, color: ACCENT.orange },
-    { label: 'Arriving Soon', value: counts.arriving_soon ?? 0, color: ACCENT.blue },
-    { label: 'Unavailable', value: counts.unavailable ?? 0, color: ACCENT.red },
-  ]
+  const cells = AR_RESPONSE_OPTIONS.map((o) => ({
+    label: o.label,
+    value: items.filter((item) => (item.status ?? '') === o.value).length,
+    color: toneDot(arResponseTone(o.value || null)),
+  }))
   const subtotal = arSubtotal(items)
   return (
     <div className="rounded-2xl border border-border bg-card px-4 py-5 md:px-6 md:py-6">

@@ -47,6 +47,7 @@ const ACCENT = {
 type Accent = keyof typeof ACCENT
 const ITEM_ACCENT: Record<ItemFilterId, Accent | null> = {
   all: null,
+  pending: null,
   available: 'green',
   can_order: 'blue',
   arriving_soon: 'blue',

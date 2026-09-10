@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { customerThreadId } from '@/lib/customers'
+import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -45,7 +46,7 @@ async function rosieDirectory(): Promise<ChatDirectory> {
       .select('id, name, status, customer_id, updated_at')
       .eq('is_active', true)
       // A closed job's thread is closed with it (migration 0080).
-      .in('status', ['sourcing', 'quoted'])
+      .in('status', [...ACTIVE_JOB_STATUSES])
       .order('updated_at', { ascending: false })
       .limit(100),
     supabase

@@ -38,7 +38,8 @@ export function availabilityRequestLinkLabel(
 /**
  * `availability_request_items.status` — the supplier's answer, in the order the
  * portal's picker offers it. NULL is a real state (not answered yet) and
- * renders as "Set status".
+ * renders as "Pending". Selecting Pending saves NULL without clearing the
+ * quantities, prices or notes; it is not a supplier answer.
  *
  * `diff_size_qty_sub` was `substitute` until migration 0076: the answer covers
  * a different size or quantity as well as a different plant, so the stored
@@ -46,10 +47,10 @@ export function availabilityRequestLinkLabel(
  */
 export const AR_RESPONSES = [
   'available',
-  'can_order',
-  'diff_size_qty_sub',
-  'arriving_soon',
   'unavailable',
+  'diff_size_qty_sub',
+  'can_order',
+  'arriving_soon',
 ] as const
 export type ARResponse = (typeof AR_RESPONSES)[number]
 
@@ -59,21 +60,21 @@ export type ARResponse = (typeof AR_RESPONSES)[number]
 // (`grey` is not free: it is what an unanswered line reads as).
 export const AR_RESPONSE_META: Record<ARResponse, { label: string; tone: Tone }> = {
   available: { label: 'Available', tone: 'green' },
-  can_order: { label: 'Can order', tone: 'amber' },
-  diff_size_qty_sub: { label: 'Diff Size/Qty/Sub', tone: 'teal' },
-  arriving_soon: { label: 'Arriving soon', tone: 'lime' },
+  can_order: { label: 'Need to Order', tone: 'amber' },
+  diff_size_qty_sub: { label: 'Different Sz/Qnty/Sub', tone: 'teal' },
+  arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
   unavailable: { label: 'Unavailable', tone: 'red' },
 }
 
 export const arResponseLabel = (s: string | null) =>
-  s == null ? 'Set status' : AR_RESPONSE_META[s as ARResponse]?.label ?? s
+  s == null ? 'Pending' : AR_RESPONSE_META[s as ARResponse]?.label ?? s
 export const arResponseTone = (s: string | null): Tone =>
   s == null ? 'grey' : AR_RESPONSE_META[s as ARResponse]?.tone ?? 'grey'
 
-export const AR_RESPONSE_OPTIONS = AR_RESPONSES.map((v) => ({
-  value: v,
-  label: AR_RESPONSE_META[v].label,
-}))
+export const AR_RESPONSE_OPTIONS = [
+  ...AR_RESPONSES.map((v) => ({ value: v, label: AR_RESPONSE_META[v].label })),
+  { value: '', label: 'Pending' },
+]
 
 /** One line shared with the supplier, with their answer. */
 export interface ARItem {

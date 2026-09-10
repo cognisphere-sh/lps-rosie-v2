@@ -16,10 +16,10 @@ const valuesOf = (labels: string[], options: readonly RequestFilterOption[]) =>
 const daysFor = (label: string) => REQUEST_DATE_RANGES.find((range) => range.label === label)?.days
 
 /**
- * Restore persisted display labels after the quoted-status copy changed.
+ * Restore persisted display labels after the sales vocabulary changed.
  *
- * The stored filter intentionally remains label-based. Only the one exact
- * legacy label migrates; malformed/unknown entries keep the old fail-closed
+ * The stored filter intentionally remains label-based. Known
+ * legacy labels migrate; malformed/unknown entries keep the old fail-closed
  * behavior, and mixed old/new copies collapse to one canonical selection.
  */
 export function normalizeStoredRequestStatusLabels(
@@ -30,11 +30,22 @@ export function normalizeStoredRequestStatusLabels(
   if (!Array.isArray(stored)) return [...fallback]
   const allowed = new Set(options.map((option) => option.label))
   const normalized: string[] = []
+  const legacy: Record<string, string> = {
+    Substituted: 'Different Sz/Qnty/Sub', Sourcing: 'New', Active: 'New',
+    Quoted: 'In Progress', Quote: 'In Progress', 'Quote Delivered': 'In Progress', Availability: 'In Progress',
+    'Closed won': 'Closed Won', 'Closed lost': 'Closed Lost',
+  }
   for (const value of stored) {
     if (typeof value !== 'string') continue
-    const label = value === 'Quoted' ? 'Quote Delivered' : value
+    const label = legacy[value] ?? value
     if (allowed.has(label) && !normalized.includes(label)) normalized.push(label)
   }
+  // The old default selected every non-archived stage. Keep that intent when
+  // preserving Confirmed, instead of hiding those jobs.
+  const oldDefault = ['New', 'In Progress', 'Closed Won', 'Closed Lost']
+  if (stored.some((value) => typeof value === 'string' && Object.hasOwn(legacy, value))
+    && normalized.length === 4 && oldDefault.every((label) => normalized.includes(label))
+    && allowed.has('New') && allowed.has('Confirmed')) return [...fallback]
   return normalized
 }
 

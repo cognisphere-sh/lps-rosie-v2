@@ -5,34 +5,32 @@
 // the two are reconciled — add a status here and to the migration's CHECK, and
 // nowhere else.
 
-/** `job_requests.status` — the CHECK vocabulary, in lifecycle order. */
+/** Selectable job stages. Existing stored values retain their history. */
 export const REQUEST_STATUSES = [
   'sourcing',
   'quoted',
+  'confirmed',
   'closed_won',
   'closed_lost',
-  'archived',
 ] as const
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
 /** The existing open Job Request lifecycle shared by Jobs surfaces. */
-export const ACTIVE_JOB_STATUSES = ['sourcing', 'quoted'] as const satisfies readonly RequestStatus[]
+export const ACTIVE_JOB_STATUSES = ['sourcing', 'quoted', 'confirmed'] as const satisfies readonly RequestStatus[]
 export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_STATUSES)[number] =>
   (ACTIVE_JOB_STATUSES as readonly string[]).includes(status)
 
 /**
- * `job_request_items.status` — the CHECK vocabulary, in lifecycle order.
- *
- * Four words, since migration 0058: `pending` → `available`, with
- * `alternative_proposed` and `unavailable` as the other two endings. What is
- * being *done* about a pending line is not a status — it is the timestamped
- * `sourcing_notes` sheet, which also says what was found out.
+ * `job_request_items.status` — the CHECK vocabulary, in picker order.
+ * Existing alternative_proposed rows retain their stored value and notes.
  */
 export const ITEM_STATUSES = [
-  'pending',
   'available',
-  'alternative_proposed',
   'unavailable',
+  'alternative_proposed',
+  'need_to_order',
+  'arriving_soon',
+  'pending',
 ] as const
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
 
@@ -62,28 +60,30 @@ export const toneTint = (tone: Tone) =>
   `color-mix(in srgb, var(--lps-tone-${tone}-bg) 40%, transparent)`
 
 export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: Tone }> = {
-  sourcing: { label: 'Sourcing', tone: 'amber' },
-  quoted: { label: 'Quote Delivered', tone: 'teal' },
-  closed_won: { label: 'Closed won', tone: 'green' },
-  closed_lost: { label: 'Closed lost', tone: 'red' },
-  archived: { label: 'Archived', tone: 'grey' },
+  sourcing: { label: 'New', tone: 'amber' },
+  quoted: { label: 'In Progress', tone: 'teal' },
+  confirmed: { label: 'Confirmed', tone: 'green' },
+  closed_won: { label: 'Closed Won', tone: 'green' },
+  closed_lost: { label: 'Closed Lost', tone: 'red' },
 }
 
 export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }> = {
   pending: { label: 'Pending', tone: 'grey' },
   available: { label: 'Available', tone: 'green' },
-  alternative_proposed: { label: 'Substituted', tone: 'teal' },
+  alternative_proposed: { label: 'Different Sz/Qnty/Sub', tone: 'teal' },
   unavailable: { label: 'Unavailable', tone: 'red' },
+  need_to_order: { label: 'Need to Order', tone: 'amber' },
+  arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
 }
 
 export const requestStatusLabel = (s: string) =>
-  REQUEST_STATUS_META[s as RequestStatus]?.label ?? s
+  REQUEST_STATUS_META[s as RequestStatus]?.label ?? (s === 'archived' ? 'Archived' : s)
 export const REQUEST_STATUS_TOKENS: Record<RequestStatus, string> = {
-  sourcing: 'Src',
-  quoted: 'QD',
+  sourcing: 'New',
+  quoted: 'IP',
+  confirmed: 'Cfm',
   closed_won: 'Won',
   closed_lost: 'Lost',
-  archived: 'Arc',
 }
 export const requestStatusToken = (s: string) => REQUEST_STATUS_TOKENS[s as RequestStatus] ?? '?'
 export const requestStatusTone = (s: string): Tone =>
@@ -102,10 +102,8 @@ export function coverOf(quantity: number | null, available: number | null): Cove
 /**
  * The pill an item shows.
  *
- * The design draws "Partial" as its own state, but partial-ness is a fact about
- * two numbers, not a status someone sets — so it is derived here. It only
- * overrides a status that claims the item is covered (`available`); an
- * explicitly `unavailable` line keeps its own word whatever the numbers say.
+ * Quantity coverage can tint Available, while its label remains the saved
+ * status. The quantity cells show the shortfall separately.
  */
 export function itemPill(
   status: string,
@@ -114,7 +112,7 @@ export function itemPill(
 ): { label: string; tone: Tone } {
   const meta = ITEM_STATUS_META[status as ItemStatus] ?? { label: status, tone: 'grey' as Tone }
   if (status === 'available' && coverOf(quantity, available) === 'partial') {
-    return { label: 'Partial', tone: 'lime' }
+    return { label: meta.label, tone: 'lime' }
   }
   return meta
 }

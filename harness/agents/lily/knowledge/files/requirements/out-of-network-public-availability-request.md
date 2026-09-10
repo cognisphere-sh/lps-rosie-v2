@@ -1,10 +1,10 @@
 # Let an out-of-network supplier answer one live availability request
 
-- Status: staged
+- Status: staged · partially shipped
 - Route: bhoumik
 - Priority: 2 — Bhoumik weekly priority (2026-09-01)
 - Raised: 2026-08-28 by Chris (via telegram); prioritized 2026-09-01 by Bhoumik
-- Updated: 2026-09-01
+- Updated: 2026-09-10
 
 ## Problem
 
@@ -47,13 +47,20 @@ The request must retain the same clear distinction between LPS-entered informati
 - The shared view is a bounded request link, not public discovery or a general unauthenticated supplier account.
 - The existing human-tone email requirement governs wording of the initial ask; this requirement governs the access and response workflow.
 
-## Open questions
+## Delivered slice (2026-09-10 audit)
 
+For an **active LPS Partner**, LPS can now create/publish one request, copy a live request-specific URL, let its holder view and answer that request without sign-in, and revoke it. The page uses the shared request data and response flow rather than a static emailed plant list.
+
+## Remaining contract / open questions
+
+- **Bhoumik:** Deliver the actual prospective/out-of-network path. Current availability-request creation and public publication still require an active LPS Partner, so an eligible non-Partner prospective wholesale nursery cannot receive this request or URL.
+- **Bhoumik/Rosie:** Define the approved formatted email/send path and recipient/correlation workflow. The implemented Share control copies a URL; it does not send the formatted availability-request email Chris asked for.
 - **Bhoumik:** Confirm whether “individual availability request” means one supplier-specific request (the working reading) or a request limited to one plant line. This determines the creation flow and its relationship to the present selected-line request action.
-- **Bhoumik:** Define the safe recipient verification, link lifetime/revocation, response permissions and how a response is correlated with the supplier and Job Request.
+- **Bhoumik:** Define the timed lifetime, complete audit/attribution, response/change-history, and correct status/lifecycle expiry rule; see `supplier-access-authentication`. The current Job-status-change closure may end a request before the late supplier-update period Chris requires.
 - **Bhoumik/Chris:** Define which actual distinctions between Grower and Wholesale Supplier alter this path before separate buying workflows are introduced.
 
 ## Handoff log
 
 - 2026-08-28 — captured as a watched operational-design question in `business/operations.md`; no build was defined.
 - 2026-09-01 — promoted and staged when Bhoumik made the public out-of-network path and individual request capability weekly priority 2. No external handoff sent by task instruction.
+- 2026-09-10 — audit: marked partially shipped only for the active-LPS-Partner bounded public-link slice. Chris’s prospective non-Partner supplier and formatted-email path remain staged.

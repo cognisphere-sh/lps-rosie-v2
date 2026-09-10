@@ -1,5 +1,6 @@
 'use client'
 
+import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
@@ -18,7 +19,7 @@ import { cn } from '@/lib/utils'
 type Tab = 'requests' | 'orders'
 
 /** Statuses that mean a request is still live — what "active" counts. */
-const ACTIVE_STATUSES = ['sourcing', 'quoted']
+const ACTIVE_STATUSES: readonly string[] = ACTIVE_JOB_STATUSES
 
 /** One labelled, editable field. */
 function Field({

@@ -1,3 +1,4 @@
+import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import 'server-only'
 
 import type { CustomerFacets, CustomerRequest, CustomerRow, JobAddress } from '@/lib/rows'
@@ -9,7 +10,7 @@ export const CUSTOMER_PAGE_SIZE = 25
 const CHUNK = 1000
 
 /** Statuses that mean the request is still live — what `openCount` counts. */
-const OPEN_STATUSES = ['sourcing', 'quoted']
+const OPEN_STATUSES: readonly string[] = ACTIVE_JOB_STATUSES
 
 interface CustomerRecord {
   id: number

@@ -1,9 +1,9 @@
 # Let nurseries answer one request easily without exposing LPS operations
 
-- Status: staged
+- Status: staged · partially shipped
 - Route: bhoumik
 - Raised: 2026-09-03 by Chris (via telegram)
-- Updated: 2026-09-03
+- Updated: 2026-09-10
 
 ## Problem
 
@@ -63,14 +63,24 @@ This is the access contract for the staged out-of-network path and for future te
 - Current request closure is the initial expiry trigger, but Bhoumik must align the final trigger with the durable Request/Order status model and Chris’s requirement to allow legitimate late availability revisions.
 - Existing company-scoped portal accounts are a useful starting point for authenticated Nursery Ops, but do not by themselves decide the future device, identity, recovery, or team-administration model.
 
-## Open questions
+## Delivered slice (2026-09-10 audit)
 
-- **Chris:** When a Nursery Ops power user shares a request with a teammate, is possession of the bounded link enough for that teammate to update it, or must the teammate first authenticate/register? The working assumption is bounded-link access to preserve speed.
-- **Bhoumik:** Define the durable identity/device-recovery model for Nursery Ops, company membership/administration, trusted-device lifetime, and how a lost device/session is revoked.
-- **Bhoumik:** Define the authoritative live-to-terminal request transition that expires links without blocking the approved late supplier-update period during fulfillment.
-- **Bhoumik:** Define the required audit retention, actor labels, replay/rotation protection, rate limits and response/change-history relationship for shared-link activity.
-- **Bhoumik:** Confirm whether a power user may issue shares directly or whether LPS approval is required for each share; the working reading permits an authorized Nursery Ops user to share one of their live requests.
+- An LPS admin or an authenticated account in the existing supplier-company portal can make one active LPS Partner request public, copy its request-specific UUID URL, and make it private again. Republishing generates a new URL.
+- The unauthenticated page has no portal navigation, request list, chat or catalogue mapping. Its API resolves one active, non-closed request by its UUID; public writes accept only the existing supplier answer fields and the existing Submit action.
+- The existing customer-detail-sharing flag is applied to the public request response. Responses use the existing availability-request lines and Submit event.
+- Revocation clears the token. A database trigger closes current requests and clears links when the Job status changes or the Job is deactivated; public reads/writes also reject inactive/closed requests and an inactive/non-Partner supplier. The public response sets no-store, no-referrer and no-index/no-follow protections.
+
+## Remaining contract / open questions
+
+- **Bhoumik:** Extend eligibility beyond active LPS Partners for Chris’s prospective out-of-network supplier path, or explicitly decide that this capability is not the path for that need. Current creation and public publication reject a non-Partner.
+- **Chris/Bhoumik:** Decide the Nursery Ops team model. Existing company-scoped partner logins can make a public request, but there is no separate trusted-device, company-membership/recovery, aggregate-access or team-administration model. A public URL is shareable, but its recipient is unauthenticated and cannot be attributed individually.
+- **Bhoumik:** Define a true request-link lifetime and the final live-to-terminal rule. There is no timed expiry; the shipped trigger closes *all* active availability requests on any Job-status change (including Sourcing → Quote Delivered). That may prematurely stop the late supplier-update/re-submission period Chris requires during confirmation/fulfillment.
+- **Bhoumik:** Add durable access/change audit and actor/source attribution. The shipped token and request timestamps do not record grant, use, failed access, revocation, replacement, or whether a line answer came through a public link versus an authenticated nursery user/LPS. Existing Submit notification is not an audit trail.
+- **Bhoumik:** Ensure disabling then later re-enabling a supplier/Partner cannot revive an old still-stored token, or make the deliberate policy explicit. The public route denies an inactive/non-Partner at use time, but the new trigger does not clear tokens on a supplier/account status change.
+- **Bhoumik/Chris:** Confirm whether the always-visible request/job label is acceptable when `share_customer_details` is false; direct customer/contact/shipping disclosure is gated, but the request header still contains the Job name.
+- **Platform owner:** Update `docs/supabase-schema.md`, which does not yet document migration 0082, `availability_requests.public_token`, its trigger lifecycle, or the public-answer function.
 
 ## Handoff log
 
 - 2026-09-03 — staged for Bhoumik as workflow, data and security contract work; no Nova UI route until the contract is approved.
+- 2026-09-10 — audit of Bhoumik’s implemented public availability requests: the bounded active-LPS-Partner capability is delivered; the full two-level supplier access/security contract remains staged for the above gaps. App test suite (262 tests) and TypeScript typecheck passed; database fixture/assertion suite was not run in this audit.

@@ -30,6 +30,7 @@ import { useState } from 'react'
 import { AnswerCell, LineStatusPicker } from '@/components/workspace/availability'
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
 import {
+  AR_RESPONSE_OPTIONS,
   groupSupplierItems,
   type SupplierItemGroup,
   type SupplierItemLine,
@@ -49,12 +50,8 @@ const GRID_MIN = 900
  */
 export const ITEM_FILTERS = [
   { id: 'all', label: 'All', status: null },
-  { id: 'available', label: 'Available', status: 'available' },
-  { id: 'can_order', label: 'Can Order', status: 'can_order' },
-  { id: 'arriving_soon', label: 'Arriving Soon', status: 'arriving_soon' },
-  { id: 'diff_size_qty_sub', label: 'Diff Size/Qty/Sub', status: 'diff_size_qty_sub' },
-  { id: 'unavailable', label: 'Unavailable', status: 'unavailable' },
-] as const
+  ...AR_RESPONSE_OPTIONS.map((o) => ({ id: o.value || 'pending', label: o.label, status: o.value || null })),
+]
 export type ItemFilterId = (typeof ITEM_FILTERS)[number]['id']
 
 /** How many lines each tab holds. */
@@ -62,7 +59,8 @@ export function countItemFilters(lines: SupplierItemLine[]): Record<ItemFilterId
   const counts = Object.fromEntries(ITEM_FILTERS.map((f) => [f.id, 0])) as Record<ItemFilterId, number>
   counts.all = lines.length
   for (const line of lines) {
-    if (line.status && line.status in counts) counts[line.status as ItemFilterId] += 1
+    const status = line.status ?? 'pending'
+    if (status in counts) counts[status] += 1
   }
   return counts
 }
@@ -308,7 +306,7 @@ export function SupplierItemGroups({
   const [draggingId, setDraggingId] = useState<number | null>(null)
 
   const status = ITEM_FILTERS.find((f) => f.id === filter)?.status ?? null
-  const shown = status ? lines.filter((l) => l.status === status) : lines
+  const shown = filter === 'all' ? lines : lines.filter((l) => l.status === status)
   const groups = groupSupplierItems(shown)
   const byId = new Map(lines.map((l) => [l.id, l]))
 

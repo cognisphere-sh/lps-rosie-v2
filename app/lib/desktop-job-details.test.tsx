@@ -269,7 +269,7 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
   const expandedHeader = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
   assert.ok(expandedHeader)
   assert.match(expandedHeader.className, /grid-cols-\[44px_minmax\(44px,1fr\)_minmax\(0,2fr\)_minmax\(44px,1fr\)_44px\]/)
-  assert.match(view.getByRole('button', { name: 'Sourcing' }).className, /size-11|(?:min-h-11.*min-w-11)/)
+  assert.match(view.getByRole('button', { name: 'New' }).className, /size-11|(?:min-h-11.*min-w-11)/)
   assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-19' }).className, /size-11/)
   assert.match(view.getByRole('button', { name: 'Delete JR-19' }).className, /size-11/)
 

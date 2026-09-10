@@ -10,6 +10,31 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0084_job_status_simplification.sql`
+
+Applied 2026-09-10 via psql in one transaction. The selectable lifecycle is
+New (`sourcing`), In Progress (`quoted`), Confirmed, Closed Won and Closed Lost.
+The migration consolidates `availability` into `quoted` through the existing
+audit trigger and removes `availability` from the CHECK. No live rows needed
+conversion; all 11 jobs and 133 plant rows retained their prior stored status
+distributions. Archived stays readable legacy history. Supplier requests
+remain open through the three working stages and close on terminal status or
+deactivation. Verified the CHECK and closure function after applying.
+
+## `0083_request_status_lists.sql`
+
+Applied 2026-09-10 via psql in one transaction. Extends the Job Request CHECK
+with `availability` and `confirmed`, and job plant CHECK with `need_to_order`
+and `arriving_soon`. Existing stored values, defaults, notes and history stay
+unchanged; archived is retained for legacy records. Labels/order are shared
+by the app's pickers, filters, summaries and print views. Availability Pending
+persists NULL and retains quantity, price and notes. Updated
+`close_ar_on_job_status_change` to close/revoke only for terminal or inactive
+jobs, allowing supplier work throughout the four working sales stages.
+Verified both constraints and the closure function after applying; all 11 job
+and 133 plant rows retained their prior status distribution. Regression SQL
+covers the working/terminal transitions, Pending, defaults and legacy records.
+
 ## `0082_public_availability_requests.sql`
 
 Applied 2026-09-10 via psql in one transaction to the configured LPS Supabase

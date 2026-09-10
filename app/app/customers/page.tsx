@@ -1,5 +1,6 @@
 'use client'
 
+import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -21,7 +22,7 @@ const EMPTY_FACETS: CustomerFacets = { state: [] }
 const ACTIONS_W = 16 + 26
 
 /** Statuses that mean a request is still live — what "active" counts. */
-const ACTIVE_STATUSES = ['sourcing', 'quoted']
+const ACTIVE_STATUSES: readonly string[] = ACTIVE_JOB_STATUSES
 
 /** One table row, as the shared `Cell` wants it: an id and a bag of values. */
 interface Row {

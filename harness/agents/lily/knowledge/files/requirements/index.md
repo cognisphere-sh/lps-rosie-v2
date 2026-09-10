@@ -49,8 +49,8 @@ A workflow change counts — not everything here is software.
 | `portal-availability-selector-dark-style` | Keep the Nursery Portal availability selector readable in the dark portal | routed | nova |
 | `portal-request-work-buckets` | Keep wholesale availability requests in clear work buckets | routed | nova |
 | `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · blocking UI mapping | bhoumik |
-| `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | staged · priority 2 | bhoumik |
-| `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | staged | bhoumik |
+| `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | staged · partially shipped | bhoumik |
+| `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | staged · partially shipped | bhoumik |
 | `supplier-email-identity-and-handoffs` | Keep supplier email identity clear while Daisy and Rosie hand work off safely | staged | bhoumik |
 | `mobile-availability-request-view` | Make the availability-request view usable on a phone | routed · priority 3 | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |

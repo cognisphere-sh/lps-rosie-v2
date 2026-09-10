@@ -17,7 +17,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
-import { AR_RESPONSES, AR_RESPONSE_META, type ARDetail } from '@/lib/availability'
+import { AR_RESPONSE_OPTIONS, type ARDetail } from '@/lib/availability'
 import { money, num } from '@/lib/format'
 
 export function ARPrintSheet({
@@ -70,16 +70,15 @@ export function ARPrintSheet({
                 )}
               </td>
               <td style={cell({ width: 176, padding: '3px 6px' })}>
-                {/* Two answers per line — three lines, not five. */}
-                <span className="grid grid-cols-2 gap-x-2 gap-y-px">
-                  {AR_RESPONSES.map((status) => (
+                {/* Full status labels, including Pending, stay readable on paper. */}
+                <span className="grid grid-cols-1 gap-y-px">
+                  {AR_RESPONSE_OPTIONS.map(({ value: status, label }) => (
                     <span key={status} className="flex items-center gap-1 whitespace-nowrap leading-[14px]">
                       <span
                         className="inline-block size-2 flex-none"
-                        style={{ border: '1px solid #333', background: item.status === status ? '#333' : 'transparent' }}
+                        style={{ border: '1px solid #333', background: (item.status ?? '') === status ? '#333' : 'transparent' }}
                       />
-                      {/* The reference sheet's shorter name for the one long answer. */}
-                      {status === 'diff_size_qty_sub' ? 'Diff Size/Qty' : AR_RESPONSE_META[status].label}
+                      {label}
                     </span>
                   ))}
                 </span>

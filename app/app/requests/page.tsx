@@ -38,16 +38,8 @@ import { cn } from '@/lib/utils'
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
 const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
 
-/**
- * What the Status chip starts on: every status but Archived.
- *
- * An archived request is one somebody has already finished with, and there are
- * only ever more of them. The chip is a plain multi-select, so this is a
- * starting selection and not a rule — ticking Archived brings them back.
- */
-const OPEN_STATUSES = REQUEST_STATUS_OPTIONS.filter((o) => o.value !== 'archived').map(
-  (o) => o.label,
-)
+/** All current stages. Clearing the filter includes legacy archived jobs. */
+const OPEN_STATUSES = REQUEST_STATUS_OPTIONS.map((o) => o.label)
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v) => b.includes(v))
 
@@ -362,12 +354,11 @@ export default function RequestsPage() {
         query: string; status: string[]; itemStatus: string[]; customer: string[]
         created: string[]; updated: string[]; page: number
       }> | null
-      const allowedItem = new Set(ITEM_STATUS_OPTIONS.map((o) => o.label))
       const allowedDates = new Set<string>(REQUEST_DATE_RANGES.map((option) => option.label))
       if (saved) {
         setQuery(typeof saved.query === 'string' ? saved.query.slice(0, 500) : '')
         setStatus(normalizeStoredRequestStatusLabels(saved.status, REQUEST_STATUS_OPTIONS, OPEN_STATUSES))
-        setItemStatus(Array.isArray(saved.itemStatus) ? saved.itemStatus.filter((v) => allowedItem.has(v)) : [])
+        setItemStatus(normalizeStoredRequestStatusLabels(saved.itemStatus, ITEM_STATUS_OPTIONS, []))
         pendingCustomer.current = Array.isArray(saved.customer) ? saved.customer.filter((v) => typeof v === 'string') : []
         setCreated(Array.isArray(saved.created) ? saved.created.filter((v) => allowedDates.has(v)).slice(0, 1) : [])
         setUpdated(Array.isArray(saved.updated) ? saved.updated.filter((v) => allowedDates.has(v)).slice(0, 1) : [])

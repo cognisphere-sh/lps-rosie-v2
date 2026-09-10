@@ -17,6 +17,25 @@ here).
 
 ## 2026-09-10
 
+### Changed
+
+- Revised Job Request statuses to New, In Progress, Confirmed, Closed Won and
+  Closed Lost. Active becomes New; Quote and Availability combine into In
+  Progress. Migration 0084 preserves audit history when consolidating stored
+  Availability jobs. Active views and saved filters follow the five-stage list.
+  Applied migration 0084 on 2026-09-10; no live rows required conversion.
+
+- Job Request statuses now show Active, Quote, Availability, Confirmed,
+  Closed Won and Closed Lost. Both job and availability-request plant rows
+  show Available, Unavailable, Different Sz/Qnty/Sub, Need to Order,
+  Arriving Soon and Pending, including filters, summaries and print views.
+  Migration 0083 adds the missing stored stages/states, preserves legacy
+  data/history, and closes availability requests only when a job becomes
+  terminal or inactive. Availability Pending persists NULL without erasing
+  quantities, prices or notes. All four working sales stages remain active.
+  Applied migration 0083 and restarted the app on 2026-09-10; existing
+  job and plant status distributions were unchanged.
+
 ### Fixed
 
 - Public URL copy buttons now show copying progress and a green check with

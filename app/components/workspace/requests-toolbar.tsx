@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value) => b.includes(value))
 
-/** Count narrowed filter groups, treating the archived-excluding status set as baseline. */
+/** Count narrowed filter groups, treating the current status set as baseline. */
 export const mobileRequestFilterChips = (chips: Chip[]): Chip[] =>
   chips.filter((chip) => chip.label !== 'Item status')
 

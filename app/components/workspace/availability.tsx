@@ -148,11 +148,8 @@ export function ARResponseSummary({
 }
 
 /** Where a message actually happened — portal, email, text, or internal. */
-/** The unanswered state plus the five saved answers, in their canonical order. */
-const RESPONSE_PICKER_OPTIONS = [
-  { value: '', label: 'Set status' },
-  ...AR_RESPONSE_OPTIONS,
-]
+/** Five saved answers followed by Pending (NULL), in canonical order. */
+const RESPONSE_PICKER_OPTIONS = AR_RESPONSE_OPTIONS
 
 /**
  * The supplier portal's dark, compact replacement for a native opened select.
@@ -446,7 +443,7 @@ function ResponseSelect({
       ) : (
         <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
       )}
-      {portal && !value ? 'Set status' : arResponseLabel(value)}
+      {arResponseLabel(value)}
       {portal && <ChevronDown className="size-3 opacity-70" />}
       {!disabled && (
         <select
@@ -455,7 +452,6 @@ function ResponseSelect({
           onChange={(e) => onChange(e.target.value)}
           className="absolute inset-0 cursor-pointer opacity-0"
         >
-          <option value="">Set status…</option>
           {AR_RESPONSE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
@@ -571,7 +567,7 @@ const ANSWER_FIELDS: Record<
   }
 > = {
   can_order: {
-    title: 'Can order',
+    title: 'Need to Order',
     qty: false,
     // Ordering it in is a price as much as a date — asking here saves the
     // supplier a second pass over the Price cell.
@@ -580,14 +576,14 @@ const ANSWER_FIELDS: Record<
     notesHint: 'When can you have it? e.g. ready mid-Sep',
   },
   arriving_soon: {
-    title: 'Arriving soon',
+    title: 'Arriving Soon',
     qty: false,
     price: true,
     notesLabel: 'Notes',
     notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
   },
   diff_size_qty_sub: {
-    title: 'Diff Size/Qty/Sub',
+    title: 'Different Sz/Qnty/Sub',
     // What you can supply instead is priced on its own terms.
     price: true,
     // The answer covers a different size, a short quantity or another plant,
@@ -609,8 +605,8 @@ const ANSWER_FIELDS: Record<
 
 /**
  * Picking a status opens this pop-up for the rest of the answer, so a line is
- * answered whole in one go: Diff Size/Qty/Sub takes a quantity, a price and
- * the note; Can order and Arriving soon take a price and the note; Unavailable
+ * answered whole in one go: Different Sz/Qnty/Sub takes a quantity, a price and
+ * the note; Need to Order and Arriving Soon take a price and the note; Unavailable
  * the note alone, with the format hinted. Available asks nothing and never
  * opens this. The inline cells stay for later tweaks.
  */
@@ -665,7 +661,7 @@ function StatusAnswerDialog({
   const save = () => {
     const changes: Record<string, string> = { status, notes: notes.trim() }
     // An empty quantity clears the column, which is what `clearQty` wants and
-    // what an emptied box on a Diff Size/Qty/Sub answer means too.
+    // what an emptied box on a Different Sz/Qnty/Sub answer means too.
     if (spec.qty) changes.available_quantity = qty.trim()
     else if (spec.clearQty) changes.available_quantity = ''
     // An emptied price box clears the column, exactly as the Price cell does.
@@ -801,7 +797,7 @@ function StatusAnswerDialog({
  * A line's status picker with its answer pop-up — how a status is set anywhere
  * a line is answered (the request page, the By-item view). Picking a status
  * opens the pop-up rather than saving bare. Two answers write straight through
- * instead: clearing back to "Set status", and Available — "all of it, as
+ * instead: clearing back to "Pending", and Available — "all of it, as
  * asked" needs nothing typed, so the demand becomes the available quantity.
  */
 export function LineStatusPicker({

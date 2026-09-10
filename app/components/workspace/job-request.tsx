@@ -289,7 +289,7 @@ export function DemandSummary({
 }) {
   return (
     <div data-demand-summary className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
-      <div className="grid min-w-[630px] grid-cols-[repeat(4,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
+      <div className="grid min-w-[940px] grid-cols-[repeat(6,minmax(max-content,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
         {ITEM_STATUS_OPTIONS.map((o) => {
           const count = counts[o.value] ?? 0
           return (
