@@ -15,6 +15,26 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-10
+
+### Fixed
+
+- Public URL copy buttons now show copying progress and a green check with
+  “Copied!” confirmation for two seconds in admin and partner Share menus.
+
+### Added
+
+- Share buttons with Make public / Make private options and copyable public availability-request URLs
+  for LPS Partners, with supplier responses and submission notifications. Agent
+  creation supports public requests. Migration 0082 revokes links on closure and
+  automatically closes availability requests when their job status changes.
+  Applied migration 0082 to the live database on 2026-09-10 and verified its
+  triggers and execution permissions; existing requests remain private.
+- Admin and authenticated partner request views share the same Share menu;
+  partner publishing and revocation are restricted to their authorized supplier.
+  Public requests now use the partner request layout, summaries, print sheet,
+  and submission controls through one shared component.
+
 ## 2026-09-09
 
 ### Changed

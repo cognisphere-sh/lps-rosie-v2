@@ -4,6 +4,7 @@ import {
   availabilityRequest,
   partnerSupplier,
   setARItemMapping,
+  setAvailabilityRequestPublic,
   updateARItem,
 } from '@/lib/availability-queries'
 import { requirePartnerAccess } from '@/lib/partner-auth'
@@ -30,7 +31,7 @@ export async function GET(
     const { gate, s } = await scope(req, supplierId, arId)
     if (!gate.ok) return gate.res
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    const request = await availabilityRequest(s.arId, { forSupplierId: s.supplierId })
+    const request = await availabilityRequest(s.arId, { forSupplierId: s.supplierId, includeSharing: true })
     if (!request) return NextResponse.json({ error: 'not found' }, { status: 404 })
     return NextResponse.json({ request, supplier: s.supplier })
   } catch (e) {
@@ -58,9 +59,15 @@ export async function PATCH(
     if (!gate.ok) return gate.res
     if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 })
     const body = (await req.json()) as {
+      isPublic?: boolean
       itemId?: number
       changes?: Record<string, string>
       mappedInventoryId?: string | null
+    }
+    if ('isPublic' in body) {
+      if (typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
+      const publicToken = await setAvailabilityRequestPublic(s.arId, body.isPublic, s.supplierId)
+      return NextResponse.json({ publicToken })
     }
     if (!Number.isInteger(body.itemId)) {
       return NextResponse.json({ error: 'itemId is required' }, { status: 400 })

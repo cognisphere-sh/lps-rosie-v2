@@ -1,4 +1,5 @@
 import 'server-only'
+import { randomUUID } from 'node:crypto'
 
 import type {
   ARDetail,
@@ -16,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 // holds the project's secret key.
 
 interface ARRecord {
+  public_token: string | null
   id: number
   job_request_id: number
   supplier_id: number
@@ -42,7 +44,7 @@ interface ARItemRecord {
 
 
 const AR_COLUMNS =
-  'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes'
+  'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes, public_token'
 const AR_ITEM_COLUMNS =
   'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes, lps_notes'
 
@@ -99,6 +101,7 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
   }
 
   return records.map((r) => ({
+    publicToken: r.public_token,
     id: r.id,
     jobRequestId: r.job_request_id,
     jobName: jobs.get(r.job_request_id) ?? null,
@@ -144,7 +147,7 @@ export async function listAvailabilityRequests(scope: {
  */
 export async function availabilityRequest(
   id: number,
-  opts: { forSupplierId?: number } = {},
+  opts: { forSupplierId?: number; publicToken?: string; includeSharing?: boolean } = {},
 ): Promise<ARDetail | null> {
   const { data, error } = await supabase
     .from('availability_requests')
@@ -155,6 +158,7 @@ export async function availabilityRequest(
   if (error) throw new Error(`availability_requests: ${error.message}`)
   if (!data) return null
   const ar = data as ARRecord
+  if (opts.publicToken && (ar.public_token !== opts.publicToken || ar.status === 'closed')) return null
   if (opts.forSupplierId != null && ar.supplier_id !== opts.forSupplierId) return null
 
   const [summary] = await summarize([ar])
@@ -207,6 +211,7 @@ export async function availabilityRequest(
 
   return {
     ...summary,
+    publicToken: opts.forSupplierId == null || opts.includeSharing ? summary.publicToken : undefined,
     items: ((itemData ?? []) as ARItemRecord[]).map(toARItem),
     customer,
     shipping,
@@ -275,6 +280,7 @@ export async function createAvailabilityRequest(input: {
   jobRequestId: number
   supplierId: number
   shareCustomerDetails: boolean
+  isPublic?: boolean
   itemIds: number[]
 }): Promise<number> {
   const { data: sup, error: supErr } = await supabase
@@ -305,6 +311,7 @@ export async function createAvailabilityRequest(input: {
       job_request_id: input.jobRequestId,
       supplier_id: input.supplierId,
       share_customer_details: input.shareCustomerDetails,
+      public_token: input.isPublic ? randomUUID() : null,
     })
     .select('id')
     .single()
@@ -858,4 +865,26 @@ async function companyOf(supplierId: number): Promise<number> {
   const s = data as { id: number; head_branch_id: number | null } | null
   if (!s) throw new Error('supplier not found')
   return s.head_branch_id ?? s.id
+}
+
+/** Revoking clears the capability; publishing again always issues a fresh link. */
+export async function setAvailabilityRequestPublic(id: number, isPublic: boolean, forSupplierId?: number) {
+  let query = supabase.from('availability_requests')
+    .update({ public_token: isPublic ? randomUUID() : null })
+    .eq('id', id).eq('is_active', true)
+  if (forSupplierId != null) query = query.eq('supplier_id', forSupplierId)
+  const { data, error } = await query.select('public_token').single()
+  if (error) throw new Error(error.message)
+  return data.public_token as string | null
+}
+
+export async function publicAvailabilityRequest(token: string) {
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(token)) return null
+  const { data, error } = await supabase.from('availability_requests')
+    .select('id, supplier_id').eq('public_token', token)
+    .eq('is_active', true).neq('status', 'closed').maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data || !(await partnerSupplier(data.supplier_id))) return null
+  const request = await availabilityRequest(data.id, { forSupplierId: data.supplier_id, publicToken: token })
+  return request?.status === 'closed' ? null : request
 }

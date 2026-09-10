@@ -35,6 +35,8 @@ const PARTNER_PREFIXES = ['/partner', '/api/partner']
 // is the whole point of its public flag — so this one path shape is exempt from
 // the gate. Only `/public/`: the sibling `/a/<agent>/private/...` stays behind
 // it, and the harness serves an artifact here only while it is flagged public.
+const PUBLIC_AVAILABILITY = /^\/(?:api\/)?public\/availability\/[0-9a-f-]{36}$/i
+
 const PUBLIC_ARTIFACT = /^\/a\/[a-z0-9][a-z0-9-]*\/public\/artifacts\/[a-z0-9][a-z0-9-]*$/
 
 const under = (pathname: string, prefixes: string[]) =>
@@ -43,7 +45,7 @@ const under = (pathname: string, prefixes: string[]) =>
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_ARTIFACT.test(pathname)) {
+  if (under(pathname, PUBLIC_PREFIXES) || PUBLIC_ARTIFACT.test(pathname) || PUBLIC_AVAILABILITY.test(pathname)) {
     return NextResponse.next()
   }
 

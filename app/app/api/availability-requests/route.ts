@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { createAvailabilityRequest, listAvailabilityRequests } from '@/lib/availability-queries'
+import { availabilityRequest, createAvailabilityRequest, listAvailabilityRequests } from '@/lib/availability-queries'
 
 /** Ids out of `?supplier=1,2,3` — anything non-numeric is simply dropped. */
 const idsOf = (raw: string | null): number[] =>
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       jobRequestId?: number
       supplierId?: number
+      isPublic?: boolean
       shareCustomerDetails?: boolean
       itemIds?: number[]
     }
@@ -56,13 +57,18 @@ export async function POST(req: Request) {
         { status: 400 },
       )
     }
+    if (body.isPublic !== undefined && typeof body.isPublic !== 'boolean') {
+      return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
+    }
     const id = await createAvailabilityRequest({
       jobRequestId: body.jobRequestId!,
       supplierId: body.supplierId!,
       shareCustomerDetails: !!body.shareCustomerDetails,
+      isPublic: body.isPublic,
       itemIds: body.itemIds.filter((n) => Number.isInteger(n)),
     })
-    return NextResponse.json({ id })
+    const request = await availabilityRequest(id)
+    return NextResponse.json({ id, publicPath: request?.publicToken ? `/public/availability/${request.publicToken}` : null })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })
   }

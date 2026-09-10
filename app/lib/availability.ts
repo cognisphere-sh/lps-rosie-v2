@@ -110,6 +110,8 @@ export function arSubtotal(items: ARItem[]): number | null {
 
 /** An availability request as a list shows it. */
 export interface ARSummary {
+  /** Sharing capability for admins and authorized partners. Omitted from public payloads. */
+  publicToken?: string | null
   id: number
   jobRequestId: number
   /** `job_requests.name`, null = unnamed (render the JR ref). */

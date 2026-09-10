@@ -4,6 +4,7 @@ import {
   useCallback, useEffect, useRef, useState, type KeyboardEvent,
 } from 'react'
 
+import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import {
   BodyModalPortal,
@@ -484,6 +485,10 @@ export function AvailabilityRequestDrawer() {
                     )}
                   </dl>
                 </section>
+                <ARSharing key={session.generation} id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
+                  onChange={(publicToken) => {
+                    if (isCurrent(session) && arRef.current) setAr({ ...arRef.current, publicToken })
+                  }} />
                 {ar.lpsNotes && (
                   <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] leading-5 text-foreground">
                     <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">

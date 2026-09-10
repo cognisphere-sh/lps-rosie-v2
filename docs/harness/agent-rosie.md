@@ -223,3 +223,14 @@ deliberately not repeated here, where it would only go stale.
 | `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule, agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate. A filled `unit_price` is not permission to quote |
 | `text-quote-format` | The plain-text quote shape for chat/Telegram delivery |
 | `create-skill` | Installed by `cognisphere agent new` (template) |
+
+## Public availability requests
+
+Rosie can create public availability requests for any active LPS Partner, via
+the app creation API's `isPublic: true`, or by setting a request's `public_token`
+to `gen_random_uuid()` in the database. Share the configured app origin plus
+`/public/availability/<token>`. Clear the token to revoke, and generate a fresh
+one when publishing again. Requests otherwise default to private. Email
+authorization rules still apply. Migration 0082 (applied 2026-09-10) closes and revokes all existing
+active availability requests on every actual job status change or deactivation,
+including changes made by the agent directly in SQL.

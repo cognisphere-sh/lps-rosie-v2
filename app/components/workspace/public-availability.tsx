@@ -1,0 +1,56 @@
+'use client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ARDetail } from '@/lib/availability'
+import { AvailabilityRequestView } from './availability-request-view'
+import { Printer } from 'lucide-react'
+
+export function PublicAvailability({ token }: { token: string }) {
+  const [request, setRequest] = useState<ARDetail | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const tail = useRef<Promise<void>>(Promise.resolve())
+  const endpoint = `/api/public/availability/${token}`
+  const load = useCallback(async () => {
+    const response = await fetch(endpoint, { cache: 'no-store' })
+    const body = await response.json()
+    if (!response.ok) { setRequest(null); throw new Error(body.error) }
+    setRequest(body.request)
+  }, [endpoint])
+  useEffect(() => {
+    const refresh = () => { void load().catch(e => setError(e.message)) }
+    refresh()
+    const timer = window.setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh) }
+  }, [load])
+  function write(body: object) {
+    const previous = 'submit' in body ? tail.current : tail.current.catch(() => {})
+    const operation = previous.then(async () => {
+      setError('')
+      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error)
+      await load()
+    })
+    tail.current = operation
+    return operation
+  }
+  return <main className="mx-auto flex h-dvh max-w-[1600px] flex-col overflow-hidden bg-background">
+    <header className="flex flex-none flex-wrap items-center gap-3 px-3 py-3 md:px-4 print:hidden">
+      <span className="text-sm font-semibold">Local Plant Supply</span>
+      {request && <>
+        <span className="text-[11px] text-muted-foreground">{request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {request.items.length - request.answeredCount} pending</span>
+        <button type="button" aria-label="Print" title="Print" onClick={() => window.print()}
+          className="ml-auto flex size-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint"><Printer className="size-4" /></button>
+      </>}
+    </header>
+    <AvailabilityRequestView request={request} loading={!request && !error} error={error} saving={busy}
+      onPatch={async (itemId, changes) => {
+        try { await write({ itemId, changes }) } catch (e) { setError((e as Error).message) }
+      }}
+      onSubmit={async () => {
+        setBusy(true)
+        try { await write({ submit: true }) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+      }} />
+  </main>
+}

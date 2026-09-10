@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import {
   availabilityRequest,
+  setAvailabilityRequestPublic,
   setAvailabilityRequestStatus,
   updateARItem,
 } from '@/lib/availability-queries'
@@ -41,9 +42,15 @@ export async function PATCH(
   }
   try {
     const body = (await req.json()) as {
+      isPublic?: boolean
       status?: string
       itemId?: number
       changes?: Record<string, string>
+    }
+    if ('isPublic' in body) {
+      if (typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
+      const token = await setAvailabilityRequestPublic(id, body.isPublic)
+      return NextResponse.json({ publicToken: token })
     }
     if (body.changes) {
       if (!Number.isInteger(body.itemId)) {

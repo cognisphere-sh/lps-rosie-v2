@@ -384,6 +384,12 @@ this file exists.
 - **APS Palo Verde price missed** — Rosie initially said there was no APS 48-inch Palo Verde price. Chris supplied a photo of the APS spreadsheet showing **Palo Verde Desert Museum 48 inch Box** at **$2,395**; Rosie corrected it. Chris said, “Uhh you’re not ready for showtime. Please escalate this. Your ability to pricing seems often error prone.” _(via Rosie escalation)_
   → pricing-lookup-reliability + one-gallon-sedge-price-mapping
 
+- **Palo Verde photo reading corrected** — Bhoumik challenged the claimed APS 48-inch/$2,395 row. Rosie’s read-only reconciliation found `photo_94` and live APS data agree: **15 G $195, 30 G $275, 24-inch box $395, 36-inch box $895**; there is no active or inactive 48-inch record. The $2,395 line was an agent photo misread/misattribution, not a missing/deleted source row. The escalation still demonstrates the need to verify an exact source row before making a price claim. _(via Rosie)_
+  → pricing-lookup-reliability
+
+- **Palo Verde source conflict clarified** — Daisy then confirmed the current APS PDF is unchanged and lists **48-inch Desert Museum Palo Verde at $2,499**. The manually evidenced **$2,395** was added as an exact inventory offering, explicitly flagged **confirmation-required** because it conflicts with the current PDF. Pricing must surface the conflict rather than call either price settled; neither price asserts current availability. _(via Rosie/Daisy)_
+  → pricing-lookup-reliability
+
 - **Rosie turquoise and CR blue** — Chris wants the bright turquoise used for Rosie and the distinct light blue used for “CR” and the left rail in message 562 / photo 562 added as reusable app palette accents. _(via Nova handoff)_
   → app-accent-palette-tokens
 

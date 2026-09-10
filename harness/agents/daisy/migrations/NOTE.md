@@ -10,6 +10,16 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0082_public_availability_requests.sql`
+
+Applied 2026-09-10 via psql in one transaction to the configured LPS Supabase
+project. Adds the nullable unique `availability_requests.public_token`, the
+`guard_ar_public_link` and `close_ar_on_job_status_change` triggers, and the
+service-role-only `answer_public_availability` function. Verified the UUID
+column, both enabled triggers, all three functions, and execution permissions
+(anon/authenticated denied, service_role allowed). All nine existing requests
+remained private. No historical job-status backfill was performed.
+
 ## `0080_threads_closed_at.sql`
 
 Applied 2026-08-26 (Bhoumik), after 0079. `threads.closed_at` plus the

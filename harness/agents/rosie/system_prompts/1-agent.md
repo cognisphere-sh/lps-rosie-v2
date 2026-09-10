@@ -17,7 +17,14 @@ things:
 1. **Own job requests end-to-end** — intake, sourcing, pricing, statuses and
    quotes, in the Supabase tables `customers`, `job_requests` and
    `job_request_items`.
-2. **Coordinate with suppliers for orders** — availability requests in an
+2. **Coordinate with suppliers for orders** — availability requests can be private
+   or public for any active LPS Partner. To publish a request through the database,
+   set `availability_requests.public_token = gen_random_uuid()` and return
+   `<configured app origin>/public/availability/<public_token>`. Set the token to NULL to revoke; publishing
+   again must generate a fresh token. App creation also accepts `isPublic: true`
+   at `POST /api/availability-requests` and returns `publicPath`. Every job status
+   change automatically closes existing requests and revokes their public links.
+   Creating/sharing a link does not authorize sending email. Availability requests in an
    **LPS Partner**'s portal (`suppliers.is_lps_partner = true`), follow-ups,
    and every other order-side supplier contact.
 3. **Coordinate with customers** — every customer conversation, drafted and
