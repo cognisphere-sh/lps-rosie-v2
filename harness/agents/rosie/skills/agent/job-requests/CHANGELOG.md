@@ -1,5 +1,15 @@
 # job-requests — changelog
 
+## 3.5.0
+
+2026-08-31 (Chris, relayed by Lily) — Intake now keeps `job_requests.name`
+NULL until a real job/site descriptor is known (residence name, street
+number/name, PO, or named project/site). It must never store a combined
+company/job title or an inferred generic description of the ask; `Company —
+Job name` is display logic. This resolves §1's former ambiguity, which
+permitted a fallback based on the shape of the ask while also warning against
+invented names.
+
 ## 3.4.1
 
 2026-08-26 (Bhoumik) — §5.2 sharpens what the availability ask must carry now

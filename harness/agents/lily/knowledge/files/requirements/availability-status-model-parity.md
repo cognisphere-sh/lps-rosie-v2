@@ -1,0 +1,63 @@
+# Give Job Requests, Requests and Orders honest plant-status models
+
+- Status: staged
+- Route: bhoumik
+- Priority: 1 — Bhoumik weekly priority (2026-09-01)
+- Raised: 2026-08-30 by Chris (via nova handoff)
+- Updated: 2026-09-09
+
+## Problem
+
+Chris has defined authoritative plant-status vocabulary, but Chris reports that actual statuses are still not updated on plants or Requests/Jobs. The existing Portal records a supplier's answer with five older labels and an unanswered Set status; LPS Ops records four internal job-line states. The new Request and Order sets deliberately differ where the business action differs. A cosmetic color, label or status patch would cause a supplier answer, an LPS sourcing state and an order-buying action to appear interchangeable rather than fixing the model.
+
+## Evidence
+
+- 2026-09-01 feedback log, **Authoritative sales and plant statuses**: Chris supplied the authoritative Sales, Plant Status Request and Plant Status Orders sets.
+- 2026-09-09 feedback log, **Statuses still not updated**: Chris says actual plant and Request/Job statuses still have not been updated, confirming priority 1 remains a blocking structural item rather than a completed visual refinement.
+- Current app audit: Portal answers use **Available**, **Can order**, **Diff Size/Qty/Sub**, **Arriving soon**, **Unavailable**, with **Set status** unanswered; LPS Ops job lines use Pending, Available, Substituted and Unavailable.
+- 2026-08-30 feedback log, **Portal availability statuses**: the prior Portal set was explicitly called correct. Chris’s later authoritative sets supersede that vocabulary where they conflict.
+
+## What it should do
+
+Use three separate, explicitly named status domains:
+
+- **Plant Status Request** (a supplier response to an availability request), in this exact order and spelling: **Available**, **Unavailable**, **Diff Sz/Qnty/Sub**, **Can Order**, **Arriving Soon**, **Pending**.
+- **Plant Status Orders** (the purchasing/fulfilment reading of a plant on an Order), in this exact order and spelling: **Available**, **Unavailable**, **Different Sz/Qnty/Sub**, **Need to Order**, **Arriving Soon**, **Pending**.
+- The Sales status of the parent Job Request is defined separately in `lps-ops-job-request-statuses`; it must not be presented as a plant status.
+
+Define which actor/action may set each value, what the effective current value is, and how a Request response is carried into an Order without silently changing its meaning. Preserve historical answers and internal job-line records, map legacy values safely, and make any unresolved legacy value visible rather than guessing. Only after this contract is approved may Nova map the exact labels, options, filters, summaries, colors and actions to each surface. Do not ship a cosmetic color/status patch as a substitute for the durable model and migration.
+
+## Acceptance criteria
+
+- A user can tell whether a visible plant status is a Request supplier response or an Order purchasing/fulfilment state.
+- Request surfaces show only the six authoritative Plant Status Request labels in their stated order; Order surfaces show only the six authoritative Plant Status Orders labels in their stated order.
+- **Diff Sz/Qnty/Sub** and **Can Order** never appear as Order labels; **Different Sz/Qnty/Sub** and **Need to Order** never appear as Request labels.
+- Existing Portal answers, Job Request line states, quantities, prices, notes and history remain readable after migration, with an explicit safe mapping or preserved legacy presentation.
+- Pending has an explicit saved/unsaved and actor meaning; it is not merely a visual replacement for the Portal’s former **Set status** without a migration decision.
+- Filters, bulk actions, summaries and status controls save only the value and action their label promises.
+- Nova receives an approved UI mapping contract before any screen is made to look status-parallel.
+- No plant, Request or Job surface is marked complete by a color-only, label-only or presentation-only status patch; its displayed value must be backed by the approved domain, transition and migration contract.
+
+## Out of scope
+
+- The dark styling of the Portal selector, except that it must consume the approved Request vocabulary.
+- Changing customer/job-request Sales lifecycle stages.
+- Automatic supplier onboarding or order placement.
+
+## Assumptions
+
+- The difference between Request and Order labels is intentional business meaning, not inconsistent copy.
+- Chris’s 2026-09-01 sets supersede the earlier Portal canonical set, including its capitalization, abbreviations and unanswered-state treatment.
+
+## Open questions
+
+- **Bhoumik:** Define the durable Request and Order status values, permitted transitions/actors, effective-value relationship and migration of Portal **Set status**, **Can order**, **Diff Size/Qty/Sub**, **Arriving soon** and current LPS Ops Pending/Available/Substituted/Unavailable records.
+- **Bhoumik:** Confirm whether Pending is a supplier-visible Request response, an internal unworked state, or has different permitted actors in Request and Order contexts.
+- **Bhoumik:** Define how Request **Can Order** carries into an Order without being mislabeled as Order **Need to Order**, and how each substitution label preserves the underlying size/quantity/substitute detail.
+
+## Handoff log
+
+- 2026-08-30 — staged for Bhoumik: status/workflow and stored-value decision required before LPS Ops parity changes.
+- 2026-09-01 — Bhoumik named this weekly priority 1: align Job Request and availability-request status meaning only through an honest model decision.
+- 2026-09-01 — Chris supplied authoritative separate Request and Order plant-status sets. Requirement revised; structural model/migration remains staged for Bhoumik, and Nova UI mapping waits for that contract.
+- 2026-09-09 — Chris reports actual statuses on plants and Requests/Jobs are still not updated. Re-surfaced as priority-1 blocker: no cosmetic color/status patch is acceptable before Bhoumik’s structural model/migration contract.

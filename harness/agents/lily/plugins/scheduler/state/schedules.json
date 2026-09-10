@@ -1,1 +1,13 @@
-{"schedules":[{"name":"supplier-request-buying-workflows-next-call-2026-09-01","cron":"0 9 1 9 *","text":"Reminder for Chris’s call with Bhoumik: discuss who handles supplier requests, and how availability-request and buying processes differ between wholesale suppliers and growers.","threadId":"main","channelId":"supplier-request-buying-workflows","onetime":true}]}
+{
+  "schedules": [
+    {
+      "name": "supplier-request-buying-workflows-next-call-2026-09-01",
+      "cron": "0 9 1 9 *",
+      "text": "Reminder for Chris’s call with Bhoumik: discuss who handles supplier requests, and how availability-request and buying processes differ between wholesale suppliers and growers.",
+      "threadId": "main",
+      "channelId": "supplier-request-buying-workflows",
+      "onetime": true,
+      "paused": true
+    }
+  ]
+}

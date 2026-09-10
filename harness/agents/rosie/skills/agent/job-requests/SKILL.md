@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.4.1)
+description: The operating procedure for the customer job-request tables rosie owns. Covers intake as a reserved id handed to the request's own `jr-<id>` thread, the concurrency discipline for tables the app edits too, the Austin-Plant-Supply-first sourcing and pricing ladder, the confirmation gate that holds a priced line until the supplier answers, and the request and item statuses. Use whenever you create, read, edit or advance a job request or its items, when an ask needs pricing, when a supplier's answer comes back, and before any contact with a customer. (v3.5.0)
 metadata:
   author: lps
-  version: "3.4.1"
+  version: "3.5.0"
 ---
 
 # Job requests
@@ -109,15 +109,17 @@ not be working on.
    `status` defaults to `sourcing`. The overall message goes in
    `customer_notes` — **only what no other column already holds** (§4).
 
-   **Name the request as you create it.** `job_requests.name` is what the job
-   gets called out loud — the site or project if they gave one ("Riverbend
-   patio planting"), otherwise the shape of the ask ("mixed shrubs, Tuesday
-   delivery"). A few words, specific to *this* job; leave out the customer
-   (shown beside it already) and the id (that is `JR-<id>`). It is a
-   judgement, so a person may retype it — and if you genuinely have nothing to
-   go on, leave it NULL rather than inventing a label. Never build one from
-   the id. It is also what the request's conversation is called in the app's
-   thread list, so it is worth getting right early.
+   **Name the request only when the job/site is actually known.**
+   `job_requests.name` is the job/site descriptor — a real residence name,
+   street number/name, PO, or named project/site (for example, "Riverbend
+   patio planting"). It is never a combined company/job title: the app's
+   company-first `Company — Job name` display is presentation logic. Leave
+   `name` NULL until one of those real descriptors is known; do not infer a
+   generic short-description fallback from the plant list, delivery timing, id
+   or other shape of the ask. A person may correct the company or descriptor
+   later, but never manufacture a combined stored name. It is what the
+   request's conversation is called in the app's thread list, so populate it
+   promptly once the real descriptor is available.
 
    `INSERT 0 1` is the check that matters: a duplicate-key error means the row
    already exists (step 3 raced you) — re-read it and continue from there.
