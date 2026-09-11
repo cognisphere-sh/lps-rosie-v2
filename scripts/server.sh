@@ -101,7 +101,7 @@ if (E.HAS_APP === "true") {
     `HARNESS_APP_SECRET=${appSecret}\nDOMAIN=${E.DOMAIN}\nPORT=${E.APP_PORT}\n` +
     `HARNESS_URL=http://127.0.0.1:${E.HARNESS_PORT}\n` + artifactsEnv);
 }
-console.error(`>> operator login: ${user} / ${pass}`);
+console.error(`>> operator login configured for ${JSON.stringify(user)} (password hidden)`);
 NODE
   if $HAS_APP; then
     echo ">> wrote harness/.secrets/users.json + app/.env.local from config"

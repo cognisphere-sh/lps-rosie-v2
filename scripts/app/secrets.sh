@@ -58,7 +58,7 @@ fi
 # per-agent URL that no deploy variable can derive.
 if [[ -n "${ARTIFACTS_AGENTS:-}" && -f "$ROOT/app/.env.local" ]]; then
   ROOT="$ROOT" ARTIFACTS_AGENTS="$ARTIFACTS_AGENTS" DOMAIN="${DOMAIN:-}" \
-  node <<'NODE' >> "$ROOT/app/.env.local"
+  node <<'NODE'
 const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
 const root = process.env.ROOT;
 const agents = process.env.ARTIFACTS_AGENTS.split(",").map((s) => s.trim()).filter(Boolean);
@@ -84,7 +84,8 @@ fs.chmodSync(secretsPath, 0o600);
 
 // The app resolves <agent> out of the URL, so it needs the allowlist, not one
 // agent name. Anything not on this list is a 404 before any fetch is made.
-process.stdout.write(
+fs.appendFileSync(
+  path.join(root, "app/.env.local"),
   `ARTIFACTS_AGENTS=${agents.join(",")}\nARTIFACTS_APP_SECRET=${shared}\n`,
 );
 console.error(`>> artifacts: wired for ${agents.join(", ")} at https://${process.env.DOMAIN ?? ""}/a/<agent>/{public,private}/artifacts/<slug>`);
@@ -99,7 +100,7 @@ fi
 # daisy incarnation was removed the same day).
 if [[ -f "$ROOT/app/.env.local" ]]; then
   ROOT="$ROOT" SUPABASE_URL="${SUPABASE_URL:-}" SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-}" \
-  node <<'NODE' >> "$ROOT/app/.env.local"
+  node <<'NODE'
 const fs = require("node:fs"), crypto = require("node:crypto"), path = require("node:path");
 const root = process.env.ROOT;
 const agents = ["rosie"];
@@ -140,7 +141,10 @@ for (const agent of ["rosie", "daisy", "nova"]) {
 }
 fs.writeFileSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n");
 fs.chmodSync(secretsPath, 0o600);
-process.stdout.write(`SUPPLIER_EVENTS_APP_SECRET=${shared}\nWEBCHAT_APP_SECRET=${webchat}\n`);
+fs.appendFileSync(
+  path.join(root, "app/.env.local"),
+  `SUPPLIER_EVENTS_APP_SECRET=${shared}\nWEBCHAT_APP_SECRET=${webchat}\n`,
+);
 console.error(`>> supplier-events + webchat portal: app→agent secrets wired for ${agents.join(", ")}; webchat Supabase for rosie, daisy, nova`);
 NODE
 fi

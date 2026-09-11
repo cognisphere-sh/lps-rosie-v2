@@ -15,8 +15,8 @@
 #     --oauth2-user=<account email> --oauth2-password=<API password>
 #
 # Contabo has no IAM roles, so backups authenticate with the object-storage
-# access/secret keys — this script prints the four BACKUP_* values to paste
-# into the app home's root `config` on the server.
+# access/secret keys. This script writes the four BACKUP_* values to a protected
+# local file; it never prints credential values to deployment output.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -134,8 +134,11 @@ if [[ -f "$ROOT/scripts/app/contabo-setup.sh" ]]; then
   source "$ROOT/scripts/app/contabo-setup.sh"
 fi
 
-echo ">> backups have no IAM role here — set these in the root config on the box:"
-echo "     BACKUP_S3_BUCKET=$BUCKET"
-echo "     BACKUP_S3_ENDPOINT=$S3_URL"
-echo "     BACKUP_S3_ACCESS_KEY=$ACCESS_KEY"
-echo "     BACKUP_S3_SECRET_KEY=$SECRET_KEY"
+CREDENTIALS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$(basename "$ROOT")"
+CREDENTIALS_FILE="$CREDENTIALS_DIR/contabo-backup.env"
+install -d -m 700 "$CREDENTIALS_DIR"
+umask 077
+printf 'BACKUP_S3_BUCKET=%s\nBACKUP_S3_ENDPOINT=%s\nBACKUP_S3_ACCESS_KEY=%s\nBACKUP_S3_SECRET_KEY=%s\n' \
+  "$BUCKET" "$S3_URL" "$ACCESS_KEY" "$SECRET_KEY" > "$CREDENTIALS_FILE"
+chmod 600 "$CREDENTIALS_FILE"
+echo ">> backup credentials stored at $CREDENTIALS_FILE (mode 0600); transfer them directly into the server's root config without printing them"

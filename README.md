@@ -65,6 +65,11 @@ Let's Encrypt** for HTTPS.
    ```
 
    Typical deploy loop: `git pull && sudo ./scripts/server.sh restart`.
+   Secret materialization reports the configured operator username and file
+   destinations, but never prints passwords, tokens, access keys or secret
+   values. Set or rotate `APP_PASS` by editing the gitignored `config` with a
+   non-echoing editor, then run the `secrets` action; do not put the value on a
+   command line.
 
 Cert auto-renewal is handled by certbot's own systemd timer.
 

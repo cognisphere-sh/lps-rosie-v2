@@ -10,7 +10,11 @@ with no hand-merge.
 Each hook is optional. When present it is **sourced** (not exec'd) at a fixed
 point, so it sees everything the caller has — the sourced root `config` plus
 the caller's resolved variables (`$ROOT`, etc.) — and runs under
-`set -euo pipefail`: a failing hook aborts the caller.
+`set -euo pipefail`: a failing hook aborts the caller. Hooks may report that a
+secret was configured or written, but must write values directly to their
+mode-0600 destination; never send passwords, tokens, access keys or other
+secret values through stdout/stderr, even when the caller currently redirects
+that stream.
 
 | Hook | Sourced by | When / as whom | Typical use |
 |---|---|---|---|

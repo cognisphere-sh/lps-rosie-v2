@@ -17,6 +17,15 @@ here).
 
 ## 2026-09-11
 
+### Fixed
+
+- Deployment secret materialization no longer writes the configured operator
+  password or generated secret values to command output. Status output keeps
+  the configured username while explicitly hiding its password; app hooks now
+  append generated values directly to protected env files, and Contabo backup
+  credentials go to a mode-0600 local file instead of the terminal. A static
+  regression scans deploy scripts for secret-bearing output statements.
+
 ### Changed
 
 - Job Request statuses now read Active, Quote, Availability, Confirmed, Won and
