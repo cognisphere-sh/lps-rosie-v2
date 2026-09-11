@@ -10,6 +10,19 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0089_job_order_statuses.sql`
+
+Applied 2026-09-11 via psql in one transaction. The selectable Job Request
+stages are Active (`sourcing`), Quote (`quoted`), Availability (`availability`),
+Confirmed, Won (`closed_won`) and Lost (`closed_lost`). Restores Availability
+in the CHECK and updates the 0088 workflow function: pricing/quote work
+advances Active to Quote, delivered availability advances Active/Quote to
+Availability, and explicit customer confirmation advances any of those stages
+to Confirmed. Repeated events never regress Availability/Confirmed or reopen
+terminal/inactive jobs. No existing records were rewritten; all 11 jobs kept
+their stored statuses. Verified the live CHECK, function and service-role-only
+execution grants. Disposable database tests cover transitions and AR closure/reopening.
+
 ## `0084_job_status_simplification.sql`
 
 Applied 2026-09-10 via psql in one transaction. The selectable lifecycle is

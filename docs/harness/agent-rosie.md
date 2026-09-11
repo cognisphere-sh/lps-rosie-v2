@@ -1,236 +1,164 @@
 # Agent: rosie
 
-The **order-coordination agent** — owns customer job requests end-to-end and,
-since the 2026-08-23 restructure, **all order-side supplier and customer
-coordination**. Created 2026-08-17 alongside migration 0055 (her tables:
-`customers`, `job_requests`, `job_request_items`, `job_request_changelog`);
-restructured 2026-08-23 alongside migration 0068 (the thread-id columns).
+Rosie owns LPS job requests, customer communication and order-side supplier
+coordination. Her mailbox is `chris@localplantsupply.com`, sending as
+Christopher Runyon. Daisy owns supplier onboarding, supplier records and
+inventory ingestion, including communication about those activities, from
+`chris.r@localplantsupply.com`. Product feedback goes to Lily while Rosie
+continues the operational task.
 
-## agent.json
+## Workflow
 
-Daisy's shape: model `openai-codex` / `gpt-5.6-terra`, `thinkingLevel: medium`,
-`threadIdStrategy: plugin_channel`, `maxConcurrentSlots: 10`, `maxAttempts: 3`,
-`runtime: subprocess`. `secretsSchema` is byte-identical to daisy's four
-Supabase keys (`SUPABASE_PROJECT_ID` and `SUPABASE_SECRET_KEY` required); the
-secret **values** in `harness/.secrets/secrets.json` under `rosie.agent.*` are
-the same project credentials daisy uses.
+- A new order creates a job and its `jr-<id>` thread in **Active**. Intake may
+  reserve an id before the job exists. The job thread creates the row and
+  item snapshots; unknown customer/job names stay NULL rather than invented.
+- An explicit **quick quote also creates a job/thread**, or uses the existing
+  job, but creates/sends **no availability request**. It uses APS or the
+  explicitly named supplier's inventory pricing. A simple pricing lookup or
+  general question creates neither a job nor an AR.
+- APS (`suppliers.id = 1`) is the current default for ordinary jobs. Its
+  private portal availability request publishes automatically, with no
+  additional send approval. Preserve customer-details sharing preferences.
+  Missing APS inventory prompts an offer to search other suppliers; that
+  wider search waits for instruction. Future supplier-selection criteria
+  are not implemented.
+- Partner requests use their portal; non-partner requests use a public AR
+  URL plus an HTML email containing that link. The email still follows the
+  specific-draft approval rule unless the action is already authorized.
+- Inventory prices do not confirm availability. Supplier responses update
+  the request through the supplier thread. Each job item has short sourcing
+  rows, one per supplier: supplier, price and latest AR/response evidence.
+  Changed answers replace that supplier's row rather than adding a log.
 
-## Purpose and thread architecture
+| Job label | Stored key | Meaning |
+|---|---|---|
+| Active | `sourcing` | Intake only; no processing performed. |
+| Quote | `quoted` | Pricing fetched or quote shared. |
+| Availability | `availability` | Availability request delivered through a partner portal or sent email. |
+| Confirmed | `confirmed` | Customer explicitly confirmed the order. |
+| Won / Lost | `closed_won` / `closed_lost` | Request explicitly closed with that outcome. |
 
-Rosie's scope is three things: job requests end-to-end (intake, sourcing,
-pricing, statuses, quotes), order-side supplier coordination, and customer
-coordination. Daisy keeps supplier discovery, onboarding and availability
-ingestion; the shared surface between them is `suppliers.notes` (quirks and
-coordination preferences, edited in place).
+`record_job_workflow_event(job_id, event)` records `pricing_fetched`,
+`availability_sent`, `quote_shared` and `customer_confirmed`. Price writes
+and partner request creation also have database hooks. An unsuccessful
+inventory search is still completed pricing work; a draft or failed send
+is not a shared quote. Pricing/quote work advances Active to Quote; delivered
+availability advances Active/Quote to Availability. Customer confirmation
+advances any of those three stages to Confirmed. Quick quotes can skip
+Availability. Repeated pricing/quote events never regress Availability, and
+no workflow event regresses Confirmed or reopens Won/Lost jobs. Migration
+0089 restores the separate Availability stage and retains all existing stored
+statuses and history.
+`archived` remains a legacy stored terminal state, not a selectable stage.
 
-**Delegation is the architecture** — `main` only talks to Chris/Bhoumik, and
-every piece of work runs on the thread that owns it:
+| AR label | Stored key | Meaning |
+|---|---|---|
+| New | `new` | No supplier work yet. |
+| Processing | `processing` | Supplier saved work awaiting submission. |
+| Completed | `submitted` | Explicitly submitted. |
+| Closed | `closed` | Job/request closed; supplier edits refused. |
+
+Editing a Completed request returns it to Processing until resubmission.
+Job closure closes its ARs and revokes public links; job reopening restores
+each request's previous stage. Revoked tokens are not reused. Normal active
+job-stage changes leave ARs open. Public/private supplier edits and
+`answer_availability_request(...)` use the same database lock and closed-job
+checks; the agent uses that RPC for answers conveyed through chat/email.
+
+## Threads and approvals
 
 | Thread | Owns |
 |---|---|
-| `main` | Coordination with Chris/Bhoumik (Telegram + web-app chat panel, one thread). **Creates no rows**: a job order arriving here gets an id reserved for it (`nextval` on the `job_requests` sequence) and is handed whole to `jr-<id>`, which writes the rows; anything else is forwarded to the owning thread, via `router` when unknown |
-| `jr-<id>` | One per job request, for its life. Opened **before the request exists** — by main's handoff or by the app's **New job request** button (which reserves the id through `reserve_job_request_id()`, migration 0072) — and writes the rows itself: the customer, the request under its own thread's id (`OVERRIDING SYSTEM VALUE`, since `id` is GENERATED ALWAYS), then the items. Then the sourcing round, statuses, the quote. Reaches suppliers and customers only by messaging their threads (`job-requests`) |
-| `supplier-<slug>` | One per supplier company — the **`suppliers.rosie_thread_id`** value (migration 0068; same slug daisy uses, distinct per-agent thread). All order-side coordination with that supplier across every job: availability requests, follow-ups, their answers (`supplier-coordination`) |
-| `customer-<slug>` | One per customer — the **`customers.rosie_thread_id`** value, minted on first contact. Every conversation with them (`customer-coordination`) |
-| `router` | Messages with no known target — from `main`, the `supplier-events` fallback, or future channels — identified and forwarded; missing thread ids minted and recorded (`message-routing`) |
+| `main` | Coordination with Chris/Bhoumik and dispatch of general/unmapped work. |
+| `jr-<id>` | A job's records, sourcing, status and quote; coordinates with contact threads. |
+| `customers.rosie_thread_id` | All communication with that customer, across every job; relays job updates to their job threads. |
+| `suppliers.rosie_thread_id` | All order-side communication with that supplier company, across every job; creates ARs and relays answers. |
 
-Four hard policies, stated in `system_prompts/1-agent.md` and detailed in the
-skills:
+Route external messages by correspondent first: a job id in a supplier or
+customer message does not bypass their contact thread. Missing entity thread
+ids are minted once with guarded writes; supplier branches share the head
+branch's thread. Legacy `router` messages only forward to the canonical
+owner/main. The runtime email catch-all targets main; its existing
+`router-all` rule name is retained for route-maintenance compatibility.
 
-1. **Supplier contact only on the supplier's thread, every external send
-   gated.** Order-side coordination is hers — creating an availability
-   request in an **LPS Partner**'s portal (`suppliers.is_lps_partner`) is the
-   supplier thread's standing job — but what reaches the supplier follows the
-   gates: `share_customer_details` is the remembered per-supplier preference
-   in `suppliers.notes` or Chris's answer (recorded as the preference), and a
-   non-Partner email is drafted, Chris-approved, and sent by Chris or by
-   daisy's supplier thread from the shared mailbox (rosie has none).
-2. **Never messages a customer unbidden** — draft first, Chris approves the
-   specific draft, Chris sends it (no mailbox). Runs on the customer's thread,
-   whose web chat is the contact record (`customers.communication_notes` was
-   dropped 2026-08-25, migration 0073).
-3. **Read-before-edit.** Her tables are edited concurrently by app users:
-   `SET app.actor TO 'rosie'`, re-SELECT immediately before UPDATE, guarded
-   transitions, last-5 `job_request_changelog` entries loaded with every
-   request/item acted on.
-4. **A listing is not availability** (Chris, 2026-08-19, after JR-5). A
-   catalogue hit fills `unit_price` and a `sourcing_notes` line and leaves the
-   item **`pending`**; only the supplier's own answer (through their thread —
-   normally a portal availability request) or Chris's explicit word moves it.
-   The ask carries every line of the request; only a line Chris explicitly
-   excluded is left off.
+Every handoff preserves **`OriginThreadId` and `OriginChannel`**. Any required
+communication approval returns to the **original request chat, even if Chris
+has since switched chats**. The supplier/customer thread sends exactly the
+approved content and retains contact history; the job thread retains order
+state. Main is the only Telegram sender. Internal approvals and sourcing
+notes never use portal-visible messages.
 
-Conventions unchanged from before the restructure: Austin Plant Supply
-(`suppliers.id = 1`) is the default source and `unit_price` only ever carries
-their price (or an explicitly instructed one); `sourcing_notes` is a working
-sheet edited in place (a line per supplier, `Substitute:` prefix when the row
-isn't the ask); she names the job at intake (`job_requests.name`, NULL over an
-invented label); `available_quantity` is people's, `total` is generated.
+The customer/supplier web transcript records contacts in full, including
+external emails and relayed texts. Portal messages already in that transcript
+are not duplicated. Durable preferences belong in customer/supplier `notes`;
+thread notes carry only open follow-ups.
 
-### Feedback and feature ideas go to lily (2026-08-25)
+## Prompts and skills
 
-Two things reach [lily](agent-lily.md) from rosie's threads: Chris
-**designing** rather than asking (how the app should behave, a capability that
-doesn't exist, a change to how the work is run), and Chris **complaining about
-how the work goes** — "this always takes forever", a workaround he's invented.
-Both go to her by agent message (`--to-agent lily --thread-id main`) in his own
-words; for a design conversation rosie also tells him to carry it on with
-Lily on Telegram. The complaint is not small talk — it is the raw material her
-log exists for. Either way the operational question in front of rosie still
-gets answered. `1-agent.md` § *Chris & Bhoumik*.
+`system_prompts/1-agent.md` contains identity, role boundaries and operating
+policy. `1.1-supabase.md` points to shared schema/tool references. Procedures
+live in versioned skills; plugin-owned prompts/skills come from their seeds
+and are not hand-edited on the agent.
 
-## Plugins
-
-Enabled now (core `admin` / `scheduler` / `agent-messaging` need no dirs):
-
-| Plugin | Config (`plugins/<id>/config.json`) | Note |
-|---|---|---|
-| `artifacts` | `{ "appBaseUrl": "https://lps.cognisphere.sh/a/rosie" }` | `rosie` is in `ARTIFACTS_AGENTS` (deploy `config`), so the restart writes her `ARTIFACTS_APP_SECRET` |
-| `webchat` | `{ "threadId": "main" }` | **Live** (2026-08-18; multi-thread since 2026-08-23). The app's chat panel reaches her at `/api/chat/rosie/*` — default thread `main` (shared with Telegram), and the panel's thread picker opens any of her threads (`jr-<id>`, supplier, customer, `router`). Also carries the secret `WEBCHAT_APP_SECRET` for the supplier portal's chat (`--portal` replies are the only messages the portal shows), and since 2026-08-26 `WEBCHAT_SUPABASE_URL` / `WEBCHAT_SUPABASE_SECRET_KEY` — her transcripts live in `threads` / `thread_messages` (migration 0078). Since 2026-08-25 a **supplier** thread's transcript is that supplier's contact history, as a customer thread's has been since migration 0073: every contact posted in the same task — direct communication quoted in full (subject, from/to, Gmail deep link where a message id is known), a forwarded broadcast header-only — alongside the milestones she already posts, and never `--portal`. Her supplier `notes.md` keeps only open follow-ups (`supplier-coordination` 1.2.0). See [plugin-webchat.md](plugin-webchat.md) |
-| `telegram` | `{ "pollTimeoutSec": 25, "allowedChatIds": ["-1004491410854"] }` | **Live** — bot `lps_rosie_bot`, token in secrets as `rosie.telegram.TELEGRAM_BOT_TOKEN`. `state/routes.json` maps that chat to `main` |
-| `supplier-events` | `{}` | **Live** (2026-08-23) — the app's availability-save webhook, delivered to the supplier's `rosie_thread_id` thread (fallback `router`). See [plugin-supplier-events.md](plugin-supplier-events.md) |
-| `gws` | `{ "pollIntervalSec": -1, "gmailQuery": "in:inbox is:unread", "firstOfThreadOnly": false, "allowedSenders": "*", "requireAgentInTo": false, "oauthScopes": "" }` | **Configured, awaiting sign-in** (2026-08-25). Her mailbox is **`chris@localplantsupply.com`** (*Christopher Runyon*) — she owns all order/job-request correspondence from it. Everything is set except `pollIntervalSec`, deliberately left at `-1` so no poll runs before the credential exists; flip it to `300` after sign-in. `state/routes.json` carries the `router-all` catch-all → her `router` thread. `oauthScopes` is empty (Gmail only — `gmail.modify` is always requested); adding Calendar/Drive later means signing in again. See below |
-
-### Email (gws) — configured, awaiting sign-in
-
-**Her mailbox is `chris@localplantsupply.com`, sending as *Christopher
-Runyon*** (decided 2026-08-25; may change). It is the **correspondence**
-mailbox: every communication about an order or a job request, supplier and
-customer alike. Daisy's `chris.r@localplantsupply.com` stays the **lifecycle**
-mailbox — price lists, newsletters, onboarding, account setup — and the two are
-permanent, so each agent hands the other what belongs to it (see
-*Boundary with daisy* below).
-
-Still passive: `pollIntervalSec: -1` means the poll loop only re-reads
-settings, never touches Gmail, so no notifications fire and nothing is marked
-read. The credential does not exist yet, so the plugin reports `failed` on
-start; the agent itself keeps running (per-plugin failures don't sink an agent)
-and the plugin's seed — the `plugin-gws.md` prompt fragment, `scripts/gws/` and
-the `read-email` / `search-email` / `route-email` skills — is copied in
-regardless.
-
-To finish the enable:
-
-1. `oauthScopes` is already set (empty — Gmail only). Change it *before*
-   signing in if she needs Calendar/Drive: `gmail.modify` (Google's read/write
-   Gmail tier, which the poll loop needs) is always requested, so no Gmail
-   scope choice is offered, and changing scopes later means signing in again.
-2. Sign in as the mailbox: console → **rosie → Settings tab → gws plugin
-   card → Sign in with Google** (since harness 0.11.0 this lives on the
-   agent, not the app-level Settings page, which now only holds the shared
-   OAuth client id/secret already saved for daisy). The callback writes
-   `harness/.secrets/gws/rosie/credentials.json`, points
-   `rosie.gws.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` at it, and soft-reloads
-   her — no hand-edit of `secrets.json`, and no `gws auth login`/`export`
-   (that path was removed in 0.11.0).
-3. Confirm the plugin is `running`, then **set `pollIntervalSec` to `300`** —
-   operator-side in `config.json`, or by rosie herself via
-   `scripts/gws/settings set` (an overlay at `plugins/gws/state/settings.json`
-   that wins over the config and is picked up within a minute). Until this
-   step she receives nothing. Routing is already in place:
-   `state/routes.json` holds the `router-all` catch-all (`from: "."`) →
-   `router`, and her `message-routing` skill promotes stable senders to their
-   own `--from` rules, re-adding the catch-all last so it keeps matching last.
-   Update this file and the README comparison table.
-
-### The jr thread is the source for its order (2026-08-25)
-
-**Everything job-related that needs Chris is put to him on that order's
-`jr-<id>` thread** — an approval, a decision, a trade-off — never on the
-customer's or supplier's thread (`1-agent.md` rule 5). Those threads own their
-channel and their contact history, and they **route their inputs back to the jr
-thread**: what the supplier answered, what the customer said, a changed date, a
-cut scope. So one thread knows the order's whole state, and Chris has one place
-to look.
-
-What goes out is **drafted on the jr thread** (customer-safe fields only,
-`job-requests` §4.2 — and it is the thread holding the unsafe data, so the
-filter belongs at the draft), approved there, then routed verbatim to the
-customer's or supplier's thread, which sends it **exactly as approved**. A
-sending thread that spots a problem returns it for re-approval rather than
-editing an approved draft. Contact with no job order behind it is owned,
-decided and approved on the thread it belongs to, and an LPS Partner's portal
-availability request needs no approval at all.
-
-### Boundary with daisy
-
-**The line is the subject, not the party.** Daisy owns supplier **lifecycle
-management** — discovery, onboarding, account setup, paperwork, how
-availability reaches us, record corrections, availability ingestion — and the
-communication about it, from `chris.r@localplantsupply.com`. Rosie owns every
-communication about an **order or job request**, supplier and customer alike,
-from `chris@localplantsupply.com`. A lifecycle matter is daisy's even while
-rosie is mid-order with that supplier; an order matter is rosie's even on
-first contact.
-
-Neither can read the other's mailbox, so each hands over what isn't hers:
-rosie's `router` passes lifecycle mail to daisy (`message-routing` §2c), and
-daisy's `router` passes order mail to rosie (`supplier-email-routing` §4),
-both as an agent message carrying `MessageId` / `GmailThreadId` / sender /
-subject, with `gws gmail +forward` when the other actually needs the message
-body. One email carrying both — an availability drop plus a question about an
-open order — is split: each ingests or answers its own half.
-
-Note: passive suppresses inbound-mail notifications only. On every harness
-start the plugin still posts one `gws_settings` message to her `main` channel
-with the effective settings — that is how she re-asserts her preferences, and
-it can't be turned off.
-
-Until she is signed in, customer email ends with Chris sending the approved text
-himself (`customer-coordination`), and non-Partner supplier outreach goes
-through Chris or daisy's mailbox (`supplier-coordination` §4).
-
-## Knowledge (`knowledge/`)
-
-- `files/SCHEMA.md` — **symlink** to `docs/supabase-schema.md`, per the README
-  rule (never a copy).
-- `files/templates/` — quote templates; maintained via the `quote-generation`
-  skill; a template change needs Chris's approval of the rendered look.
-- `index.md` + `memory.md` — standard.
-
-## Scripts & extensions
-
-The shared toolset and extensions are the stock template copies (see the
-README's *Shared across all agents*). Beyond those:
-
-- `scripts/agent/supabase/{query,upload,sign-url}` — copies of daisy's three.
-  Same DDL/DELETE-blocking guard; rosie's sharing path convention is
-  `rosie_shared/YYYY-MM-DD/<file>` in the `lps` bucket.
-- `system_prompts/0-base_prompt.md` is the stock seed, byte-identical to
-  daisy's and nova's. The deployment's no-version-in-a-skill-reference rule
-  moved out of it into `1-agent.md` in the 0.10.2 upgrade (see the README).
-- `system_prompts/1.1-supabase.md` — adapted from daisy's; documents the two
-  rosie-specific gotchas (generated `total`, trigger-written changelog).
-
-## Migrations
-
-Rosie-owned tables, but migration files stay in
-`harness/agents/daisy/migrations/` — that directory is the deployment's single
-sequential record (see its `NOTE.md`; hers are 0055 and 0068).
-
-## Skills (`skills/agent/`)
-
-Each skill's version lives in its own frontmatter and `CHANGELOG.md`; it is
-deliberately not repeated here, where it would only go stale.
-
-| Skill | What it is |
+| Skill | Responsibility |
 |---|---|
-| `job-requests` | The core operating procedure: intake as a reserved id handed from `main` to the `jr-<id>` thread, which writes the customer, the request and the items and then runs the sourcing round, statuses and quote coordination; concurrency discipline (`app.actor`, re-SELECT, guarded transitions, atomic appends); the three-notes split and the customer-visibility rule; the Austin-Plant-Supply-first pricing and sourcing ladder; availability asks to each supplier's own thread (§5.2) and the confirmation gate (§5.3) — a catalogue hit prices a line and leaves it `pending`; the six plant statuses and five selectable sales stages (migration 0084: sourcing = New, quoted = In Progress, then Confirmed, Closed Won and Closed Lost); customer contact handed to the customer's thread (§7) |
-| `supplier-coordination` | Runs on a supplier's `rosie_thread_id` thread — all order-side coordination across jobs: the LPS Partner split, creating availability requests (every line by default, snapshotting, the mapped `inventory` row and the price it seeds), per-supplier preferences remembered in `suppliers.notes` (share customer details first among them; Chris asked only when nothing is remembered), `availability_submitted` handling with relay to the jr thread, **chat-given answers** (a portal message, photo or voice note that states availability is written into the request's lines by rosie herself, confirmed `--portal`, then relayed as a submission — §3.6, 1.10.0), gated outreach for non-Partners |
-| `customer-coordination` | Runs on a customer's `rosie_thread_id` thread (minted on first contact) — the draft → Chris-approves → Chris-sends flow, the contact record on that thread's own web chat (migration 0073 dropped the `communication_notes` column), durable preferences in `customers.notes`, relaying answers to the owning jr thread |
-| `message-routing` | Runs on the `router` thread — identify the owning `jr-<id>` / supplier / customer thread for unmapped messages, mint missing `rosie_thread_id` values, forward pointers, escalate to `main` only what needs a human |
-| `plant-and-supplier-search` | Adapted from daisy's — same RPC guidance, plus the read-only framing (findings go to item `sourcing_notes`; data problems get reported to daisy, not fixed; a hit is a listing, never an availability) and the sourcing look-up scoped to Austin Plant Supply |
-| `quote-generation` | Job request → customer-facing HTML/PDF quote: templates, customer-safe-fields-only rule, agent-browser print, upload + sign-url under `rosie_shared/`, artifacts publishing, and the approval gate. A filled `unit_price` is not permission to quote |
-| `text-quote-format` | The plain-text quote shape for chat/Telegram delivery |
-| `create-skill` | Installed by `cognisphere agent new` (template) |
+| `job-requests` | Intake, concurrency, supplier rows, sourcing decisions, job events and answer reconciliation. Its database-access artifact documents SQL/storage tools. |
+| `plant-and-supplier-search` | Search RPCs, exact identity/size checks, pricing evidence and instructed wider searches. |
+| `supplier-coordination` | Private/public AR creation, HTML email, supplier chat answers, AR events and follow-ups. |
+| `customer-coordination` | Customer drafts/delivery, contact history and job-update/confirmation relays. |
+| `message-routing` | Thread dispatch, origin metadata, approval handoffs and email routing. |
+| `quote-generation` | Quick quotes, the default text format and approved HTML/PDF output. Replaces the former `text-quote-format` skill. |
+| `create-skill` | Harness-supplied skill maintenance procedure. |
 
-## Public availability requests
+The default text quote is one line per plant/size:
 
-Rosie can create public availability requests for any active LPS Partner, via
-the app creation API's `isPublic: true`, or by setting a request's `public_token`
-to `gen_random_uuid()` in the database. Share the configured app origin plus
-`/public/availability/<token>`. Clear the token to revoke, and generate a fresh
-one when publishing again. Requests otherwise default to private. Email
-authorization rules still apply. Migration 0082 (applied 2026-09-10) closes and revokes all existing
-active availability requests on every actual job status change or deactivation,
-including changes made by the agent directly in SQL.
+```text
+15 G Wax myrtle — $105.00
+15 G Mountain laurel — $175.00
+```
+
+These are formatting examples; actual prices come from inventory. No quantity
+prefix, line total or subtotal appears unless Chris requests a different
+format. The approved APS HTML template lives in
+`harness/agents/rosie/skills/agent/quote-generation/artifacts/` alongside its
+procedure. Historical templates remain in knowledge as references only.
+`knowledge/files/SCHEMA.md` remains a symlink to the shared schema document.
+
+## Configuration and plugins
+
+`agent.json` uses `openai-codex` / `gpt-5.6-terra`, medium thinking,
+`plugin_channel` thread strategy, ten concurrent slots, three attempts and
+subprocess runtime. Supabase schema keys are `SUPABASE_PROJECT_ID`,
+`SUPABASE_SECRET_KEY`, `SUPABASE_DB_PASSWORD` and `SUPABASE_URL`; the first
+two are required by the declared schema. Never include their values in docs.
+
+| Plugin | Deployment role |
+|---|---|
+| `admin`, `scheduler`, `agent-messaging` | Core coordination and harness controls. |
+| `webchat` | Internal per-thread panel plus authenticated supplier portal chat. Only `--portal` replies reach suppliers. Transcripts use `threads` / `thread_messages`. See [webchat](plugin-webchat.md). |
+| `telegram` | Chris/Bhoumik coordination on main via the configured bot/chat route. |
+| `supplier-events` | AR draft/submission notifications to the supplier thread, main as fallback. See [supplier events](plugin-supplier-events.md). |
+| `artifacts` | Customer-safe HTML sharing under the configured Rosie app origin. |
+| `gws` | Order email; direct correspondent/conversation routes with main catch-all. |
+
+The checked-in gws configuration has `pollIntervalSec: -1` (passive),
+`gmailQuery: in:inbox is:unread`, `firstOfThreadOnly: false`,
+`allowedSenders: *`, `requireAgentInTo: false`, and empty extra OAuth scopes
+(Gmail modify is always requested). Passive polling does not establish
+whether sign-in currently exists or whether a send will succeed. The deployment
+check on 2026-09-10 found Rosie’s gws plugin missing
+`GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE`; her mailbox must be connected through
+Settings before email can be sent or received. The app, agent and updated
+webchat/supplier-events plugins were running.
+
+To enable inbound email, use Rosie's **Settings → gws → Sign in with Google**
+for her mailbox, verify the plugin is running, then set polling to `300`
+through plugin settings. Credentials are managed by the OAuth callback;
+never copy them into prompts or use a different agent's mailbox as fallback.
+Preserve existing specific routes when changing the legacy catch-all to main.
+
+SQL/storage helpers are `scripts/agent/supabase/{query,upload,sign-url}`.
+Final customer files use `lps/rosie_shared/YYYY-MM-DD/`; intermediates use
+`/tmp`. Migrations remain in the shared sequential record at
+`harness/agents/daisy/migrations/`. See the shared
+[schema](../supabase-schema.md) for lifecycle functions and trigger details.

@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 4.1.0
+
+2026-09-11 — Restore Active, Quote, Availability, Confirmed, Won and Lost as distinct job stages. Align intake, delivery hooks, confirmation and non-regression rules with migration 0089.
+
+## 4.0.0
+
+2026-09-10 — Rationalise intake, short supplier rows and lifecycle hooks. Quick quotes create a job/thread without ARs; pricing questions create neither. APS is automatic/private by default; missing inventory prompts an offer to search others. Job reopening restores AR stages.
+
 ## 3.5.0
 
 2026-08-31 (Chris, relayed by Lily) — Intake now keeps `job_requests.name`

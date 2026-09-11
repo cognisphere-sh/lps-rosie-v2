@@ -414,11 +414,10 @@ function NoteCell({
   const pop = useOutsideClose(open, () => setOpen(false))
 
   const meta = NOTE_KIND[kind]
-  // Both audiences are one free-text field now, so the cell previews the field
-  // itself. A sourcing note is written a line per supplier, and the last line
-  // is the latest thing we heard — so that is the line the cell shows.
+  // Sourcing keeps one current row per supplier. Show every row so competing
+  // prices and responses remain visible together.
   const lines = (value ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
-  const summary = kind === 'shared' ? value?.trim() ?? '' : (lines[lines.length - 1] ?? '')
+  const summary = value?.trim() ?? ''
 
   return (
     <div ref={pop} data-pop className="relative min-w-0 px-1.5">
@@ -432,16 +431,15 @@ function NoteCell({
         className="flex w-full min-w-0 cursor-pointer flex-col items-start gap-px rounded-md border border-transparent bg-transparent px-1 py-0.5 text-left hover:border-border hover:bg-lps-tint"
       >
         {summary ? (
-          <>
+          kind === 'internal' ? lines.map((line, index) => (
+            <span key={index} className="w-full truncate text-[12px] text-foreground" title={line}>
+              {line}
+            </span>
+          )) : (
             <span className="w-full truncate text-[12px] text-foreground">
               {summary.replace(/\s+/g, ' ')}
             </span>
-            {kind === 'internal' && lines.length > 1 && (
-              <span className="w-full truncate text-[10.5px] text-muted-foreground">
-                {lines.length} lines
-              </span>
-            )}
-          </>
+          )
         ) : (
           <span className="text-[12px] text-lps-dim">—</span>
         )}
@@ -479,7 +477,7 @@ function NoteCell({
                 value={value}
                 onSaved={onSaved}
                 touchTarget={touchTarget}
-                placeholder="Add a sourcing note…"
+                placeholder="Supplier | price | response — one row per supplier"
               />
             </>
           )}

@@ -131,7 +131,7 @@ several sites, **one row per location** (see `head_branch_id` below).
 | `availability_source_type` | text | yes | **CHECK**: `Email` \| `Hosted` — how the availability list reaches us. Null = not established yet |
 | `availability_update_days` | integer | yes | **CHECK**: `> 0`. How often the supplier refreshes it, in days (7 = weekly). Null = unknown |
 | `hosted_availability_url` | text | yes | The page a hosted list lives on. Bare domains occur — prepend `https://` when linking |
-| `is_lps_partner` | boolean | no, default false | TRUE = an **LPS Partner**: they answer **availability requests in the supplier portal** (`/partner/<id>`, migration 0062). FALSE = reached only through our own channels. **Derived, not hand-set** (migration 0084): true exactly while the company has at least one `app_users` portal login, maintained by the `app_users_sync_lps_partner` trigger. Creating a company's first login turns it on; deleting its last turns it off. Not writable from the app — it is out of `WRITABLE.suppliers` and read-only on the profile grid, because a flag claiming a portal nobody can sign into is how requests get sent into a void. Independent of whether daisy has *onboarded* them into the database; renamed from `is_onboarded` 2026-08-25 (migration 0074), which projected it from `search_suppliers` so Supplier Search can filter on it |
+| `is_lps_partner` | boolean | no, default false | TRUE = an **LPS Partner**: they answer **availability requests in the supplier portal** (`/partner/<id>`, migration 0062). FALSE = receives HTML availability emails with a request-specific public response URL. **Derived, not hand-set** (migration 0084): true exactly while the company has at least one `app_users` portal login, maintained by the `app_users_sync_lps_partner` trigger. Creating a company's first login turns it on; deleting its last turns it off. Not writable from the app — it is out of `WRITABLE.suppliers` and read-only on the profile grid, because a flag claiming a portal nobody can sign into is how requests get sent into a void. Independent of whether daisy has *onboarded* them into the database; renamed from `is_onboarded` 2026-08-25 (migration 0074), which projected it from `search_suppliers` so Supplier Search can filter on it |
 | `daisy_thread_id` | text | yes | Daisy's dedicated harness thread for this supplier's **company** — `supplier-<slug of head-branch name>` (`-<head id>` only on a slug collision). One thread per head branch: every location row carries the head's value. It onboards the supplier and handles all availability ingestion and communication; the router thread (and per-supplier gws rules) send supplier traffic here. Added 2026-08-23 (migration 0064) |
 | `rosie_thread_id` | text | yes | Rosie's dedicated harness thread for the company — the **same `supplier-<slug>` value** as `daisy_thread_id` (thread ids are per-agent namespaces, so the shared string names two distinct threads), one per head branch. All order-side coordination with the supplier runs there: availability requests, follow-ups, portal-save notifications. Set with `daisy_thread_id` at onboarding. Added 2026-08-23 (migration 0068) |
 | `rosie_thread_ref` / `daisy_thread_ref` | bigint → `threads.id` ON DELETE SET NULL | yes | **Derived** from the two text columns by the `suppliers_link_threads` trigger — writing a text id upserts the `threads` row for (agent, id) and links it. Never write these. Added 2026-08-26 (migration 0078) |
@@ -770,7 +770,7 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 | `id` | bigint identity | no | PK |
 | `customer_id` | bigint → `customers.id` ON DELETE SET NULL | yes | **Nullable** — anonymous intake, mapped later |
 | `name` | text | yes | **What the job is called** — "Riverbend patio planting". Written by rosie at intake and editable in the app; NULL renders as `JR-<id>`, which is an unnamed request's real name. Never generated from the id. Added 2026-08-18 (migration 0059) |
-| `status` | text | no, default `sourcing` | **CHECK**: `sourcing` (New) \| `quoted` (In Progress) \| `confirmed` \| `closed_won` (Closed Won) \| `closed_lost` (Closed Lost) \| `archived` (legacy, not selectable). Migration 0084 combines prior Quote and Availability into In Progress (`availability` rows move to `quoted` with audit history). The first three stages stay active; terminal/deactivated jobs close their threads and availability requests |
+| `status` | text | no, default `sourcing` | **CHECK**: `sourcing` (Active) \| `quoted` (Quote) \| `availability` (Availability) \| `confirmed` (Confirmed) \| `closed_won` (Won) \| `closed_lost` (Lost) \| `archived` (legacy, not selectable). Migration 0089 restores Availability separately from Quote without rewriting existing statuses/history. The first four stages stay active. Migration 0088 adds lifecycle hooks, updated by 0089: saved pricing/completed lookups or shared quotes advance Active → Quote; delivered partner requests/sent availability emails advance Active/Quote → Availability; explicit customer confirmation advances any pre-confirmation working stage → Confirmed. Repeated pricing/quote events preserve Availability; all events preserve Confirmed/terminal/inactive jobs. Terminal/deactivated jobs close their threads and availability requests; reopening restores each recorded availability stage |
 | `billing_address` / `billing_city` / `billing_state` / `billing_zip` | text | yes | |
 | `shipping_address` / `shipping_city` / `shipping_state` / `shipping_zip` | text | yes | |
 | `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited. Holds only what the structured columns don't: constraints, deadlines, conditions — not the plants, the address or the identity |
@@ -833,14 +833,17 @@ changed under you since you last looked.
 
 ### `availability_requests`
 
-One availability ask, from one job request to one **LPS Partner**
-(`suppliers.is_lps_partner`). Added 2026-08-19 by migration
+One availability ask, from one job request to one active supplier. LPS Partners
+(`suppliers.is_lps_partner`) receive it in their portal; non-partners receive an
+HTML email and request-specific public response URL. Added 2026-08-19 by migration
 0062. Created by the app (Job Requests page → selection bar) or by rosie's
 per-supplier thread (her `supplier-coordination` skill — since 2026-08-23 she
 owns order-side supplier coordination, the portal included; before that the
 writer was daisy's retired `availability-requests` skill). Answered by the
-supplier in their portal, whose Submit wakes rosie via the `supplier-events`
-webhook.
+supplier in their portal or public request page. Saved answers and explicit
+submission wake Rosie in the supplier thread through `supplier-events`. Both
+surfaces use an atomic row-locked response function so job closure cannot race
+a supplier save. Migration 0088 adds the lifecycle hooks described below.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -848,11 +851,37 @@ webhook.
 | `job_request_id` | bigint → `job_requests.id` ON DELETE CASCADE | no | |
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
 | `share_customer_details` | boolean | no, default false | Whether the portal shows the supplier who the job is for (customer name/company/contact routes and shipping address). Default is not to |
-| `status` | text | no, default `new` | **CHECK**: `new` \| `processing` \| `submitted` \| `closed` (`processing` added 2026-08-26, migration 0075). `new` = waiting on them, and **re-set by trigger whenever a line is added** to a request they had already started; `processing` = they have answered at least one line in their portal since; `submitted` = they pressed **Submit** there; `closed` = we are done with it (an admin act) |
-| `submitted_at` | timestamptz | yes | Stamped by the portal's Submit, and left alone by everything else — the portal's button reads **Re-Submit** off it |
+| `status` | text | no, default `new` | **CHECK**: `new` \| `processing` \| `submitted` \| `closed` (`processing` added 2026-08-26, migration 0075). `new` = New, waiting on them (also re-set when LPS adds a line to a worked request); `processing` = Processing, answers saved but not submitted; `submitted` = Completed, explicit submission; `closed` = Closed, supplier edits rejected. Editing a Completed answer returns it to Processing; catalogue prices seeded on inserted lines leave it New |
+| `submitted_at` | timestamptz | yes | Stamped by explicit submission; retained when a supplier edits or a job closes/reopens, so Re-Submit and submission history remain accurate |
+| `status_before_close` | text | yes | Migration 0088: prior `new` / `processing` / `submitted` captured when closing, restored when the job reopens, then cleared. Legacy already-Closed requests have no recorded prior stage |
+| `was_public_before_close` | boolean | no, default false | Migration 0088: captures whether a closed request had a public URL. Job reopening issues a fresh token for these requests; no email is sent automatically |
+| `public_token` | uuid, unique | yes | Migration 0082, extended in 0088: request-specific capability for any active supplier, including non-partners. Closing/deactivation clears the token; obsolete URLs stay revoked |
 | `lps_notes` | text | yes | **LPS's job-level note to the supplier** — delivery window, site constraints, what matters across the lines. Written by rosie at share time; rendered on the portal's request card; never supplier-writable. Added 2026-08-23 (migration 0071) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+`record_job_workflow_event(p_job_request_id bigint, p_event text)` returns the
+stored job stage. Supported events are `pricing_fetched` (including a completed
+lookup with no match), `availability_sent`, `quote_shared` and
+`customer_confirmed`. Migration 0089 separates the working stages:
+`pricing_fetched`/`quote_shared` advance Active → Quote; `availability_sent`
+advances Active/Quote → Availability; confirmation advances Active/Quote/Availability
+→ Confirmed. Pricing/quote events never regress Availability. Stale events never regress
+Confirmed or reopen a closed/inactive job. Existing job changelog triggers audit
+the stage change. A quick quote records a job and its thread, fetches pricing and
+advances the job without creating an availability request; a general price
+question does not create a job.
+
+`answer_availability_request(p_request_id bigint, p_supplier_id bigint,
+p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL,
+p_submit boolean DEFAULT false)` saves answers or submits under the request row
+lock. Only `status`, `available_quantity`, `unit_price` and `notes` are accepted;
+all JSON values must be strings, with an empty string clearing the field. It
+checks supplier ownership, request state and active supplier, then saves the
+answer and Processing stage atomically; submission sets Completed and stamps
+`submitted_at`. Public `answer_public_availability` resolves and locks the token
+before calling the same operation. Both answer functions and the workflow-event
+function are executable only by `service_role` (and database owners).
 
 ### `availability_request_items`
 
@@ -1253,6 +1282,12 @@ by default.
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
 | `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
+| `job_request_items_pricing_progress` | job_request_items | AFTER INSERT OR UPDATE OF `unit_price` | Migrations 0088/0089: a non-null price on an active line advances its Active job to Quote without confirming stock; later stages stay unchanged |
+| `availability_requests_job_progress` | availability_requests | AFTER INSERT | Migrations 0088/0089: creating an active partner request delivers it to the portal and advances its Active/Quote job to Availability. Non-partner email delivery is recorded after the actual send |
+| `guard_ar_public_link` | availability_requests | BEFORE INSERT OR UPDATE | Migration 0088: refuse active requests on closed jobs, allow public links for active suppliers, capture prior stage on closure, revoke closed/inactive public links, and stamp explicit completion |
+| `close_ar_on_job_status_change` | job_requests | AFTER UPDATE OF `status`, `is_active` | Migration 0088: close every linked request and revoke its public URL on terminal/deactivated jobs; restore recorded prior stages and rotate formerly public URLs when the job reopens |
+| `availability_request_items_guard` | availability_request_items | BEFORE INSERT OR UPDATE of ask, answer or mapping columns | Migration 0088: lock the parent request and reject writes to closed/inactive requests, including direct agent writes and supplier catalogue mapping |
+| `availability_request_items_processing` | availability_request_items | AFTER UPDATE of answer columns | Migration 0088: saved changed answers set Processing, including replies entered by an admin or agent; seeded insert prices do not count as supplier responses |
 | `availability_request_items_reopen` | availability_request_items | AFTER INSERT | `availability_request_reopen_on_new_line()`: puts the parent request back to `new` when it was `processing` or `submitted`. Adding a line to a request the supplier already worked on is a new question, and it must reach their portal's New tab whoever added it — the app or an agent script. `closed` is left alone; `submitted_at` is untouched, so the portal's button still reads *Re-Submit*. Added 2026-08-26 (migration 0075) |
 | `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items, threads, app_users | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `thread_messages` — messages are append-only and never updated |
 | `suppliers_link_threads` / `customers_link_threads` / `job_requests_link_threads` | suppliers, customers, job_requests | BEFORE INSERT (OR UPDATE OF the `*_thread_id` columns) | `link_thread(agent, id)`: upserts the `threads` row for the text id and sets the derived `*_thread_ref` FK. Job requests link `jr-<id>` on insert. Migration 0078 |

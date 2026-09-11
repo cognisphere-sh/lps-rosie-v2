@@ -93,7 +93,7 @@ test('only the current submitted lifecycle state earns a submitted indicator', (
 test('an AR link accessible name includes the submitted state conveyed by its dot', () => {
   assert.equal(
     availabilityRequestLinkLabel(7, 'Oak Hill', 'submitted'),
-    'Open availability request AR-7 to Oak Hill — Submitted',
+    'Open availability request AR-7 to Oak Hill — Completed',
   )
   assert.equal(
     availabilityRequestLinkLabel(7, 'Oak Hill', 'processing'),

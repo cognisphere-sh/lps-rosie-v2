@@ -15,7 +15,7 @@ export type ARStatus = (typeof AR_STATUSES)[number]
 export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
   new: { label: 'New', tone: 'amber' },
   processing: { label: 'Processing', tone: 'teal' },
-  submitted: { label: 'Submitted', tone: 'green' },
+  submitted: { label: 'Completed', tone: 'green' },
   closed: { label: 'Closed', tone: 'grey' },
 }
 
@@ -32,7 +32,7 @@ export function availabilityRequestLinkLabel(
   status: string,
 ): string {
   const base = `Open availability request AR-${id} to ${supplierName}`
-  return isSubmittedARStatus(status) ? `${base} — Submitted` : base
+  return isSubmittedARStatus(status) ? `${base} — Completed` : base
 }
 
 /**

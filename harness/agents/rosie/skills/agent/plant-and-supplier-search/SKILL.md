@@ -1,169 +1,71 @@
 ---
 name: plant-and-supplier-search
-description: Look up a plant or supplier in Supabase and answer the asker well. daisy's skill, narrowed — broad versus quoted-literal search, Austin Plant Supply scoping and widening, plus read-only handling that sends findings to request `sourcing_notes` and data problems to daisy. Use for any database-backed price or sourcing question. (v1.2.1)
+description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS or explicitly named supplier scoping, broad and literal search, cultivar/size matching, source dates and stock-location checks, and instructed wider supplier searches. Use for pricing questions, job sourcing and quick quotes; a search alone creates no job and confirms no availability. (v2.0.0)
 metadata:
   author: lps
-  version: "1.2.1"
+  version: "2.0.0"
 ---
 
-# Looking up a plant or supplier
+# Plant and supplier search
 
-Read `knowledge/files/SCHEMA.md` before writing any query.
+Read `knowledge/files/SCHEMA.md`. Inventory, aliases and supplier records
+belong to Daisy: read them and report data corrections to her. Do not repair
+her tables during order sourcing.
 
-**These are daisy's tables and you only read them.** A sourcing look-up's
-findings go into the job-request item's `sourcing_notes` (see `job-requests`);
-anything that looks wrong in the data — a bad alias pair, a stale price — gets
-reported to daisy by agent-message, never fixed by you.
+## Search and verify
 
-**A search answers what a plant costs, not whether it can be had.** Every row
-is a line off a price list someone published — Austin Plant Supply's included —
-and its `quantity` is what that sheet claimed on the day it was ingested.
-Report a hit as the listing it is ("listed at $X on their Aug 18 sheet"), never
-as availability. What makes a job-request line `available` is the supplier's
-own answer or Chris's word, never a look-up (`job-requests` §5.3).
+1. For job sourcing or a quick quote, start with Austin Plant Supply
+   (`supplier_id = 1`) unless a supplier was explicitly named. A general
+   "which growers list this?" question can search all suppliers.
+2. Prefer `search_inventory(search, fuzzy_ratio)` and `search_suppliers`.
+   Apply supplier scope and sorting outside the RPC:
 
-## 1. Search with the RPC, not a hand-written query
+   ```sql
+   SELECT id, supplier_id, supplier_name, name, size, size_std,
+          unit_price, quantity, relevance
+   FROM search_inventory('live oak 30 g')
+   WHERE supplier_id = 1
+   ORDER BY relevance DESC, unit_price;
+   ```
 
-Prefer **`search_inventory`** for plants and **`search_suppliers`** for
-suppliers. They handle other/common names via the alias graph, partial matching
-and typos — a `LIKE` query does not. `search_inventory` takes only `search` and
-`fuzzy_ratio`; **scoping and sorting are yours**, applied as SQL over its
-result.
+   Check the current schema's returned columns; inventory ids are UUIDs.
+   Empty search returns nothing. To list rows, query `inventory` with an
+   explicit order and limit instead.
+3. Validate identity and size on every proposed match. Broad search is
+   typo-tolerant and expands plant aliases; relevance ranks rows matching
+   some query terms, so the top result is not proof of an exact cultivar.
+   Read `common_name`, `botanical_name`, `cultivar_variety_trade_name` and
+   size. `inventory.name` composes those identity parts.
+4. When literal text really matters, wrap the entire search in straight
+   double quotes, e.g. `"Italian Cypress"`. This searches a case-insensitive
+   literal substring in plant identity only, not size or notes. It does not
+   expand aliases or tolerate spelling/spacing changes. Literal hits have
+   equal relevance; sort by the evidence the question needs.
+5. If no exact match appears, try common/botanical names, fewer terms and
+   broader size/cultivar searches within the selected supplier. Label
+   alternatives explicitly. If APS has no match, offer to search other
+   suppliers and wait for instruction. An explicit all-supplier question
+   authorizes that broader search. `job-requests` owns sourcing decisions.
+6. Check positive price, source freshness and explicit stock-location notes.
+   A supplier's headquarters does not prove where inventory sits. Verify
+   farm/region/location evidence in the inventory row/source; distinguish
+   head-office location from stock location. Separate locations can be
+   supplier rows sharing a `head_branch_id`.
 
-An empty `search` returns **nothing** — there is nothing to rank. To *list*
-rather than *search*, select from `inventory` with an `ORDER BY` and a `LIMIT`.
+For custom identity queries compare normalized keys (`name_key`,
+`common_name_key`, `botanical_name_key`, `cultivar_keys`) or
+`normalize_plant_key()`, never raw text equality. A bad alias expansion goes
+to Daisy rather than being silently treated as a match.
 
-### Scope a sourcing look-up to Austin Plant Supply
+## Report evidence
 
-A look-up done for a job request starts at **Austin Plant Supply**
-(`suppliers.id = 1`) — the house yard and the default source (`job-requests`
-§5). Scope it by filtering the result:
+Return the useful matches: supplier, plant/cultivar, size, listed price and
+relevant source date/location. A published stock count is what the list said
+then, not a current reservation or confirmed supply. Unknown/zero prices
+are unpriced; do not invent a price.
 
-```sql
-SELECT supplier_name, name, size, size_std, unit_price, quantity, relevance
-FROM search_inventory('live oak 30 g')
-WHERE supplier_id = 1
-ORDER BY relevance DESC, unit_price;
-```
-
-The RPC already excludes inactive rows and retired sources, so a supplier
-filter is all you add. Read the whole size range that comes back, not just the
-size asked for — when they don't have the ask, the closest thing they *do* have
-is what the ladder's next rung recommends.
-
-Widen past supplier 1 only on the ladder's terms — Austin Plant Supply has
-neither the ask nor a close alternative, or Chris or the customer named another
-supplier. A question that was never about a job request ("who has Muskogee?")
-is not scoped at all.
-
-### Quoted literal plant search
-
-Wrap the entire `search_inventory` term in straight double quotes when the
-characters inside must occur together and in order: `"Italian Cypress"`. This
-is a case-insensitive literal substring over composed/common/botanical/cultivar
-identity only. Size and notes cannot qualify a row. It does **not** expand
-aliases, normalize
-punctuation or internal spacing, accept token/spelling variations, or use fuzzy
-matching. `%`, `_`, and `\\` are literal too. Empty quoted input finds nothing;
-a one-sided quote stays on the broad path. Every quoted hit has equal relevance,
-so order by recency/name or another field the question calls for.
-
-Use this as a precision tool, not the default discovery path: it will not find a
-botanical synonym for a common name, a reversed phrase, or a typo. Quotes on
-`search_suppliers` and `search_plant_photos` do not carry this contract.
-
-### How unquoted search matches and ranks
-
-It searches **names, size and notes**. It is typo tolerant, matches **partially
-at both ends** (`sycamor` and `ycamor` both find `sycamore`), and expands your
-terms through `plant_aliases` first — so the common and botanical name return
-the same rows.
-
-Results are **ranked, not filtered**: `relevance` is the sum of the rarity
-weight of each query term the row matched, so rare terms dominate. Two things
-follow, and both matter when you read a result set:
-
-- **The top of the list is the answer; the tail is weak.** A search returns
-  everything matching *any* term. `Crape Myrtle Muskogee` returns ~755 rows, but
-  only the top ~178 match both parts — read `relevance` (or just the first
-  screen), don't report the row count as "how many we have".
-- **A cultivar that nobody carries no longer comes back empty.** It returns the
-  generic plant, ranked below anything matching the cultivar. Check `relevance`
-  and the returned `cultivar_variety_trade_name` before telling someone a
-  supplier has the selection they asked for.
-
-### What a plant's identity is made of
-
-A row carries the common name, the botanical name and the
-cultivar/variety/trade name in **three separate columns**, each holding only
-what the source printed; `inventory.name` is the composition of them — the
-non-empty parts joined by ` - `. So `search_inventory` finds a row by any of
-the three, and the returned `common_name` / `botanical_name` /
-`cultivar_variety_trade_name` tell you which part actually matched — worth
-saying out loud when the asker searched a cultivar and got the species.
-
-**Aliases expand the query.** Any contiguous run of query words that names an
-alias is replaced by itself OR the other side of that edge, and the groups stay
-AND-ed: `Live Oak Boardwalk` searches
-`((live oak) OR (quercus virginiana)) boardwalk`. So a plant found under either
-name comes back either way, and — unlike the older mechanism — an alias-reached
-row is scored like any other text match rather than ranking last.
-
-One thing to know when a result looks too broad: nothing restricts what an alias
-pair can reach. If a search for a cultivar returns the whole species, suspect a
-bad alias pair joining the two, and report it — that is a data problem, not a
-search bug.
-
-## 2. If nothing comes back, widen before concluding
-
-Relax the filters and adjust the terms before saying there's no match:
-
-- broader term (drop the cultivar, drop the size),
-- botanical name ↔ common name,
-- fewer filters (all suppliers rather than one).
-
-Nothing coming back at all is now rare — the search returns anything matching
-any term. If a cultivar search returns rows but none of them actually name that
-cultivar, that is the answer: nobody on file carries it, and what you are seeing
-is the generic plant ranked below it.
-
-## 3. Fall back to a custom query only when the RPC can't express the question
-
-Two rules always hold:
-
-- **Never write a derived column** — `inventory.name` and every `*_key`
-  (`name_key`, `common_name_key`, `botanical_name_key`, `cultivar_keys`) are
-  maintained by the database. Write the three name parts instead.
-- **Never match plant names with `=` on raw text** — compare on `name_key`,
-  `common_name_key` or `botanical_name_key`, test `cultivar_keys` (an array)
-  with `&&` or `= any`, or wrap the text in `normalize_plant_key(<text>)`.
-
-## 4. "Who has this near me?" — HQ is not stock location
-
-A geographic question must **not** be answered from `suppliers.state` alone. A
-company's headquarters and the site the stock actually sits on differ: Everde is
-headquartered in Houston, while a Francis Mason row of theirs is `FARM=BNL` /
-`REGION=FL` in Bunnell, Florida. Until inventory location is a structured
-column:
-
-- check **both** the supplier's geography and any explicit farm / region /
-  location evidence in the inventory row or its source notes,
-- **say which one your answer rests on** — "their Bunnell, FL farm, per the row"
-  reads differently from "their head office is in Houston",
-- never state or imply that the HQ state is where the plant is.
-
-Sister locations of one company are separate `suppliers` rows sharing a
-`head_branch_id`, so the nearer site may be a different row than the one you
-matched.
-
-## 5. Answering
-
-Reply with a brief summary:
-
-- how many suppliers carry the plant,
-- a few of them by name, with pricing and basic metadata (size, quantity,
-  availability notes),
-- an offer to expand — full supplier list, more sizes/varieties — if they want
-  more.
-
-Keep it non-technical for Chris: no SQL, schema or tooling terms.
+For jobs, return inventory UUIDs and findings to the owning `jr-<id>` thread
+for its short supplier rows. Do not replace a later supplier answer with a
+catalogue listing. For standalone questions, answer in the requesting
+interaction without creating a job or contacting a supplier. Keep SQL and
+internal tooling out of Chris's response.

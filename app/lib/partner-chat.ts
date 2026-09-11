@@ -15,6 +15,7 @@ const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 const SECRET = process.env.WEBCHAT_APP_SECRET
 
 export interface PartnerChatTarget {
+  supplierId: number
   threadId: string
   supplierName: string
 }
@@ -35,7 +36,7 @@ export async function partnerChatTarget(supplierId: number): Promise<PartnerChat
     is_active: boolean
   } | null
   if (!s?.is_active || !s.is_lps_partner || !s.rosie_thread_id) return null
-  return { threadId: s.rosie_thread_id, supplierName: s.name }
+  return { supplierId, threadId: s.rosie_thread_id, supplierName: s.name }
 }
 
 export async function partnerChatFetch(path: string, init?: RequestInit): Promise<Response> {

@@ -7,8 +7,8 @@
  * and defaults to the configured one (`threadId`, default `main` — the SAME
  * thread telegram routes to, so the web panel's default conversation and
  * Telegram are one conversation, not two). Other threads (`jr-12`,
- * `supplier-<slug>`, `customer-<slug>`, `router`) each get their own
- * transcript file under `state/threads/`, which is what lets the panel open
+ * `supplier-<slug>`, `customer-<slug>`) each get their own
+ * transcript, which is what lets the panel open
  * any of the agent's threads and the supplier portal join a supplier's own.
  *
  * Endpoints
@@ -21,7 +21,7 @@
  *   POST api/reset    {threadId?}               → wipe that thread's context + transcript
  *   POST api/reply    {text, attachments?, threadId?} → agent's reply (CLI only)
  *   POST api/app-upload   raw body + thread/name headers → server-to-server (portal)
- *   POST api/app-send     {threadId, text, attachments?, senderName, page?} → server-to-server (portal)
+ *   POST api/app-send     {threadId, text, attachments?, senderName, supplierId, supplierName, page?} → server-to-server (portal)
  *   GET  api/app-messages ?thread=<id>&since=<id>&read=1  → server-to-server (portal)
  *   GET  api/app-file     ?thread=<id>&name=<stored>      → server-to-server (portal)
  *
@@ -545,6 +545,7 @@ export default class WebchatPlugin {
     senderName: string,
     channelId: string,
     page?: PageContext,
+    supplier?: { supplierId: number; supplierName: string },
   ): Promise<ChatMessage> {
     const ctx = this.ctx;
     const msg = await this.record(threadId, {
@@ -573,6 +574,8 @@ export default class WebchatPlugin {
         senderName,
         messageId: msg.id,
         webchatThreadId: threadId,
+        ...(channelId === "web" ? { originThreadId: threadId, originChannel: "web" } : {}),
+        ...(supplier ?? {}),
         ...(rel.length ? { attachments: rel } : {}),
         ...(page ? { page: page.path } : {}),
       },
@@ -718,6 +721,10 @@ export default class WebchatPlugin {
           const threadId = String(b.threadId ?? "").trim();
           const text = String(b.text ?? "").trim();
           const senderName = String(b.senderName ?? "").trim() || "Portal user";
+          const supplierId = b.supplierId;
+          const supplierName = typeof b.supplierName === "string" ? b.supplierName.trim() : "";
+          if (!Number.isSafeInteger(supplierId) || Number(supplierId) <= 0 || !supplierName)
+            return json(400, { error: "supplierId and supplierName are required" });
           const uploads = Array.isArray(b.attachments) ? b.attachments : [];
           if (!threadId || (!text && uploads.length === 0))
             return json(400, { error: "threadId and text or attachments required" });
@@ -750,7 +757,10 @@ export default class WebchatPlugin {
               return json(400, { error: "attachment total exceeds 50MB" });
             files.push({ ...file, dir: "inbox" });
           }
-          const msg = await this.deliver(threadId, text, files, senderName, "portal", pageContext(b.page));
+          const msg = await this.deliver(threadId, text, files, senderName, "portal", pageContext(b.page), {
+            supplierId: supplierId as number,
+            supplierName,
+          });
           this.markRead(threadId, "portal", msg.id);
           return json(200, { ok: true, id: msg.id });
         }

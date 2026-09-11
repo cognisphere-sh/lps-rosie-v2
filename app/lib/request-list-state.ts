@@ -30,22 +30,24 @@ export function normalizeStoredRequestStatusLabels(
   if (!Array.isArray(stored)) return [...fallback]
   const allowed = new Set(options.map((option) => option.label))
   const normalized: string[] = []
-  const legacy: Record<string, string> = {
-    Substituted: 'Different Sz/Qnty/Sub', Sourcing: 'New', Active: 'New',
-    Quoted: 'In Progress', Quote: 'In Progress', 'Quote Delivered': 'In Progress', Availability: 'In Progress',
-    'Closed won': 'Closed Won', 'Closed lost': 'Closed Lost',
+  const legacy: Record<string, string[]> = {
+    Substituted: ['Different Sz/Qnty/Sub'], Sourcing: ['Active'], New: ['Active'],
+    Quoted: ['Quote'], 'Quote Delivered': ['Quote'], 'In Progress': ['Quote', 'Availability'],
+    'Closed won': ['Won'], 'Closed Won': ['Won'], 'Closed lost': ['Lost'], 'Closed Lost': ['Lost'],
   }
   for (const value of stored) {
     if (typeof value !== 'string') continue
-    const label = legacy[value] ?? value
-    if (allowed.has(label) && !normalized.includes(label)) normalized.push(label)
+    for (const label of Object.hasOwn(legacy, value) ? legacy[value] : [value]) {
+      if (allowed.has(label) && !normalized.includes(label)) normalized.push(label)
+    }
   }
   // The old default selected every non-archived stage. Keep that intent when
-  // preserving Confirmed, instead of hiding those jobs.
-  const oldDefault = ['New', 'In Progress', 'Closed Won', 'Closed Lost']
+  // adding Availability and Confirmed, instead of hiding those jobs. A saved
+  // In Progress selection expands above and preserves any excluded Confirmed.
+  const oldDefault = ['Active', 'Quote', 'Won', 'Lost']
   if (stored.some((value) => typeof value === 'string' && Object.hasOwn(legacy, value))
     && normalized.length === 4 && oldDefault.every((label) => normalized.includes(label))
-    && allowed.has('New') && allowed.has('Confirmed')) return [...fallback]
+    && allowed.has('Active') && allowed.has('Availability') && allowed.has('Confirmed')) return [...fallback]
   return normalized
 }
 

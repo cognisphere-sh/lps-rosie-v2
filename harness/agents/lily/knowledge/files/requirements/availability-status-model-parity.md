@@ -1,10 +1,10 @@
 # Give Job Requests, Requests and Orders honest plant-status models
 
-- Status: staged
+- Status: staged — partial implementation; Request vocabulary/UI mapping still blocked
 - Route: bhoumik
 - Priority: 1 — Bhoumik weekly priority (2026-09-01)
 - Raised: 2026-08-30 by Chris (via nova handoff)
-- Updated: 2026-09-09
+- Updated: 2026-09-11
 
 ## Problem
 
@@ -26,6 +26,21 @@ Use three separate, explicitly named status domains:
 - The Sales status of the parent Job Request is defined separately in `lps-ops-job-request-statuses`; it must not be presented as a plant status.
 
 Define which actor/action may set each value, what the effective current value is, and how a Request response is carried into an Order without silently changing its meaning. Preserve historical answers and internal job-line records, map legacy values safely, and make any unresolved legacy value visible rather than guessing. Only after this contract is approved may Nova map the exact labels, options, filters, summaries, colors and actions to each surface. Do not ship a cosmetic color/status patch as a substitute for the durable model and migration.
+
+## Implementation audit — 2026-09-11
+
+**Implemented and verified:**
+
+- Sales stored values, UI labels and active/terminal treatment use **Active, Quote, Availability, Confirmed, Won, Lost**. Current schema/docs retain legacy archived records and describe workflow transitions; the app’s status test suite passes.
+- Job plant statuses use the authoritative Order wording and order: **Available, Unavailable, Different Sz/Qnty/Sub, Need to Order, Arriving Soon, Pending**. The schema retains distinct job stored values, and Pending persists as a saved job-line state.
+- Availability-request answers retain a separate stored domain (`diff_size_qty_sub`, `can_order`, NULL for Pending); NULL Pending preserves quantity, price and notes and does not count as answered. Current migrations/tests preserve legacy stored job values and legacy filter-label readability.
+
+**Not implemented / blocking shipment:**
+
+- Availability-request/Portal surfaces display the **Order** wording **Different Sz/Qnty/Sub** and **Need to Order**, not Chris’s authoritative Request wording **Diff Sz/Qnty/Sub** and **Can Order**. The current tests and app documentation explicitly assert that both pickers use the Order labels.
+- Consequently, the visible Request and Order semantic split is not delivered. Existing separate stored values are insufficient while the Request UI, filters, summaries, print/detail surfaces and accessible labels flatten them into the Order vocabulary.
+
+The requirement is therefore **partial, not shipped**. Bhoumik’s structural work provides much of the model/migration foundation; the remaining contract/UI mapping must make the Request wording exact without changing or misrepresenting its saved values.
 
 ## Acceptance criteria
 
@@ -61,3 +76,4 @@ Define which actor/action may set each value, what the effective current value i
 - 2026-09-01 — Bhoumik named this weekly priority 1: align Job Request and availability-request status meaning only through an honest model decision.
 - 2026-09-01 — Chris supplied authoritative separate Request and Order plant-status sets. Requirement revised; structural model/migration remains staged for Bhoumik, and Nova UI mapping waits for that contract.
 - 2026-09-09 — Chris reports actual statuses on plants and Requests/Jobs are still not updated. Re-surfaced as priority-1 blocker: no cosmetic color/status patch is acceptable before Bhoumik’s structural model/migration contract.
+- 2026-09-11 — Bhoumik reported priority item 1 “Done.” Audit of current app/docs/schema and passing app test suite finds partial coverage: Sales and Job/Order plant vocabulary/migration are implemented, and request answers retain distinct stored values/Pending behavior; however Request surfaces visibly use Order labels (**Different Sz/Qnty/Sub**, **Need to Order**) instead of Chris’s exact Request labels (**Diff Sz/Qnty/Sub**, **Can Order**). Remains staged/partial and blocks a truthful shipped status.

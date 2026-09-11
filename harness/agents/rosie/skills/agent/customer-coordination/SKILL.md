@@ -1,108 +1,67 @@
 ---
 name: customer-coordination
-description: Run a customer's dedicated thread (`customers.rosie_thread_id`) — every conversation with that customer, across all their job requests. Covers minting the thread id on first contact, where a draft is approved (the jr thread, for anything about an order) and rosie sending it from her own mailbox, and where a contact and a durable quirk each get recorded. Use on every message a jr thread or main sends about contacting this customer, whenever something comes back from them, and when relaying what they said to the request it concerns. (v2.3.0)
+description: Keep all communication with a customer on their dedicated thread. Covers identity/thread lookup, customer-safe drafts, approval in the original request interaction, exact approved delivery, contact history and job-update/confirmation relays. Use for customer messages, requested customer sends and updates about any of their orders. (v3.0.1)
 metadata:
   author: lps
-  version: "2.3.0"
+  version: "3.0.1"
 ---
 
 # Customer coordination
 
-This procedure runs on a **customer's dedicated thread** — the
-`customers.rosie_thread_id` value (`customer-<slug of name>`): one
-conversation per customer, across every job request of theirs. The asking side
-is a `jr-<id>` thread (a quote to deliver, a question to put to them) or
-`main` (Chris relaying something the customer said).
+Run on `customers.rosie_thread_id`, one thread per customer across all their
+jobs. All inbound customer messages land here, including messages that name
+a particular job. `message-routing` resolves/mints the thread id. Read the
+schema and customer's preferences before acting; use `job-requests`' guarded
+write discipline for customer fields.
 
-Read `knowledge/files/SCHEMA.md` first. You write `customers` columns here
-(`notes`, `rosie_thread_id`, contact fields as they firm up) — with
-`job-requests` §2's concurrency discipline (`SET app.actor TO 'rosie'`,
-targeted updates).
+## Inbound communication
 
-**There is no contact-log column.** `customers.communication_notes` was
-dropped by migration 0073, the same move the supplier side made in 0063: this
-thread's own web chat is the contact history, and the app's customer page
-opens it from a Rosie button beside the customer's name.
+1. Read the actual message and record external email/relayed text in full on
+   this thread's internal web chat, with sender, subject and known message
+   link. A message already present in the transcript needs no duplicate.
+2. Identify the relevant job(s). Relay every job update to its `jr-<id>`:
+   a new request, scope change, delivery date, question, acceptance or concern.
+   Ambiguous identity/job references need clarification, not a guessed write.
+   A new order follows `job-requests` intake; a pricing question does not
+   create a job.
+3. Put durable customer preferences/contact corrections in `customers.notes`
+   or their structured fields. The transcript is the communication log;
+   there is no `customers.communication_notes` column.
+4. Explicit customer acceptance is relayed with its exact scope/evidence so
+   the job thread records **Confirmed** from Active, Quote or Availability.
+   Won/Lost require an explicit closure instruction; acceptance does not
+   close or reopen a job. A partial
+   acceptance or request to change the offer must be resolved by the job
+   thread before treating the whole order as confirmed.
 
-## Thread id
+## Outbound communication
 
-On first contact with a customer, mint and record the id if the column is
-NULL: `customer-` + slug of their name (lowercase, non-alphanumeric runs
-collapsed to `-`); on a collision with a *different* customer append `-<id>`.
+1. Receive the job thread's customer-safe draft or prepare a requested
+   non-job draft here. Apply customer preferences. Use only requested/
+   approved offerings, customer prices, relevant delivery details and
+   `external_notes`. No internal sourcing rows, supplier comparisons or
+   agent messages. `quote-generation` owns quote formatting.
+2. Use `message-routing` for any required approval in **the original request chat**, retaining the draft, recipient, subject and attachments/links.
+   Do not require approval on the job thread merely because the draft
+   concerns a job. If already explicitly approved, do not ask again.
+3. Send exactly the approved content from
+   `chris@localplantsupply.com`, as Christopher Runyon, on this customer
+   thread. Use `gws gmail +send` for new mail and `+reply --message-id ...`
+   for an existing Gmail conversation. A substantive correction to approved
+   content returns for review; never silently change the offering or recipient.
+4. Verify the send; on an uncertain result, search Sent before retrying.
+   Authentication/configuration failures are reported to the active Chris
+   interaction, with the prepared draft available. Do not claim delivery or
+   substitute another mailbox without authorization.
+5. Route the Gmail conversation back here using `route-email`, keeping
+   `router-all` last. Quote the complete sent content and metadata in this
+   thread's internal web chat; credit Chris if he sent it himself.
+6. Relay actual delivery to the job thread. A shared quote records
+   `quote_shared` there and its public link in customer-visible notes. This
+   advances Active → Quote without moving Availability/Confirmed backwards.
+   An internal draft has not been shared with the customer.
 
-```sql
-UPDATE customers SET rosie_thread_id = '<id>'
-WHERE id = $customerId AND rosie_thread_id IS NULL;
-```
-
-## Contacting the customer — never unbidden, never unapproved
-
-Rules 2 and 5 (`1-agent.md`) in full:
-
-1. **Where the draft and the approval happen depends on whether a job order is
-   behind it** (`1-agent.md`, rule 5):
-   - **About a job order** — the `jr-<id>` thread drafts it and gets Chris's
-     approval on **its** web chat, then routes you the approved text
-     (`job-requests` §7). You do not re-draft it and you do not re-ask: send
-     **exactly** what was approved. If something in it is wrong for this
-     customer — a preference `customers.notes` remembers, a name they don't
-     use — send it back to the jr thread for re-approval rather than editing
-     an approved draft.
-   - **Nothing to do with an order** — draft it here from **customer-safe
-     fields only** (`job-requests` §4.2): what they are getting, never how we
-     sourced it — no supplier names, no supplier pricing, no `[AGENT MESSAGE]`
-     content. Present it for **Chris's approval of that specific draft** on
-     this thread's own web chat (`webchat-cli send` — the notification reaches
-     him; never via `main`), short and non-technical.
-2. Only on approval does it go out — **sent from your own mailbox**
-   (`chris@localplantsupply.com`, as *Christopher Runyon*), plain text, on
-   this thread:
-
-   ```
-   gws gmail +send --to <address> --subject "…" --body "…"
-   gws gmail +reply --message-id <MessageId> --body "…"    # always, for a reply
-   ```
-
-   **Reply in the same Gmail thread**, and route their answer back here:
-   `bash scripts/gws/routes add --name route-<slug> --thread-id <this thread>
-   --gmail-thread-id <the threadId +send printed>`, re-adding `router-all`
-   last (`route-email`). Chris can still send something himself when he
-   prefers to.
-3. Post the contact to this thread's own web chat in the same task
-   (`webchat-cli send`) — **the complete text, quoted**, to whom, and who sent
-   it. Say whose act it was: `Chris` for what he sent or decided. That message
-   is the record; there is no column to append to.
-4. If the contact was a quote, tell the jr thread so it moves the request to
-   `quoted` and records the quote link (`job-requests` §7, `quote-generation`).
-
-## When the customer answers
-
-Whatever comes back — a reply to your own mailbox, routed here or forwarded by
-`router`, or something Chris relays on `main`: quote it in full to this
-thread's web chat, put durable preferences in
-`customers.notes` (edited in place — delivery constraints, how they like to be
-contacted, pickiness worth remembering), and **relay the substance to the
-`jr-<id>` thread it concerns** — that thread owns the request's rows and next
-steps, and is where Chris is asked about them (`1-agent.md`, rule 5). Route
-everything that touches the order, not just an answer you were waiting for: a
-changed date, a cut scope, a complaint, a question you cannot settle. **Don't
-put a job-order question to Chris here** — it goes to the jr thread, which
-decides and comes back with the approved text. A message about no particular
-job stays here, on this thread's web chat, unless it needs another thread's
-owner.
-
-## Keep the thread's web chat current
-
-This thread's web chat is both the coordination surface and the contact
-record, so it has to be complete. Post every milestone to it (`webchat-cli
-send`, defaulting here) — draft ready, approval asked, sent, customer answered
-— so the team can read the whole history of this customer in the app. When
-Chris writes on this thread in the panel, coordinate with him there directly.
-
-## What lives where
-
-- **This thread's web chat** — every contact, both directions, in order.
-- **`customers.notes`** — durable facts and preferences, edited in place.
-- **This thread's `notes.md`** — open items only (a draft awaiting approval,
-  a question awaiting their answer), never a log.
-- **Nowhere** — task updates, minor observations.
+Post meaningful milestones in this thread so the whole customer history is
+readable. Store only open follow-ups in thread notes. When Chris writes
+here, coordinate with him here while the job thread continues to own job
+records and supplier threads continue to own supplier communication.

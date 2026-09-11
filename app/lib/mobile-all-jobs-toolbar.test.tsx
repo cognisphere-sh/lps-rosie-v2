@@ -116,7 +116,7 @@ afterEach(() => {
   dom.window.close()
 })
 
-const BASELINE = ['New', 'In Progress', 'Confirmed', 'Closed Won', 'Closed Lost']
+const BASELINE = ['Active', 'Quote', 'Availability', 'Confirmed', 'Won', 'Lost']
 
 function useRequestChips() {
   const [status, setStatus] = useState(BASELINE)
@@ -309,7 +309,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
   )
   assert.deepEqual(legacy, BASELINE)
   assert.equal(legacy.includes('Quoted'), false)
-  assert.equal(legacy.includes('In Progress'), true)
+  assert.equal(legacy.includes('Quote'), true)
   assert.equal(requestFilterActiveCount([
     { label: 'Status', values: legacy, options: REQUEST_STATUS_OPTIONS.map((option) => option.label), onChange: () => {}, allLabel: '' },
   ], BASELINE), 0)
@@ -323,7 +323,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
     requestStatusOptions: REQUEST_STATUS_OPTIONS,
     itemStatusOptions: ITEM_STATUS_OPTIONS,
   })
-  assert.equal(new URLSearchParams(query).get('status'), 'sourcing,quoted,confirmed,closed_won,closed_lost')
+  assert.equal(new URLSearchParams(query).get('status'), 'sourcing,quoted,availability,confirmed,closed_won,closed_lost')
   window.sessionStorage.setItem(storageKey, JSON.stringify({ ...stored, status: legacy }))
   assert.deepEqual(JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null').status, BASELINE)
 
@@ -333,7 +333,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
       REQUEST_STATUS_OPTIONS,
       BASELINE,
     ),
-    ['In Progress', 'New'],
+    ['Quote', 'Active'],
   )
   assert.deepEqual(
     normalizeStoredRequestStatusLabels({ status: ['Quoted'] }, REQUEST_STATUS_OPTIONS, BASELINE),
@@ -417,14 +417,14 @@ test('unresolved/mobile/desktop each own exactly one branch and crossings close 
   assert.equal(view.getAllByRole('textbox', { name: 'Search plants, customers, JR-…' }).length, 1)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   assert.equal(actionMounts, 1)
-  await user.click(view.getByRole('button', { name: 'Status · 5' }))
+  await user.click(view.getByRole('button', { name: 'Status · 6' }))
   assert.ok(view.getByRole('button', { name: 'Confirmed' }))
 
   view.rerender(<ToolbarHarness resolved />)
   await settle()
   assert.ok(view.container.querySelector('[data-requests-toolbar-branch="mobile"]'))
   assert.equal(view.getAllByRole('textbox', { name: 'Search plants, customers, JR-…' }).length, 1)
-  assert.equal(view.queryByRole('button', { name: 'Status · 5' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Status · 6' }), null)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 0)
   assert.equal(actionUnmounts, 1)
   assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Search plants, customers, JR-…' }))
@@ -439,7 +439,7 @@ test('unresolved/mobile/desktop each own exactly one branch and crossings close 
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Search plants, customers, JR-…' }))
 
-  await user.click(view.getByRole('button', { name: 'Status · 5' }))
+  await user.click(view.getByRole('button', { name: 'Status · 6' }))
   view.rerender(<ToolbarHarness resolved />)
   await settle()
   assert.equal(view.queryByRole('button', { name: 'Confirmed' }), null)
@@ -645,7 +645,7 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
   assert.equal(view.queryByRole('button', { name: /Expand|Collapse/ }), null)
   assert.equal(view.container.querySelector('[data-mobile-request-chevron]'), null)
   assert.equal(view.container.querySelector('[data-compact-status-token]'), null)
-  assert.equal(view.getByRole('button', { name: 'In Progress' }).textContent?.replace(/\s+/g, ' ').trim(), 'In Progress')
+  assert.equal(view.getByRole('button', { name: 'Quote' }).textContent?.replace(/\s+/g, ' ').trim(), 'Quote')
   assert.equal(view.getByRole('link', { name: `Open JR-27 — ${longRequest.name}` }).textContent, `Land Water Light · ${longRequest.name}`)
   assert.equal(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).textContent?.trim(), 'Rosie Chat')
   assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).className, /min-h-11/)
@@ -679,11 +679,12 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
 
 test('v3 mobile sales states remain fully written and blank Job never repeats the JR fallback in identity', () => {
   const canonical = [
-    ['sourcing', 'New'],
-    ['quoted', 'In Progress'],
+    ['sourcing', 'Active'],
+    ['quoted', 'Quote'],
+    ['availability', 'Availability'],
     ['confirmed', 'Confirmed'],
-    ['closed_won', 'Closed Won'],
-    ['closed_lost', 'Closed Lost'],
+    ['closed_won', 'Won'],
+    ['closed_lost', 'Lost'],
     ['archived', 'Archived'],
   ] as const
   const view = render(<StaticCard request={{ ...REQUEST, status: canonical[0][0] }} mobile />)

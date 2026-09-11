@@ -19,7 +19,7 @@ A workflow change counts — not everything here is software.
 | `catalog-photo-intake-review` | Review submitted catalog photos before publishing | staged | bhoumik |
 | `mobile-agent-chat-translucent-header` | Make the mobile agent-chat header translucent | routed | nova |
 | `job-request-delete-safety` | Make deleting a job request safe on mobile | shipped | nova |
-| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops job-request lifecycle and history | staged | bhoumik |
+| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops Job Request sales lifecycle and history | staged · Sales vocabulary/migration implemented | bhoumik |
 | `quote-opportunity-to-job-request-conversion` | Keep quick quote opportunities out of Request Management until sourcing starts | staged | bhoumik |
 | `new-job-intake-customer-type-choice` | Let Chris identify a homeowner or landscape professional when a new job starts | drafted · ready after durable contract | nova |
 | `customer-type-retail-landscape-workflow-pricing` | Work homeowners as retail customers and landscape professionals as contractors | staged | bhoumik |
@@ -48,11 +48,14 @@ A workflow change counts — not everything here is software.
 | `plant-search-toolbar-visual-unity` | Make Plant Search controls read as one toolbar | routed | nova |
 | `portal-availability-selector-dark-style` | Keep the Nursery Portal availability selector readable in the dark portal | routed | nova |
 | `portal-request-work-buckets` | Keep wholesale availability requests in clear work buckets | routed | nova |
-| `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · blocking UI mapping | bhoumik |
+| `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · partial; Request UI mapping blocked | bhoumik |
 | `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | staged · partially shipped | bhoumik |
 | `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | staged · partially shipped | bhoumik |
 | `supplier-email-identity-and-handoffs` | Keep supplier email identity clear while Daisy and Rosie hand work off safely | staged | bhoumik |
 | `mobile-availability-request-view` | Make the availability-request view usable on a phone | routed · priority 3 | nova |
+| `mobile-field-request-workflow` | Make mobile request work dependable in the field | staged | bhoumik |
+| `mobile-request-update-response-workflow` | Define when a mobile request update has been received, worked or failed | staged | bhoumik |
+| `mobile-request-update-response-state` | Show the current response state for a mobile request update | drafted · blocked by workflow | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed | nova |
@@ -68,3 +71,4 @@ A workflow change counts — not everything here is software.
 | `plant-search-result-location-clarity` | Show where each Plant Search match is located | routed | nova |
 | `customer-review-status-color` | Make approved customer-review availability statuses easy to scan in web chat | drafted · blocked by status model | nova |
 | `app-accent-palette-tokens` | Give Rosie turquoise and reference blue reusable accent palettes | routed | nova |
+| `desktop-notification-rail-trigger` | Put desktop Notifications in their marked rail homes | routed · queued behind desktop-shell visual-QA/deployment gate | nova |

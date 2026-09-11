@@ -191,8 +191,8 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
     createdAt: value.createdAt, updatedAt: value.updatedAt, thread: null,
   }
   const row = orderJobInbox([inbox])[0]
-  const aria = jobInboxRowAriaLabel(row, 'Quote Delivered', 'Sep 2, 10:00 AM')
-  view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote Delivered" activityLabel="Sep 2, 10:00 AM" ariaLabel={aria} onSelect={() => undefined} />)
+  const aria = jobInboxRowAriaLabel(row, 'Quote', 'Sep 2, 10:00 AM')
+  view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote" activityLabel="Sep 2, 10:00 AM" ariaLabel={aria} onSelect={() => undefined} />)
   assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, `JR-34 · ${expected}`)
 })
 
@@ -269,7 +269,7 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
   const expandedHeader = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
   assert.ok(expandedHeader)
   assert.match(expandedHeader.className, /grid-cols-\[44px_minmax\(44px,1fr\)_minmax\(0,2fr\)_minmax\(44px,1fr\)_44px\]/)
-  assert.match(view.getByRole('button', { name: 'New' }).className, /size-11|(?:min-h-11.*min-w-11)/)
+  assert.match(view.getByRole('button', { name: 'Active' }).className, /size-11|(?:min-h-11.*min-w-11)/)
   assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-19' }).className, /size-11/)
   assert.match(view.getByRole('button', { name: 'Delete JR-19' }).className, /size-11/)
 
@@ -645,13 +645,13 @@ test('expanded rail selected and unselected rows use the same exact primary line
   const row = orderJobInbox([base])[0]
   const expected = `JR-34 · Land Water Light | ${base.name} | Dior Goodwin`
   for (const selected of [false, true]) {
-    const label = jobInboxRowAriaLabel(row, 'Quote Delivered', 'Sep 1, 2:00 PM')
+    const label = jobInboxRowAriaLabel(row, 'Quote', 'Sep 1, 2:00 PM')
     const view = render(
       <div style={{ width: 292 }}>
         <FocusedJobsRailRow
           row={row}
           selected={selected}
-          statusLabel="Quote Delivered"
+          statusLabel="Quote"
           activityLabel="Sep 1, 2:00 PM"
           ariaLabel={label}
           onSelect={() => undefined}
@@ -667,7 +667,7 @@ test('expanded rail selected and unselected rows use the same exact primary line
     assert.match(primary.className, /text-ellipsis/)
     assert.match(primary.className, /overflow-hidden/)
     assert.equal(button.getAttribute('aria-current'), selected ? 'page' : null)
-    assert.match(button.textContent ?? '', /Quote Delivered.*Long snippet.*New web chat.*Sep 1, 2:00 PM/s)
+    assert.match(button.textContent ?? '', /Quote.*Long snippet.*New web chat.*Sep 1, 2:00 PM/s)
     view.unmount()
   }
 })

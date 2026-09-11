@@ -1,366 +1,236 @@
 ---
 name: supplier-coordination
-description: Run a supplier's dedicated thread (`suppliers.rosie_thread_id`) — all order-side coordination with that supplier, across every job request. Covers the LPS Partner split (a portal availability request for a partner, mailbox outreach for everyone else), building an availability request from a jr thread's ask, the per-supplier coordination preferences remembered on the supplier row, and relaying the answers back to the jr thread. Use on every message a jr thread sends about this supplier, on every supplier-events notification, when their portal chat needs an answer or carries an answer (text, photo, voice) to write into the request, and when a request needs chasing. (v1.10.0)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, HTML email with a public link, inventory mappings, partial/submitted supplier answers, chat updates, closed-request locks and job-thread relays. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.0.1)
 metadata:
   author: lps
-  version: "1.10.0"
+  version: "2.0.1"
 ---
 
 # Supplier coordination
 
-This procedure runs on a **supplier's dedicated thread** — the
-`suppliers.rosie_thread_id` value (`supplier-<slug>`, one per company; every
-location row shares its head branch's value). Everything order-side about this
-supplier happens here, for **every** job request: availability asks,
-follow-ups, their answers. The asking side is a `jr-<id>` thread
-(`job-requests` §5.2); daisy's same-named thread is a different thread — hers
-does ingestion and onboarding, this one does orders.
+Run on `suppliers.rosie_thread_id`, one thread per supplier company across
+all jobs; locations share their head branch's id. Use `message-routing` to
+resolve/mint the id and to obtain any required approval in the original request
+chat. The job thread owns job/items; this thread owns ARs and supplier
+correspondence. Read the schema and supplier row before acting.
 
-Read `knowledge/files/SCHEMA.md` before any query. You write
-`availability_requests` and `availability_request_items` here; you only read
-`suppliers`, `inventory` and the `job_request_*` tables (the jr thread writes
-those).
+## 1. Select the channel and preserve preferences
 
-## 0. Know this supplier first
+- `is_lps_partner = true`: availability requests reach the supplier's private
+  portal. This flag is derived from portal logins; do not change it.
+- Non-partner: create an availability request with a public URL and send
+  the approved ask as **HTML email including that URL**. Lack of a private
+  portal does not mean skipping the structured request.
+- Read `suppliers.notes` for customer-details sharing, contact/channel and
+  framing preferences. Preserve existing preferences. With no remembered
+  customer-details decision, ask Chris through `message-routing`, record
+  his answer and leave `share_customer_details = false` while waiting.
+  Do not expose customer identity while that decision is pending.
+- **APS requests publish automatically for ordinary jobs**, privately in
+  their portal by default; no extra Chris approval is needed. Preserve any
+  remembered customer-details sharing choice. A quick quote has a job/thread
+  but skips availability requests and outreach altogether. Creating a portal
+  request is not permission for an additional email.
 
-Before acting, read the supplier's row — `is_lps_partner`, `notes`, and its
-locations (`head_branch_id`). **`suppliers.notes` is where this supplier's
-coordination preferences live**: whether customer details are shared with
-them, preferred channel, how they like asks framed, ordering constraints.
-Apply what is remembered; ask Chris **on this thread's own web chat**
-(`webchat-cli send` — the notification reaches him; never via `main`) only
-for a preference nothing
-records yet — and **write his answer back into `suppliers.notes`** in the same
-task, so the next job doesn't re-ask. Personalize to the supplier and their
-`category`; a remembered per-supplier preference always wins over a
-type-level habit.
+## 2. Create or reuse the availability request
 
-## 1. LPS Partner or not
+1. Read the job, active item list and this supplier's existing ARs. Reject
+   new work against closed/inactive jobs. Reuse the existing active open
+   request for the same sourcing ask; a retry must not create duplicates.
+   A closed AR cannot be edited. Job reopening restores its previous stage
+   through the database lifecycle hook; never reopen it independently or
+   reuse its revoked link.
+2. Include every active job line in the default APS ask, including unlisted
+   plants, unless Chris explicitly selects/excludes items. For a targeted
+   supplier handoff, use the item scope the job thread specified. Snapshot
+   requested `name`, `size`, `quantity` and `job_request_item_id`; a later
+   job edit must not silently rewrite an ask already sent.
+3. **Resolve mappings/prices before writing.** Create the request and fully
+   seeded item snapshots in one transaction, after the applicable gates.
+   `$mappingJson` below contains validated rows from the job handoff with
+   `job_request_item_id`, `mapped_inventory_id` (UUID) and `unit_price`:
 
-**`suppliers.is_lps_partner = true` makes them an LPS Partner** — they answer
-structured asks in their portal (`/partner/<id>`), and the channel is
-an **availability request** (§2). Anyone else is reached by ordinary
-outreach (§4).
+   ```sql
+   BEGIN;
+   SET LOCAL app.actor TO 'rosie';
+   INSERT INTO availability_requests
+     (job_request_id, supplier_id, share_customer_details, public_token)
+   VALUES ($jobId, $supplierId, $shareDetails, $publicToken)
+   RETURNING id;
+   -- Use the returned id; NULL token for private, gen_random_uuid() for public.
+   WITH mappings AS (
+     SELECT * FROM jsonb_to_recordset($mappingJson::jsonb)
+       AS m(job_request_item_id bigint, mapped_inventory_id uuid, unit_price numeric)
+   )
+   INSERT INTO availability_request_items
+     (availability_request_id, job_request_item_id, name, size, quantity,
+      mapped_inventory_id, unit_price)
+   SELECT $arId, j.id, j.name, j.size, j.quantity,
+          m.mapped_inventory_id, m.unit_price
+   FROM job_request_items j
+   LEFT JOIN mappings m ON m.job_request_item_id = j.id
+   WHERE j.job_request_id = $jobId AND j.is_active;
+   COMMIT;
+   ```
 
-## 2. Creating an availability request (LPS Partner)
+   Add an explicit item-id filter only for an instructed subset. The app's
+   `POST /api/availability-requests` also supports `isPublic` and returns
+   `publicPath`; the database path above is available to agent SQL tooling.
+4. The mapping/price prepared for that INSERT must come from this supplier's
+   exact plant/size inventory row. **Do not insert empty items and UPDATE
+   prices afterward**: an answer-field update is supplier work and would
+   incorrectly move the new request to Processing. Use the inventory UUID
+   in the job thread's handoff. A mapping with no price may remain unpriced. A near
+   size or cultivar is not an exact mapping: leave the mapping NULL and
+   explain the proposed alternative briefly in `lps_notes`.
+   Never replace a supplier-selected mapping with a later search result.
+5. Never seed answer `status`, `available_quantity` or supplier `notes`.
+   NULL answer status means unanswered even with a prefilled price. Request
+   and item `lps_notes` contain our brief supplier-visible context: delivery
+   window, important specification, proposed alternative. No internal source
+   comparisons and no customer identity unless sharing was authorized.
+6. Partner requests become visible in their portal. Non-partner public links
+   use the **configured app origin** plus
+   `/public/availability/<public_token>`; never invent the host. Creating a
+   public link is not email delivery. Use section 3 for the actual send.
+7. Relay AR id, items, current state, mappings and delivery outcome to the
+   job thread so it updates each supplier row. Include
+   `[Open AR-<id>](ar:<id>)` in internal chat updates. Record
+   `availability_sent` only after actual portal delivery/email send, through
+   `public.record_job_workflow_event(jobId, 'availability_sent')`. This moves
+   an Active or Quote job to **Availability**; it does not regress Confirmed
+   or reopen Won/Lost jobs. A prepared public link alone does not advance the
+   job. Job Availability is separate from the AR's own status below.
 
-A jr thread's ask arrives with the request id, the item ids and what its
-look-up found per line. Creating the availability request is **this thread's
-responsibility** — one per (job request, supplier), carrying **every active
-line** of the job request unless Chris named a subset:
+Do not silently add lines to an already answered request: coordinate the
+changed scope with the job thread. A new line is new work for the supplier;
+keep the changed request and sourcing notes in sync.
 
-```sql
-SET app.actor TO 'rosie';
-INSERT INTO availability_requests (job_request_id, supplier_id, share_customer_details)
-VALUES ($job, $supplier, $share)
-RETURNING id;
+## 3. HTML email for a non-partner
 
--- Every active line. Add `AND id IN ($lines)` only when Chris named a subset.
-INSERT INTO availability_request_items
-  (availability_request_id, job_request_item_id, name, size, quantity)
-SELECT $ar, id, name, size, quantity
-FROM job_request_items
-WHERE job_request_id = $job AND is_active;
+1. Draft a short, plain-language ask using an HTML body: greeting, useful
+   job/delivery context, a compact table of plant/size/requested quantity
+   (and this supplier's price when useful), and a clearly labelled link to
+   answer the request. Use the same plants/sizes/quantities as the AR.
+   Include a visible clickable public URL so the recipient can open it.
+   HTML-escape inserted text and attributes. Never include internal sourcing
+   notes or other suppliers' pricing.
+2. Present the **complete recipient, subject, rendered/content-equivalent
+   HTML and public link** for any required approval using `message-routing`.
+   Preserve supplier preferences. Send exactly the approved draft; material
+   changes need review again. A past draft/template is not standing approval.
+3. Send from `chris@localplantsupply.com` as Christopher Runyon on this
+   supplier thread. `gws gmail +send ... --body <approved-html> --html`
+   supports HTML; inspect `+send --help` / `+reply --help` for the installed
+   command before use. Reply in the existing Gmail thread for the same ask.
+   Quote shell arguments safely, especially literal currency `$` values.
+4. Check the send result. If uncertain, search Sent before retrying. Record
+   the full sent content and metadata on this thread's internal web chat.
+   Add a Gmail-thread route back here with the `route-email` skill, keeping
+   `router-all` last. Only confirmed delivery marks `availability_sent`.
 
--- Then the mapping, per line that has one (below). Not every line does.
-UPDATE availability_request_items
-   SET mapped_inventory_id = $inventoryId, unit_price = $price
- WHERE availability_request_id = $ar AND job_request_item_id = $item;
-```
+Email authentication/configuration failure is a blocker to report in the
+original Chris interaction. Do not switch to another agent's mailbox or
+claim the request was emailed. The prepared draft/link remains reviewable.
 
-- **`share_customer_details`** shows the supplier the customer's name,
-  company, contacts and shipping address. It follows the **remembered
-  preference in `suppliers.notes`** (§0); with none remembered, ask Chris —
-  one short message on this thread's web chat naming the supplier and the
-  job — and record
-  his answer as the preference. Default while unanswered: `false`, and the
-  request waits.
-- A line missing from their published list still goes on — it is the one they
-  are most likely to surprise us on. A subset is Chris's instruction, never
-  your inference.
-- **Write down the mapping, then the price it gives.**
-  `mapped_inventory_id` is the `inventory` row that answers the line for this
-  supplier unambiguously (same plant, same size); `unit_price` is what you
-  copy off it. The jr thread's ask names those rows (id + catalogued
-  name/size/price) — seed from them, spot-checking rather than re-running its
-  search; a guess is worse than an empty box.
-  - **Both or neither, when you write the line.** Never a price without the
-    row it came from — an unsourceable number is the thing this column exists
-    to prevent. The other way round is fine: a mapped row whose catalogue
-    price is NULL maps, and the price stays empty.
-    - The rule is yours, not the table's. A request **created in the app**
-      (Job Requests page → Availability request) seeds a price from the
-      catalogue without recording a row, so a priced line with no mapping is
-      an app-made request, not a contradiction — and every line written
-      before 2026-08-26 is unmapped because the column didn't exist. Don't
-      backfill one from a re-run search: a mapping means *this* is the row we
-      asked from, and a later search is a different question. **A mapping the
-      supplier set themselves stands** — it is them telling us which of their
-      rows the ask is about, which is better evidence than our look-up was.
-      Never overwrite one with a search of your own; if it looks wrong, ask
-      them (§3.5), don't correct it silently.
-  - **NULL is the ordinary answer**, on the lines that matter most: a line
-    nothing on their list maps is exactly the one they may surprise us on,
-    and it still goes on the request (above). Leave it NULL rather than
-    reaching for a near-miss — a different size or a cousin plant is *not* a
-    mapping, it is a `lps_notes` sentence.
-  - **The supplier sees this one, and can change it.** Their portal has a
-    **By item** view that groups every open ask by the catalogue row it maps
-    to — and answers them there, in the same line table the request's own
-    page uses, so one plant's asks across several requests get answered
-    together. They place a line by dragging its job name onto one of their
-    own rows. So
-    what you write at share time is what that view opens on — a line you
-    leave unmapped sits under its own name until they place it. It is still
-    the *only* column of ours they can touch, and it says which of their
-    rows an ask is about, never what they are answering: `status`,
-    `available_quantity`, `unit_price` and `notes` remain the whole of their
-    answer.
-- Never seed `status`, `available_quantity` or `notes` — those are the
-  supplier's alone; `status` NULL is what says "unanswered". (Writing them
-  *from the supplier's own words* in their portal chat is §3.6, and is the
-  one time you touch them.)
-- **`lps_notes` is what we tell the supplier, at both levels.** The
-  request's own `lps_notes` carries job-level context worth their eyes —
-  delivery window, site constraints, what matters across the lines
-  (rendered on their portal card). A line's `lps_notes` carries what helps
-  them answer *that line*: the alternative and price the inventory data
-  mapped (`Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit`), a
-  special request from the customer, or a customer note worth passing on
-  (rendered under the plant name). A few words, never a sentence; NULL when
-  there is nothing to say. Both are supplier-visible, so the customer-safe
-  rules apply — no customer identity unless `share_customer_details`, never
-  our sourcing internals. `notes` stays theirs.
-- Tell the jr thread the request went out (`AR-<id>`, line count), and note
-  anything durable you learned in `suppliers.notes`. When the work was asked
-  for over webchat, the web reply includes the panel button
-  `[Open AR-<id>](ar:<id>)`.
+## 4. AR state and supplier responses
 
-## 3. The supplier submitted answers (`availability_submitted`)
+| Display | Stored state | Meaning |
+|---|---|---|
+| New | `new` | Created, no supplier work yet. |
+| Processing | `processing` | Partial/unsent supplier work. |
+| Completed | `submitted` | Supplier submitted the response. |
+| Closed | `closed` | Job/request closed; public and private supplier edits forbidden. |
 
-The supplier pressed **Submit** (or **Re-Submit**) in their portal; the
-`supplier-events` notification lands on this thread (each re-submit
-re-notifies). Read the request and its items; the supplier's per-line
-vocabulary:
+Listen for both `availability_updated` (draft/edit) and
+`availability_submitted` (explicit submission). Re-read request/items on each
+event and relay only actual changes. A saved price or note is supplier work
+but is not submission. Inventory prefill is neither supplier work nor an
+answer. Preserve `submitted_at` as the latest explicit submission evidence. Job
+closure remembers each AR stage; job reopening restores that stage. Reissue
+a fresh public token through the normal publication path when a link is
+needed after reopening; do not reuse revoked tokens.
 
-| `status` | Meaning |
+| Supplier item status | Response |
 |---|---|
-| `available` | Has all of it — the portal sets `available_quantity` to the demand; `unit_price` says at what |
-| `can_order` | Can get it; the ETA is in `notes` |
-| `diff_size_qty_sub` | Can supply something different — another size, a short quantity or another plant; what, in `notes`, how many in `available_quantity` |
-| `arriving_soon` | Stock is on its way; when, in `notes` |
-| `unavailable` | No — `available_quantity` is cleared with it |
-| NULL | Didn't answer that line |
+| `available` | Has the requested plant/size/quantity. |
+| `can_order` | Needs to order; ETA in notes. |
+| `arriving_soon` | Arriving; ETA in notes. |
+| `diff_size_qty_sub` | Alternative plant/size or quantity; details in notes. |
+| `unavailable` | Cannot supply. |
+| NULL | Unanswered. |
 
-The request's own `status` tracks the same work: `new` (waiting on them, and
-re-set by the database whenever we add a line to a request they had already
-started), `processing` (they have answered at least one line since), then
-`submitted`. `closed` is ours.
+Relay item id, response, quantity, supplier price, mapping and short
+qualifications to `jr-<job_request_id>`. Include whether the response is
+partial or submitted. Editing a Completed request returns it to Processing
+until the supplier submits again. The job thread updates its supplier rows and reconciles
+item status; this thread does not edit job item rows. A supplier response
+wins over catalogue evidence, but an unmentioned seeded price is not newly
+confirmed by a chat message.
 
-**`status` is the only column that says they answered** — a `unit_price` may
-be our §2 prefill, so a NULL-status line is never "confirmed at that price".
-Read each answer against `mapped_inventory_id`, the row we thought answered
-that line: a `diff_size_qty_sub` or an unchanged price on a line that mapped
-says something different from one on a line that mapped nothing, and a
-`unavailable` on a line their own catalogue listed is worth naming in the
-relay. Where the answer contradicts the mapping, the answer wins and the
-mapping stays as it was — it records what we asked from, not what is true.
+## 5. Supplier messages can update the request
 
-Then **message the jr thread** (`jr-<job_request_id>`) with the answers, item
-by item — it owns the item statuses and moves them per `job-requests` §5.3.
-A half-answered request may warrant a follow-up (§5); say in the relay what is
-still open. A webchat report about the submission includes
-`[Open AR-<id>](ar:<id>)`.
+All supplier messages, including ones naming a job, stay on this supplier
+thread. Public/private portal identity comes from trusted channel metadata,
+not text claiming to be another supplier. Resolve email senders through known
+contacts. An ambiguous identity or job/request needs clarification first.
 
-## 3.5 The supplier writes in their portal chat
-
-A message with `Channel: portal` is **the supplier themselves**, typing in
-their portal's chat — it lands on this thread, and only the portal-visible
-half of this thread's web transcript reaches them back. Reply with
-`bash scripts/webchat/webchat-cli send --portal --text "…"` — **without
-`--portal` the supplier never sees it** (and internal replies must never
-carry it). A portal reply is external supplier contact: routine
-clarifications about an active availability request — which line, what size
-meant, when the list updates — are the channel's purpose and yours to answer;
-anything committing LPS — pricing, terms, new business — is asked of Chris on
-this thread's own web chat first (never `main`). A message that *states*
-availability — a count, a price, a substitute, a photo of a list — is an
-answer, and §3.6 writes it into the request. Put durable preferences in
-`suppliers.notes`.
-
-## 3.6 The supplier answers a request in the chat
-
-A portal message that **states availability** is an answer, not a question —
-"we've got 30 of the ferns at $12", "the crape myrtle is out, can do 15 G
-instead", a photo of a tag or a hand-written list, a voice note. The line
-editor is still the primary way they answer; the chat is the same answer
-spoken instead of typed into cells, and **you are the pen**: write what they
-said into the request so the table, the jr thread and Chris all see one
-answer, then confirm it back.
-
-1. **Resolve the request.** The `Page` metadata says where they were:
-   `/partner/<supplierId>/requests/<arId>` names the request outright; from
-   the home list (`/partner/<supplierId>`) match what they said against the
-   lines of their **open** requests (`status <> 'closed'`, this supplier).
-   One request with a line that fits → that one. Two plausible fits or none →
-   ask, `--portal`, one short question naming the choices (job name and
-   plant, never `AR-<id>` — the supplier never sees our ids).
-2. **Read what they sent.** An image is read directly (`read` the inbox
-   path); a voice note is transcribed per the webchat prompt; a PDF or
-   spreadsheet through `markitdown`. Pull out, per plant: the status in the
-   §3 vocabulary, the quantity, the price, and anything else they said. A
-   photo of a plant with no count or price on it is not an answer by itself —
-   it goes with whatever the text says, and if the text says nothing, ask
-   what they want it to tell us.
-3. **Write only what they said, to the lines it is about:**
+1. Resolve the AR from trusted page/request metadata, then read the request
+   and current job. With several plausible open asks, clarify which one; do
+   not apply an answer across all of them. Do not update a closed AR even if
+   a supplier asks. A closed-job follow-up can be recorded as a message and
+   relayed internally.
+2. Read the supplied text, attachment, image or voice note. Extract only what
+   it actually says. A plant photo without quantity/price does not imply
+   either. Map the stated availability to the item status vocabulary above.
+3. Use the atomic supplier-answer hook, with `app.actor = 'rosie'`, for
+   explicitly supplied answer fields. Values in `p_changes` must be JSON
+   strings; an empty string clears a field. The only permitted keys are
+   `status`, `available_quantity`, `unit_price`, `notes`.
 
    ```sql
    SET app.actor TO 'rosie';
-   UPDATE availability_request_items
-      SET status = $status,            -- one of §3's five values
-          available_quantity = $qty,   -- the number they gave; the demand on `available`; NULL on `unavailable`
-          unit_price = $price,         -- only when they named one
-          notes = $notes               -- their own words, short: the substitute, the ETA, the caveat
-    WHERE availability_request_id = $ar AND id = $item AND is_active;
-   UPDATE availability_requests SET status = 'processing'
-    WHERE id = $ar AND status = 'new';
+   SELECT public.answer_availability_request(
+     $arId, $supplierId, $arItemId,
+     '{"status":"available","available_quantity":"30","unit_price":"12.00"}'::jsonb,
+     false
+   );
    ```
 
-   The four answer columns stay **theirs**: you fill them *from their words*,
-   never from a guess, your look-up or their catalogue. No price named → leave
-   `unit_price` as it was (a §2 prefill is not confirmed by a chat message
-   that never mentioned it). A line they didn't mention is untouched. A line
-   the request doesn't have — a plant they offer that we never asked for — is
-   **not** added here; note it in the relay for the jr thread to decide.
-   `mapped_inventory_id` is never written from a chat answer.
-4. **Confirm, `--portal`, in their terms** — the plant, what you recorded
-   (status, quantity, price), and a nudge that the request page shows it and
-   they can change it there: *"Got it — Boston Fern 1 G: available, 30 at
-   $12. It's on your request now; tap it if anything's off."* When they sent
-   the last open line, or say they are done ("that's everything"), mark it
-   submitted yourself — `UPDATE availability_requests SET status = 'submitted',
-   submitted_at = now() WHERE id = $ar` — and say so; otherwise say what is
-   still open on the request. Don't submit for them when lines are still
-   unanswered and they haven't said they're finished.
-5. **Then §3, as if they had pressed Submit** — relay the answers to the jr
-   thread item by item, with the same reading against `mapped_inventory_id`
-   and the same `[Open AR-<id>](ar:<id>)` on a web report. Doing it yourself
-   raises no `availability_submitted` event, so this step is not optional; a
-   later re-submit from their page re-notifies, and that relay then covers
-   only what changed.
+   Leave unmentioned fields out of `p_changes`; preserve mappings. The RPC
+   serializes with public/private edits, checks request/job closure and
+   updates Processing. Do not write answer rows directly. Do not add request
+   lines from an unsolicited offer; relay it to the job thread.
+4. Submit only when the supplier explicitly submits/says the response is
+   finished. Filling the last cell is not a Submit action. For submission
+   without another edit call the same RPC with NULL item/changes and
+   `p_submit = true`; it records Completed and `submitted_at`. Never claim
+   submission after a blocked/failed update.
+5. Confirm what was recorded through the supplier's channel, following the
+   applicable contact gate, and relay it to the job thread even when the
+   write was made through direct SQL (do not assume a webhook will fire).
 
-A message that only *asks* — which size, when the list updates — is §3.5.
-A correction to an answer already submitted follows the same five steps; the
-relay says it is a change and what it was before.
+For portal replies use `webchat-cli send --portal --text ...`; without
+`--portal` the supplier cannot see it. Routine clarifications within an
+active request follow the existing portal coordination authorization;
+commitments about LPS pricing, terms or new business require Chris's
+approval via `message-routing`. Never expose internal approval messages
+with `--portal`. Do not automatically send an email acknowledgement without
+its email authorization.
 
-## 4. Not an LPS Partner
+## 6. Follow-ups and records
 
-Outreach is **sent from your own mailbox** (`chris@localplantsupply.com`, as
-*Christopher Runyon*) once Chris approves the specific draft — drafted on the
-`jr-<id>` thread when an order is behind it, here when none is:
+Batch unresolved questions and use the same supplier thread/channel, with
+the same approval rules. Avoid repeated ARs or messages for identical work.
 
-1. **Where the draft and the approval happen depends on whether a job order is
-   behind it** (`1-agent.md`, rule 5):
-   - **Sourcing for a job order** — the `jr-<id>` thread drafts the ask and
-     gets Chris's approval on **its** web chat, then routes you the approved
-     text (`job-requests` §5.2). Send **exactly** that; if it is wrong for
-     this supplier, send it back there for re-approval rather than editing an
-     approved draft.
-   - **Nothing to do with an order** — draft it here: short, casual, concrete
-     (the supplier answers a question, not a form), two to three lines, no
-     preamble, no restating what they already know, applying anything
-     `suppliers.notes` remembers about how they like to be approached. Present
-     it for **Chris's approval on this thread's web chat**.
+The supplier thread's web transcript is the contact history: quote external
+email/relayed text in full, including sender/recipient, subject and known
+message link. Use the mailbox actually containing it in Gmail links; Rosie's
+mail uses `authuser=chris@localplantsupply.com`. Portal messages/replies are
+already recorded and need no duplicate transcript entry. Internal summaries
+never use `--portal`.
 
-   **For any non-Partner availability email**, make the approved draft a
-   brief, light, plain-language ask — not an internal request form. Never call
-   it an “LPS job” or say “Please confirm your availability.” When known and
-   useful, start with concrete project or location context; then give the
-   plant, size and quantity and ask a real human question, such as “Y’all have
-   those available?” Ask for a photo only when it would help answer the ask.
-   Supplier-specific preferences in `suppliers.notes` still control the
-   framing.
-
-   Either way approval is **per-draft**: a template or a past yes is never
-   standing permission.
-2. Send it yourself, plain text, on this thread:
-
-   ```
-   gws gmail +send --to <address> --subject "…" --body "…"
-   gws gmail +reply --message-id <MessageId> --body "…"    # always, for a reply
-   ```
-
-   **Reply in the same Gmail thread** — never open a new one for an existing
-   topic. Then route their answer back here: `bash scripts/gws/routes add
-   --name route-<slug> --thread-id <this thread> --gmail-thread-id <the
-   threadId +send printed>`, and re-add `router-all` last (`route-email`).
-3. Their reply lands on this thread. Relay the substance to the jr thread, and
-   **quote the reply in full to this thread's web chat** (below).
-
-A supplier the database doesn't have at all is daisy's to onboard — ask
-`main` to hand discovery/onboarding to her, and coordinate the order side here
-once the row exists.
-
-**The split with daisy is the subject, not the party.** Anything about this
-supplier's **lifecycle** — onboarding, account setup, how availability reaches
-us, a changed price-list format, correcting their record — is hers, and she
-says it from `chris.r@localplantsupply.com`, even while you are mid-order with
-them. Anything about **an order or a job request** — an availability ask for a
-specific job, pricing on it, a substitute, a delivery date, a follow-up — is
-yours, even on first contact. When mail that reaches you is really a lifecycle
-matter, hand it to daisy rather than answering it (`message-routing` §2c).
-
-## 5. Follow-ups
-
-Unanswered lines, an unclear substitute, a missing price — chase on this
-thread, through the same channel the ask went out on (a new or re-opened
-availability request for a Partner; §4's flow otherwise), with the same
-gates. Batch follow-ups; don't ping a supplier line by line.
-
-## Judgment calls, and where Chris is asked
-
-Make the defensible call and record it. **Anything about a job order that
-needs Chris — an approval, a decision, a trade-off — goes to that order's
-`jr-<id>` thread, not to this thread's web chat** (`1-agent.md`, rule 5): it
-is the one place he is asked about that order, and the one thread that knows
-the order's whole state. Ask here only about matters with no job order behind
-them (this supplier's channel, a preference, standing terms). `main` stays the
-Telegram escalation for a critical blocker — never routine questions.
-
-**Route your inputs to the jr thread**: what the supplier answered, a price or
-a substitute they named, a date they gave, anything that moves the order.
-Those relays are not Chris-gated — only things that *reach the supplier* are.
-
-## The web chat is this thread's contact history
-
-**Every supplier contact is posted to this thread's own web chat in the same
-task it happens** (`webchat-cli send`, **never `--portal`** — that flag would
-show it to the supplier), so the team follows the supplier in the app. How
-much you post depends on which of two kinds it is:
-
-- **Direct communication** — anything addressed to us or sent to them, either
-  direction: the ask that went out (the approved text, as Chris or daisy
-  actually sent it), their reply, a relayed text. Post the **complete text,
-  quoted**, headed by subject, who it was from or to, and — when whoever
-  received it gave you a Gmail message id — a link:
-  `https://mail.google.com/mail/u/0/?authuser=chris.r@localplantsupply.com#all/<MessageId>`
-  (`?authuser=` pins the LPS mailbox, `#all/` survives labelling). **A summary
-  never stands in for the text.** Mail you sent and received yourself you have
-  verbatim; something relayed to you by Chris or daisy you quote as received,
-  saying who sent it and when.
-- **Broadcast** — an availability drop, price list or newsletter forwarded
-  here: header only (subject, sender, first line, attachment names), never the
-  body. Those are daisy's to ingest, not yours.
-
-**Portal chat is already in this transcript** — a supplier's portal message
-and your `--portal` reply are rows on this same thread, so they are the
-contact history without being re-posted. Quote only what happened *outside*
-the panel: email and text relayed to you, and asks Chris or daisy sent on your
-behalf.
-
-Keep posting this thread's milestones alongside it — ask received, AR out,
-answers in.
-
-**`notes.md` carries no communication log**: only open follow-ups still owed
-an answer. Durable facts about the supplier go in `suppliers.notes`, task
-updates nowhere.
+Keep only open follow-ups in thread notes, and durable preferences in
+`suppliers.notes`. Send lifecycle matters (onboarding, account setup, price
+list ingestion, supplier record corrections) to Daisy via `message-routing`;
+continue the job coordination here.

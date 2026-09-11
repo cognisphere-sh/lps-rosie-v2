@@ -1,10 +1,10 @@
 # Use Chris’s LPS Ops Job Request sales lifecycle and history
 
-- Status: staged — lifecycle/history; Closed Lost reason capture deferred
+- Status: staged — Sales vocabulary/migration implemented; lifecycle/history follow-through remains
 - Route: bhoumik
 - Priority: Lifecycle/history is current staged work; Closed Lost reason capture is low-priority follow-on
 - Raised: 2026-08-27 by Chris (via nova handoff, then Chris clarification)
-- Updated: 2026-09-01
+- Updated: 2026-09-11
 
 ## Problem
 
@@ -61,3 +61,4 @@ Define durable stored values, allowed transitions, reporting/history treatment a
 - 2026-08-28 — Archived retired; history/reporting and exceptional deletion added. Confirmed/Won closure semantics clarified.
 - 2026-08-29 — Chris refined the sales flow to Pricing then Availability, with quote deliveries and supplier submissions as events.
 - 2026-09-01 — Chris supplied authoritative Sales labels: Active, Quote, Availability, Confirmed, Won, Lost. Requirement revised; durable model and migration remain staged for Bhoumik, with Nova UI mapping held until that contract exists.
+- 2026-09-11 — Audit after Bhoumik marked priority item 1 done: current app/schema/docs implement and display the exact six Sales labels, retain legacy archived readability, and enforce documented Active → Quote → Availability → Confirmed progression. This completes the Sales-vocabulary/migration slice; full lifecycle/history requirement remains staged for its separate event/history and deferred Lost-reason acceptance.

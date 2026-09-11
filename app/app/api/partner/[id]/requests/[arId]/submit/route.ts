@@ -22,16 +22,9 @@ export async function POST(
       return NextResponse.json({ error: 'not found' }, { status: 404 })
     }
     const submitted = await submitAvailabilityRequest(arId, supplierId)
-    await notifySupplierEvent({
-      type: 'availability_submitted',
-      supplierId: submitted.supplierId,
-      supplierName: submitted.supplierName,
-      availabilityRequestId: arId,
-      jobRequestId: submitted.jobRequestId,
-      threadId: submitted.rosieThreadId,
-    })
+    await notifySupplierEvent({ type: 'availability_submitted', ...submitted })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    return NextResponse.json({ error: (e as Error).message }, { status: /closed/i.test((e as Error).message) ? 409 : 400 })
   }
 }

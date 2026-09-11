@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 2.0.0
+
+2026-09-10 — Focus on pricing evidence and exact matches; APS is default and broader sourcing requires instruction. Remove duplicated job/approval policy.
+
 ## 1.2.1
 
 2026-08-29, Bhoumik-approved correction before migration 0081 is applied.

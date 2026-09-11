@@ -1,5 +1,13 @@
 # customer-coordination — changelog
 
+## 3.0.1
+
+2026-09-11 — Align quote delivery and confirmation relays with the six-stage job vocabulary; Won/Lost remain explicit closure outcomes.
+
+## 3.0.0
+
+2026-09-10 — Keep every customer message on its customer thread, relay all job updates, and return required communication approvals to the original request chat.
+
 ## 2.3.0
 
 2026-08-25 (Bhoumik, same day as 2.2.0) — a job-order question is **never put

@@ -1,86 +1,113 @@
 ---
 name: quote-generation
-description: Turn a priced job request into a customer-facing quote — a shareable HTML page and a PDF. Covers the templates, filling a quote from customer-safe fields only, rendering and publishing both formats, and the Chris-approval gate before anything reaches the customer. Use when a job request is priced and confirmed and ready to present, when Chris asks for a quote, or when a quote template needs adding or changing. (v1.3.2)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers APS/named-supplier pricing without availability requests, the exact default size/plant/unit-price text format, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create a job/thread without an AR; simple pricing questions create neither. (v2.0.1)
 metadata:
   author: lps
-  version: "1.3.2"
+  version: "2.0.1"
 ---
 
 # Quote generation
 
-A quote is a **customer-facing document**. Everything in it must come from
-customer-safe fields: the request's and items' `external_notes`, the
-customer's own data, item names/sizes/quantities/prices and the generated
-`total`. Never `sourcing_notes`, never a supplier's name, a supplier's price
-or a price list — unless Chris explicitly asked for one to be named, the same
-exception the shared note carries (`job-requests` §4.2). If something from the
-sourcing sheet belongs in the quote, put the customer-safe version in
-`external_notes` first — what they are being offered, not the reason for it
-(`job-requests` §4) — and quote from there.
+This is the single quote procedure, including the default text format.
+`job-requests` owns job data and lifecycle; `customer-coordination` owns
+customer delivery; `message-routing` owns any required approval routing.
 
-## 1. Templates
+## 1. Select the quoting path
 
-Templates live in `knowledge/files/templates/`; use
-`austin-plant-supply-modern-quote-template.html` as the default for every APS
-quote. It is the approved editable APS-branded layout, including logo and
-current header. `lps-quote-template.html` is legacy and must not be selected
-for APS quotes; `austin-plant-supply-quote-template.html` is stale and must
-not be used. A template is a complete HTML document with `{{PLACEHOLDER}}`
-slots (`{{DATE}}`, `{{QUOTE_NUMBER}}`, `{{CUSTOMER_NAME_AND_ADDRESS}}`,
-`{{SHIP_TO}}`, `{{ITEM_ROWS}}`, `{{TOTAL}}`, `{{QUOTE_NOTES}}`, …) and
-print-ready CSS (`@page size: letter`).
+- **Quick quote:** create a job and its `jr-<id>` thread through
+  `job-requests` intake, or reuse the existing job. Carry `quote_only: true`.
+  Use APS inventory or the explicitly named supplier through
+  `plant-and-supplier-search`. Do not create/send an AR or contact suppliers.
+  Inventory pricing is enough; supplier-confirmed availability is not
+  required. Record completed pricing through the `job-requests` hook to move
+  Active → Quote, even for a no-match lookup. Quick quotes skip the job’s
+  Availability stage. Keep item availability pending; do not imply a reservation.
+- **Simple price lookup/general question:** answer using the same search
+  evidence without creating a job or AR. Do not interpret a pricing question
+  as a quick-quote request when the intent is unclear.
+- **Existing job:** read its current rows and recent changelog. A quick quote
+  for that job also skips ARs; record completed pricing through the job hook.
+  Ordinary job quotes use the selected offering and customer-facing price;
+  clearly resolve material unconfirmed substitutions or missing prices with
+  Chris before treating them as a firm offering.
+- **Unknown identity, size or price:** do not guess. Ask for the missing
+  information while preparing unambiguous lines. Keep unsupported lines out
+  of a final priced quote and state that gap separately to Chris.
 
-- Quote numbers are `JR<requestId>-<YYYYMMDD>` — reproducible from the data,
-  no counter to maintain.
-- A new or changed template is a skill-adjacent asset: add it to
-  `knowledge/files/templates/`, list it in `knowledge/index.md`, and get
-  Chris's approval on the rendered look before first use — the template *is*
-  what customers see.
+Quotes contain the requested/approved offered plant, size, customer price
+and (when required by the chosen format) quantity. Never copy sourcing notes,
+supplier comparisons, supplier cost commentary, internal agent messages or
+unapproved substitutions. Keep original plant order unless instructed
+otherwise. Source pricing evidence belongs in internal notes, not each
+customer-facing quote row.
 
-## 2. Filling
+## 2. Default text quote
 
-Read the request fresh (with its last-5 changelog entries — `job-requests`
-§3). Then:
+Unless Chris specifies another format, output **one line per size/plant,
+unit price only**, in this exact shape:
 
-- One `{{ITEM_ROWS}}` row per **active, quotable** item — statuses
-  `available` and `alternative_proposed` (the latter with its `external_notes`
-  line in the Comments cell only when the offered plant or size differs — use
-  `Quoted for <offering>.`; omit it for a catalogue-name-only difference
-  (`job-requests` §4). Render gallons as `G` in the Size column (`3 G`,
-  never `3 gal`). A `pending` item either holds the quote or is listed as "to
-  follow" — ask Chris which, don't decide silently; **priced-and-`pending` is
-  the normal shape of a line nobody has confirmed yet** (`job-requests` §5.3),
-  and a price in the column is not permission to quote it. An
-  `unavailable` item appears only as a short note if the customer needs to see
-  it was considered. (Four statuses since migration 0058 — `job-requests` §6.)
-- Prices are the items' `unit_price`/`total`. A line total is the **customer's
-  asked quantity** times the unit price — generated by the database, and
-  `available_quantity` never enters the arithmetic — and the quote's total is
-  the sum of quoted lines. An unpriced (`NULL`) item cannot be quoted — price
-  it (`job-requests` §5, from Austin Plant Supply) or hold it. A line sourced
-  off the default carries its price in `sourcing_notes` and not in the column
-  by design: it becomes quotable when Chris sources it there and the price
-  lands in `unit_price`, not before.
-- Addresses come from the request's billing/shipping fields; fall back to the
-  customer's address, and leave the slot visibly blank rather than inventing
-  one.
-- Write the filled HTML to the thread's `files/` dir.
+```text
+15 G Wax myrtle — $105.00
+15 G Mountain laurel — $175.00
+30 G Mountain laurel — $375.00
+15 G Arizona cypress — $165.00
+30 G Arizona cypress — $395.00
+5 G Carolina jasmine — $30.00
+3 G Texas sage — $21.00
+5 G Texas sage — $25.00
+3 G Red yucca — $21.00
+5 G Agave — $22.00
+5 G Twisted yucca — $22.00
+5 G Pale leaf — $27.00
+1 G Cactus/succulents — $14.00
+3 G Golden Barrel — $45.00
+```
 
-## 3. Rendering and sharing
+These are formatting examples, **not a price list**. Fetch actual prices.
+Use `G` for gallons, one space between size and name, a spaced em dash
+(` — `), `$` and exactly two decimal places. Preserve meaningful non-gallon
+size/form specifications rather than converting them without evidence.
+No heading, quantity prefix, `x`, pipes, line totals, subtotal, commentary or
+supplier names in the quote block. Only an explicit format instruction
+changes this. Quantity is not required for a unit-price text quote.
 
-- **PDF**: print the filled HTML with `scripts/agent/agent-browser`
-  (headless print-to-PDF). Verify the PDF opens and paginates before sharing.
-- **Upload**: `scripts/agent/supabase/upload --bucket lps --path
-  rosie_shared/YYYY-MM-DD/JR<requestId>-quote.pdf --file <local>` then
-  `scripts/agent/supabase/sign-url` for the link. The bucket is public —
-  nothing internal goes in the file (it shouldn't be in the quote anyway).
-- **HTML page**: publish the same document through the artifacts plugin when a
-  live link is wanted alongside (or instead of) the PDF.
+## 3. HTML / PDF quote
 
-## 4. After
+Use `artifacts/austin-plant-supply-modern-quote-template.html` (relative to
+this skill) for an APS document. Preserve its approved branding, logo and
+print layout. Do not substitute the old APS or legacy LPS templates. A new
+visual template needs Chris's review of the rendered result before first use.
 
-The quote reaching the customer is a customer contact — the whole
-`job-requests` §7 flow applies: Chris approves the draft (quote attached or
-linked), the send is recorded on the customer thread's own web chat, the
-request moves `sourcing → quoted` (guarded), and the quote link is appended to
-the request's `external_notes` with a timestamp.
+1. Fill the template placeholders (`DATE`, `QUOTE_NUMBER`, customer/address,
+   ship-to, item rows, total, notes) with customer-safe data and HTML escaping.
+   Quote numbers use `JR<id>-<YYYYMMDD>`, including quick quotes: their
+   job/thread is created before the document.
+2. One row per included item. Gallons display as `G`. Document quantities
+   and unit prices must be known before calculating line totals. Use decimal
+   currency arithmetic and verify the sum. Job `total` is generated from
+   requested quantity × customer unit price, never `available_quantity`.
+3. Show a customer-safe note when an approved offered plant/size differs:
+   `Quoted for Muskogee Crape Myrtle 30 G.` A catalogue spelling difference
+   alone needs no note. Missing address fields stay visibly blank.
+4. Write HTML to the thread's files, render PDF with
+   `scripts/agent/agent-browser`, and verify page breaks, content and totals.
+   Upload final files through `scripts/agent/supabase/upload` to
+   `lps/rosie_shared/YYYY-MM-DD/`, obtain a link with
+   `scripts/agent/supabase/sign-url`, and use the artifacts plugin when a
+   live HTML link is requested. Treat published files as customer-visible.
+
+## 4. Approval and delivery
+
+Returning a requested draft/price quote to Chris is internal work; it is not
+permission to deliver it to a customer. If customer delivery is requested,
+hand the complete draft, recipient, attachments/links and interaction context
+to the customer's thread. Follow `message-routing` for any required
+approval in the original request thread. The customer thread sends exactly the
+approved content and logs the actual contact.
+
+For a job, only actual customer delivery triggers `quote_shared` and records
+the shared link in customer-visible job notes. This advances Active → Quote,
+leaves Availability/Confirmed unchanged, and never reopens Won/Lost.
+A quote draft does not confirm
+an order; actual customer acceptance triggers `customer_confirmed` through
+`job-requests`.

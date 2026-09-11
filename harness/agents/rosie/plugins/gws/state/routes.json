@@ -1,1 +1,1 @@
-{"routes": [{"name": "router-all", "threadId": "router", "from": "."}]}
+{"routes":[{"name":"router-all","threadId":"main","from":"."}]}

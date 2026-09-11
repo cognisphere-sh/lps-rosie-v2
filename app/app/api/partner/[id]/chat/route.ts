@@ -116,6 +116,8 @@ export async function POST(
         threadId: t.threadId,
         text,
         attachments,
+        supplierId: t.supplierId,
+        supplierName: t.supplierName,
         senderName: `${t.supplierName} (portal)`,
         ...(b.page && typeof b.page === 'object' ? { page: b.page } : {}),
       }),

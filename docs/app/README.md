@@ -6,16 +6,18 @@ developer agent (`nova`) or a human — and updated **after every change** under
 
 ## Job and plant statuses
 
-Job Requests offer **New**, **In Progress**, **Confirmed**, **Closed Won**,
-**Closed Lost**, in that order. Stored values are `sourcing`, `quoted`,
-`confirmed`, `closed_won`, `closed_lost`. Active becomes New; Quote and
-Availability combine into In Progress. Migration 0084 moves any stored
-`availability` jobs to `quoted` through the existing audit trigger. New jobs
-retain the `sourcing` default, now displayed as New. Legacy `archived` rows
-remain readable, but Archived is not selectable; clear the All Jobs status
-filter to include them. Active Jobs, customer totals and Rosie's job picker
-include all three working stages. Saved browser filters migrate old labels,
-deduplicate the combined stages and preserve explicit current selections.
+Job Requests offer **Active**, **Quote**, **Availability**, **Confirmed**,
+**Won**, **Lost**, in that order. Stored values are `sourcing`, `quoted`,
+`availability`, `confirmed`, `closed_won`, `closed_lost`. Migration 0089 (applied
+2026-09-11) restores
+Availability as a separate stage and preserves existing stored values and
+history. New jobs retain the `sourcing` default, displayed as Active. Legacy
+`archived` rows remain readable, but Archived is not selectable; clear the
+All Jobs status filter to include them. Active Jobs, customer totals and
+Rosie's job picker include all four working stages. Saved browser filters
+map New/Sourcing to Active, Quote Delivered/Quoted to Quote, and Closed Won/Lost
+to Won/Lost. The former combined In Progress filter expands to Quote and
+Availability; explicit current selections remain unchanged.
 
 Job and availability-request plants offer **Available**, **Unavailable**,
 **Different Sz/Qnty/Sub**, **Need to Order**, **Arriving Soon**, **Pending**.
@@ -26,6 +28,22 @@ Quantity shortfalls retain the saved Available label and their coverage tint.
 Selecting any status does not place an order or copy supplier answers into
 job rows. Working sales-stage changes leave supplier requests open; terminal
 sales stages and deactivation close requests and revoke public links.
+
+Migrations 0088 and 0089 enforce workflow transitions for app and agent writes.
+Saving a job line price advances Active to Quote. Delivering an availability
+request advances Active/Quote to Availability. Rosie records successful pricing
+lookups, availability sends, shared quotes and customer confirmations through
+`record_job_workflow_event`; pricing/quote events preserve Availability, and
+stale activity cannot move Confirmed or closed jobs backwards. Customer
+confirmation advances Active, Quote or Availability to Confirmed. Job creation already creates its `jr-<id>` thread through migration
+0078. General pricing questions do not create job records. An explicit quick quote
+creates a Job Request and its thread, then fetches pricing without creating an
+Availability Request.
+
+Sourcing notes show each supplier on its own short row, including price and the
+latest response. All supplier rows stay visible together in the job line table.
+Rosie updates the existing supplier row as information changes; internal sourcing
+notes stay out of customer messages and quotes.
 
 ## What it is
 
@@ -411,12 +429,12 @@ in the desktop rail and through mobile More.
 | `GET /a/:agent/private/artifacts/:slug/raw` | The artifact HTML for the page's iframe, fetched from the harness with the shared secret. |
 | `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
 | `GET /api/availability-requests?supplier=1,2&job=` | Availability-request summaries for a supplier's locations or one job request — the supplier profile's Requests tab and anything else that lists them. |
-| `POST /api/availability-requests` | Create one from a job request's selected lines (`{jobRequestId, supplierId, shareCustomerDetails, itemIds}`). Refuses a supplier that is not an LPS Partner; snapshots the lines' name/size/quantity at share time and prefills each line's `unit_price` where our catalogue answers it for that supplier at that size. It does **not** write `mapped_inventory_id` (migration 0077) — the price look-up takes a number when every surviving row agrees on one, which is not the same as one row mapping. Rosie's supplier thread is the column's only writer for now, so a priced line with no mapping is a request made here. |
+| `POST /api/availability-requests` | Create one from a job request's selected lines (`{jobRequestId, supplierId, shareCustomerDetails, itemIds}`). Requires an active supplier; non-partners receive a public URL for HTML email outreach. Snapshots the lines' name/size/quantity at share time and prefills each line's `unit_price` where our catalogue answers it for that supplier at that size. It does **not** write `mapped_inventory_id` (migration 0077) — the price look-up takes a number when every surviving row agrees on one, which is not the same as one row mapping. Rosie's supplier thread is the column's only writer for now, so a priced line with no mapping is a request made here. |
 | `GET·PATCH /api/availability-requests/:id` | One request whole (admin view — no disclosure filter), and the admin writes: `{status}` (usually → `closed`), or `{itemId, changes}` for one line's answer — the same four writable columns the portal PATCH takes, through the same `updateARItem` scoping minus the supplier check, so a closed request still refuses. A `{status}` write also maintains `submitted_at` — stamped on `submitted`, cleared on `new`, untouched on `closed`. |
-| `GET /api/availability-requests/suppliers` | The LPS Partners — the create dialog's dropdown and the nav rail's Supplier view picker. |
+| `GET /api/availability-requests/suppliers` | All active suppliers, including non-partners, with `is_lps_partner`. The nav rail filters this list to partners for valid portal shortcuts. |
 | `GET /api/partner/:id` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not an LPS Partner, which is the scoping rule every portal route starts with. |
 | `GET /api/partner/:id/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
-| `GET·PATCH /api/partner/:id/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. A PATCH also moves the request to `processing` — the supplier is working on it — which the admin's own PATCH deliberately does not. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
+| `GET·PATCH /api/partner/:id/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`notes`; the ask columns are refused. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. An answer PATCH atomically moves the request to `processing`, including admin-entered supplier replies; mappings alone leave the response stage unchanged. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
 | `POST /api/partner/:id/requests/:arId/submit` | The request page's **Submit** / **Re-Submit**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
 | `GET /api/partner/:id/chat/events` | The portal's push signal: a content-free `{type:'ping'}` whenever the supplier's rosie thread changes — no preview, because the newest message may be internal. The portal re-fetches through the route below, which filters. |
 | `GET·POST /api/partner/:id/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. A send also forwards the supplier's `page` (path + title of the portal screen they were on), which the plugin appends to the agent-facing message as `Additional context` — on the request page that path names the request, which is how rosie knows which one a chat-given answer is about (`supplier-coordination` §3.6). 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
@@ -483,8 +501,8 @@ it. Deleting the Supabase Auth user is the whole of it — `app_users.id` is an
 FK to it `ON DELETE CASCADE`, so the app-side row goes too and the username is
 free again. It is scoped by company like the reset, so one supplier's page
 cannot delete another's login by id. Deleting a company's **last** login clears
-`is_lps_partner`, which also takes them out of the availability-request picker:
-nobody can open their portal, so nothing should be sent to it.
+`is_lps_partner`, which removes their portal shortcut. They remain eligible for
+availability requests delivered by HTML email with a public request link.
 
 ## Supplier portal
 
@@ -673,9 +691,9 @@ The vocabulary is deliberately **not** the job-request item vocabulary: what a
 supplier says about their stock and what we decide about a customer's line are
 different judgments, joined only through `sourcing_notes` by rosie.
 
-**The request's own status is a three-step lifecycle** (`new` → `processing` →
-`submitted`, plus the admin's terminal `closed`), and it is what the portal's
-request work buckets represent:
+**The request lifecycle** uses stored `new` → `processing` → `submitted` →
+`closed`, displayed as New → Processing → Completed → Closed. The portal's
+request work buckets represent the three open stages:
 
 - **`new`** — waiting on the supplier. Also **re-set by the database** whenever
   a line is added to a request they had already started (migration 0075's
@@ -684,12 +702,14 @@ request work buckets represent:
   extended has to land back in their New bucket either way. `submitted_at` is left
   alone, so the button on it still reads *Re-Submit*.
 - **`processing`** — they have written at least one answer since. Set by
-  `updateARItem` on any line write **that came from the portal**; the admin
-  drawer enters answers a supplier gave by phone, which is ours, not a sign
-  they are working the portal.
-- **`submitted`** — they pressed Submit. Stamps `submitted_at` and wakes rosie.
-- **`closed`** — ours, and terminal. It has no work bucket: a closed request
-  leaves the requests page entirely for `/partner/:id/closed`.
+  `updateARItem` on any line write **that came from the portal, public link, admin or Rosie recording a supplier reply**.
+  The write and transition are atomic. Editing Completed returns Processing
+  until another explicit submission.
+- **`submitted` (Completed)** — they pressed Submit. Stamps `submitted_at`
+  and wakes Rosie. Saving the final cell alone does not submit.
+- **`closed`** — supplier edits are blocked. It leaves the working request
+  buckets for `/partner/:id/closed`. Reopening the job restores each request’s
+  saved previous stage.
 
 The three open states are multi-select work buckets on **By request**. Every
 fresh visit starts with New + Processing selected and Completed excluded; the
@@ -1378,7 +1398,7 @@ Different Sz/Qnty/Sub, Need to Order, Arriving Soon and Pending. Migration
 `arriving_soon`. Quantity shortfalls keep the saved Available label with a
 coverage tint; quantity cells show the shortfall. The six summary buckets use
 the same labels and order. Parent sales stages use the separate lifecycle
-described above, with all three working stages included in active-job views.
+described above, with all four working stages included in active-job views.
 
 **"Needs input" is gone entirely** — migration 0060 dropped
 `needs_attention` from both tables, and every trace of it went with the column:
@@ -1574,16 +1594,16 @@ once by the Shell and opened from anywhere via `openAvailabilityRequest`).
 same table: the admin answers lines on the supplier's behalf — suppliers reply
 by phone and email as often as through their portal — with the same status
 picker, answer pop-up and per-cell saves the portal has, and moves the
-request's own status from the pill (New / Answered / Closed). Every write is
+request's own status from the pill (New / Processing / Completed / Closed). Every write is
 one `PATCH /api/availability-requests/:id` followed by a re-read, because the
 line totals and the subtotal are derived. A **Save** button at the foot mirrors
 the portal's: the answers are already written line by line, so what it does is
-mark the whole request **Answered** and date it. A **closed** request is
+mark the whole request **Completed** and date it. A **closed** request is
 read-only, loses the button and says so; reopening it from the pill is what
 unlocks it, since `updateARItem` refuses a closed request whichever side is
-writing. Unlike the portal's Save it does **not** wake rosie — the
-`availability_submitted` event says a supplier answered in their portal, and
-the admin who typed the answers here is the one who would act on it.
+writing. Admin-entered supplier answers also wake Rosie: partial saves emit
+`availability_updated`, and completion emits `availability_submitted`, so the
+supplier thread relays the new evidence to the owning job.
 
 `submitted_at` follows the status wherever it is set, not just on the portal's
 submit route: moving a request to `submitted` stamps it, moving it back to
@@ -2583,7 +2603,8 @@ node lib/size-std.check.mjs         # size_std ordering
 
 The admin availability-request drawer and partner request toolbar have a Share
 button. It opens sharing options with Make public, Copy public URL, and Make
-private actions. Opening Share does not change access. Requests default to private. Publishing copies a randomly generated,
+private actions. Opening Share does not change access. Partner requests default to private. Non-partner requests receive a public URL
+for the supplier email. Publishing copies a randomly generated,
 request-specific URL; the visible URL supports manual copying if clipboard access
 fails. The copy button shows a spinner and “Copying…” while writing, then a
 green check and “Copied!” for two seconds on success; a failed copy shows manual
@@ -2610,13 +2631,25 @@ remain confined to the authenticated portal.
 
 Migration `0082_public_availability_requests.sql` was applied to the live database
 on 2026-09-10. It adds the nullable, unique UUID capability; private/closed/inactive requests
-have no working public link. Republishing rotates the token. Only active LPS
-Partners may have public requests. Migration 0083 narrows the job-status trigger:
-only Closed Won, Closed Lost, legacy Archived or job deactivation closes active
-availability requests and revokes their public links. Working-stage changes
-(such as New → In Progress) keep supplier requests open. Reopening a request
-does not restore an old link. Public writes lock the request row, serializing
-with closure and revocation, and accept only supplier answer fields.
+have no working public link. Republishing rotates the token. Migration 0088 permits public requests for active non-partner suppliers as well.
+Partners receive availability requests in their portal; Rosie sends non-partners
+an HTML email containing the request and its public URL from the supplier thread.
+Customer details still follow the existing disclosure flag. Only Won,
+Lost, legacy Archived or job deactivation closes linked availability
+requests and revokes their public links, including inactive linked requests. Working-stage changes
+(such as Active → Quote → Availability → Confirmed) keep supplier requests open. Reopening a request
+does not restore an old link. Reopening a job restores each request’s stage from before closure. A previously
+public request gets a fresh link; revoked links remain invalid. Public and
+authenticated supplier writes lock the request row, serializing
+with closure and revocation, and accept only supplier answer fields. Database
+guards also reject changes made through direct SQL to closed request lines.
+Saving an answer emits `availability_updated`; explicit submission emits
+`availability_submitted`. Both wake the supplier thread, which routes current
+sourcing evidence to the job thread. Missing supplier thread IDs fall back to
+Rosie’s main thread for routing. Portal chat messages carry the authenticated
+supplier ID and name; internal app messages carry their origin thread and channel
+so communication approvals return to the original request chat even if Chris
+switches chats. Supplier/customer threads still own the actual external send.
 
 Regression SQL lives in `harness/agents/daisy/migrations/tests/0082_*` and
 `0083_*`: run each fixture, migration, then assertions in an empty disposable PostgreSQL database

@@ -43,6 +43,12 @@ test('public request uses the partner summary, print sheet and submit flow, then
     await waitFor(() => assert.ok(view.getByText('Completed')))
     assert.deepEqual(writes, [{ submit: true }])
     assert.ok(view.getByRole('button', { name: 'Re-Submit availability' }))
+    request.status = 'closed'
+    fireEvent.focus(window)
+    await waitFor(() => assert.ok(view.getByText('This request is closed — the lines are read-only.')))
+    assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
+    assert.equal(view.container.querySelector('input:not([readonly]), textarea:not([readonly]), select'), null)
+    assert.deepEqual(writes, [{ submit: true }])
     revoked = true
     fireEvent.focus(window)
     await waitFor(() => assert.ok(view.getByText('This link is no longer available.')))

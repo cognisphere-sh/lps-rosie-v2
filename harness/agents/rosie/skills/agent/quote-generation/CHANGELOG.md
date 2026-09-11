@@ -1,5 +1,13 @@
 # quote-generation — changelog
 
+## 2.0.1
+
+2026-09-11 — Align quick quotes and customer delivery with the Quote stage; skip Availability for quick quotes and preserve later job stages.
+
+## 2.0.0
+
+2026-09-10 — Merge text-quote-format into this skill with the requested size/plant/em-dash/unit-price shape. Quick quotes use a job/thread without ARs. Move approved APS HTML into skill artifacts and preserve retired format history.
+
 ## 1.3.2
 
 2026-08-25 (Bhoumik). §4 no longer says the send is logged in
@@ -78,3 +86,22 @@ mentioned-if-useful is `unavailable`.
 customer-safe-fields-only rule, filling and quotable-item selection, PDF via
 agent-browser + upload/sign-url under `rosie_shared/`, HTML via the artifacts
 plugin, and the Chris-approval gate before anything reaches the customer.
+
+
+# Retired text-quote-format history
+
+Merged into quote-generation in 2.0.0. The current format is defined above in its SKILL.md.
+
+# text-quote-format — changelog
+
+## 1.0.2
+
+- Correct item lines to always include quantity, size, plant, unit price, and validated line total; require copy/paste-ready output with no Rosie commentary and the subtotal as the final line after exactly one blank line.
+
+## 1.0.1
+
+- Require exactly one blank line between the final item and the subtotal, per Chris's approved formatting correction.
+
+## 1.0.0
+
+- Initial version: concise, customer-safe plain-text quote formatting, price validation, and approval gate.

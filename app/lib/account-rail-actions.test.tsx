@@ -95,6 +95,14 @@ test('rendered desktop Account disclosure exposes state, actions, nesting and la
   assert.equal(trigger.getAttribute('aria-expanded'), 'false')
 })
 
+test('supplier portal shortcuts exclude non-partners eligible for emailed availability requests', async () => {
+  const suppliers = await fetchPartnerSuppliers(undefined, async () => Response.json({ suppliers: [
+    { id: 1, name: 'Austin Plant Supply', is_lps_partner: true },
+    { id: 2, name: 'Grower by email', is_lps_partner: false },
+  ] }))
+  assert.deepEqual(suppliers.map(({ id }) => id), [1])
+})
+
 test('Escape closes account and nested Supplier view and restores trigger focus', async () => {
   const user = userEvent.setup({ document })
   const view = render(<Harness />)

@@ -18,6 +18,7 @@ test('partner sharing requires access and scopes writes to the authorized suppli
   const writes: unknown[][] = []
   const { PATCH } = load('../app/api/partner/[id]/requests/[arId]/route.ts', {
     'next/server': { NextResponse: Response },
+    '@/lib/notify-supplier-events': { notifySupplierEvent: async () => {} },
     '@/lib/partner-auth': { requirePartnerAccess: async () => allowed
       ? { ok: true, supplierId: 7 }
       : { ok: false, res: Response.json({ error: 'unauthorized' }, { status: 401 }) } },
@@ -40,12 +41,14 @@ test('partner sharing requires access and scopes writes to the authorized suppli
 
 test('sharing database write cannot change another supplier request', async () => {
   let token: string | null = null
+  let status = 'new'
   const filters: Record<string, unknown> = {}
   let values: { public_token: string | null }
   const chain = {
     update: (next: typeof values) => { values = next; return chain },
     eq: (key: string, value: unknown) => { filters[key] = value; return chain },
     select: () => chain,
+    maybeSingle: async () => ({ data: { id: 11, supplier_id: 7, status }, error: null }),
     single: async () => {
       if (filters.supplier_id !== 7) return { data: null, error: { message: 'not found' } }
       token = values.public_token
@@ -65,5 +68,8 @@ test('sharing database write cannot change another supplier request', async () =
   assert.equal(filters.id, 11)
   assert.equal(filters.is_active, true)
   await setAvailabilityRequestPublic(11, false, 7)
+  assert.equal(token, null)
+  status = 'closed'
+  await assert.rejects(setAvailabilityRequestPublic(11, true, 7), /closed/)
   assert.equal(token, null)
 })

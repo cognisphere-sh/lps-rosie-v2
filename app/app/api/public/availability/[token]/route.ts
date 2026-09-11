@@ -26,14 +26,12 @@ export async function POST(req: Request, { params }: Context) {
       p_changes: body.changes ?? null, p_submit: body.submit === true,
     })
     if (error) throw new Error(error.message)
-    if (body.submit === true) {
-      const { data } = await supabase.from('suppliers').select('rosie_thread_id').eq('id', request.supplierId).single()
-      await notifySupplierEvent({ type: 'availability_submitted', supplierId: request.supplierId,
-        supplierName: request.supplierName, availabilityRequestId: request.id,
-        jobRequestId: request.jobRequestId, threadId: data?.rosie_thread_id ?? null })
-    }
+    const { data } = await supabase.from('suppliers').select('rosie_thread_id').eq('id', request.supplierId).single()
+    await notifySupplierEvent({ type: body.submit === true ? 'availability_submitted' : 'availability_updated',
+      supplierId: request.supplierId, supplierName: request.supplierName, availabilityRequestId: request.id,
+      jobRequestId: request.jobRequestId, threadId: data?.rosie_thread_id ?? null })
     return NextResponse.json({ ok: true }, { headers })
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400, headers })
+    return NextResponse.json({ error: (error as Error).message }, { status: /closed/i.test((error as Error).message) ? 409 : 400, headers })
   }
 }

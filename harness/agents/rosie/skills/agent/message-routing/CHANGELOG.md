@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 2.0.0
+
+2026-09-10 — Consolidate to main plus job/customer/supplier owners, preserving legacy forwarding. Route by correspondent first and retain original interaction metadata for approvals.
+
 ## 1.1.0
 
 2026-08-25 (Bhoumik) — **the router now dispatches rosie's email.** She has her

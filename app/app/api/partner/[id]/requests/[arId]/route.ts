@@ -6,8 +6,10 @@ import {
   setARItemMapping,
   setAvailabilityRequestPublic,
   updateARItem,
+  supplierAvailabilityEventContext,
 } from '@/lib/availability-queries'
 import { requirePartnerAccess } from '@/lib/partner-auth'
+import { notifySupplierEvent } from '@/lib/notify-supplier-events'
 
 // See ../../route.ts for how these routes are gated and scoped.
 
@@ -78,14 +80,22 @@ export async function PATCH(
       await setARItemMapping(s.arId, body.itemId!, body.mappedInventoryId ?? null, {
         forSupplierId: s.supplierId,
       })
+      await notifySupplierEvent({
+        type: 'availability_updated',
+        ...await supplierAvailabilityEventContext(s.arId, s.supplierId),
+      })
       return NextResponse.json({ ok: true })
     }
     if (!body.changes) {
       return NextResponse.json({ error: 'changes or mappedInventoryId is required' }, { status: 400 })
     }
     await updateARItem(s.arId, body.itemId!, body.changes, { forSupplierId: s.supplierId })
+    await notifySupplierEvent({
+      type: 'availability_updated',
+      ...await supplierAvailabilityEventContext(s.arId, s.supplierId),
+    })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    return NextResponse.json({ error: (e as Error).message }, { status: /closed/i.test((e as Error).message) ? 409 : 400 })
   }
 }

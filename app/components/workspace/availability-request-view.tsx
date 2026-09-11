@@ -100,7 +100,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
             <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-3">
               <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl bg-secondary/60 px-3 py-2.5">
                 <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">
-                  {request.status === 'submitted' ? 'Completed' : arStatusLabel(request.status)}
+                  {arStatusLabel(request.status)}
                   <ChevronDown className="size-3.5" />
                 </span>
                 <span className="min-w-0 truncate text-center text-[18px] font-semibold text-foreground">

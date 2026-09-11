@@ -270,8 +270,8 @@ export async function fetchPartnerSuppliers(
 ): Promise<{ id: number; name: string }[]> {
   const response = await fetcher('/api/availability-requests/suppliers', { signal })
   if (!response.ok) throw new Error('Supplier list request failed')
-  const body = (await response.json()) as { suppliers: { id: number; name: string }[] }
-  return body.suppliers
+  const body = (await response.json()) as { suppliers: { id: number; name: string; is_lps_partner: boolean }[] }
+  return body.suppliers.filter((supplier) => supplier.is_lps_partner)
 }
 
 export function SupplierPortalList({

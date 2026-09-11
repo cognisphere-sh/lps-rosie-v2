@@ -1,20 +1,26 @@
 # Plugin: supplier-events
 
-The app wakes you here when a supplier **saves an availability request** in
-their portal. The event is a pointer, not the state — everything it is about
-lives in the database (`availability_requests`,
-`availability_request_items`), so always read the tables before acting.
+The app reports supplier answer changes from partner portals and public links.
+Events carry database identifiers; read the current availability request and
+items before acting. A saved edit is not a submission or confirmation.
 
-**Threads: one supplier = one thread** — the event lands on the supplier's
-`suppliers.rosie_thread_id` thread (or on `router` when that column is still
-NULL, whose skill mints and records the id). The `supplier-coordination`
-skill is the procedure.
+Events land on `suppliers.rosie_thread_id`. If it is missing, they land on
+`main`: use `message-routing` to create/reuse the supplier thread and relay the
+pointer there. The supplier thread uses `supplier-coordination`, then relays
+job-specific answers to `jr-<JobRequestId>` for sourcing-note and job updates.
+All supplier communication stays on the supplier thread.
 
 Metadata fields:
 
 | Field | Meaning |
 |---|---|
-| `EventType` | `availability_submitted` |
-| `SupplierId` / `SupplierName` | The supplier (a `suppliers` row) |
-| `AvailabilityRequestId` | The `availability_requests` row that was saved |
-| `JobRequestId` | The job request it belongs to |
+| `EventType` | `availability_updated` (saved without submitting) or `availability_submitted` (explicitly submitted) |
+| `SupplierId` / `SupplierName` | Supplier row and display name |
+| `AvailabilityRequestId` | Availability request whose answers changed |
+| `JobRequestId` | Owning job, when the request has one |
+
+Keep sourcing notes current for each supplier considered on each plant; use
+one concise structured row per supplier. Check current lifecycle state first:
+a delayed event never reopens or edits a closed request. A notification is not
+Chris's approval for external communication; follow the applicable approval
+procedure before contacting a supplier or customer.

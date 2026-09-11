@@ -9,6 +9,7 @@
 export const REQUEST_STATUSES = [
   'sourcing',
   'quoted',
+  'availability',
   'confirmed',
   'closed_won',
   'closed_lost',
@@ -16,7 +17,7 @@ export const REQUEST_STATUSES = [
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
 /** The existing open Job Request lifecycle shared by Jobs surfaces. */
-export const ACTIVE_JOB_STATUSES = ['sourcing', 'quoted', 'confirmed'] as const satisfies readonly RequestStatus[]
+export const ACTIVE_JOB_STATUSES = ['sourcing', 'quoted', 'availability', 'confirmed'] as const satisfies readonly RequestStatus[]
 export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_STATUSES)[number] =>
   (ACTIVE_JOB_STATUSES as readonly string[]).includes(status)
 
@@ -60,11 +61,12 @@ export const toneTint = (tone: Tone) =>
   `color-mix(in srgb, var(--lps-tone-${tone}-bg) 40%, transparent)`
 
 export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: Tone }> = {
-  sourcing: { label: 'New', tone: 'amber' },
-  quoted: { label: 'In Progress', tone: 'teal' },
+  sourcing: { label: 'Active', tone: 'amber' },
+  quoted: { label: 'Quote', tone: 'teal' },
+  availability: { label: 'Availability', tone: 'lime' },
   confirmed: { label: 'Confirmed', tone: 'green' },
-  closed_won: { label: 'Closed Won', tone: 'green' },
-  closed_lost: { label: 'Closed Lost', tone: 'red' },
+  closed_won: { label: 'Won', tone: 'green' },
+  closed_lost: { label: 'Lost', tone: 'red' },
 }
 
 export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }> = {
@@ -79,8 +81,9 @@ export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }>
 export const requestStatusLabel = (s: string) =>
   REQUEST_STATUS_META[s as RequestStatus]?.label ?? (s === 'archived' ? 'Archived' : s)
 export const REQUEST_STATUS_TOKENS: Record<RequestStatus, string> = {
-  sourcing: 'New',
-  quoted: 'IP',
+  sourcing: 'Act',
+  quoted: 'Qte',
+  availability: 'Avl',
   confirmed: 'Cfm',
   closed_won: 'Won',
   closed_lost: 'Lost',

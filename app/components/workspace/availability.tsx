@@ -55,7 +55,7 @@ const PORTAL_PURPLE = '#8F7CF6'
 
 
 /**
- * The request's lifecycle pill — New / Processing / Submitted / Closed. With `onChange` it
+ * The request's lifecycle pill — New / Processing / Completed / Closed. With `onChange` it
  * is also the picker for it, the same native-select-under-a-pill the line
  * answers use; without it, a read-only pill.
  */

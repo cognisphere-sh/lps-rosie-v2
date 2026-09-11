@@ -15,9 +15,44 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-11
+
+### Changed
+
+- Job Request statuses now read Active, Quote, Availability, Confirmed, Won and
+  Lost. Availability is again a separate working stage. Pickers, filters, job
+  counts and saved selections use the six-stage list. Migration 0089 preserves
+  existing rows and restores the Availability constraint; delivery advances
+  Active/Quote to Availability, while later pricing/quote events cannot regress
+  it. Rosie’s prompt and job, quote, supplier and customer skills follow the
+  same lifecycle with updated skill versions and changelogs. Applied migration
+  0089 on 2026-09-11; all 11 existing jobs retained their stored statuses. Status
+  UI/filter tests, database lifecycle regressions, typecheck and production build
+  passed. App and harness restarted; login returns HTTP 200 and all agents are
+  running. Rosie’s pre-existing gws credential-file issue remains.
+
 ## 2026-09-10
 
 ### Changed
+
+- Rationalised Rosie into six operating skills with one owner for each procedure,
+  halving her deployment prompt/skill text and merging text quotes into quote
+  generation. Quick quotes create a JR/thread without an AR; pricing questions
+  create neither. Ordinary jobs automatically publish APS portal requests; missing
+  APS stock prompts an offer to search other suppliers. Communication approvals
+  return to the original request chat, while customer/supplier threads own sends.
+  Non-partner availability requests now support public links and HTML outreach.
+- Added job/availability lifecycle hooks (migration 0088): pricing and delivered
+  requests advance New to In Progress; customer confirmation advances Confirmed;
+  closing a job closes every linked AR and revokes links; reopening restores each
+  AR's prior stage and issues fresh links where appropriate. Public, private and
+  agent-entered supplier answers share atomic closure guards; edits return
+  Completed to Processing. Supplier saves/submissions notify their owning thread,
+  and sourcing notes show each supplier's current row together. Migration 0088
+  applied on 2026-09-10; three requests on closed jobs were closed with their
+  prior Processing stage preserved. Rebuilt/restarted the app and harness;
+  the app and updated plugins passed live checks. Rosie’s gws plugin remains
+  disconnected pending mailbox sign-in (no configured credential file).
 
 - Revised Job Request statuses to New, In Progress, Confirmed, Closed Won and
   Closed Lost. Active becomes New; Quote and Availability combine into In

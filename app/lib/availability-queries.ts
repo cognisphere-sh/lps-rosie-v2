@@ -8,7 +8,6 @@ import type {
   SupplierItemLine,
   SupplierLink,
 } from '@/lib/availability'
-import { AR_RESPONSES } from '@/lib/availability'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { supabase } from '@/lib/supabase'
 
@@ -234,8 +233,9 @@ export async function availabilityRequest(
 async function catalogPrices(
   supplierId: number,
   items: { id: number; name: string; size: string | null }[],
-): Promise<Map<number, number>> {
+): Promise<{ prices: Map<number, number>; fetched: boolean }> {
   const found = new Map<number, number>()
+  let fetched = false
   await Promise.all(
     items.map(async (item) => {
       const name = item.name.replace(/"/g, '').trim()
@@ -245,6 +245,7 @@ async function catalogPrices(
         .eq('supplier_id', supplierId)
         .gt('unit_price', 0)
       if (error) return
+      fetched = true
       const size = item.size?.trim().toLowerCase()
       const rows = (data ?? []) as {
         size: string | null
@@ -264,7 +265,7 @@ async function catalogPrices(
       }
     }),
   )
-  return found
+  return { prices: found, fetched }
 }
 
 /**
@@ -291,9 +292,6 @@ export async function createAvailabilityRequest(input: {
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
   const supplier = sup as { is_lps_partner: boolean; is_active: boolean } | null
   if (!supplier?.is_active) throw new Error('supplier not found')
-  if (!supplier.is_lps_partner) {
-    throw new Error('supplier is not an LPS Partner')
-  }
 
   if (!input.itemIds.length) throw new Error('at least one line is required')
   const { data: items, error: itemErr } = await supabase
@@ -305,26 +303,32 @@ export async function createAvailabilityRequest(input: {
   if (itemErr) throw new Error(`job_request_items: ${itemErr.message}`)
   if (!items?.length) throw new Error('no active lines of this request match the selection')
 
-  const { data: created, error: arErr } = await supabase
-    .from('availability_requests')
-    .insert({
-      job_request_id: input.jobRequestId,
-      supplier_id: input.supplierId,
-      share_customer_details: input.shareCustomerDetails,
-      public_token: input.isPublic ? randomUUID() : null,
-    })
-    .select('id')
-    .single()
-  if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
-  const arId = (created as { id: number }).id
-
   const lines = items as {
     id: number
     name: string
     size: string | null
     quantity: number | null
   }[]
-  const prices = await catalogPrices(input.supplierId, lines)
+  const { prices, fetched } = await catalogPrices(input.supplierId, lines)
+  if (fetched) {
+    const { error: progressError } = await supabase.rpc('record_job_workflow_event', {
+      p_job_request_id: input.jobRequestId, p_event: 'pricing_fetched',
+    })
+    if (progressError) throw new Error(`job workflow: ${progressError.message}`)
+  }
+
+  const { data: created, error: arErr } = await supabase
+    .from('availability_requests')
+    .insert({
+      job_request_id: input.jobRequestId,
+      supplier_id: input.supplierId,
+      share_customer_details: input.shareCustomerDetails,
+      public_token: input.isPublic || !supplier.is_lps_partner ? randomUUID() : null,
+    })
+    .select('id')
+    .single()
+  if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
+  const arId = (created as { id: number }).id
 
   const { error: insErr } = await supabase.from('availability_request_items').insert(
     lines.map((it) => ({
@@ -342,23 +346,10 @@ export async function createAvailabilityRequest(input: {
     throw new Error(`availability_request_items: ${insErr.message}`)
   }
 
-
   return arId
 }
 
-/** The response columns a supplier may write; everything else is the ask. */
-const AR_ITEM_WRITABLE = ['status', 'available_quantity', 'unit_price', 'notes'] as const
-
-/**
- * Write one line's answer, scoped: the item must belong to the request, and —
- * from the portal — the request to that supplier, still open.
- *
- * A write **from the portal** also moves the request itself to `processing`:
- * the supplier has started on it, which is what the portal's Processing tab
- * asks. Only their own hand does that — the admin drawer enters answers a
- * supplier gave by phone, and those are ours, not a sign they are working the
- * portal. `closed` never moves (`arForWrite` refuses it first).
- */
+/** Save an answer and its Processing state together under the request's row lock. */
 export async function updateARItem(
   arId: number,
   itemId: number,
@@ -366,52 +357,13 @@ export async function updateARItem(
   opts: { forSupplierId?: number } = {},
 ): Promise<void> {
   const ar = await arForWrite(arId, opts.forSupplierId)
-
-  const values: Record<string, string | number | null> = {}
-  for (const [column, raw] of Object.entries(changes)) {
-    if (!(AR_ITEM_WRITABLE as readonly string[]).includes(column)) {
-      throw new Error(`refusing to write availability_request_items.${column}`)
-    }
-    const trimmed = raw.trim()
-    if (column === 'status') {
-      if (trimmed === '') values.status = null
-      else if ((AR_RESPONSES as readonly string[]).includes(trimmed)) values.status = trimmed
-      else throw new Error(`status must be one of: ${AR_RESPONSES.join(', ')}`)
-      continue
-    }
-    if (column === 'available_quantity' || column === 'unit_price') {
-      if (trimmed === '') {
-        values[column] = null
-        continue
-      }
-      const n = Number(trimmed)
-      if (!Number.isFinite(n)) throw new Error(`${column} must be a number`)
-      values[column] = n
-      continue
-    }
-    values[column] = trimmed === '' ? null : trimmed
-  }
-  if (!Object.keys(values).length) throw new Error('at least one change is required')
-
-  const { data, error } = await supabase
-    .from('availability_request_items')
-    .update(values)
-    .eq('id', itemId)
-    .eq('availability_request_id', ar.id)
-    .eq('is_active', true)
-    .select('id')
-  if (error) throw new Error(`availability_request_items: ${error.message}`)
-  if (!data?.length) throw new Error('line not found')
-
-  if (opts.forSupplierId != null && ar.status !== 'processing') {
-    // Best-effort: the answer is already saved, and a request left reading
-    // New costs a tab, not data.
-    await supabase
-      .from('availability_requests')
-      .update({ status: 'processing' })
-      .eq('id', ar.id)
-      .eq('is_active', true)
-  }
+  const { error } = await supabase.rpc('answer_availability_request', {
+    p_request_id: ar.id,
+    p_supplier_id: ar.supplier_id,
+    p_item_id: itemId,
+    p_changes: changes,
+  })
+  if (error) throw new Error(error.message)
 }
 
 /** The request, checked for writing: active, the supplier's own, not closed. */
@@ -516,35 +468,32 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
   })
 }
 
-/** The supplier pressed Submit. Returns context for the notification. */
-export async function submitAvailabilityRequest(
-  arId: number,
-  forSupplierId: number,
-): Promise<{
-  jobRequestId: number
-  supplierId: number
-  supplierName: string
-  rosieThreadId: string | null
-}> {
-  const ar = await arForWrite(arId, forSupplierId)
-  const { error } = await supabase
-    .from('availability_requests')
-    .update({ status: 'submitted', submitted_at: new Date().toISOString() })
-    .eq('id', ar.id)
-  if (error) throw new Error(`availability_requests: ${error.message}`)
-  const { data: supplier, error: sErr } = await supabase
-    .from('suppliers')
-    .select('name, rosie_thread_id')
-    .eq('id', ar.supplier_id)
-    .maybeSingle()
-  if (sErr) throw new Error(`suppliers: ${sErr.message}`)
-  const s = supplier as { name: string; rosie_thread_id: string | null } | null
+/** Saved request context for the supplier-thread notification, including closed history. */
+export async function supplierAvailabilityEventContext(arId: number, forSupplierId?: number) {
+  let query = supabase.from('availability_requests')
+    .select('id, job_request_id, supplier_id').eq('id', arId)
+  if (forSupplierId != null) query = query.eq('supplier_id', forSupplierId)
+  const { data: ar, error: arError } = await query.single()
+  if (arError) throw new Error(arError.message)
+  const { data: supplier, error } = await supabase.from('suppliers')
+    .select('name, rosie_thread_id').eq('id', ar.supplier_id).single()
+  if (error) throw new Error(error.message)
   return {
-    jobRequestId: ar.job_request_id,
-    supplierId: ar.supplier_id,
-    supplierName: s?.name ?? `Supplier ${ar.supplier_id}`,
-    rosieThreadId: s?.rosie_thread_id ?? null,
+    jobRequestId: ar.job_request_id as number,
+    supplierId: ar.supplier_id as number,
+    supplierName: supplier.name as string,
+    threadId: supplier.rosie_thread_id as string | null,
+    availabilityRequestId: arId,
   }
+}
+
+/** Submit atomically with the closure guard, then notify the supplier's thread. */
+export async function submitAvailabilityRequest(arId: number, forSupplierId: number) {
+  const { error } = await supabase.rpc('answer_availability_request', {
+    p_request_id: arId, p_supplier_id: forSupplierId, p_submit: true,
+  })
+  if (error) throw new Error(error.message)
+  return supplierAvailabilityEventContext(arId, forSupplierId)
 }
 
 /**
@@ -577,18 +526,19 @@ export async function setAvailabilityRequestStatus(arId: number, status: string)
   if (!data?.length) throw new Error('availability request not found')
 }
 
-/** The suppliers an availability request can be sent to — the LPS Partners. */
-export async function listLpsPartners(): Promise<
-  { id: number; name: string; city: string | null; state: string | null }[]
-> {
-  const { data, error } = await supabase
-    .from('suppliers')
-    .select('id, name, city, state')
-    .eq('is_active', true)
-    .eq('is_lps_partner', true)
-    .order('name', { ascending: true })
-  if (error) throw new Error(`suppliers: ${error.message}`)
-  return (data ?? []) as { id: number; name: string; city: string | null; state: string | null }[]
+/** Active suppliers: partners receive portal requests; other suppliers use public links. */
+export async function listAvailabilitySuppliers() {
+  const suppliers: { id: number; name: string; city: string | null; state: string | null; is_lps_partner: boolean }[] = []
+  // The full supplier directory exceeds PostgREST's default 1,000-row cap.
+  while (true) {
+    const { data, error } = await supabase.from('suppliers')
+      .select('id, name, city, state, is_lps_partner').eq('is_active', true)
+      .order('name', { ascending: true }).order('id', { ascending: true })
+      .range(suppliers.length, suppliers.length + 999)
+    if (error) throw new Error(`suppliers: ${error.message}`)
+    suppliers.push(...(data ?? []))
+    if ((data?.length ?? 0) < 1000) return suppliers
+  }
 }
 
 /** The portal's idea of its supplier: must exist, be active, and be an LPS Partner. */
@@ -869,6 +819,7 @@ async function companyOf(supplierId: number): Promise<number> {
 
 /** Revoking clears the capability; publishing again always issues a fresh link. */
 export async function setAvailabilityRequestPublic(id: number, isPublic: boolean, forSupplierId?: number) {
+  await arForWrite(id, forSupplierId)
   let query = supabase.from('availability_requests')
     .update({ public_token: isPublic ? randomUUID() : null })
     .eq('id', id).eq('is_active', true)
@@ -884,7 +835,11 @@ export async function publicAvailabilityRequest(token: string) {
     .select('id, supplier_id').eq('public_token', token)
     .eq('is_active', true).neq('status', 'closed').maybeSingle()
   if (error) throw new Error(error.message)
-  if (!data || !(await partnerSupplier(data.supplier_id))) return null
+  if (!data) return null
+  const { data: supplier, error: supplierError } = await supabase.from('suppliers')
+    .select('id').eq('id', data.supplier_id).eq('is_active', true).maybeSingle()
+  if (supplierError) throw new Error(supplierError.message)
+  if (!supplier) return null
   const request = await availabilityRequest(data.id, { forSupplierId: data.supplier_id, publicToken: token })
   return request?.status === 'closed' ? null : request
 }

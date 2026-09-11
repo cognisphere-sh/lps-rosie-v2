@@ -5,7 +5,9 @@ import {
   setAvailabilityRequestPublic,
   setAvailabilityRequestStatus,
   updateARItem,
+  supplierAvailabilityEventContext,
 } from '@/lib/availability-queries'
+import { notifySupplierEvent } from '@/lib/notify-supplier-events'
 
 /** One availability request, whole — the admin view (no disclosure filter). */
 export async function GET(
@@ -57,14 +59,18 @@ export async function PATCH(
         return NextResponse.json({ error: 'itemId is required' }, { status: 400 })
       }
       await updateARItem(id, body.itemId!, body.changes)
+      await notifySupplierEvent({ type: 'availability_updated', ...await supplierAvailabilityEventContext(id) })
       return NextResponse.json({ ok: true })
     }
     if (!body.status) {
       return NextResponse.json({ error: 'status or changes is required' }, { status: 400 })
     }
     await setAvailabilityRequestStatus(id, body.status)
+    if (body.status === 'submitted') {
+      await notifySupplierEvent({ type: 'availability_submitted', ...await supplierAvailabilityEventContext(id) })
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    return NextResponse.json({ error: (e as Error).message }, { status: /closed/i.test((e as Error).message) ? 409 : 400 })
   }
 }

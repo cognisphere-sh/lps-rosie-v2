@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 2.0.1
+
+2026-09-11 — Actual availability delivery moves Active/Quote jobs to Availability; distinguish the job stage from supplier request statuses and preserve Confirmed/closed jobs.
+
+## 2.0.0
+
+2026-09-10 — Unify partner/private and non-partner/public requests with HTML email. Use atomic answer RPC, draft/submission events and closed/reopened lifecycle. Approvals return to the original request chat.
+
 ## 1.10.0
 
 2026-08-29 (Bhoumik) — new **§3.6: the supplier answers a request in the

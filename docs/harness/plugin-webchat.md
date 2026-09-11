@@ -11,7 +11,7 @@ through a thin app-side proxy; the agent answers with the seeded
 transcript per thread**. The default (`threadId` config, table below) is the
 thread telegram routes to, so the panel's default conversation and Telegram
 stay one conversation; the panel's thread picker opens any other thread
-(`jr-<id>`, `supplier-<slug>`, `customer-<slug>`, `router`), and the supplier
+(`jr-<id>`, `supplier-<slug>`, `customer-<slug>`), and the supplier
 portal joins the supplier's own thread through the app-secret endpoints.
 Delivery uses `threadIdOverride` throughout.
 
@@ -67,7 +67,7 @@ Secrets — all wired by `scripts/app/secrets.sh`:
 | `POST api/reset` | browser | `{threadId?}` — wipes that thread's context **and** its transcript. |
 | `POST api/reply` | the agent | `{text, attachments[], threadId?, portal?}` → the reply, defaulting to the config thread (the CLI defaults `threadId` to `$PI_THREAD_ID`); clears that thread's half of `pending`. |
 | `POST api/app-upload?thread=<id>` | app server | Raw body + `x-file-name` + `X-App-Secret` → stages an allowlisted file (25MB by default) under a fixed-length opaque name and returns metadata plus an HMAC ticket bound to that exact thread/file. |
-| `POST api/app-send` | app server | `{threadId, text?, attachments?, senderName, page?}` + `X-App-Secret` → a supplier-portal message: verifies every staged attachment ticket and disk size, records it portal-visible, and delivers it with `Channel: portal`. Attachment-only messages are valid. |
+| `POST api/app-send` | app server | `{threadId, text?, attachments?, senderName, supplierId, supplierName, page?}` + `X-App-Secret` → a supplier-portal message: validates required supplier identity, verifies every staged attachment ticket and disk size, records it portal-visible, and delivers it with `Channel: portal`. The app obtains supplier identity from its authorized supplier target. Attachment-only messages are valid. |
 | `GET api/app-messages?thread=<id>` | app server | `X-App-Secret` → the **portal-visible half** of that thread only: portal-sent messages and `--portal` replies. The team's internal panel traffic never crosses this endpoint. Carries `readId` (the `portal` cursor); `&read=1` marks it, and only the portal's open chat panel sends that. |
 | `GET api/app-file?thread=<id>&name=<stored>` | app server | `X-App-Secret` → an inbox/outbox attachment only when that exact name occurs on a portal-visible row in that exact thread. |
 
@@ -231,6 +231,9 @@ portal) · `ThreadId: <the message's thread>` plus:
 |---|---|
 | `SenderName` | The signed-in app user (harness session — not self-reported), or `<Supplier name> (portal)` for portal messages. |
 | `MessageId` | The plugin's own id for the message. |
+| `WebchatThreadId` | Explicit destination for a reply in the same web transcript. |
+| `OriginThreadId` / `OriginChannel` | Provenance for internal app messages: the conversation and channel where the request began. Preserve through handoffs. These do not track a later active chat, and are absent on supplier portal messages. |
+| `SupplierId` / `SupplierName` | On portal messages, the supplier identifiers forwarded by the authenticated app server, not supplied by the browser. |
 | `Attachments` | Agent-dir-relative paths, present only when files were attached. |
 | `Page` | The app path the sender had open (`/requests/12`, `/partner/oak-hill?tab=availability`), present when the client sent one. |
 

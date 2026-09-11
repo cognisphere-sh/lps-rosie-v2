@@ -1,35 +1,36 @@
 # Plugin: supplier-events
 
-**The app wakes rosie when a supplier saves an availability request.**
+**The app wakes rosie when a supplier saves or submits availability answers.**
 User-space plugin at `harness/plugins/supplier-events/`; enabled on
 [`rosie`](agent-rosie.md) only — she owns order-side supplier coordination,
-the portal included. First built 2026-08-19 for daisy; removed and recreated
-lean 2026-08-23 for rosie's restructure (the `supplier_message` /
-`instruction` event kinds died with the portal chat and the
-`supplier_messages` table).
+partner portals and public request links included.
 
 An event is a pointer, not the state: everything it is about lives in the
 database (`availability_requests`, `availability_request_items`), so the
 notification carries identifiers only. What rosie does with one is her
-`supplier-coordination` skill §3.
+`supplier-coordination` skill. The supplier thread relays job-specific answers
+to the job thread to keep each plant's per-supplier sourcing rows current.
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`
 
 Called by the app (`app/lib/notify-supplier-events.ts`), best-effort — the
 database write has already committed, so a down harness costs freshness, not
-data. One `type`: `availability_submitted` — the supplier pressed **Save** on
-an availability request in their portal (each save re-notifies).
+data. `availability_updated` means answers were saved without submitting;
+`availability_submitted` means the supplier explicitly submitted answers. A
+saved answer is not confirmation, and delayed events must not reopen a closed
+request. Both portal and public-link answer routes use these same events.
 
 Body: `{ type, supplierId, supplierName, availabilityRequestId, jobRequestId,
-threadId }`. Anything missing, or an unknown `type`, is a 400 naming what is
-wrong.
+threadId }`. Supplier id/name and availability-request id are required; the
+job id and thread id may be null. Invalid identifiers or an unknown `type`
+return 400.
 
 ## Threads — one per supplier
 
 Delivery uses `threadIdOverride`: the event lands on the supplier's
 **`suppliers.rosie_thread_id`** thread (`supplier-<slug>`, migration 0068) —
-the app reads the column at submit time and passes it as `threadId`. A
-supplier whose column is still NULL wakes rosie's `router` thread instead,
+the app reads the column at update/submit time and passes it as `threadId`. A
+supplier whose column is still NULL wakes rosie's `main` thread instead,
 whose `message-routing` skill mints and records the id.
 
 ## Auth

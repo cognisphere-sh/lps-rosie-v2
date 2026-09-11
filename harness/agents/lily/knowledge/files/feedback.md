@@ -400,3 +400,24 @@ this file exists.
 
 - **File-tree reference** — Chris sent photo 229 with no caption: a blue file-tree interface with a root `Daily` folder, a selected root `CLAUDE.md`, broad folders such as Team, Projects, Resources and Onboarding, and an expanded Context folder containing strategy, stakeholders, pain points, organization, operator, infrastructure, ICP and brand files. No LPS app screen or palette treatment is shown. _(via telegram image)_
   → (watching)
+
+- **Mobile field request work** — Chris tried updating a request from his phone while walking the yard yesterday; “it was not great,” and easy/effective mobile request work is critical. The concern spans finding the right request, understanding it, making a safe change and knowing it landed while moving through the yard; he did not identify a discrete screen defect. _(via telegram)_
+  → mobile-field-request-workflow
+
+- **Old Rosie field patterns** — Chris adds that request UI must be easy to read/navigate, provide quick response and let him move through a request; old Rosie on Vercel had “many better UI/UX elements” despite time spent on the current app. Git history review found a concrete legacy response-state badge (Queued, Working, Done, Failed), but also legacy workspace-file optimistic writes, customer-order layout and item filtering that should not be restored. The supported gap is a truthful per-request response/outcome state, split into a staged workflow contract and dependent Nova display. _(via telegram)_
+  → mobile-request-update-response-workflow + mobile-request-update-response-state
+
+- **Future customer deal dashboard** — Chris shared `photo_250.jpg` as a future Customers-tab reference: a major CRM’s deals board grouped by stages/statuses (Project Details/Quote Requested, Quote Delivered, Order Confirmed, Closed Won, Closed Lost), with deal cards and stage totals. It is **not a priority today**, but is near-future direction. The reference is for a customer/deal view, not an instruction to copy that CRM or its exact stages. It may eventually need to distinguish early quick-quote opportunities from converted sourcing Requests, and reconcile with LPS’s separately staged Sales vocabulary (**Active, Quote, Availability, Confirmed, Won, Lost**). _(via telegram image)_
+  → (watching)
+
+- **Deal reference utility icons** — Chris added `photo_252.jpg` to call out the reference CRM’s compact left-rail icons as potentially useful. The image does not identify what each unlabeled icon does, nor ask LPS to add that navigation. Retain only the design principle: a future Customers/deal workspace may adopt compact icon actions only where each solves a specific, real LPS task; no icon, destination, or new navigation is inferred from this reference. _(via telegram image)_
+  → (watching)
+
+- **Desktop Notifications move to rail** — Chris’s marked Telegram message 565/photo 565 asks to move the desktop Notifications trigger from its floating top-right position to the lower-left navigation rail, immediately above Settings and the utility/account area. Keep one desktop control and its existing unread count, filters, Mark all read, click-through, scroll, keyboard and dismissal behavior; Mobile’s bottom-left Alerts stays unchanged. _(via nova handoff)_
+  → desktop-notification-rail-trigger
+
+- **Supplier Portal Notifications move to identity rail** — Chris’s marked Telegram message 568/photo 568 extends the desktop move to the Supplier Portal: place its top-right bell at the marked supplier identity/avatar spot in the left rail. Preserve the portal’s separate supplier request/chat unread count, panel, actions, routing, focus, keyboard, outside-click and scroll behavior; it must never reveal LPS Ops internal all-agent notifications. Remove the old portal trigger with no duplicates; mobile portal Alerts is unchanged. _(via nova handoff)_
+  → desktop-notification-rail-trigger
+
+- **Status model reported done** — Bhoumik reports weekly priority item 1 status model/migration is “Done.” Lily’s audit finds the exact Sales set and Job/Order plant wording implemented, with legacy migration/readability and distinct stored availability-request values; but Request/Portal UI still shows **Different Sz/Qnty/Sub** and **Need to Order**, not Chris’s authoritative **Diff Sz/Qnty/Sub** and **Can Order**. The item is partial, not shipped, until the Request UI mapping is corrected without changing its saved semantics. _(via bhoumik handoff / Lily audit)_
+  → availability-status-model-parity + lps-ops-job-request-statuses

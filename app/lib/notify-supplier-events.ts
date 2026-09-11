@@ -1,13 +1,13 @@
 import 'server-only'
 
-// Wake rosie when a supplier submits an availability request in their portal.
+// Wake rosie when a supplier saves or submits through their portal/public link.
 // Posts to her `supplier-events` plugin webhook; the shared secret is wired by
 // scripts/app/secrets.sh into both app/.env.local and the plugin's secrets
 // bucket, the same pattern the artifacts secret uses.
 //
 // Rosie owns order-side supplier coordination — the portal included — which
 // is why there is exactly one target agent here. The event lands on the
-// supplier's `rosie_thread_id` thread (her router thread when that column is
+// supplier's `rosie_thread_id` thread (her main thread when that column is
 // still NULL).
 //
 // Best-effort by design: the database write the notification is about has
@@ -19,12 +19,12 @@ const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 const SECRET = process.env.SUPPLIER_EVENTS_APP_SECRET
 
 export interface SupplierEvent {
-  type: 'availability_submitted'
+  type: 'availability_updated' | 'availability_submitted'
   supplierId: number
   supplierName: string
   availabilityRequestId: number
   jobRequestId: number | null
-  /** The supplier's `suppliers.rosie_thread_id`; null → rosie's router thread. */
+  /** The supplier's `suppliers.rosie_thread_id`; null → rosie's main thread. */
   threadId: string | null
 }
 
