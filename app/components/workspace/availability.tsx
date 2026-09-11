@@ -567,7 +567,7 @@ const ANSWER_FIELDS: Record<
   }
 > = {
   can_order: {
-    title: 'Need to Order',
+    title: 'Can Order',
     qty: false,
     // Ordering it in is a price as much as a date — asking here saves the
     // supplier a second pass over the Price cell.
@@ -606,7 +606,7 @@ const ANSWER_FIELDS: Record<
 /**
  * Picking a status opens this pop-up for the rest of the answer, so a line is
  * answered whole in one go: Diff Sz/Qnty/Sub takes a quantity, a price and
- * the note; Need to Order and Arriving Soon take a price and the note; Unavailable
+ * the note; Can Order and Arriving Soon take a price and the note; Unavailable
  * the note alone, with the format hinted. Available asks nothing and never
  * opens this. The inline cells stay for later tweaks.
  */

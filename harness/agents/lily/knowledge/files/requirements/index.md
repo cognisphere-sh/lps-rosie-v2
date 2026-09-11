@@ -25,9 +25,9 @@ A workflow change counts — not everything here is software.
 | `customer-type-retail-landscape-workflow-pricing` | Work homeowners as retail customers and landscape professionals as contractors | staged | bhoumik |
 | `availability-last-updated-display` | Show when availability was last updated | routed | nova |
 | `availability-last-updated-semantics` | Define and retain the availability-update time | staged | bhoumik |
-| `availability-response-change-management` | Keep availability changes visible after a nursery responds | staged | bhoumik |
-| `availability-change-indicators` | Mark changed availability in Requests and Orders | drafted | nova |
-| `customer-availability-update-workspace` | Show approved availability changes in customer job details | drafted · urgent dependency | nova |
+| `availability-response-change-management` | Keep supplier availability responses visible to LPS | staged | bhoumik |
+| `availability-change-indicators` | Show supplier-response state without crowding requests | drafted | nova |
+| `customer-availability-update-workspace` | Show LPS-published availability in customer job details | drafted · urgent dependency | nova |
 | `customer-job-request-details-workspace` | Give customers a current job request details workspace | staged · urgent | bhoumik |
 | `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · urgent | bhoumik |
 | `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
@@ -62,7 +62,7 @@ A workflow change counts — not everything here is software.
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
 | `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed | nova |
-| `job-request-install-date-fulfillment` | Keep install, fulfillment, gate and payment facts on each Job Request | staged | bhoumik |
+| `job-request-install-date-fulfillment` | Keep fulfillment and private handling notes simple for now | staged · notes-first | bhoumik |
 | `focused-job-chat-routing` | Keep a focused Job chat on the current request | shipped | nova |
 | `urgent-pricing-update-workflow` | Make urgent pricing updates reach the right Job without delay | staged | bhoumik |
 | `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged | bhoumik |

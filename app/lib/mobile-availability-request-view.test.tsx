@@ -705,7 +705,7 @@ test('portal/profile/default line surfaces keep the task-start non-modal answer 
   assert.equal(view.container.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1070px')
   const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   await user.click(trigger)
-  await user.click(view.getByRole('option', { name: 'Need to Order' }))
+  await user.click(view.getByRole('option', { name: 'Can Order' }))
   assert.equal(document.querySelector('[data-ar-answer-dialog-host]'), null)
   assert.equal(view.queryByRole('dialog'), null)
   const price = view.getByLabelText('Price per unit')

@@ -28,6 +28,12 @@ here).
 
 ### Changed
 
+- Availability Request item statuses now display Can Order for `can_order` in
+  partner/public request pages, selectors, answer dialogs, summaries, status
+  boards and print sheets. Job item `need_to_order` retains Need to Order.
+  Passed 31 status/partner-view tests, typecheck and production build; deployed
+  and verified the live Can Order status and answer-dialog labels.
+
 - Shortened the plant status label to Diff Sz/Qnty/Sub across job and availability
   pickers, partner views, answer dialogs, summaries and print sheets. Saved
   filters using the previous Different Sz/Qnty/Sub label restore to the new

@@ -1,44 +1,37 @@
-# Mark changed availability in Requests and Orders
+# Show supplier-response state without crowding requests
 
 - Status: drafted
 - Route: nova
 - Raised: 2026-08-27 by Chris (via telegram)
-- Updated: 2026-08-27
+- Updated: 2026-09-11
 
 ## Problem
 
-Chris needs to notice when a nursery’s later availability update changes information that was previously used on a Request or confirmed Order.
-
-## Evidence
-
-- 2026-08-27 feedback log, **Availability changes after quote**: Chris wants changed fields highlighted in both Requests and confirmed Orders.
+Chris needs compact request/order cards to remain scannable while still being able to find supplier availability information.
 
 ## What it should do
 
-When the approved availability-change workflow supplies a pending nursery change and its before/after values, clearly mark the affected Request or Order. On a compact Job Request card, use only a small **Needs review** state and optional changed-line count beside the relevant availability-request link; do not duplicate dates or line differences there. Opening the existing availability-request drawer/detail view shows the changed line fields as before → after and provides the acknowledgement/resolution action.
+Keep the compact availability-request link state on the Job Request card—for example, Submitted—and open the existing availability-request drawer/detail for supplier response information. The drawer clearly separates supplier availability responses/sourcing notes from LPS commentary and Job/Order status.
 
 ## Acceptance criteria
 
-- Chris can scan Requests and Orders and identify records with unacknowledged nursery availability changes without crowding the compact card.
-- The relevant availability-request link shows Needs review and, when available, the changed-line count.
-- Opening the existing drawer/detail shows the affected supplier, line, changed fields, prior value and new value.
-- The change remains visibly pending until the workflow records acknowledgement/resolution.
-- LPS edits and nursery submissions are labelled differently.
+- A compact card shows the existing availability-request lifecycle state without duplicating dates or line detail.
+- Opening its drawer/detail shows the supplier response information and its sourcing context.
+- Supplier response information is not presented as a Job/Order status or a customer-approved update.
 
 ## Out of scope
 
-- Deciding which change is effective or writing the audit/reconciliation data.
-- Customer communication automation.
+- Needs-review badges, changed-line counts, automatic before→after alerts, or acknowledgement actions.
+- Building the sourcing-note data model or customer communication workflow.
 
 ## Assumptions
 
-- This UI consumes the source-of-truth/change data defined by `availability-response-change-management`.
+- This is a UI-only follow-on to Bhoumik’s sourcing-notes response model; it does not require a new availability-change workflow.
 
 ## Open questions
 
-- Blocked by the staged workflow/data requirement; not independently shippable before Bhoumik defines the payload and acknowledgement behavior.
+- Hold until Bhoumik confirms the supplier-response detail payload already available to the drawer.
 
 ## Handoff log
 
-- 2026-08-27 — drafted for Nova but held pending Bhoumik’s workflow/data design. No message sent by task instruction.
-- 2026-08-29 — constrained the card presentation to a compact attention signal; full timestamps and field differences remain in the existing AR drawer/detail.
+- 2026-09-11 — narrowed from a pending-change indicator after Bhoumik rejected the complex change-management workflow.

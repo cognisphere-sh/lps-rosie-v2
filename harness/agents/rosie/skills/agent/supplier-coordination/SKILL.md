@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, HTML email with a public link, inventory mappings, partial/submitted supplier answers, chat updates, closed-request locks and job-thread relays. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.0.1)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, HTML email with a public link, inventory mappings, contextual partial/submitted supplier responses, factual sourcing relays and concise Chris alerts, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.1.0)
 metadata:
   author: lps
-  version: "2.0.1"
+  version: "2.1.0"
 ---
 
 # Supplier coordination
@@ -160,13 +160,28 @@ needed after reopening; do not reuse revoked tokens.
 | `unavailable` | Cannot supply. |
 | NULL | Unanswered. |
 
-Relay item id, response, quantity, supplier price, mapping and short
-qualifications to `jr-<job_request_id>`. Include whether the response is
-partial or submitted. Editing a Completed request returns it to Processing
-until the supplier submits again. The job thread updates its supplier rows and reconciles
-item status; this thread does not edit job item rows. A supplier response
-wins over catalogue evidence, but an unmentioned seeded price is not newly
-confirmed by a chat message.
+For every actual supplier change or resubmission, first establish a safe
+match to the AR, its job and each affected request item. Relay a **factual,
+contextual response** to `jr-<job_request_id>`: AR id/state, job id, supplier
+name/id, each requested plant and size (plus item id), the stated response,
+quantity, supplier price, mapping, short qualification, and source
+(`portal saved edit`, `portal submission`, or supplier message/email). Include
+whether it is partial or submitted. If the event cannot be safely tied to an
+AR/item/job or the supplier's plant context is ambiguous, do not guess or
+write a sourcing row: flag it for Chris's review with the ambiguity and the
+source instead.
+
+The job thread records the resulting short factual supplier sourcing row and
+posts a concise internal alert to Chris naming the supplier, affected plants
+and source; it may link `[Open AR-<id>](ar:<id>)`. A useful shape is:
+`APS — Live Oak 15 G: 12 available at $105 (portal submission, AR-42).`
+Editing a Completed request returns it to Processing until the supplier
+submits again. This supplier input is sourcing evidence only: it does **not**
+automatically change a Job/Order status, select an offering, send a customer
+message, or establish customer acceptance. The job thread updates supplier
+rows and reconciles item status under `job-requests`; this thread does not
+edit job item rows. A supplier response wins over catalogue evidence, but an
+unmentioned seeded price is not newly confirmed by a chat message.
 
 ## 5. Supplier messages can update the request
 
@@ -207,8 +222,14 @@ contacts. An ambiguous identity or job/request needs clarification first.
    `p_submit = true`; it records Completed and `submitted_at`. Never claim
    submission after a blocked/failed update.
 5. Confirm what was recorded through the supplier's channel, following the
-   applicable contact gate, and relay it to the job thread even when the
-   write was made through direct SQL (do not assume a webhook will fire).
+   applicable contact gate. Then make the same safe AR/job/item match and
+   relay the factual, contextual response to the job thread as in section 4,
+   identifying the supplier, requested plant context and source as `supplier
+   message` or `supplier email`. The job thread records the sourcing row and
+   gives Chris its concise supplier/plants/source alert; do not assume a
+   webhook will fire. If matching remains unsafe, surface it for Chris's
+   review rather than applying it to a request, item, Job/Order or customer
+   communication.
 
 For portal replies use `webchat-cli send --portal --text ...`; without
 `--portal` the supplier cannot see it. Routine clarifications within an

@@ -81,7 +81,7 @@ test('portal picker opens a themed listbox with unanswered plus the five canonic
   const options = within(listbox).getAllByRole('option')
   assert.deepEqual(
     options.map((option) => option.children[1]?.textContent),
-    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
   assert.equal(within(listbox).getByRole('option', { name: 'Arriving Soon' }).getAttribute('aria-selected'), 'true')
   assert.match(within(listbox).getByRole('option', { name: 'Unavailable' }).className, /min-h-9/)
@@ -131,7 +131,7 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
   )
 
   await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
-  await user.click(view.getByRole('option', { name: 'Need to Order' }))
+  await user.click(view.getByRole('option', { name: 'Can Order' }))
   assert.equal(view.getByLabelText('Price per unit').getAttribute('value'), '12.5')
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
@@ -456,6 +456,6 @@ test('admin line picker remains the existing native select', () => {
   const select = view.getByRole('combobox', { name: 'Line status' })
   assert.deepEqual(
     within(select).getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
 })

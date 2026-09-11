@@ -3,7 +3,7 @@
   "description": "LPS order-coordination agent: main coordination, one thread per job, customer and supplier. Owns APS-first sourcing, quick quotes with jobs but no availability requests, customer confirmation and closure. Communication approvals return to the original request chat; supplier/customer threads own every external contact.",
   "model": {
     "provider": "openai-codex",
-    "id": "gpt-5.6-terra",
+    "id": "gpt-6-astra",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {

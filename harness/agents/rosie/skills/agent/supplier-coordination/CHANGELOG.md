@@ -1,5 +1,16 @@
 # supplier-coordination — changelog
 
+## 2.1.0
+
+2026-09-11 (Bhoumik approval relayed by Lily) — Supplier edits, submissions and
+message/email answers now require an explicit safe match to the availability
+request, job, supplier and requested plant/item before relay. The relay carries
+factual response context and source; the job thread records the factual
+sourcing row and gives Chris a concise supplier/plants/source alert. Ambiguous
+input is surfaced for review rather than guessed. Supplier input remains
+sourcing evidence only and never automatically changes Job/Order status,
+selects an offer, contacts a customer or treats the order as accepted.
+
 ## 2.0.1
 
 2026-09-11 — Actual availability delivery moves Active/Quote jobs to Availability; distinguish the job stage from supplier request statuses and preserve Confirmed/closed jobs.

@@ -130,6 +130,12 @@ this file exists.
 - **Keep AR details in the drawer** — Bhoumik clarified that availability-request links already open the timestamped drawer; putting full timestamps on the Job Request card would crowd its scan view. The proposed card behavior is a compact attention signal only—Submitted, AR updated, or Needs review, optionally with changed count—with full dates and lines in the drawer. _(via bhoumik handoff)_
   → availability-last-updated-display + availability-change-indicators
 
+- **Availability is supplier sourcing information** — Bhoumik rejects complex availability-change management as unnecessary. Authoritative direction: availability is a supplier response stored in sourcing notes, distinct from Job/Order status; one plant can have one or more supplier responses; Chris/Rosie decide customer communication. _(via bhoumik handoff)_
+  → availability-response-change-management + availability-change-indicators + customer-availability-update-workspace
+
+- **Rosie surfaces supplier changes** — Bhoumik resolved that Rosie should surface supplier changes/resubmissions to Chris; Chris decides the response. Supplier changes remain factual sourcing responses, not automatic Job/Order/customer transitions. _(via bhoumik handoff)_
+  → availability-response-change-management
+
 - **Availability changes do not change the customer stage** — Chris resolved the re-submission edge: supplier re-submissions and availability updates are managed through notifications and a **Last updated** field in his request view. They do **not** automatically move a Job Request from Availability Updated back to Active; the JR status remains the customer-facing stage, while a supplier change is a separate dated, attributable event. _(via telegram)_
   → lps-ops-job-request-statuses + availability-response-change-management + availability-last-updated-semantics
 
@@ -344,6 +350,11 @@ this file exists.
 
 - **Values-only identity and editable Job name** — Chris’s message 542/photo 542 rejects literal Contractor/Company/Job/Contact display labels; show stored values only. He also asked to edit Job name. Audit confirms an existing internal Job-name update path, immutable old/new history and focused refresh; a safe Nova UI edit trims input, cancels blank rather than clearing the name, refreshes truthfully after save, and changes no JR/thread/line/AR/history identity. Concurrent last-write-wins protection or an explicit Unname action would need Bhoumik. _(via nova handoff)_
   → focused-job-details-tray + focused-job-name-inline-edit
+
+## 2026-09-11
+
+- **Fulfillment facts stay in notes** — Bhoumik recommends the current simple approach: keep fulfillment date/mode, gate, payment and tax handling in internal Job notes rather than add structured fields, API, selectors or automatic header/wholesale display. State known/estimated/confirmation-needed facts explicitly; do not leak Gate/payment/tax/private contacts into supplier/wholesale/customer-facing content. Reopen structured work only with a demonstrated need for filtering, reporting, automated header, controlled sharing, or workflow. Chris’s earlier header date/selector request is deferred under this notes-first decision. _(via bhoumik handoff)_
+  → job-request-install-date-fulfillment + focused-job-details-tray
 
 - **Visual QA before UI release** — Chris says the live mobile All Jobs card structurally passed but still looked poor and asked for a QA agent. He approved a dedicated independent visual QA gate before UI deploy: real-browser screenshots at 320/390/480px and desktop, reference-image comparison, review of spacing/hierarchy/truncation/labels/control placement/touch targets/expanded states, attached evidence, and authority to block release. Technical review remains for correctness, not visual approval. _(via telegram message 534 / photo 532)_
   → visual-ui-qa-gate

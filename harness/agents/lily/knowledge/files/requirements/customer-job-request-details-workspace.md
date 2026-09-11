@@ -12,7 +12,7 @@ Chris needs to share compact, current request/order details with customers soon.
 
 ## What it should do
 
-Provide a dynamic customer-facing Job Request Details workspace linked to the customer’s request/order. It presents the current customer-approved job/order details and availability, with a clear update time. It only receives supplier-driven availability changes after Chris has reviewed and approved the customer-facing update.
+Provide a dynamic customer-facing Job Request Details workspace linked to the customer’s request/order. It presents the current customer-approved job/order details and availability, with a clear update time. It shows only availability information Chris or Rosie deliberately publishes for the customer; it does not automatically receive supplier-driven changes or raw sourcing notes.
 
 ## Acceptance criteria
 
@@ -20,7 +20,7 @@ Provide a dynamic customer-facing Job Request Details workspace linked to the cu
 - The workspace shows compact current request/order details, including the approved availability information relevant to the customer.
 - It identifies when the customer-facing details were last updated.
 - An unreviewed supplier revision and LPS-only notes are never exposed there.
-- An approved availability update can be traced to Chris’s review/approval without exposing internal history to the customer.
+- A deliberately published availability update can be shown without exposing internal sourcing history to the customer.
 
 ## Out of scope
 
