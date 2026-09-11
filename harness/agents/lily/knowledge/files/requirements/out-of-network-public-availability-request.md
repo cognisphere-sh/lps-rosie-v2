@@ -1,66 +1,63 @@
 # Let an out-of-network supplier answer one live availability request
 
-- Status: staged · partially shipped
+- Status: shipped
 - Route: bhoumik
-- Priority: 2 — Bhoumik weekly priority (2026-09-01)
+- Priority: 2 — Bhoumik weekly priority (2026-09-01); work-list item 5 (2026-09-11)
 - Raised: 2026-08-28 by Chris (via telegram); prioritized 2026-09-01 by Bhoumik
-- Updated: 2026-09-10
+- Updated: 2026-09-11
+- Completion scope: public/out-of-network request access; formatted email uses Rosie's existing approved supplier-send workflow, not automatic app sending.
 
 ## Problem
 
-An out-of-network prospective wholesale supplier has no LPS Partner portal, so LPS cannot give them the same focused, current availability request to answer. The current request creation path admits LPS Partners only. Emailing static plant details leaves LPS and the supplier without one shared live record and makes follow-up or corrections harder to trust.
+A prospective wholesale supplier without an LPS Partner account could not receive the same focused, current availability request to answer. Static plant details required manual reconciliation and account creation imposed unnecessary friction.
 
 ## Evidence
 
-- 2026-08-28 feedback log, **Out-of-network availability path**: Chris asked for a formatted email request with a link to a dynamic shared availability-and-request view for prospective Texas wholesale nurseries.
-- 2026-08-28 feedback log, **Supplier type changes the work**: Growers and wholesale suppliers may need different request-to-buy handling.
-- 2026-09-01 Bhoumik weekly priorities: public availability requests for out-of-network suppliers, plus the ability to make an individual availability request, are priority 2.
-- Current app audit: creating an availability request rejects a supplier that is not an LPS Partner, and the existing Portal access model is partner-only.
+- 2026-08-28 feedback, **Out-of-network availability path**: Chris asked for a formatted email request and a live shared availability-and-request view for prospective Texas wholesale nurseries.
+- 2026-09-01 Bhoumik made public out-of-network requests and individual availability requests weekly priority 2.
+- 2026-09-03 Chris confirmed frictionless one-request access for prospective nurseries and teammates, separate from authenticated aggregate Nursery Ops.
+- 2026-09-11 Bhoumik reports work-list item 5 done (Telegram 276, 04:51:20 CDT).
 
 ## What it should do
 
-Allow LPS to create an availability request for one selected out-of-network supplier and send that supplier a formatted email with a secure, supplier-specific link to its live shared request view. The recipient can review and respond to only that request; LPS can see the same current response and follow up through the established coordination record.
+LPS can select one active prospective/non-Partner supplier, create a bounded availability request from selected Job lines, and share a live URL without requiring a supplier login. Rosie can send a formatted, approved HTML availability email containing the same ask and public URL from that supplier's coordination thread. The supplier answers only its own request; responses return to the same supplier/Job coordination workflow.
 
-The request must retain the same clear distinction between LPS-entered information and a supplier response, and fit the staged availability-response/change-management model rather than creating a second, untraceable answer path. Its public access must be limited, revocable and end when the request is no longer open.
+## Acceptance / delivered coverage
 
-## Acceptance criteria
+- **Non-Partner eligibility delivered:** the selector reads all active suppliers; creation no longer rejects a non-Partner and automatically creates its public URL. An active supplier directory record is required, but a Partner account is not.
+- **Bounded live view delivered:** request-specific UUID opens a no-login page for the intended supplier request, not other requests, aggregate portal work or LPS Operations. Existing customer-detail sharing applies.
+- **Response association delivered:** only that request's supplier answer fields and Submit action are accepted; save and submission wake the correct supplier coordination path with Job/request context.
+- **Email path documented and enabled by procedure:** Rosie's current supplier-coordination skill explicitly drafts approved HTML plant/size/quantity details and URL, sends from the supplier thread, checks actual delivery and retains correlation. Creating/copying a URL alone is not a send.
+- **Revocation/lifecycle delivered:** Make private revokes; publication rotates the URL; terminal/deactivated Jobs close/revoke linked requests while working stages including Confirmed keep them open. Job reopening restores recorded states and gives previously public work a fresh URL, not its revoked one. Inactive supplier/request access is denied.
 
-- Chris can select one eligible out-of-network supplier and create an availability request for that supplier without first making them an LPS Partner.
-- The supplier receives a formatted email with a working, supplier-specific link to the current availability request.
-- Opening the link exposes only the intended supplier and request, not the LPS portal, other suppliers, jobs or requests.
-- The supplier can provide an availability response that LPS can see in the related request and identify as supplier-provided.
-- LPS and the supplier see current information for that request without relying on a static emailed plant list.
-- Access can be withdrawn or expires when the request is closed; a withdrawn/expired link no longer permits viewing or updating.
-- A subsequent supplier update follows the same freshness, attribution and review rules being defined in `availability-last-updated-semantics` and `availability-response-change-management`.
+## Verification and limits
+
+Current source `1135a0f` audited on 2026-09-11. Twenty-one relevant existing tests, six mock-only current-query checks and TypeScript passed. Live signed-out GETs confirmed generic unknown-URL 404 and aggregate API 401. Migration 0088 lifecycle assertions were reviewed but not run. No production request or email was created/sent, and valid-token success/mailbox delivery was not tested live; Bhoumik's completion report supplies the deployment confirmation.
+
+Evidence: `workspace/threads/main/tasks/supplier-access-authentication/audit-2026-09-11.md`.
+
+## Separate follow-ons, not reasons to reject access completion
+
+- All Jobs' existing creation toast can say “Availability request sent” for a non-Partner even though that API only creates the record/link. Distinguish link readiness from actual email delivery; Rosie's separate email workflow remains the delivery route.
+- Comprehensive access auditing, device/team administration and timed expiry were Lily recommendations, not prerequisites for work-list item 5.
+- Supplier-change comparison, historical provenance and Chris-reviewed customer exposure retain their separate availability-change requirements; this completion does not mark those shipped.
 
 ## Out of scope
 
-- Automatically onboarding the supplier as an LPS Partner.
-- A supplier initiating or placing an order.
-- Deciding the broader Grower-versus-Wholesale buying workflow or agent ownership.
-- Redesigning the existing LPS Partner Portal or its status-selector styling.
-- A Nova UI build before Bhoumik defines the public-access and response contract.
+- Automatic Partner onboarding or supplier-initiated orders.
+- Defining Grower-versus-Wholesale buying responsibility.
+- A new automatic email sender behind Share or create.
+- Granting a public link general nursery or LPS access.
 
 ## Assumptions
 
-- “Individual availability request” means one request to one deliberately selected supplier, rather than a bulk send to several suppliers.
-- The shared view is a bounded request link, not public discovery or a general unauthenticated supplier account.
-- The existing human-tone email requirement governs wording of the initial ask; this requirement governs the access and response workflow.
-
-## Delivered slice (2026-09-10 audit)
-
-For an **active LPS Partner**, LPS can now create/publish one request, copy a live request-specific URL, let its holder view and answer that request without sign-in, and revoke it. The page uses the shared request data and response flow rather than a static emailed plant list.
-
-## Remaining contract / open questions
-
-- **Bhoumik:** Deliver the actual prospective/out-of-network path. Current availability-request creation and public publication still require an active LPS Partner, so an eligible non-Partner prospective wholesale nursery cannot receive this request or URL.
-- **Bhoumik/Rosie:** Define the approved formatted email/send path and recipient/correlation workflow. The implemented Share control copies a URL; it does not send the formatted availability-request email Chris asked for.
-- **Bhoumik:** Confirm whether “individual availability request” means one supplier-specific request (the working reading) or a request limited to one plant line. This determines the creation flow and its relationship to the present selected-line request action.
-- **Bhoumik:** Define the timed lifetime, complete audit/attribution, response/change-history, and correct status/lifecycle expiry rule; see `supplier-access-authentication`. The current Job-status-change closure may end a request before the late supplier-update period Chris requires.
-- **Bhoumik/Chris:** Define which actual distinctions between Grower and Wholesale Supplier alter this path before separate buying workflows are introduced.
+- “Individual” is one supplier-specific request containing one or more selected plant lines.
+- Prospective supplier means no Partner login is needed, not that the request can have no known supplier record.
+- Public forwarding to a teammate is intentional single-request delegation; the holder is not individually authenticated.
 
 ## Handoff log
 
-- 2026-08-28 — captured as a watched operational-design question in `business/operations.md`; no build was defined.
-- 2026-09-01 — promoted and staged when Bhoumik made the public out-of-network path and individual request capability weekly priority 2. No external handoff sent by task instruction.
-- 2026-09-10 — audit: marked partially shipped only for the active-LPS-Partner bounded public-link slice. Chris’s prospective non-Partner supplier and formatted-email path remain staged.
+- 2026-08-28 — captured as watched operational-design question.
+- 2026-09-01 — staged as Bhoumik's weekly priority 2.
+- 2026-09-10 — partially shipped: active-Partner public-link slice only; non-Partner request and email path still absent in the audited version.
+- 2026-09-11 — Bhoumik reports completed. Re-audit finds the non-Partner rejection removed, non-Partner public URL creation and HTML supplier-email procedure added, and lifecycle corrected to retain working-stage supplier updates. Marked core shipped with verification limits and separate delivery-copy follow-up recorded.

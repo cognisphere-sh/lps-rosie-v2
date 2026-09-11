@@ -432,3 +432,28 @@ this file exists.
 
 - **Status model reported done** — Bhoumik reports weekly priority item 1 status model/migration is “Done.” Lily’s audit finds the exact Sales set and Job/Order plant wording implemented, with legacy migration/readability and distinct stored availability-request values; but Request/Portal UI still shows **Different Sz/Qnty/Sub** and **Need to Order**, not Chris’s authoritative **Diff Sz/Qnty/Sub** and **Can Order**. The item is partial, not shipped, until the Request UI mapping is corrected without changing its saved semantics. _(via bhoumik handoff / Lily audit)_
   → availability-status-model-parity + lps-ops-job-request-statuses
+
+## 2026-09-11
+
+- **Public out-of-network access done** — Bhoumik reports work-list item 5, Public/out-of-network availability access, is done. Re-audit requested against Chris’s core one-request/no-sign-in prospective-supplier and team-sharing needs, not optional audit/device safeguards Lily previously proposed. _(via Bhoumik, Telegram 276, 2026-09-11 04:51:20 CDT; Lily handoff)_
+  → supplier-access-authentication + out-of-network-public-availability-request
+
+- **Public access completion verified** — Current audit confirms the former non-Partner rejection is gone: active prospective suppliers receive a one-request public URL without a portal account, authenticated nursery users can share to unauthenticated teammates, and aggregate portal access stays gated. Won/Lost/legacy Archived or Job deactivation now expires links; working stages including Confirmed stay open. Rosie's supplier procedure covers approved HTML email with the URL. Marked core shipped; optional device/audit proposals are not blockers. Live verification was signed-out GET-only, not a real request/email test. _(via Lily audit, 2026-09-11 04:53:48 CDT)_
+  → supplier-access-authentication + out-of-network-public-availability-request
+
+## 2026-09-11
+
+- **Audit existing pricing controls first** — Bhoumik says the false no-price was an exception and existing search RPC/skills cover the proposed safeguards; asks for an independent audit of current code and procedures before adding controls. Prior Palo Verde handoffs contradict one another and include a photo misread: prices and systemic-failure claims remain unverified pending evidence. _(via Lily main handoff, 2026-09-11 04:51:42 CDT)_
+  → pricing-lookup-reliability (audit in progress; no implementation authorized)
+
+- **Palo Verde assurance retracted** — Rosie/Daisy retract the September 10 completion assurance: the inserting worker never inspected the original photo, used a parent relay, did not freshly hash the PDF, did not complete visual row/source reconciliation, committed before limited post-write QA, and ran no grade/provenance regression tests. The reported 40-line gap was only an unverified regex count difference. The added offering was not source-verified or quote-ready; confirmation language was notes only, not a selection/quoting block. _(via Rosie/Daisy read-only correction, 2026-09-11 04:55:58 CDT)_
+  → pricing-lookup-reliability (audit correction)
+
+- **Original photo is different evidence** — Lily independently inspected Rosie inbox photo_90.jpg (Chris original, September 9 message 90) and photo_94.jpg (Bhoumik later database screenshot). The original does visibly contain a 48-inch Desert Museum Palo Verde spreadsheet row and a right-edge-cropped price; the later screenshot shows only four smaller catalogue offerings. Thus the earlier conclusion that the original photo was misread rested on the wrong artifact. The original crop shows no supplier/date authority or source precedence, so it still does not establish a current quote-ready price. _(direct read-only image inspection, 2026-09-11 04:55:58 CDT)_
+  → pricing-lookup-reliability (evidence correction; no settled price claim)
+
+- **Created is not sent** — The public-access audit found All Jobs says “Availability request sent” after an endpoint that creates a record/link, not an email. Lily main authorized the nonblocking UI-only correction: use created/link-ready success feedback, preserve all email dispatch and access behavior, and keep core item 5 complete. _(via Lily audit / main direction, 2026-09-11 05:01:02 CDT)_
+  → availability-request-created-feedback
+
+- **Pricing audit narrows follow-up** — Read-only audit finds most safeguards already present; no search RPC defect reproduced. Keep the broad pricing workflow proposal held. Separate the incident’s source/QA execution overclaims from narrow local helper issues (equivalent-size false blank, partial-identity automatic prefill, omitted grade evidence); do not claim those caused the incident. No implementation authorized. _(Lily audit for Bhoumik, 2026-09-11 04:56:53 CDT)_
+  → pricing-lookup-reliability (audit reviewed; broad proposal held)

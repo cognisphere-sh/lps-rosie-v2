@@ -1,62 +1,58 @@
 # Make every pricing answer traceable and dependable
 
-- Status: staged
+- Status: staged · audit reviewed; broad workflow proposal held
 - Route: bhoumik
 - Raised: 2026-09-09 by Chris (via Rosie escalation)
-- Updated: 2026-09-09
+- Updated: 2026-09-11
 
 ## Problem
 
-Chris cannot rely on a pricing answer when an agent makes a confident claim without reconciling the exact current source row and any conflicting evidence. In the Palo Verde incident, Rosie initially reported no APS 48-inch Palo Verde and an agent then misread/misattributed Chris’s photo as **Palo Verde Desert Museum 48 inch Box** at **$2,395**. Bhoumik’s challenge and Rosie’s first read-only reconciliation found no active or inactive 48-inch inventory row; Daisy then verified the current APS PDF is unchanged and lists **48-inch Desert Museum Palo Verde at $2,499**. The manually evidenced $2,395 was retained as an exact inventory offering but flagged confirmation-required because it conflicts with the current PDF. Chris said, “Uhh you’re not ready for showtime. Please escalate this. Your ability to pricing seems often error prone.”
+Chris reported pricing answers he cannot trust: “Uhh you’re not ready for showtime. Please escalate this. Your ability to pricing seems often error prone.” Bhoumik calls the false no-price an exception and asks whether current skills and search already cover the suggested safeguards.
 
-The catalogue already retains an offering’s source and ingestion date, and agents have careful search guidance, but a pricing answer has no durable, reviewable control that connects the requested item, the matched offering (or verified no-match), the price, all relevant source evidence, and conflict state. A search miss, photo reading, or one source can therefore be presented as a settled fact despite contrary evidence.
+The September 11 read-only audit finds that **most safeguards already exist**. The Palo Verde evidence was repeatedly overstated or confused, but it does not establish a systemic search defect or justify the earlier broad new data/workflow control proposal. That proposal is held, not routed for implementation or marked dropped.
 
 ## Evidence
 
-- 2026-09-09, **APS Palo Verde price missed**, **Palo Verde photo reading corrected**, and **Palo Verde source conflict clarified** in `feedback.md`: an initial no-price claim, a $2,395 photo misread, and later source reconciliation exposed conflicting evidence—current APS PDF $2,499 versus manually evidenced $2,395—requiring confirmation rather than a settled-price answer.
-- 2026-08-25 and 2026-09-03, **One-gallon sedge price** and **Recurring APS sedge pricing match**: the same APS pricing correction had to be rediscovered for Berkeley Sedge 1 G.
-- Current Rosie procedure says a catalogue listing prices a line but is not availability confirmation; it requires the mapped inventory row in supplier handoffs. Current inventory retains per-offering source and ingestion provenance, but that evidence is not governed as part of a pricing-answer outcome.
+- Feedback: **APS Palo Verde price missed**, subsequent correction handoffs, **Audit existing pricing controls first**, **Palo Verde assurance retracted**, and **Original photo is different evidence**.
+- The September 10 worker did not inspect the original photo, complete visual source/row reconciliation, or freshly verify the PDF hash, and retracted its completion/QA assurance. Those checks were already required by its ingestion procedure.
+- Lily independently inspected Chris’s original spreadsheet image and Bhoumik’s later app screenshot. They are different artifacts: the original contains a 48-inch line with a cropped price; the later screenshot shows four smaller catalogue rows. The earlier claim that the original photo was misread was therefore unsupported. Neither image establishes current supplier price authority or precedence. No price is treated here as settled or quote-ready.
+- Current procedures already cover exact offering review, supplier scope, widened searches, source evidence, conflicting interpretation, ingestion QA, and price-list versus supplier-confirmed availability. A caveat retained in notes is not an enforced pricing hold.
+- Independent local tests identified narrow automatic supplier-request prefill issues: equivalent size spellings can leave a price blank, and a literal name fragment can accept a different full identity when its price is unique. Ingestion candidate output also omits grade/form notes that can distinguish offerings. These are separate findings, **not proven causes of the Palo Verde incident**.
+- Detailed current-file citations, historical deployment evidence, synthetic tests and limitations: Lily-relative `workspace/threads/main/tasks/pricing-controls-audit/evidence.md`.
 
-## What it should do
+## Evidence-based disposition
 
-Define a durable pricing-lookup and answer control for supplier catalogue pricing.
+Do not add a general pricing record, automatic source-review workflow, freshness policy or new conflict-status model on this evidence alone. Use the existing source-verification and correction ownership for the incident.
 
-For every price used or reported, retain and make reviewable the requested plant/size, the exact offering selected, supplier, displayed price, source evidence, source/ingestion date, and whether it is a catalogue listing, supplier-confirmed price, or another explicitly approved basis. Where evidence conflicts, retain each source and price, mark the offering confirmation-required, and prevent either value being represented as settled. A price from a different plant, cultivar, grade, or size must be identified as such and cannot be silently represented as an exact match.
+If Bhoumik approves follow-up, keep it limited to the demonstrated issues: equivalent sizes should compare consistently in automatic prefill; a different plant/selection must not silently supply an exact price; and grade/form evidence must remain available when deciding whether two catalogue offerings are the same. Relevant owners would make their own approved changes. This audit authorizes none.
 
-For a no-price/no-match conclusion, require a bounded verification outcome rather than a confident absence based only on one search result: either the relevant current source was checked and contains no exact offering, or the response is marked unresolved and routed for source-data review. Preserve the underlying source evidence, conflict and correction history so an APS spreadsheet correction is not rediscovered job by job.
+## Acceptance criteria for any approved narrow follow-up
 
-Bhoumik should decide the durable record, rules for source freshness/completeness, exception and correction workflow, ownership between catalogue ingestion and job pricing, and how this integrates with indicative versus supplier-verified quoting. Rosie and Daisy own any resulting agent procedure changes.
-
-## Acceptance criteria
-
-- A price answer or applied price can be traced to the exact supplier offering and source evidence, including when that source was ingested.
-- An exact product/size request cannot be answered as unavailable or unpriced solely because one indexed search produced no match when its relevant current source has not been verified.
-- A non-exact offering is visibly treated as a different offering or unresolved option, not as the requested product’s price.
-- A verified price finding or verified no-match such as APS Palo Verde is retained and available to later pricing work without relying on Chris to re-send or an agent to re-interpret a spreadsheet photo.
-- Chris and LPS can tell whether a quoted price is a catalogue/listing price, supplier-confirmed price, other explicitly approved basis, or confirmation-required because source evidence conflicts.
-- A detected mismatch or missing indexed offering has a clear owner and outcome: corrected source data, documented no-match, or explicit unresolved/needs-review state.
-- The controls do not claim current availability from a price-list entry and do not bypass the existing supplier-confirmation and customer-quote controls.
+- Equivalent stated container sizes do not lose an otherwise valid automatic price solely because one includes a space or alternate unit spelling.
+- A partial-name match to a different selection does not automatically populate the requested offering’s price; uncertain matches stay unpriced or explicitly identified as alternatives.
+- Two offerings that differ by a supplier-stated grade/form can be distinguished before one is updated as the other.
+- Source reconciliation reports identify the artifacts actually inspected and the checks actually completed; relay evidence is not called direct verification, and notes are not called a quoting block.
+- Existing supplier-confirmation, availability and customer-quote rules remain unchanged.
 
 ## Out of scope
 
-- Changing a supplier’s published price, contacting a supplier, or treating a spreadsheet listing as current availability.
-- A blanket alias/equivalence engine; the existing scoped APS Berkeley Sedge correction remains separate.
-- A UI-only confidence badge without durable source, correction, and workflow semantics.
-- Replacing the immediate focused-Job routing and urgent-pricing workflow requirements.
+- A general search rewrite, alias/equivalence engine, new provenance database or automated review/status workflow.
+- Resolving source precedence or publishing either Palo Verde price as current; supplier/customer contact.
+- The separately scoped APS Berkeley Sedge correction, focused-Job routing, or urgent-pricing workflow.
 
 ## Assumptions
 
-- The Palo Verde photo is not reliable enough by itself to establish a price; the reconciliation establishes that its prior $2,395 reading was wrong. The durable process must verify the actual source row rather than rely on chat-photo interpretation.
-- A catalogue price may support an indicative quote under Chris’s existing policy, while current supplier availability and price remain required before commitment.
+- Broad and quoted search are discovery tools; exact offering review still matters. A search contract intentionally returning related rows is not itself a defect.
+- One incident does not establish frequency or a systemic failure. Chris’s concern is retained without inventing a failure rate.
 
 ## Open questions
 
-- **Bhoumik:** What source freshness threshold and verification steps should distinguish a usable catalogue price from an unresolved or stale one?
-- **Bhoumik:** Should a failed exact lookup automatically create a source-data review item, and who owns its resolution when the source is an APS spreadsheet?
-- **Chris:** Beyond this immediate safeguard, what customer-facing wording best distinguishes an indicative catalogue price from a verified current price, if any change is needed?
+- **Bhoumik:** Retire the broad proposal, or authorize only the narrow verified helper/procedure fixes? No implementation has been routed.
+- **Source owners:** Complete the original-evidence/provenance correction and establish any price authority through the existing approved process. Current price and source precedence remain unresolved.
+- **Technical verification:** Historical search deployment is evidenced, but this audit did not execute the current live RPC or capture its current definition. Partial-drop retained-price lineage and numbered-cultivar key collisions remain bounded questions, not approved expansions.
 
 ## Handoff log
 
-- 2026-09-09 — Staged for Bhoumik as a pricing-data/workflow reliability control. Rosie and Daisy received owner-review recommendations for immediate search and uncertainty safeguards; no other agent’s procedure was modified.
-- 2026-09-09 — Rosie and Daisy confirmed the safeguards fit their current procedures. Both require Chris’s or Bhoumik’s explicit approval before any skill edit.
-- 2026-09-10 — Corrected the incident evidence after Rosie’s Bhoumik-challenged, read-only reconciliation: $2,395 was initially a photo misread/misattribution rather than a settled missing/deleted record. Daisy then verified a current APS PDF 48-inch line at $2,499 and retained manually evidenced $2,395 as an exact, confirmation-required offering because the sources conflict. Requirement remains staged because it directly reinforces exact-source-row verification and explicit conflict handling for both price and no-price claims.
+- 2026-09-09 — Initially staged a broad pricing-data/workflow reliability control; requested Rosie/Daisy owner review without authorizing skill edits.
+- 2026-09-10 — Interim revisions repeated contradictory source interpretations and overstated reconciliation assurance. Those claims are superseded by the September 11 direct-image inspection and worker retraction.
+- 2026-09-11 04:56:26 CDT — Read-only current-code/procedure audit completed. Most safeguards covered; no RPC defect reproduced; scoped helper/procedure issues documented separately from the incident. Broad proposal held for Bhoumik’s disposition. No code/skill/DB/config changes, implementation routing or external messages by the audit.

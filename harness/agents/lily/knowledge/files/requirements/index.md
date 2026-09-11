@@ -49,8 +49,9 @@ A workflow change counts — not everything here is software.
 | `portal-availability-selector-dark-style` | Keep the Nursery Portal availability selector readable in the dark portal | routed | nova |
 | `portal-request-work-buckets` | Keep wholesale availability requests in clear work buckets | routed | nova |
 | `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · partial; Request UI mapping blocked | bhoumik |
-| `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | staged · partially shipped | bhoumik |
-| `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | staged · partially shipped | bhoumik |
+| `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | shipped · core access | bhoumik |
+| `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | shipped · core access | bhoumik |
+| `availability-request-created-feedback` | Say created, not sent, when an availability request is ready | routed | nova |
 | `supplier-email-identity-and-handoffs` | Keep supplier email identity clear while Daisy and Rosie hand work off safely | staged | bhoumik |
 | `mobile-availability-request-view` | Make the availability-request view usable on a phone | routed · priority 3 | nova |
 | `mobile-field-request-workflow` | Make mobile request work dependable in the field | staged | bhoumik |
@@ -65,7 +66,7 @@ A workflow change counts — not everything here is software.
 | `job-request-install-date-fulfillment` | Keep fulfillment and private handling notes simple for now | staged · notes-first | bhoumik |
 | `focused-job-chat-routing` | Keep a focused Job chat on the current request | shipped | nova |
 | `urgent-pricing-update-workflow` | Make urgent pricing updates reach the right Job without delay | staged | bhoumik |
-| `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged | bhoumik |
+| `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged · audit reviewed; broad workflow proposal held | bhoumik |
 | `visual-ui-qa-gate` | Gate UI releases on real visual review | shipped | nova |
 | `plant-search-match-before-geography` | Find the exact plant and size before narrowing by geography | drafted | daisy |
 | `plant-search-result-location-clarity` | Show where each Plant Search match is located | routed | nova |
