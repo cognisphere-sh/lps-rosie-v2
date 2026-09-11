@@ -19,6 +19,11 @@ here).
 
 ### Fixed
 
+- All Jobs availability-request creation toasts say created instead of sent for
+  single, multiple, mixed and all-failed results. Partner and non-Partner
+  creation use the same truthful counts without implying email delivery or
+  changing any payload, send, error handling, selection or refresh behavior.
+
 - Deployment secret materialization no longer writes the configured operator
   password or generated secret values to command output. Status output keeps
   the configured username while explicitly hiding its password; app hooks now

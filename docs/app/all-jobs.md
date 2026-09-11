@@ -15,6 +15,17 @@ multiple candidates remain visible together. Simple pricing questions do not cre
 Request and its thread but no Availability Request. See [Rosie](../harness/agent-rosie.md) for thread
 ownership and the sourcing procedure.
 
+## Availability request creation feedback
+
+The All Jobs availability dialog reports record creation, not supplier/email
+delivery: **Availability request created** for one successful request,
+**N availability requests created** for multiple successes, and
+**X of N created · F failed** for mixed or all-failed results. The same copy
+applies to Partner and non-Partner suppliers without inspecting returned links.
+The per-job payloads, error handling, selection, refresh and close behavior are
+unchanged; creation feedback adds no sends or network calls. Confirmations for
+separately verified sends elsewhere retain their delivery wording.
+
 ## Mobile toolbar
 
 The page resolves one `<900px` media query and passes that result to the toolbar and cards. SSR and unresolved hydration render a neutral, noninteractive toolbar placeholder; once resolved, exactly one branch mounts. Below 900px, the first toolbar row is a shrinking Search field beside one 44px icon-only **Filters** button. The row is non-wrapping and bounded to the page column. Inline expansion is desktop-only, so mobile does not mount Expand all / Collapse all. At 900px and above, only the established shared desktop toolbar and chip menus mount, including one copy of the Shell-owned actions and its expansion control.

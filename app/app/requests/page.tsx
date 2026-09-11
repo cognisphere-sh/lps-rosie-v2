@@ -113,12 +113,12 @@ function AvailabilityRequestDialog({
     setBusy(false)
     const failed = results.filter((r) => r.status === 'rejected').length
     if (failed) {
-      toast(`${groups.length - failed} of ${groups.length} sent · ${failed} failed`)
+      toast(`${groups.length - failed} of ${groups.length} created · ${failed} failed`)
     } else {
       toast(
         groups.length === 1
-          ? 'Availability request sent'
-          : `${groups.length} availability requests sent`,
+          ? 'Availability request created'
+          : `${groups.length} availability requests created`,
       )
     }
     onCreated()
