@@ -1,5 +1,18 @@
 # quote-generation — changelog
 
+## 2.3.0
+
+2026-09-11 — Create/reuse the job/thread and item rows, gather pricing and
+save supported updates before asking for clarification. Only work dependent
+on the missing answer waits, including the affected quote output.
+
+## 2.2.0
+
+2026-09-11 — Gather and post pricing evidence first, then ask any remaining
+order questions before generating a quote, including quick quotes. Preserve
+independent preparation and avoid questions about already known or unneeded
+fields.
+
 ## 2.1.0
 
 2026-09-11 — Present text quotes and other text intended for copying inside

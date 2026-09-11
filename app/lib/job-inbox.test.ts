@@ -103,13 +103,12 @@ test('focused switching and intake preserve one All jobs history entry', () => {
 
   const selected = ['/requests', '/jobs?jr=1']
   if (jobInboxNavigationAction('valid') === 'replace') selected[1] = '/jobs?jr=2'
-  if (jobInboxNewNavigationAction(true) === 'replace') selected[1] = '/jobs?jr=3&intake=1'
-  selected[1] = '/jobs?jr=3' // manual Exit also replaces the intake entry
+  if (jobInboxNewNavigationAction(true) === 'replace') selected[1] = '/jobs?jr=3'
   selected.pop() // browser/device Back from focused mobile detail
   assert.deepEqual(selected, ['/requests'])
 
   const fromAllJobs = ['/requests']
-  if (jobInboxNewNavigationAction(false) === 'push') fromAllJobs.push('/jobs?jr=22&intake=1')
+  if (jobInboxNewNavigationAction(false) === 'push') fromAllJobs.push('/jobs?jr=22')
   fromAllJobs.pop()
   assert.deepEqual(fromAllJobs, ['/requests'])
 })
@@ -292,7 +291,7 @@ test('focused route restores scroll/focus and uses push entry then replace switc
   assert.match(jobs, /backToList[\s\S]*router\.replace\('\/requests'/)
 })
 
-test('focused intake reuses one AgentChat/useChat/composer upload path and manual exit', () => {
+test('new jobs use the standard route and legacy focused intake reuses the same chat transport', () => {
   const shell = source('components/workspace/shell.tsx')
   const chat = source('components/workspace/chat.tsx')
   const kit = source('components/workspace/chat-kit.tsx')
@@ -307,7 +306,7 @@ test('focused intake reuses one AgentChat/useChat/composer upload path and manua
   assert.match(chat, /min-\[900px\]:flex-row/)
   assert.match(shell, /focusedIntake \? 'flex-1 min-\[900px\]:w-0 min-\[900px\]:flex-none'/)
   assert.equal((shell.match(/fetch\('\/api\/requests\/reserve'/g) ?? []).length, 1)
-  assert.match(shell, /savedId[\s\S]*navigate\(`\/jobs\?jr=\$\{savedId\}&intake=1`\)/)
+  assert.match(shell, /savedId[\s\S]*navigate\(`\/jobs\?jr=\$\{savedId\}`\)/)
   assert.match(shell, /jobInboxNewNavigationAction\(fromSelectedEntry\)[\s\S]*router\.replace[\s\S]*router\.push/)
   assert.match(shell, /if \(!res\.ok \|\| !body\.id\) throw[\s\S]*setItem\('lps\.jobs\.origin\.v1', 'new'\)[\s\S]*setItem\('lps\.jobs\.origin-id\.v1', String\(body\.id\)\)[\s\S]*setItem\('lps\.jobs\.intake\.v1'/)
   assert.equal((chat.match(/const chat = useChat\(/g) ?? []).length, 1)

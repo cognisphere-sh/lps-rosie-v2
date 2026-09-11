@@ -856,7 +856,7 @@ function NewJobRequestButton({
       }
       const savedId = saved?.id
       if (typeof savedId === 'number' && Number.isSafeInteger(savedId) && savedId > 0) {
-        navigate(`/jobs?jr=${savedId}&intake=1`)
+        navigate(`/jobs?jr=${savedId}`)
         openChat({ agentId: 'rosie', threadId: `jr-${savedId}`, label: requestRef(savedId) })
         return
       }
@@ -871,7 +871,7 @@ function NewJobRequestButton({
         window.sessionStorage.setItem('lps.jobs.origin-id.v1', String(body.id))
       }
       window.sessionStorage.setItem('lps.jobs.intake.v1', JSON.stringify({ id: body.id, returnUrl }))
-      navigate(`/jobs?jr=${body.id}&intake=1`)
+      navigate(`/jobs?jr=${body.id}`)
       openChat({ agentId: 'rosie', threadId: `jr-${body.id}`, label: requestRef(body.id) })
     } catch (e) {
       toast((e as Error).message)

@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage actual customer job requests from intake to closure. Covers job/thread creation, multiple-plant/size demand clarification, concurrent database writes, APS-first sourcing and short supplier rows, supplier-answer reconciliation, and lifecycle hooks. Use when creating or updating an order request, sourcing its items, receiving supplier/customer job updates or recording customer confirmation; pricing-only questions do not create a job, while quick quotes create a job/thread without an availability request. (v4.2.0)
+description: Manage actual customer job requests from intake to closure. Covers job/thread and item creation before clarification, completing independent work and pricing updates, order clarification before quotes or availability requests, multiple-plant/size demands, concurrent database writes, APS-first sourcing and short supplier rows, supplier-answer reconciliation, and lifecycle hooks. Use when creating or updating an order request, sourcing its items, receiving supplier/customer job updates or recording customer confirmation; pricing-only questions do not create a job, while quick quotes create a job/thread without an availability request. (v4.4.0)
 metadata:
   author: lps
-  version: "4.2.0"
+  version: "4.4.0"
 ---
 
 # Job requests
@@ -17,6 +17,35 @@ handoffs and approvals; drafting on this thread never requires Chris to move
 here to approve.
 
 ## 1. Intake: an order request or quick quote
+
+You may ask any clarifying question about an order request before generating
+a quote (including a quick quote) or creating/sending an availability request.
+**Complete all authorized actions that do not depend on an answer before
+asking.** Once order/quick-quote intent is established, perform the intake
+writes below: create/reuse the job and `jr-<id>` thread, create item rows from
+the supplied details, and save known customer/job information. Do not stop at
+a plan or hold all records until every detail is clarified. Review existing
+records and conversation history, use `plant-and-supplier-search` to gather
+pricing, save supported prices and sourcing rows, and record completed
+pricing through the lifecycle hook. Research clearly labelled candidate
+alternatives without selecting them. Verify writes before reporting them.
+Missing details block only actions that depend on those details.
+
+Post the created/updated job and rows, pricing and other findings, with any
+gaps or uncertainty, in the original request conversation via `message-routing`;
+external customer communication stays with `customer-coordination`. Then ask
+concise questions about anything still unclear that affects the quote or
+availability ask.
+Questions may cover any relevant detail, such as plant/cultivar, size,
+quantity, alternatives, budget, delivery timing/location, supplier or scope;
+these are examples, not a required checklist. Use answers already provided.
+Wait for needed answers before generating the affected quote or creating/
+sending the affected AR, including automatically published APS requests.
+Continue independent work, including supported record updates, while waiting.
+Apply answers to the existing job/items with guarded writes; do not recreate
+the job or duplicate rows when clarification arrives. Preliminary
+pricing findings do not establish stock availability or resolve an ambiguous
+requirement. If the request is clear, proceed without extra questions.
 
 1. Distinguish a price lookup/general question from an order or quick-quote
    request. Simple pricing/general questions create no job or AR. **A quick
@@ -49,21 +78,28 @@ here to approve.
    VALUES ($jobId, $customerId, $name, 'sourcing', $customerNotes);
    ```
 
-5. If a demand mentions multiple sizes or multiple plants, clarify how to
-   handle them: separate required lines, acceptable alternatives, or a mix,
-   and whether the quantity is per option or a total to split. Follow an
-   explicit allocation already supplied; otherwise ask the requester through
-   the owning job thread before splitting/combining items, selecting a
-   plant/size, or sending the affected availability ask. For example,
-   `20 live oaks, 15 G or 30 G` needs clarification on whether either size
-   is acceptable for all 20 or a particular mix is required. Never duplicate
-   a total quantity across options or assume every named plant is required.
-   Insert one item per confirmed plant/size requirement, preserving the asked
-   name, size and quantity; retain acceptable alternatives as alternatives.
+5. Create item rows before asking questions: one per clearly separate
+   requested line, preserving the supplied plant name, size and quantity.
+   Missing size, quantity or price stays NULL and does not prevent creating
+   a row with a supplied plant name. If the plant name itself is missing,
+   record the unresolved request in job notes and create the other rows;
+   do not invent a name to satisfy the required column.
+   Preserve unresolved alternatives in the original line without choosing,
+   splitting or combining requirements. For example, record
+   `20 live oaks, 15 G or 30 G` as one row with name `live oaks`, size
+   `15 G or 30 G` and quantity `20`, then research both sizes before asking
+   whether either size is acceptable or a particular mix is required.
+   Follow an explicit allocation already supplied. Otherwise clarify separate
+   requirements versus alternatives and per-option versus total quantities
+   after completing independent work, before splitting/combining items,
+   selecting a plant/size, or generating the affected quote/availability ask.
+   Never duplicate a total across options or assume every named plant is
+   required. Keep prices for unresolved alternatives in sourcing notes;
+   leave `unit_price` NULL until a price applies to the requested line.
    Normalize gallon tokens to `G` (`30 gal or larger` → `30 G or larger`).
-   Leave unknown values NULL; ask about material gaps.
    A duplicate-key error on the job means re-read, then add only genuinely
-   missing items. Report intake complete before starting the sourcing work.
+   missing items. Continue independent sourcing with the recorded lines;
+   report completed intake work and remaining gaps accurately.
 6. Later customer mapping is guarded with `WHERE customer_id IS NULL`; a
    concurrent app mapping wins. Never write derived thread references; the
    database links each job to `jr-<id>`.
@@ -154,7 +190,8 @@ uses `quote-generation` and skips AR creation and supplier contact.
    lifecycle hook below with `pricing_fetched`. This is work done, so the
    job moves from Active to Quote even if no price was found; later stages
    remain unchanged.
-6. For every ordinary job, route an APS availability request to APS's supplier
+6. Once questions affecting the availability ask are resolved, route an APS
+   availability request for every ordinary job to APS's supplier
    thread by default, including items absent from its inventory. An explicit
    supplier override/exclusion takes precedence. The supplier thread follows
    `supplier-coordination`: APS portal requests publish automatically,

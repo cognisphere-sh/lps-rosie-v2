@@ -1,5 +1,18 @@
 # supplier-coordination — changelog
 
+## 2.4.0
+
+2026-09-11 — Complete independent supplier/request lookups, inventory mapping
+and price preparation before clarification; have the job owner persist known
+records and sourcing updates. Hold only actions dependent on the answer.
+
+## 2.3.0
+
+2026-09-11 — Review available evidence first and relay pricing/findings to
+the job thread for the requester. Clarify any remaining order uncertainty
+before creating/sending an affected AR, including automatic APS requests;
+continue independent preparation without re-asking supplied details.
+
 ## 2.2.0
 
 2026-09-11 — Route unresolved multiple-plant/size demand handling and quantity

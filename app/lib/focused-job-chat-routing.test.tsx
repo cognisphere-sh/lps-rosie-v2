@@ -283,6 +283,46 @@ test('mobile Shell agent handoff and actual AgentChat branch preserve only exact
   assert.equal(sends[0].body.threadId, 'jr-31')
 })
 
+for (const recovered of [false, true]) {
+  test(`New job request ${recovered ? 'reopens a reservation' : 'reserves an id'} on the jobs page with Rosie`, async () => {
+    window.history.replaceState(null, '', recovered ? '/jobs?jr=30' : '/requests')
+    if (recovered) window.sessionStorage.setItem('lps.jobs.intake.v1', JSON.stringify({ id: 31, returnUrl: '/requests' }))
+    let reserves = 0
+    const fetchChat = globalThis.fetch
+    globalThis.fetch = (async (input, init) => {
+      if (String(input) === '/api/chat/threads') return new Response(JSON.stringify({ threads: {} }), { status: 200 })
+      if (String(input) === '/api/requests/reserve') {
+        reserves++
+        assert.equal(init?.method, 'POST')
+        return new Response(JSON.stringify({ id: 31 }), { status: 200 })
+      }
+      return fetchChat(input, init)
+    }) as typeof fetch
+    const navigations: Array<{ method: string; url: string }> = []
+    const router = {
+      back() {}, forward() {}, refresh() {}, hmrRefresh() {}, prefetch: async () => undefined,
+      push(url: string) { navigations.push({ method: 'push', url }) },
+      replace(url: string) { navigations.push({ method: 'replace', url }) },
+    }
+    const view = render(
+      <AppRouterContext.Provider value={router as never}>
+        <Shell page="requests" title="Jobs" replaceNewJobEntry={recovered}><div>Jobs page</div></Shell>
+      </AppRouterContext.Provider>,
+    )
+    fireEvent.click(view.getByRole('button', { name: 'New job request' }))
+    await waitFor(() => assert.equal(navigations.length, 1))
+    assert.deepEqual(navigations, [{ method: recovered ? 'replace' : 'push', url: '/jobs?jr=31' }])
+    assert.equal(reserves, recovered ? 0 : 1)
+    assert.equal(JSON.parse(window.sessionStorage.getItem('lps.jobs.intake.v1')!).id, 31)
+    await waitFor(() => assert.ok(view.getByText('JR-31 history')))
+    const user = userEvent.setup({ document })
+    await user.type(view.getByPlaceholderText('Ask Rosie…'), 'Start this job')
+    await user.click(view.getByRole('button', { name: 'Send' }))
+    await waitFor(() => assert.equal(sends.length, 1))
+    assert.equal(sends[0].body.threadId, 'jr-31')
+  })
+}
+
 test('actual mobile Shell Agents list drives AgentChat to the selected Main destination', async () => {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
   Object.defineProperty(window, 'matchMedia', { configurable: true, value: (query: string) => ({

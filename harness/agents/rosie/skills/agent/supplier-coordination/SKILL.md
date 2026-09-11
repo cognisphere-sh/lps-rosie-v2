@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, multiple-plant/size demand clarification, concise useful LPS notes, HTML email with a public link, inventory mappings, contextual partial/submitted supplier responses, factual sourcing relays and concise Chris alerts, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.2.0)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, independent preparation before clarification, order clarification before request creation, multiple-plant/size demands, concise useful LPS notes, HTML email with a public link, inventory mappings, contextual partial/submitted supplier responses, factual sourcing relays and concise Chris alerts, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.4.0)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.4.0"
 ---
 
 # Supplier coordination
@@ -33,6 +33,20 @@ correspondence. Read the schema and supplier row before acting.
   request is not permission for an additional email.
 
 ## 2. Create or reuse the availability request
+
+Before creating/sending an AR, review the handoff, existing records and
+inventory evidence to resolve what you can yourself. Complete all independent
+work before requesting clarification, including supplier/request lookup,
+validated inventory mappings and supported price preparation. Have the job
+thread persist known job/item details and sourcing updates under
+`job-requests`; missing answers must not stall that work. Relay completed
+work, pricing, other findings and remaining gaps to the job thread so it can
+post them in the original request conversation and clarify with the requester.
+You may raise any question about the order that affects the availability ask, not only
+plant/size allocation. Wait for needed answers before creating/sending the
+affected request; automatic APS publication follows this same rule. Continue
+independent research and preparation while waiting, and do not re-ask details
+already supplied. Follow `job-requests` for the full intake sequence.
 
 1. Read the job, active item list and this supplier's existing ARs. Reject
    new work against closed/inactive jobs. Reuse the existing active open

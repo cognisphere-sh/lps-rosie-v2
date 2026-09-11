@@ -233,6 +233,27 @@ test('All jobs updates new jobs, changed rows and deletion with the saved filter
   await waitFor(() => assert.doesNotMatch(view.container.textContent ?? '', /Oak Grove/))
 })
 
+test('a reserved job shows its saved record in the standard workspace as Rosie writes it', async () => {
+  let saved: JobRequestRow | null = null
+  sessionStorage.setItem('lps.jobs.intake.v1', JSON.stringify({ id: 19, returnUrl: '/requests' }))
+  globalThis.fetch = (async (input) => String(input) === '/api/job-inbox'
+    ? response({ jobs: [] })
+    : saved ? response({ request: saved }) : response({ error: 'not found' }, 404)) as typeof fetch
+  const view = render(<JobsPage />)
+  await waitFor(() => assert.ok(view.queryByText('New job request · JR-19')))
+  assert.ok(view.getByRole('main', { name: 'Selected job' }))
+  assert.ok(view.getByRole('button', { name: 'Open Rosie' }))
+  assert.equal(view.queryByRole('button', { name: 'Resume intake' }), null)
+  assert.ok(sessionStorage.getItem('lps.jobs.intake.v1'))
+  saved = withLine(job())
+  emit()
+  await waitFor(() => assert.ok(view.queryByText('Live oak from Rosie')))
+  assert.ok(view.getByRole('button', { name: /edit job name/i }))
+  assert.equal(view.queryByText('New job request · JR-19'), null)
+  assert.equal(sessionStorage.getItem('lps.jobs.intake.v1'), null)
+  assert.equal(params.toString(), 'jr=19')
+})
+
 test('reserved intake shows newly saved records before any chat reply and stays in intake', async () => {
   let saved: JobRequestRow | null = null
   params = new URLSearchParams('jr=19&intake=1')

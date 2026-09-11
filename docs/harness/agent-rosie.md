@@ -9,6 +9,17 @@ continues the operational task.
 
 ## Workflow
 
+- Before asking questions, Rosie completes all authorized work that does not
+  depend on an answer: create/reuse the job/thread, create item rows from the
+  supplied details, research pricing and save supported updates. Missing
+  size/quantity/price stays NULL; unresolved alternatives retain the original
+  wording without choosing or duplicating demand. She posts completed work,
+  pricing and other findings to the requester.
+  She may ask any clarifying question about the order. Remaining uncertainty
+  affecting a quote or availability request is resolved before generating
+  that output, including quick quotes and automatically published APS ARs.
+  She continues independent work while waiting and uses details already
+  supplied; a clear request needs no extra questions.
 - A new order creates a job and its `jr-<id>` thread in **Active**. Intake may
   reserve an id before the job exists. The job thread creates the row and
   item snapshots; unknown customer/job names stay NULL rather than invented.

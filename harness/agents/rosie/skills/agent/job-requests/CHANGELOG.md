@@ -1,5 +1,19 @@
 # job-requests — changelog
 
+## 4.4.0
+
+2026-09-11 — Complete all independent actions before asking questions,
+including job/thread creation, item rows, supported prices and sourcing
+updates. Preserve missing fields and unresolved alternatives without guessing,
+then apply clarification to existing records without duplication.
+
+## 4.3.0
+
+2026-09-11 — Investigate available records and pricing first, post findings,
+then clarify any remaining order questions before generating the affected
+quote or availability request, including automatic APS publication. Continue
+independent work and avoid re-asking known details.
+
 ## 4.2.0
 
 2026-09-11 — Clarify how demands mentioning multiple plants or sizes should

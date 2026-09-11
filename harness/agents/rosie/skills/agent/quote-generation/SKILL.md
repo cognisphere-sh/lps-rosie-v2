@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers APS/named-supplier pricing without availability requests, the exact default size/plant/unit-price text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create a job/thread without an AR; simple pricing questions create neither. (v2.1.0)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS/named-supplier pricing without availability requests, the exact default size/plant/unit-price text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create a job/thread without an AR; simple pricing questions create neither. (v2.3.0)
 metadata:
   author: lps
-  version: "2.1.0"
+  version: "2.3.0"
 ---
 
 # Quote generation
@@ -13,6 +13,19 @@ This is the single quote procedure, including the default text format.
 customer delivery; `message-routing` owns any required approval routing.
 
 ## 1. Select the quoting path
+
+Before generating any quote, follow the intake guidance in `job-requests`:
+create/reuse its job/thread and item rows from supplied details, gather
+pricing and other relevant information, and save supported prices and
+sourcing updates. Complete every authorized action that does not depend on
+clarification before asking; an unresolved detail must not delay independent
+record creation or updates. Post completed work, findings and remaining gaps
+to the requester. You may ask any clarifying question about the order, including
+for a quick quote. Resolve remaining uncertainty that affects the quote
+before generating it; continue research and preparation for unambiguous
+lines while waiting. Do not ask again for supplied details or require fields
+the requested format does not need (for example, quantity for a unit-price
+text quote). A clear request needs no extra clarification.
 
 - **Quick quote:** create a job and its `jr-<id>` thread through
   `job-requests` intake, or reuse the existing job. Carry `quote_only: true`.
@@ -30,9 +43,9 @@ customer delivery; `message-routing` owns any required approval routing.
   Ordinary job quotes use the selected offering and customer-facing price;
   clearly resolve material unconfirmed substitutions or missing prices with
   Chris before treating them as a firm offering.
-- **Unknown identity, size or price:** do not guess. Ask for the missing
-  information while preparing unambiguous lines. Keep unsupported lines out
-  of a final priced quote and state that gap separately to Chris.
+- **Unknown identity, size or price:** do not guess. Investigate first, then
+  clarify remaining gaps while preparing unambiguous lines. Keep unsupported
+  lines out of a final priced quote and state that gap separately to Chris.
 
 Quotes contain the requested/approved offered plant, size, customer price
 and (when required by the chosen format) quantity. Never copy sourcing notes,

@@ -19,6 +19,10 @@ here).
 
 ### Fixed
 
+- New job request opens the standard Jobs workspace with Rosie's chat sidebar.
+  Fresh and recovered reservations keep the active-jobs rail and work pane
+  visible, and saved job details appear there as Rosie creates the record.
+
 - All Jobs availability-request creation toasts say created instead of sent for
   single, multiple, mixed and all-failed results. Partner and non-Partner
   creation use the same truthful counts without implying email delivery or
@@ -32,6 +36,14 @@ here).
   regression scans deploy scripts for secret-bearing output statements.
 
 ### Changed
+
+- Rosie's order prompt and job, quote and supplier skills now direct her to
+  complete all independent actions before asking questions: create/reuse the
+  job/thread, create item rows, investigate pricing and save supported updates.
+  She posts completed work and findings, then clarifies remaining questions
+  before generating the affected quote or availability request, including
+  automatically published APS requests. Missing details block only dependent
+  work; unresolved alternatives are preserved without guessing.
 
 - Availability Request item statuses now display Can Order for `can_order` in
   partner/public request pages, selectors, answer dialogs, summaries, status
