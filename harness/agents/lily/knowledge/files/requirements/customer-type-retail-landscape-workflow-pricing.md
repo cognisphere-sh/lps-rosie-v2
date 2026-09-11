@@ -1,69 +1,70 @@
-# Work homeowners as retail customers and landscape professionals as contractors
+# Distinguish homeowners from landscape professionals without changing pricing yet
 
-- Status: staged
+- Status: shipped — minimal customer classification/storage contract; optional intake UI and commercial policy remain separate
 - Route: bhoumik
 - Raised: 2026-08-30 by Chris (via telegram image)
-- Updated: 2026-08-31
+- Updated: 2026-09-11 05:33:52 CDT
 
 ## Problem
 
-LPS currently treats a customer as a person with an optional company, and all Job Requests follow one contractor-oriented intake, quote, sourcing, and pricing path. Chris needs to distinguish a homeowner from a landscape professional at the start so a homeowner can receive a retail customer experience and a landscape professional the traditional contractor experience. Entering “Retail” as a company is not a durable or truthful way to make that distinction, and it cannot drive pricing safely.
+Chris nearly entered “Retail” as a customer’s company to identify a homeowner. Classification needs to remain separate from the real company and person. The minimal item records that classification; it does not implement the still-undefined retail versus contractor pricing or service policy.
 
 ## Evidence
 
-- 2026-08-30 feedback log, **Homeowner or landscape professional**: Chris requested the Homeowner / Landscape Professional choice and explicitly said it must support distinct retail versus traditional-contractor work, including pricing.
-- 2026-08-30 feedback log, **Customer-type request/order naming**: Landscape Professional Requests/Orders are Company Name then Job Name; Retail Requests/Orders are `Retail | Customer Name`; both show `EPD: M/D/YY`. Landscape job name can be a residence name, street number/name, or PO, and can be added after intake.
-- 2026-08-31 feedback log, **Company then job name**: Chris confirmed the displayed Landscape Professional form and separator through JR-32: `Oviedo Land and Garden — Job #1`. This supersedes the earlier pipe separator; it does not establish a new general fallback from short request text.
-- 2026-09-02 feedback log, **Exact editable request identity** and **Contractor in job identity**: Chris specified JR-36 as `Outdoor Renovations | 803 Redbud | Kyle Stoutenger` and JR-34 as `Land Water Light | Ox Eye Phase II | Dior Goodwin`. Follow-up confirms both are a display format from separately stored company, job/site, and contact values—not a request to store a composite job name.
-- Current schema/app review: a customer is a person with optional company, and a Job Request may link to that customer; neither has a durable customer-type, workflow, price-policy, estimated-project-date, or type-specific naming concept. New intake reserves a Job Request and Rosie creates the customer/job context in its conversation.
-- 2026-08-29 feedback log, **Quick quotes are not Job Requests** and **Budgeting quotes are allowed**: the existing quote policy is built around contractor bidding and explicitly indicative catalog pricing; it does not establish a homeowner retail-price policy.
+- 2026-08-30 feedback log, **Homeowner or landscape professional**: Chris requested the distinction at intake, ultimately supporting retail versus traditional contractor treatment.
+- 2026-09-11 05:18:33 CDT, **Customer type minimum first**: Lily recommended a single optional customer-level classification, Jobs using their linked customer’s current type, unknowns unset, no per-Job copies/snapshots or pricing changes. This was a recommendation, not authorization at that point.
+- 2026-09-11 05:33:34 CDT, **Customer type reported done**: Bhoumik replies “Done” to that minimal recommendation (Telegram 288).
+- Read-only review confirms migration 0090 adds a nullable classification with no default/backfill and leaves company separate. The implemented vocabulary is **Homeowner/Retail** and **Landscape Professional**; the homeowner label is not literal “Homeowner.”
+- The migration application note records live application and all nine existing customers still unset. Lily could not independently repeat the live DB query because her environment lacks the connection configuration. Current source and the recorded deployment evidence support completion of the storage item, not a claim of fresh live end-to-end verification.
 
-## What it should do
+## Completed narrow behavior
 
-Define and retain a truthful Homeowner versus Landscape Professional classification as part of the customer/job intake model, separate from a person’s name and company. The classification must be available to Rosie and the app when they create, review, quote, source, fulfill, and report on the work.
+A customer can have **Homeowner/Retail**, **Landscape Professional**, or no known type. Classification is separate from the real company and person. Omitted type stays unset; the migration does not infer or backfill existing customers.
 
-Define the two customer experiences in business terms. For each type, specify the pricing basis and the applicable workflow differences, if any: quote/price presentation, indicative-versus-verified price rules, taxes, payment/credit terms, delivery or pickup, communication/approval, and whether a job can proceed through the existing contractor process unchanged. The system must use the approved type-specific policy consistently and show Chris which policy is governing a quote or job; it must never silently infer the type from a company name.
+A linked Job can obtain the customer’s current type through the existing customer relationship. No per-Job type copy, override, or snapshot was added. Jobs with no customer or no known customer type remain unclassified. Correcting a customer’s classification changes the current fact, not a historical type snapshot.
 
-Define and retain the working Request/Order identity and estimated project date. A Landscape Professional displayed title uses the exact ordered stored values `Company Name | Job/Site | Contact`, as confirmed on JR-34 and JR-36. A Retail normal displayed title is `Retail | Customer Name`. Both display the estimated project date in abbreviated form, `EPD: M/D/YY`. The Landscape display is composition only: company, job/site, and contact remain separately stored and corrected; it is never saved or parsed as one job-name string. A blank Landscape Professional job name must remain an honest incomplete state that can be filled later without breaking the job, its history, or its links. Do not infer a general short-description fallback from this rule without Chris’s decision. See `job-request-display-identity` for the UI display contract.
+Classification alone changes no price, quote, payment term, status, sourcing, fulfillment, or communication policy. Existing work remains usable without a type.
 
-Decide the scope of the classification: whether it is a durable customer relationship, a job-specific choice, or both; how an existing customer is corrected; and what happens when the same person/company legitimately has different kinds of work. Preserve the historical type and pricing basis actually used for a quote/job so later reporting and review do not rewrite past commercial decisions.
+## Acceptance criteria — storage item
 
-This is a workflow/data and commercial-control change. Its durable model and policy are staged for Bhoumik. A separate Nova UI requirement supplies the visible intake choice and title/date rendering once this contract is settled.
+- The customer classification is optional and separate from real company/person information.
+- The two supported choices are Homeowner/Retail and Landscape Professional; omission or clearing leaves unknown/unset.
+- Existing records are not automatically classified or rewritten by this migration.
+- The linked customer remains the source of current type; a per-Job copy/snapshot is not required.
+- Setting type does not activate automatic pricing or different operational workflows.
 
-## Acceptance criteria
+## Available surfaces and limits
 
-- A Homeowner / Landscape Professional classification is retained separately from customer name and company and is available throughout the related intake and job workflow.
-- Chris can identify the type before a price/quote is produced; the system never treats a company name, missing company, address, or old price as proof of type.
-- Each type has an explicit approved pricing basis and applicable workflow rules; a quote/job makes clear which basis is in effect.
-- Landscape Professional Requests/Orders display the normal exact `Company Name | Job/Site | Contact` identity and an estimated project date from separately stored values; Job Name can begin blank and be filled later as a residence name, street number/name, or PO without fabricating data or losing continuity.
-- The display never writes a composite identity into, or parses one out of, company/contact/job-site facts.
-- Retail Requests/Orders retain the `Retail | Customer Name` identity and an estimated project date; both types present the date as `EPD: M/D/YY`.
-- A Homeowner can be worked through the defined retail experience and a Landscape Professional through the defined contractor experience without manual relabeling or hidden price workarounds.
-- A price or quote produced under one type is not silently reused under the other type.
-- The historical type and pricing basis used for a quote/job remain reviewable after a customer record is changed.
-- Existing customers and Job Requests remain usable until Chris/Bhoumik decide how, or whether, they are classified; no blanket inference or migration mislabels them.
+- Customer list/detail read models and APIs include type in current source.
+- Current source includes an editable Type column on desktop Customers, a Type/Not set display on mobile cards, and a customer-detail selector with an existing validated save path and clearing to unset.
+- Database creation can supply type or omit it. No new customer-create form/API or focused new-job type control was added, and no type-specific Rosie intake change was found.
+- The Job list/detail API does **not** yet embed type in its nested customer object. Type is reachable through the existing customer link and customer lookup; dedicated Job display/hydration is a separate UI convenience, not a missing storage prerequisite.
+- Customer-related frontend changes were uncommitted source at inspection. Their production deployment, visual appearance and real save were not independently tested. No production insert/update was performed.
+
+## Deferred — not blockers to this completion
+
+- Optional focused-intake/Job type display: `new-job-intake-customer-type-choice` remains drafted, with the storage blocker removed. This task did not route it.
+- Actual retail/contractor pricing, discounts, payment/tax/delivery and service policy: Chris must define the differences before Bhoumik authorizes behavior changes.
+- Historical type/pricing snapshots, per-Job overrides and retrospective commercial reporting. Prior wording making them mandatory was speculative and remains superseded.
+- Separate naming/date/fulfillment work; this completion does not reopen or imply those capabilities.
 
 ## Out of scope
 
-- Choosing actual retail price levels, contractor discounts, tax rates, payment terms, or delivery fees before Chris approves them.
-- Building an e-commerce checkout, retail storefront, or general customer portal.
-- Changing supplier categories or the supplier availability/order workflow.
-
-## Assumptions
-
-- “Retail customer” means a homeowner-facing LPS commercial/workflow experience, not a fake company called Retail.
-- Landscape Professional is the initial contractor-oriented category; other future customer classes are not implied by this request.
-- Existing quick quote opportunities remain governed by their separately staged indicative-quote requirement unless Chris explicitly extends a type-specific policy to them.
+- Inferring customer type from company, address, prior prices or notes, or cleaning company values automatically.
+- Retail storefront/checkout, customer portal, supplier category, or order lifecycle changes.
+- Claiming that a recorded classification is an implemented retail pricing policy.
 
 ## Open questions
 
-- **Chris (one needed answer):** What is the minimum operational difference you want between the two types—especially the retail pricing basis/markup and any different quote, payment, delivery, tax, or communication step? A short list is sufficient; Bhoumik can turn it into a safe policy.
-- **Bhoumik:** Should type be held on the customer, on each job/quote, or both? Recommend retaining the customer’s normal relationship type while snapshotting the type, title/date basis, and pricing basis used on every commercial record, with an explicit per-job override only if Chris confirms it is needed.
-- **Bhoumik:** Define the safe transition and reporting treatment for existing unclassified customers/jobs and for a customer whose type, company, job name, or estimated project date is corrected later.
+- **Chris — future policy only:** What should differ in homeowner versus landscape-professional pricing and service? This no longer blocks the completed classification item.
 
 ## Handoff log
 
-- 2026-08-30 — Staged for Bhoumik: durable customer/job classification, type-specific Request/Order naming and estimated project date, commercial pricing policy, workflow behavior, history, and migration/transition decisions are required before the UI can be functional.
-- 2026-08-31 — Clarified displayed Landscape Professional format from JR-32: company first, then an em dash and job name (`Oviedo Land and Garden — Job #1`); no generic short-description fallback inferred.
-- 2026-08-31 — Rosie updated her owned `job-requests` procedure to v3.5.0: preserve a NULL job name until a real residence name, street number/name, PO, named project/site is known; prohibit generic inferred summaries and combined company/job titles; treat `Company — Job name` as presentation logic. Durable type/date/pricing/data work remains staged for Bhoumik.
-- 2026-09-02 — JR-34/JR-36 follow-up resolves the apparent conflict: both are exact three-component display requests using values already stored separately. `job-request-display-identity` is a Nova UI composition requirement; no durable identity override/data change is implied.
+- 2026-08-30 — Staged as a broader customer-type/workflow/pricing proposal.
+- 2026-08-31 / 2026-09-02 — Naming procedure and independent company/job/contact display work separated from the classification model.
+- 2026-09-11 05:19:04 CDT — Narrowed to a conditional customer-level recommendation; removed per-Job copies/snapshots and pricing-policy completion as current prerequisites. No authorization was inferred from the recommendation.
+- 2026-09-11 05:33:52 CDT — Bhoumik’s completion report plus migration/source review closes **minimal classification/storage**. Application note records nine customers still unset. Direct live DB re-check was unavailable; no production writes or implementation routing. Optional intake UI and commercial policy remain separate.
+
+## Verification reference
+
+`workspace/threads/main/tasks/customer-type-retail-vs-landscape/customer-type-verification-2026-09-11.md` — exact source paths, migration/app evidence, surfaces, and independent-verification limits.

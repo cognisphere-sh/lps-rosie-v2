@@ -1,49 +1,50 @@
-# Show the current response state for a mobile request update
+# Optional mobile request-response display
 
-- Status: drafted · blocked by mobile-request-update-response-workflow
+- Status: drafted · optional/unapproved; deferred pending existing-path findings
 - Route: nova
-- Raised: 2026-09-10 by Chris (via Telegram)
-- Updated: 2026-09-10
+- Raised: 2026-09-10 by Lily as a possible solution to Chris’s mobile feedback
+- Updated: 2026-09-11 06:24:49 CDT
 
 ## Problem
 
-Chris working in the yard needs a quick, readable answer to “did this request update land, what is happening, and what do I do next?” Current mobile chat can show a transient agent-working indicator and individual availability-request controls report their own result, but it has no common request-level response surface. The earlier Rosie workspace visibly used Queued / Working / Done / Failed states; retain the clarity of that pattern, not its legacy screen or unsafe persistence model.
+Chris needs to read and move through a request easily on his phone, receive quick and truthful feedback, and keep his working context. Lily’s proposed persistent response display is only one possible solution. It is not Chris’s settled request and does not make a new backend state model a prerequisite to improving the existing screens.
 
 ## Evidence
 
-- 2026-09-10 — Chris explicitly asks for easy reading/navigation, quick response and movement through the request on a phone; he cites better old Rosie UI/UX elements.
-- Legacy implementation review (`72c30f1`): a visible event-state badge named Queued, Working, Done, Failed and Cancelled.
-- Current app review: focused mobile Job makes canonical chat and AR actions reachable, but no durable request-level response state is available to display.
+- Chris’s 2026-09-10 field-use and old-Rosie comparison supports readability/navigation/responsiveness goals, not a particular badge or status vocabulary.
+- Legacy `72c30f1` showed event badges; prior source/docs review found current chat working/send-error feedback and AR write notices. Neither establishes actual current field performance; no full end-to-end test was completed in that review.
+- 2026-09-11 06:10:18 CDT — Parent clarified existing-path QA first, no new state model as a prerequisite. At 06:11:30, parent relayed Bhoumik’s explicit read-only “check now” request, not implementation approval.
 
 ## What it should do
 
-Once `mobile-request-update-response-workflow` supplies approved durable request response facts, show a compact, readable response state in the focused mobile Job at the action/result context. It identifies the exact request update, uses written state and outcome/next-action text rather than color alone, and links or routes Chris to the existing relevant chat or availability-request detail when action is needed.
+Hold this optional new display while `mobile-field-request-workflow` evaluates existing reading, navigation, save/send/error feedback and return context. If a concrete UI problem is evidenced, prefer a bounded correction to that existing surface using its current facts. Do not require `mobile-request-update-response-workflow` to be built first; it too is an optional deferred proposal.
 
-It must make an unresolved or failed state more actionable than a completed state without crowding the primary request identity, status, totals or plant table. It uses the existing independent visual QA gate.
+Any eventual display must distinguish message sent/received from an actual request update completed. Working/receipt alone is not a successful data update. Preserve the request identity and actual result/error without inventing completion or unsupported response states. A persistent new surface needs separate justification and approval after the findings; no implementation handoff has been made.
 
 ## Acceptance criteria
 
-- On 320px, 390px and 480px, an included request update shows its approved written received, working, completed or failed/blocked state in the focused Job without clipping, horizontal scrolling or ambiguous color-only meaning.
-- The surface identifies the current Job context and provides the approved outcome or next action; a failed/blocked state can route Chris to the existing relevant chat or AR detail.
-- A completed state is shown only when the workflow contract reports an actual completed outcome; an unresolved supplier verification, approval or failed write remains visibly unresolved.
-- The response display does not replace or duplicate the existing canonical chat identity, AR Save/Submit result, status controls or Job details tray.
-- Independent visual QA passes the affected states at 320px, 390px, 480px and desktop isolation, retaining the required evidence.
+- Any future UI correction cites the observed screen/state defect and uses existing supported facts where sufficient, rather than assuming a new backend queue or badge is necessary.
+- Sent/received feedback cannot be mistaken for completed request work; an actual saved result or unresolved/error condition remains truthful.
+- The correction preserves readable identity, navigation/context and existing actions, with touch-safe controls and the existing independent visual QA gate at applicable phone widths and desktop isolation.
+- Untested send/save/error outcomes remain labelled untested; source-only observations do not count as a passed live journey.
 
 ## Out of scope
 
-- Creating response state, changing its workflow/event retention, or interpreting chat text as a record update; those are Bhoumik’s blocked dependency.
-- Rebuilding the old Rosie/Vercel workspace, adding a second mobile request page, or restoring legacy item-status filtering or optimistic persistence.
-- Changing job/plant status models, permissions, price controls, chat routing or AR behavior.
+- Building/routing this optional display now or creating data/workflow state from UI copy or chat interpretation.
+- Recreating old Rosie, changing existing status models, permissions, pricing, chat ownership or AR behavior.
 
 ## Assumptions
 
-- The state belongs near the focused request action/result context, not on the compact All Jobs scan card.
-- Nova chooses the specific presentation after Bhoumik supplies the durable facts; this requirement specifies behavior, not a component.
+- The existing UI may already supply adequate response feedback. Its current-path check, not the old badge, determines whether a correction is needed.
+- No persistent placement, state vocabulary or new backend dependency has been approved.
 
 ## Open questions
 
-- None for the display after the blocked workflow contract is approved.
+- The partial Nova review found list-title/row-context/touch-area/overlap issues, not a need for a new response display. SAVE/SEND/error remain untested; no new display rationale is established.
 
 ## Handoff log
 
-- 2026-09-10 — drafted as the Nova UI companion to the staged workflow requirement. Do not route/build before Bhoumik confirms the durable response contract.
+- 2026-09-10 — Drafted a Nova display companion to Lily’s durable-workflow proposal; no implementation handoff sent.
+- 2026-09-11 06:10:18 CDT — Reframed as optional/unapproved, with existing-path QA recommended before new design. Removed the suggestion that a backend model is a prerequisite to mobile usability.
+- 2026-09-11 06:11:30 CDT — Read-only current UX check authorized by Bhoumik; no new display implementation/routing authorized.
+- 2026-09-11 06:24:49 CDT — Assessed Nova’s partial authenticated read-only review; concrete small UI recommendations live in `mobile-field-request-workflow`, preserving the existing horizontal slider. No persistent response display was justified; this proposal remains optional/unapproved/deferred.

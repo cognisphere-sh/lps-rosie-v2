@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers APS/named-supplier pricing without availability requests, the exact default size/plant/unit-price text format, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create a job/thread without an AR; simple pricing questions create neither. (v2.0.1)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers APS/named-supplier pricing without availability requests, the exact default size/plant/unit-price text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create a job/thread without an AR; simple pricing questions create neither. (v2.1.0)
 metadata:
   author: lps
-  version: "2.0.1"
+  version: "2.1.0"
 ---
 
 # Quote generation
@@ -42,6 +42,12 @@ otherwise. Source pricing evidence belongs in internal notes, not each
 customer-facing quote row.
 
 ## 2. Default text quote
+
+Present the complete text quote inside a fenced code block using triple
+backticks and the `text` language tag, ready to copy. Include only the quote
+in that block; any explanation or question for Chris belongs outside it.
+Apply this rule to any other text prepared for copying, including message
+drafts, and to text quotes with a custom format.
 
 Unless Chris specifies another format, output **one line per size/plant,
 unit price only**, in this exact shape:

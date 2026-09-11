@@ -3,18 +3,22 @@ import 'server-only'
 import { EventEmitter } from 'node:events'
 
 import { supabase } from '@/lib/supabase'
+import { JOB_REALTIME_TABLES, type JobEvent } from '@/lib/job-events'
 
 /**
- * The app server's ONE subscription to Supabase Realtime for the chat
- * surfaces, fanned out to browsers over SSE (`/api/chat/events`,
+ * The app server's ONE subscription to Supabase Realtime for chat and jobs,
+ * fanned out to browsers over SSE (`/api/chat/events`,
  * `/api/partner/:id/chat/events`).
  *
- * Only the `threads` table is watched: every message bumps its thread's
+ * Every message bumps its `threads` row's
  * preview by trigger (migration 0078), and read marks and the working
  * indicator are columns on the same row, so one UPDATE per thread change
  * carries everything the bell needs. Message bodies are not pushed — a
  * browser that learns its open thread moved re-polls the plugin for the
  * delta, the same fetch it always made, just no longer on a timer.
+ * Job-related writes send a data-free invalidation to internal users only.
+ * Broad invalidation also covers deleted/reparented lines: DELETE payloads
+ * may contain only a primary key, so no foreign key or lookup is required.
  *
  * Browsers cannot subscribe themselves: no key reaches them and app users
  * are not Supabase auth users, so this relay is what keeps the secret key
@@ -54,7 +58,7 @@ export interface ThreadRow {
   closed_at: string | null
 }
 
-const KEY = '__lps_chat_realtime'
+const KEY = '__lps_chat_realtime_v2'
 const g = globalThis as unknown as Record<string, EventEmitter | undefined>
 
 function emitter(): EventEmitter {
@@ -62,8 +66,8 @@ function emitter(): EventEmitter {
   const em = new EventEmitter()
   em.setMaxListeners(0)
   g[KEY] = em
-  supabase
-    .channel('lps-threads')
+  const channel = supabase
+    .channel('lps-workspace')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'threads' },
@@ -87,9 +91,17 @@ function emitter(): EventEmitter {
         em.emit('thread', ev)
       },
     )
-    .subscribe((status, err) => {
-      if (err) console.error('[chat-realtime]', status, err.message)
+  for (const table of JOB_REALTIME_TABLES) {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table }, () => {
+      em.emit('jobs', { type: 'jobs' } satisfies JobEvent)
     })
+  }
+  channel.subscribe((status, err) => {
+    if (err) console.error('[chat-realtime]', status, err.message)
+    // The upstream socket can reconnect while browser SSE stays open. Also
+    // reconcile the gap between the initial API read and channel readiness.
+    if (status === 'SUBSCRIBED') em.emit('jobs', { type: 'jobs' } satisfies JobEvent)
+  })
   return em
 }
 
@@ -100,12 +112,20 @@ export function onThreadEvent(listener: (ev: ThreadEvent) => void): () => void {
   return () => em.off('thread', listener)
 }
 
+/** Internal job surfaces only; partner chat streams never register this. */
+export function onJobEvent(listener: (ev: JobEvent) => void): () => void {
+  const em = emitter()
+  em.on('jobs', listener)
+  return () => em.off('jobs', listener)
+}
+
 /** An SSE response that streams `events` until the request is aborted. */
 export function sseResponse(
   req: Request,
   subscribe: (send: (data: unknown) => void) => () => void,
 ): Response {
   const encoder = new TextEncoder()
+  let cleanup = () => {}
   const stream = new ReadableStream({
     start(controller) {
       const send = (data: unknown) => {
@@ -124,22 +144,28 @@ export function sseResponse(
         }
       }, 25_000)
       const off = subscribe(send)
-      req.signal.addEventListener('abort', () => {
+      const close = () => {
+        cleanup()
+        try { controller.close() } catch { /* already closed */ }
+      }
+      cleanup = () => {
         clearInterval(beat)
         off()
-        try {
-          controller.close()
-        } catch {
-          /* already closed */
-        }
-      })
+        req.signal.removeEventListener('abort', close)
+      }
+      // Flush headers now, including when there is no chat activity.
+      controller.enqueue(encoder.encode(': connected\n\n'))
+      if (req.signal.aborted) close()
+      else req.signal.addEventListener('abort', close, { once: true })
     },
+    cancel() { cleanup() },
   })
   return new Response(stream, {
     headers: {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
       connection: 'keep-alive',
+      'x-accel-buffering': 'no',
     },
   })
 }

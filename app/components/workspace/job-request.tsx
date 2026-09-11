@@ -282,14 +282,36 @@ export function DemandSummary({
   lineTotal,
   itemCount,
   counts,
+  wrap = false,
 }: {
   lineTotal: number
   itemCount: number
   counts: Record<string, number>
+  /** Keep every count and the subtotal visible in a narrow job workspace. */
+  wrap?: boolean
 }) {
+  const totalItems = (
+    <div className="flex items-center justify-center gap-1.5 px-2 py-2">
+      <span className="text-[12px] font-bold tabular-nums text-foreground">{itemCount}</span>
+      <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">
+        Total {itemCount === 1 ? 'item' : 'items'}
+      </span>
+    </div>
+  )
+  const subtotal = (
+    <div className="flex flex-wrap items-center justify-center gap-1.5 px-2 py-2">
+      <span className="text-[10.5px] text-muted-foreground">Subtotal</span>
+      <span className="whitespace-nowrap text-[12.5px] font-bold tabular-nums text-foreground">
+        {money(lineTotal) || '$0.00'}
+      </span>
+    </div>
+  )
   return (
-    <div data-demand-summary className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
-      <div className="grid min-w-[940px] grid-cols-[repeat(6,minmax(max-content,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
+    <div data-demand-summary className={cn('w-full overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45', wrap && '@container')}>
+      {wrap && <div className="flex w-full flex-wrap items-center justify-between border-b border-lps-hair bg-card">{totalItems}{subtotal}</div>}
+      <div className={wrap
+        ? 'grid w-full grid-cols-2 gap-px bg-lps-hair @[360px]:grid-cols-3 @[660px]:grid-cols-6 [&>div]:bg-card'
+        : 'grid min-w-[940px] grid-cols-[repeat(6,minmax(max-content,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair'}>
         {ITEM_STATUS_OPTIONS.map((o) => {
           const count = counts[o.value] ?? 0
           return (
@@ -305,22 +327,11 @@ export function DemandSummary({
                 style={{ background: toneDot(itemPill(o.value, null, null).tone) }}
               />
               <span className="text-[12px] font-bold tabular-nums text-foreground">{count}</span>
-              <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">{o.label}</span>
+              <span className={cn('text-[10.5px] text-muted-foreground', wrap ? 'min-w-0 break-words' : 'whitespace-nowrap')}>{o.label}</span>
             </div>
           )
         })}
-        <div className="flex items-center justify-center gap-1.5 px-2 py-2">
-          <span className="text-[12px] font-bold tabular-nums text-foreground">{itemCount}</span>
-          <span className="whitespace-nowrap text-[10.5px] text-muted-foreground">
-            Total {itemCount === 1 ? 'item' : 'items'}
-          </span>
-        </div>
-        <div className="flex items-center justify-center gap-1.5 px-2 py-2">
-          <span className="text-[10.5px] text-muted-foreground">Subtotal</span>
-          <span className="whitespace-nowrap text-[12.5px] font-bold tabular-nums text-foreground">
-            {money(lineTotal) || '$0.00'}
-          </span>
-        </div>
+        {!wrap && <>{totalItems}{subtotal}</>}
       </div>
     </div>
   )
@@ -1299,6 +1310,7 @@ export function RequestBody({
   detailsOpen,
   onToggleDetails,
   compactJobDetails = false,
+  summaryInHeader = false,
   touchTargets = false,
   selected,
   onSelect,
@@ -1314,6 +1326,8 @@ export function RequestBody({
   onToggleDetails: () => void
   /** Focused Job on both breakpoints plus expanded desktop All Jobs. */
   compactJobDetails?: boolean
+  /** The focused job already shows its rollup beside the header actions. */
+  summaryInHeader?: boolean
   /** Explicitly enlarge shared edit/status controls only on focused/compact Job work. */
   touchTargets?: boolean
   /** Every selected line id on the page; the body reads its own out of it. */
@@ -1351,14 +1365,14 @@ export function RequestBody({
 
   return (
     <>
-      <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
+      {(!compactJobDetails || !summaryInHeader) && <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
         {!compactJobDetails && <RequestOverview request={request} />}
-        <DemandSummary
+        {!summaryInHeader && <DemandSummary
           lineTotal={request.lineTotal}
           itemCount={request.itemCount}
           counts={request.statusCounts}
-        />
-      </div>
+        />}
+      </div>}
 
       {!compactJobDetails && (
         <div className="border-t border-border">

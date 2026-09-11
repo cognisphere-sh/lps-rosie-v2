@@ -633,16 +633,16 @@ export function FocusedJobHeader({
       ) : (
         <div
           data-focused-job-header="desktop"
-          className="grid min-h-14 grid-cols-[minmax(44px,1fr)_minmax(0,2fr)_minmax(44px,1fr)] items-center border-b border-border px-3 py-1.5"
+          className="grid min-h-14 grid-cols-[minmax(44px,1fr)_minmax(0,2fr)_minmax(44px,1fr)] items-center border-b border-border px-3 py-1.5 max-[1279px]:grid-cols-[minmax(0,1fr)_44px]"
         >
           <div data-balanced-header-flank="left" className="flex min-w-0 items-center gap-1 overflow-hidden">
             <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
             {status}
           </div>
-          <div data-desktop-job-identity className="min-w-0">
+          <div data-desktop-job-identity className="min-w-0 max-[1279px]:col-span-2 max-[1279px]:row-start-2">
             <FocusedJobNameEditor key={request.id} request={request} mobile={false} onSaved={onNameSaved} />
           </div>
-          <div data-balanced-header-flank="right" className="flex min-w-0 justify-end overflow-hidden">
+          <div data-balanced-header-flank="right" className="flex min-w-0 justify-end overflow-hidden max-[1279px]:col-start-2 max-[1279px]:row-start-1">
             <button
               type="button"
               onClick={() => onOpenRosie(focusedJobChatTarget(request))}

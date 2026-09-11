@@ -743,7 +743,8 @@ function ThreadPicker({
 export function AgentChat({
   isMobile, mobileOpen, mobileAgentId, appearance, onMobileBack, mobileBackLabel = 'Back',
   desktopFull = false, desktopPeekOpen = false,
-  onDesktopFull, onDesktopExitFull, onDesktopPeekToggle, focusedIntake,
+  onDesktopFull, onDesktopExitFull, onDesktopPeekToggle, focusedIntake, focusedJob,
+  hideAgentSelector = false,
 }: {
   isMobile: boolean
   mobileOpen: boolean
@@ -762,19 +763,25 @@ export function AgentChat({
   onDesktopPeekToggle?: () => void
   /** Reuses this exact chat/hook/composer in the purpose-built JR intake surface. */
   focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
+  /** Open the selected job's Rosie conversation in the desktop right panel. */
+  focusedJob?: { id: number; name: string | null }
+  /** Hide desktop agent switching and the collapsed agent rail. */
+  hideAgentSelector?: boolean
 }) {
-  const [agentId, setAgentId] = useState(focusedIntake ? 'rosie' : CHAT_AGENTS[0].id)
-  const [open, setOpen] = useState(false)
+  const initialJob = focusedIntake ?? (!isMobile ? focusedJob : undefined)
+  const [agentId, setAgentId] = useState(initialJob ? 'rosie' : CHAT_AGENTS[0].id)
+  const [open, setOpen] = useState(Boolean(initialJob))
   const [width, setWidth] = useState(330)
   const [draft, setDraft] = useState('')
   const [menu, setMenu] = useState(false)
   // Which of the agent's threads the panel is on. Every agent defaults to
   // `main`; the picker (rosie, daisy) and open-chat events move it.
-  const [thread, setThread] = useState(() => focusedIntake
-    ? { id: `jr-${focusedIntake.id}`, label: `JR-${focusedIntake.id}` }
+  const [thread, setThread] = useState(() => initialJob
+    ? { id: `jr-${initialJob.id}`, label: focusedJob?.name || `JR-${initialJob.id}` }
     : { id: 'main', label: 'Main' })
   const [picker, setPicker] = useState(false)
   const hydrated = useRef(false)
+  const autoOpenedJob = useRef<number | null>(null)
   // A mobile chat-bus action updates AgentChat and Shell independently. This
   // exact handoff lets the subsequent mobileAgentId render preserve only the
   // destination produced by that action — never a stale one-bit skip flag.
@@ -783,8 +790,8 @@ export function AgentChat({
   // identity update. Transport reads this exact binding rather than whichever
   // thread the previous render happened to retain.
   const destination = useRef<BoundChatDestination>({
-    agentId: focusedIntake ? 'rosie' : CHAT_AGENTS[0].id,
-    threadId: focusedIntake ? `jr-${focusedIntake.id}` : 'main',
+    agentId: initialJob ? 'rosie' : CHAT_AGENTS[0].id,
+    threadId: initialJob ? `jr-${initialJob.id}` : 'main',
     revision: 0,
   })
   const [committedDestination, setCommittedDestination] = useState<BoundChatDestination>(destination.current)
@@ -906,10 +913,32 @@ export function AgentChat({
     bindDestination(mobileAgentId, { id: 'main', label: 'Main' })
   }, [isMobile, mobileOpen, mobileAgentId, bindDestination])
 
+  useLayoutEffect(() => {
+    if (isMobile || !window.matchMedia('(min-width: 900px)').matches || !focusedJob) {
+      autoOpenedJob.current = null
+      return
+    }
+    const id = `jr-${focusedJob.id}`
+    const label = focusedJob.name || `JR-${focusedJob.id}`
+    if (autoOpenedJob.current === focusedJob.id) {
+      // Refreshes and renames must preserve a deliberately opened supplier or
+      // customer conversation, along with its draft and transcript lifecycle.
+      if (destination.current.agentId === 'rosie' && destination.current.threadId === id) {
+        setThread((current) => current.label === label ? current : { ...current, label })
+      }
+      return
+    }
+    autoOpenedJob.current = focusedJob.id
+    bindDestination('rosie', { id, label })
+    setOpen(true)
+    setWidth(330)
+    onDesktopExitFull?.()
+  }, [focusedJob?.id, focusedJob?.name, isMobile, bindDestination, onDesktopExitFull])
+
   // Restore the docked panel's state after mount, so the server render and the
   // first client render agree (same guard the table layout uses).
   useEffect(() => {
-    if (focusedIntake) {
+    if (focusedIntake || (focusedJob && !isMobile && window.matchMedia('(min-width: 900px)').matches)) {
       setOpen(true)
       hydrated.current = true
       return
@@ -1084,7 +1113,7 @@ export function AgentChat({
       )}
       {/* The other agents, so the docked panel can switch without being closed
           back to the rail. Mobile switches from its own Agents list instead. */}
-      {!big && (
+      {!big && !hideAgentSelector && (
         <div className="flex flex-none items-center gap-1.5">
           {AGENTS.filter((a) => a.id !== agent.id).map((a) => {
             const blocked = chatBlockedReason(a)
@@ -1183,6 +1212,7 @@ export function AgentChat({
 
   // ------------------------------------------------------------ desktop rail
   if (!open) {
+    if (hideAgentSelector) return null
     return (
       <div className="flex w-[46px] flex-none flex-col items-center gap-3.5 border-l border-border bg-card py-3.5">
         {AGENTS.map((a) => {

@@ -8,6 +8,9 @@ import type { ARDetail } from './availability'
 
 test('public request uses the partner summary, print sheet and submit flow, then removes a revoked request', async () => {
   const dom = new JSDOM('<html><body></body></html>', { url: 'https://lps.example/public/availability/token' })
+  Object.defineProperty(dom.window, 'matchMedia', {
+    value: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+  })
   const previous = Object.getOwnPropertyDescriptors(globalThis)
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement })) {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
@@ -35,6 +38,8 @@ test('public request uses the partner summary, print sheet and submit flow, then
   try {
     const view = render(<PublicAvailability token="token" />)
     await waitFor(() => assert.ok(view.getByText('Total Items')))
+    assert.ok(view.getByRole('article', { name: 'Line 1, Live oak' }))
+    assert.equal(view.container.querySelector('[style*="min-width: 960px"]'), null)
     assert.ok(view.getByText('Delivery instructions'))
     assert.ok(view.getAllByText('$50.00').length)
     assert.ok(view.getByRole('button', { name: 'Print' }))

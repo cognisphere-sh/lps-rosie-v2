@@ -6,6 +6,7 @@
 // (source, item_count, the aggregates) never do.
 
 import type { CellValue } from '@/lib/rows'
+import { CUSTOMER_TYPES } from '@/lib/customers'
 
 export type FilterKind = 'text' | 'range' | 'multiselect' | 'none'
 /**
@@ -250,6 +251,7 @@ export const CUSTOMER_COLS: ColumnDef[] = [
   // so the name is corrected on the customer's own page.
   { key: 'name', label: 'Name', width: 190, kind: 'link' },
   { key: 'company', label: 'Company', width: 170, edit: true, writes: { table: 'customers', column: 'company' } },
+  { key: 'type', label: 'Type', width: 195, kind: 'select', options: [...CUSTOMER_TYPES], edit: true, filter: 'multiselect', writes: { table: 'customers', column: 'type' } },
   { key: 'email', label: 'Email', width: 210, edit: true, writes: { table: 'customers', column: 'email' } },
   { key: 'phone', label: 'Phone', width: 145, edit: true, writes: { table: 'customers', column: 'phone' } },
   { key: 'active_requests', label: 'Active requests', width: 132, align: 'right', num: true, filter: 'range' },

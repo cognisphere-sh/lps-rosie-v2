@@ -35,13 +35,13 @@ export function PublicAvailability({ token }: { token: string }) {
     tail.current = operation
     return operation
   }
-  return <main className="mx-auto flex h-dvh max-w-[1600px] flex-col overflow-hidden bg-background">
-    <header className="flex flex-none flex-wrap items-center gap-3 px-3 py-3 md:px-4 print:hidden">
+  return <main id="public-availability" className="mx-auto flex h-dvh max-w-[1600px] flex-col overflow-hidden bg-background">
+    <header className="grid flex-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-3 pb-3 pt-[max(12px,env(safe-area-inset-top))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] min-[900px]:flex min-[900px]:gap-3 md:px-4 print:hidden">
       <span className="text-sm font-semibold">Local Plant Supply</span>
       {request && <>
-        <span className="text-[11px] text-muted-foreground">{request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {request.items.length - request.answeredCount} pending</span>
+        <span className="col-start-1 row-start-2 text-[11px] text-muted-foreground">{request.items.length} {request.items.length === 1 ? 'line' : 'lines'} · {request.items.length - request.answeredCount} pending</span>
         <button type="button" aria-label="Print" title="Print" onClick={() => window.print()}
-          className="ml-auto flex size-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint"><Printer className="size-4" /></button>
+          className="col-start-2 row-span-2 row-start-1 ml-auto flex size-11 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint"><Printer className="size-4" /></button>
       </>}
     </header>
     <AvailabilityRequestView request={request} loading={!request && !error} error={error} saving={busy}

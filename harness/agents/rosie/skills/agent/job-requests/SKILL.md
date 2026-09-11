@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage actual customer job requests from intake to closure. Covers job/thread creation, concurrent database writes, APS-first sourcing and short supplier rows, supplier-answer reconciliation, and lifecycle hooks. Use when creating or updating an order request, sourcing its items, receiving supplier/customer job updates or recording customer confirmation; pricing-only questions do not create a job, while quick quotes create a job/thread without an availability request. (v4.1.0)
+description: Manage actual customer job requests from intake to closure. Covers job/thread creation, multiple-plant/size demand clarification, concurrent database writes, APS-first sourcing and short supplier rows, supplier-answer reconciliation, and lifecycle hooks. Use when creating or updating an order request, sourcing its items, receiving supplier/customer job updates or recording customer confirmation; pricing-only questions do not create a job, while quick quotes create a job/thread without an availability request. (v4.2.0)
 metadata:
   author: lps
-  version: "4.1.0"
+  version: "4.2.0"
 ---
 
 # Job requests
@@ -49,9 +49,19 @@ here to approve.
    VALUES ($jobId, $customerId, $name, 'sourcing', $customerNotes);
    ```
 
-5. Insert one item per requested plant, preserving the asked name, size and
-   quantity. Normalize gallon tokens to `G` (`30 gal or larger` →
-   `30 G or larger`). Leave unknown values NULL; ask about material gaps.
+5. If a demand mentions multiple sizes or multiple plants, clarify how to
+   handle them: separate required lines, acceptable alternatives, or a mix,
+   and whether the quantity is per option or a total to split. Follow an
+   explicit allocation already supplied; otherwise ask the requester through
+   the owning job thread before splitting/combining items, selecting a
+   plant/size, or sending the affected availability ask. For example,
+   `20 live oaks, 15 G or 30 G` needs clarification on whether either size
+   is acceptable for all 20 or a particular mix is required. Never duplicate
+   a total quantity across options or assume every named plant is required.
+   Insert one item per confirmed plant/size requirement, preserving the asked
+   name, size and quantity; retain acceptable alternatives as alternatives.
+   Normalize gallon tokens to `G` (`30 gal or larger` → `30 G or larger`).
+   Leave unknown values NULL; ask about material gaps.
    A duplicate-key error on the job means re-read, then add only genuinely
    missing items. Report intake complete before starting the sourcing work.
 6. Later customer mapping is guarded with `WHERE customer_id IS NULL`; a

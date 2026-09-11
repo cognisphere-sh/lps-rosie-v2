@@ -3,6 +3,10 @@
  * a server route and a client page can each import them.
  */
 
+/** `customers.type` CHECK vocabulary. An unset classification is stored as NULL. */
+export const CUSTOMER_TYPES = ['Homeowner/Retail', 'Landscape Professional'] as const
+export type CustomerType = (typeof CUSTOMER_TYPES)[number]
+
 /**
  * The customer's canonical Rosie thread, when it has been minted and stored.
  *

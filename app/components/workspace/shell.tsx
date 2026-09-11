@@ -339,6 +339,7 @@ export function Shell({
   focusedJobsDesktop = false,
   replaceNewJobEntry = false,
   focusedIntake,
+  focusedJob,
   children,
 }: {
   page: PageId
@@ -353,6 +354,7 @@ export function Shell({
   /** New replaces a selected Jobs detail entry; the All jobs list and other routes push. */
   replaceNewJobEntry?: boolean
   focusedIntake?: { id: number; onExit: () => void; savedPanel?: React.ReactNode }
+  focusedJob?: { id: number; name: string | null }
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -788,6 +790,8 @@ export function Shell({
               }}
               onDesktopPeekToggle={() => setDesktopPeekOpen((open) => !open)}
               focusedIntake={focusedIntake}
+              focusedJob={focusedJob}
+              hideAgentSelector={focusedJobsDesktop}
             />
           )}
         >

@@ -19,6 +19,7 @@ import {
 import type { ARDetail } from '@/lib/availability'
 import { formatDate } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
+import { useJobUpdates } from '@/lib/use-job-updates'
 
 interface DrawerSession {
   id: number
@@ -190,14 +191,14 @@ export function AvailabilityRequestDrawer() {
     }
   }, [])
 
-  const load = useCallback(async (target: DrawerSession) => {
+  const load = useCallback(async (target: DrawerSession, background = false) => {
     const sequence = ++loadSequence.current
     loadController.current?.abort()
     const controller = new AbortController()
     loadController.current = controller
     controllers.current.add(controller)
     if (isCurrent(target)) {
-      setAr(null)
+      if (!background) setAr(null)
       setError('')
     }
     try {
@@ -223,6 +224,13 @@ export function AvailabilityRequestDrawer() {
     if (!session) return
     void load(session)
   }, [load, session])
+
+  useJobUpdates(async () => {
+    const target = sessionRef.current
+    if (!target) return
+    await writeTail.current
+    if (isCurrent(target)) await load(target, true)
+  }, session !== null)
 
   useEffect(() => {
     if (!session) return
@@ -261,6 +269,9 @@ export function AvailabilityRequestDrawer() {
   const enqueueWrite = useCallback((operation: WriteOperation): Promise<boolean> => {
     const target = sessionRef.current
     if (!target) return Promise.resolve(false)
+    // A pre-write background read must not overwrite the confirmed write.
+    loadSequence.current++
+    loadController.current?.abort()
     setError('')
     setSaveNotice('')
 

@@ -1,53 +1,54 @@
-# Define when a mobile request update has been received, worked or failed
+# Optional durable response tracking for mobile updates
 
-- Status: staged
+- Status: staged · optional/unapproved; deferred pending existing-path findings
 - Route: bhoumik
-- Raised: 2026-09-10 by Chris (via Telegram)
-- Updated: 2026-09-10
+- Raised: 2026-09-10 by Lily as a possible solution to Chris’s mobile feedback
+- Updated: 2026-09-11 06:24:49 CDT
 
 ## Problem
 
-In the yard, Chris needs a quick response and must be able to move through a request without guessing whether his instruction or update is merely sent, is being worked, is complete, or needs his attention. Current chat truthfully shows transport/agent-working activity and individual availability-request writes can report their own outcome, but there is no durable, request-level outcome that connects a mobile Job instruction to its resulting request update or explains a failure/incomplete handoff.
-
-The older Rosie workspace did visibly distinguish transient event states such as Queued, Working, Done and Failed. It was a workspace-file implementation and is not a workflow to restore, but it is evidence for the specific field need: a visible response state. Its optimistic local writes and broad customer/order layout are not valid models for the current audited request contract.
+Chris needs readable, navigable, quick mobile request work with context preserved. Lily proposed durable response tracking after reviewing an older Rosie event badge, but Chris did not request a new status model or backend queue. The absence of a common durable response object in the reviewed source does not establish that one is needed to solve his problem.
 
 ## Evidence
 
-- 2026-09-10 — Chris says request UI must be easy to read/navigate, support quick response and let him move through the request; he says the earlier Rosie-on-Vercel experience had better UI/UX elements.
-- 2026-09-10 — Chris’s prior field report: updating a request while walking the yard “was not great.”
-- Git history review: the June legacy Rosie workspace (`72c30f1`) rendered a Queued / Working / Done / Failed event badge. The current app chat exposes a transport send error and an agent-working indicator, but app/docs identify no durable per-request instruction/outcome state.
+- 2026-09-10 — Chris said updating a request while walking the yard “was not great,” asked for easy reading/navigation and quick response, and recalled better elements in old Rosie on Vercel.
+- Historical source `72c30f1` has a Queued / Working / Done / Failed / Cancelled event badge. This was not verified as the exact Vercel deployment Chris meant; it is a possible design reference, not proof of his preferred solution or faster operation.
+- Prior source/docs review found current chat transport/working feedback, AR write notices and no common durable per-request instruction/outcome surface. It did not test every current path or demonstrate that existing feedback fails.
+- 2026-09-11 06:10:18 CDT — Parent clarified Lily’s item-10 recommendation: QA existing journey/save/send/error feedback first; new data/workflow design is optional, unapproved and not a prerequisite.
+- 2026-09-11 06:11:30 CDT — Parent relayed Bhoumik’s “Made UI better for request, check now” (Telegram303, 06:10:39), authorizing read-only current UX checking only, not this design.
 
 ## What it should do
 
-Define a durable, attributable response contract for a request-level mobile instruction or update. It must distinguish, for the exact Job Request, at least: received, actively being worked, completed with its outcome, and failed/blocked with the next action. It must say which update/event is being represented and preserve ordinary availability-request Save/Submit outcomes as their own exact writes rather than pretending a chat acknowledgement changed lines.
+Defer this proposal while the existing journey is checked under `mobile-field-request-workflow`. First establish whether current navigation, visible pending/success/error feedback and safe return paths meet the business need. Message sent/received and agent working must not be mistaken for an actual request update completed; existing UI and actual update evidence may already make that distinction adequately.
 
-A response state must remain truthful through navigation, refresh, retry and return to the request. It must not promise completion when supplier verification, approval, missing facts or a failed write prevent it. Bhoumik determines which request actions enter this contract, their actor/timestamps, terminal/retry meanings, retention and how they relate to existing Job history and Rosie’s canonical `jr-<id>` thread. Rosie owns any resulting procedure only after approval.
+Only if specific findings demonstrate a gap that cannot be addressed with existing behavior should Lily propose the smallest data/workflow change to Bhoumik. Durable received/working/completed/failed tracking remains one possible solution, not an agreed vocabulary or implementation. A future proposal must explain the demonstrated failure and why current feedback/history cannot cover it before defining any additional state.
 
 ## Acceptance criteria
 
-- For an included request-level instruction, Chris can later identify the exact JR, its latest response state and the associated outcome/next action after navigating away and returning on a phone.
-- The contract distinguishes received, working, completed and failed/blocked; completed names the actual result, while failed/blocked names the needed next action where one exists.
-- An availability-request line Save or Submit is represented only by its actual write result; a chat message does not falsely claim that availability data was changed.
-- A supplier verification, approval or missing fact remains visible as unresolved rather than becoming a false completed state.
-- Retry/correction and an agent response remain attributable to the same request and do not silently attach to a different JR.
-- The contract does not alter price verification, status/availability permissions, customer/supplier disclosure, or existing audit-history facts without explicit approval.
+- Existing-path findings distinguish observed outcomes, source-only observations and untested states; a missing architectural feature alone is not a defect.
+- Message receipt/send acknowledgement is explicitly separate from the corresponding actual update result; only evidenced outcomes support a completion claim.
+- If later proposed, new workflow scope is tied to a reproduced need, considers a smaller existing-path solution and requires Bhoumik’s approval before implementation or a dependent UI handoff.
+- Existing mobile improvements and their QA can proceed without this optional state model. No queue, state names, service-time target, retention scheme or new agent procedure is mandated here.
 
 ## Out of scope
 
-- Recreating the legacy Vercel workspace, its workspace-file persistence, optimistic local writes, global event badge, customer-order navigation, or item-status filtering.
-- The visual mobile indicator/surface, which is separately drafted for Nova after this contract exists.
-- Changing chat transport, canonical Job threads, request lifecycle or availability status vocabulary.
+- Implementing a backend queue, new status/event model, persistence, notification rule or Rosie procedure now.
+- Treating legacy event Done as proof of a business update, or restoring legacy persistence/navigation.
+- Changing existing pricing, availability, access, Sales stages or approval rules.
 
 ## Assumptions
 
-- “Quick response” requires a truthful received/working/outcome distinction, not an artificial completion-time promise.
-- A per-request outcome needs a Bhoumik-approved workflow contract before Nova can honestly render it.
+- Quick response is a business usability goal, not evidence that a new durable workflow is required.
+- Earlier text overstated Lily’s proposed architecture as a confirmed gap. The useful source observations remain, but the inference is withdrawn pending current-path evidence.
 
 ## Open questions
 
-- Which actions beyond Rosie instructions and AR writes enter the request-level response contract?
-- What time/actor/outcome evidence must remain in existing history versus the current response surface?
+- Nova’s read-only sample identified list title truncation, lost plant context while horizontally sliding, a short AR target and create-button overlap—not evidence for new durable state. Save/send/error outcomes were not exercised; they remain untested.
+- If a workflow need is later demonstrated, what is the smallest approved change? No design decision is requested before that evidence.
 
 ## Handoff log
 
-- 2026-09-10 — staged for Bhoumik from Chris’s field-use and legacy-UX comparison. The companion Nova display is intentionally blocked until the contract exists.
+- 2026-09-10 — Lily staged a durable response-contract proposal and a dependent Nova display after a legacy-source comparison.
+- 2026-09-11 06:10:18 CDT — Corrected to optional/unapproved, deferred until existing-path findings demonstrate need; not a mobile usability prerequisite.
+- 2026-09-11 06:11:30 CDT — Bhoumik authorized a read-only current UX check. No workflow implementation or routing authorization; companion display remains optional and unapproved.
+- 2026-09-11 06:24:49 CDT — Nova’s authenticated review partially verified reading/navigation on JR-41/AR-22; remaining evidenced defects are UI-only, with SAVE/SEND/error still untested. No demonstrated new workflow need; this proposal stays optional/unapproved/deferred.

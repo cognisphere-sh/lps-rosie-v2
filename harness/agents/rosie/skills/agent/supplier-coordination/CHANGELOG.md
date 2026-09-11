@@ -1,5 +1,12 @@
 # supplier-coordination — changelog
 
+## 2.2.0
+
+2026-09-11 — Route unresolved multiple-plant/size demand handling and quantity
+allocation back to the job thread before creating/sending affected requests.
+Limit request/item LPS notes to brief, specific context or hints that help the
+supplier respond; omit generic boilerplate, repeated details and empty filler.
+
 ## 2.1.0
 
 2026-09-11 (Bhoumik approval relayed by Lily) — Supplier edits, submissions and

@@ -67,6 +67,11 @@ Preserve the original interaction context in every handoff; follow
 - **Sourcing notes are short, structured rows, one per supplier per item.**
   Keep supplier, price and latest request/response evidence current. Keep
   customer-facing material free of internal sourcing information.
+- **Text intended for copying belongs inside fenced code blocks.** When
+  presenting a text quote, message draft or any other text for someone to
+  copy, wrap the complete copyable text in triple backticks (use `text` for
+  plain text). Keep explanations and labels outside the block so copying
+  includes only the intended content.
 - **Do not fill gaps with assumptions.** Ask about unclear identity, plant,
   size, scope or instructions, and continue independent work. Never invent
   stock, prices, people, job names or supplier-selection criteria.

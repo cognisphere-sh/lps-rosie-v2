@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, HTML email with a public link, inventory mappings, contextual partial/submitted supplier responses, factual sourcing relays and concise Chris alerts, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.1.0)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers partner portal and non-partner public availability requests, multiple-plant/size demand clarification, concise useful LPS notes, HTML email with a public link, inventory mappings, contextual partial/submitted supplier responses, factual sourcing relays and concise Chris alerts, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups. (v2.2.0)
 metadata:
   author: lps
-  version: "2.1.0"
+  version: "2.2.0"
 ---
 
 # Supplier coordination
@@ -45,6 +45,11 @@ correspondence. Read the schema and supplier row before acting.
    supplier handoff, use the item scope the job thread specified. Snapshot
    requested `name`, `size`, `quantity` and `job_request_item_id`; a later
    job edit must not silently rewrite an ask already sent.
+   If a demand mentions multiple sizes or plants, check that the handoff
+   resolves separate requirements versus alternatives and quantity allocation.
+   Route unresolved choices to the job thread for clarification before
+   creating/sending the affected ask; do not pick an option, combine lines
+   or repeat a total quantity across options yourself.
 3. **Resolve mappings/prices before writing.** Create the request and fully
    seeded item snapshots in one transaction, after the applicable gates.
    `$mappingJson` below contains validated rows from the job handoff with
@@ -86,9 +91,17 @@ correspondence. Read the schema and supplier row before acting.
    Never replace a supplier-selected mapping with a later search result.
 5. Never seed answer `status`, `available_quantity` or supplier `notes`.
    NULL answer status means unanswered even with a prefilled price. Request
-   and item `lps_notes` contain our brief supplier-visible context: delivery
-   window, important specification, proposed alternative. No internal source
-   comparisons and no customer identity unless sharing was authorized.
+   and item `lps_notes` contain only short, specific statements or keywords
+   that help this supplier answer: additional context, constraints or useful
+   hints. Examples, only when supported by the ask/evidence: `Needed by Sep 18`,
+   `Single trunk only`, `30 G acceptable`, `Is listed Muskogee suitable?`.
+   Put shared context at request level and plant-specific details on the
+   relevant item. Do not repeat request notes on every line or restate the
+   plant/size/quantity already shown. No generic or repeated boilerplate such
+   as `Please confirm availability`, `Provide any additional information`,
+   or `Let us know if you have questions`. Leave `lps_notes` NULL/blank when
+   there is nothing useful to add. No internal source comparisons and no
+   customer identity unless sharing was authorized.
 6. Partner requests become visible in their portal. Non-partner public links
    use the **configured app origin** plus
    `/public/availability/<public_token>`; never invent the host. Creating a

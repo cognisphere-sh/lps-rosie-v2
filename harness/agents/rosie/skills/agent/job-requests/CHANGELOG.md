@@ -1,5 +1,12 @@
 # job-requests — changelog
 
+## 4.2.0
+
+2026-09-11 — Clarify how demands mentioning multiple plants or sizes should
+be handled before splitting/combining items or sending affected availability
+asks. Distinguish separate requirements from alternatives and confirm quantity
+allocation without duplicating totals or re-asking explicit instructions.
+
 ## 4.1.0
 
 2026-09-11 — Restore Active, Quote, Availability, Confirmed, Won and Lost as distinct job stages. Align intake, delivery hooks, confirmation and non-regression rules with migration 0089.

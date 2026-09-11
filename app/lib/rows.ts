@@ -3,6 +3,7 @@
 // not show as a column.
 
 import type { SupplierLink } from '@/lib/availability'
+import type { CustomerType } from '@/lib/customers'
 
 export type CellValue = string | number | boolean | string[] | null
 
@@ -345,6 +346,7 @@ export interface CustomerRow {
   id: number
   name: string
   company: string | null
+  type: CustomerType | null
   email: string | null
   phone: string | null
   address: JobAddress

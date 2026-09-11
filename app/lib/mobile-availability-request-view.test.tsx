@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import userEvent from '@testing-library/user-event'
 
 import { AvailabilityRequestDrawer } from '../components/workspace/ar-drawer.tsx'
+import { AvailabilityRequestView } from '../components/workspace/availability-request-view.tsx'
 import { ARLineTable, LineStatusPicker } from '../components/workspace/availability.tsx'
 import { BodyModalPortal } from '../components/workspace/body-modal-portal.tsx'
 import { openAvailabilityRequest } from './chat-bus.ts'
@@ -210,6 +211,56 @@ async function openDrawer(id = 84) {
 function mobileSurface(dialog: HTMLElement) {
   return within(dialog).getByTestId('availability-mobile-lines')
 }
+
+test('supplier request cards edit quantities, multiline notes and complete answers, with one set of controls at each breakpoint', async () => {
+  const patches: Array<[number, Record<string, string>]> = []
+  const user = userEvent.setup({ document })
+  const props = {
+    request: request(), loading: false, error: '', saving: false,
+    onPatch: async (id: number, changes: Record<string, string>) => { patches.push([id, changes]) },
+    onSubmit: async () => {},
+  }
+  const view = render(<AvailabilityRequestView {...props} />)
+  for (const width of [320, 390, 480, 899]) {
+    await setWidth(width)
+    assert.equal(within(mobileSurface(view.container)).getAllByRole('article').length, 2)
+    assert.equal(view.container.querySelector('[style*="min-width: 960px"]'), null)
+    assert.ok(view.getByRole('heading', { name: props.request.jobName! }))
+  }
+
+  const quantity = view.getByLabelText(/Line 1, .* available quantity/)
+  assert.equal(quantity.getAttribute('inputmode'), 'decimal')
+  await user.clear(quantity)
+  await user.type(quantity, '0')
+  await user.tab()
+  assert.deepEqual(patches.at(-1), [19, { available_quantity: '0' }])
+
+  const notes = view.getByLabelText(/Line 1, .* notes/)
+  assert.equal(notes.tagName, 'TEXTAREA')
+  await user.clear(notes)
+  await user.type(notes, 'First delivery{Enter}Second delivery')
+  assert.equal(document.activeElement, notes)
+  await user.tab()
+  assert.deepEqual(patches.at(-1), [19, { notes: 'First delivery\nSecond delivery' }])
+
+  const trigger = view.getByRole('button', { name: /Line 2, .* status, Pending/ })
+  await user.click(trigger)
+  await user.click(view.getByRole('option', { name: 'Can Order' }))
+  const dialog = await view.findByRole('dialog', { name: 'Can Order' })
+  await user.type(within(dialog).getByLabelText('Price per unit'), '24.50')
+  await user.type(within(dialog).getByLabelText('ETA / notes'), 'Next Friday')
+  await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
+  await waitFor(() => assert.equal(document.activeElement, trigger))
+  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', notes: 'Next Friday', unit_price: '24.50' }])
+
+  await setWidth(900)
+  assert.equal(view.queryByTestId('availability-mobile-lines'), null)
+  assert.ok(view.container.querySelector('[style*="min-width: 960px"]'))
+  await setWidth(390)
+  view.rerender(<AvailabilityRequestView {...props} request={request({ status: 'closed' })} />)
+  assert.equal(view.container.querySelector('input, textarea, select'), null)
+  assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
+})
 
 test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, then 900 renders only the unchanged 1070px table', async () => {
   const many = Array.from({ length: 36 }, (_, index) => line(100 + index, {
@@ -600,7 +651,7 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
     items: current.items.map((item) => item.id === 19 ? { ...item, notes: secondChanges.notes } : item),
   }
   await act(async () => patches[1].resolve(json({ ok: true })))
-  await waitFor(() => assert.equal(within(mobileSurface(dialog)).getByLabelText(/Line 1, .* notes/).getAttribute('value'), 'second answer'))
+  await waitFor(() => assert.equal((within(mobileSurface(dialog)).getByLabelText(/Line 1, .* notes/) as HTMLTextAreaElement).value, 'second answer'))
   assert.doesNotMatch(dialog.textContent ?? '', /first answer/)
 
   failNext = true

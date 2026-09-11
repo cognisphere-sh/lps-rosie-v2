@@ -20,8 +20,8 @@ import {
 } from '@/lib/job-inbox'
 import { requestRef, requestStatusLabel } from '@/lib/job-requests'
 import type { JobRequestRow } from '@/lib/rows'
+import { useJobUpdates } from '@/lib/use-job-updates'
 
-const RESYNC_MS = 60_000
 const LIST_SCROLL = 'lps.jobs.scroll.v1'
 const LIST_ORIGIN = 'lps.jobs.origin.v1'
 const LIST_ORIGIN_ID = 'lps.jobs.origin-id.v1'
@@ -58,6 +58,7 @@ function IntakeSaved({ id }: { id: number }) {
         setRequest(null); setError(''); return
       }
       const body = await response.json() as { request?: JobRequestRow; error?: string }
+      if (mine !== generation.current) return
       if (!response.ok || !body.request) throw new Error(body.error ?? 'Saved details unavailable')
       setRequest(body.request); setError('')
     } catch (cause) {
@@ -66,16 +67,14 @@ function IntakeSaved({ id }: { id: number }) {
       if (mine === generation.current) setLoading(false)
     }
   }, [id])
+  useJobUpdates(refresh)
   useEffect(() => {
     void refresh()
-    const timer = setInterval(() => void refresh(), 15_000)
-    const focus = () => void refresh()
-    window.addEventListener('focus', focus)
     const off = subscribeEvents('/api/chat/events', (value) => {
       const event = value as { type?: string; agent?: string; threadId?: string }
       if (event.type === 'thread' && event.agent === 'rosie' && event.threadId === canonicalJobThread(id)) void refresh()
     })
-    return () => { clearInterval(timer); window.removeEventListener('focus', focus); off(); generation.current++ }
+    return () => { off(); generation.current++ }
   }, [id, refresh])
   return (
     <aside aria-live="polite" className="border-t border-border bg-card p-3 text-[12px] min-[900px]:w-72 min-[900px]:border-l min-[900px]:border-t-0">
@@ -149,9 +148,6 @@ function JobsWorkspace() {
 
   useEffect(() => {
     void refreshList()
-    const timer = setInterval(() => void refreshList(), RESYNC_MS)
-    const focus = () => void refreshList()
-    window.addEventListener('focus', focus)
     const off = subscribeEvents('/api/chat/events', (value) => {
       const event = value as JobThreadPatch & { type?: string }
       if (event.type !== 'thread') return
@@ -171,19 +167,21 @@ function JobsWorkspace() {
         return next
       })
       if (action === 'remove-and-refresh') void refreshList()
-    }, () => void refreshList())
-    return () => { clearInterval(timer); window.removeEventListener('focus', focus); off(); fetchGeneration.current++ }
+    })
+    return () => { off(); fetchGeneration.current++ }
   }, [refreshList])
 
-  const loadDetail = useCallback(async (id: number) => {
+  const loadDetail = useCallback(async (id: number, background = false) => {
     const mine = ++detailGeneration.current
-    const controller = new AbortController()
-    setDetailError(''); setDetail(null); setDetailResolvedId(null)
+    setDetailError('')
+    if (!background) { setDetail(null); setDetailResolvedId(null) }
     try {
-      const response = await fetch(`/api/requests/${id}`, { cache: 'no-store', signal: controller.signal })
+      const response = await fetch(`/api/requests/${id}`, { cache: 'no-store' })
       const body = await response.json() as { request?: JobRequestRow; error?: string }
+      if (mine !== detailGeneration.current) return
       if (response.status === 404) {
         if (mine === detailGeneration.current) {
+          setDetail(null)
           setDetailError('')
           setDetailResolvedId(id)
           setJobs((current) => {
@@ -199,6 +197,7 @@ function JobsWorkspace() {
       if (mine === detailGeneration.current) {
         setDetail(body.request)
         setDetailResolvedId(id)
+        if (background) setVersion((n) => n + 1)
       }
     } catch (cause) {
       if (mine === detailGeneration.current && (cause as Error).name !== 'AbortError') {
@@ -206,8 +205,14 @@ function JobsWorkspace() {
         setDetailResolvedId(id)
       }
     }
-    return () => controller.abort()
   }, [refreshList])
+
+  useJobUpdates(async () => {
+    await Promise.all([
+      refreshList(),
+      selection.kind === 'valid' ? loadDetail(selection.id, true) : undefined,
+    ])
+  }, selection.kind === 'valid')
 
   const savedJobName = useCallback((id: number) => {
     pendingNameFocus.current = id
@@ -233,6 +238,7 @@ function JobsWorkspace() {
       pendingNameFocus.current = null
     }
     void loadDetail(selection.id)
+    return () => { detailGeneration.current++ }
   }, [loadDetail, selection])
   // The drawer has already re-read the one AR it wrote; patch that status
   // into the open job instead of refetching it.
@@ -342,10 +348,10 @@ function JobsWorkspace() {
     ? 'unavailable'
     : detailResolvedId !== selection.id
       ? 'loading'
-      : detailError
-        ? 'error'
-        : detail
-          ? 'listed'
+      : detail
+        ? 'listed'
+        : detailError
+          ? 'error'
           : pendingMarker
             ? 'pending'
             : 'unavailable'
@@ -357,6 +363,10 @@ function JobsWorkspace() {
       hideHeaderOnMobile
       hideHeaderOnDesktop
       focusedJobsDesktop
+      focusedJob={selection.kind === 'valid' ? {
+        id: selection.id,
+        name: detail?.id === selection.id ? detail.name : jobs.find((job) => job.id === selection.id)?.name ?? null,
+      } : undefined}
       replaceNewJobEntry
     >
       <FocusedJobsRailLayout
@@ -390,10 +400,12 @@ function JobsWorkspace() {
         <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
           {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions /></div>}
           {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
+          {membership === 'listed' && detailError && <div role="alert" className="p-3 text-sm text-destructive">Could not update this job. Showing the last saved data.<button className="ml-2 underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id, true)}>Retry</button></div>}
           {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
           {membership === 'unavailable' && <div className="mx-auto max-w-md p-8 text-center"><h2 className="text-lg font-bold">Job unavailable</h2><p className="text-sm text-muted-foreground">This link is invalid or the job was deleted. Another job was not selected for you.</p><Link className="mx-auto flex min-h-11 w-fit items-center font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
           {membership === 'listed' && detail && (
             <FocusedJobRecord
+              key={detail.id}
               request={detail}
               mobile={breakpoint === true}
               version={version}

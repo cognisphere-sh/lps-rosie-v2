@@ -2,6 +2,15 @@
 
 All jobs is the one Jobs list. Its query, filters and page are retained in tab-scoped state. The server keeps the default order as parent `job_requests.updated_at DESC NULLS LAST`, then request `id DESC`; chat and line-item activity do not participate in that order. Created and Updated filters are rolling parent-request date windows, and the list remains server-paged.
 
+Saved changes appear automatically through the existing authenticated event
+stream: Rosie or another user creating a job, changing its stage, adding or
+deleting lines, or updating supplier answers causes a background read. Bursts
+are grouped for 200ms. Cards and editors stay mounted; filters, selection,
+expansion choices and unsaved drafts are retained for surviving rows. Counts,
+totals and open history update with the saved data. Reconnect, tab return and
+a slow fallback poll recover missed changes. The publication setup is
+`harness/agents/daisy/migrations/0091_job_realtime.sql`.
+
 ## Job workflow
 
 Active means no processing has happened. Pricing lookup or a shared quote

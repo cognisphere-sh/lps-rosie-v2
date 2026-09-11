@@ -1,68 +1,70 @@
-# Keep supplier email identity clear while Daisy and Rosie hand work off safely
+# Keep supplier communication clear under the stated agent roles
 
 - Status: staged
 - Route: bhoumik
+- Disposition: ownership clarified; implementation/setup on hold for Bhoumik–Chris discussion
 - Raised: 2026-09-03 by Chris (via telegram / Lily task handoff)
-- Updated: 2026-09-03
+- Updated: 2026-09-11 06:09:23 CDT
 
 ## Problem
 
-Chris uses `chris.r@localplantsupply.com` to build and maintain supplier relationships; Daisy has access to that established supplier-facing identity and Rosie does not. Rosie needs a reliable way to coordinate customer, wholesale, job-request and order work, but sending related supplier messages from several unfamiliar names could confuse suppliers and weaken the relationship Chris has already built.
+Chris wants suppliers to recognize the sender they already deal with and receive one coherent availability ask, not duplicate or split outreach from unfamiliar names. His example is checking 4-inch live-oak availability with three suppliers without having to reconstruct fragmented conversations.
 
-A live sourcing need crosses the current split. For example, finding current availability of 4-inch live oaks from three suppliers begins with a Job Request but may require the supplier knowledge, established relationship and availability work Daisy holds. Today the boundaries say Rosie owns order-side supplier coordination while Daisy owns supplier lifecycle and availability ingestion, but they do not define the accountable handoff, sender identity or returned evidence for this case. Chris also distinguishes supplier management/grower buying from customer/order management and expects those workflows not to be treated as the same job.
+Bhoumik has now stated the responsibility boundary: **Daisy handles only supplier onboarding and receiving suppliers’ published availability data; Rosie handles all order coordination.** The proposed Rosie-to-Daisy supplier-sourcing coordination handoff is removed, not a future implementation option under this item. Mailbox identity/access remains a separate setup question. Bhoumik immediately asked to discuss the subject with Chris; implementation/setup is on hold pending that discussion.
 
 ## Evidence
 
-- 2026-09-03 feedback log, **Supplier email identity and handoffs**: Chris said suppliers use `chris.r@localplantsupply.com`; Daisy has access and Rosie does not. He suggested a `sourcing@` identity for Rosie but worries multiple sender names will confuse suppliers.
-- Same feedback: Chris used the 4-inch live-oak availability-from-three-suppliers example to propose Rosie handing supplier work to Daisy, with Daisy returning the outcome for Rosie to update the customer/job work.
-- 2026-08-28 feedback log, **Supplier type changes the work**: Grower and Wholesale Supplier availability/buying processes differ materially.
-- Current agent audit: Daisy’s supplier lifecycle mailbox is `chris.r@localplantsupply.com`; Rosie’s documented order-correspondence mailbox is `chris@localplantsupply.com`, is not signed in, and currently has no access to Daisy’s mailbox. Existing routing defines the ownership line by subject, not supplier party, but not this live-sourcing delegation contract.
+- 2026-09-03 feedback log, **Supplier email identity and handoffs**: Chris described his familiar supplier email identity, sender-name confusion and the three-supplier live-oak example; `sourcing@` and a handoff to Daisy were ideas, not authorization.
+- September 3 documentation review described mailbox access/sign-in at that time. Those findings are historical, not verified current setup; no new audit has been performed.
+- 2026-09-11 05:55:19 CDT, **Familiar supplier sender first**: Lily recommended inspecting existing access/routing rather than assuming new mailboxes or subagents were needed. No inspection was commissioned.
+- Bhoumik Telegram 297, 2026-09-11 06:08:23 CDT, **Daisy onboarding, Rosie coordination**: Daisy only supplier onboarding and receiving published availability; Rosie all order coordination.
+- Bhoumik Telegram 298, 2026-09-11 06:08:37 CDT, **Discuss roles and setup with Chris**: “let me discuss this with Chris.” Lily confirmed changes are on hold.
 
 ## What it should do
 
-Define and approve one durable communication and handoff model before changing mailbox access, addresses, credentials, or agent procedures.
+The stated roles resolve the proposed ownership question:
 
-- Keep supplier lifecycle communication under Daisy’s established supplier-facing identity. Lifecycle includes discovery, onboarding, account setup, availability-list relationship, paperwork and supplier-record correction.
-- Give Rosie one approved, recognizable identity for customer, wholesale/job-request and order correspondence. Decide whether the proposed `sourcing@` identity replaces, aliases, or is distinct from the currently planned order mailbox; do not activate competing sender identities without that decision.
-- Define the supplier-facing identity for a live Job Request availability ask when continuity with an existing supplier relationship matters. The model must say whether Rosie owns the message but Daisy sends it as the established supplier identity, or whether an approved job/order identity sends it directly; a supplier must not receive duplicate or conflicting asks.
-- Make a Rosie-to-Daisy sourcing handoff explicit and bounded: it names the Job Request/order context, exact plant/size/quantity, suppliers to check (or selection rule), requested response time and whether outreach is authorized. Daisy returns supplier-specific findings with source, time, availability/price statement and any uncertainty; Rosie keeps the customer/job status and subsequent order/customer communication current.
-- Preserve the existing subject-based boundary for ordinary mail, but make mixed emails/tasks split into the lifecycle and job/order portions with one accountable owner for each portion.
-- Define distinct operating paths for Growers and Wholesale Suppliers where their availability and buying work truly differs. Classification alone must not silently change communications or purchasing authority.
-- Require secure, role-limited credential provisioning for any mailbox an agent can use. Credentials must be supplied through an approved secret mechanism, never chat, workspace, requirements, agent messages or knowledge files. Access is limited to the agent and mail purpose approved in this model.
+- Daisy’s scope is supplier onboarding and receiving suppliers’ published availability data, not delegated live order/sourcing coordination.
+- Rosie owns all order coordination, including order-side supplier availability asks and their answers. The three-supplier live-oak coordination example stays with Rosie rather than being delegated to Daisy.
+- Deferring grower purchasing/order-management implementation with item 8 until sourcing stabilises does not transfer that ownership to Daisy.
+
+The remaining business goal is a recognizable, approved supplier sender and no duplicate/conflicting outreach under those roles. Which mailbox, alias, display name or access arrangement supports that goal is not settled here. No new mailbox or broad cross-mailbox access is implied by responsibility ownership.
+
+**Hold all implementation/setup and action handoffs pending Bhoumik’s discussion with Chris.** This includes new coordination workflows, mailbox/access changes, skills, prompts, configuration and a new setup audit. Record the clarification without changing current runtime setup or asking the agents to implement it.
 
 ## Acceptance criteria
 
-- Chris can identify which single sender identity a supplier will see for lifecycle contact and which identity applies to job/order correspondence.
-- A 4-inch live-oak request to three suppliers can be handed from Rosie to Daisy with the needed scope and authorization, without Chris manually relaying context or suppliers receiving duplicate/conflicting messages.
-- The handoff returns attributable, dated supplier evidence to Rosie, who can update the Job Request/customer workflow without claiming a listing is live availability.
-- Daisy and Rosie can route a normal misaddressed or mixed-purpose email/task to the correct owner without either gaining broad access to the other mailbox.
-- A Grower and a Wholesale Supplier follow the approved distinct process only where Bhoumik/Chris have defined an actual difference; otherwise the standard handoff and communication rules apply.
-- No mailbox credential or secret is present in agent prompts, task notes, feedback/business/requirement documents, chat-derived logs, or inter-agent handoff text; each approved agent has only the mailbox access it needs.
-- No new sender address, mailbox access, auto-forwarding, or external message is enabled until the approved model and secure provisioning are in place.
+- The recorded boundary is explicit: Daisy only onboarding/published availability; Rosie all order coordination. No Rosie-to-Daisy coordination workflow remains proposed in this requirement.
+- When setup is later approved, each supplier sees one authorized, coherent ask from the approved identity, without duplicate/conflicting agent outreach.
+- Order-side supplier answers remain attributable to their source/time and reach Rosie’s relevant sourcing/job work without claiming a catalogue listing is live confirmation.
+- A mailbox/access choice is separately approved; role ownership alone does not authorize access, sending, forwarding or credential changes.
+- No implementation, setup inspection or action handoff starts while the Bhoumik–Chris discussion hold is in place.
+
+These are decision/outcome checks, not a claim that runtime behavior has been tested or changed.
 
 ## Out of scope
 
-- Creating a mailbox, alias, forwarding rule, OAuth credential or mailbox configuration.
-- Sending supplier/customer email or changing an existing supplier relationship.
-- A new supplier portal, public availability-request link, or broader authentication model; those remain under the staged supplier-access requirements.
-- Making supplier Type alone an automatic buying rule or granting an agent purchasing authority.
-- Creating supplier-specific subagents before a demonstrated workload/quality need and an approved ownership model.
+- Delegating order-side supplier sourcing/coordination to Daisy.
+- Grower purchasing, order dispatch and new order-management implementation: deferred with item 8 until sourcing stabilises, without changing ownership.
+- New mailboxes, aliases, forwarding, subagents, credentials or permissions without separate approval.
+- Agent skill/prompt/configuration changes, external supplier/customer sends or production routing under this task.
+- Public request access, portal redesign or broader authentication work.
 
 ## Assumptions
 
-- Daisy’s existing dedicated supplier-company threads remain the first place for supplier-specific context; they are not automatically separate subagents.
-- Rosie remains accountable for customer, Job Request and order state even when Daisy performs an approved supplier-facing sourcing task.
-- `chris.r@localplantsupply.com` is the familiar supplier-lifecycle identity today. The proposed `sourcing@` address is an idea, not an approved/active identity.
-- A password was exposed in Telegram during this discussion. Its value is intentionally neither reproduced nor retained here; secure credential provisioning and, if applicable, rotation/revocation are for the credential owner to handle.
+- Bhoumik’s responsibility clarification is recorded as stated; his subsequent request to discuss with Chris places implementation/setup on hold, not back into a delegate-to-Daisy design exercise.
+- Mailbox identity and access remain separate from agent roles. Historical mailbox/sign-in observations are not current verified facts.
+- No current setup was changed, and no action instruction was sent to Rosie or Daisy before the hold arrived.
+- Existing send-approval gates are not relaxed. No credential is copied from chat; any later approved provisioning belongs to the credential owner through a secure mechanism.
 
 ## Open questions
 
-- **Bhoumik:** Decide the approved outward identity for Rosie’s job/order correspondence: retain the planned `chris@` mailbox, use `sourcing@`, or make one an alias of the other; specify the sender display name suppliers and customers will see.
-- **Bhoumik:** Define the accountable sender/owner split for live supplier availability asks attached to a Job Request, including approval gates, duplicate prevention, response correlation and what constitutes a completed Daisy handoff.
-- **Chris/Bhoumik:** Define the concrete Grower-versus-Wholesale differences that justify separate sourcing/buying paths, and who can authorize a purchase.
-- **Credential owner/Bhoumik:** Confirm secure provisioning, least-privilege access and any needed rotation/revocation after the credential exposure; do not communicate the secret in this requirement or agent channels.
+- **Bhoumik/Chris:** Outcome of their discussion and whether any specific mailbox/setup work should proceed. Until then, no new audit, routing or implementation is commissioned.
 
 ## Handoff log
 
-- 2026-09-03 — staged for Bhoumik as cross-agent workflow, email-identity, access and security-contract work. No mailbox, credential, skill or external-communication change made.
-- 2026-09-03 — proposed ownership review only: Daisy would own any approved changes to `supplier-email-routing` and `supplier-communications`; Rosie would own any approved changes to `job-requests`, `supplier-coordination` and `message-routing`. A shared handoff contract may need coordinated skill updates after Bhoumik/Chris approve the model.
+- 2026-09-03 — staged a broader communication, handoff and access proposal; no mailbox, credential, skill or external-communication change made. Skill-owner suggestions were conditional, not instructions to edit.
+- 2026-09-11 05:55:19 CDT — narrowed the business goal to familiar identity/no duplicate outreach; recommended existing-access/routing inspection before changes. No audit commissioned.
+- 2026-09-11 06:08:23 CDT — Bhoumik specified Daisy only onboarding/published availability, Rosie all order coordination. Lily removed the proposed Rosie-to-Daisy coordination handoff; purchasing implementation remains deferred, not reassigned.
+- 2026-09-11 06:08:37 CDT — Bhoumik asked to discuss with Chris. Implementation/setup and action handoffs held.
+- 2026-09-11 06:09:23 CDT — documented both messages. No Rosie/Daisy notification or action handoff sent; no new audit, mail, agent, skill, configuration, credential or routing change made.

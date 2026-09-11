@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { CHAT_AGENTS } from '@/lib/agents'
 import { CanonicalQueueSaturatedError, enqueueCanonical } from '@/lib/chat-canonical-queue'
 import { resolveUser } from '@/lib/session'
+import { CHAT_UPSTREAM_TIMEOUT_MS, validCanonicalThreadId } from '@/lib/chat-request'
 
 /**
  * Pass-through to an agent's `webchat` plugin inbox
@@ -13,31 +14,12 @@ import { resolveUser } from '@/lib/session'
  * separately authenticated `api/app-*` endpoints (`lib/partner-chat.ts`).
  */
 const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
-export const CHAT_UPSTREAM_TIMEOUT_MS = 25_000
-export const THREAD_ID_MAX_CHARS = 160
-export const THREAD_ID_MAX_UTF8_BYTES = 256
-
 const ACTIONS = new Set(['messages', 'send', 'upload', 'file', 'reset', 'threads', 'read'])
 const ALLOWED_AGENT_IDS = new Set(CHAT_AGENTS.map(({ id }) => id))
-const THREAD_ID_SYNTAX = /^(?:main|jr-[1-9]\d*|(?:supplier|customer)-[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*)$/u
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u
-const utf8 = new TextEncoder()
-
 function harnessHeaders(username: string): Record<string, string> {
   const secret = process.env.HARNESS_APP_SECRET
   if (!secret) throw new Error('HARNESS_APP_SECRET is not set')
   return { authorization: `Bearer ${secret}`, 'x-app-user': username }
-}
-
-/** Exact canonical user-facing thread syntax; never repairs or coerces input. */
-export function validCanonicalThreadId(value: unknown): value is string {
-  if (typeof value !== 'string' || value.length === 0) return false
-  // Reject impossible giant inputs before trim/normalization/UTF-8 allocation.
-  if (value.length > THREAD_ID_MAX_CHARS * 2) return false
-  if (value !== value.trim() || value !== value.normalize('NFC') || value !== value.toLowerCase()) return false
-  if ([...value].length > THREAD_ID_MAX_CHARS || utf8.encode(value).byteLength > THREAD_ID_MAX_UTF8_BYTES) return false
-  if (CONTROL_CHARACTERS.test(value)) return false
-  return THREAD_ID_SYNTAX.test(value)
 }
 
 /** JSON tuple framing is injective even if either component contains separators. */

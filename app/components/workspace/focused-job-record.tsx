@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 
 import { FocusedJobHeader } from '@/components/workspace/focused-job-header'
-import { RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
+import { DemandSummary, RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
 import { DeleteRequestDialog, deleteRequestFromApi, requestDeletionCounts } from '@/components/workspace/request-delete'
 import { useToast } from '@/components/workspace/shell'
 import {
@@ -68,9 +68,12 @@ export function FocusedJobRecord({
             onSaved={onSaved}
           />
         }
-        preview={mobile
-          ? <RequestLinks request={request} focusedMobile className="border-b border-border px-3 py-2" />
-          : null}
+        preview={
+          <div data-focused-job-summary className="space-y-2 border-b border-border bg-lps-tint px-3 py-2.5">
+            <RequestLinks request={request} focusedMobile={mobile} relatedOnly={!mobile} />
+            <DemandSummary lineTotal={request.lineTotal} itemCount={request.itemCount} counts={request.statusCounts} wrap />
+          </div>
+        }
         onNameSaved={onNameSaved ?? (() => onSaved())}
       />
       <div className="flex justify-end border-b border-border px-3 py-1">
@@ -93,6 +96,7 @@ export function FocusedJobRecord({
         detailsOpen={detailsOpen}
         onToggleDetails={() => setDetailsOpen((open) => !open)}
         compactJobDetails
+        summaryInHeader
         touchTargets
         emptyItemsCopy="No active line items have been saved for this job yet."
         onSaved={onSaved}

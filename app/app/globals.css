@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, :root:has(#public-availability) *));
 
 /* Design tokens for the "Local Plant Supply UI" design system (lps-ui@0.1.0).
    The published bundle only maps --color-* onto these names; the values live
@@ -107,7 +107,15 @@
   --lps-tone-teal-dot: #3E8FA8;
 }
 
-.dark {
+/* Public availability is always dark, including body portals and page gutters.
+   Derive it from the rendered page so it applies before hydration and clears
+   on navigation without changing the saved workspace theme. */
+:root:has(#public-availability) {
+  color-scheme: dark;
+}
+
+.dark,
+:root:has(#public-availability) {
   --background: #0A0A0A;
   --foreground: #E8E8E8;
 

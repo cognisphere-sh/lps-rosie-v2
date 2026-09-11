@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { SUPPLIER_CATEGORIES } from '@/lib/columns'
+import { CUSTOMER_TYPES } from '@/lib/customers'
 import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
 import { applyServerFilters, type ServerFilter } from '@/lib/server-filters'
 import type { ServerSort } from '@/lib/server-sort'
@@ -1047,7 +1048,7 @@ const WRITABLE: Record<string, string[]> = {
   // contact-log column beside it any more: `communication_notes` was dropped by
   // migration 0073 and the customer's rosie thread carries that history.
   customers: [
-    'name', 'company', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes',
+    'name', 'company', 'type', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes',
   ],
 }
 
@@ -1060,6 +1061,7 @@ const WRITABLE: Record<string, string[]> = {
  */
 const ENUMS: Record<string, readonly string[]> = {
   'suppliers.category': SUPPLIER_CATEGORIES,
+  'customers.type': CUSTOMER_TYPES,
   'job_requests.status': REQUEST_STATUSES,
   'job_request_items.status': ITEM_STATUSES,
 }
@@ -1114,9 +1116,10 @@ export async function updateFields(
 
     const allowed = ENUMS[`${table}.${column}`]
     if (allowed) {
-      // Supplier category is nullable; the request's empty dropdown option
-      // deliberately clears it. Status vocabularies remain non-nullable.
-      if (table === 'suppliers' && column === 'category' && raw.trim() === '') {
+      // Empty classification dropdowns clear to NULL. Statuses remain required.
+      const nullable = (table === 'suppliers' && column === 'category')
+        || (table === 'customers' && column === 'type')
+      if (nullable && raw.trim() === '') {
         values[column] = null
         continue
       }

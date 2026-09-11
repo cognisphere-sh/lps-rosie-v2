@@ -12,5 +12,5 @@ software does today: `../../../../../app/`, `docs/app/`, `docs/harness/` and
 
 ## Files
 
-- `operations.md` — how pricing, availability, and fulfilment identities relate during an order.
+- `operations.md` — current LPS operations, including one-JR quick quoting/later sourcing, customer commitment versus supplier verification, and separate future dashboard/history scope.
 - `friction.md` — recurring workflow gaps and the evidence for improving them.

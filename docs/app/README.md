@@ -426,7 +426,7 @@ in the desktop rail and through mobile More.
 | `GET /api/auth/*` | Not ours — rewritten to the harness (`login`, `logout`, `me`). |
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox (`messages`, `send`, `upload`, `file`, `reset`, `threads`, `read`). See *Agent chat*. `send` carries `page` (`lib/chat-page.ts`: current path + `document.title`) so the agent knows which screen the message came from. |
 | `GET /api/chat/threads` | The bell's sweep: every chattable agent's open threads with a transcript, straight from the `threads` table (closed ones excluded), keyed by agent in the plugin's `api/threads` row shape. |
-| `GET /api/chat/events` | **Server-sent events** — one `thread` event per change to any chat agent's `threads` row (new message, read mark, working indicator, close). The app server's single Supabase Realtime subscription, relayed (`lib/chat-realtime.ts`). See *Agent chat*. |
+| `GET /api/chat/events` | **Server-sent events** — `thread` events for chat changes and data-free `jobs` invalidations for job, line, availability, customer and supplier changes. Internal sessions only. The app server's single Supabase Realtime subscription is relayed by `lib/chat-realtime.ts`; job views batch background reads through `lib/use-job-updates.ts`. See *Agent chat*. |
 | `GET /api/chat-directory?agent=<rosie\|daisy>` | The chat panel's thread picker, by category, merged client-side with the plugin's `api/threads` transcript list. **rosie** (the default): active job requests (`jr-<id>`, titled by `job_requests.name`, renamable from the card), LPS Partners and engaged suppliers (`rosie_thread_id`), active customers. **daisy**: supplier companies only (`daisy_thread_id`, the head branch's row) — bounded to the ones she works, every LPS Partner plus everyone with an active `inventory_sources` row, since all 1,300-odd suppliers carry a thread id. |
 | `GET /a/:agent/private/artifacts/:slug/raw` | The artifact HTML for the page's iframe, fetched from the harness with the shared secret. |
 | `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
@@ -1669,6 +1669,24 @@ them from the public. `lib/chat-realtime.ts` holds one subscription with the
 existing server-side client (kept on `globalThis` across dev reloads) and fans
 `threads` changes out over SSE; `lib/chat-events.ts` shares one `EventSource`
 per URL between the bell, the open panel and the portal's hooks.
+
+The same server channel also watches `job_requests`, `job_request_items`,
+`availability_requests`, `availability_request_items`, `customers` and
+`suppliers` (publication migration 0091). Each insert, update or delete sends
+only `{type: "jobs"}` to the internal stream. Partner streams still relay only
+their authorized chat events. No database credentials, row bodies or public
+availability tokens are pushed to browsers.
+
+`lib/use-job-updates.ts` shares the internal connection across All jobs, the
+focused job/sidebar, the intake saved panel, customer job details and the open
+availability drawer. It groups writes into 200ms batches and re-reads the
+existing APIs, retaining mounted editors, drafts, filters and scroll. Reads
+already in flight get a follow-up if another change arrives. Invalidations are
+broad enough to cover deletions and reparented lines even when Realtime's old
+row contains only its primary key. Browser reconnect, upstream subscription
+readiness/reconnect, tab return and a 60s fallback reconcile missed events;
+hidden tabs defer background work until they return. A focused job read failure
+keeps the last saved record visible; an authoritative 404 removes it.
 
 **Pagination.** The first fetch of a transcript asks for `&limit=50`, so the
 panel opens on the 50 newest messages rather than the whole history. When the

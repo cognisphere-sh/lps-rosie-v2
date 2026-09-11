@@ -1,5 +1,11 @@
 # quote-generation — changelog
 
+## 2.1.0
+
+2026-09-11 — Present text quotes and other text intended for copying inside
+fenced code blocks, with only the copyable content inside and explanations
+outside. Applies to custom text-quote formats as well as the default.
+
 ## 2.0.1
 
 2026-09-11 — Align quick quotes and customer delivery with the Quote stage; skip Availability for quick quotes and preserve later job stages.

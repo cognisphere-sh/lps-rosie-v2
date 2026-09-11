@@ -193,7 +193,9 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
   const row = orderJobInbox([inbox])[0]
   const aria = jobInboxRowAriaLabel(row, 'Quote', 'Sep 2, 10:00 AM')
   view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote" activityLabel="Sep 2, 10:00 AM" ariaLabel={aria} onSelect={() => undefined} />)
-  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, `JR-34 · ${expected}`)
+  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, value.name)
+  assert.ok(view.getByText('Land Water Light · Dior Goodwin'))
+  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.getAttribute('title'), `JR-34 · ${expected}`)
 })
 
 test('rendered missing and invalid identity candidates stay honest in the desktop strip', () => {
@@ -333,18 +335,30 @@ test('closed compact disclosure label stays neutral for every independently stor
   }
 })
 
-test('compact tray preserves customer, AR and supplier routes with 44px targets', async () => {
-  const linked = request({ supplierLinks: [{ supplierId: 8, name: 'Hill Country', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }] })
+test('focused header exposes summary and customer, AR and supplier routes before opening details', async () => {
+  const linked = request({
+    lineTotal: 1250.5, itemCount: 7, statusCounts: { pending: 3, available: 4 },
+    supplierLinks: [{ supplierId: 8, name: 'Hill Country', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }],
+  })
   const chatRoutes: unknown[] = []
   const ars: number[] = []
   window.addEventListener('lps:open-chat', (event) => chatRoutes.push((event as CustomEvent).detail))
   window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent<number>).detail))
   const view = render(<FocusedJobRecord request={linked} mobile={false} version={0} onSaved={() => undefined} />)
-  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Job details & notes' }))
+  assert.equal(view.getByRole('button', { name: 'Job details & notes' }).getAttribute('aria-expanded'), 'false')
+  const header = view.container.querySelector<HTMLElement>('[data-focused-job-summary]')!
+  assert.equal(view.container.querySelectorAll('[data-demand-summary]').length, 1)
+  assert.ok(within(header).getByText('$1,250.50'))
+  assert.ok(within(header).getByText('3'))
+  assert.ok(within(header).getByText('4'))
+  for (const label of ['Pending', 'Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Total items']) {
+    assert.ok(within(header).getByText(label))
+  }
   const customer = view.getByRole('button', { name: /Open the customer conversation/ })
   const ar = view.getByRole('button', { name: /AR-81/ })
   const supplier = view.getByRole('button', { name: /Open the supplier conversation/ })
   for (const control of [customer, ar, supplier]) assert.match(control.className, /min-h-11/)
+  for (const control of [customer, ar, supplier]) assert.ok(header.contains(control))
   await userEvent.setup({ document }).click(customer)
   await userEvent.setup({ document }).click(ar)
   await userEvent.setup({ document }).click(supplier)
@@ -527,7 +541,7 @@ test('parent refetch lifecycle remounts both detail and rail before restoring th
     if (mobile) await user.click(view.getByRole('button', { name: 'Save' }))
     else fireEvent.keyDown(textbox, { key: 'Enter' })
     const expected = mobile ? 'Mobile rename' : 'Desktop rename'
-    await waitFor(() => assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, `JR-19 · Urban Landscape Group | ${expected} | Johnathan`))
+    await waitFor(() => assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, expected))
     await waitFor(() => assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' })))
     assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent ?? view.container.querySelector('[data-mobile-job-identity]')?.textContent, `Urban Landscape Group | ${expected} | Johnathan`)
     view.unmount()
@@ -630,7 +644,7 @@ test('focused Delete rejects network, 403, malformed and duplicate confirms, the
   assert.equal(requestDeletionCounts({ deleted: { items: -1, availabilityRequests: 0, availabilityRequestItems: 0, changelog: 0, answers: 0 } }), null)
 })
 
-test('expanded rail selected and unselected rows use the same exact primary line and quiet secondary facts', () => {
+test('expanded rail separates job and customer identity and shows the full colored status name', () => {
   const base: JobInboxRow = {
     id: 34,
     name: 'Courtyard 🌿'.repeat(20),
@@ -661,11 +675,14 @@ test('expanded rail selected and unselected rows use the same exact primary line
     const button = view.getByRole('button', { name: label })
     const primary = view.container.querySelector<HTMLElement>('[data-focused-job-rail-primary]')
     assert.ok(primary)
-    assert.equal(primary.textContent, expected)
+    assert.equal(primary.textContent, base.name)
     assert.equal(primary.title, expected)
-    assert.match(primary.className, /whitespace-nowrap/)
-    assert.match(primary.className, /text-ellipsis/)
-    assert.match(primary.className, /overflow-hidden/)
+    assert.match(primary.className, /line-clamp-2/)
+    assert.ok(view.getByText('Land Water Light · Dior Goodwin'))
+    const status = view.container.querySelector<HTMLElement>('[data-job-status="quoted"]')!
+    assert.match(status.style.background, /--lps-tone-teal-bg/)
+    assert.equal(status.textContent, 'Quote')
+    assert.equal(status.title, 'Quote')
     assert.equal(button.getAttribute('aria-current'), selected ? 'page' : null)
     assert.match(button.textContent ?? '', /Quote.*Long snippet.*New web chat.*Sep 1, 2:00 PM/s)
     view.unmount()

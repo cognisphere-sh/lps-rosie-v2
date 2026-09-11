@@ -1,53 +1,75 @@
-# Keep quick quote opportunities out of Request Management until sourcing starts
+# Quick quote first, availability later, on the same Job Request
 
-- Status: staged
+- Status: staged — current one-JR path supported by skills/source; no new implementation authorized
 - Route: bhoumik
 - Raised: 2026-08-29 by Chris (via telegram)
-- Updated: 2026-08-29
+- Updated: 2026-09-11
+- Scope correction: the earlier separate-opportunity/new-JR conversion assumption is superseded for item 7. Filename retained for existing references; it is not a conversion-build instruction.
+- Disposition (2026-09-11 05:49:31 CDT): main has told Bhoumik the current item-7 workflow is supported, with no new Sales vocabulary or conversion needed. A separate Quote/dashboard view remains a deferred Chris wish, not a dependency. Source/skill support is verified; a live end-to-end round trip is not.
 
 ## Problem
 
-At higher volume, a quick customer quote is not yet plant-sourcing work. Putting every early price request into Request Management inflates active operational work and mixes contractor bidding with jobs that need live availability, installation changes, supplier coordination, and fulfilment.
+An early indicative quote must not prematurely request supplier availability. Lily previously equated “no sourcing yet” with “no Job Request yet,” and recommended a separate quote record followed by new-JR creation. Bhoumik explicitly corrected that distinction: create the JR at the start, quote without an availability request, then request availability on that same JR when Chris instructs Rosie.
 
 ## Evidence
 
-- 2026-08-29 feedback log, **Quick quotes are not Job Requests**: Chris says quick quote requests belong in a separate Quote view. He can return the quote there; only when the customer comes back to source plants or update the installation date do its details move into a new Request and begin Request Management.
-- 2026-08-29 feedback log, **Budgeting quotes are allowed**: early pricing is a placeholder for contractor bidding and may change with install timing.
+- 2026-08-29 — Chris described early budgeting quotes and a separate Quote-view opportunity at greater volume. This historical direction does not override current instructions or make a separate product mandatory.
+- 2026-09-11 05:25:29 CDT — Lily recommended manual new-JR creation from a prior quote, explicitly unverified and not approved. That recommendation retained the separate-record assumption and is now superseded.
+- 2026-09-11 05:38:08 CDT, Bhoumik, Telegram 289 — Create a JR from the beginning; a quick quote generates no AR; when the customer returns, Chris asks Rosie to send an AR on the **same JR**. He requested an instruction/status review, not implementation changes.
+- 2026-09-11 — Current `job-requests` §1/§4/§6, `quote-generation` §1/§4 and `message-routing` §§1–2 explicitly create/reuse the JR for quick quotes and carry `quote_only: true` to suppress ARs and supplier contact. Simple price questions create neither JR nor AR.
+- 2026-09-11 05:40:53 CDT — Rosie confirmed the same-job interpretation and current policy in a read-only reply. She supplied no separate approval artifact for stricter commitment gates or a persistent quote-only field.
+- Read-only audit: `workspace/threads/main/tasks/status-lifecycle-clarification/audit-2026-09-11.md` contains source/API/migration citations, stage mapping and verification limits.
 
 ## What it should do
 
-Keep a quick quote opportunity in a dedicated Quote view rather than creating a Job Request or beginning Request Management. Rosie may generate and return it without a supplier availability or price check. It must clearly communicate that it is indicative and subject to plant price/availability changing with installation timing; retain the customer’s requested plants and returned quote as its own dated opportunity history.
+Use one JR and its `jr-<id>` thread from an explicit quick-quote request through later supplier sourcing. Reuse an existing relevant JR rather than duplicating it. Preserve customer, plant/size, quantity and quote context on that record.
 
-Only an explicit customer re-engagement to source plants or change/update the installation date converts the opportunity into a **new** Job Request. Conversion preserves a clear link to the source quote and carries the relevant customer, plant, quantity, quoted-price, quote-date, and install-date context into the new Request for review; it does not silently represent early indicative pricing as current supplier-confirmed price or availability.
+During the quick-quote instruction, Rosie uses supported APS or explicitly named supplier inventory pricing, without creating/sending an AR or contacting suppliers. Missing prices or unclear plant identities must not be invented. Catalog prices are not confirmed availability or a reservation.
 
-The converted Job Request begins the Request Management lifecycle. Supplier availability asks, Rosie’s Job Request thread, Request Management counts, and the Confirmed/Closed process apply only after conversion.
+Generating a quote for Chris is distinct from sending it to the customer. Customer delivery follows existing Chris authorization and owner-thread rules, and is recorded only after actual delivery. Quote generation or sharing does not itself authorize supplier outreach.
 
-## Acceptance criteria
+When Chris later asks for supplier availability, use the **same JR**, re-read changed requirements/current lines and follow existing supplier coordination. An existing appropriate open AR is reused rather than duplicated. Partner portal publication and non-partner email follow their existing authorization and delivery rules; a prepared public link is not a sent email. Existing ordinary APS portal standing authorization is preserved, not broadened to the quote-only action.
 
-- A quick quote can be prepared and returned without supplier confirmation, a Job Request, or an availability request, and clearly says it is indicative/subject to later verification.
-- Quote opportunities and active Job Requests appear in distinct work views.
-- Customer re-engagement to source plants or update installation timing creates a new Job Request linked to the original quote.
-- The new Request carries the relevant quote context for review while preserving the original quote as historical evidence.
-- An early quote does not become a current supplier-verified price or availability merely because it converts.
-- Reporting can distinguish quote opportunities/quote value, converted quotes, and Job Requests/confirmed/closed work without double-counting a converted opportunity as two Job Requests.
+Supplier answers remain factual availability/price evidence with AR state, sourcing updates and internal notifications. They do not automatically change Job/Order Sales status, establish customer commitment, select an offering, or send customer-facing changes.
+
+The existing Sales vocabulary already fits: **Active, Quote, Availability, Confirmed, Won, Lost**. Quote covers completed pricing work as well as sharing; Availability starts on supplier-request delivery, not supplier completion. These are current observed rules, not a requested vocabulary change.
+
+## Acceptance criteria — workflow to verify, not new-build authorization
+
+- An explicit quick quote creates or reuses one JR/thread; completing pricing produces no AR or supplier contact and leaves plant availability unconfirmed.
+- A general price lookup is not misclassified as a new JR.
+- A quote prepared for Chris is not recorded as customer-delivered until it actually is; outward communication retains existing Chris authorization.
+- A later explicit instruction to request availability uses the original JR and reviewed current plant/quantity scope, without a second-JR conversion.
+- Repeated pricing or quote work does not regress Availability or Confirmed, and supplier input does not automatically change Sales status.
+- Existing exact Sales labels remain; no Quote Delivered, Pricing, New/In Progress or extra conversion stage is required for this correction.
+
+## Current implementation and verification limits
+
+Current skills and checked-in migrations 0088/0089 support this path. The app AR API takes an existing Job Request ID and its line IDs; pricing hooks advance Sales stage but do not create ARs. `quote_only` is a handoff instruction, not an established app/database field in the inspected code.
+
+Nine local status/filter unit tests passed. No live JR/AR, email, quote publication or production status was created/changed; end-to-end agent adherence and deployment state were not independently verified.
+
+Current confirmation policy permits an explicit customer-confirmation event from Active, Quote or Availability, including without an AR. The older Lily claim that a supplier-verified package is a universally enforced prerequisite is **not** the current implementation. It must not be reintroduced silently. This does not turn customer acceptance into proof of supplier price/stock verification, order placement, or fulfilment.
+
+The current supplier Orders page is a placeholder. Actual Order Details creation and a complete quote-event ledger are not established by this audit or prerequisites for correcting item 7.
 
 ## Out of scope
 
-- Automatically contacting a supplier or customer because a quote exists.
-- Treating a quick quote as an order or customer commitment.
-- Deciding the supplier-price evidence rule for an indicative quote; that remains a lifecycle policy question.
+- Separate quote database, conversion engine, new Quotes view or dashboard as mandatory work.
+- Code, schema, status, skill, deployment or data changes; implementation routing.
+- Changing current authorization, confirmation, order-placement or closure policy.
+- Dropping Chris’s broader historical Quote-view direction on his behalf.
 
-## Assumptions
+## Open questions / smallest possible follow-up
 
-- A conversion is explicit and customer-driven, not a time-based automatic promotion.
-- A newly converted Request has no supplier availability confirmation until Request Management obtains it.
-
-## Open questions
-
-- **Chris:** On conversion, should all original quoted plants, quantities, prices and customer/install details be carried into the new Request for review, or should Rosie choose only the plants still needed? Recommended: carry all as an editable starting point and retain the original quote unchanged.
-- **Bhoumik:** Define the durable quote opportunity, conversion link, no-double-count reporting rule, and which quote details are carried versus retained only as source history.
+- **Bhoumik:** No vocabulary change is indicated for this workflow. If he wants an explicit reminder in Rosie’s owned instructions, authorize only a clarification that a later Chris AR instruction ends the quote-only action on the same JR, with reviewed current lines and existing supplier gates. Not applied or routed.
+- **Bhoumik, separately if desired:** Resolve any intended stricter supplier-verification prerequisite before Confirmed against current policy. This is a commercial/workflow decision, not a rename, and does not block the same-JR correction.
+- Live workflow verification remains unperformed; source support is not a claim of a tested customer round trip.
 
 ## Handoff log
 
-- 2026-08-29 — Staged for Bhoumik; this changes workflow/data boundaries, not merely a Quote screen.
-- 2026-08-29 — Bhoumik confirmed: Rosie may generate a quick quote without an availability check; sourcing/availability begins only at explicit conversion.
+- 2026-08-29 — Staged broader separate-Quote-view/new-Request conversion direction.
+- 2026-09-11 05:25:29 CDT — Lily suggested manual new-JR creation rather than a new quote product; no approval or capability validation.
+- 2026-09-11 05:38:08 CDT — Bhoumik corrected item 7 to one JR from the start and asked for a current instruction/status audit.
+- 2026-09-11 05:45:38 CDT — Audit corrected this requirement to the existing one-JR/no-AR quick-quote path; prior separate-record/manual-new-JR assumption is superseded, not a mandatory build. No implementation or runtime changes.
+- 2026-09-11 05:49:31 CDT — Main reported item 7 supported to Bhoumik. Reconciled the linked Sales-lifecycle requirement and business picture; no stricter confirmation gate asserted, and future dashboard remains deferred. Raw feedback and unrelated status labels unchanged.

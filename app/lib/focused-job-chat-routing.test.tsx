@@ -1248,3 +1248,62 @@ test('destination label always exposes canonical Job identity', () => {
   assert.equal(chatDestinationLabel({ id: 'supplier-oak', label: 'Oak Nursery' }), 'Oak Nursery')
   assert.equal(chatDestinationLabel({ id: 'main', label: 'Main' }), 'Main')
 })
+
+test('desktop selected job opens Rosie over saved chat preferences and follows job switches', async () => {
+  window.localStorage.setItem('lps.chat.v1', JSON.stringify({
+    open: false, width: 1200, agent: 'daisy',
+    thread: { agent: 'daisy', id: 'supplier-old', label: 'Old supplier' },
+  }))
+  let fullRestores = 0
+  let docked = 0
+  const props = {
+    isMobile: false, mobileOpen: false, appearance: DEFAULT_CHAT_APPEARANCE,
+    onDesktopFull: () => { fullRestores += 1 },
+    onDesktopExitFull: () => { docked += 1 },
+  }
+  const view = render(<AgentChat {...props} focusedJob={{ id: 31, name: 'Courtyard' }} />)
+  await waitFor(() => assert.ok(view.getByText('JR-31 history')))
+  assert.ok(view.getByText('JR-31 · Courtyard'))
+  assert.equal(fullRestores, 0)
+  assert.equal(docked, 1)
+  assert.equal(view.container.firstElementChild?.getAttribute('style')?.includes('width: 330px'), true)
+  const user = userEvent.setup({ document })
+  await user.type(view.getByPlaceholderText('Ask Rosie…'), 'old job draft')
+  await user.click(view.getByRole('button', { name: 'Hide panel' }))
+  assert.equal(view.queryByPlaceholderText('Ask Rosie…'), null)
+
+  view.rerender(<AgentChat {...props} focusedJob={{ id: 32, name: 'Front garden' }} />)
+  await waitFor(() => assert.ok(view.getByText('JR-32 · Front garden')))
+  assert.equal(view.queryByText('JR-31 history'), null)
+  assert.equal((view.getByPlaceholderText('Ask Rosie…') as HTMLTextAreaElement).value, '')
+  await user.type(view.getByPlaceholderText('Ask Rosie…'), 'new job message')
+  await user.click(view.getByRole('button', { name: 'Send' }))
+  await waitFor(() => assert.equal(sends.length, 1))
+  assert.equal(sends[0].url, '/api/chat/rosie/send')
+  assert.equal(sends[0].body.threadId, 'jr-32')
+})
+
+test('selected job refresh and rename preserve drafts and deliberate supplier chat selection', async () => {
+  const props = { isMobile: false, mobileOpen: false, appearance: DEFAULT_CHAT_APPEARANCE }
+  const view = render(<AgentChat {...props} focusedJob={{ id: 31, name: 'Courtyard' }} />)
+  await waitFor(() => assert.ok(view.getByText('JR-31 history')))
+  const user = userEvent.setup({ document })
+  await user.type(view.getByPlaceholderText('Ask Rosie…'), 'keep this draft')
+  view.rerender(<AgentChat {...props} focusedJob={{ id: 31, name: 'Renamed courtyard' }} />)
+  assert.ok(view.getByText('JR-31 · Renamed courtyard'))
+  assert.equal((view.getByPlaceholderText('Ask Rosie…') as HTMLTextAreaElement).value, 'keep this draft')
+
+  act(() => openChat({ agentId: 'rosie', threadId: 'supplier-oak', label: 'Oak Nursery' }))
+  await user.type(view.getByPlaceholderText('Ask Rosie…'), 'supplier draft')
+  view.rerender(<AgentChat {...props} focusedJob={{ id: 31, name: 'Updated courtyard' }} />)
+  assert.ok(view.getByText('Oak Nursery'))
+  assert.equal((view.getByPlaceholderText('Ask Rosie…') as HTMLTextAreaElement).value, 'supplier draft')
+  await user.click(view.getByRole('button', { name: 'Send' }))
+  await waitFor(() => assert.equal(sends.length, 1))
+  assert.equal(sends[0].body.threadId, 'supplier-oak')
+})
+
+test('selected job does not automatically open the mobile chat overlay', () => {
+  const view = render(<AgentChat isMobile mobileOpen={false} focusedJob={{ id: 31, name: 'Courtyard' }} appearance={DEFAULT_CHAT_APPEARANCE} />)
+  assert.equal(view.queryByPlaceholderText('Ask Rosie…'), null)
+})

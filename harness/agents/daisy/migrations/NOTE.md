@@ -10,6 +10,26 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0091_job_realtime.sql`
+
+Applied 2026-09-11 via psql in one transaction. Adds `job_requests`,
+`job_request_items`, `availability_requests`, `availability_request_items`,
+`customers` and `suppliers` to the existing `supabase_realtime` publication.
+The app's server-only relay sends data-free job invalidations to internal
+sessions. No business records, RLS policies, replica identities or triggers
+change. Verified all six live publication members and their unchanged RLS and
+replica identity settings. Disposable PostgreSQL tests apply the migration
+twice and assert membership, idempotence, existing data and access rules.
+
+## `0090_customer_type.sql`
+
+Applied 2026-09-11 via psql in one transaction. Adds nullable `customers.type`
+with no default and a CHECK allowing exactly `Homeowner/Retail` or
+`Landscape Professional`. All nine existing customers remain NULL. Verified
+the live column, constraint and null counts; refreshed the PostgREST schema
+cache. Disposable PostgreSQL tests cover both values, omitted/cleared type,
+invalid insert/update rejection and preservation of existing customer data.
+
 ## `0089_job_order_statuses.sql`
 
 Applied 2026-09-11 via psql in one transaction. The selectable Job Request

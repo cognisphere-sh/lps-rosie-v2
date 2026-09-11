@@ -1,8 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { ARLineTable } from './availability'
 import { ARPrintSheet } from './ar-print-sheet'
-import { ChevronDown } from './icons'
 import { partnerRequestName as requestName } from './partner'
 import { AR_RESPONSE_OPTIONS, arResponseTone, arStatusLabel, arSubtotal, type ARDetail, type ARItem } from '@/lib/availability'
 import { toneDot } from '@/lib/job-requests'
@@ -25,7 +25,7 @@ function formatStripDate(value: string) {
 /** A small caps label over a value — the header card's blocks. */
 function Field({ label, align = 'left', children }: { label: string; align?: 'left' | 'right'; children: React.ReactNode }) {
   return (
-    <div className={cn('flex min-w-0 flex-col gap-1', align === 'right' && 'items-end text-right')}>
+    <div className={cn('flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]', align === 'right' && 'sm:items-end sm:text-right')}>
       <span className="text-[10.5px] font-medium text-lps-dim">{label}</span>
       <div className="text-[13px] text-foreground">{children}</div>
     </div>
@@ -45,22 +45,22 @@ function SummaryStrip({ items }: { items: ARItem[] }) {
   const subtotal = arSubtotal(items)
   return (
     <div className="rounded-2xl border border-border bg-card px-4 py-5 md:px-6 md:py-6">
-      <div className="grid grid-cols-4 items-end gap-x-2 gap-y-4 md:grid-cols-8">
+      <div className="grid grid-cols-3 items-end gap-x-2 gap-y-4 min-[900px]:grid-cols-8">
         {cells.map((c) => (
-          <div key={c.label} className="flex flex-col items-center gap-2">
-            <span className="truncate text-[11px] text-muted-foreground md:text-[12.5px]">{c.label}</span>
+          <div key={c.label} className="flex min-w-0 flex-col items-center gap-2">
+            <span className="text-center text-[11px] text-muted-foreground md:text-[12.5px]">{c.label}</span>
             <span className="text-[17px] font-semibold tabular-nums leading-none" style={{ color: c.color }}>
               {c.value || '-'}
             </span>
           </div>
         ))}
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col gap-2 border-t border-border pt-3 min-[900px]:items-center min-[900px]:border-0 min-[900px]:pt-0">
           <span className="truncate text-[11px] text-muted-foreground md:text-[12.5px]">Total Items</span>
           <span className="text-[17px] font-semibold tabular-nums leading-none text-foreground">{items.length}</span>
         </div>
-        <div className="flex flex-col items-center gap-2 lg:items-end">
+        <div className="col-span-2 flex min-w-0 flex-col items-end gap-2 border-t border-border pt-3 min-[900px]:col-span-1 min-[900px]:border-0 min-[900px]:pt-0">
           <span className="text-[10.5px] text-lps-dim">Subtotal</span>
-          <span className="text-[20px] font-semibold tabular-nums leading-none text-foreground">
+          <span className="max-w-full break-words text-[20px] font-semibold tabular-nums leading-none text-foreground">
             {subtotal == null ? '—' : money(subtotal)}
           </span>
         </div>
@@ -78,12 +78,21 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
   onPatch: (itemId: number, changes: Record<string, string>) => Promise<void>
   onSubmit: () => Promise<void>
 }) {
+  const [mobile, setMobile] = useState(false)
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const media = window.matchMedia('(max-width: 899px)')
+    const update = () => setMobile(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
   const editable = !!request && request.status !== 'closed'
   return (
-      <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-5 md:px-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-5 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 [&>*]:shrink-0">
         {error && (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+          <div role="alert" className="break-words rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
             {error}
           </div>
         )}
@@ -98,15 +107,14 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
                 requested date, then the customer's contact, the delivery
                 address and our note — each only where the request shares it. */}
             <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-3">
-              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl bg-secondary/60 px-3 py-2.5">
-                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">
+              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/60 px-3 py-2.5 min-[900px]:grid-cols-[auto_minmax(0,1fr)_auto]">
+                <span className="inline-flex h-8 items-center rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">
                   {arStatusLabel(request.status)}
-                  <ChevronDown className="size-3.5" />
                 </span>
-                <span className="min-w-0 truncate text-center text-[18px] font-semibold text-foreground">
+                <h1 className="col-span-2 row-start-2 m-0 min-w-0 text-[18px] font-semibold leading-6 text-foreground [overflow-wrap:anywhere] min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1 min-[900px]:text-center">
                   {requestName(request)}
-                </span>
-                <span className="text-[17px] font-semibold text-foreground">
+                </h1>
+                <span className="col-start-2 row-start-1 text-right text-[11px] text-muted-foreground min-[900px]:col-start-3 min-[900px]:text-[17px] min-[900px]:font-semibold min-[900px]:text-foreground">
                   {formatStripDate(request.createdAt)}
                 </span>
               </div>
@@ -125,7 +133,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
                     <span />
                   )}
                   {request.shipping?.address && (
-                    <div className="flex flex-col items-end text-right text-[13px] text-foreground">
+                    <div className="flex min-w-0 flex-col text-[13px] text-foreground [overflow-wrap:anywhere] sm:items-end sm:text-right">
                       <span>{request.shipping.address}</span>
                       <span>
                         {[request.shipping.city, [request.shipping.state, request.shipping.zip].filter(Boolean).join(', ')]
@@ -155,6 +163,8 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
               onPatch={onPatch}
               displayText={redactPartnerRequestRefs}
               design="portal"
+              mobileCards={mobile}
+              drawerModal={mobile}
             />
 
             {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (
@@ -176,16 +186,16 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
           Re-Submit once the request has been handed back before — including
           after we added a line and put it back at New. */}
       {request && editable && (
-        <div className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden">
+        <div className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden">
           <button
             type="button"
             onClick={() => void onSubmit()}
             disabled={saving}
-            className="h-12 flex-1 cursor-pointer rounded-lg border border-border bg-secondary/60 text-[17px] font-medium uppercase tracking-[.04em] text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-50 sm:max-w-sm"
+            className="min-h-12 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-3 py-2 text-[15px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 min-[900px]:max-w-sm"
           >
             {saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'}
           </button>
-          <span className="hidden text-[11.5px] text-muted-foreground sm:block">
+          <span className="hidden text-[11.5px] text-muted-foreground min-[900px]:block">
             {request.submittedAt
               ? 'Re-submitting sends your updated answers to Local Plant Supply.'
               : 'Submitting sends your answers to Local Plant Supply — you can come back and refine them.'}

@@ -1,6 +1,6 @@
 # Say created, not sent, when an availability request is ready
 
-- Status: routed
+- Status: routed · committed/verified; deployment unverified — release hold
 - Route: nova
 - Raised: 2026-09-11 by Lily's public-access audit; UI routing authorized by main
 - Updated: 2026-09-11
@@ -12,7 +12,7 @@ All Jobs reports “Availability request sent” after creating an availability 
 ## Evidence
 
 - Feedback log, **Created is not sent** (2026-09-11 05:01:02 CDT).
-- Current `AvailabilityRequestDialog` in `app/app/requests/page.tsx` reports sent for single, multiple and mixed-result creation operations.
+- At audit/routing, `AvailabilityRequestDialog` in `app/app/requests/page.tsx` reported sent for single, multiple and mixed-result creation operations. Nova reports correction committed below; deployment is not yet confirmed.
 - `POST /api/availability-requests` returns the created identity and optional public path; actual non-Partner email is Rosie's separate approved-send workflow.
 - Core public/out-of-network access is already shipped. This is a nonblocking copy correction, not a new delivery workflow.
 
@@ -41,6 +41,12 @@ Report the creation outcome that this action actually establishes, without claim
 - Broad dialog/title/action redesign or changing separately verified genuine-send confirmations.
 - Reopening core item 5 or bundling device/audit proposals into this correction.
 
+## Delivery state
+
+Nova reports commit `b97c98e` complete: 284/284 technical tests, typecheck/build, and independent visual PASS across 108 captures. **Deployment unverified; release on hold.** Nova's 05:38:17 update says the live app was rebuilt around 05:26 and restarted around 05:27 as build `ezhtGlipCRWQTLqmK3te0`, but its exact source provenance is unknown. Uncommitted UI/features may already be live; there is no newer committed app delta from `b97c98e`, which does not prove build equivalence. Bhoumik has been asked whether those potentially operator-deployed features must be retained before any replacement. Verification is Nova-reported, not a new Lily audit. Await provenance/retention resolution and explicit deployment verification before marking shipped. Core public-access item 5 remains shipped and unaffected.
+
 ## Handoff log
 
 - 2026-09-11 05:01:02 CDT — authorized for immediate Nova UI-only routing; full requirement delivered successfully to Nova main. Requested shipped/verification report to Lily main. No supplier/customer message or new workflow requirement.
+- 2026-09-11 05:36:46 CDT — parent relayed Nova's committed/verified report for `b97c98e`; kept routed, not shipped, pending provenance preflight and isolated deployment. No external communication or app change by Lily.
+- 2026-09-11 05:39:42 CDT — parent relayed Nova's 05:38:17 live-build discovery. Replaced definite “not deployed” with “deployment unverified — release hold”: source provenance unknown and Bhoumik's retention decision pending. No deployment/source changes by Lily.

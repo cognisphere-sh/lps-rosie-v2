@@ -9,6 +9,7 @@ import {
   jobInboxRailPrimaryLine,
   type JobInboxViewRow,
 } from '@/lib/job-inbox'
+import { requestRef, requestStatusTone, toneDot, toneStyle } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
 
 export const FOCUSED_JOBS_RAIL_ID = 'focused-jobs-rail'
@@ -31,6 +32,8 @@ export function FocusedJobsRailRow({
   ariaLabel: string
 }) {
   const primary = jobInboxRailPrimaryLine(row)
+  const tone = requestStatusTone(row.status)
+  const customer = [row.customerCompany?.trim(), row.customerContact?.trim()].filter(Boolean).join(' · ')
   return (
     <button
       ref={buttonRef}
@@ -39,20 +42,33 @@ export function FocusedJobsRailRow({
       aria-label={ariaLabel}
       aria-current={selected ? 'page' : undefined}
       className={cn(
-        'mb-1 min-h-11 w-full rounded-xl border border-transparent px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring',
-        selected && 'border-border bg-muted',
+        'mb-2 min-h-11 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2.5 text-left shadow-sm outline-none transition-colors hover:bg-lps-tint focus-visible:ring-2 focus-visible:ring-ring',
+        selected && 'border-primary bg-lps-tint ring-1 ring-primary/20',
       )}
     >
+      <span className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[10.5px] font-bold text-primary">{requestRef(row.id)}</span>
+        <span
+          data-job-status={row.status}
+          title={statusLabel}
+          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
+          style={toneStyle(tone)}
+        >
+          <span aria-hidden="true" className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
+          <span>{statusLabel}</span>
+        </span>
+      </span>
       <span
         data-focused-job-rail-primary
-        className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] font-semibold text-foreground"
+        className="line-clamp-2 min-w-0 break-words text-[13px] font-semibold leading-snug text-foreground [overflow-wrap:anywhere]"
         title={primary}
       >
-        {primary}
+        {row.name?.trim() || requestRef(row.id)}
       </span>
-      <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] text-muted-foreground">
-        <span className="flex-none">{statusLabel}</span>
-        <span aria-hidden>·</span>
+      <span className="mt-1 block truncate text-[11px] text-muted-foreground" title={customer || 'Unassigned customer'}>
+        {customer || 'Unassigned customer'}
+      </span>
+      <span className="mt-2 flex min-w-0 items-center gap-1.5 border-t border-lps-hair pt-2 text-[10.5px] text-muted-foreground">
         <span className="min-w-0 flex-1 truncate">{row.preview}</span>
         {row.unread && (
           <span className="flex-none rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">

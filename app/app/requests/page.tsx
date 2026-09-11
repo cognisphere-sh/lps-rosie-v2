@@ -33,6 +33,7 @@ import {
 } from '@/lib/request-list-state'
 import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { useDebouncedSearch } from '@/lib/use-debounced'
+import { useJobUpdates } from '@/lib/use-job-updates'
 import { cn } from '@/lib/utils'
 
 const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
@@ -347,6 +348,9 @@ export default function RequestsPage() {
   /** Bumped after a write, to refetch the page and everything derived from it. */
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
+  const [dataVersion, setDataVersion] = useState(0)
+  const listGeneration = useRef(0)
+  const facetGeneration = useRef(0)
 
   useEffect(() => {
     try {
@@ -420,65 +424,81 @@ export default function RequestsPage() {
     setPage(1)
   }
 
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/requests?facets=1')
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled || d.error) return
-        const nextFacets = d.facets ?? EMPTY_FACETS
-        setFacets(nextFacets)
-        setSummary(d.summary ?? { requests: 0, items: 0 })
-        if (!didRestore.current) {
-          didRestore.current = true
-          const allowedCustomers = new Set(nextFacets.customer.map((c: { name: string; company: string | null }) => c.company || c.name))
-          setCustomer(pendingCustomer.current.filter((name) => allowedCustomers.has(name)))
-          setRestored(true)
-        }
-      })
-      .catch(() => {
-        if (!didRestore.current) { didRestore.current = true; setRestored(true) }
-      })
-    return () => {
-      cancelled = true
+  const loadFacets = useCallback(async () => {
+    const mine = ++facetGeneration.current
+    try {
+      const response = await fetch('/api/requests?facets=1', { cache: 'no-store' })
+      const data = await response.json()
+      if (mine !== facetGeneration.current) return
+      if (!response.ok || data.error) throw new Error(data.error ?? 'Could not load job filters')
+      const nextFacets = data.facets ?? EMPTY_FACETS
+      setFacets(nextFacets)
+      setSummary(data.summary ?? { requests: 0, items: 0 })
+      if (!didRestore.current) {
+        didRestore.current = true
+        const allowedCustomers = new Set(nextFacets.customer.map((c: { name: string; company: string | null }) => c.company || c.name))
+        setCustomer(pendingCustomer.current.filter((name) => allowedCustomers.has(name)))
+        setRestored(true)
+      }
+    } catch {
+      if (mine === facetGeneration.current && !didRestore.current) {
+        didRestore.current = true
+        setRestored(true)
+      }
     }
-  }, [reloads])
+  }, [])
 
   useEffect(() => {
+    void loadFacets()
+    return () => { facetGeneration.current++ }
+  }, [loadFacets, reloads])
+
+  const loadRequests = useCallback(async () => {
     if (!restored || !settled || debounced !== query || debouncedFilters !== serverQuery) return
-    let cancelled = false
+    const mine = ++listGeneration.current
     setBusy(true)
-    fetch(buildRequestListUrl(debouncedFilters, debounced, page))
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return
-        if (d.error) {
-          setError(d.error)
-          setRequests([])
-          return
-        }
-        setError('')
-        setRequests(d.requests ?? [])
-        setTotal(d.total ?? 0)
-        setPageCount(d.pageCount ?? 1)
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e))
-      })
-      .finally(() => {
-        if (!cancelled) setBusy(false)
-      })
-    return () => {
-      cancelled = true
+    try {
+      const response = await fetch(buildRequestListUrl(debouncedFilters, debounced, page), { cache: 'no-store' })
+      const data = await response.json()
+      if (mine !== listGeneration.current) return
+      if (!response.ok || data.error) throw new Error(data.error ?? 'Could not load jobs')
+      setError('')
+      setRequests(data.requests ?? [])
+      setTotal(data.total ?? 0)
+      const pages = data.pageCount ?? 1
+      setPageCount(pages)
+      if (page > Math.max(1, pages)) setPage(Math.max(1, pages))
+      setDataVersion((n) => n + 1)
+    } catch (cause) {
+      // Keep mounted cards and drafts on transient background read failures.
+      if (mine === listGeneration.current) setError(String(cause))
+    } finally {
+      if (mine === listGeneration.current) setBusy(false)
     }
-  }, [debounced, debouncedFilters, page, reloads, restored, settled, query, serverQuery])
+  }, [debounced, debouncedFilters, page, restored, settled, query, serverQuery])
+
+  useEffect(() => {
+    void loadRequests()
+    return () => { listGeneration.current++ }
+  }, [loadRequests, reloads])
+
+  useJobUpdates(() => Promise.all([loadFacets(), loadRequests()]))
 
   // A search or an item filter is asking about *lines*, so the cards that
   // matched open themselves — otherwise the answer is hidden behind a chevron.
   const drillingIn = debounced.trim() !== '' || effectiveItemStatus.length > 0
+  const expansionBaseline = useRef({ key: '', ids: new Set<number>() })
   useEffect(() => {
-    if (drillingIn) setExpanded(new Set(requests.map((r) => r.id)))
-  }, [drillingIn, requests])
+    const key = `${searchKey}|${page}|${drillingIn}`
+    const previous = expansionBaseline.current
+    if (drillingIn) setExpanded((current) => {
+      if (previous.key !== key) return new Set(requests.map((r) => r.id))
+      const next = new Set(current)
+      for (const request of requests) if (!previous.ids.has(request.id)) next.add(request.id)
+      return next
+    })
+    expansionBaseline.current = { key, ids: new Set(requests.map((r) => r.id)) }
+  }, [drillingIn, requests, searchKey, page])
 
   // A selection only means something over lines you can see. When a filter,
   // a search or a page turn changes what came back, anything that fell out of
@@ -755,7 +775,7 @@ export default function RequestsPage() {
             expanded={expanded.has(request.id)}
             mobile={requestsMobile}
             selected={selected}
-            version={reloads}
+            version={dataVersion}
             onToggle={() => toggle(request.id)}
             onSelect={select}
             onDelete={(returnFocus) => {

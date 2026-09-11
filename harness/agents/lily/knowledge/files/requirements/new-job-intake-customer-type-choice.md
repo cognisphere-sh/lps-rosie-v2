@@ -1,60 +1,67 @@
 # Let Chris identify a homeowner or landscape professional when a new job starts
 
-- Status: drafted — ready to route after Bhoumik confirms the durable workflow boundary
+- Status: drafted — optional intake/Job display follow-on; customer storage contract complete; not newly routed
 - Route: nova
 - Raised: 2026-08-30 by Chris (via telegram image)
-- Updated: 2026-08-31
+- Updated: 2026-09-11 05:33:52 CDT
 
 ## Problem
 
-At new job intake, the customer record has only a person and an optional company. Chris nearly entered “Retail” as the company simply to distinguish the kind of customer. That would corrupt the customer’s real company information and gives the rest of the app no way to present the right working experience.
+Chris nearly entered “Retail” as a customer’s company because there was no separate customer-type choice. A clear intake choice should keep classification separate from the real company without implying that selecting a type already activates different pricing or service.
 
 ## Evidence
 
-- 2026-08-30 feedback log, **Homeowner or landscape professional**: Chris requested a choice of Homeowner or Landscape Professional at new request/job creation so they can be worked as retail customers versus traditional contractors, including pricing.
-- 2026-08-30 feedback log, **Customer-type request/order naming**: Landscape Professional Requests/Orders use Company Name then Job Name; Retail uses `Retail | Customer Name`; both show estimated project date as `EPD: M/D/YY`. A Landscape Professional job name may be a residence name, street number/name, or PO, and can be blank until details emerge.
-- 2026-08-31 feedback log, **Company then job name**: Chris confirmed company-first Landscape presentation through JR-32.
-- 2026-09-02 feedback log, **Exact editable request identity** and **Contractor in job identity**: Chris clarified the exact Landscape display composition from existing values: `Company | Job/Site | Contact` (JR-34: `Land Water Light | Ox Eye Phase II | Dior Goodwin`; JR-36: `Outdoor Renovations | 803 Redbud | Kyle Stoutenger`). This supersedes the prior separator reading.
-- Current intake begins by reserving a Job Request and opening Rosie’s focused intake; the Customer screen currently shows name, optional company, contact details and address, but no customer type.
+- 2026-08-30 feedback log, **Homeowner or landscape professional**: Chris requested Homeowner / Landscape Professional at new request/job intake, ultimately supporting retail versus contractor treatment.
+- 2026-09-11 05:18:33 CDT, **Customer type minimum first**: Bhoumik asks about adding a customer-level type for now. Lily recommends an optional customer-level choice, with Jobs using their linked customer’s current type; no per-job copy or snapshot is required. This is a recommendation, not implementation authorization.
 
-## What it should do
+- 2026-09-11 05:33:34 CDT, **Customer type reported done**: Bhoumik reports the minimal item complete. Migration 0090 and application note support the nullable customer-level storage contract with exact values **Homeowner/Retail** and **Landscape Professional**. Current source includes Customer page read/edit controls; no focused-intake control or nested Job type display is present. This optional follow-on must not keep the storage item open.
 
-When Chris starts a new job/request, show a simple, clearly named choice between **Homeowner** and **Landscape Professional** before or as Rosie begins intake. Explain only enough to prevent the error: the choice identifies how LPS will work the customer; it is not the company name.
+## What it should do — optional follow-on
 
-The selected type should stay visible in the active intake and the resulting customer/job workspace, using the approved wording. The UI must make clear when the type has not yet been selected rather than quietly assuming that a customer with a company is a landscape professional.
+Offer a clearly labelled **Customer type** choice between **Homeowner/Retail** and **Landscape Professional** during new request/job intake. Preserve an honest unset state when unknown. Do not require a guess to continue intake or put the category in the company field.
 
-Render customer-facing working titles consistently: **Landscape Professional** Requests/Orders as `Company Name | Job/Site | Contact`, composed from existing separate stored values; **Homeowner/Retail** Requests/Orders as `Retail | Customer Name`. Show the estimated project date in the concise form `EPD: M/D/YY` wherever that working title is shown. For a Landscape Professional, allow Job Name to be blank at intake and visibly incomplete until Chris/Rosie later supplies a residence name, street number/name, or PO; do not manufacture a job name, parse a composite display title, or assume a general short-description fallback.
+Display the linked customer’s current type in intake and the resulting customer/Job workspace. The UI must make clear that this is a customer-level classification, not a per-Job exception or a promise of a different price. With no linked customer or no known type, show unknown/unset honestly; do not infer a category from a company, address, or previous price.
 
-This UI slice must use the durable type, date, and naming behavior supplied by the staged workflow/data decision; it must not invent a local-only customer type, calculate a price itself, or save a fabricated title when information is absent.
+Use the existing customer-level read/write contract and its exact vocabulary. Job detail currently exposes a customer link but does not embed type, so obtain the current classification through the customer read path rather than implying it is already supplied in the Job response. Do not create local-only type state that appears saved, duplicate the type onto each Job, or add a per-Job snapshot. If a type is corrected, reflect the linked customer’s current classification rather than claiming a historical as-of-Job value.
+
+The choice does **not** activate retail prices, discounts, different payment terms, or separate operational workflows. Those remain unchanged until Chris defines the policy and Bhoumik authorizes it. The persistence blocker is now removed; this optional UI need not wait for commercial policy, but this verification task does not route a new implementation.
 
 ## Acceptance criteria
 
-- Chris can select **Homeowner** or **Landscape Professional** when beginning a new job/request, without entering either word as the customer’s company.
-- The intake makes the selection’s purpose understandable: it determines the LPS working experience, not the customer’s business name.
-- The selected type is visible while the intake is in progress and once the resulting customer/job is viewed.
-- Landscape Professional Request/Order titles display as `Company Name | Job/Site | Contact` from separate stored values; Homeowner/Retail titles display as `Retail | Customer Name`; each displays `EPD: M/D/YY` when an estimated project date is present.
-- A Landscape Professional Job Name may be blank at first and can be filled later as a residence name, street number/name, or PO; the UI neither blocks intake nor invents the missing value.
-- A missing selection is visibly unresolved; the UI does not infer type from company, address, or prior pricing.
-- The UI faithfully displays the persisted workflow/data decision and does not apply independent pricing or workflow rules.
+- Chris can identify Homeowner/Retail or Landscape Professional during intake without entering the label as the customer’s company.
+- Unknown type remains unset, and intake can continue without guessing.
+- The selected or unset state reflects the linked customer’s current persisted type in intake and the customer/Job workspace.
+- The UI makes the customer-level scope understandable and offers no per-Job override or historical-snapshot claim.
+- Existing unclassified customers are not silently assigned a type.
+- Selecting or correcting type makes no automatic pricing, quote, payment, status, or workflow change, and UI copy does not imply otherwise.
+- A choice persists through the completed customer-level contract; an unsuccessful save is not presented as durable.
+
+## Separate/deferred work
+
+- Existing company/job/contact display composition belongs to `job-request-display-identity`, already independently routed; no combined title is stored by this choice.
+- The earlier Retail naming and EPD/date ideas remain related context, not prerequisites or newly released scope for this minimal control. Timing/fulfillment follows `job-request-install-date-fulfillment`.
+- Any later retail/contractor pricing or service behavior belongs to Bhoumik’s staged policy work.
 
 ## Out of scope
 
-- Defining retail versus contractor pricing, payment, tax, delivery, quote language, or supplier behavior.
-- Deciding whether a customer may have different types on different jobs.
-- Reclassifying existing customer records.
+- Database changes, per-Job copies/snapshots, or migrations performed as part of Nova UI work.
+- Defining or activating retail versus contractor pricing, terms, tax, delivery, supplier behavior, or new workflows.
+- Inferring/reclassifying existing customers or cleaning company names automatically.
 
 ## Assumptions
 
-- The two labels are Chris’s intended starting vocabulary; they may be refined only by Chris/Bhoumik’s workflow decision.
-- The choice belongs in the focused new-job intake, not as a substitute company field on the Customers list.
+- The proposed first step is one optional classification on the customer. A different per-Job model would require a new explicit decision, not a UI assumption.
+- Pricing-policy answers are not blockers for classification-only display; customer persistence is complete.
+- Current Customers read/edit UI exists in source, but production frontend rollout and actual save behavior were not independently exercised by this audit.
 
 ## Open questions
 
-- **Bhoumik:** Confirm where the durable classification lives and whether it applies to the customer relationship, a particular job, or both; Nova should wire the choice to that result.
-- **Chris:** What are the minimum practical differences in pricing and service for a Homeowner versus a Landscape Professional? Recommended single answer: identify the pricing basis/markup and any different quote, ordering, payment, delivery, or communication step.
+- **Lily main:** Decide when to route this remaining optional focused-intake/Job display slice. It is not a blocker to Bhoumik’s completed storage item.
 
 ## Handoff log
 
-- 2026-08-30 — Drafted as an independent UI/UX slice for Nova, contingent on the staged durable workflow/data contract.
-- 2026-08-31 — Rosie’s `job-requests` v3.5.0 now supplies the approved intake rule: no invented generic summary or combined company/job value; company/job formatting is presentation logic once a real job name exists.
-- 2026-09-02 — JR-34/JR-36 clarify the exact Landscape presentation as `Company | Job/Site | Contact` from separately stored values. The composition is Nova UI work; the Homeowner/Retail type/date contract remains contingent on Bhoumik.
+- 2026-08-30 — Drafted as the visible choice slice, initially bundled with broader type-specific workflow/data dependencies.
+- 2026-08-31 — Rosie’s approved naming procedure retained a factual Job name rather than a combined company/job value.
+- 2026-09-02 — JR-34/JR-36 clarified independent company/job/contact display composition; that requirement was routed separately to Nova.
+- 2026-09-11 05:19:04 CDT — Narrowed this draft to classification only after item-6 review. At that point customer persistence was unapproved; pricing policy, per-Job copies/snapshots, and date/naming changes were removed as prerequisites.
+- 2026-09-11 05:33:52 CDT — Bhoumik reports storage complete; migration and source reviewed read-only. Removed the data-contract blocker, recorded actual Homeowner/Retail vocabulary and Customers source UI, and kept focused-intake/Job display as an optional unrouted follow-on. No production writes or new implementation handoff.

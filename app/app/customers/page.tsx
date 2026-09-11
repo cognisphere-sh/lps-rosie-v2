@@ -52,6 +52,7 @@ function toRow(c: CustomerRow): Row {
     values: {
       name: c.name,
       company: c.company,
+      type: c.type,
       email: c.email,
       phone: c.phone,
       active_requests: active.length,
@@ -275,6 +276,9 @@ export default function CustomersPage() {
                       {String(row.values.company ?? '') ||
                         [row.values.city, row.values.state].filter(Boolean).join(', ') ||
                         'No company or address on file'}
+                    </div>
+                    <div className="text-[11.5px] text-muted-foreground">
+                      Type: {String(row.values.type ?? 'Not set')}
                     </div>
                   </div>
                   <div className="flex flex-none flex-col items-end gap-[3px] text-right">

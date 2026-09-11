@@ -745,6 +745,7 @@ split can be introduced by migration if multi-contact customers ever appear.
 | `id` | bigint identity | no | PK |
 | `name` | text | no | The person's name. Never guessed from an email address |
 | `company` | text | yes | |
+| `type` | text | yes | CHECK: `Homeowner/Retail` or `Landscape Professional`. NULL means unknown; no default or backfill. Added 2026-09-11 (migration 0090) |
 | `email` / `phone` | text | yes | Inline, unlike suppliers |
 | `address` / `city` / `state` / `zip` | text | yes | Free-text US address parts |
 | `notes` | text | yes | **Durable facts**, edited in place — same split as suppliers. There is no contact-log column beside it: `communication_notes` was **dropped 2026-08-25** by migration 0073 (empty on every row), the same move the supplier side made in 0063 — what was *said* lives in the rosie thread below |
@@ -963,6 +964,12 @@ the plugin, because that is what wakes the agent).
 Both tables are in the `supabase_realtime` publication: the app server holds
 one subscription on `threads` and relays changes to browsers over SSE
 (`docs/app/README.md`, *Agent chat*).
+
+Migration 0091 also publishes `job_requests`, `job_request_items`,
+`availability_requests`, `availability_request_items`, `customers` and
+`suppliers`. The same server subscription relays data-free job invalidations
+to internal app sessions, which re-read the existing APIs. RLS policies and
+default replica identities are unchanged; deletes do not need old row bodies.
 
 ### `app_users`
 

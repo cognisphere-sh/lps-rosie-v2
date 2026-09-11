@@ -4,19 +4,54 @@ import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
+import { useJobUpdates } from '@/lib/use-job-updates'
 
 import { AgentChatButton } from '@/components/workspace/agent-chat-button'
-import { EditableText, EditableTextarea, type EditProps } from '@/components/workspace/editable'
+import { EditableText, EditableTextarea, patchRow, type EditProps } from '@/components/workspace/editable'
 import { ChevronDown, ChevronRight, MailIcon, MapPinIcon, PhoneIcon } from '@/components/workspace/icons'
 import { RequestBody, addressLine } from '@/components/workspace/job-request'
 import { Shell } from '@/components/workspace/shell'
-import { customerThreadId } from '@/lib/customers'
+import { CUSTOMER_TYPES, customerThreadId } from '@/lib/customers'
 import { formatDate, money } from '@/lib/format'
 import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/lib/job-requests'
 import type { CustomerRequest, CustomerRow, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
 type Tab = 'requests' | 'orders'
+
+function CustomerTypeField({ customer, onSaved }: { customer: CustomerRow; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  return (
+    <div className="col-span-2 flex min-w-0 flex-col gap-1">
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-muted-foreground">Type</span>
+        <select
+          value={customer.type ?? ''}
+          disabled={saving}
+          onChange={async (event) => {
+            const next = event.target.value
+            setSaving(true)
+            setError('')
+            try {
+              await patchRow('customers', customer.id, 'type', next)
+              onSaved()
+            } catch (error) {
+              setError((error as Error).message)
+            } finally {
+              setSaving(false)
+            }
+          }}
+          className="h-11 w-full rounded-lg border border-input bg-card px-2 text-[13px] text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+        >
+          <option value="">Not set</option>
+          {CUSTOMER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+        </select>
+      </label>
+      {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
+    </div>
+  )
+}
 
 /** Statuses that mean a request is still live — what "active" counts. */
 const ACTIVE_STATUSES: readonly string[] = ACTIVE_JOB_STATUSES
@@ -176,6 +211,7 @@ export default function CustomerPage() {
   /** Bumped after every write — what makes an open request refresh. */
   const [version, setVersion] = useState(0)
   const reload = useCallback(() => setVersion((n) => n + 1), [])
+  useJobUpdates(reload, Number.isInteger(id))
 
   useEffect(() => {
     if (!Number.isInteger(id)) return
@@ -199,7 +235,7 @@ export default function CustomerPage() {
     }
   }, [id, version])
 
-  if (error || !Number.isInteger(id)) {
+  if ((error && !customer) || !Number.isInteger(id)) {
     return (
       <Shell page="customers" title="Customer">
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -299,6 +335,7 @@ export default function CustomerPage() {
               <div className="grid grid-cols-2 gap-2">
                 <Field {...edit} label="Name" column="name" value={customer.name} placeholder="name" />
                 <Field {...edit} label="Company" column="company" value={customer.company} placeholder="—" />
+                <CustomerTypeField customer={customer} onSaved={reload} />
                 <Field {...edit} label="Email" column="email" value={customer.email} placeholder="—" />
                 <Field {...edit} label="Phone" column="phone" value={customer.phone} placeholder="—" />
               </div>

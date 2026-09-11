@@ -2,6 +2,7 @@ import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import 'server-only'
 
 import type { CustomerFacets, CustomerRequest, CustomerRow, JobAddress } from '@/lib/rows'
+import type { CustomerType } from '@/lib/customers'
 import { supabase } from '@/lib/supabase'
 
 export const CUSTOMER_PAGE_SIZE = 25
@@ -16,6 +17,7 @@ interface CustomerRecord {
   id: number
   name: string
   company: string | null
+  type: CustomerType | null
   email: string | null
   phone: string | null
   address: string | null
@@ -29,7 +31,7 @@ interface CustomerRecord {
 }
 
 const COLUMNS =
-  'id, name, company, email, phone, address, city, state, zip, notes, rosie_thread_id, created_at, updated_at'
+  'id, name, company, type, email, phone, address, city, state, zip, notes, rosie_thread_id, created_at, updated_at'
 
 export interface CustomerFilters {
   state?: string[]
@@ -140,6 +142,7 @@ function toRow(r: CustomerRecord, requests: CustomerRequest[]): CustomerRow {
     id: r.id,
     name: r.name,
     company: r.company,
+    type: r.type,
     email: r.email,
     phone: r.phone,
     address: addressOf(r),

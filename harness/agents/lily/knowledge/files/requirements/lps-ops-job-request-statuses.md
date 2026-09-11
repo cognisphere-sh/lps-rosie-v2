@@ -1,64 +1,70 @@
 # Use Chris’s LPS Ops Job Request sales lifecycle and history
 
-- Status: staged — Sales vocabulary/migration implemented; lifecycle/history follow-through remains
+- Status: staged — Sales vocabulary/migration and item-7 workflow supported; separate history follow-through remains
 - Route: bhoumik
-- Priority: Lifecycle/history is current staged work; Closed Lost reason capture is low-priority follow-on
+- Priority: Existing lifecycle/history follow-through; Lost reason capture remains deferred
 - Raised: 2026-08-27 by Chris (via nova handoff, then Chris clarification)
 - Updated: 2026-09-11
 
 ## Problem
 
-LPS Ops needs one clear sales state for each customer Job Request and durable history of quote, availability and completion cycles. Earlier labels—Sourcing, Quoted, Quote Delivered, Pricing, Closed Won and Closed Lost—conflict with Chris’s now-authoritative sales vocabulary. Archived is not useful to Chris: bad/duplicate requests are exceptional deletions; legitimate work ends Won or Lost and remains reportable history.
-
-Quick quote opportunities remain outside Request Management until the customer re-engages for sourcing or timing work. Their later conversion begins a Job Request; an indicative quote must never be mistaken for current supplier-verified availability and price.
+LPS needs a clear sales state and trustworthy history for each Job Request. The exact Sales vocabulary is already implemented; earlier proposed labels or a separate quote-to-new-JR conversion must not be mistaken for prerequisites. Quote preparation, customer delivery, supplier responses and customer commitment are different facts even when they occur on the same JR.
 
 ## Evidence
 
-- 2026-09-01 feedback log, **Authoritative sales and plant statuses**: Chris defined the exact Sales set as **Active**, **Quote**, **Availability**, **Confirmed**, **Won**, **Lost**.
-- 2026-08-28 feedback log: Confirmed means the customer commits only after receiving current supplier-verified availability and price; Won is only after delivery/pickup and transaction completion.
-- 2026-08-29 feedback log, **Pricing then availability sales stages**: pricing work and quote revisions precede the Availability stage, where LPS/customer work toward consensus on current availability and purchase.
-- Current app audit: current requests use Sourcing, Quoted, Closed Won, Closed Lost and Archived; historic labels/records must survive a migration.
+- 2026-09-01 feedback log, **Authoritative sales and plant statuses**: Chris supplied **Active, Quote, Availability, Confirmed, Won, Lost**.
+- 2026-08-28 discussions distinguished customer commitment from transaction completion at delivery/pickup. Those historical discussions are retained in the raw feedback log; Lily’s later universal supplier-verification gate is not an implemented requirement.
+- 2026-09-11 05:38:08 CDT, Bhoumik, Telegram 289: quick quotes create/reuse a JR without an AR; later explicit availability work uses the same JR. No conversion or vocabulary build was authorized.
+- Current source/skill audit and Rosie’s read-only reply at 05:40:53 support that one-JR workflow. `job-requests` §§1/4/6/7, `quote-generation` §§1/4, `supplier-coordination` §§2/4 and migrations 0088/0089 establish the current boundaries. Detailed citations: `workspace/threads/main/tasks/status-lifecycle-clarification/audit-2026-09-11.md`.
 
-## What it should do
+## Current supported behavior — preserve, do not redesign
 
-Use this exact ordered Sales vocabulary for a Job Request: **Active**, **Quote**, **Availability**, **Confirmed**, **Won**, **Lost**.
+Use the exact ordered Sales labels **Active, Quote, Availability, Confirmed, Won, Lost**. Legacy Archived records remain historically readable, not a selectable new stage.
 
-Active is the active working state before the request is in a defined quote or live-availability phase. Quote is the sales phase for pricing work and quote revisions. Availability is the phase for current supplier availability-and-price work and customer consensus. Confirmed means the customer has committed after receiving the current verified package. Won means delivery/pickup and the transaction are complete. Lost is the other completed outcome.
+- **Active:** a real JR has been recorded; processing has not yet occurred. An explicit quick quote creates/reuses this JR and its thread. A simple price lookup creates neither JR nor AR.
+- **Quote:** completed pricing work or actual quote sharing advances Active to Quote. Even a completed no-match lookup is pricing work; this label alone does not prove customer delivery. Quick quoting creates no AR or supplier contact.
+- **Availability:** delivery of a supplier availability request through a partner portal or an actually sent email advances Active/Quote to Availability. A prepared public link is not an email send; supplier completion is not this Sales-stage trigger. Later Chris-instructed sourcing uses the same JR.
+- **Confirmed:** explicit customer acceptance records commitment. Current policy and implementation permit confirmation from Active, Quote or Availability **without requiring an AR or universally verified supplier package**. This does not establish supplier stock/price verification, place an order or close the Job.
+- **Won / Lost:** explicit closure. Chris’s business meaning for Won remains fulfilment and completed transaction, not order-ID creation; no automatic physical-delivery check was established by the audit. Silence is not an automatic Lost outcome.
 
-Quote deliveries, supplier submissions, LPS delivery of current supplier-verified availability-and-price, and later supplier changes are durable dated events within the applicable Sales stage, not substitute stages. A supplier re-submission does not automatically change the parent Sales status. At Confirmed, supplier coordination continues through the Order Details context until Won or Lost; terminal status closes related availability and order communication.
+Repeated pricing/quote events do not regress Availability or Confirmed or reopen terminal Jobs. Supplier input updates factual sourcing/AR information and internal alerts, not parent Sales status or customer acceptance. The event hooks implement these automatic transitions; generic admin edits validate vocabulary, not a universal evidence/transition matrix.
 
-Define durable stored values, allowed transitions, reporting/history treatment and a safe mapping for current Sourcing, Quoted, Closed Won, Closed Lost, Archived and any earlier proposed labels. Plant Request and Order statuses are separate domains governed by `availability-status-model-parity` and must never be used as Job Request Sales statuses.
+Chris authorization for customer sends and supplier email remains unchanged. Existing standing authorization for ordinary APS private portal requests does not make a quick-quote request an authorization to publish an AR.
 
-## Acceptance criteria
+Confirmed keeps existing supplier ARs open. Terminal closure closes ARs, revokes public links and closes the JR thread; authorized reopening restores recorded AR stages and fresh public links. Customer/supplier correspondence threads are not the JR thread. A separate supplier Order Details workspace is not created merely by setting Confirmed; the audited Orders page remains a placeholder.
 
-- A Job Request Sales control, filter, summary and history use only **Active**, **Quote**, **Availability**, **Confirmed**, **Won** and **Lost**, in that wording.
-- Quick quote opportunities remain outside Request Management; a converted Job Request enters an appropriate active Sales stage without treating an indicative quote as verified availability.
-- Confirmed means customer commitment, not fulfilment; Won occurs only at delivery/pickup and transaction completion.
-- Quote deliveries, supplier submissions and current availability-and-price deliveries remain dated/reviewable events without inventing additional Sales statuses.
-- Supplier changes do not automatically move the parent Job Request stage.
-- Won/Lost leave active work and Rosie's open Job Request picker but remain in Job Request Historical; terminal closure closes related availability/order communication.
-- Existing legitimate records map or remain historically legible without disappearance, relabeling their history deceptively, or losing audit information.
+## Acceptance criteria and existing follow-through
 
-## Deferred follow-on — not an immediate build item
+- Sales controls and active filters use the six exact labels; legacy history remains legible.
+- Explicit quick quote and later explicit sourcing share one JR/thread and reviewed current lines; no second-record conversion is required and quoting alone creates no AR.
+- Quote preparation and actual authorized customer delivery remain distinguishable.
+- Explicit customer confirmation is distinct from supplier verification, order placement and closure; do not assert an unimplemented mandatory AR gate.
+- Supplier changes do not automatically move Sales status or send customer-facing information.
+- Won/Lost leave active work while retaining historical records; related AR closure and public-link revocation follow the current lifecycle.
+- Earlier requested quote/availability delivery history and historical reporting remain **separate staged follow-through**. The current stage hook audits stage changes but is not proof that every repeated quote event has a durable versioned record. No new event engine is commissioned by this reconciliation.
 
-- Lost requires and saves one reason: Price, Different Vendor, Unable to Fulfill Request, No Response, or NA; expose it in history/querying then.
+## Deferred follow-on — not a current prerequisite
+
+- Lost reason capture: Price, Different Vendor, Unable to Fulfill Request, No Response, or NA.
+- Chris’s future separate Quotes/customer-deal dashboard wish. It is not required for item 7 and must not reinstate a separate quote-record/new-JR conversion assumption.
 
 ## Out of scope
 
-- Individual plant Request or Order statuses.
-- Supplier portal selector styling.
-- Customer/supplier identity metadata and a general chat-status system.
+- New Sales vocabulary, conversion workflow or stricter confirmation policy.
+- Individual plant Request/Order status definitions and supplier portal selector styling.
+- Changes to agent skills, code, data, runtime statuses, deployment or external-send authorization.
 
-## Open questions
+## Open scope / evidence limits
 
-- **Bhoumik:** Define durable values, permitted transitions and migration/display mapping for Sourcing, Quoted, Closed Won, Closed Lost, Archived, Quote Delivered and Pricing; do not silently collapse historical facts.
-- **Bhoumik:** Confirm the entry/transition rule between Active and Quote for a converted Job Request, while preserving the existing separation of quick quote opportunities from Request Management.
-- **Bhoumik:** Define quote/availability events, supplier-change notifications, Order Details continuity and terminal closure against this Sales model.
+- **Bhoumik, only if he wants a policy change:** any stricter requirement for supplier verification before Confirmed needs his explicit decision. It is not current enforcement and not an item-7 blocker.
+- The separate historical-reporting/event-history and Order Details requests remain subject to their own scope decisions; do not represent them as shipped from a Sales-status audit.
+- Nine local status/filter tests passed in the read-only audit. No live JR/AR, production query, customer/supplier send or deployment verification was performed. Source and current instructions support item 7; end-to-end live execution was not tested.
 
 ## Handoff log
 
 - 2026-08-27 — staged for Bhoumik; workflow/data rather than Nova UI work.
-- 2026-08-28 — Archived retired; history/reporting and exceptional deletion added. Confirmed/Won closure semantics clarified.
-- 2026-08-29 — Chris refined the sales flow to Pricing then Availability, with quote deliveries and supplier submissions as events.
-- 2026-09-01 — Chris supplied authoritative Sales labels: Active, Quote, Availability, Confirmed, Won, Lost. Requirement revised; durable model and migration remain staged for Bhoumik, with Nova UI mapping held until that contract exists.
-- 2026-09-11 — Audit after Bhoumik marked priority item 1 done: current app/schema/docs implement and display the exact six Sales labels, retain legacy archived readability, and enforce documented Active → Quote → Availability → Confirmed progression. This completes the Sales-vocabulary/migration slice; full lifecycle/history requirement remains staged for its separate event/history and deferred Lost-reason acceptance.
+- 2026-08-28 — Archived retirement, history/reporting and deferred Lost reasons captured; customer commitment and terminal completion distinguished.
+- 2026-08-29 — Chris discussed pricing and availability phases and recurring deliveries; retained as historical evidence.
+- 2026-09-01 — Chris supplied the authoritative six Sales labels.
+- 2026-09-11 — Vocabulary/migration slice reported implemented. Later current-source audit clarified this is event-driven progression, not a mandatory passage through every stage or a universal verified-package confirmation gate.
+- 2026-09-11 05:49:31 CDT — Reconciled Bhoumik’s one-JR correction throughout the requirement. Main has told Bhoumik item 7 is supported and no new vocabulary/conversion is needed. Earlier separate-record and manual-new-JR prerequisites are superseded; future dashboard remains deferred. No implementation or agent-skill changes.

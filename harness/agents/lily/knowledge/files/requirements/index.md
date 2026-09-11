@@ -19,17 +19,17 @@ A workflow change counts — not everything here is software.
 | `catalog-photo-intake-review` | Review submitted catalog photos before publishing | staged | bhoumik |
 | `mobile-agent-chat-translucent-header` | Make the mobile agent-chat header translucent | routed | nova |
 | `job-request-delete-safety` | Make deleting a job request safe on mobile | shipped | nova |
-| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops Job Request sales lifecycle and history | staged · Sales vocabulary/migration implemented | bhoumik |
-| `quote-opportunity-to-job-request-conversion` | Keep quick quote opportunities out of Request Management until sourcing starts | staged | bhoumik |
-| `new-job-intake-customer-type-choice` | Let Chris identify a homeowner or landscape professional when a new job starts | drafted · ready after durable contract | nova |
-| `customer-type-retail-landscape-workflow-pricing` | Work homeowners as retail customers and landscape professionals as contractors | staged | bhoumik |
+| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops Job Request sales lifecycle and history | staged · Sales labels/item7 supported; separate history follow-through | bhoumik |
+| `quote-opportunity-to-job-request-conversion` | Quick quote first, availability later, on the same Job Request | staged · item7 supported; future dashboard deferred, no conversion build | bhoumik |
+| `new-job-intake-customer-type-choice` | Let Chris identify a homeowner or landscape professional when a new job starts | drafted · optional intake/Job display; storage complete | nova |
+| `customer-type-retail-landscape-workflow-pricing` | Distinguish homeowners from landscape professionals without changing pricing yet | shipped · minimal customer storage; commercial policy open | bhoumik |
 | `availability-last-updated-display` | Show when availability was last updated | routed | nova |
 | `availability-last-updated-semantics` | Define and retain the availability-update time | staged | bhoumik |
 | `availability-response-change-management` | Keep supplier availability responses visible to LPS | staged | bhoumik |
 | `availability-change-indicators` | Show supplier-response state without crowding requests | drafted | nova |
 | `customer-availability-update-workspace` | Show LPS-published availability in customer job details | drafted · urgent dependency | nova |
 | `customer-job-request-details-workspace` | Give customers a current job request details workspace | staged · urgent | bhoumik |
-| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · urgent | bhoumik |
+| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · deferred pending sourcing stabilisation; no order build | bhoumik |
 | `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
 | `supplier-outreach-human-tone` | Ask suppliers about availability like a person | shipped | rosie |
 | `approved-voice-playbook-governance` | Keep a reviewed playbook for writing in Chris’s voice | drafted | bhoumik |
@@ -51,12 +51,12 @@ A workflow change counts — not everything here is software.
 | `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · partial; Request UI mapping blocked | bhoumik |
 | `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | shipped · core access | bhoumik |
 | `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | shipped · core access | bhoumik |
-| `availability-request-created-feedback` | Say created, not sent, when an availability request is ready | routed | nova |
-| `supplier-email-identity-and-handoffs` | Keep supplier email identity clear while Daisy and Rosie hand work off safely | staged | bhoumik |
+| `availability-request-created-feedback` | Say created, not sent, when an availability request is ready | routed · deployment unverified; release hold | nova |
+| `supplier-email-identity-and-handoffs` | Keep supplier communication clear under the stated agent roles | staged · ownership clarified; setup held for Bhoumik–Chris discussion | bhoumik |
 | `mobile-availability-request-view` | Make the availability-request view usable on a phone | routed · priority 3 | nova |
-| `mobile-field-request-workflow` | Make mobile request work dependable in the field | staged | bhoumik |
-| `mobile-request-update-response-workflow` | Define when a mobile request update has been received, worked or failed | staged | bhoumik |
-| `mobile-request-update-response-state` | Show the current response state for a mobile request update | drafted · blocked by workflow | nova |
+| `mobile-field-request-workflow` | Make mobile request work dependable in the field | staged · partial read-only verification; UI corrections unapproved | bhoumik |
+| `mobile-request-update-response-workflow` | Optional durable response tracking for mobile updates | staged · optional/unapproved; deferred pending existing-path findings | bhoumik |
+| `mobile-request-update-response-state` | Optional mobile request-response display | drafted · optional/unapproved; deferred pending existing-path findings | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed | nova |

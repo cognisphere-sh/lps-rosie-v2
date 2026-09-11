@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test, { afterEach } from 'node:test'
 
-import { GET, POST, CHAT_UPSTREAM_TIMEOUT_MS, THREAD_ID_MAX_CHARS, THREAD_ID_MAX_UTF8_BYTES } from '../app/api/chat/[...path]/route'
+import { GET, POST } from '../app/api/chat/[...path]/route'
+import { CHAT_UPSTREAM_TIMEOUT_MS, THREAD_ID_MAX_CHARS, THREAD_ID_MAX_UTF8_BYTES } from './chat-request'
 import {
   CANONICAL_QUEUE_LIMITS,
   canonicalQueueSnapshot,
