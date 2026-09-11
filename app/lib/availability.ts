@@ -61,7 +61,7 @@ export type ARResponse = (typeof AR_RESPONSES)[number]
 export const AR_RESPONSE_META: Record<ARResponse, { label: string; tone: Tone }> = {
   available: { label: 'Available', tone: 'green' },
   can_order: { label: 'Need to Order', tone: 'amber' },
-  diff_size_qty_sub: { label: 'Different Sz/Qnty/Sub', tone: 'teal' },
+  diff_size_qty_sub: { label: 'Diff Sz/Qnty/Sub', tone: 'teal' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
   unavailable: { label: 'Unavailable', tone: 'red' },
 }

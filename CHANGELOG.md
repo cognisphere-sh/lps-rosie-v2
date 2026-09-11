@@ -28,6 +28,13 @@ here).
 
 ### Changed
 
+- Shortened the plant status label to Diff Sz/Qnty/Sub across job and availability
+  pickers, partner views, answer dialogs, summaries and print sheets. Saved
+  filters using the previous Different Sz/Qnty/Sub label restore to the new
+  label; stored status keys and supplier answers remain unchanged.
+  Validated with 31 status/selector tests, typecheck and a production build;
+  deployed and verified both labels in the live app.
+
 - Job Request statuses now read Active, Quote, Availability, Confirmed, Won and
   Lost. Availability is again a separate working stage. Pickers, filters, job
   counts and saved selections use the six-stage list. Migration 0089 preserves

@@ -583,7 +583,7 @@ const ANSWER_FIELDS: Record<
     notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
   },
   diff_size_qty_sub: {
-    title: 'Different Sz/Qnty/Sub',
+    title: 'Diff Sz/Qnty/Sub',
     // What you can supply instead is priced on its own terms.
     price: true,
     // The answer covers a different size, a short quantity or another plant,
@@ -605,7 +605,7 @@ const ANSWER_FIELDS: Record<
 
 /**
  * Picking a status opens this pop-up for the rest of the answer, so a line is
- * answered whole in one go: Different Sz/Qnty/Sub takes a quantity, a price and
+ * answered whole in one go: Diff Sz/Qnty/Sub takes a quantity, a price and
  * the note; Need to Order and Arriving Soon take a price and the note; Unavailable
  * the note alone, with the format hinted. Available asks nothing and never
  * opens this. The inline cells stay for later tweaks.
@@ -661,7 +661,7 @@ function StatusAnswerDialog({
   const save = () => {
     const changes: Record<string, string> = { status, notes: notes.trim() }
     // An empty quantity clears the column, which is what `clearQty` wants and
-    // what an emptied box on a Different Sz/Qnty/Sub answer means too.
+    // what an emptied box on a Diff Sz/Qnty/Sub answer means too.
     if (spec.qty) changes.available_quantity = qty.trim()
     else if (spec.clearQty) changes.available_quantity = ''
     // An emptied price box clears the column, exactly as the Price cell does.

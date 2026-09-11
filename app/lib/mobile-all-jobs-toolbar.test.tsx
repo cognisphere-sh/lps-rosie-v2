@@ -713,7 +713,7 @@ test('v3 ignores inline expansion state on mobile while expanded desktop keeps c
   assert.match((view.container.querySelector('[data-mobile-pending-summary]') as HTMLElement).textContent ?? '', /7\s*Pending/)
 
   view.rerender(<StaticCard request={request} mobile={false} expanded />)
-  for (const label of ['Available', 'Unavailable', 'Different Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending']) assert.ok(view.getByText(label))
+  for (const label of ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending']) assert.ok(view.getByText(label))
   assert.ok(view.getByRole('button', { name: 'Delete JR-27' }))
   assert.ok(view.getByRole('button', { name: 'Job details & notes' }))
 })

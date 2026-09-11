@@ -1,9 +1,9 @@
 # Give Rosie turquoise and reference blue reusable accent palettes
 
-- Status: routed
+- Status: shipped
 - Route: nova
 - Raised: 2026-09-09 by Chris (via Nova handoff; Telegram message 562 / photo 562)
-- Updated: 2026-09-09
+- Updated: 2026-09-11
 
 ## Problem
 
@@ -66,3 +66,4 @@ Make the tokens available for future component work without globally recoloring 
 - 2026-09-09 — Nova acknowledged and assigned the work to its palette audit/implementation owner. Scope remains token definitions plus representative component evidence only; technical checks and independent visual QA are required before deployment.
 - 2026-09-09 — Nova reports implementation landed in commit `9751f5d` after Focused (`092348d`), Plant (`0fc8155`) and Portal (`d14157e`): 20 light/dark tokens with reviewed Rosie/Job-Request representative accents. Independent technical release gate and exact-commit visual QA are pending; it is not deployed.
 - 2026-09-11 — Nova reports exact-stack `9751f5d` passed independent visual QA (120 states/screenshots, no blockers) and technical gate/build (257/257 tests). Awaiting Bhoumik’s explicit app-only restart authorization; not deployed, so status remains routed.
+- 2026-09-11 — Bhoumik authorized the app-only restart. Deployment evidence confirms the app’s production `next start` process began at 04:06 CDT after a 04:04 CDT build; the current app checkout includes `9751f5d`, its 20 light/dark tokens and documented representative Rosie/JR uses. Shipped.

@@ -81,7 +81,7 @@ test('portal picker opens a themed listbox with unanswered plus the five canonic
   const options = within(listbox).getAllByRole('option')
   assert.deepEqual(
     options.map((option) => option.children[1]?.textContent),
-    ['Available', 'Unavailable', 'Different Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
   )
   assert.equal(within(listbox).getByRole('option', { name: 'Arriving Soon' }).getAttribute('aria-selected'), 'true')
   assert.match(within(listbox).getByRole('option', { name: 'Unavailable' }).className, /min-h-9/)
@@ -456,6 +456,6 @@ test('admin line picker remains the existing native select', () => {
   const select = view.getByRole('combobox', { name: 'Line status' })
   assert.deepEqual(
     within(select).getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Unavailable', 'Different Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending'],
   )
 })

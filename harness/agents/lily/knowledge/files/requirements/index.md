@@ -70,5 +70,5 @@ A workflow change counts — not everything here is software.
 | `plant-search-match-before-geography` | Find the exact plant and size before narrowing by geography | drafted | daisy |
 | `plant-search-result-location-clarity` | Show where each Plant Search match is located | routed | nova |
 | `customer-review-status-color` | Make approved customer-review availability statuses easy to scan in web chat | drafted · blocked by status model | nova |
-| `app-accent-palette-tokens` | Give Rosie turquoise and reference blue reusable accent palettes | routed | nova |
+| `app-accent-palette-tokens` | Give Rosie turquoise and reference blue reusable accent palettes | shipped | nova |
 | `desktop-notification-rail-trigger` | Put desktop Notifications in their marked rail homes | routed · queued behind desktop-shell visual-QA/deployment gate | nova |

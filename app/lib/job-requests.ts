@@ -72,7 +72,7 @@ export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: T
 export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }> = {
   pending: { label: 'Pending', tone: 'grey' },
   available: { label: 'Available', tone: 'green' },
-  alternative_proposed: { label: 'Different Sz/Qnty/Sub', tone: 'teal' },
+  alternative_proposed: { label: 'Diff Sz/Qnty/Sub', tone: 'teal' },
   unavailable: { label: 'Unavailable', tone: 'red' },
   need_to_order: { label: 'Need to Order', tone: 'amber' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
