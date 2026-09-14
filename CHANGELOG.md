@@ -15,6 +15,13 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-14
+
+### Changed
+
+- Job request plant status now displays Can Order instead of Need to Order.
+  Existing saved filters restore the renamed label; stored status values stay the same.
+
 ## 2026-09-11
 
 ### Fixed

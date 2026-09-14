@@ -20,7 +20,7 @@ to Won/Lost. The former combined In Progress filter expands to Quote and
 Availability; explicit current selections remain unchanged.
 
 Job plants offer **Available**, **Unavailable**, **Diff Sz/Qnty/Sub**,
-**Need to Order**, **Arriving Soon**, **Pending**. Availability-request plants
+**Can Order**, **Arriving Soon**, **Pending**. Availability-request plants
 use **Can Order** in the fourth position, including partner/public request
 pages, answer dialogs, summaries, filters, status boards and print sheets.
 The two row types retain their respective stored values (see the schema).
@@ -122,7 +122,7 @@ fidelity", start here rather than reverting one of these by accident:
 | `Job Requests` is a **live route** (`/requests`) | Was rendered disabled while it was out of scope; the Order Requests design is now implemented against the real `job_requests` tables. |
 | Requests are **collapsed cards that expand**, not one always-open grouped table | Asked for directly: a request is scanned by its metadata and counts first, and opened only when its lines matter. The mock's left-hand merged "order" cell becomes the card head, which is also what makes the screen work on a narrow viewport. |
 | Selection and the bulk action bar exist, but the bar's **actions are Set status and Availability request**, not the mock's Email quote / Text quote / Place order / PDF quote | The checkboxes and the bar are the design's; what they can do is bounded by what exists. The remaining mock actions are approval-gated flows with no implementation — Rosie has no mailbox and may not contact a customer unbidden (`docs/harness/agent-rosie.md`), and order placement is the request→order conversion deferred by migration 0055. **Send availability request** joined the bar with migration 0062: it writes a database row an LPS Partner reads in their own portal, not outreach. |
-| Plant status choices across job and availability-request rows | **Available**, **Unavailable**, **Diff Sz/Qnty/Sub**, **Need to Order** (jobs) / **Can Order** (availability), **Arriving Soon**, **Pending**, in that order. Job lines use `need_to_order` and retain `alternative_proposed`; supplier answers retain `can_order` and `diff_size_qty_sub`. Supplier Pending saves NULL, retains quantity/price/notes, and does not count as answered. Portal listboxes, admin native selects, By item filters, status cards, summaries and print checklists share these labels. Portal selectors retain viewport clamping and keyboard support. |
+| Plant status choices across job and availability-request rows | **Available**, **Unavailable**, **Diff Sz/Qnty/Sub**, **Can Order**, **Arriving Soon**, **Pending**, in that order. Job lines use `need_to_order` and retain `alternative_proposed`; supplier answers retain `can_order` and `diff_size_qty_sub`. Supplier Pending saves NULL, retains quantity/price/notes, and does not count as answered. Portal listboxes, admin native selects, By item filters, status cards, summaries and print checklists share these labels. Portal selectors retain viewport clamping and keyboard support. |
 | The portal's request list has **only three work buckets**, not an admin filter toolbar | The list was first simplified in 2026-08-26, then its single-choice All/New/Processing/Completed tabs became short-lived multi-select New/Processing/Completed buckets in 2026-09-03. A supplier starts on the real active queue (New + Processing), can include Completed or Select all, and gets global counts; search, job-status / item-status / customer chips, date range, sort and Expand all still cost more than they find here. The item-answer question has its own By item controls. **The server-side filters stay**, deliberately: nothing was removed from the API. |
 | The portal's cards **navigate**, they don't expand | Also asked for directly (2026-08-26), and the opposite of the admin `/requests` card above it in this table — deliberately. The admin scans many jobs and dips into one; a supplier opens a request to *do* it, and the line editor, the answer dialogs and the Submit button are the page, not a disclosure inside a list item. It also gives the answer sheet the whole viewport on a phone, which is where suppliers actually answer. |
 | The mock's one **Notes** column is two: **Shared note** and **Sourcing note** | The mock's sample data has a single undifferentiated thread; the real schema has three audiences with three different rules. A single cell cannot honestly edit a field written for the customer *and* our own working sheet in the same control, so each gets its own column and its own popover. The customer's own words appear as a third thing — a read-only line under the item name, where the ask is read. |
@@ -1400,7 +1400,7 @@ name, and a stand-in like "Request 12" would read as though somebody had named
 it.
 
 **Plant status uses six choices.** Job lines offer Available, Unavailable,
-Diff Sz/Qnty/Sub, Need to Order, Arriving Soon and Pending. Migration
+Diff Sz/Qnty/Sub, Can Order, Arriving Soon and Pending. Migration
 0083 retains existing stored values and adds `need_to_order` and
 `arriving_soon`. Quantity shortfalls keep the saved Available label with a
 coverage tint; quantity cells show the shortfall. The six summary buckets use

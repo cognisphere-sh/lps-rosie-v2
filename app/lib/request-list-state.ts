@@ -32,6 +32,7 @@ export function normalizeStoredRequestStatusLabels(
   const normalized: string[] = []
   const legacy: Record<string, string[]> = {
     Substituted: ['Diff Sz/Qnty/Sub'], 'Different Sz/Qnty/Sub': ['Diff Sz/Qnty/Sub'],
+    'Need to Order': ['Can Order'],
     Sourcing: ['Active'], New: ['Active'],
     Quoted: ['Quote'], 'Quote Delivered': ['Quote'], 'In Progress': ['Quote', 'Availability'],
     'Closed won': ['Won'], 'Closed Won': ['Won'], 'Closed lost': ['Lost'], 'Closed Lost': ['Lost'],

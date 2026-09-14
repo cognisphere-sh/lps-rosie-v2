@@ -14,9 +14,10 @@ test('working sales stages stay active and terminal/legacy archived jobs do not'
 })
 
 test('both plant pickers use the requested order and preserve saved status labels for partial quantities', () => {
-  const labels = ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Pending']
+  const labels = ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending']
   assert.deepEqual(ITEM_STATUS_OPTIONS.map((o) => o.label), labels)
   assert.deepEqual(AR_RESPONSE_OPTIONS.map((o) => o.label), ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending'])
+  assert.deepEqual(normalizeStoredRequestStatusLabels(['Need to Order', 'Can Order'], ITEM_STATUS_OPTIONS, []), ['Can Order'])
   assert.equal(itemPill('available', 12, 4).label, 'Available')
   assert.equal(arResponseLabel(null), 'Pending')
 })

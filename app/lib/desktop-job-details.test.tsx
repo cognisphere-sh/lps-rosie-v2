@@ -438,7 +438,7 @@ test('focused header exposes summary and customer, AR and supplier routes before
   assert.ok(within(header).getByText('$1,250.50'))
   assert.ok(within(header).getByText('3'))
   assert.ok(within(header).getByText('4'))
-  for (const label of ['Pending', 'Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Need to Order', 'Arriving Soon', 'Total items']) {
+  for (const label of ['Pending', 'Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Total items']) {
     assert.ok(within(header).getByText(label))
   }
   const customer = view.getByRole('button', { name: /Open the customer conversation/ })
