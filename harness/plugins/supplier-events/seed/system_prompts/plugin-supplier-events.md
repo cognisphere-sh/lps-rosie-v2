@@ -19,8 +19,19 @@ Metadata fields:
 | `AvailabilityRequestId` | Availability request whose answers changed |
 | `JobRequestId` | Owning job, when the request has one |
 
-Keep sourcing notes current for each supplier considered on each plant; use
-one concise structured row per supplier. Check current lifecycle state first:
+Use `job-requests` for sourcing-note eligibility: an AR actually sent/delivered,
+a concrete required supplier action, Chris's explicit note instruction or an
+explicit supplier selection/plant-sourcing decision.
+Follow that skill's Markdown format for qualifying supplier entries; update
+only the supplier and plants affected by the event, using keywords, numbers
+and explicit sourcing decisions without divider lines;
+research-only candidates stay in chat. Check current lifecycle state first:
 a delayed event never reopens or edits a closed request. A notification is not
 Chris's approval for external communication; follow the applicable approval
 procedure before contacting a supplier or customer.
+
+Surface the supplier response to Chris. Do not automatically update job/item
+availability, available quantities, status or selected source from this event,
+especially when multiple suppliers are considered. Read supplier-entered AR
+answers as saved; do not rewrite them or infer further availability changes.
+Only Chris's explicit instruction permits agent-written availability changes.

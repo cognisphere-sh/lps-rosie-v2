@@ -3,7 +3,8 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-08-30 by Chris (via Telegram messages 431–432 and 435 / Nova handoff)
-- Updated: 2026-09-08
+- Updated: 2026-09-11
+- Follow-on: `all-jobs-compact-filter-selectors` — compact mobile selectors and shared fresh-entry/reset open-stage baseline; does not reopen the card layout.
 
 ## Problem
 
@@ -25,7 +26,7 @@ On mobile, make every All Jobs card a direct, tight two-row scan entry with **no
 - **Row 1, exact order:** `JR reference · full plain-language sales status · Customer/Company · Job name`.
 - **Row 2, exact order:** clearly labelled Pending count/indicator at left · visible **Rosie Chat** action at right.
 
-Show the actual full status label, not opaque codes: for example `Sourcing`, `Quote Delivered`, `Closed won` and the equivalent full existing labels for other states. This is a presentation change only: it does not alter the status model, stored value or lifecycle.
+Show the actual full current status labels, not opaque codes: **Active, Quote, Availability, Confirmed, Won, Lost**. This is a presentation change only: it does not alter the status model, stored value or lifecycle.
 
 Use the reclaimed chevron width and tight spacing for the customer/company and job identity. The card is exactly two content rows, with maximum 10–12px outer vertical padding and a 6px row gap; it has no dead reserved height. At a blank Job name, do not repeat the separately displayed JR reference as a fallback. Show truthful customer/company identity alone or a neutral non-identifier missing-job treatment.
 
@@ -39,7 +40,7 @@ Install Date and Delivery/Pickup remain absent until Bhoumik’s staged durable 
 
 - At 320px, 390px and 480px, each collapsed mobile All Jobs card is exactly two content rows, has no inline expansion/chevron, no wrapping, clipping, overlap, horizontal page scrolling or dead reserved space.
 - Card outer vertical padding is no more than 10–12px; Row 1/Row 2 gap is 6px.
-- Row 1 is exactly ordered JR reference · full understandable sales-status label · Customer/Company · Job name. It shows full labels such as Sourcing and Quote Delivered, never codes such as Src or QD alone.
+- Row 1 is exactly ordered JR reference · full understandable sales-status label · Customer/Company · Job name. It shows only the current full labels Active, Quote, Availability, Confirmed, Won, Lost, never cryptic abbreviated status codes.
 - Customer/company and job identity receive the reclaimed chevron width and all remaining flexible Row 1 space after JR/status. A blank Job name does not repeat the JR reference.
 - Row 2 shows labelled Pending at left and a visible named Rosie Chat action at right. Rosie Chat is not an unlabeled/floating avatar and retains a 44px touch target, accessible name and canonical Job-thread route.
 - Tapping Job identity opens the existing focused Job view.

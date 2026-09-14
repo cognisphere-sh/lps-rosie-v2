@@ -6,7 +6,7 @@
 // over the same endpoint; nothing here knows which table it is editing,
 // because the server decides that from its whitelist.
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 
 import { useToast } from '@/components/workspace/shell'
 import { cn } from '@/lib/utils'
@@ -169,7 +169,15 @@ export function EditableTextarea({
   value,
   placeholder,
   touchTarget = false,
-}: EditProps & { value: string | null; placeholder: string }) {
+  renderPreview,
+  editLabel = 'Edit note',
+}: EditProps & {
+  value: string | null
+  placeholder: string
+  /** Formatted read view, kept outside the edit button so links remain usable. */
+  renderPreview?: (value: string) => ReactNode
+  editLabel?: string
+}) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -206,6 +214,7 @@ export function EditableTextarea({
     return (
       <textarea
         autoFocus
+        aria-label={renderPreview ? editLabel : undefined}
         rows={3}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -230,11 +239,12 @@ export function EditableTextarea({
     )
   }
 
-  return (
+  const editButton = (
     <button
       ref={trigger}
       type="button"
       disabled={busy}
+      aria-label={renderPreview ? editLabel : undefined}
       onClick={(e) => {
         e.stopPropagation()
         setDraft(current)
@@ -247,7 +257,15 @@ export function EditableTextarea({
         busy && 'opacity-50',
       )}
     >
-      {current || <span className="text-lps-dim">{placeholder}</span>}
+      {renderPreview && current ? editLabel : current || <span className="text-lps-dim">{placeholder}</span>}
     </button>
+  )
+
+  if (!renderPreview || !current) return editButton
+  return (
+    <div className="min-w-0 text-[12.5px] text-foreground" onClick={(event) => event.stopPropagation()}>
+      <div className="p-2">{renderPreview(current)}</div>
+      {editButton}
+    </div>
   )
 }

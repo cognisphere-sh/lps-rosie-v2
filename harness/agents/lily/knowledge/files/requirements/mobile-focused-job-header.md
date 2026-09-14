@@ -3,7 +3,11 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-08-31 by Chris (via Nova handoff; Telegram message 439 / photo 438)
-- Updated: 2026-08-31
+- Updated: 2026-09-13 17:09:01 CDT
+
+## Latest mobile placement refinement
+
+`focused-job-header-layout` now records Chris’s September13 **mockup-only** two-row proposal: top JR / Company / current Status / Total; below atomic Job / calendar + month-day estimated install date / Rosie. Await visual feedback; do not continue the September11 one-group implementation as latest approved design. Telegram615 now rejects repetition in the first preview: Company appears once, lower Job only when meaningfully distinct, supporting real person + customer Chat only. This local mockup rule supersedes older equal-value repeated display, not independent storage or global identity helpers. A suppressed duplicate Job remains present/editable; never show Add Job name unless truly missing. Separate customer Chat outside the compact group and the Rosie chooser remain; removal was withdrawn595. Sample total/date are not saved facts or permission for structural work; current contracts must be rechecked before any later build.
 
 ## Problem
 

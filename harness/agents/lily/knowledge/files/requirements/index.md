@@ -23,6 +23,7 @@ A workflow change counts — not everything here is software.
 | `quote-opportunity-to-job-request-conversion` | Quick quote first, availability later, on the same Job Request | staged · item7 supported; future dashboard deferred, no conversion build | bhoumik |
 | `new-job-intake-customer-type-choice` | Let Chris identify a homeowner or landscape professional when a new job starts | drafted · optional intake/Job display; storage complete | nova |
 | `customer-type-retail-landscape-workflow-pricing` | Distinguish homeowners from landscape professionals without changing pricing yet | shipped · minimal customer storage; commercial policy open | bhoumik |
+| `company-only-customer-intake` | Save a known customer company before a contact person is known | staged · JR-41 blocker; identity contract decision required | bhoumik |
 | `availability-last-updated-display` | Show when availability was last updated | routed | nova |
 | `availability-last-updated-semantics` | Define and retain the availability-update time | staged | bhoumik |
 | `availability-response-change-management` | Keep supplier availability responses visible to LPS | staged | bhoumik |
@@ -49,8 +50,8 @@ A workflow change counts — not everything here is software.
 | `portal-availability-selector-dark-style` | Keep the Nursery Portal availability selector readable in the dark portal | routed | nova |
 | `portal-request-work-buckets` | Keep wholesale availability requests in clear work buckets | routed | nova |
 | `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · partial; Request UI mapping blocked | bhoumik |
-| `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | shipped · core access | bhoumik |
-| `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | shipped · core access | bhoumik |
+| `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | shipped · core access; optional channel fit clarified Sep 11 | bhoumik |
+| `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | shipped · core access; optional channel fit clarified Sep 11 | bhoumik |
 | `availability-request-created-feedback` | Say created, not sent, when an availability request is ready | routed · deployment unverified; release hold | nova |
 | `supplier-email-identity-and-handoffs` | Keep supplier communication clear under the stated agent roles | staged · ownership clarified; setup held for Bhoumik–Chris discussion | bhoumik |
 | `mobile-availability-request-view` | Make the availability-request view usable on a phone | routed · priority 3 | nova |
@@ -59,12 +60,15 @@ A workflow change counts — not everything here is software.
 | `mobile-request-update-response-state` | Optional mobile request-response display | drafted · optional/unapproved; deferred pending existing-path findings | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed | nova |
-| `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed | nova |
+| `all-jobs-compact-filter-selectors` | Open compact Job filters only when needed | routed | nova |
+| `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
+| `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
 | `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed | nova |
-| `job-request-install-date-fulfillment` | Keep fulfillment and private handling notes simple for now | staged · notes-first | bhoumik |
+| `job-request-install-date-fulfillment` | Keep fulfillment and private handling notes simple for now | staged · notes-first; future mobile date/mode capacity requested | bhoumik |
 | `focused-job-chat-routing` | Keep a focused Job chat on the current request | shipped | nova |
+| `mobile-conversation-navigation` | Make separate conversations easier to navigate on mobile | drafted · low priority; held for Bhoumik discussion, no build authorized | nova |
 | `urgent-pricing-update-workflow` | Make urgent pricing updates reach the right Job without delay | staged | bhoumik |
 | `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged · audit reviewed; broad workflow proposal held | bhoumik |
 | `visual-ui-qa-gate` | Gate UI releases on real visual review | shipped | nova |
@@ -73,3 +77,5 @@ A workflow change counts — not everything here is software.
 | `customer-review-status-color` | Make approved customer-review availability statuses easy to scan in web chat | drafted · blocked by status model | nova |
 | `app-accent-palette-tokens` | Give Rosie turquoise and reference blue reusable accent palettes | shipped | nova |
 | `desktop-notification-rail-trigger` | Put desktop Notifications in their marked rail homes | routed · queued behind desktop-shell visual-QA/deployment gate | nova |
+| `weekday-plant-news-page-ui` | Design-led daily brief and articles for prospects and the LPS team | routed · PROTOTYPE COMPLETE ONLY; private static preview, public release held | nova |
+| `weekday-plant-news-publishing` | Curate weekday news for morning briefs and the inspiration page | staged · morning delivery option added; owner/channel/time approval pending, no schedule | bhoumik |

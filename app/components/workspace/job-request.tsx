@@ -8,6 +8,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
+import { Markdown } from '@/components/workspace/chat-kit'
 import {
   EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
@@ -394,13 +395,16 @@ function NoteThread({ entries, empty }: { entries: JobNote[]; empty: string }) {
   )
 }
 
+function renderSourcingNote(text: string) {
+  return <Markdown text={text} onAction={(scheme, target) => {
+    if (scheme === 'ar') openAvailabilityRequest(Number.parseInt(target, 10))
+    else openChat({ agentId: 'rosie', threadId: target })
+  }} />
+}
+
 /**
- * One note column: a line of it inline, the whole thing in a popover.
- *
- * Both columns are free text edited whole. `kind` still decides what the
- * popover says and which column it writes, because the audiences are not the
- * same: `shared` is written to be shown to the customer, `internal` is our own
- * working sheet — a line per supplier — and never leaves the building.
+ * Shared notes stay plain text; internal sourcing notes render Markdown in
+ * the cell and popover. Both keep their original source for editing.
  */
 function NoteCell({
   kind,
@@ -425,16 +429,19 @@ function NoteCell({
   const pop = useOutsideClose(open, () => setOpen(false))
 
   const meta = NOTE_KIND[kind]
-  // Sourcing keeps one current row per supplier. Show every row so competing
-  // prices and responses remain visible together.
-  const lines = (value ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
   const summary = value?.trim() ?? ''
 
   return (
     <div ref={pop} data-pop className="relative min-w-0 px-1.5">
+      {kind === 'internal' && summary && (
+        <div className="px-1 py-0.5 text-[12px] text-foreground" onClick={(event) => event.stopPropagation()}>
+          {renderSourcingNote(summary)}
+        </div>
+      )}
       <button
         type="button"
-        title={summary || `Add a ${meta.label.toLowerCase()} note`}
+        aria-label={kind === 'internal' ? `Edit sourcing note for ${title}` : undefined}
+        title={kind === 'internal' ? 'Edit sourcing note' : summary || `Add a ${meta.label.toLowerCase()} note`}
         onClick={(e) => {
           e.stopPropagation()
           setOpen((v) => !v)
@@ -442,11 +449,7 @@ function NoteCell({
         className="flex w-full min-w-0 cursor-pointer flex-col items-start gap-px rounded-md border border-transparent bg-transparent px-1 py-0.5 text-left hover:border-border hover:bg-lps-tint"
       >
         {summary ? (
-          kind === 'internal' ? lines.map((line, index) => (
-            <span key={index} className="w-full truncate text-[12px] text-foreground" title={line}>
-              {line}
-            </span>
-          )) : (
+          kind === 'internal' ? <span className="text-[11px] text-muted-foreground">Edit</span> : (
             <span className="w-full truncate text-[12px] text-foreground">
               {summary.replace(/\s+/g, ' ')}
             </span>
@@ -488,7 +491,9 @@ function NoteCell({
                 value={value}
                 onSaved={onSaved}
                 touchTarget={touchTarget}
-                placeholder="Supplier | price | response — one row per supplier"
+                placeholder="Supplier name, key details and numbers…"
+                renderPreview={renderSourcingNote}
+                editLabel={`Edit sourcing note for ${title}`}
               />
             </>
           )}
@@ -1106,7 +1111,7 @@ function CompactJobDetails({
               Sourcing note — job changes only
             </span>
             <EditableTextarea {...edit} column="sourcing_notes" value={request.sourcingNotes}
-              placeholder="Add a sourcing note…" />
+              placeholder="Add a sourcing note…" renderPreview={renderSourcingNote} editLabel="Edit job sourcing note" />
             {hasRelatedRoutes && (
               <>
                 <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
@@ -1426,7 +1431,7 @@ export function RequestBody({
                 </NoteBlock>
                 <NoteBlock label="Sourcing note — job changes only">
                   <EditableTextarea {...edit} column="sourcing_notes" value={request.sourcingNotes}
-                    placeholder="Add a sourcing note…" />
+                    placeholder="Add a sourcing note…" renderPreview={renderSourcingNote} editLabel="Edit job sourcing note" />
                 </NoteBlock>
               </div>
             </div>

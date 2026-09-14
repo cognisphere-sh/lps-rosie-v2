@@ -46,10 +46,8 @@ export type MarkdownAction = (scheme: 'thread' | 'ar', target: string) => void
 
 /**
  * The agent writes markdown; this renders the subset that actually shows up in
- * a chat bubble — bold, inline code, links, and bullet lists.
- *
- * ponytail: ~30 lines instead of a markdown dependency. If tables or nested
- * lists ever matter, swap in `marked` + a sanitizer rather than growing this.
+ * chat and sourcing notes — bold, underline, inline code, links, bullet lists
+ * and horizontal rules. Formatting is rendered as React nodes, never raw HTML.
  */
 function inline(
   text: string,
@@ -61,6 +59,7 @@ function inline(
     const k = `${prefix}-${i}`
     if (token.kind === 'text') return token.text
     if (token.kind === 'strong') return <strong key={k}>{render(token.children, k)}</strong>
+    if (token.kind === 'underline') return <u key={k}>{render(token.children, k)}</u>
     if (token.kind === 'code') return <code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{token.text}</code>
     if (token.kind === 'link') {
       return <a key={k} href={token.href} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{token.label}</a>
@@ -112,6 +111,11 @@ function MarkdownProse({
     bullets = []
   }
   lines.forEach((line, i) => {
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flush(String(i))
+      blocks.push(<hr key={i} className="my-2 w-full border-0 border-t border-lps-hair" />)
+      return
+    }
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line)
     if (bullet) { bullets.push(bullet[1]); return }
     flush(String(i))

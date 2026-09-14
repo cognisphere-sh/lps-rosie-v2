@@ -5,6 +5,7 @@ import {
   setAvailabilityRequestPublic,
   setAvailabilityRequestStatus,
   updateARItem,
+  updateARItemDetails,
   supplierAvailabilityEventContext,
 } from '@/lib/availability-queries'
 import { notifySupplierEvent } from '@/lib/notify-supplier-events'
@@ -30,8 +31,8 @@ export async function GET(
 
 /**
  * The admin edits: the request's own status (`{status}`, usually → `closed`),
- * or one line's answer (`{itemId, changes}`) — the same columns the portal
- * writes, entered on the supplier's behalf when they answer by phone or email.
+ * one line's answer (`{itemId, changes}`), or its requested plant details
+ * (`{itemId, details}`). Only admins can correct the ask itself.
  */
 export async function PATCH(
   req: Request,
@@ -48,22 +49,27 @@ export async function PATCH(
       status?: string
       itemId?: number
       changes?: Record<string, string>
+      details?: Record<string, string>
     }
     if ('isPublic' in body) {
       if (typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
       const token = await setAvailabilityRequestPublic(id, body.isPublic)
       return NextResponse.json({ publicToken: token })
     }
-    if (body.changes) {
+    if ('details' in body || body.changes) {
       if (!Number.isInteger(body.itemId)) {
         return NextResponse.json({ error: 'itemId is required' }, { status: 400 })
       }
-      await updateARItem(id, body.itemId!, body.changes)
+      if ('details' in body && 'changes' in body) {
+        return NextResponse.json({ error: 'Save plant details and answers separately' }, { status: 400 })
+      }
+      if ('details' in body) await updateARItemDetails(id, body.itemId!, body.details!)
+      else await updateARItem(id, body.itemId!, body.changes!)
       await notifySupplierEvent({ type: 'availability_updated', ...await supplierAvailabilityEventContext(id) })
       return NextResponse.json({ ok: true })
     }
     if (!body.status) {
-      return NextResponse.json({ error: 'status or changes is required' }, { status: 400 })
+      return NextResponse.json({ error: 'status, changes or details is required' }, { status: 400 })
     }
     await setAvailabilityRequestStatus(id, body.status)
     if (body.status === 'submitted') {

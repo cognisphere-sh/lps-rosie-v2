@@ -7,6 +7,26 @@ import {
 } from './chat-markdown.ts'
 import { redactPartnerRequestRefs } from './partner-display.ts'
 
+test('bold underlined supplier names render as formatting and retain audience filtering', () => {
+  const source = '**<u>Supplier AR-7</u>** · Qty 20'
+  assert.deepEqual(tokenizeChatInline(source), [
+    { kind: 'strong', children: [{ kind: 'underline', children: [{ kind: 'text', text: 'Supplier AR-7' }] }] },
+    { kind: 'text', text: ' · Qty 20' },
+  ])
+  const transform = (text: string) => text.replace('AR-7', 'request')
+  assert.deepEqual(transformChatInlineText(tokenizeChatInline(source), transform), tokenizeChatInline(transform(source)))
+  assert.equal(chatMarkdownPlainText(source, transform), 'Supplier request · Qty 20')
+  assert.deepEqual(tokenizeChatInline('<u>**Supplier**</u>'), [
+    { kind: 'underline', children: [{ kind: 'strong', children: [{ kind: 'text', text: 'Supplier' }] }] },
+  ])
+})
+
+test('underline parsing leaves arbitrary HTML and inline code inert', () => {
+  const html = '<u onclick="alert(1)">Supplier</u><script>alert(1)</script>'
+  assert.deepEqual(tokenizeChatInline(html), [{ kind: 'text', text: html }])
+  assert.deepEqual(tokenizeChatInline('`**<u>Supplier</u>**`'), [{ kind: 'code', text: '**<u>Supplier</u>**' }])
+})
+
 test('splits labelled fenced code from surrounding prose', () => {
   assert.deepEqual(splitChatMarkdownBlocks('Before\n```text\nfirst\nsecond\n```\nAfter'), [
     { kind: 'prose', text: 'Before' },

@@ -3,7 +3,7 @@
 - Status: shipped
 - Route: bhoumik
 - Raised: 2026-09-03 by Chris (via telegram)
-- Updated: 2026-09-11
+- Updated: 2026-09-11 14:10:56 CDT
 - Completion scope: single-request public access and the existing authenticated company-portal boundary; optional device/audit extensions are separate.
 
 ## Problem
@@ -16,6 +16,14 @@ A nursery needs to answer an individual availability request with almost no logi
 - 2026-08-28 feedback, **Out-of-network availability path**: formatted supplier email linking to a live shared request.
 - 2026-09-11 Bhoumik, Telegram 276: work-list item 5 Public/out-of-network availability access is done.
 - 2026-09-11 re-audit of current source `1135a0f`: the previous Partner-only rejection and blanket Job-stage closure are gone. Parent clarified that dedicated trusted-device administration and exhaustive access auditing were Lily proposals, not prerequisites for the core feature.
+
+- 2026-09-11 Chris/CR, Telegram313 reply279 at 14:09:59 CDT: growers usually have narrower offerings/fewer inputs and can answer by email/text; whole-list wholesale-nursery asks benefit more from the multiline collaborative link. Full quote in feedback log, **Grower replies are usually simpler; whole-list nursery asks suit a link**.
+
+## Channel fit — clarified, not new implementation
+
+The delivered link is an option suited to the ask, not a required response channel. Chris estimates the usual grower experience is an email/text reply (“90/10”); a more complex, multi-item grower ask may optionally use the existing link. Grower-specific link enhancements are not needed now. Whole-list wholesale-nursery requests benefit from the shared per-line availability, notes and pricing view.
+
+This clarification does not roll back shipped public access or change its security boundary. It creates no mandatory portal, supplier-type classification or automatic channel rule, SMS integration, automatic outreach or new order-management scope. It does not claim the app supports SMS. Rosie retains coordination, Daisy retains onboarding/published availability, existing send approvals remain, and item 8 stays deferred pending sourcing stabilisation. No app/agent/skill change or implementation handoff is authorized.
 
 ## What it should do
 
@@ -61,3 +69,4 @@ Full evidence: `workspace/threads/main/tasks/supplier-access-authentication/audi
 - 2026-09-03 — staged access/security proposal; included optional safeguards beyond Chris's concrete access request.
 - 2026-09-10 — partial: active-Partner public links shipped, but non-Partner rejection and any-Job-stage closure still present. Audit also over-bundled device/audit proposals into completion; that interpretation is corrected below.
 - 2026-09-11 — Bhoumik reports completion (Telegram 276). Current-source/test/read-only live audit confirms the core access boundary and removes the former Partner/lifecycle blockers. Marked shipped for that scope; optional safeguards remain separate recommendations, not release prerequisites.
+- 2026-09-11 14:10:56 CDT — Captured Chris/CR Telegram313 via parent: simple grower asks generally need only an email/text reply; links optional for complexity, especially whole-list wholesale requests. Core remains shipped; grower-specific enhancements are not needed now. No new implementation, contact or routing.

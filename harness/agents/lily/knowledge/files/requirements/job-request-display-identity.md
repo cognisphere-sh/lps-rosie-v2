@@ -3,7 +3,11 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-09-02 by Chris (via Rosie handoff)
-- Updated: 2026-09-02
+- Updated: 2026-09-13 17:09:01 CDT
+
+## Focused mobile presentation exception
+
+Chris’s Telegram607/615 governs the private **mockup-only** exception in `focused-job-header-layout`: Company once in the top JR/Company/Status/Total group; Job below only when meaningfully distinct, with estimated install date/Rosie. Supporting customer row is real person + customer Chat only, not company again. Telegram615 rejected equal-value repeated-role display; the prior preview is not UX-approved. This local suppression does not alter independent stored values, global helpers, or the real Job-only editor: an equal-valued stored Job remains present/editable and must not become a fake Add Job name state. No All Jobs, rails, search, desktop, parsing, merging or implementation approval.
 
 ## Problem
 

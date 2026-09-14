@@ -1,5 +1,37 @@
 # plant-and-supplier-search — changelog
 
+## 2.5.0
+
+2026-09-11 — Research all requested sizes and choose the smallest with supported
+pricing, not the cheapest or assumed in-stock option, per Chris. Return larger
+requested-size prices for shared notes; preserve gaps and unrequested-size gates.
+
+## 2.4.0
+
+2026-09-11 — Add Chris-authorized likely-name-equivalence pricing procedure,
+evidence checks and concise sourcing mapping. Explicitly permit his Agave
+parryi truncata / Artichoke Parry’s Agave / Agave Parryi pricing example without
+claiming botanical identity or availability. Preserve genuine-substitution gates.
+
+## 2.3.0
+
+2026-09-11 — Implement Chris-authorized APS job-row evidence and gap-alternative
+research: 1–2 closest supported options, no invented candidates or unauthorized
+supplier expansion. Route mandatory APS row notes to the job owner and require
+action-specific confirmation before alternative quotes/ARs; standalone and
+research-only supplier lookups remain chat-only.
+
+## 2.2.0
+
+2026-09-11 — Include explicit supplier selections and other plant-sourcing
+decisions in the note-eligibility rule. Research alone remains chat-only.
+
+## 2.1.0
+
+2026-09-11 — Answer supplier lookups in Chris's original chat first, including
+existing-job searches. Research alone creates no sourcing notes or outreach;
+apply the job skill's sent-request, required-action or explicit-note rule.
+
 ## 2.0.0
 
 2026-09-10 — Focus on pricing evidence and exact matches; APS is default and broader sourcing requires instruction. Remove duplicated job/approval policy.

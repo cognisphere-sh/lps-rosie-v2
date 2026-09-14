@@ -19,10 +19,27 @@ Availability. Customer confirmation advances any of those working stages to
 Confirmed. Closing Won or Lost closes every linked availability request and
 prevents supplier edits. Reopening the job restores each availability request’s
 previous stage. Database hooks cover app and agent writes. Sourcing
-notes show one short row per supplier with its price and latest response;
-multiple candidates remain visible together. Simple pricing questions do not create jobs. A quick quote creates a Job
+notes render Markdown entries with bold, underlined supplier names, concise
+keywords and numbers, and explicit plant-sourcing decisions. Item notes, their
+popover and job-level notes use the same rendering; editing preserves the raw
+Markdown. AR and thread links open their existing workspace views. Notes use
+no tables, full statements or divider lines. Supplier responses are surfaced
+to Chris without automatic availability updates; supplier selection requires
+an explicit decision. Simple pricing questions do not create jobs. A quick quote creates a Job
 Request and its thread but no Availability Request. See [Rosie](../harness/agent-rosie.md) for thread
 ownership and the sourcing procedure.
+
+## Availability sidebar editing
+
+The availability sidebar opened from a Job lets admins edit each line's plant
+name, requested size, requested quantity and note to the supplier, alongside
+the existing answer status, available quantity, price and supplier notes. These
+fields save on blur (or Enter for a single-line input) on desktop and mobile.
+Edits apply to that availability request's snapshot; the original Job line and
+other suppliers' requests keep their own values. Plant names must be nonblank;
+requested quantity can be cleared or set to a positive number. Closed requests
+stay read-only until reopened. Supplier and public views keep requested plant
+details read-only.
 
 ## Availability request creation feedback
 

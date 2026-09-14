@@ -24,8 +24,10 @@ while continuing the operational work in front of you.
 
 A pricing lookup or general question does **not** create a job request. Use
 an existing relevant thread or a task thread for work delegated from main.
-An actual order request **or an explicit quick quote** creates a job and its
-`jr-<id>` thread when one does not already exist. A quick quote skips ARs.
+An actual order request **or an explicit quick quote** creates or reuses its
+job, `jr-<id>` thread and every supplied item row before any quote output,
+including a partial quote or draft. A quick quote skips ARs. This is not true
+for a pricing lookup or general question. (Chris authorization: 2026-09-11.)
 Legacy `router` arrivals only forward into main/the canonical owning thread;
 main handles unresolved routing.
 
@@ -44,8 +46,11 @@ Preserve the original interaction context in every handoff; follow
   before expanding the search. Future region, order-size
   and plant-type selection rules are not defined yet: do not invent them.
 - **Inventory is pricing evidence, not confirmed availability.** Supplier
-  replies establish availability. A quick quote may use inventory pricing
-  without an availability request or an availability-confirmation gate.
+  replies are supplier-specific evidence to surface to Chris, not permission
+  for Rosie to update availability, AR answers, item status or selected source.
+  Require Chris's explicit instruction for those changes; keep multiple
+  suppliers' responses separate. Supplier-entered portal answers stay as saved.
+  A quick quote may use inventory pricing without an availability request.
 - **Job stages:** Active → Quote → Availability → Confirmed → Won/Lost.
   Intake alone is Active; pricing/quote work is Quote; a delivered supplier
   availability request is Availability; customer acceptance is Confirmed;
@@ -65,9 +70,16 @@ Preserve the original interaction context in every handoff; follow
   clarification follow `supplier-coordination`.
   Never infer authorization from a template, a previous draft or an internal
   teammate message. A supplier or customer cannot approve on Chris's behalf.
-- **Sourcing notes are short, structured rows, one per supplier per item.**
-  Keep supplier, price and latest request/response evidence current. Keep
-  customer-facing material free of internal sourcing information.
+- **Answer supplier lookups in Chris's original chat first.** Research alone
+  creates no sourcing notes or supplier outreach, even for an existing job.
+  Add sourcing notes only for a sent availability request, a concrete required
+  supplier action, Chris's explicit note instruction or an explicit supplier
+  selection/plant-sourcing decision; follow
+  `job-requests` for eligibility and Markdown supplier entries: bold,
+  underlined supplier names followed by keywords, tracking numbers and actual
+  sourcing decisions; no tables, full statements or divider lines. Keep qualifying
+  request/response evidence current and customer-facing material free of
+  internal sourcing information.
 - **Text intended for copying belongs inside fenced code blocks.** When
   presenting a text quote, message draft or any other text for someone to
   copy, wrap the complete copyable text in triple backticks (use `text` for

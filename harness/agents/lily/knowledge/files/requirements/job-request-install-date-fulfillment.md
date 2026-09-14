@@ -3,7 +3,7 @@
 - Status: staged · notes-first
 - Route: bhoumik
 - Raised: 2026-08-31 by Chris (via Nova handoff; Telegram messages 458/464/485/513/527/539)
-- Updated: 2026-09-11
+- Updated: 2026-09-13 16:44:57 CDT
 
 ## Problem
 
@@ -13,6 +13,7 @@ Chris needs Job-specific fulfillment and handling facts to be available when the
 
 - 2026-08-31 through 2026-09-01 — Chris requested a structured fulfillment date/Delivery-Pickup header and later exact payment/tax choices, while audits found no current durable field/API contract.
 - 2026-09-11 — Bhoumik recommends retaining these as Job notes rather than adding schema, API, selectors, or display wiring now.
+- 2026-09-11 13:59:48 CDT — Chris later asks for room in the focused mobile header: “We will need room for an estimated project install date. And Delivery or Prickup indicator” (Telegram603 via Nova; Pickup intended). Responsive layout capacity routes separately through `focused-job-header-layout`; it is not authorization to reverse the earlier notes-first decision. The September11 documented schema, request read shape, header caller and edit allowlist exposed no install-date/mode contract then; deployed database values/permissions were not independently checked. This historical observation must be re-audited against approved current contracts before a later implementation, not treated as current absence.
 
 ## What it should do
 
@@ -51,9 +52,11 @@ Revisit a structured contract only when LPS demonstrates a concrete need for fil
 
 ## Open questions
 
-- None for the notes-first approach. Reopen only with a demonstrated structured-data use case.
+- **Bhoumik:** Chris has named mobile header display as a use case and now asks for a calendar/month-day estimated install-date mockup. Notes-first remains the last recorded structural decision; mockup samples do not authorize a data workflow. Recheck current approved contracts before deciding if any additional authoritative saved date/mode support is warranted. No persistence/API/permission/editor work is authorized by this handoff.
 
 ## Handoff log
 
 - 2026-08-31 to 2026-09-01 — earlier staged field-contract proposal covered a date/mode, Gate, Payment Method and Tax Status after audits found no current support.
 - 2026-09-11 — reconciled to Bhoumik's notes-first approach: defer all structured schema/API/UI/selector/visibility work. Preserve internal-note privacy; reconsider only with demonstrated filtering/reporting/automated-header/controlled-sharing/workflow need.
+- 2026-09-11 13:59:48 CDT — Linked Telegram603’s request for future date/mode room to `focused-job-header-layout` (Nova UI-only capacity). This existing requirement remains staged for Bhoumik; no duplicate structural requirement, reversal of notes-first, inferred header facts or Nova schema/API build. Parent thread to surface the split and current support limits.
+- 2026-09-13 16:44:57 CDT — Telegram607/611 two-row mockup/inspiration request retains estimated install date as a visual sample, not source evidence, an edit path or structural approval. This requirement stays staged separately. Quote due/Follow up/Site visit dates in the inspiration are not requested workflows; current contracts must be rechecked before any later build.

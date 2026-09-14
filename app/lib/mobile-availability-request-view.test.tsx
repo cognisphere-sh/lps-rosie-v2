@@ -190,6 +190,19 @@ function installStore(initial: ARDetail[]) {
           }),
         }
       }
+      if (typeof body.itemId === 'number' && body.details && typeof body.details === 'object') {
+        const details = body.details as Record<string, string>
+        next = {
+          ...next,
+          items: next.items.map((item) => item.id !== body.itemId ? item : {
+            ...item,
+            name: details.name ?? item.name,
+            size: details.size === '' ? null : details.size ?? item.size,
+            quantity: details.quantity === '' ? null : details.quantity != null ? Number(details.quantity) : item.quantity,
+            lpsNotes: details.lps_notes === '' ? null : details.lps_notes ?? item.lpsNotes,
+          }),
+        }
+      }
       store.set(id, next)
       return json({ ok: true })
     }
@@ -212,6 +225,75 @@ function mobileSurface(dialog: HTMLElement) {
   return within(dialog).getByTestId('availability-mobile-lines')
 }
 
+test('drawer plant details save on mobile and desktop and survive reopening without changing answers or other lines', async () => {
+  const { store, writes } = installStore([request()])
+  const user = userEvent.setup({ document })
+  const { view } = await openDrawer()
+  for (const width of [390, 1280]) {
+    await setWidth(width)
+    const fields = [
+      { label: /plant name/, column: 'name', value: `Live Oak ${width}` },
+      { label: /requested size/, column: 'size', value: '15 G' },
+      { label: /requested quantity/, column: 'quantity', value: '24.5' },
+      { label: /note to supplier/, column: 'lps_notes', value: `Deliver Friday ${width}` },
+    ]
+    // Give every field a different value on the second pass too.
+    fields[1].value = width === 390 ? '15 G' : '30 G'
+    fields[2].value = width === 390 ? '24.5' : '30'
+    for (const field of fields) {
+      const input = view.getAllByRole('textbox', { name: field.label })[0]
+      await user.clear(input)
+      await user.type(input, field.value)
+      await user.tab()
+      await waitFor(() => assert.deepEqual(writes.at(-1), {
+        id: 84, body: { itemId: 19, details: { [field.column]: field.value } },
+      }))
+    }
+    await user.click(view.getByRole('button', { name: 'Close availability request AR-84' }))
+    act(() => openAvailabilityRequest(84))
+    await view.findByRole('dialog', { name: 'Availability request AR-84' })
+    for (const field of fields) {
+      await waitFor(() => assert.equal((view.getAllByRole('textbox', { name: field.label })[0] as HTMLInputElement).value, field.value))
+    }
+    const saved = store.get(84)!
+    assert.deepEqual(saved.items[1], line(20))
+    assert.equal(saved.items[0].availableQuantity, 8)
+    assert.equal(saved.items[0].unitPrice, 12.5)
+    assert.equal(saved.items[0].notes, line(19).notes)
+  }
+})
+
+test('moving between plant fields while a save is pending preserves every edit', async () => {
+  const { store, writes } = installStore([request()])
+  const saveFetch = globalThis.fetch
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => { release = resolve })
+  let firstSignal: AbortSignal | null | undefined
+  let first = true
+  globalThis.fetch = (async (input, init) => {
+    if (init?.method === 'PATCH' && first) {
+      first = false
+      firstSignal = init.signal
+      await pending
+    }
+    return saveFetch(input, init)
+  }) as typeof fetch
+  const { view } = await openDrawer()
+  const user = userEvent.setup({ document })
+  for (const [label, value] of [[/plant name/, 'Red Maple'], [/requested size/, '45 G'], [/requested quantity/, '18']] as const) {
+    const input = view.getAllByRole('textbox', { name: label })[0]
+    await user.clear(input)
+    await user.type(input, value)
+    await user.tab()
+  }
+  assert.equal(firstSignal?.aborted, false)
+  await act(async () => release())
+  await waitFor(() => assert.equal(writes.length, 3))
+  assert.equal(store.get(84)!.items[0].name, 'Red Maple')
+  assert.equal(store.get(84)!.items[0].size, '45 G')
+  assert.equal(store.get(84)!.items[0].quantity, 18)
+})
+
 test('supplier request cards edit quantities, multiline notes and complete answers, with one set of controls at each breakpoint', async () => {
   const patches: Array<[number, Record<string, string>]> = []
   const user = userEvent.setup({ document })
@@ -221,6 +303,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
     onSubmit: async () => {},
   }
   const view = render(<AvailabilityRequestView {...props} />)
+  assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)
   for (const width of [320, 390, 480, 899]) {
     await setWidth(width)
     assert.equal(within(mobileSurface(view.container)).getAllByRole('article').length, 2)
@@ -254,6 +337,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   assert.deepEqual(patches.at(-1), [20, { status: 'can_order', notes: 'Next Friday', unit_price: '24.50' }])
 
   await setWidth(900)
+  assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)
   assert.equal(view.queryByTestId('availability-mobile-lines'), null)
   assert.ok(view.container.querySelector('[style*="min-width: 960px"]'))
   await setWidth(390)
@@ -293,7 +377,7 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
     assert.equal(dialog.querySelector('[style*="min-width: 1070px"]'), null)
     const fieldBudget = (width - 24 - 2 - 24 - 12) / 2
     assert.ok(fieldBudget >= 129, `${width}px field budget ${fieldBudget}`)
-    assert.match(within(mobile).getByRole('article', { name: /^Line 1,/ }).textContent ?? '', /長い Unicode plant/)
+    assert.match((within(mobile).getByLabelText(/^Line 1, .* plant name/) as HTMLInputElement).value, /長い Unicode plant/)
     assert.ok(within(dialog).getByRole('button', { name: 'Submit again' }))
   }
 
@@ -329,7 +413,7 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
   assert.match(summary.textContent ?? '', /Submitted/)
   assert.doesNotMatch(dialog.textContent ?? '', /Last updated|changed by|supplier changed|LPS changed|provenance/i)
   const first = within(mobileSurface(dialog)).getByRole('article', { name: /Line 1/ })
-  assert.match(first.textContent ?? '', /Need 0/)
+  assert.equal((within(first).getByLabelText(/requested quantity/) as HTMLInputElement).value, '0')
   assert.match(first.textContent ?? '', /\$0\.00/)
   assert.equal(within(first).getByLabelText(/available quantity/).getAttribute('value'), '0')
   assert.equal(within(first).getByLabelText(/price per unit/).getAttribute('value'), '0')

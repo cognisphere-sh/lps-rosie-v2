@@ -22,3 +22,6 @@ two places instead.
 
 -----$-----$-----$-----
 
+name: design-led-news-and-market-discovery
+lastUpdated: 2026-09-12 11:59:25
+description: Chris’s September 12 news direction is inspiring landscape design first, with a daily brief followed by interesting articles Monday–Friday. Audience is both public/customers and the team; goals combine lead generation/content with his own discovery of market developments, relevant players and standout projects. This is not marketing alone, and no geographic market was specified. He later tentatively proposed a sub-agent handling morning briefs and article links delivered in Telegram or the app; that indicates interest in research/delivery help, not a final channel/time choice, mandatory new agent or authorized schedule. Source: Telegram 315, 317–319, 322, 325; business/news-and-inspiration.md and the two weekday-plant-news requirements. Relevant while this content initiative is active; not a reprioritization of other LPS work.

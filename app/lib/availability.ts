@@ -80,7 +80,7 @@ export const AR_RESPONSE_OPTIONS = [
 export interface ARItem {
   id: number
   jobRequestItemId: number | null
-  /** The ask, snapshotted at share time — a later job edit never rewrites it. */
+  /** Snapshotted at share time; admins can correct it directly, while later job edits never rewrite it. */
   name: string
   size: string | null
   quantity: number | null

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Fieldnotes — LPS news &amp; inspiration · Design preview</title>
+<style>
+  /* Adapted from the publish-artifact fluid, self-contained starter. */
+  :root { color-scheme: light; --paper:#f5f3ec; --ink:#202f28; --muted:#566158; --green:#244c39; --line:#c9cdc2; --white:#fffef9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow-wrap:anywhere; }
+  .wrap { max-width:78rem; margin:auto; padding:0 clamp(1rem,4vw,3.5rem); }
+  h1,h2,h3,p { margin:0; }
+  h1,h2,h3 { text-wrap:balance; }
+  a { color:inherit; text-underline-offset:.25em; }
+  button,a { -webkit-tap-highlight-color:transparent; }
+  button { font:inherit; cursor:pointer; }
+  button,a { min-height:2.75rem; }
+  :focus-visible { outline:.1875rem solid #a2401d; outline-offset:.25rem; }
+  .skip { position:absolute; top:0; left:1rem; padding:.75rem 1rem; background:var(--white); transform:translateY(-150%); z-index:2; }
+  .skip:focus { transform:translateY(0); }
+  .preview { padding:.7rem 0; background:#e4e8dd; border-bottom:.0625rem solid var(--line); font-size:.875rem; }
+  .preview strong { font-weight:700; }
+  .masthead { padding:1.65rem 0 1.5rem; border-bottom:.125rem solid var(--ink); }
+  .eyebrow { font-size:.875rem; line-height:1.45; font-weight:650; letter-spacing:.09em; text-transform:uppercase; }
+  h1 { font:normal clamp(2.75rem,6vw,4.8rem)/1.05 Georgia,"Times New Roman",serif; letter-spacing:-.045em; margin:.45rem 0 .6rem; }
+  .masthead .subtitle { color:var(--muted); max-width:38rem; }
+  .brief { padding:2rem 0 2.25rem; border-bottom:.0625rem solid var(--line); }
+  .brief .eyebrow { color:var(--green); }
+  .edition { color:var(--muted); font-size:.9rem; margin:.4rem 0 1.2rem; }
+  .brief h2 { font:normal clamp(2rem,4vw,3.4rem)/1.12 Georgia,"Times New Roman",serif; letter-spacing:-.025em; max-width:19ch; margin-bottom:1rem; }
+  .brief-copy { max-width:60rem; font-size:1.06rem; }
+  .brief-copy p+p { margin-top:.75rem; }
+  .small-note { margin-top:1rem; color:var(--muted); font-size:.9rem; max-width:60rem; }
+  .stories { padding:1.7rem 0 0; }
+  .stories h2 { font:normal 1.7rem/1.2 Georgia,"Times New Roman",serif; }
+  .filter-label { display:block; color:var(--muted); font-size:.9rem; margin-top:1rem; }
+  .filters { display:flex; flex-wrap:wrap; gap:.55rem; margin:.6rem 0 .9rem; }
+  .filters button,.reset { border:.0625rem solid #77877a; border-radius:2rem; padding:.6rem 1rem; background:transparent; color:var(--ink); font-size:.94rem; line-height:1.4; }
+  .filters button[aria-pressed="true"] { background:var(--green); color:var(--white); border-color:var(--green); }
+  .filters button:hover,.reset:hover { box-shadow:inset 0 0 0 .0625rem currentColor; }
+  .results { font-size:.9rem; color:var(--muted); margin-bottom:1.1rem; }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr); gap:1.15rem; }
+  .story { display:flex; flex-direction:column; min-width:0; background:var(--white); border:.0625rem solid var(--line); padding:1.4rem; border-top:.25rem solid var(--green); }
+  .story[data-category="Plants"] { border-top-color:#9a5b36; }
+  .story-top { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:.5rem; margin-bottom:1.2rem; }
+  .story .eyebrow { font-size:.85rem; letter-spacing:.045em; }
+  .number { color:var(--muted); font:italic 1.4rem/1 Georgia,serif; }
+  .place { color:var(--muted); font-size:.9rem; margin-bottom:.6rem; }
+  .story h3 { font:normal 1.7rem/1.2 Georgia,"Times New Roman",serif; letter-spacing:-.02em; margin-bottom:.9rem; }
+  .attribution { font-size:.875rem; color:var(--muted); border-bottom:.0625rem solid var(--line); padding-bottom:1rem; margin-bottom:1rem; }
+  .label { display:block; font-size:.85rem; font-weight:700; margin-bottom:.25rem; }
+  .source-summary { margin-bottom:1rem; }
+  .take { padding-left:.8rem; border-left:.125rem solid #b7c7b4; margin-bottom:1.25rem; }
+  .source-link { display:flex; gap:.75rem; align-items:center; justify-content:space-between; margin-top:auto; padding:.6rem 0; border-top:.0625rem solid var(--line); font-weight:650; font-size:.94rem; }
+  .source-link span { flex-shrink:0; }
+  .empty { padding:2rem clamp(1rem,4vw,2rem); border:.0625rem dashed #8a978b; background:#eeefe7; }
+  .empty h3 { font:normal 1.7rem/1.2 Georgia,serif; margin-bottom:.6rem; }
+  .empty p { max-width:43rem; margin-bottom:1rem; }
+  [hidden] { display:none !important; }
+  .contact { background:#e7e7da; padding:clamp(1.25rem,3vw,2rem); margin-top:2.5rem; border:.0625rem solid #c5c7b7; }
+  .contact h2 { font:normal clamp(1.8rem,3vw,2.4rem)/1.15 Georgia,serif; margin:.55rem 0 .75rem; }
+  .contact p+p { margin-top:.6rem; }
+  .contact .pending { color:var(--muted); font-size:.9rem; max-width:45rem; }
+  footer { padding:1.5rem 0 max(2.5rem,env(safe-area-inset-bottom)); color:var(--muted); font-size:.875rem; }
+  footer p+p { margin-top:.5rem; }
+  noscript p { padding:1rem; border:.0625rem solid var(--line); margin:1rem 0; }
+  @media(min-width:40rem) { .grid { grid-template-columns:repeat(auto-fit,minmax(19rem,1fr)); } }
+  @media(prefers-reduced-motion:no-preference) { button { transition:background-color .15s,color .15s; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to daily brief</a>
+<div class="preview"><div class="wrap"><strong>Design preview · Sample content</strong> — an archive selection, not current news. No automatic updates.</div></div>
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">LPS / News &amp; inspiration</p>
+    <h1>Fieldnotes</h1>
+    <p class="subtitle">Landscape ideas worth exploring. Plants, people and projects worth knowing.</p>
+  </header>
+  <main id="main" tabindex="-1">
+    <section class="brief" aria-labelledby="brief-heading">
+      <p class="eyebrow">The daily brief · LPS editorial interpretation</p>
+      <p class="edition">Fixed sample edition: <time id="edition-date" datetime="2026-09-12">12 September 2026</time> · Not an article publication date</p>
+      <h2 id="brief-heading">Landscapes that do more.</h2>
+      <div class="brief-copy">
+        <p>Start with the landscape, not the finishing touches. Cobe’s Copenhagen campus square and Piet Oudolf’s Vitra garden offer two different references for making outdoor space part of a place’s identity. The source articles below introduce the projects and their designers.</p>
+        <p><strong>Our reading:</strong> bring planting and practical requirements into the same conversation early. Lurie Garden’s account of the Oudolf Detroit planting shows why drainage, plant sourcing and the people delivering a design deserve attention alongside its visual ambition.</p>
+      </div>
+      <p class="small-note">Illustrative editorial copy based on the three linked archive articles. These are design references, not evidence of today’s market conditions or an objective “best projects” ranking.</p>
+    </section>
+    <section class="stories" aria-labelledby="stories-heading">
+      <h2 id="stories-heading">Interesting stories</h2>
+      <div id="filter-controls" hidden>
+        <span class="filter-label" id="filter-label">Explore by category</span>
+        <div class="filters" role="group" aria-labelledby="filter-label">
+          <button type="button" data-filter="All" aria-pressed="true" aria-controls="story-grid empty-state">All</button>
+          <button type="button" data-filter="Landscape Architecture" aria-pressed="false" aria-controls="story-grid empty-state">Landscape Architecture</button>
+          <button type="button" data-filter="Plants" aria-pressed="false" aria-controls="story-grid empty-state">Plants</button>
+          <button type="button" data-filter="Nursery News" aria-pressed="false" aria-controls="story-grid empty-state">Nursery News</button>
+        </div>
+      </div>
+      <noscript><p>Showing all sample stories. Category filters need JavaScript; original article links still work.</p></noscript>
+      <p id="results" class="results" role="status" aria-live="polite" aria-atomic="true">3 stories · All · Curated order, landscape first</p>
+      <div class="grid" id="story-grid">
+        <article class="story" data-category="Landscape Architecture" data-story="cobe">
+          <div class="story-top"><p class="eyebrow">Landscape Architecture</p><span class="number" aria-hidden="true">01</span></div>
+          <p class="place">Copenhagen, Denmark · Cobe</p>
+          <h3>Karen Blixens Plads Public Square / Cobe</h3>
+          <p class="attribution">ArchDaily · Published <time datetime="2019-10-22">22 October 2019</time><br>Archive article · Architect-provided project description</p>
+          <div class="source-summary"><span class="label">Source summary</span><p>ArchDaily presents Cobe’s public square at the University of Copenhagen, describing an outdoor space that brings green transport, climate adaptation and biodiversity into its design.</p></div>
+          <div class="take"><span class="label">LPS editorial interpretation</span><p>A useful reference for treating a campus landscape as shared civic space, rather than leftover space between buildings.</p></div>
+          <a class="source-link" href="https://www.archdaily.com/926901/karen-blixens-plads-public-square-cobe" target="_blank" rel="noopener noreferrer" aria-label="Read Karen Blixens Plads Public Square on ArchDaily (opens in a new tab)">Read on ArchDaily <span aria-hidden="true">↗</span></a>
+        </article>
+        <article class="story" data-category="Landscape Architecture" data-story="vitra">
+          <div class="story-top"><p class="eyebrow">Landscape Architecture</p><span class="number" aria-hidden="true">02</span></div>
+          <p class="place">Weil am Rhein, Germany · Piet Oudolf</p>
+          <h3>Vitra Oudolf Garden / Piet Oudolf</h3>
+          <p class="attribution">ArchDaily · Published <time datetime="2023-09-21">21 September 2023</time><br>Archive article · Architect-provided project description</p>
+          <div class="source-summary"><span class="label">Source summary</span><p>The project description introduces Oudolf’s Vitra Campus garden and a planting approach rooted in perennials, grasses, shrubs and wildflowers rather than conventional ornamental layouts.</p></div>
+          <div class="take"><span class="label">LPS editorial interpretation</span><p>Look beyond a single moment of bloom: a planting-led landscape can give a destination an identity of its own.</p></div>
+          <a class="source-link" href="https://www.archdaily.com/1007036/vitra-oudolf-garden-piet-oudolf" target="_blank" rel="noopener noreferrer" aria-label="Read Vitra Oudolf Garden on ArchDaily (opens in a new tab)">Read on ArchDaily <span aria-hidden="true">↗</span></a>
+        </article>
+        <article class="story" data-category="Plants" data-story="detroit">
+          <div class="story-top"><p class="eyebrow">Plants</p><span class="number" aria-hidden="true">03</span></div>
+          <p class="place">Detroit, Michigan · Oudolf Garden Detroit</p>
+          <h3>Planting a new Piet Oudolf Garden</h3>
+          <p class="attribution">Lurie Garden · Published <time datetime="2020-10-15">15 October 2020</time><br>Archive article · Date from publisher metadata</p>
+          <div class="source-summary"><span class="label">Source summary</span><p>Lurie Garden recounts the Detroit garden’s planting: Shannon Gibb-Randall of InSite Design Studio addressed drainage, while the team sourced plants and worked with Oudolf on substitutions.</p></div>
+          <div class="take"><span class="label">LPS editorial interpretation</span><p>Plant availability is part of design delivery. Discuss the intended planting effect early, so any substitution preserves the idea, not just the plant count.</p></div>
+          <a class="source-link" href="https://www.luriegarden.org/planting-a-new-piet-oudolf-garden/" target="_blank" rel="noopener noreferrer" aria-label="Read Planting a new Piet Oudolf Garden on Lurie Garden (opens in a new tab)">Read on Lurie Garden <span aria-hidden="true">↗</span></a>
+        </article>
+      </div>
+      <div class="empty" id="empty-state" hidden>
+        <h3>No Nursery News stories in this sample.</h3>
+        <p>This preview intentionally leaves one category empty. It does not mean there is no nursery news, or that a refresh has failed.</p>
+        <button class="reset" type="button" id="reset-filter">Show all stories</button>
+      </div>
+    </section>
+    <section class="contact" aria-labelledby="contact-heading">
+      <p class="eyebrow">Project conversation · Invitation preview</p>
+      <h2 id="contact-heading">Have a landscape in mind?</h2>
+      <p>Talk to LPS about your next project.</p>
+      <p class="pending"><strong>Contact destination unresolved.</strong> A verified public contact route is still needed. This is an invitation preview only — no form, inbox or messaging link is active here.</p>
+    </section>
+  </main>
+  <footer>
+    <p><strong>About this preview.</strong> Three public-source archive articles, with original summaries and separately labelled illustrative LPS interpretation. No images, tracking, sign-up or live news feed.</p>
+    <p>The sample edition date is fixed. Reloading, going offline or a missed update cannot advance it. Article dates above belong to their publishers; a future source with no verified date would say “Publication date not provided.”</p>
+    <p>Monday–Friday is the proposed future cadence, not an active service. Public launch and a verified contact destination remain pending.</p>
+  </footer>
+</div>
+<script>
+(() => {
+  const buttons = [...document.querySelectorAll('[data-filter]')];
+  const cards = [...document.querySelectorAll('[data-story]')];
+  const grid = document.getElementById('story-grid');
+  const empty = document.getElementById('empty-state');
+  const results = document.getElementById('results');
+  function selectCategory(category) {
+    buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.filter === category)));
+    let count = 0;
+    cards.forEach(card => {
+      const matches = category === 'All' || card.dataset.category === category;
+      card.hidden = !matches;
+      if (matches) count++;
+    });
+    grid.hidden = count === 0;
+    empty.hidden = count !== 0;
+    results.textContent = `${count} ${count === 1 ? 'story' : 'stories'} · ${category} · ${category === 'All' ? 'Curated order, landscape first' : 'Sample selection'}`;
+  }
+  buttons.forEach(button => button.addEventListener('click', () => selectCategory(button.dataset.filter)));
+  document.getElementById('reset-filter').addEventListener('click', () => {
+    selectCategory('All');
+    buttons[0].focus();
+  });
+  document.getElementById('filter-controls').hidden = false;
+})();
+</script>
+</body>
+</html>

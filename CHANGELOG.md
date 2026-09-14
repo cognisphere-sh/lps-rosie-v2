@@ -37,6 +37,18 @@ here).
 
 ### Changed
 
+- Rosie answers supplier lookups in the original chat before recording any
+  sourcing notes. Notes now require a sent availability request, a concrete
+  required supplier action, Chris's explicit instruction or an explicit
+  plant-sourcing decision; research and quick-quote pricing alone do not create
+  entries. Search, job, supplier and
+  quote skills, operating policy and supplier-event prompt follow this rule.
+  Supplier entries use bold, underlined names followed by keywords and tracking
+  numbers and explicit supplier selections/plant-sourcing decisions. No tables,
+  full statements or divider lines. Jobs render these notes as Markdown while
+  preserving the source for editing. Supplier responses are surfaced to Chris
+  without automatic availability, AR-answer, status or source-selection writes.
+
 - Rosie's order prompt and job, quote and supplier skills now direct her to
   complete all independent actions before asking questions: create/reuse the
   job/thread, create item rows, investigate pricing and save supported updates.

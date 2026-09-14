@@ -12,6 +12,7 @@ import { FocusedJobRecord } from '../components/workspace/focused-job-record.tsx
 import { FocusedJobsRailRow } from '../components/workspace/focused-jobs-rail.tsx'
 import { DeleteRequestDialog, requestDeletionCounts } from '../components/workspace/request-delete.tsx'
 import { StatusPill } from '../components/workspace/job-request.tsx'
+import { Markdown } from '../components/workspace/chat-kit.tsx'
 import { RequestCard } from '../components/workspace/request-list-card.tsx'
 import {
   balancedHeaderGeometry,
@@ -19,6 +20,7 @@ import {
 } from './job-identity.ts'
 import { jobInboxRowAriaLabel, orderJobInbox, type JobInboxRow } from './job-inbox.ts'
 import type { JobRequestRow } from './rows.ts'
+import { onOpenAvailabilityRequest } from './chat-bus.ts'
 
 let dom: JSDOM
 const originalFetch = globalThis.fetch
@@ -82,6 +84,91 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
 }
 
 const status = <span data-testid="sales-status">Sourcing</span>
+
+const sourcingMarkdown = '**<u>Austin Plant Supply</u>**\n$105 · 15 G · Qty 12 · [AR-42](ar:42) · Pending\n\n**<u>Acosta</u>**\n$98 · Qty 20 · Completed · Selected by Chris'
+const sourcingItem = {
+  id: 51, name: 'Live Oak', size: '15 G', quantity: 12, availableQuantity: null,
+  unitPrice: 105, total: 1260, status: 'pending', notes: [], customerNotes: null,
+  externalNotes: '**Customer note stays plain**', sourcingNotes: sourcingMarkdown, updatedAt: null,
+}
+
+for (const mobile of [false, true]) {
+  test(`focused Job ${mobile ? 'mobile' : 'desktop'} renders item and job sourcing Markdown with usable AR links`, () => {
+    const opened: number[] = []
+    const stop = onOpenAvailabilityRequest((id) => opened.push(id))
+    const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1, sourcingNotes: sourcingMarkdown })}
+      mobile={mobile} version={0} onSaved={() => {}} />)
+    const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')!
+    assert.deepEqual([...table.querySelectorAll('strong > u')].map((node) => node.textContent), ['Austin Plant Supply', 'Acosta'])
+    assert.equal(table.querySelectorAll('hr').length, 0)
+    assert.equal(table.querySelector('table'), null)
+    assert.ok(within(table).getByText('**Customer note stays plain**'))
+    const ar = within(table).getByRole('button', { name: 'AR-42' })
+    assert.equal(ar.parentElement?.closest('button'), null)
+    fireEvent.click(ar)
+    assert.deepEqual(opened, [42])
+    assert.equal(table.querySelector('.lps-pop'), null)
+
+    fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
+    const details = view.container.querySelector<HTMLElement>('[data-compact-job-details]')!
+    assert.equal(details.querySelectorAll('strong > u').length, 2)
+    assert.equal(details.querySelectorAll('hr').length, 0)
+    assert.ok(within(details).getByRole('button', { name: 'Edit job sourcing note' }))
+    stop()
+  })
+}
+
+test('job and item sourcing editors preserve raw Markdown and save it through their own fields', async () => {
+  const writes: Array<{ table: string; id: number; column: string; value: string }> = []
+  globalThis.fetch = async (_input, init) => {
+    writes.push(JSON.parse(String(init?.body)))
+    return Response.json({ ok: true })
+  }
+  const user = userEvent.setup({ document })
+  let saved = 0
+  const initial = request({ items: [sourcingItem], itemCount: 1, sourcingNotes: sourcingMarkdown })
+  const view = render(<FocusedJobRecord request={initial} mobile={false} version={0} onSaved={() => { saved++ }} />)
+  await user.click(view.getByRole('button', { name: 'Job details & notes' }))
+  await user.click(view.getByRole('button', { name: 'Edit job sourcing note' }))
+  const jobInput = view.getByRole('textbox', { name: 'Edit job sourcing note' }) as HTMLTextAreaElement
+  assert.equal(jobInput.value, sourcingMarkdown)
+  await user.keyboard('{Escape}')
+  assert.equal(writes.length, 0)
+  await user.click(view.getByRole('button', { name: 'Edit job sourcing note' }))
+  const edited = '**<u>Austin Plant Supply</u>**\n$110 · Qty 15 · Follow-up'
+  const editor = view.getByRole('textbox', { name: 'Edit job sourcing note' })
+  await user.clear(editor)
+  await user.type(editor, edited)
+  await user.keyboard('{Control>}{Enter}{/Control}')
+  await waitFor(() => assert.equal(saved, 1))
+  assert.deepEqual(writes[0], { table: 'job_requests', id: 19, column: 'sourcing_notes', value: edited })
+  view.rerender(<FocusedJobRecord request={{ ...initial, sourcingNotes: edited }} mobile={false} version={0} onSaved={() => { saved++ }} />)
+  const details = view.container.querySelector<HTMLElement>('[data-compact-job-details]')!
+  assert.equal(details.querySelector('strong > u')?.textContent, 'Austin Plant Supply')
+  assert.ok(within(details).getByText('$110 · Qty 15 · Follow-up'))
+
+  await user.click(view.getByRole('button', { name: /Edit sourcing note for Live Oak/ }))
+  const popover = view.container.querySelector<HTMLElement>('.lps-pop')!
+  assert.equal(popover.querySelectorAll('strong > u').length, 2)
+  assert.equal(popover.querySelectorAll('hr').length, 0)
+  await user.click(within(popover).getByRole('button', { name: /Edit sourcing note for Live Oak/ }))
+  const itemInput = within(popover).getByRole('textbox', { name: /Edit sourcing note for Live Oak/ }) as HTMLTextAreaElement
+  assert.equal(itemInput.value, sourcingMarkdown)
+  await user.clear(itemInput)
+  await user.type(itemInput, edited)
+  fireEvent.blur(itemInput)
+  await waitFor(() => assert.equal(saved, 2))
+  assert.deepEqual(writes[1], { table: 'job_request_items', id: 51, column: 'sourcing_notes', value: edited })
+})
+
+test('Markdown renders separators and safe underline without executing arbitrary HTML or formatting fenced code', () => {
+  const view = render(<Markdown text={'**<u>Supplier</u>**\n----\n<u onclick="alert(1)">Unsafe</u>\n<img src=x onerror="alert(1)">\n[unsafe](javascript:alert(1))\n```text\n**<u>Literal</u>**\n----\n```'} />)
+  assert.equal(view.container.querySelectorAll('strong > u').length, 1)
+  assert.equal(view.container.querySelectorAll('hr').length, 1)
+  assert.equal(view.container.querySelector('img, script, [onclick], [onerror], a[href^="javascript:"]'), null)
+  assert.match(view.container.textContent ?? '', /<u onclick="alert\(1\)">Unsafe<\/u>/)
+  assert.equal(view.container.querySelector('pre code')?.textContent, '**<u>Literal</u>**\n----')
+})
 
 test('structured identity is exact nonblank Company | Job/Site | Contact values with honest omission', () => {
   const exact = structuredJobIdentityLine(request())

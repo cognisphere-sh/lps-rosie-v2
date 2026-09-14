@@ -1,5 +1,45 @@
 # supplier-coordination — changelog
 
+## 2.10.0
+
+2026-09-11 — Clarify that smallest-priced-requested-size quote selection is not
+physical availability or automatic narrowing of AR scope. Preserve original
+size alternatives and one total quantity unless separately resolved; avoid
+redundant quote-size questions while resolving genuinely ambiguous supplier asks.
+
+## 2.9.0
+
+2026-09-11 — Distinguish Chris-authorized likely catalogue-name pricing from
+genuine substitutions and independently verified exact AR mappings. No needless
+alternative approval for mere names; generic-label pricing permission alone
+does not authorize exact AR mapping, seed price or availability claims.
+
+## 2.8.0
+
+2026-09-11 — Align with Chris-authorized mandatory APS job-row notes and
+supported gap alternatives. Require explicit approval to request availability
+for alternatives before AR creation/send or supplier-visible alternative hints,
+including automatic APS portal requests. Quote approval and internal candidate
+notes do not authorize an alternative availability ask.
+
+## 2.7.0
+
+2026-09-11 — Relay supplier responses to Chris and qualifying sourcing notes;
+no automatic availability/status, AR-answer or submission writes from replies.
+Require Chris's explicit instruction for agent-written changes. Preserve
+supplier-entered portal answers and explicit plant-sourcing decisions.
+
+## 2.6.0
+
+2026-09-11 — Use the job skill's Markdown supplier-entry format for sourcing
+notes: bold, underlined names and concise keywords/numbers, without tables.
+
+## 2.5.0
+
+2026-09-11 — Treat lookup-only handoffs as research for Chris's chat response,
+not outreach. Apply the job skill's sourcing-note rule to preparation and
+event relays; distinguish delivered requests from pending send actions.
+
 ## 2.4.0
 
 2026-09-11 — Complete independent supplier/request lookups, inventory mapping

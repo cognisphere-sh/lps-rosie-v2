@@ -4,7 +4,7 @@
 - Route: bhoumik
 - Priority: 2 — Bhoumik weekly priority (2026-09-01); work-list item 5 (2026-09-11)
 - Raised: 2026-08-28 by Chris (via telegram); prioritized 2026-09-01 by Bhoumik
-- Updated: 2026-09-11
+- Updated: 2026-09-11 14:10:56 CDT
 - Completion scope: public/out-of-network request access; formatted email uses Rosie's existing approved supplier-send workflow, not automatic app sending.
 
 ## Problem
@@ -17,6 +17,14 @@ A prospective wholesale supplier without an LPS Partner account could not receiv
 - 2026-09-01 Bhoumik made public out-of-network requests and individual availability requests weekly priority 2.
 - 2026-09-03 Chris confirmed frictionless one-request access for prospective nurseries and teammates, separate from authenticated aggregate Nursery Ops.
 - 2026-09-11 Bhoumik reports work-list item 5 done (Telegram 276, 04:51:20 CDT).
+
+- 2026-09-11 Chris/CR, Telegram313 reply279 at 14:09:59 CDT: growers’ limited offerings usually permit an email/text reply; multiline whole-list wholesale-nursery requests better suit the live collaborative view. Full quote in feedback log, **Grower replies are usually simpler; whole-list nursery asks suit a link**.
+
+## Channel fit — clarified, not new implementation
+
+This delivered capability is particularly useful when a wholesale nursery receives an entire plant list requiring per-line availability, notes and pricing. It is not a universal requirement to send every supplier a link or require portal use. Chris estimates the usual grower response experience is email/text (“90/10”); growers generally have narrower offerings/fewer inputs. A multi-item grower ask may optionally use the existing scoped link, but grower-specific enhancements are not needed now.
+
+No SMS integration or automatic outreach is implied or authorized, and this is not a rigid Grower-versus-Wholesale channel classification. General public access remains shipped and reusable. Rosie/Daisy ownership, all send approvals, the supplier-identity setup hold and item 8 order-management deferral remain unchanged. The email/link behavior below describes the available shared-request path, not a newly compulsory step for simpler asks.
 
 ## What it should do
 
@@ -61,3 +69,4 @@ Evidence: `workspace/threads/main/tasks/supplier-access-authentication/audit-202
 - 2026-09-01 — staged as Bhoumik's weekly priority 2.
 - 2026-09-10 — partially shipped: active-Partner public-link slice only; non-Partner request and email path still absent in the audited version.
 - 2026-09-11 — Bhoumik reports completed. Re-audit finds the non-Partner rejection removed, non-Partner public URL creation and HTML supplier-email procedure added, and lifecycle corrected to retain working-stage supplier updates. Marked core shipped with verification limits and separate delivery-copy follow-up recorded.
+- 2026-09-11 14:10:56 CDT — Captured Chris/CR Telegram313 channel/complexity clarification; link remains useful for whole-list wholesale asks and optional for more complex grower asks. No rollback, new feature or implementation routing; core stays shipped.

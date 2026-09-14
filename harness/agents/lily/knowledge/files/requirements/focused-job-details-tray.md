@@ -3,7 +3,11 @@
 - Status: routed · serialized behind mobile AR deployment
 - Route: nova
 - Raised: 2026-08-31 by Chris (via Nova handoff; Telegram messages 452/454/456/458/461/464/485/498/500/502/504/506/519/542 and photos 452/454/463/498/500/519/542)
-- Updated: 2026-09-02
+- Updated: 2026-09-13 17:09:01 CDT
+
+## Latest mobile header boundary
+
+`focused-job-header-layout` now holds the September13 two-row **mockup-only** proposal: top JR / Company / Status / Total; below atomic Job / calendar + month-day estimated install date / Rosie. It supersedes the earlier one-group mobile design, with implementation held for Chris’s visual feedback. Telegram615 refines the mockup after rejecting repetition: company once, lower Job only when meaningfully distinct, supporting real person + customer Chat only (no repeated company). This local display rule does not change the tray, desktop, actual field presence, global helpers or distinct chat contexts. An equal-valued stored Job remains editable, not falsely missing. Sample date/total is not a durable fact or authorization to reverse Bhoumik’s notes-first decision; approved current contracts must be rechecked before any later build.
 
 ## Problem
 

@@ -82,9 +82,8 @@ export interface JobRequestFilters {
  * message, has no stamp — it stays one unstamped entry rather than being
  * reshaped.
  *
- * `sourcing_notes` is deliberately absent: it is free text, edited in place —"
- * a working sheet of what each supplier said, not a sequence of entries — so
- * it is carried raw and never parsed.
+ * `sourcing_notes` is deliberately absent from this timestamped-note parser:
+ * its raw Markdown is preserved for editing and rendered by the UI.
  */
 function noteEntries(text: string | null, kind: JobNote['kind']): JobNote[] {
   return parseEntries(text).map((e) => ({ kind, ...e }))

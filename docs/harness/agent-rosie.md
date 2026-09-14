@@ -36,10 +36,26 @@ continues the operational task.
 - Partner requests use their portal; non-partner requests use a public AR
   URL plus an HTML email containing that link. The email still follows the
   specific-draft approval rule unless the action is already authorized.
-- Inventory prices do not confirm availability. Supplier responses update
-  the request through the supplier thread. Each job item has short sourcing
-  rows, one per supplier: supplier, price and latest AR/response evidence.
-  Changed answers replace that supplier's row rather than adding a log.
+- Supplier lookups are answered in Chris's original chat first, including
+  searches for an existing job. Research alone adds no sourcing notes and
+  starts no supplier outreach or availability request. Notes require an AR
+  actually delivered/sent to that supplier, a concrete required supplier
+  action, Chris's explicit instruction to record them or an explicit supplier
+  selection/plant-sourcing decision. An unsent request
+  is recorded only for a real pending action or explicit note instruction,
+  and is labelled accurately. Quick-quote pricing alone adds no sourcing notes.
+- Inventory prices do not confirm availability. Rosie surfaces supplier
+  responses to Chris without automatically changing job/item availability,
+  status, available quantities, AR answers or selected supplier. Explicit
+  Chris instructions are required for agent-written availability changes;
+  supplier-entered portal answers remain as saved. Multiple suppliers' responses
+  stay separate. Qualifying sourcing notes use
+  Markdown: `**<u>Supplier name</u>**`, then short keywords and tracking numbers
+  for price, size, quantity, AR/status, ETA, required action and explicit plant
+  sourcing decisions such as `Selected by Chris` or `30 G approved`. No tables,
+  pipe-delimited rows, full sentences or divider lines. Separate entries with
+  blank lines. Changed answers update that
+  supplier's entry rather than adding a log.
 
 | Job label | Stored key | Meaning |
 |---|---|---|
@@ -74,7 +90,8 @@ Job closure closes its ARs and revokes public links; job reopening restores
 each request's previous stage. Revoked tokens are not reused. Normal active
 job-stage changes leave ARs open. Public/private supplier edits and
 `answer_availability_request(...)` use the same database lock and closed-job
-checks; the agent uses that RPC for answers conveyed through chat/email.
+checks; Rosie uses that RPC only when Chris explicitly instructs an AR update,
+not automatically for answers conveyed through chat/email.
 
 ## Threads and approvals
 

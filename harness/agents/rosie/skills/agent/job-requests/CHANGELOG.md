@@ -1,5 +1,67 @@
 # job-requests — changelog
 
+## 4.13.0
+
+2026-09-11 — Aligned shared quote-note examples with Chris's minimum-word
+feedback: size/price-only options, no “Quoted for” introductions or evident
+selection restatements, and concise necessary variety questions/distinctions.
+References quote-generation as format owner; sourcing notes, approval gates and
+other operational procedures remain unchanged.
+
+## 4.12.0
+
+2026-09-11 — Chris authorized the smallest requested size with supported pricing
+for multiple-size alternatives, without redundant clarification. Preserve original
+options, save larger requested-size prices in shared item notes and distinguish
+quote selection from stock confirmation or supplier AR scope.
+
+## 4.11.0
+
+2026-09-11 — Chris authorized direct supported pricing for likely equivalent
+requested/catalogue plant names, with concise sourcing mapping/evidence instead
+of alternative labels or unnecessary approvals. Includes his Agave naming
+example; actual differences and unsupported equivalence retain alternative gates.
+
+## 4.10.0
+
+2026-09-11 — Chris authorized APS sourcing notes for every APS-scoped job row,
+including quick quotes, priced matches and gaps. Record 1–2 closest supported
+APS alternatives for gaps when found; require explicit action-specific Chris
+confirmation in the original chat before alternative quotes or ARs. Preserve
+research-only lookup behavior, Markdown format and original requested rows.
+
+## 4.9.0
+
+2026-09-11 — Chris clarified that quick quotes, including partial quotes and drafts, require create/reuse of the job, JR thread and every supplied item row before output. Pricing-only questions still create no job.
+
+## 4.8.0
+
+2026-09-11 — Surface supplier responses to Chris without automatic availability,
+status or source-selection changes, including with multiple suppliers. Record
+explicit supplier selections and other plant-sourcing decisions in the item's
+notes. Separate Markdown entries with blank lines; remove divider lines.
+
+## 4.7.0
+
+2026-09-11 — Write sourcing notes as Markdown supplier entries: bold,
+underlined names, then important keywords and tracking numbers. No tables,
+pipe-delimited rows or full sentences. Retain `----` between suppliers and
+the existing eligibility rule; store Markdown without a fenced wrapper.
+
+## 4.6.0
+
+2026-09-11 — Separate supplier entries in sourcing notes with exactly `----`
+on its own line, using real newlines. Apply the same format when adding or
+updating entries; retain the existing rule for when a sourcing note qualifies.
+
+## 4.5.0
+
+2026-09-11 — Add sourcing notes only for an availability request actually
+sent/delivered, a concrete required supplier action or Chris's explicit note
+instruction. Answer supplier lookups in chat first; catalogue matches and
+candidate prices alone stay in chat. Apply this rule during intake, pricing,
+alternative research and job/item note updates without blocking price writes.
+
 ## 4.4.0
 
 2026-09-11 — Complete all independent actions before asking questions,

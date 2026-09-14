@@ -366,6 +366,45 @@ export async function updateARItem(
   if (error) throw new Error(error.message)
 }
 
+/** Admin-only corrections to the ask; supplier answer routes never call this. */
+export async function updateARItemDetails(
+  arId: number,
+  itemId: number,
+  changes: Record<string, string>,
+): Promise<void> {
+  if (!changes || typeof changes !== 'object' || Array.isArray(changes) || !Object.keys(changes).length) {
+    throw new Error('Plant details are required')
+  }
+  const values: Record<string, string | number | null> = {}
+  for (const [key, raw] of Object.entries(changes)) {
+    if (!['name', 'size', 'quantity', 'lps_notes'].includes(key) || typeof raw !== 'string') {
+      throw new Error('Invalid plant detail field')
+    }
+    const value = raw.trim()
+    if (key === 'name' && !value) throw new Error('Plant name is required')
+    if (key === 'quantity' && value) {
+      const quantity = Number(value)
+      if (!/^[+]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value) || !Number.isFinite(quantity) || quantity <= 0) {
+        throw new Error('Requested quantity must be a number greater than zero')
+      }
+      values[key] = quantity
+    } else {
+      values[key] = value || null
+    }
+  }
+  const ar = await arForWrite(arId)
+  // The database's item-write guard locks the parent and rejects concurrent
+  // closure. Only this request's active snapshot is changed, not the job line.
+  const { data, error } = await supabase.from('availability_request_items')
+    .update(values)
+    .eq('id', itemId)
+    .eq('availability_request_id', ar.id)
+    .eq('is_active', true)
+    .select('id')
+  if (error) throw new Error(`availability_request_items: ${error.message}`)
+  if (!data?.length) throw new Error('line not found')
+}
+
 /** The request, checked for writing: active, the supplier's own, not closed. */
 async function arForWrite(arId: number, forSupplierId?: number): Promise<ARRecord> {
   const { data, error } = await supabase

@@ -27,7 +27,7 @@ interface DrawerSession {
 }
 
 type WriteOperation =
-  | { kind: 'line'; itemId: number; body: Record<string, unknown> }
+  | { kind: 'line'; itemId: number; fields: string[]; body: Record<string, unknown> }
   | { kind: 'status'; body: Record<string, unknown> }
   | { kind: 'submit'; body: Record<string, unknown> }
 
@@ -55,8 +55,8 @@ function useDrawerMobile(): boolean {
  *
  * Editable, unlike the supplier profile's read-only copy: suppliers answer by
  * phone and email as often as through the portal, so the admin enters those
- * answers here on their behalf, and moves the request's own status. A closed
- * request is read-only — reopen it from the status pill first.
+ * answers here on their behalf, corrects the requested plant details, and moves
+ * the request's own status. A closed request is read-only — reopen it first.
  */
 export function AvailabilityRequestDrawer() {
   const [session, setSession] = useState<DrawerSession | null>(null)
@@ -80,11 +80,11 @@ export function AvailabilityRequestDrawer() {
 
   const controllers = useRef(new Set<AbortController>())
   const loadController = useRef<AbortController | null>(null)
-  const lineControllers = useRef(new Map<number, AbortController>())
+  const lineControllers = useRef(new Map<string, AbortController>())
   const statusController = useRef<AbortController | null>(null)
   const submitController = useRef<AbortController | null>(null)
   const loadSequence = useRef(0)
-  const lineSequences = useRef(new Map<number, number>())
+  const lineSequences = useRef(new Map<string, number>())
   const statusSequence = useRef(0)
   const submitSequence = useRef(0)
   const writeTail = useRef<Promise<void>>(Promise.resolve())
@@ -277,12 +277,15 @@ export function AvailabilityRequestDrawer() {
 
     let sequence: number
     let controller: AbortController
+    // Moving between fields must preserve each queued edit. Only a newer edit
+    // to the same fields supersedes an earlier one.
+    const lineKey = operation.kind === 'line' ? `${operation.itemId}:${[...operation.fields].sort().join(',')}` : ''
     if (operation.kind === 'line') {
-      sequence = (lineSequences.current.get(operation.itemId) ?? 0) + 1
-      lineSequences.current.set(operation.itemId, sequence)
-      lineControllers.current.get(operation.itemId)?.abort()
+      sequence = (lineSequences.current.get(lineKey) ?? 0) + 1
+      lineSequences.current.set(lineKey, sequence)
+      lineControllers.current.get(lineKey)?.abort()
       controller = new AbortController()
-      lineControllers.current.set(operation.itemId, controller)
+      lineControllers.current.set(lineKey, controller)
     } else if (operation.kind === 'status') {
       sequence = ++statusSequence.current
       statusController.current?.abort()
@@ -298,15 +301,15 @@ export function AvailabilityRequestDrawer() {
 
     const latest = () => {
       if (!isCurrent(target) || controller.signal.aborted) return false
-      if (operation.kind === 'line') return lineSequences.current.get(operation.itemId) === sequence
+      if (operation.kind === 'line') return lineSequences.current.get(lineKey) === sequence
       if (operation.kind === 'status') return statusSequence.current === sequence
       return submitSequence.current === sequence
     }
 
     const release = () => {
       controllers.current.delete(controller)
-      if (operation.kind === 'line' && lineControllers.current.get(operation.itemId) === controller) {
-        lineControllers.current.delete(operation.itemId)
+      if (operation.kind === 'line' && lineControllers.current.get(lineKey) === controller) {
+        lineControllers.current.delete(lineKey)
       } else if (operation.kind === 'status' && statusController.current === controller) {
         statusController.current = null
       } else if (operation.kind === 'submit' && submitController.current === controller) {
@@ -361,7 +364,11 @@ export function AvailabilityRequestDrawer() {
   }, [isCurrent, setAr])
 
   const patchLine = useCallback(async (itemId: number, changes: Record<string, string>) => {
-    await enqueueWrite({ kind: 'line', itemId, body: { itemId, changes } })
+    await enqueueWrite({ kind: 'line', itemId, fields: Object.keys(changes), body: { itemId, changes } })
+  }, [enqueueWrite])
+
+  const patchDetails = useCallback(async (itemId: number, details: Record<string, string>) => {
+    await enqueueWrite({ kind: 'line', itemId, fields: Object.keys(details), body: { itemId, details } })
   }, [enqueueWrite])
 
   const submit = useCallback(async () => {
@@ -512,12 +519,13 @@ export function AvailabilityRequestDrawer() {
                   items={ar.items}
                   editable={ar.status !== 'closed'}
                   onPatch={patchLine}
+                  onPatchDetails={patchDetails}
                   mobileCards={mobile}
                   drawerModal
                 />
                 {ar.status === 'closed' && (
                   <p className="m-0 text-[11.5px] text-muted-foreground">
-                    This request is closed. Reopen it from the status pill to edit its answers and {ar.submittedAt ? 'Submit again' : 'Submit request'}.
+                    This request is closed. Reopen it from the status pill to edit plant details and answers, then {ar.submittedAt ? 'Submit again' : 'Submit request'}.
                   </p>
                 )}
               </>
@@ -538,7 +546,7 @@ export function AvailabilityRequestDrawer() {
                 {saving ? 'Submitting…' : ar.submittedAt ? 'Submit again' : 'Submit request'}
               </button>
               <div className="min-w-0 text-[11.5px] text-muted-foreground">
-                <span>Answers save as you make them. Submitting dates the whole request.</span>
+                <span>Changes save as you make them. Submitting dates the whole request.</span>
                 <span role="status" aria-live="polite" className="ml-1 font-bold text-foreground">{saveNotice}</span>
               </div>
             </footer>

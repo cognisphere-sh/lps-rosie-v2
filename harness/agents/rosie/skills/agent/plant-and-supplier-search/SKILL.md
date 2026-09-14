@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS or explicitly named supplier scoping, broad and literal search, cultivar/size matching, source dates and stock-location checks, and instructed wider supplier searches. Use for pricing questions, job sourcing and quick quotes; a search alone creates no job and confirms no availability. (v2.0.0)
+description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS or explicitly named supplier scoping, broad and literal search, cultivar/size matching, smallest-priced-requested-size selection, likely equivalent catalogue-name pricing, source dates and stock-location checks, instructed wider searches, mandatory APS job-row gap/alternative notes with action-specific Chris approval, and answering research-only supplier lookups in chat. Use for pricing questions, job sourcing and quick quotes; a standalone search creates no job, sourcing notes or availability request and confirms no availability. (v2.5.0)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "2.5.0"
 ---
 
 # Plant and supplier search
@@ -43,7 +43,13 @@ her tables during order sourcing.
    equal relevance; sort by the evidence the question needs.
 5. If no exact match appears, try common/botanical names, fewer terms and
    broader size/cultivar searches within the selected supplier. Label
-   alternatives explicitly. If APS has no match, offer to search other
+   alternatives explicitly. For actual APS job sourcing/quick quotes, return
+   evidence for every requested row, including gaps, and research 1–2 closest
+   supported APS alternatives where price or exact-match evidence is missing.
+   Prefer the same plant in a nearby size, then defensible related cultivars/
+   plants; verify identity and size rather than trusting relevance rank. Return
+   fewer or none when evidence is insufficient; never invent options/prices.
+   If APS has no match, offer to search other
    suppliers and wait for instruction. An explicit all-supplier question
    authorizes that broader search. `job-requests` owns sourcing decisions.
 6. Check positive price, source freshness and explicit stock-location notes.
@@ -57,6 +63,46 @@ For custom identity queries compare normalized keys (`name_key`,
 `normalize_plant_key()`, never raw text equality. A bad alias expansion goes
 to Daisy rather than being silently treated as a match.
 
+## Multiple requested size alternatives
+
+For a request such as `3 G / 5 G`, research **all requested sizes**. Chris's
+standing rule is to use the smallest requested size having supported applicable
+positive pricing, not whichever option is cheapest. Here “available” means
+price evidence exists, not supplier-confirmed physical stock. Return the chosen
+size/price and supported larger requested-size prices to the job owner for
+shared/customer-visible item notes (`external_notes`). Preserve original size
+options; do not choose an unrequested size or infer allocation, stock or a price.
+No redundant size-choice question is needed for clear size alternatives. If no
+requested size is priced, report the gap and follow the genuine-alternative
+approval rule. `job-requests` owns persistence and ambiguous mixed demands.
+
+## Likely equivalent names versus actual alternatives
+
+Chris authorized direct pricing for plants that are most likely the same
+under different requested/catalogue names (2026-09-11). Check common and
+botanical names, aliases, cultivar/form information, requested size and source
+context. When that evidence supports a likely naming equivalent, use its
+positive, applicable price directly for the requested row. Do not label it an
+alternative or ask for substitution approval merely because its catalogue
+name differs. Preserve the requested name; add a concise mapping/basis in the
+qualifying sourcing entry, e.g. `Pricing: Artichoke Parry’s Agave · Likely name
+match` or `Pricing: Agave Parryi · Chris-approved name match`. Include the actual
+listed size/price and source qualification when relevant; no invented evidence.
+
+**Chris's explicit pricing example:** requested `Agave parryi truncata` may use
+listings named `Artichoke Parry’s Agave` or `Agave Parryi` at the requested size,
+including the generic label. This is authorization to use pricing, not proof
+that every generic Agave parryi is botanically truncata or a confirmation of
+stock/availability. Carry that pricing basis in the internal handoff.
+
+A known species, cultivar, size or form difference remains a genuine alternative.
+Search rank, a shared genus or an unsupported guess is not likely equivalence.
+Do not generalize the Agave example to arbitrary omitted cultivars. Where
+identity evidence is insufficient/conflicting, retain the gap and ask Chris;
+use the alternative-note and action-specific quote/AR gates for actual
+substitutions. Pricing permission never establishes an exact AR mapping:
+`supplier-coordination` still verifies the requested plant and size independently.
+
 ## Report evidence
 
 Return the useful matches: supplier, plant/cultivar, size, listed price and
@@ -64,8 +110,24 @@ relevant source date/location. A published stock count is what the list said
 then, not a current reservation or confirmed supply. Unknown/zero prices
 are unpriced; do not invent a price.
 
-For jobs, return inventory UUIDs and findings to the owning `jr-<id>` thread
-for its short supplier rows. Do not replace a later supplier answer with a
-catalogue listing. For standalone questions, answer in the requesting
-interaction without creating a job or contacting a supplier. Keep SQL and
-internal tooling out of Chris's response.
+When Chris asks to look for a supplier, **answer him first in the original
+request conversation** with the options and evidence. This applies even when
+the search relates to an existing job. A supplier lookup alone does not
+authorize outreach, an AR or sourcing-note entries, and must not trigger the
+ordinary-job APS availability workflow.
+
+For jobs, also return inventory UUIDs and findings to the owning `jr-<id>`
+thread as research context. Add sourcing notes only under `job-requests`
+section 3: an AR was actually delivered/sent to that supplier, a concrete
+supplier action is required for the current order, Chris explicitly asks
+to record the note, or an explicit supplier selection/plant-sourcing decision
+needs recording. Chris's standing APS instruction qualifies **every APS-scoped
+item row during actual job sourcing/quick quotes**, including exact prices,
+gaps and 1–2 supported alternatives when found. Send these to the owning job
+thread for its Markdown APS entry; label alternatives as pending Chris approval.
+No candidate changes the requested offering or authorizes outreach. Confirm
+with Chris in the original request chat before quoting an alternative or
+creating/sending an availability request for it; obtain approval for each
+intended action. Other research-only findings stay in chat. Do not replace a later
+supplier answer with a catalogue listing. Standalone questions create no job.
+Keep SQL and internal tooling out of Chris's response.

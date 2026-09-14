@@ -1,6 +1,7 @@
 export type ChatInlineToken =
   | { kind: 'text'; text: string }
   | { kind: 'strong'; children: ChatInlineToken[] }
+  | { kind: 'underline'; children: ChatInlineToken[] }
   | { kind: 'code'; text: string }
   | { kind: 'action'; scheme: 'thread' | 'ar'; target: string; label: string }
   | { kind: 'link'; href: string; label: string }
@@ -93,7 +94,7 @@ export function transformChatInlineText(
     if (token.kind === 'text' || token.kind === 'code') {
       return { ...token, text: transform(token.text) }
     }
-    if (token.kind === 'strong') {
+    if (token.kind === 'strong' || token.kind === 'underline') {
       return { ...token, children: transformChatInlineText(token.children, transform) }
     }
     return { ...token, label: transform(token.label) }
@@ -111,7 +112,7 @@ export function chatMarkdownPlainText(
 ): string {
   const plainInline = (tokens: ChatInlineToken[]): string => tokens.map((token) => {
     if (token.kind === 'text' || token.kind === 'code') return transform(token.text)
-    if (token.kind === 'strong') return plainInline(token.children)
+    if (token.kind === 'strong' || token.kind === 'underline') return plainInline(token.children)
     if (token.kind === 'action') return transform(token.label)
 
     const label = transform(token.label)
@@ -129,7 +130,7 @@ export function chatMarkdownPlainText(
 /** Parse the deliberately small inline-markdown subset used by chat bubbles. */
 export function tokenizeChatInline(text: string): ChatInlineToken[] {
   const tokens: ChatInlineToken[] = []
-  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\((?:(thread|ar):([^)\s]+)|(https?:\/\/[^)\s]+))\)|(https?:\/\/[^\s<]+)/g
+  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\((?:(thread|ar):([^)\s]+)|(https?:\/\/[^)\s]+))\)|(https?:\/\/[^\s<]+)|<u>(.+?)<\/u>/g
   let last = 0
   let match: RegExpExecArray | null
 
@@ -150,6 +151,10 @@ export function tokenizeChatInline(text: string): ChatInlineToken[] {
       })
     } else if (match[3]) {
       tokens.push({ kind: 'link', href: match[6], label: match[3] })
+    } else if (match[8]) {
+      // Only this exact, attribute-free tag is formatting. Every other HTML
+      // string remains text and is escaped by React when rendered.
+      tokens.push({ kind: 'underline', children: tokenizeChatInline(match[8]) })
     } else {
       const { href, suffix } = splitBareHttpUrl(match[7])
       tokens.push({ kind: 'link', href, label: href })

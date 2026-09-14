@@ -904,6 +904,7 @@ function LineRow({
   item,
   editable,
   onPatch,
+  onPatchDetails,
   displayText = (text) => text,
   columns,
   minWidth,
@@ -914,6 +915,7 @@ function LineRow({
   item: ARItem
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
+  onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   displayText?: (text: string) => string
   columns: string
   minWidth: number
@@ -925,6 +927,10 @@ function LineRow({
   const portal = design === 'portal'
   const commit = (column: string) => (next: string) => {
     void onPatch?.(item.id, { [column]: next.trim() })
+  }
+  const editDetails = editable && onPatchDetails != null
+  const detail = (column: string) => (next: string) => {
+    void onPatchDetails?.(item.id, { [column]: next.trim() })
   }
   // The admin line table's row treatment: the answer's tone as a left accent
   // bar and a tint over the whole row, so a scanned table reads by colour.
@@ -954,17 +960,29 @@ function LineRow({
       }
     >
       {leading}
-      <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
+      {editDetails ? (
+        <AnswerCell value={item.quantity == null ? '' : String(item.quantity)} editable
+          placeholder="Qty" display={num(item.quantity)} onCommit={detail('quantity')}
+          ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal" />
+      ) : <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
         {num(item.quantity) || '—'}
-      </span>
-      <span className="truncate px-1 text-[12px] text-muted-foreground" title={item.size ?? undefined}>
+      </span>}
+      {editDetails ? (
+        <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
+          onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} />
+      ) : <span className="truncate px-1 text-[12px] text-muted-foreground" title={item.size ?? undefined}>
         {item.size ?? '—'}
-      </span>
+      </span>}
       <span className="min-w-0 px-1" title={item.name}>
-        <span className="block truncate text-[13px] font-semibold text-foreground">{item.name}</span>
+        {editDetails ? <span className="flex flex-col gap-1">
+          <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
+            onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`} />
+          <AnswerCell value={item.lpsNotes ?? ''} editable placeholder="Note to supplier…" display={item.lpsNotes ?? ''}
+            onCommit={detail('lps_notes')} ariaLabel={`Line ${item.id} note to supplier`} />
+        </span> : <span className="block truncate text-[13px] font-semibold text-foreground">{item.name}</span>}
         {/* LPS's note to the supplier — a few words, e.g. the alternative
             sourcing mapped. Ours; the supplier's own note is the Notes cell. */}
-        {item.lpsNotes && (
+        {!editDetails && item.lpsNotes && (
           // One line while the table is being scanned; the whole note on
           // hover, unfolded in place rather than in an overlay — the table is
           // its own scroll box and would clip a popup at its edges. The
@@ -1028,14 +1046,15 @@ function LineRow({
 /**
  * The shared lines and their answers.
  *
- * `editable` is the portal; the admin reads. `onPatch` writes one line's
- * answer and re-fetches — the caller owns both, because the two sides write
- * through different routes.
+ * `onPatch` writes supplier answers. The admin drawer also passes
+ * `onPatchDetails` to correct the requested plant; suppliers see a read-only ask.
+ * Callers own writing and refreshing through their respective routes.
  */
 export function ARLineTable<T extends ARItem>({
   items,
   editable,
   onPatch,
+  onPatchDetails,
   displayText,
   leadingHeader,
   renderLeading,
@@ -1046,6 +1065,8 @@ export function ARLineTable<T extends ARItem>({
   items: T[]
   editable: boolean
   onPatch?: (itemId: number, changes: Record<string, string>) => Promise<void>
+  /** Admin-only edits to the requested plant and LPS note. */
+  onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
   /** `portal`: no Line total column, no tone bars, no subtotal footer. */
@@ -1080,6 +1101,10 @@ export function ARLineTable<T extends ARItem>({
               void onPatch?.(item.id, { [column]: next.trim() })
             }
             const lineName = `Line ${index + 1}, ${item.name}`
+            const editDetails = editable && onPatchDetails != null
+            const detail = (column: string) => (next: string) => {
+              void onPatchDetails?.(item.id, { [column]: next.trim() })
+            }
             const tone = arResponseTone(item.status)
             return (
               <article
@@ -1090,16 +1115,40 @@ export function ARLineTable<T extends ARItem>({
               >
                 <div className="min-w-0 border-b border-lps-hair px-3 py-3" style={{ background: portal ? undefined : toneTint(tone) }}>
                   {lead && <div className="mb-2 min-w-0 text-[12px] text-muted-foreground">{renderLeading(item)}</div>}
-                  <p className="m-0 break-words text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
-                  <p className="m-0 mt-0.5 break-words text-[12px] text-muted-foreground">
-                    Need {num(item.quantity) || '—'}{item.size ? ` · ${item.size}` : ''}
-                  </p>
-                  {item.lpsNotes && (
-                    <p className="m-0 mt-2 break-words text-[12px] leading-5 text-muted-foreground">
-                      <span className="mr-1 font-bold text-foreground">LPS note:</span>
-                      {displayText?.(item.lpsNotes) ?? item.lpsNotes}
+                  {editDetails ? <div className="grid min-w-0 grid-cols-2 gap-3">
+                    <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Plant name</span>
+                      <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
+                        onCommit={detail('name')} ariaLabel={`${lineName} plant name`} touch />
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested size</span>
+                      <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
+                        onCommit={detail('size')} ariaLabel={`${lineName} requested size`} touch />
+                    </label>
+                    <label className="flex min-w-0 flex-col gap-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested qty</span>
+                      <AnswerCell value={item.quantity == null ? '' : String(item.quantity)} editable
+                        placeholder="Qty" display={num(item.quantity)} onCommit={detail('quantity')}
+                        ariaLabel={`${lineName} requested quantity`} inputMode="decimal" touch />
+                    </label>
+                    <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note to supplier</span>
+                      <AnswerCell value={item.lpsNotes ?? ''} editable placeholder="Note to supplier…" display={item.lpsNotes ?? ''}
+                        onCommit={detail('lps_notes')} ariaLabel={`${lineName} note to supplier`} multiline touch />
+                    </label>
+                  </div> : <>
+                    <p className="m-0 break-words text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
+                    <p className="m-0 mt-0.5 break-words text-[12px] text-muted-foreground">
+                      Need {num(item.quantity) || '—'}{item.size ? ` · ${item.size}` : ''}
                     </p>
-                  )}
+                    {item.lpsNotes && (
+                      <p className="m-0 mt-2 break-words text-[12px] leading-5 text-muted-foreground">
+                        <span className="mr-1 font-bold text-foreground">LPS note:</span>
+                        {displayText?.(item.lpsNotes) ?? item.lpsNotes}
+                      </p>
+                    )}
+                  </>}
                 </div>
                 <div className="grid min-w-0 grid-cols-2 gap-3 p-3">
                   <label className="col-span-2 flex min-w-0 flex-col gap-1">
@@ -1205,6 +1254,7 @@ export function ARLineTable<T extends ARItem>({
           item={item}
           editable={editable}
           onPatch={onPatch}
+          onPatchDetails={onPatchDetails}
           displayText={displayText}
           columns={columns}
           minWidth={minWidth}

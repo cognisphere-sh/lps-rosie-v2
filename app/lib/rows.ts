@@ -233,7 +233,7 @@ export interface JobRequestItem {
   customerNotes: string | null
   /** Raw `external_notes`, for the editor — `notes` is the parsed view of it. */
   externalNotes: string | null
-  /** Raw `sourcing_notes` — free text, edited in place. Never parsed. */
+  /** Raw `sourcing_notes` Markdown, preserved for editing and rendered by the UI. */
   sourcingNotes: string | null
   updatedAt: string | null
 }
@@ -268,7 +268,7 @@ export interface JobRequestRow {
   notes: JobNote[]
   /** Raw `external_notes`, for the editor — `notes` is the parsed view of it. */
   externalNotes: string | null
-  /** Raw `sourcing_notes` — free text, edited in place. Never parsed. */
+  /** Raw `sourcing_notes` Markdown, preserved for editing and rendered by the UI. */
   sourcingNotes: string | null
   itemCount: number
   statusCounts: StatusCounts

@@ -1,0 +1,24 @@
+# News, landscape inspiration and market discovery
+
+## What Chris wants
+
+- **2026-09-12T11:09:14-05:00 — One content page, public and team value:** Chris requested a collection of articles on plants, landscape architecture and nursery news, updated daily Monday–Friday, with an editorial summary first, filterable categories and top stories in a grid (Telegram 315). He clarified “Inspiring landscape design is priority” (317), the audience is “Both” public/customers and the team (318), and “Lead gen and content” is a goal (319).
+- **2026-09-12T11:09:14-05:00 — Not marketing alone:** “And daily brief and then interesting articles. … Good for me to discover what's happening in a market and who the relevant players with the best projects are” (322). The daily brief and sourced articles should help Chris understand developments, discover relevant designers/firms/players and see standout projects. No geographic market was specified; “best” is an interest in strong projects, not an approved score/ranking or unsupported endorsement.
+
+- **2026-09-12T11:59:25-05:00 — Morning delivery is a proposed option:** “Perhaps a sub agent that handles this sends me morning briefs and article links in telegram or on app?” (Telegram 325, 11:58:42). Chris is exploring having the research handled and useful briefs/links brought to him, not only visiting a page. He has not selected a channel or exact morning time, mandated a standalone agent, or authorized a recurring schedule.
+
+## Current boundaries and interpretation
+
+- **2026-09-12T11:59:25-05:00 — One curation process, distinct permissions:** Lily recommends lightweight weekday research delivering to this Telegram first, with the same source-backed curation reusable by the app/page; this remains Lily’s recommendation, not Chris’s decision. Personal morning delivery could start under its own approved owner/source/channel/time setup without waiting for public launch/contact decisions. Private delivery is not automatic permission to publish that brief or internal notes publicly. The existing publishing requirement now holds both delivery and public-use boundaries; no new agent or second research feed is assumed.
+
+- **2026-09-12T11:09:14-05:00 — Shared reading, not a new operating system:** One shared public edition also read by staff is Lily’s minimal interpretation, not a request for two feeds, private Job information, a people/project directory or lead CRM. A clear invitation to contact LPS is Lily’s minimal reading of the lead-generation goal; no contact destination or form was specified.
+- **2026-09-12T11:09:14-05:00 — Page versus daily work:** Current app/docs review found an authenticated operations app with bounded public artifact/availability routes, but no news/editorial process or confirmed public prospect inquiry route. Generic public HTML hosting exists; using it for ongoing news publication is not yet approved. UI presentation is a Nova slice; approved sourcing, editorial ownership, source/media reuse, actual update timing and public publishing/access/inquiry decisions are separately Bhoumik-staged. No live publishing or schedule was authorized.
+- **2026-09-12T11:09:14-05:00 — Honest content matters:** The proposed minimum is original brief summaries linking to attributed source reporting, with real source and edition dates. Optional reusable imagery can support landscape inspiration; no full-article/image copying or new asset pipeline is implied. Market/player/project context fits the existing brief/cards when source-backed. Chris’s content emphasis does not reprioritize current sourcing/mobile/pricing work.
+
+## Presentation delivery, not a live product
+
+- **2026-09-12T11:31:15-05:00 — Prototype only:** Parent relayed Nova’s completed private static presentation with archive-labelled sample daily brief, category filters, three stories and unresolved contact text. Nova reports independent responsive/interaction/privacy QA; Lily has not retested. No weekday content operation or public launch is complete. Point-in-time private artifact verification does not establish a publication policy because the standard signed-in reader can manually change visibility. Bhoumik’s publishing/control and legitimate contact-destination decisions remain open; Nova already gave Chris the preview and keep-private warning. Evidence and private link are retained in the UI requirement, not a claim that LPS has launched a news service.
+
+## References
+
+- **2026-09-12T11:09:14-05:00:** Feedback log handles **Weekday plant news page**, **Inspiring design comes first**, **Public and team audience**, **News serves lead generation**, **Daily brief and market discovery**, **Morning brief delivery option** (added 2026-09-12T11:59:25-05:00); requirements `../requirements/weekday-plant-news-page-ui.md` and `../requirements/weekday-plant-news-publishing.md`; source review in `workspace/threads/main/tasks/weekday-plant-news-page/notes.md`.

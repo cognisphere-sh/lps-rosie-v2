@@ -1,5 +1,100 @@
 # quote-generation — changelog
 
+## 2.16.0
+
+2026-09-11 — Route explicitly requested compact Gmail-copy HTML tables to the
+new Chris-authorized html-quote skill. Pricing/intake/approval and customer-safe
+note rules stay here; the approved APS document template remains unchanged.
+
+## 2.15.0
+
+2026-09-11 — Chris directed shared/customer-facing notes to omit “Quoted for”
+and selections already evident in the row. Keep necessary concise questions,
+options and meaningful substitution/availability caveats. Inline text notes
+may render only existing nonblank item shared `external_notes`; absent means
+omit the note/extra separator, never reconstruct from sourcing or chat.
+Audited cumulative
+feedback: minimum words, size/price-only options, Qty x Size Plant followed by
+dash-separated optional note/unit price/line total, subtotal last. No PDF or
+unrelated operational-note changes.
+
+## 2.14.1
+
+2026-09-11 — Chris corrected the comma interpretation: use Qty x Size Plant,
+then dash-separated brief note, unit price and line total. No commas separate
+the first fields. Updated optional/no-note shapes and examples; subtotal stays
+last. Supersedes the immediately preceding delimiter interpretation only.
+
+## 2.14.0
+
+2026-09-11 — Chris clarified the exact plain-text format: comma-separated
+quantity, size and plant name, followed by dash-separated brief note, unit
+price and line total; subtotal stays at the bottom. Replaced the earlier x
+format and examples. Omit the note field when unnecessary; minimal-word notes,
+copyable blocks, pricing checks and PDF layout remain unchanged.
+
+## 2.13.0
+
+2026-09-11 — Chris directed plain-text quote notes to appear after the plant
+name and before unit price, separated by dashes. Updated the default optional
+note shape and reconciled prior outside-block guidance. No-note lines retain
+their format; notes remain minimal, customer-safe and within the complete
+copyable quote. No change to HTML/PDF layout or approval gates.
+
+## 2.12.0
+
+2026-09-11 — Chris requested minimum-word quote notes: size/price only where
+plant context is clear, no redundant row/general notes, and concise variety
+questions and material caveats. Applies only to quote-facing notes and shared
+size options; does not broaden to operational notes or change template layout.
+
+## 2.11.0
+
+2026-09-11 — Chris authorized quoting the smallest priced requested size without
+redundant choice approval. Preserve original options and larger requested-size
+prices in shared item notes, without duplicating quote quantities or changing
+the default text format. Price evidence does not confirm physical stock.
+
+## 2.10.0
+
+2026-09-11 — Use supported likely equivalent catalogue-name pricing directly
+per Chris, with internal mapping evidence and no unnecessary alternative label,
+approval or customer substitution comment. Includes authorized Agave example;
+real differences/unsupported identity remain approval-gated alternatives.
+
+## 2.9.0
+
+2026-09-11 — Chris authorized mandatory APS sourcing entries on all APS-scoped
+quick-quote/job rows, including gaps and 1–2 supported alternatives when found.
+Require explicit confirmation before quoting a specific alternative, including
+partial/draft quotes; distinguish quote approval from AR approval and keep
+unapproved candidate prices out of requested-line values.
+
+## 2.8.0
+
+2026-09-11 — Chris clarified that every quick quote, including a partial quote or draft, must create or reuse its job, JR thread and all supplied item rows before quote output. Pricing-only questions remain exempt.
+
+## 2.7.0
+
+2026-09-11 — Chris approved a new default text quote: `Qty x Size Plant Name Unit Price - Line Total` per priced item, then a subtotal. Require requested-quantity arithmetic, customer unit prices, verified line totals, exactly one blank line before the subtotal, and customer-safe copyable output.
+
+## 2.6.0
+
+2026-09-11 — Record explicit supplier selections and plant-sourcing decisions
+under the job skill's note rule; quote research alone still adds no entries.
+
+## 2.5.0
+
+2026-09-11 — Use the job skill's Markdown supplier-entry format for sourcing
+notes: bold, underlined names and concise keywords/numbers, without tables.
+
+## 2.4.0
+
+2026-09-11 — Keep research-only supplier/price findings in internal chat.
+Quick-quote pricing alone creates no sourcing notes; follow the job skill's
+sent-request, required-action or explicit-note rule while saving supported
+structured prices as before.
+
 ## 2.3.0
 
 2026-09-11 — Create/reuse the job/thread and item rows, gather pricing and
