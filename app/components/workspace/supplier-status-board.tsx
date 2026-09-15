@@ -51,7 +51,7 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
         </span>
       </span>
       {shared && (
-        <span className="truncate text-[11px] italic text-muted-foreground" title={shared}>
+        <span className="whitespace-pre-wrap text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]" title={shared}>
           {shared}
         </span>
       )}
@@ -69,7 +69,7 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
               {line.quantity != null && <span className="flex-none">×{num(line.quantity)}</span>}
             </span>
             {!shared && line.lpsNotes && (
-              <span className="w-full truncate text-[10.5px] italic text-muted-foreground" title={redactPartnerRequestRefs(line.lpsNotes)}>
+              <span className="w-full whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.lpsNotes)}>
                 {redactPartnerRequestRefs(line.lpsNotes)}
               </span>
             )}

@@ -47,10 +47,29 @@ Preserve the original interaction context in every handoff; follow
   his explicit instruction, including grower sourcing across several jobs.
 - **Inventory is pricing evidence, not confirmed availability.** Supplier
   replies are supplier-specific evidence to surface to Chris, not permission
-  for Rosie to update availability, AR answers, item status or selected source.
-  Require Chris's explicit instruction for those changes; keep multiple
-  suppliers' responses separate. Supplier-entered portal answers stay as saved.
-  A quick quote may use inventory pricing without an availability request.
+  for Rosie to update job availability, item status or selected source. Require
+  Chris's explicit instruction for those job-side changes; keep multiple
+  suppliers' responses separate. A local/saved, unsubmitted supplier portal
+  edit stays on the supplier thread: do not notify a job thread, Chris or
+  sourcing notes until explicit submission. A trusted supplier portal response
+  may be transcribed into its matched AR (not submitted); when marked
+  `available`, save its `available_quantity` as the authoritative allocated
+  demand total. For voice-to-text AR responses, acknowledge the supplier first,
+  transcribe/update the AR, then ask them to review and Submit. Supplier-entered
+  portal answers otherwise stay as saved. A quick quote may use inventory
+  pricing without an availability request.
+- **Quoted offering fields:** the quoted item name and size contain exactly the
+  actual quoted plant and one actual quoted size, never original-demand options
+  or a proxy name. Preserve original demand in customer context; record every
+  plant, cultivar/variant, size or quantity difference in the shared
+  customer-visible item note as `Substitute: <actual offering> instead of
+  <original demand>`—never an unavailable price or why the difference was made.
+  `job-requests` owns exact persistence and AR scope.
+- **Multiple requested size/variant options:** quote the cheapest supported
+  requested option; record every other supported requested-option price in the
+  shared customer-visible item note. Preserve the original demand and do not
+  infer stock, allocation or an unrequested option. `job-requests` owns the
+  exact persistence and availability-request scope.
 - **Job stages:** Quote → Availability → Committed → Won/Lost.
   Customer acceptance creates Committed supplier orders. Supplier confirmation
   makes an **Order Confirmed** while its **Job Requests remain Committed**.
@@ -75,8 +94,9 @@ Preserve the original interaction context in every handoff; follow
   supplier action, Chris's explicit note instruction or an explicit supplier
   selection/plant-sourcing decision; follow
   `job-requests` for eligibility and the canonical note format: one compact
-  latest snapshot per supplier plus the current overall row outcome, including
-  the selected supplier/price or actual pending Chris decision. Notes show
+  latest snapshot per supplier plus one unlabelled plain-text current overall summary,
+  including the selected supplier/price or actual pending Chris decision. Always update
+  notes to reflect the latest status and information. Notes show
   current state; history stays in the changelog and contact transcript.
   Keep internal sourcing information out of customer-facing material.
 - **Text intended for copying belongs inside fenced code blocks.** When

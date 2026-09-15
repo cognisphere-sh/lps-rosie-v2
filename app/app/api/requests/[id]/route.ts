@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 
 import { deleteJobRequest, jobRequest } from '@/lib/job-request-queries'
 
-const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
-
 /**
  * One request, whole.
  *
@@ -50,16 +48,7 @@ export async function DELETE(
   try {
     const deleted = await deleteJobRequest(id)
     if (!deleted) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    // The database has already dropped the job's `threads` row and transcript
-    // (migration 0079). This asks rosie's webchat plugin to forget its copy and
-    // wipe the harness conversation too — best effort: the plugin refuses
-    // while a turn is in flight on the thread, and the job is gone either way.
-    void fetch(`${HARNESS_URL}/webhook/rosie/webchat/api/reset`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', cookie: _req.headers.get('cookie') ?? '' },
-      body: JSON.stringify({ threadId: `jr-${id}` }),
-      cache: 'no-store',
-    }).catch(() => {})
+    // Migration 0097 deletes the transcript and queues durable harness cleanup.
     return NextResponse.json({ ok: true, deleted })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

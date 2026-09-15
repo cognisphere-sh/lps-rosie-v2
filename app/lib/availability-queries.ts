@@ -27,6 +27,7 @@ interface ARRecord {
   submitted_at: string | null
   created_at: string
   lps_notes: string | null
+  supplier_notes: string | null
 }
 
 interface ARItemRecord {
@@ -45,7 +46,7 @@ interface ARItemRecord {
 
 
 const AR_COLUMNS =
-  'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes, public_token'
+  'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes, supplier_notes, public_token'
 const AR_ITEM_COLUMNS =
   'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes, lps_notes'
 
@@ -156,6 +157,7 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
     itemCount: counts.get(r.id)?.items ?? 0,
     answeredCount: counts.get(r.id)?.answered ?? 0,
     lpsNotes: r.lps_notes,
+    supplierNotes: r.supplier_notes ?? null,
   }))
 }
 
@@ -559,10 +561,11 @@ export async function supplierAvailabilityEventContext(arId: number, forSupplier
 }
 
 /** Submit atomically with the closure guard, then notify the supplier's thread. */
-export async function submitAvailabilityRequest(arId: number, forSupplierId: number) {
-  const { error } = await supabase.rpc('answer_availability_request', {
-    p_request_id: arId, p_supplier_id: forSupplierId, p_submit: true,
-  })
+export async function submitAvailabilityRequest(arId: number, forSupplierId: number, supplierNote?: string | null) {
+  if (supplierNote !== undefined && supplierNote !== null && (typeof supplierNote !== "string" || supplierNote.length > 10000)) throw new Error("Supplier note must be text of 10000 characters or fewer")
+  const { error } = supplierNote === undefined
+    ? await supabase.rpc('answer_availability_request', { p_request_id: arId, p_supplier_id: forSupplierId, p_submit: true })
+    : await supabase.rpc('submit_availability_request_note', { p_request_id: arId, p_supplier_id: forSupplierId, p_note: supplierNote })
   if (error) throw new Error(error.message)
   return supplierAvailabilityEventContext(arId, forSupplierId)
 }

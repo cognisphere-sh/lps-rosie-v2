@@ -60,8 +60,10 @@
  *   database is the store and the push signal (the app's SSE route relays
  *   Realtime changes), not a second read path.
  */
+import { purgeDeletedJobChats } from "./deleted-job-chats";
+import { encodeQuestionnaire, questionnairePreview, validateQuestions } from "./questions.ts";
 import { createReadStream } from "node:fs";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { copyFile, mkdir, readdir, writeFile, stat, unlink } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -271,18 +273,35 @@ export default class WebchatPlugin {
   private cfg!: WebchatConfig;
   private db!: SupabaseClient;
   private threads = new Map<string, Thread>();
+  private deletedJobs = new Set<string>();
+  private deletionTimer?: ReturnType<typeof setInterval>;
+  private deletionSync?: Promise<void>;
   private read = new Map<string, ReadCursors>();
   private outboxDir = "";
   private apiBase = "";
   private portalActiveUploads = 0;
 
   private thread(id: string): Thread {
+    if (this.deletedJobs.has(id)) throw new Error("This job chat has been deleted");
     let t = this.threads.get(id);
     if (!t) {
       t = { dbId: null, messages: [], nextId: 1, pendingSince: null };
       this.threads.set(id, t);
     }
     return t;
+  }
+
+  private syncDeletedJobs(): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return Promise.resolve();
+    if (!this.deletionSync) {
+      this.deletionSync = purgeDeletedJobChats({
+        db: this.db, agent: ctx.agentId, deleted: this.deletedJobs,
+        forget: (id) => { this.threads.delete(id); this.read.delete(id); },
+        reset: (id) => ctx.resetThread("web", id),
+      }).finally(() => { this.deletionSync = undefined; });
+    }
+    return this.deletionSync;
   }
 
   /**
@@ -388,6 +407,10 @@ export default class WebchatPlugin {
     }
     await this.db.from("threads").update({ pending_since: null }).eq("agent", ctx.agentId).not("pending_since", "is", null);
 
+    await this.syncDeletedJobs();
+    this.deletionTimer = setInterval(() => {
+      void this.syncDeletedJobs().catch((error) => ctx.log.error({ err: String(error) }, "webchat: deleted job cleanup failed"));
+    }, 15_000);
     await this.cleanupPortalOrphans();
     ctx.log.info(
       { defaultThread: this.cfg.threadId, threads: this.threads.size },
@@ -396,6 +419,8 @@ export default class WebchatPlugin {
   }
 
   async stop(): Promise<void> {
+    if (this.deletionTimer) clearInterval(this.deletionTimer);
+    await this.deletionSync;
     this.ctx = undefined;
   }
 
@@ -596,6 +621,7 @@ export default class WebchatPlugin {
     const path = url.pathname;
 
     try {
+      await this.syncDeletedJobs();
       // --- agent side: only in-harness callers (they hold the boot secret) ---
       if (req.method === "POST" && path === "/api/reply") {
         const expected = process.env.COGNISPHERE_WEBHOOK_SECRET;
@@ -604,7 +630,14 @@ export default class WebchatPlugin {
         const b = await this.readJson(req);
         const threadId = String(b.threadId ?? "").trim() || this.cfg.threadId;
         const portal = Boolean(b.portal);
-        const text = String(b.text ?? "").trim();
+        let text = String(b.text ?? "").trim();
+        if (b.questionnaire !== undefined) {
+          try {
+            text = encodeQuestionnaire({ id: randomUUID(), ...validateQuestions(b.questionnaire) });
+          } catch (e) {
+            return json(400, { error: String(e) });
+          }
+        }
         const paths = Array.isArray(b.attachments) ? b.attachments : [];
         if (!text && paths.length === 0)
           return json(400, { error: "text or attachments required" });
@@ -855,7 +888,7 @@ export default class WebchatPlugin {
               // Present only on portal messages — how the app tells a
               // supplier's message from the operator's own panel sends.
               ...(last.senderName ? { lastSender: last.senderName } : {}),
-              lastText: last.text.slice(0, 120),
+              lastText: questionnairePreview(last.text).slice(0, 120),
               readId: this.cursors(threadId).web,
             };
           })
@@ -981,7 +1014,7 @@ export default class WebchatPlugin {
       json(404, { error: "not found" });
     } catch (e) {
       ctx.log.error({ err: String(e) }, "webchat request failed");
-      if (!res.headersSent) json(500, { error: String(e) });
+      if (!res.headersSent) json(String(e).includes("job chat has been deleted") ? 410 : 500, { error: String(e) });
     }
   }
 

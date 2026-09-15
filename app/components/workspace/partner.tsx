@@ -1,5 +1,7 @@
 'use client'
 
+import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
+
 // The supplier portal's chrome — the admin Shell's `WorkspaceFrame`
 // (frame.tsx), filled in for a supplier: their identity and three
 // destinations instead of the operator's pages, a chat with Local Plant Supply
@@ -36,7 +38,8 @@ import {
 } from '@/lib/chat-appearance'
 import type { ARDetail } from '@/lib/availability'
 import { currentPage } from '@/lib/chat-page'
-import { formatDate } from '@/lib/format'
+import { mergePartnerMessages } from '@/lib/partner-chat-messages'
+import { formatMonthDay } from '@/lib/format'
 import { useHistoryView } from '@/lib/history-view'
 import { subscribeEvents } from '@/lib/chat-events'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
@@ -44,7 +47,7 @@ import { cn } from '@/lib/utils'
 
 // `settings` is reached from the rail's bottom rather than the nav, so it is
 // not one of the destinations `nav` draws — but it still owns the highlight.
-export type PartnerTab = 'requests' | 'orders' | 'closed' | 'settings'
+export type PartnerTab = 'requests' | 'orders' | 'closed' | 'closed-orders' | 'settings'
 
 // ------------------------------------------------------------------ the chat
 
@@ -79,7 +82,7 @@ const PARTNER_SUGGESTIONS = [
  * same components the operator's agent panel draws (`chat-kit.tsx`), so both
  * chats gain a feature at once.
  */
-function usePartnerChat(supplierId: number) {
+export function usePartnerChat(supplierId: number) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [pending, setPending] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
@@ -118,9 +121,9 @@ function usePartnerChat(supplierId: number) {
         messages: ChatMessage[]; hasMore: boolean; pending: boolean
       }
       if (body.messages.length) {
-        setMessages((prev) => [...prev, ...body.messages])
-        cursor.current = body.messages[body.messages.length - 1].id
-        if (!oldest.current) oldest.current = body.messages[0].id
+        setMessages((prev) => mergePartnerMessages(prev, body.messages))
+        cursor.current = Math.max(cursor.current, ...body.messages.map((m) => m.id))
+        oldest.current = Math.min(oldest.current || Infinity, ...body.messages.map((m) => m.id))
       }
       if (first) setHasMore(body.hasMore)
       setPending(body.pending)
@@ -141,8 +144,8 @@ function usePartnerChat(supplierId: number) {
       if (!res.ok) throw new Error(String(res.status))
       const body = (await res.json()) as { messages: ChatMessage[]; hasMore: boolean }
       if (body.messages.length) {
-        setMessages((prev) => [...body.messages, ...prev])
-        oldest.current = body.messages[0].id
+        setMessages((prev) => mergePartnerMessages(prev, body.messages))
+        oldest.current = Math.min(oldest.current || Infinity, ...body.messages.map((m) => m.id))
       }
       setHasMore(body.hasMore)
       setError('')
@@ -178,16 +181,22 @@ function usePartnerChat(supplierId: number) {
         })
         if (!res.ok) throw new Error(String(res.status))
         const { id } = (await res.json()) as { id: number }
-        // Adopt the real id so the poll's copy doesn't duplicate this message.
-        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...m, id } : m)))
-        cursor.current = Math.max(cursor.current, id)
+        // A live poll may already have received the canonical row.
+        setMessages((prev) => mergePartnerMessages(
+          [{ ...optimistic, id }], prev.filter((m) => m.id !== optimistic.id),
+        ))
+        // Only reads advance the cursor: a send could otherwise skip replies
+        // that were saved just before this message.
+        void poll()
+        return true
       } catch {
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
         setPending(false)
         setError('Message failed to send.')
+        return false
       }
     },
-    [supplierId],
+    [supplierId, poll],
   )
 
   return { messages, pending, unavailable, error, hasMore, loadingMore, send, loadMore, refresh: poll }
@@ -233,10 +242,10 @@ function PartnerChat({
     [supplierId],
   )
 
-  const send = () => {
+  const send = (files = composer.files) => {
     const text = draft.trim()
-    if (!text && !composer.files.length) return
-    void chat.send(text, composer.files)
+    if (!text && !files.length) return
+    void chat.send(text, files)
     setDraft('')
     composer.clear()
   }
@@ -251,7 +260,7 @@ function PartnerChat({
 
   return (
     <>
-      <Transcript
+      <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])}
         messages={chat.messages}
         pending={chat.pending}
         error={chat.error}
@@ -475,10 +484,12 @@ export function PartnerRequestCard({
           {partnerRequestName(request)}
         </span>
         <ARStatusPill status={request.status} />
-        <span className="ml-auto whitespace-nowrap text-[11px] text-lps-dim" title="Requested">
-          {formatDate(request.createdAt)}
+        <span className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground">
+          Created <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(request.createdAt) || '—'}</span>
         </span>
       </div>
+
+      <ARJobSchedules schedules={request.jobSchedules} />
 
       {(customer || locality) && (
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
@@ -728,7 +739,8 @@ export function PartnerFrame({
   const nav = [
     { id: 'requests', label: 'Availability Requests', short: 'Requests', href: `/partner/${supplierId}`, Icon: RequestsIcon },
     { id: 'orders', label: 'Orders', short: 'Orders', href: `/partner/${supplierId}/orders`, Icon: FileIcon },
-    { id: 'closed', label: 'Closed Requests', short: 'Closed', href: `/partner/${supplierId}/closed`, Icon: ArchiveIcon },
+    { id: 'closed-orders', label: 'Closed Orders', short: 'Closed orders', href: `/partner/${supplierId}/closed-orders`, Icon: ArchiveIcon },
+    { id: 'closed', label: 'Closed Requests', short: 'Closed requests', href: `/partner/${supplierId}/closed`, Icon: ArchiveIcon },
   ]
 
   const bell = (mobile = false) => (

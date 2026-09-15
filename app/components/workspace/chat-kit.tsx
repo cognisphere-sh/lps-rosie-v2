@@ -17,6 +17,8 @@ import {
   chatMarkdownPlainText, joinLineBrokenMarkdownLinks, splitChatMarkdownBlocks, tokenizeChatInline,
   transformChatInlineText, type ChatInlineToken,
 } from '@/lib/chat-markdown'
+import { ChatQuestionnaire } from './chat-questionnaire'
+import { answerHeading, parseQuestionnaire, questionnaireMessageText } from '../../../harness/plugins/webchat/questions'
 import { cn } from '@/lib/utils'
 
 // --------------------------------------------------------------------- types
@@ -54,6 +56,7 @@ function inline(
   key: string,
   onAction?: MarkdownAction,
   displayText: (text: string) => string = (value) => value,
+  interactive = true,
 ) {
   const render = (tokens: ChatInlineToken[], prefix: string): React.ReactNode[] => tokens.map((token, i) => {
     const k = `${prefix}-${i}`
@@ -62,6 +65,7 @@ function inline(
     if (token.kind === 'underline') return <u key={k}>{render(token.children, k)}</u>
     if (token.kind === 'code') return <code key={k} className="rounded bg-muted px-1 py-px font-mono text-[13.5px]">{token.text}</code>
     if (token.kind === 'link') {
+      if (!interactive) return <span key={k} className="underline">{token.label}</span>
       return <a key={k} href={token.href} target="_blank" rel="noreferrer" className="underline [overflow-wrap:anywhere]">{token.label}</a>
     }
 
@@ -88,6 +92,12 @@ function inline(
 }
 
 const messageText = (text: string) => text.replace(/\\r\\n|\\n|\\r/g, '\n')
+
+/** A single-line, non-interactive preview suitable for an edit button. */
+export function MarkdownFirstLine({ text }: { text: string }) {
+  const firstLine = messageText(text).trim().split(/\r?\n/, 1)[0].replace(/^\s*[-*]\s+/, '')
+  return <>{inline(firstLine, 'preview', undefined, undefined, false)}</>
+}
 
 function MarkdownProse({
   text,
@@ -395,6 +405,9 @@ interface ComposerUploadOperation {
 interface ComposerRecordingOwner {
   generation: number
   cancelled: boolean
+  onSend?: (file: ChatFile) => void
+  elapsed: number
+  resumedAt: number
   recorder: MediaRecorder | null
   stream: MediaStream | null
   teardown: (() => void) | null
@@ -404,6 +417,8 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
   const [files, setFiles] = useState<ChatFile[]>([])
   const [busy, setBusy] = useState(false)
   const [recording, setRecording] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [finishing, setFinishing] = useState(false)
   const [levels, setLevels] = useState<number[]>([])
   const [seconds, setSeconds] = useState(0)
   const [notice, setNotice] = useState('')
@@ -416,7 +431,7 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
     [...uploads.current.values()].some((operation) => operation.generation === owner), [])
 
   const uploadForGeneration = useCallback(
-    async (list: File[], owner: number) => {
+    async (list: File[], owner: number, onUploaded?: (file: ChatFile) => void) => {
       if (!list.length || !mounted.current || generation.current !== owner) return
       const token = Symbol('composer-upload')
       const operation: ComposerUploadOperation = { generation: owner, controllers: new Set() }
@@ -429,7 +444,8 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
         try {
           const stored = await uploadOne(file, controller.signal)
           if (mounted.current && generation.current === owner && !controller.signal.aborted) {
-            setFiles((prev) => [...prev, stored])
+            if (onUploaded) onUploaded(stored)
+            else setFiles((prev) => [...prev, stored])
           }
         } catch (cause) {
           if (mounted.current && generation.current === owner && !controller.signal.aborted) {
@@ -480,6 +496,8 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
     const owner: ComposerRecordingOwner = {
       generation: generation.current,
       cancelled: false,
+      elapsed: 0,
+      resumedAt: 0,
       recorder: null,
       stream: null,
       teardown: null,
@@ -566,6 +584,8 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
       if (recordingOwner.current === owner) recordingOwner.current = null
       if (mounted.current && generation.current === owner.generation) {
         setRecording(false)
+        setPaused(false)
+        setFinishing(false)
         setLevels([])
         setSeconds(0)
       }
@@ -597,15 +617,16 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
       source = ctx.createMediaStreamSource(stream)
       source.connect(analyser)
       const frame = new Uint8Array(analyser.frequencyBinCount)
-      const started = Date.now()
+      owner.resumedAt = Date.now()
       tick = setInterval(() => {
         if (!mounted.current || generation.current !== owner.generation || recordingOwner.current !== owner) return
+        if (recorder.state !== 'recording') return
         analyser.getByteTimeDomainData(frame)
         let sum = 0
         for (const value of frame) sum += (value - 128) ** 2
         const rms = Math.sqrt(sum / frame.length) / 128
         setLevels((prev) => [...prev, Math.min(1, Math.max(0.06, rms * 3.2))].slice(-56))
-        setSeconds(Math.floor((Date.now() - started) / 1000))
+        setSeconds(Math.floor((owner.elapsed + Date.now() - owner.resumedAt) / 1000))
       }, 90)
 
       recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
@@ -620,6 +641,7 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
         await uploadForGeneration(
           [new File([blob], `voice-note.${extForAudio(mime)}`, { type: mime })],
           owner.generation,
+          owner.onSend,
         )
       }
 
@@ -632,6 +654,34 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
       if (mounted.current && generation.current === owner.generation) setNotice('Could not start recording.')
     }
   }, [stopRecording, uploadForGeneration])
+
+  const sendRecording = useCallback((onSend: (file: ChatFile) => void) => {
+    const owner = recordingOwner.current
+    if (!owner?.recorder || owner.recorder.state === 'inactive' || owner.onSend) return
+    owner.onSend = onSend
+    setFinishing(true)
+    stopRecording(false)
+  }, [stopRecording])
+
+  const togglePause = useCallback(() => {
+    const owner = recordingOwner.current
+    const recorder = owner?.recorder
+    if (!owner || !recorder || owner.onSend) return
+    try {
+      if (recorder.state === 'recording') {
+        recorder.pause()
+        owner.elapsed += Date.now() - owner.resumedAt
+        setSeconds(Math.floor(owner.elapsed / 1000))
+        setPaused(true)
+      } else if (recorder.state === 'paused') {
+        recorder.resume()
+        owner.resumedAt = Date.now()
+        setPaused(false)
+      }
+    } catch {
+      setNotice('Could not pause or resume recording.')
+    }
+  }, [])
 
   const abandonRecording = useCallback(() => {
     const owner = recordingOwner.current
@@ -669,6 +719,8 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
     setBusy(false)
     setNotice('')
     setRecording(false)
+    setPaused(false)
+    setFinishing(false)
     setLevels([])
     setSeconds(0)
   }, [abandonRecording, abortUploads])
@@ -698,12 +750,16 @@ export function useComposer(uploadOne: (file: File, signal: AbortSignal) => Prom
     files,
     busy,
     recording,
+    paused,
+    finishing,
+    sendRecording,
+    togglePause,
     levels,
     seconds,
     notice,
     upload,
     record,
-    cancelRecording: () => stopRecording(true),
+    cancelRecording: abandonRecording,
     dismissNotice: () => setNotice(''),
     onPaste,
     clear: () => setFiles([]),
@@ -739,7 +795,7 @@ export const fmtStamp = (ms: number) => {
  */
 export function Transcript({
   messages, pending, error, hasMore, loadingMore, fileHref, empty, pendingLabel,
-  suggestions = [], onSuggest, onAction, onRefresh, onLoadMore, mobile, wallpaper, displayText,
+  suggestions = [], onSuggest, onAction, onQuestionnaireSubmit, onRefresh, onLoadMore, mobile, wallpaper, displayText,
 }: {
   messages: ChatMessage[]
   pending: boolean
@@ -755,6 +811,7 @@ export function Transcript({
   suggestions?: string[]
   onSuggest?: (s: string) => void
   onAction?: MarkdownAction
+  onQuestionnaireSubmit?: (text: string) => Promise<boolean>
   /** Supplier-only copy transform; links and action targets stay untouched. */
   displayText?: (text: string) => string
   onRefresh: () => Promise<void>
@@ -783,7 +840,8 @@ export function Transcript({
 
   const copyMessage = useCallback(async (message: ChatMessage) => {
     try {
-      const text = messageText(message.text)
+      const questionnaire = parseQuestionnaire(message.text)
+      const text = questionnaire ? [questionnaire.title, ...questionnaire.questions.map(q => `${q.question}\n${[...q.options, 'Something else'].join(' / ')}`)].join('\n\n') : messageText(questionnaireMessageText(message.text))
       await navigator.clipboard.writeText(
         displayText ? chatMarkdownPlainText(text, displayText) : text,
       )
@@ -892,11 +950,14 @@ export function Transcript({
         </div>
       )}
 
-      {messages.map((m) => (
+      {messages.map((m) => {
+        const questionnaire = m.role === 'agent' ? parseQuestionnaire(m.text) : null
+        return (
         <div
           key={m.id}
           className={cn(
             'flex min-w-0 max-w-[88%] flex-col gap-[3px]',
+            questionnaire && 'w-full',
             m.role === 'user' ? 'items-end self-end' : 'items-start self-start',
           )}
         >
@@ -919,12 +980,16 @@ export function Transcript({
             <div
               className={cn(
                 'max-w-full min-w-0 px-3 py-2.5 text-[16px] leading-[1.35] [overflow-wrap:anywhere]',
+                questionnaire && 'w-full',
                 m.role === 'user'
                   ? 'rounded-[12px_12px_4px_12px] bg-primary text-primary-foreground'
                   : 'rounded-[12px_12px_12px_4px] border border-[var(--chat-bubble-border,var(--lps-hair))] bg-lps-bubble text-foreground',
               )}
             >
-              <Markdown text={m.text} onAction={onAction} displayText={displayText} />
+              {questionnaire ? <ChatQuestionnaire key={questionnaire.id} value={questionnaire}
+                submitted={messages.some(answer => answer.role === 'user' && answer.id > 0 && answer.text.startsWith(answerHeading(questionnaire.id) + '\n'))}
+                onSubmit={onQuestionnaireSubmit} displayText={displayText} />
+                : <Markdown text={questionnaireMessageText(m.text)} onAction={onAction} displayText={displayText} />}
             </div>
           )}
           <div className={cn('flex items-center gap-1 text-lps-dim', m.role === 'user' ? 'pr-1' : 'pl-1')}>
@@ -942,7 +1007,7 @@ export function Transcript({
             )}
           </div>
         </div>
-      ))}
+      )})}
 
       {pending && (
         <div className="flex max-w-[88%] flex-col gap-[3px] self-start">
@@ -1035,7 +1100,7 @@ export function Composer({
   disabled = false, gateRef, gateRevision,
 }: {
   composer: ReturnType<typeof useComposer>
-  onSend: () => void
+  onSend: (files?: ChatFile[]) => void
   draft: string
   setDraft: (v: string) => void
   /** `Ask Rosie…` — the idle placeholder; uploading overrides it. */
@@ -1051,7 +1116,7 @@ export function Composer({
 }) {
   const picker = useRef<HTMLInputElement>(null)
   const box = useRef<HTMLTextAreaElement>(null)
-  const canSend = !disabled && Boolean(draft.trim() || composer.files.length)
+  const canSend = !disabled && !composer.busy && Boolean(draft.trim() || composer.files.length)
 
   useLayoutEffect(() => {
     if (!gateRef?.current) return
@@ -1146,13 +1211,13 @@ export function Composer({
           <button
             type="button"
             onClick={composer.cancelRecording}
-            title="Discard recording"
-            aria-label="Discard recording"
+            title="Cancel recording"
+            aria-label="Cancel recording"
             className="flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
           >
             <Trash2 size={big ? 17 : 15} />
           </button>
-          <span className="size-2 flex-none animate-pulse rounded-full bg-destructive" />
+          <span className={cn("size-2 flex-none rounded-full bg-destructive", !composer.paused && "animate-pulse")} />
           <span className="w-8 flex-none text-[11.5px] font-semibold tabular-nums">{fmtTime(composer.seconds)}</span>
 
           {/* Live level meter — newest sample on the right, like WhatsApp. */}
@@ -1168,15 +1233,26 @@ export function Composer({
 
           <button
             type="button"
-            onClick={composer.record}
-            title="Stop and attach"
-            aria-label="Stop recording and attach"
+            onClick={composer.togglePause}
+            disabled={composer.finishing}
+            title={composer.paused ? 'Resume recording' : 'Pause recording'}
+            aria-label={composer.paused ? 'Resume recording' : 'Pause recording'}
+            className="flex flex-none cursor-pointer items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-50"
+          >
+            {composer.paused ? <Play size={big ? 17 : 15} /> : <Pause size={big ? 17 : 15} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => composer.sendRecording((file) => onSend([...composer.files, file]))}
+            disabled={composer.finishing || composer.busy}
+            title="Send voice note"
+            aria-label="Send voice note"
             className={cn(
               'flex flex-none cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90',
               big ? 'size-10' : 'size-9',
             )}
           >
-            <CheckIcon size={big ? 17 : 15} />
+            <Send size={big ? 17 : 15} />
           </button>
         </div>
       ) : (
@@ -1204,6 +1280,7 @@ export function Composer({
         <button
           type="button"
           onClick={composer.record}
+          disabled={composer.busy}
           title="Record a voice note"
           aria-label="Record a voice note"
           className="mb-1 flex flex-none cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1224,7 +1301,7 @@ export function Composer({
             // inserts a newline.
             if (e.key === 'Enter' && !e.shiftKey && !big) {
               e.preventDefault()
-              if (!disabled) onSend()
+              if (canSend) onSend()
             }
           }}
           placeholder={composer.busy ? 'Uploading…' : placeholder}
@@ -1235,7 +1312,7 @@ export function Composer({
         />
         <button
           type="button"
-          onClick={onSend}
+          onClick={() => onSend()}
           disabled={!canSend}
           aria-label="Send"
           className={cn(

@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS price-list quoting first and Chris approval before any availability request, smallest-priced-requested-size quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, mandatory APS job-row notes and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.19.0)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS price-list quoting first and Chris approval before any availability request, lowest-priced-requested-option quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, mandatory APS job-row notes and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.22.1)
 metadata:
   author: lps
-  version: "2.19.0"
+  version: "2.22.1"
 ---
 
 # Quote generation
@@ -22,8 +22,8 @@ a concrete required supplier action, Chris's explicit note instruction or an
 explicit supplier selection/plant-sourcing decision. Chris's standing APS
 instruction in that section requires compact current snapshots on every
 APS-scoped job item, including quick quotes. Follow its one-supplier-entry
-and single-row-outcome format; replace superseded prices instead of appending
-quote history. Include the supported price or gap, plus 1–2 closest supported
+and unlabelled plain-text current-summary format; always replace superseded
+prices instead of appending quote history. Include the supported price or gap, plus 1–2 closest supported
 APS alternatives for gaps when found. Preserve requested lines and label
 candidates `Alternative · Chris approval pending`; never invent alternatives
 or overwrite a requested-line price with an unapproved candidate price.
@@ -79,22 +79,29 @@ clarification.
   clarify remaining gaps while preparing unambiguous lines. Keep unsupported
   lines out of a final priced quote and state that gap separately to Chris.
 
-For clear requested size alternatives (`3 G / 5 G`), follow Chris's standing
-rule: use the **smallest requested size with supported applicable positive
-pricing**, not the cheapest price or assumed physical stock. No redundant
-size-choice approval is needed. Quote that size explicitly; preserve the original
-options in the job/customer context and record supported larger requested-size
-prices in shared/customer-visible item `external_notes` (without supplier/cost
-commentary). Do not add those alternatives as extra quote lines or duplicate
-quantity. The default text block contains chosen lines, any applicable brief
-inline notes and the subtotal; larger-size options belong in the item's note,
-not extra priced demand lines. If no
-requested size has a supported price, keep the gap and follow alternative gates;
-never select an unrequested size or invent price/stock. Explicit allocations or
-conflicting requirements still take precedence and may need clarification.
+For clear requested size or variant alternatives (`3 G / 5 G`), follow Chris's
+standing rule: quote the **cheapest supported requested option**, not the
+smallest size, an assumed physical stock position or an unrequested option. No
+redundant choice approval is needed. Quote that option explicitly; preserve the
+original options in the job/customer context and record every other supported
+requested-option price in shared/customer-visible item `external_notes` (without
+supplier/cost commentary). Do not add options as extra quote lines or duplicate
+quantity. The default text block contains the chosen line, any applicable brief
+inline note and the subtotal; other supported requested options belong in the
+item's note, not extra priced demand lines. If no requested option has a
+supported price, keep the gap and follow alternative gates; never select an
+unrequested option or invent price/stock. Explicit allocations or conflicting
+requirements still take precedence and may need clarification.
 
-Quotes contain the requested/approved offered plant, size, customer price
-and (when required by the chosen format) quantity. Never copy sourcing notes,
+Quotes contain the approved offered plant, exactly one actual offered size,
+customer price and (when required by the chosen format) quantity. The item
+`name` and `size` used for the quote must be that actual offering, not the
+original demand, a multi-option `or` list or a catalogue proxy. Preserve the
+original demand in `customer_notes`; whenever the offering differs in plant,
+cultivar/variant, size or quantity, state the difference concisely in existing
+customer-visible `external_notes` before rendering as `Substitute: <actual
+offering> instead of <original demand>`; never state why it was changed or an
+unavailable price. Never copy sourcing notes,
 supplier comparisons, supplier cost commentary, internal agent messages or
 unapproved substitutions. Keep original plant order unless instructed
 otherwise. Keep source pricing evidence in the internal chat and, only when

@@ -12,6 +12,7 @@ import { useToast } from '@/components/workspace/shell'
 import { JOB_NAME_MAX_LENGTH, jobRequestIdentityLine, storedJobIdentityComponents } from '@/lib/job-identity'
 import { canonicalJobThread } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
+import { formatMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 
 export interface FocusedJobChatTarget {
@@ -505,7 +506,7 @@ export function FocusedJobNameEditor({
         type="button"
         disabled={busy}
         aria-label={`${name ? 'Edit' : 'Add'} job name for JR-${request.id}`}
-        title={name ? `Edit Job name: ${name}` : 'Add Job name'}
+        title={request.createdAt ? `Created ${formatMonthDay(request.createdAt)}` : (name ? `Edit Job name: ${name}` : 'Add Job name')}
         data-job-name-trigger={request.id}
         onClick={begin}
         className="min-h-11 w-full min-w-0 break-words rounded-md text-left text-[18px] font-bold leading-tight outline-none [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
@@ -531,7 +532,7 @@ export function FocusedJobNameEditor({
           type="button"
           disabled={busy}
           aria-label={`Edit job name for JR-${request.id}`}
-          title={`Edit Job name: ${identity.job}`}
+          title={request.createdAt ? `Created ${formatMonthDay(request.createdAt)}` : `Edit Job name: ${identity.job}`}
           data-job-name-trigger={request.id}
           onClick={begin}
           className="inline-flex min-h-11 max-w-full items-center rounded-md align-top font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
@@ -568,16 +569,44 @@ export function FocusedJobHeader({
   mobile,
   status,
   preview,
+  actions,
+  actionsTarget,
   onNameSaved = () => undefined,
+  onDateSaved = () => undefined,
   onOpenRosie = openChat,
 }: {
   request: JobRequestRow
   mobile: boolean
   status: ReactNode
   preview: ReactNode
+  actions?: ReactNode
+  actionsTarget?: HTMLElement | null
   onNameSaved?: (requestId: number) => void
+  onDateSaved?: (requestId: number) => void
   onOpenRosie?: (target: FocusedJobChatTarget) => void
 }) {
+  const headerActions = (
+    <div className="ml-auto flex flex-wrap items-center gap-1">
+      {mobile ? <FocusedJobChatChooser request={request} onOpenRosie={onOpenRosie} /> : (
+        <button
+          type="button"
+          onClick={() => onOpenRosie(focusedJobChatTarget(request))}
+          title={`Chat with Rosie about ${requestRef(request.id)}`}
+          aria-label="Chat with Rosie"
+          className="flex size-11 flex-none items-center justify-center rounded-full text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Image src="/rosie.png" alt="" width={24} height={24} className="size-6 rounded-full" />
+          <MessageSquare aria-hidden="true" className="sr-only" size={14} />
+        </button>
+      )}
+      {actions}
+    </div>
+  )
+  const fulfillmentTag = request.fulfillmentMethod && (
+    <span data-job-fulfillment className="inline-flex shrink-0 items-center rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+      {request.fulfillmentMethod === 'pickup' ? 'Pickup' : 'Delivery'}
+    </span>
+  )
   return (
     <>
       {mobile ? (
@@ -597,10 +626,11 @@ export function FocusedJobHeader({
               )}
               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
                 {status}
+                {fulfillmentTag}
               </div>
             </div>
-            <JobMetadata request={request} className="self-center" />
-            <FocusedJobChatChooser request={request} onOpenRosie={onOpenRosie} />
+            <JobMetadata request={request} className="self-center" onDateSaved={onDateSaved} />
+            {!actionsTarget && headerActions}
           </div>
         </div>
       ) : (
@@ -611,25 +641,16 @@ export function FocusedJobHeader({
           <div data-balanced-header-flank="left" className="flex min-w-0 items-center gap-1 overflow-hidden">
             <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
             {status}
+            {fulfillmentTag}
           </div>
           <div data-desktop-job-identity className="min-w-0 flex-1 basis-40">
             <FocusedJobNameEditor key={request.id} request={request} mobile={false} onSaved={onNameSaved} />
           </div>
-          <JobMetadata request={request} />
-          <div data-balanced-header-flank="right" className="ml-auto flex min-w-0 justify-end overflow-hidden">
-            <button
-              type="button"
-              onClick={() => onOpenRosie(focusedJobChatTarget(request))}
-              title={`Chat with Rosie about ${requestRef(request.id)}`}
-              aria-label="Chat with Rosie"
-              className="flex size-11 flex-none items-center justify-center rounded-full text-primary outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Image src="/rosie.png" alt="" width={24} height={24} className="size-6 rounded-full" />
-              <MessageSquare aria-hidden="true" className="sr-only" size={14} />
-            </button>
-          </div>
+          <JobMetadata request={request} onDateSaved={onDateSaved} />
+          {!actionsTarget && <div data-balanced-header-flank="right" className="ml-auto">{headerActions}</div>}
         </div>
       )}
+      {actionsTarget && createPortal(headerActions, actionsTarget)}
       {preview}
     </>
   )

@@ -17,7 +17,70 @@ here).
 
 ## 2026-09-15
 
+- Keep the requests desktop header controls in one row and move the live request and line-item count below search in small text.
+
+- Keep the order's Pickup/Delivery field under Chris/admin control with a separate editor. Supplier confirmation and date edits now save only fulfillment date and note; the API rejects supplier method changes. Migration 0098 allows confirmation and Ready before Chris sets the method, while retaining the required fulfillment date and lifecycle guards.
+- Applied migration 0098 live at 14:28 UTC, preserving order data and verifying the function and restricted RPC permissions.
+- Deployed the supplier date/note confirmation and admin-only method editor at 14:30 UTC after API/UI, database, phone layout, typecheck and production-build checks; verified the app service and HTTP 200 login response.
+
+- Deployed the app and harness on 2026-09-15 at 14:26 UTC after applying migration 0097; existing database rows were preserved. All agents and webchat plugins started; Daisy and Rosie Google Workspace connections still need sign-in.
+- Permanent job deletion now removes its exclusive orders, ARs and Rosie chat in one transaction, retaining shared records. Migration 0097 queues retryable harness cleanup and blocks deleted chats from being recreated by late replies.
+
+- Place Created on and EDD side by side on `/requests` job cards and remove their Fulfillment field.
+
+- Give suppliers and Chris/admin the same order confirmation, fulfillment-date/method, supplier-note and Ready controls in the job Orders tab and supplier portal. Keep supplier scope and transactional lifecycle/closed-order checks enforced by both APIs.
+- Deployed shared supplier/admin order editing at 14:14 UTC; verified the app recovered and returned HTTP 200 after a concurrent-build restart interruption.
+
+- Move supplier Confirm order beside the New order title and label read-only portal access explicitly.
+- Deployed the order UI update at 14:02 UTC after targeted tests, typecheck, production build and browser layout checks; verified the app service and public login response.
+
+- Show only Pickup or Delivery in the order fulfillment-method tag; omit the tag when no method is recorded. Order cards keep customer EDD and omit fulfillment date; individual orders retain the supplier’s commitment date.
+
+- Keep customer EDD (expected delivery or installation date) on job and availability requests. Only orders carry the supplier's fulfillment date. Confirm order now opens a date/note dialog and saves both with the Processing transition; Chris's creation form leaves that date for the supplier. Migration 0096 stores supplier order notes separately from Chris's instructions.
+- Align order lists, cards and detail pages with availability requests, including status selection, grouped views, summary counts, responsive rows, printing and pinned supplier actions.
+- Applied migration 0096 live at 13:36 UTC and verified order data preservation, restricted RPC grants and API schema availability.
+
+- Applied and verified migrations 0094 and 0095 on the live database in one
+  transaction. The existing Committed order is now New; all 13 order lines and
+  allocations, job records, availability records and audit history were preserved.
+  Verified the new status default, supplier-note column and restricted RPC grants.
+
+- Add partner Closed Orders for terminal orders and orders whose linked jobs are all closed; keep shared open-job orders active and the archive read-only.
+- Add request-wide supplier notes submitted atomically with AR answers and visible to Chris; migration 0095 adds storage and guarded submission RPCs.
+
+- Add the partner order lifecycle New → Processing → Order Ready, with required
+  pickup/delivery details at confirmation, status filters, plant/status grouping,
+  individual order pages and source availability links. Existing orders are
+  read-only for Chris, including partner previews. Availability and order cards
+  show Created, EDD and pickup/delivery metadata; desktop availability notes wrap.
+  Migration 0094 maps existing order stages and preserves Need to Order lines.
+
+- Make each order in Chris’s Orders tab an independently expandable card, with order/supplier/status, dates, fulfillment, item count and subtotal visible while collapsed.
+
+- Move focused desktop Rosie and Delete job actions into the top toolbar beside New job and notifications. Slim AR tags by placing the reference and date inline and reducing desktop tag height.
+
+- Show full job status labels in the focused Job header on desktop as well as mobile (for example, Committed instead of Cmt).
+
+- Reorder the focused Job page: header contains Rosie chat, Delete job and the known Pickup/Delivery tag; item summary precedes AR tags, and the separate delete-action row is removed.
+
+- Align Created on and EDD vertically in one date column in job headers. Rosie now captures EDD from intake sources and asks for missing dates with an explicit Unknown (NULL) option.
+
+- Fixed duplicate supplier portal chat bubbles from overlapping live refreshes, history loads, and send confirmations. Message IDs now reconcile repeated results, and send acknowledgements no longer skip unread replies.
+
+### Added
+
+- Webchat agent questionnaires: sequential quick choices with an always-available
+  free-text answer, editable review, and one confirmed answer message. Agents
+  create sets with `webchat-cli ask --questions-file` and must use MCQs whenever
+  useful quick responses are available, including single and yes/no questions
+  and recommended next steps. Recommended actions appear first and are labeled.
+
 ### Changed
+
+- Webchat MCQ choices now save and advance immediately, with Previous navigation
+  and an always-visible “Something else” text field with Save answer.
+  Questions and review answers wrap
+  within narrow message bubbles.
 
 - Supplier-event instructions now keep saved/unsubmitted AR edits on the supplier
   thread without JR/Chris alerts or sourcing-note updates, including transcribed

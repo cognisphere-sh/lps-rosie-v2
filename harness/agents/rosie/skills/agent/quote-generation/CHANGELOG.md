@@ -1,5 +1,17 @@
 # quote-generation — changelog
 
+## 2.22.1
+
+- Align quote-time APS sourcing notes with Chris's rule: keep the overall current summary unlabelled plain text and replace it with the latest facts.
+
+## 2.22.0
+
+- Render the actual quoted plant and one actual quoted size from the quoted-offering fields; preserve original demand separately and require every material difference to use the exact `Substitute: <actual offering> instead of <original demand>` note, without price-unavailability or rationale commentary.
+
+## 2.20.0
+
+- Chris authorized quoting the cheapest supported requested size/variant option for a multi-option request. Preserve every other supported requested-option price in the shared customer-visible note; do not add duplicate demand lines or infer availability.
+
 ## 2.19.0
 
 - Remove Confirmed from job-stage rules. Clarify that supplier confirmation advances Orders only; linked Job Requests stay Committed.

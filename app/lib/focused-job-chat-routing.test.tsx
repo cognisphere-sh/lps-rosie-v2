@@ -584,20 +584,24 @@ test('concurrent uploads keep busy until all settle and isolate failures', async
   assert.equal(view.queryByText('b.txt'), null)
 })
 
-test('old delayed recording callbacks cannot affect an immediate new recording', async () => {
+test('voice recording pauses, resumes, cancels, and sends directly without accepting stale callbacks', async () => {
   const uploaded: string[] = []
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url.includes('/messages?')) return messages()
     if (url.endsWith('/upload')) {
       uploaded.push(url)
       return new Response(JSON.stringify({ name: `voice-${uploaded.length}`, label: 'voice-note.webm', mime: 'audio/webm', size: 5 }), { status: 200 })
     }
+    if (url.endsWith('/send')) {
+      sends.push({ url, body: JSON.parse(String(init?.body)) })
+      return new Response(JSON.stringify({ id: 301 }), { status: 200 })
+    }
     return new Response(JSON.stringify({}), { status: 200 })
   }) as typeof fetch
 
   let stoppedTracks = 0
-  const streams = Array.from({ length: 2 }, () => ({
+  const streams = Array.from({ length: 3 }, () => ({
     getTracks: () => [{ stop() { stoppedTracks += 1 } }],
   }))
   let streamIndex = 0
@@ -611,13 +615,15 @@ test('old delayed recording callbacks cannot affect an immediate new recording',
   class DelayedRecorder {
     static instances: DelayedRecorder[] = []
     static isTypeSupported() { return true }
-    state: 'inactive' | 'recording' = 'inactive'
+    state: 'inactive' | 'recording' | 'paused' = 'inactive'
     mimeType = 'audio/webm'
     ondataavailable: ((event: { data: Blob }) => void) | null = null
     onstop: (() => void | Promise<void>) | null = null
     pendingStop: (() => void | Promise<void>) | null = null
     constructor(_stream: unknown, _options?: unknown) { DelayedRecorder.instances.push(this) }
     start() { this.state = 'recording' }
+    pause() { this.state = 'paused' }
+    resume() { this.state = 'recording' }
     stop() { this.state = 'inactive'; this.pendingStop = this.onstop }
     data() { this.ondataavailable?.({ data: new dom.window.Blob(['voice'], { type: 'audio/webm' }) }) }
   }
@@ -636,16 +642,31 @@ test('old delayed recording callbacks cannot affect an immediate new recording',
   assert.ok(stoppedTracks >= 1)
   fireEvent.click(view.getByRole('button', { name: 'Record a voice note' }))
   await waitFor(() => assert.equal(DelayedRecorder.instances.length, 2))
-  assert.ok(view.getByRole('button', { name: 'Stop recording and attach' }))
+  assert.ok(view.getByRole('button', { name: 'Send voice note' }))
   await act(async () => { await queuedOldStop() })
   assert.equal(uploaded.length, 0)
-  assert.ok(view.getByRole('button', { name: 'Stop recording and attach' }))
+  assert.ok(view.getByRole('button', { name: 'Send voice note' }))
 
-  const current = DelayedRecorder.instances[1]
+  const cancelled = DelayedRecorder.instances[1]
+  cancelled.data()
+  fireEvent.click(view.getByRole('button', { name: 'Cancel recording' }))
+  assert.equal(cancelled.state, 'inactive')
+  assert.equal(uploaded.length, 0)
+  assert.equal(sends.length, 0)
+  fireEvent.click(view.getByRole('button', { name: 'Record a voice note' }))
+  await waitFor(() => assert.equal(DelayedRecorder.instances.length, 3))
+  const current = DelayedRecorder.instances[2]
+  fireEvent.click(view.getByRole('button', { name: 'Pause recording' }))
+  assert.equal(current.state, 'paused')
+  fireEvent.click(view.getByRole('button', { name: 'Resume recording' }))
+  assert.equal(current.state, 'recording')
+  fireEvent.click(view.getByRole('button', { name: 'Pause recording' }))
   current.data()
-  fireEvent.click(view.getByRole('button', { name: 'Stop recording and attach' }))
+  fireEvent.click(view.getByRole('button', { name: 'Send voice note' }))
   await act(async () => { await current.pendingStop?.() })
-  await waitFor(() => assert.ok(view.getByText('voice-note.webm')))
+  await waitFor(() => assert.equal(sends.length, 1))
+  assert.equal(sends[0].body.threadId, 'jr-31')
+  assert.deepEqual(sends[0].body.attachments, [{ name: 'voice-1', label: 'voice-note.webm', mime: 'audio/webm', size: 5 }])
   assert.deepEqual(uploaded, ['/api/chat/rosie/upload'])
 })
 
@@ -694,7 +715,7 @@ test('recording setup failures clean resources and permit immediate retry', asyn
 
     stage = 'none'
     fireEvent.click(view.getByRole('button', { name: 'Record a voice note' }))
-    await waitFor(() => assert.ok(view.getByRole('button', { name: 'Stop recording and attach' })))
+    await waitFor(() => assert.ok(view.getByRole('button', { name: 'Send voice note' })))
     const stoppedBeforeUnmount = stopped
     view.unmount()
     assert.ok(stopped > stoppedBeforeUnmount)
@@ -814,13 +835,13 @@ test('synchronous MediaRecorder.stop failure still tears down and permits immedi
   const view = render(chat)
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Thirty' }))
   fireEvent.click(view.getByRole('button', { name: 'Record a voice note' }))
-  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Stop recording and attach' })))
+  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Send voice note' })))
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-31', label: 'Thirty one' }))
   assert.equal(stopped, 1)
   assert.equal(closed, 1)
   fireEvent.click(view.getByRole('button', { name: 'Record a voice note' }))
   await waitFor(() => assert.equal(ThrowingStopRecorder.instances, 2))
-  assert.ok(view.getByRole('button', { name: 'Stop recording and attach' }))
+  assert.ok(view.getByRole('button', { name: 'Send voice note' }))
 })
 
 test('voice upload started on JR-30 cannot reattach after a JR-31 bind', async () => {
@@ -865,8 +886,8 @@ test('voice upload started on JR-30 cannot reattach after a JR-31 bind', async (
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Thirty' }))
   await waitFor(() => assert.ok(view.getByText('JR-30 · Thirty')))
   fireEvent.click(view.getByRole('button', { name: 'Record a voice note' }))
-  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Stop recording and attach' })))
-  fireEvent.click(view.getByRole('button', { name: 'Stop recording and attach' }))
+  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Send voice note' })))
+  fireEvent.click(view.getByRole('button', { name: 'Send voice note' }))
   await waitFor(() => assert.equal(uploadUrls.length, 1))
   assert.equal(uploadUrls[0], '/api/chat/rosie/upload')
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-31', label: 'Thirty one' }))

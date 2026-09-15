@@ -134,6 +134,8 @@ export interface ARSummary {
   answeredCount: number
   /** LPS's job-level note to the supplier — delivery window, site constraints. Ours, never theirs to edit. */
   lpsNotes: string | null
+  /** Supplier response for the entire request, submitted with its answers. */
+  supplierNotes?: string | null
 }
 
 /**

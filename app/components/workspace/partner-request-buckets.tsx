@@ -1,12 +1,14 @@
 'use client'
 
+import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
+
 import { Check } from 'lucide-react'
 import Link from 'next/link'
 import type { CSSProperties } from 'react'
 
 import { partnerRequestName } from '@/components/workspace/partner'
 import { arSubtotal, type ARDetail } from '@/lib/availability'
-import { money } from '@/lib/format'
+import { formatMonthDay, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export type SemanticPalette = {
@@ -183,17 +185,21 @@ export function PartnerRequestRow({ request, href }: { request: ARDetail; href: 
       )}
       style={paletteVariables(bucket.palette)}
     >
-      <RequestStatusPill status={status} />
+      <span className="col-start-1 row-start-1"><RequestStatusPill status={status} /></span>
 
-      <div className="col-span-2 flex min-w-0 flex-col gap-1 sm:col-span-1 sm:row-start-1">
+      <div className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-col gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
         <span className="truncate text-[16px] font-semibold leading-tight text-foreground">
           {partnerRequestName(request)}
         </span>
         {note && (
-          <span className="truncate text-[13px] text-muted-foreground" title={note}>
+          <span className="whitespace-pre-wrap text-[13px] text-muted-foreground [overflow-wrap:anywhere]" title={note}>
             {note}
           </span>
         )}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          <span className="whitespace-nowrap text-muted-foreground">Created <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(request.createdAt) || '—'}</span></span>
+          <ARJobSchedules schedules={request.jobSchedules} />
+        </div>
       </div>
 
       <span className="col-start-2 row-start-1 text-right text-[15px] font-semibold tabular-nums text-foreground sm:col-start-3 sm:w-[6.5rem]">

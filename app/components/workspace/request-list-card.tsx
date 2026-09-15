@@ -3,20 +3,20 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import { MessagesSquare } from 'lucide-react'
 
 import { ChevronDown, ChevronRight, TrashIcon } from '@/components/workspace/icons'
 import {
-  DemandSummary,
   NOTE_KIND,
   RequestBody,
   RequestLinks,
   StatusPill,
   newestNote,
 } from '@/components/workspace/job-request'
-import { JobIdentityLink } from '@/components/workspace/shell'
 import { JobMetadata } from '@/components/workspace/job-metadata'
 import { openChat } from '@/lib/chat-bus'
-import { jobRequestIdentityLine } from '@/lib/job-identity'
+import { customerThreadId } from '@/lib/customers'
+import { formatMonthDay, money } from '@/lib/format'
 import {
   REQUEST_STATUS_OPTIONS,
   requestRef,
@@ -33,6 +33,42 @@ import type { JobRequestItem, JobRequestRow } from '@/lib/rows'
 function trimmedIdentity(value: string | null | undefined): string | null {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
+}
+
+function RequestCardOverview({ request, edit, tone, compact = false }: {
+  request: JobRequestRow
+  edit: { table: 'job_requests'; id: number; onSaved: () => void }
+  tone: ReturnType<typeof requestStatusTone>
+  compact?: boolean
+}) {
+  const customer = trimmedIdentity(request.customer?.company) ?? trimmedIdentity(request.customer?.name) ?? 'Unassigned customer'
+  const retail = request.customer?.type === 'Homeowner/Retail'
+  const contact = request.customer?.company ? trimmedIdentity(request.customer.name) : null
+  const customerThread = request.customer ? customerThreadId(request.customer) : null
+  const job = trimmedIdentity(request.name) ?? 'Unnamed job'
+  return <div className="min-w-0 flex-1 space-y-1.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+      <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatMonthDay(request.createdAt) || '—'}`}
+        aria-label={`Open ${requestRef(request.id)} — ${customer} — ${job}`}
+        className="min-w-0 truncate text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {requestRef(request.id)}{retail ? ' - Retail' : ''} · {customer} - {job}
+      </Link>
+      <StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} compactLabel={requestStatusToken(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} />
+      <JobMetadata request={request} showFulfillment={false} className="grid-cols-[max-content_max-content]" />
+      <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+        <span>{request.fulfillmentMethod === 'pickup' ? 'Pickup' : request.fulfillmentMethod === 'delivery' ? 'Delivery' : 'Pickup/Delivery'}</span>
+        <span>{request.itemCount} {request.itemCount === 1 ? 'item' : 'items'}</span>
+        <span className="font-semibold tabular-nums text-foreground">{money(request.lineTotal) || '$0.00'}</span>
+        {!compact && <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: `jr-${request.id}`, label: job })} className="rounded-full px-1.5 py-1 font-semibold text-lps-accent-turquoise-text hover:bg-muted">Rosie Chat</button>}
+      </div>
+    </div>
+    <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px]">
+      {contact && <span className="font-medium text-muted-foreground">{contact}</span>}
+      {customerThread && <button type="button" onClick={() => openChat({ agentId: 'rosie', threadId: customerThread, label: customer })} className="inline-flex items-center gap-1 rounded-full border border-lps-edge px-2 py-0.5 font-semibold text-primary hover:bg-secondary"><MessagesSquare size={11} />Customer Chat</button>}
+      <RequestLinks request={request} relatedOnly className="ml-auto" />
+    </div>
+    {request.customerNotes && <p className="m-0 border-t border-lps-hair pt-1.5 text-[11.5px] text-muted-foreground"><span className="font-semibold text-foreground">Customer note: </span>{request.customerNotes}</p>}
+  </div>
 }
 
 export function RequestCard({
@@ -125,7 +161,7 @@ export function RequestCard({
                   </>
                 )}
               </Link>
-              <JobMetadata request={request} />
+              <JobMetadata request={request} showFulfillment={false} className="grid-cols-[max-content_max-content_max-content_max-content]" />
             </div>
             <div
               data-mobile-request-row="pending-chat"
@@ -205,7 +241,7 @@ export function RequestCard({
             >
               {jobRequestIdentityLine(request)}
             </Link>
-            <JobMetadata request={request} />
+            <JobMetadata request={request} showFulfillment={false} className="grid-cols-[max-content_max-content_max-content_max-content]" />
             <div data-balanced-header-flank="right" className="flex min-w-0 items-center justify-end overflow-hidden">
               <button
                 type="button"
@@ -261,7 +297,7 @@ export function RequestCard({
               tone={tone}
               options={REQUEST_STATUS_OPTIONS}
             />
-            <JobMetadata request={request} />
+            <JobMetadata request={request} showFulfillment={false} className="grid-cols-[max-content_max-content_max-content_max-content]" />
             <button
               type="button"
               onClick={(event) => {

@@ -85,7 +85,7 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
 
 const status = <span data-testid="sales-status">Sourcing</span>
 
-test('collapsed, expanded and mobile job cards show created/install dates and fulfillment without opening details', () => {
+test('collapsed, expanded and mobile job cards show adjacent created/install dates without fulfillment', () => {
   for (const [mobile, expanded] of [[false, false], [false, true], [true, false], [true, true]]) {
     const view = render(
       <RequestCard request={request({ expectedInstallDate: '2026-09-20', fulfillmentMethod: 'delivery' })}
@@ -93,7 +93,7 @@ test('collapsed, expanded and mobile job cards show created/install dates and fu
         onToggle={() => {}} onSelect={() => {}} onDelete={() => {}} onDeleteItem={() => {}} onSaved={() => {}} />,
     )
     const head = view.container.querySelector('[data-request-card-head]')!
-    assert.deepEqual([...head.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['09-01', '09-20', 'Delivery'])
+    assert.deepEqual([...head.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['09-01', '09-20'])
     assert.ok(head.querySelector('[data-job-metadata]')?.parentElement?.querySelector('a[href="/jobs?jr=19"]'))
     assert.equal(view.container.querySelector('[data-compact-job-details]'), null)
     view.unmount()
@@ -453,9 +453,16 @@ test('focused header exposes summary and customer, AR and supplier routes before
   const ars: number[] = []
   window.addEventListener('lps:open-chat', (event) => chatRoutes.push((event as CustomEvent).detail))
   window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent<number>).detail))
-  const view = render(<FocusedJobRecord request={linked} mobile={false} version={0} onSaved={() => undefined} />)
+  const toolbar = document.createElement('div')
+  document.body.append(toolbar)
+  const view = render(<FocusedJobRecord actionsTarget={toolbar} request={linked} mobile={false} version={0} onSaved={() => undefined} />)
   assert.equal(view.getByRole('button', { name: 'Job details & notes' }).getAttribute('aria-expanded'), 'false')
   const header = view.container.querySelector<HTMLElement>('[data-focused-job-summary]')!
+  const identityHeader = view.container.querySelector<HTMLElement>('[data-focused-job-header]')!
+  assert.ok(toolbar.contains(view.getByRole('button', { name: 'Delete JR-19' })))
+  assert.equal(identityHeader.querySelector('[aria-label="Delete JR-19"]'), null)
+  assert.ok(toolbar.contains(view.getByRole('button', { name: 'Chat with Rosie' })))
+  assert.ok(header.firstElementChild?.matches('[data-demand-summary]'))
   assert.equal(view.container.querySelectorAll('[data-demand-summary]').length, 1)
   assert.ok(within(header).getByText('$1,250.50'))
   assert.ok(within(header).getByText('3'))
@@ -466,13 +473,18 @@ test('focused header exposes summary and customer, AR and supplier routes before
   const customer = view.getByRole('button', { name: /Open the customer conversation/ })
   const ar = view.getByRole('button', { name: /AR-81/ })
   const supplier = view.getByRole('button', { name: /Open the supplier conversation/ })
-  for (const control of [customer, ar, supplier]) assert.match(control.className, /min-h-11/)
+  assert.match(customer.className, /min-h-11/)
+  for (const control of [ar, supplier]) assert.match(control.className, /min-h-8/)
+  assert.match(ar.className, /flex-row/)
   for (const control of [customer, ar, supplier]) assert.ok(header.contains(control))
   await userEvent.setup({ document }).click(customer)
   await userEvent.setup({ document }).click(ar)
   await userEvent.setup({ document }).click(supplier)
   assert.equal(chatRoutes.length, 2)
   assert.deepEqual(ars, [81])
+  view.unmount()
+  assert.equal(toolbar.childElementCount, 0)
+  toolbar.remove()
 })
 
 test('shared editable defaults stay compact while focused work explicitly opts into 44px controls', () => {
@@ -684,6 +696,8 @@ test('focused compact Delete keeps the permanent confirmation, focus return and 
   await user.click(trigger)
   let dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
   assert.match(dialog.textContent ?? '', /change history/i)
+  assert.match(dialog.textContent ?? '', /Rosie chat, orders and availability requests are also deleted/)
+  assert.match(dialog.textContent ?? '', /shared with other jobs are kept/)
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
   trigger = view.getByRole('button', { name: 'Delete JR-19' })
@@ -801,7 +815,7 @@ test('sidebar cards show identity, status and Created/EDD dates without chat or 
 })
 
 
-test('job schedule saves the structured install date and fulfillment method', async () => {
+test('job schedule saves the customer expected delivery / installation date and fulfillment method', async () => {
   const writes: unknown[] = []
   globalThis.fetch = async (_url, init) => {
     writes.push(JSON.parse(String(init?.body)))
@@ -810,7 +824,7 @@ test('job schedule saves the structured install date and fulfillment method', as
   const view = render(<FocusedJobRecord request={request({ expectedInstallDate: '2026-10-01', fulfillmentMethod: 'delivery' })}
     mobile={false} version={0} onSaved={() => undefined} />)
   fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
-  const date = view.getByLabelText('Expected install date') as HTMLInputElement
+  const date = view.getByLabelText('Expected delivery / installation date') as HTMLInputElement
   assert.equal(date.value, '2026-10-01')
   fireEvent.change(date, { target: { value: '2026-10-02' } })
   fireEvent.blur(date)

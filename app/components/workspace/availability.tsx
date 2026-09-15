@@ -515,9 +515,9 @@ export function AnswerCell({
     return (
       <span
         className={cn(
-          touch
-            ? 'whitespace-pre-wrap px-1 text-[14px] tabular-nums [overflow-wrap:anywhere]'
-            : 'truncate px-1 text-[12.5px] tabular-nums',
+          'min-w-0 px-1 tabular-nums',
+          touch ? 'text-[14px]' : 'text-[12.5px]',
+          touch || multiline ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
           align === 'right' && 'text-right',
           display ? 'text-foreground' : 'text-lps-dim',
         )}
@@ -546,7 +546,8 @@ export function AnswerCell({
         touch
           ? 'min-h-11 w-full min-w-0 rounded-lg px-3 py-2 text-base outline-none placeholder:text-lps-dim'
           : 'h-7 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim',
-        multiline && 'resize-y',
+        multiline && 'h-auto resize-y whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
+        multiline && !touch && 'min-h-7 py-1',
         plain
           ? 'border bg-transparent text-muted-foreground focus-visible:text-foreground'
           : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
@@ -978,17 +979,13 @@ function LineRow({
           <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
             onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`} />
           <AnswerCell value={item.lpsNotes ?? ''} editable placeholder="Note to supplier…" display={item.lpsNotes ?? ''}
-            onCommit={detail('lps_notes')} ariaLabel={`Line ${item.id} note to supplier`} />
+            onCommit={detail('lps_notes')} ariaLabel={`Line ${item.id} note to supplier`} multiline />
         </span> : <span className="block truncate text-[13px] font-semibold text-foreground">{item.name}</span>}
         {/* LPS's note to the supplier — a few words, e.g. the alternative
             sourcing mapped. Ours; the supplier's own note is the Notes cell. */}
         {!editDetails && item.lpsNotes && (
-          // One line while the table is being scanned; the whole note on
-          // hover, unfolded in place rather than in an overlay — the table is
-          // its own scroll box and would clip a popup at its edges. The
-          // `title` keeps the same text on the pointer.
           <span
-            className="block truncate text-[10.5px] text-muted-foreground hover:whitespace-normal"
+            className="block whitespace-pre-wrap text-[10.5px] text-muted-foreground [overflow-wrap:anywhere]"
             title={displayText(item.lpsNotes)}
           >
             {displayText(item.lpsNotes)}
@@ -1038,6 +1035,8 @@ function LineRow({
         display={item.notes ?? ''}
         onCommit={commit('notes')}
         plain={portal}
+        ariaLabel={`Line ${item.id} notes`}
+        multiline
       />
     </div>
   )

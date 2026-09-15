@@ -1,11 +1,12 @@
 import 'server-only'
 
-import type { CreateOrderInput, Order, OrderAllocation, OrderCandidate, OrderItem, OrderStatus, FulfillmentMethod } from '@/lib/orders'
+import type { ARJobSchedule } from '@/lib/availability'
+import type { CreateOrderInput, Order, OrderAllocation, OrderCandidate, OrderItem, OrderStatus, FulfillmentMethod, PartnerOrderUpdate } from '@/lib/orders'
 import { supabase } from '@/lib/supabase'
 
 interface OrderRecord {
   id: number; supplier_id: number; status: OrderStatus; fulfillment_method: FulfillmentMethod | null
-  confirmation_date: string | null; fulfillment_date: string | null; notes: string | null; created_at: string
+  confirmation_date: string | null; fulfillment_date: string | null; notes: string | null; supplier_notes: string | null; created_at: string
 }
 interface ItemRecord {
   id: number; order_id: number; availability_request_item_id: number | null; name: string; size: string | null
@@ -13,9 +14,9 @@ interface ItemRecord {
 }
 interface AllocationRecord { order_item_id: number; job_request_item_id: number; quantity: number }
 interface JobItemRecord { id: number; job_request_id: number; quantity?: number | null }
-interface JobRecord { id: number; name: string | null; fulfillment_method?: FulfillmentMethod | null }
+interface JobRecord { id: number; name: string | null; status?: string; is_active?: boolean; fulfillment_method?: FulfillmentMethod | null; expected_install_date?: string | null }
 
-const ORDER_COLUMNS = 'id, supplier_id, status, fulfillment_method, confirmation_date, fulfillment_date, notes, created_at'
+const ORDER_COLUMNS = 'id, supplier_id, status, fulfillment_method, confirmation_date, fulfillment_date, notes, supplier_notes, created_at'
 const ITEM_COLUMNS = 'id, order_id, availability_request_item_id, name, size, quantity, unit_price, total, status, notes'
 const unique = (ids: number[]) => [...new Set(ids)]
 const asNumber = (value: number | null) => value == null ? null : Number(value)
@@ -37,7 +38,7 @@ async function jobItemsForJobs(jobIds: number[]): Promise<JobItemRecord[]> {
     .in('job_request_id', jobIds).eq('is_active', true).order('id'))
 }
 
-/** Read full order rows; internal job associations are never loaded for a portal. */
+/** Portal responses expose customer schedules and closure, never internal job identities. */
 export async function listOrders(scope: { jobRequestId?: number; supplierId?: number; orderId?: number; forSupplier?: boolean }): Promise<Order[]> {
   let orderIds: number[] | undefined
   if (scope.jobRequestId != null) {
@@ -62,20 +63,53 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
     all<ItemRecord>(supabase.from('order_items').select(ITEM_COLUMNS).in('order_id', records.map((order) => order.id)).eq('is_active', true).order('id')),
   ])
   const supplierNames = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]))
+  const sourceIds = unique(items.flatMap((item) => item.availability_request_item_id == null ? [] : [item.availability_request_item_id]))
+  const sourceItems = sourceIds.length ? await all<{ id: number; availability_request_id: number }>(supabase.from('availability_request_items')
+    .select('id, availability_request_id').in('id', sourceIds).eq('is_active', true).order('id')) : []
+  const sourceRequests = sourceItems.length ? await all<{ id: number; supplier_id: number }>(supabase.from('availability_requests')
+    .select('id, supplier_id').in('id', unique(sourceItems.map((item) => item.availability_request_id)))
+    .in('supplier_id', unique(records.map((order) => order.supplier_id))).eq('is_active', true).order('id')) : []
+  const sourceRequestMap = new Map(sourceRequests.map((request) => [request.id, request.supplier_id]))
+  const sourceItemMap = new Map(sourceItems.map((item) => [item.id, item.availability_request_id]))
+  const orderSupplierMap = new Map(records.map((order) => [order.id, order.supplier_id]))
+  const availabilityRequestMap = new Map<number, Set<number>>()
+  for (const item of items) {
+    const requestId = item.availability_request_item_id == null ? undefined : sourceItemMap.get(item.availability_request_item_id)
+    if (requestId == null || sourceRequestMap.get(requestId) !== orderSupplierMap.get(item.order_id)) continue
+    const requestIds = availabilityRequestMap.get(item.order_id) ?? new Set<number>()
+    requestIds.add(requestId)
+    availabilityRequestMap.set(item.order_id, requestIds)
+  }
   const allocationMap = new Map<number, OrderAllocation[]>()
-  if (!scope.forSupplier && items.length) {
+  const orderJobClosures = new Map<number, boolean[]>()
+  const orderSchedules = new Map<number, Map<number, ARJobSchedule>>()
+  const orderForItem = new Map(items.map((item) => [item.id, item.order_id]))
+  if (items.length) {
     const links = await all<AllocationRecord>(supabase.from('order_item_job_request_items')
       .select('order_item_id, job_request_item_id, quantity').in('order_item_id', items.map((item) => item.id)).order('order_item_id').order('job_request_item_id'))
     if (links.length) {
       const jobItems = await all<JobItemRecord>(supabase.from('job_request_items').select('id, job_request_id').in('id', unique(links.map((link) => link.job_request_item_id))).order('id'))
-      const jobs = jobItems.length ? await all<JobRecord>(supabase.from('job_requests').select('id, name').in('id', unique(jobItems.map((item) => item.job_request_id))).order('id')) : []
+      const jobs = jobItems.length ? await all<JobRecord>(supabase.from('job_requests').select(scope.forSupplier
+        ? 'id, status, is_active, expected_install_date, fulfillment_method'
+        : 'id, name, status, is_active, expected_install_date, fulfillment_method').in('id', unique(jobItems.map((item) => item.job_request_id))).order('id')) : []
       const jobItemMap = new Map(jobItems.map((item) => [item.id, item.job_request_id]))
-      const jobMap = new Map(jobs.map((job) => [job.id, job.name]))
+      const jobMap = new Map(jobs.map((job) => [job.id, job]))
       for (const link of links) {
         const jobId = jobItemMap.get(link.job_request_item_id)
-        if (jobId == null) continue
+        const job = jobId == null ? undefined : jobMap.get(jobId)
+        const orderId = orderForItem.get(link.order_item_id)!
+        const closures = orderJobClosures.get(orderId) ?? []
+        closures.push(Boolean(job && (job.is_active === false || ['closed_won', 'closed_lost', 'archived'].includes(job.status ?? ''))))
+        orderJobClosures.set(orderId, closures)
+        if (job && jobId != null) {
+          const schedules = orderSchedules.get(orderId) ?? new Map<number, ARJobSchedule>()
+          schedules.set(jobId, { expectedInstallDate: job.expected_install_date ?? null, fulfillmentMethod: job.fulfillment_method ?? null,
+            ...(!scope.forSupplier ? { jobRequestId: jobId, jobName: job.name } : {}) })
+          orderSchedules.set(orderId, schedules)
+        }
+        if (scope.forSupplier || jobId == null) continue
         const allocations = allocationMap.get(link.order_item_id) ?? []
-        allocations.push({ jobRequestItemId: link.job_request_item_id, jobRequestId: jobId, jobName: jobMap.get(jobId) ?? null, quantity: Number(link.quantity) })
+        allocations.push({ jobRequestItemId: link.job_request_item_id, jobRequestId: jobId, jobName: jobMap.get(jobId)?.name ?? null, quantity: Number(link.quantity) })
         allocationMap.set(link.order_item_id, allocations)
       }
     }
@@ -92,8 +126,13 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
   }
   return records.map((order) => ({
     id: order.id, supplierId: order.supplier_id, supplierName: supplierNames.get(order.supplier_id) ?? `Supplier ${order.supplier_id}`,
+    closed: ['closed_won', 'closed_lost'].includes(order.status)
+      || Boolean(orderJobClosures.get(order.id)?.length && orderJobClosures.get(order.id)!.every(Boolean)),
     status: order.status, fulfillmentMethod: order.fulfillment_method, confirmationDate: order.confirmation_date,
     fulfillmentDate: order.fulfillment_date, notes: order.notes, createdAt: order.created_at, items: itemMap.get(order.id) ?? [],
+    supplierNotes: order.supplier_notes ?? null,
+    jobSchedules: [...(orderSchedules.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, schedule]) => schedule),
+    availabilityRequestIds: [...(availabilityRequestMap.get(order.id) ?? [])].sort((a, b) => a - b),
   }))
 }
 
@@ -186,7 +225,7 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
 export async function createOrder(input: CreateOrderInput): Promise<number> {
   const { data, error } = await supabase.rpc('create_order', {
     p_supplier_id: input.supplierId, p_customer_confirmed: input.customerConfirmed,
-    p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: input.fulfillmentDate, p_notes: input.notes,
+    p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: null, p_notes: input.notes,
     p_items: input.items.map((item) => ({ availability_request_item_id: item.availabilityRequestItemId,
       allocations: item.allocations.map((allocation) => ({ job_request_item_id: allocation.jobRequestItemId, quantity: allocation.quantity })) })),
   })
@@ -194,21 +233,13 @@ export async function createOrder(input: CreateOrderInput): Promise<number> {
   return Number(data)
 }
 
-export async function confirmOrder(id: number, supplierId: number, confirmationDate: string | null, fulfillmentDate: string | null): Promise<void> {
-  const { error } = await supabase.rpc('confirm_order', { p_order_id: id, p_supplier_id: supplierId,
-    p_confirmation_date: confirmationDate ?? new Date().toISOString().slice(0, 10), p_fulfillment_date: fulfillmentDate })
+export async function updatePartnerOrder(id: number, supplierId: number, update: PartnerOrderUpdate): Promise<void> {
+  const patch = {
+    ...('status' in update ? { status: update.status } : {}),
+    ...('fulfillmentMethod' in update ? { fulfillment_method: update.fulfillmentMethod } : {}),
+    ...('fulfillmentDate' in update ? { fulfillment_date: update.fulfillmentDate } : {}),
+    ...('supplierNotes' in update ? { supplier_notes: update.supplierNotes } : {}),
+  }
+  const { error } = await supabase.rpc('update_partner_order', { p_order_id: id, p_supplier_id: supplierId, p_patch: patch })
   if (error) throw new Error(error.message)
-}
-
-export async function closeOrder(id: number, status: 'closed_won' | 'closed_lost'): Promise<void> {
-  const { error } = await supabase.rpc('close_order', { p_order_id: id, p_status: status })
-  if (error) throw new Error(error.message)
-}
-
-export async function setOrderFulfillmentDate(id: number, date: string | null, supplierId?: number): Promise<void> {
-  let query = supabase.from('orders').update({ fulfillment_date: date }).eq('id', id).eq('is_active', true).in('status', ['committed', 'confirmed'])
-  if (supplierId != null) query = query.eq('supplier_id', supplierId)
-  const { data, error } = await query.select('id')
-  if (error) throw new Error(error.message)
-  if (!data?.length) throw new Error('Order not found or already closed')
 }

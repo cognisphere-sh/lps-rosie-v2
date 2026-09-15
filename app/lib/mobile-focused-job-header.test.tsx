@@ -93,22 +93,23 @@ test('rendered mobile header gives the full long Job name a wrapping, non-trunca
   assert.equal(view.getByTestId('preview').textContent, 'Long Landscape · Austin, TX')
 })
 
-test('focused headers display the saved creation date, install date and fulfillment on mobile and desktop', () => {
+test('focused headers display saved dates and a separate pickup tag on mobile and desktop', () => {
   for (const mobile of [true, false]) {
     const dated = render(
       <FocusedJobHeader request={{ ...request('Patio'), expectedInstallDate: '2026-08-30', fulfillmentMethod: 'pickup' }}
         mobile={mobile} status={status} preview={preview} />,
     )
+    assert.equal(dated.container.querySelector('[data-job-fulfillment]')?.textContent, 'Pickup')
     const metadata = dated.container.querySelector('[data-job-metadata]')!
-    assert.deepEqual([...metadata.querySelectorAll('dt')].map((node) => node.textContent), ['Created on', 'EDD', 'Fulfillment'])
-    assert.deepEqual([...metadata.querySelectorAll('dd')].map((node) => node.textContent), ['08-29', '08-30', 'Pickup'])
+    assert.deepEqual([...metadata.querySelectorAll('dt')].map((node) => node.textContent), ['Created on', 'EDD'])
+    assert.deepEqual([...metadata.querySelectorAll('dd')].map((node) => node.textContent), ['08-29', '08-30'])
     assert.ok(metadata.parentElement?.querySelector(mobile ? 'h1' : '[data-desktop-job-identity]'))
     dated.unmount()
 
     const missing = render(
       <FocusedJobHeader request={request('Patio')} mobile={mobile} status={status} preview={preview} />,
     )
-    assert.deepEqual([...missing.container.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['08-29', '—', '—'])
+    assert.deepEqual([...missing.container.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['08-29', '—'])
     assert.doesNotMatch(missing.container.querySelector('[data-job-metadata]')?.textContent ?? '', /08-31/)
     missing.unmount()
   }

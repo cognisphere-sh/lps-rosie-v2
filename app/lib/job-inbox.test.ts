@@ -243,7 +243,7 @@ test('focused desktop shell replaces only the nav rail and keeps global AgentCha
   assert.match(jobs, /replaceNewJobEntry\n/)
   assert.match(jobs, /<FocusedJobsRailLayout[\s\S]*<main ref=\{workRef\}/)
   assert.match(rail, /<section[\s\S]*aria-label="Active job inbox"/)
-  assert.match(jobs, /<JobsTopActions \/>/)
+  assert.match(jobs, /<JobsTopActions(?:\s|>)/)
   assert.match(rail, /<button type="button" aria-label="Back to All jobs"/)
   assert.doesNotMatch(rail, /title="Back to All jobs"/)
   assert.match(rail, /aria-label="Back to All jobs"[^>]*className="[^"]*size-11/)

@@ -364,7 +364,7 @@ body:has([data-workspace-shell]) {
   .lps-sprout { animation: none; }
 }
 
-/* The portal's printable availability request (`ar-print-sheet.tsx`): on
+/* The portal's printable availability request and order sheets: on
    paper only the sheet exists — the app's fixed, overflow-hidden frame would
    otherwise be printed clipped, on top of it. */
 @media print {
@@ -372,14 +372,19 @@ body:has([data-workspace-shell]) {
   body {
     background: #fff !important;
   }
-  body > *:not(#ar-print-sheet) {
+  body > *:not(#ar-print-sheet):not(#order-print-sheet) {
     display: none !important;
   }
-  #ar-print-sheet {
+  #ar-print-sheet,
+  #order-print-sheet {
     display: block !important;
     padding: 0;
     color: #000;
     background: #fff;
+  }
+  #order-print-sheet * {
+    color: #000 !important;
+    background: transparent !important;
   }
   @page {
     size: letter portrait;

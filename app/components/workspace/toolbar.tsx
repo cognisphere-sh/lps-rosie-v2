@@ -152,6 +152,8 @@ export function Toolbar({
   wideSearchWidth,
   forceCompact = false,
   showClear = true,
+  summaryBelowSearch = false,
+  singleRow = false,
 }: {
   placeholder: string
   query: string
@@ -172,6 +174,8 @@ export function Toolbar({
   /** Content-aware overflow override above the base CSS container threshold. */
   forceCompact?: boolean
   showClear?: boolean
+  summaryBelowSearch?: boolean
+  singleRow?: boolean
 }) {
   const content = (
     <>
@@ -179,7 +183,7 @@ export function Toolbar({
         data-toolbar-search
         style={wideSearchWidth ? ({ '--toolbar-wide-search-width': `${wideSearchWidth}px` } as React.CSSProperties) : undefined}
         className={cn(
-          containerResponsive ? 'w-auto min-w-[84px] flex-1 md:w-auto' : 'w-full min-w-0 md:w-[290px]',
+          containerResponsive ? 'w-auto min-w-[84px] flex-1 md:w-auto' : singleRow ? 'min-w-[120px] flex-1 max-w-[290px]' : 'w-full min-w-0 md:w-[290px]',
           containerResponsive && wideSearchWidth && '@min-[1024px]:ml-px @min-[1024px]:w-[var(--toolbar-wide-search-width)] @min-[1024px]:flex-none',
           containerResponsive && forceCompact && '@min-[1024px]:!ml-0 @min-[1024px]:!w-auto @min-[1024px]:!flex-1',
         )}
@@ -194,6 +198,7 @@ export function Toolbar({
             containerResponsive && 'h-11 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px]',
           )}
         />
+        {summaryBelowSearch && <div className="mt-1 text-[11px] text-muted-foreground">{summary}</div>}
       </div>
       {controls}
       {chips.map((chip) => (
@@ -213,15 +218,15 @@ export function Toolbar({
           data-toolbar-trailing
           className={cn(
             'ml-auto flex items-center justify-end',
-            containerResponsive ? 'w-auto flex-none flex-nowrap gap-1.5' : 'flex-wrap gap-3 min-[900px]:w-full min-[1024px]:w-auto',
+            containerResponsive || singleRow ? 'w-auto flex-none flex-nowrap gap-1.5' : 'flex-wrap gap-3 min-[900px]:w-full min-[1024px]:w-auto',
           )}
         >
-          <span className={cn(
+          {!summaryBelowSearch && <span className={cn(
             'hidden whitespace-nowrap text-[12px] text-muted-foreground',
             containerResponsive ? 'md:@min-[700px]:inline md:text-[10px]' : 'md:inline',
           )}>
             {summary}
-          </span>
+          </span>}
           {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}
           {rightActions}
         </div>
@@ -252,7 +257,15 @@ export function Toolbar({
   }
 
   return (
-    <div ref={toolbarRef} className="flex flex-none flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2.5">
+    <div
+      ref={toolbarRef}
+      className={cn(
+        'flex flex-none gap-2 border-b border-border bg-card px-4 py-2.5',
+        singleRow
+          ? 'flex-nowrap items-start [&>button]:mt-1 [&>button]:shrink-0 [&>[data-menu]]:mt-1'
+          : 'flex-wrap items-center',
+      )}
+    >
       {content}
     </div>
   )

@@ -1,9 +1,9 @@
 ---
 name: html-quote
-description: Create a compact Gmail-ready HTML quote table with rich-copy controls. Covers fresh job/item pricing checks, concise existing shared notes, email-safe inline styling, content-fit columns, a reusable self-contained template, rich HTML and plain-text clipboard fallbacks, manual selection, visual/copy checks, private artifact previews and durable downloadable HTML. Use when Chris requests an HTML quote or a formatted table to copy into Gmail; not for an APS-branded PDF. (v1.0.0)
+description: Create a compact Gmail-ready HTML quote table with rich-copy controls. Covers fresh job/item pricing checks, concise existing shared notes, email-safe inline styling, content-fit columns, a reusable self-contained template, rich HTML and plain-text clipboard fallbacks, manual selection, visual/copy checks, private artifact previews and durable downloadable HTML. Use when Chris requests an HTML quote or a formatted table to copy into Gmail; not for an APS-branded PDF. (v1.2.0)
 metadata:
   author: rosie
-  version: "1.0.0"
+  version: "1.2.0"
 ---
 
 # HTML quote for Gmail
@@ -20,8 +20,11 @@ owns responsive hosting and privacy. Do not create competing rules here.
    Reload the job, active items and recent per-row changelog before generating;
    preserve concurrent human edits. Follow intake requirements before any quote.
 2. Use current approved offerings, requested quantities and supported customer
-   unit prices. Preserve plant order; resolve material gaps before the affected
-   quote. HTML generation alone does not authorize alternatives, an AR or email.
+   unit prices. The name and size cells must show only the one actual quoted
+   plant and size, never an original-demand alternative list; material
+   differences use the exact customer-visible note `Substitute: <actual offering> instead of <original demand>`, not a reason or unavailable price. Preserve
+   plant order; resolve material gaps before the affected quote. HTML generation
+   alone does not authorize alternatives, an AR or email.
 3. Calculate line totals and subtotal with decimal arithmetic and cross-check
    against current rows. Never use available quantities for quote totals.
 4. Use concise existing item shared `external_notes` only for table notes;

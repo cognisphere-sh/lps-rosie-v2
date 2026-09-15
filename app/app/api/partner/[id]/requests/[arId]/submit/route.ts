@@ -21,7 +21,9 @@ export async function POST(
     if (!(await partnerSupplier(supplierId))) {
       return NextResponse.json({ error: 'not found' }, { status: 404 })
     }
-    const submitted = await submitAvailabilityRequest(arId, supplierId)
+    const raw = await req.text()
+    const body = raw ? JSON.parse(raw) as { supplierNote?: string | null } : {}
+    const submitted = await submitAvailabilityRequest(arId, supplierId, body.supplierNote)
     await notifySupplierEvent({ type: 'availability_submitted', ...submitted })
     return NextResponse.json({ ok: true })
   } catch (e) {

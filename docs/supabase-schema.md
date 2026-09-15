@@ -22,6 +22,11 @@ created them, and the web-chat tables (`threads`, `thread_messages`) on
 2026-08-26 when migrations 0078–0080 created them.
 The job/order/availability workflow was re-verified live on 2026-09-14 after
 migration 0092, including allocation backfills, permissions and Realtime tables.
+The partner order lifecycle (0094) and supplier request notes (0095) were
+applied and verified live on 2026-09-15 at 13:20 UTC. The existing Committed
+order became New; existing records and allocations were preserved.
+Supplier order notes (0096) were applied and verified live at 13:36 UTC the same
+day, preserving the existing order's data exactly.
 **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -774,7 +779,7 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 | `customer_id` | bigint → `customers.id` ON DELETE SET NULL | yes | **Nullable** — anonymous intake, mapped later |
 | `name` | text | yes | **What the job is called** — "Riverbend patio planting". Written by rosie at intake and editable in the app; NULL renders as `JR-<id>`, which is an unnamed request's real name. Never generated from the id. Added 2026-08-18 (migration 0059) |
 | `status` | text | no, default `quoted` | **CHECK**: `quoted` (Quote) \| `availability` (Availability) \| `committed` (Committed, customer confirmed) \| `closed_won` (Won) \| `closed_lost` (Lost) \| `archived` (legacy). Quote comes first; Chris approves sending availability. Customer commitment creates orders. Supplier confirmation stays on Orders; the job remains Committed until Won/Lost. Migration 0093 maps former Confirmed jobs to Committed, preserving Orders, dates and existing audit history. Closing a job closes its availability requests only when all their linked jobs are closed; reopening restores the recorded request state |
-| `expected_install_date` | date | yes | Expected installation date for the customer job (0092) |
+| `expected_install_date` | date | yes | Customer's expected delivery or installation date (EDD), retained on job and availability-request views (0092) |
 | `fulfillment_method` | text | yes | Requested `pickup` or `delivery` (0092) |
 | `billing_address` / `billing_city` / `billing_state` / `billing_zip` | text | yes | |
 | `shipping_address` / `shipping_city` / `shipping_state` / `shipping_zip` | text | yes | |
@@ -862,6 +867,7 @@ a supplier save. Migration 0088 adds the lifecycle hooks described below.
 | `was_public_before_close` | boolean | no, default false | Migration 0088: captures whether a closed request had a public URL. Job reopening issues a fresh token for these requests; no email is sent automatically |
 | `public_token` | uuid, unique | yes | Migration 0082, extended in 0088: request-specific capability for any active supplier, including non-partners. Closing/deactivation clears the token; obsolete URLs stay revoked |
 | `lps_notes` | text | yes | **LPS's job-level note to the supplier** — delivery window, site constraints, what matters across the lines. Written by rosie at share time; rendered on the portal's request card; never supplier-writable. Added 2026-08-23 (migration 0071) |
+| `supplier_notes` | text | yes | Supplier response note for the whole AR, submitted atomically with answers. Separate from LPS instructions and line notes. Migration 0095 applied 2026-09-15; app deployment is separate. |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
@@ -962,11 +968,12 @@ customer confirmation; availability and job status edits alone do not place one.
 |---|---|---|
 | `id` | bigint identity | PK; displayed as the order number |
 | `supplier_id` | bigint → `suppliers.id` | Required; deletion restricted to preserve orders |
-| `status` | text | `committed` (default), `confirmed`, `closed_won`, `closed_lost` |
-| `fulfillment_method` | text, nullable | `pickup` or `delivery` |
+| `status` | text | `new` (default), `processing`, `order_ready`, `closed_won`, `closed_lost`. Migration 0094 maps Committed to New and Confirmed to Processing; terminal history is retained |
+| `fulfillment_method` | text, nullable | `pickup` or `delivery`; set by Chris/admin, optional during supplier confirmation |
 | `confirmation_date` | date, nullable | Supplier confirmation date |
-| `fulfillment_date` | date, nullable | Scheduled pickup/delivery date |
-| `notes` | text, nullable | Order-level notes |
+| `fulfillment_date` | date, nullable | Supplier's committed pickup/delivery date, entered at order confirmation. Separate from the customer's EDD and Chris's method selection; new orders created in the app leave this null |
+| `notes` | text, nullable | Chris's order instructions |
+| `supplier_notes` | text, nullable | Supplier's order note, saved atomically with confirmation or fulfillment updates (0096); separate from Chris's instructions |
 | `is_active` | boolean | Default true |
 | `created_at` / `updated_at` | timestamptz | Default now; update trigger |
 
@@ -981,23 +988,29 @@ confirmation does not invent an available quantity or replace that status.
 `create_order(p_supplier_id bigint, p_items jsonb,
 p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL,
 p_notes text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false)` returns
-an order ID. `p_customer_confirmed` must be true. Items are
+an order ID. `p_customer_confirmed` must be true. The app sends null for
+`p_fulfillment_date`; the supplier supplies their commitment at confirmation. Items are
 `[{availability_request_item_id, allocations: [{job_request_item_id, quantity}]}]`.
 The transaction verifies active supplier/job ownership and answered availability,
 locks customer jobs and supplier requests, creates snapshots and allocations, and
-sets represented jobs to Committed. Quantities cannot exceed remaining customer
+creates a New order and sets represented jobs to Committed. Quantities cannot exceed remaining customer
 demand, availability allocations or the supplier's offered quantity. `can_order`
 uses requested quantity as its cap because a supplier may need to procure stock
 that is currently unavailable. Lost orders release quantities; successful closed
 orders still consume them. Failed creation leaves no partial order.
 
-`confirm_order(p_order_id bigint, p_supplier_id bigint,
-p_confirmation_date date DEFAULT CURRENT_DATE, p_fulfillment_date date DEFAULT NULL)`
-checks supplier ownership and active order state, sets the Order to Confirmed,
-and records confirmation/dates. Associated jobs remain Committed; supplier
-confirmation no longer creates a separate job stage (0093). Creating a later
-order also leaves the associated job Committed. The Order's Confirmed status and
-confirmation-date behavior are unchanged.
+`update_partner_order` (0094) locks and checks supplier ownership and active order
+state. New → Processing requires a valid fulfillment date and
+records the confirmation date. Processing → Order Ready is the next permitted
+transition. It also saves fulfillment details on active orders; it rejects
+backward, skipped and terminal transitions. Item procurement states and job
+stages do not change. The legacy `confirm_order` RPC delegates to the same
+validation. Associated jobs remain Committed (0093). Migration 0096 adds an
+optional `supplier_notes` patch field: text up to 10,000 characters or null.
+Omission preserves the note; blank/null clears it. Note/date/status changes
+share the same transaction, authorization and lifecycle checks. Migration 0098
+allows a null fulfillment method in Processing and Order Ready; supplied methods
+must still be pickup or delivery. Omitting the field preserves Chris's selection.
 
 `close_order(p_order_id bigint, p_status text)` accepts `closed_won` or
 `closed_lost`. Once all of a job's active orders are terminal and they cover every active
@@ -1005,6 +1018,12 @@ customer line's known quantity, the job closes Won when all succeeded, or Lost
 when any failed. Open orders and unallocated/unknown demand keep the job open;
 Chris can close a partially accepted job manually. Terminal order outcomes cannot
 be reclassified through this RPC.
+Order closure remains available to service/database operations for historical
+accounting; the app has no order-close action. App order mutations allow authorized supplier and admin sessions. Supplier
+portal routes enforce company scope; the admin order API derives supplier scope
+from the stored order. Both use the same transactional update routine and
+retain closure and forward-transition guards. Only admins may set or clear
+`fulfillmentMethod` through the app; supplier attempts return 403 before a write.
 These RPCs execute only for `service_role` and database owners; server routes
 authorize the caller and supplier. The five new tables follow the existing
 `authenticated` full-access RLS policy and are published to `supabase_realtime`.

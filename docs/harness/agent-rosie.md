@@ -56,15 +56,18 @@ and examples; history remains in the changelog and supplier transcript.
 `record_job_workflow_event(job_id, event)` records `pricing_fetched`,
 `quote_shared`, `availability_sent`, and `customer_confirmed` (Committed).
 The compatibility `supplier_confirmed` job event never changes a job stage;
-`confirm_order` changes only the supplier Order to Confirmed and records its
-dates. Linked Job Requests remain Committed until Won/Lost closure. Pricing/
+The partner confirms a New order with its pickup/delivery method and EDD,
+moving it to Processing, then marks it Order Ready (0094). Chris reads existing
+orders without editing their status or dates. Linked Job Requests remain
+Committed until Won/Lost closure. Pricing/
 quote work never regresses later stages or reopens terminal jobs. A draft is
 not customer delivery and an AR submission is not order confirmation.
 `archived` is a legacy terminal state. Migration 0092 moves historical
 customer-confirmed jobs to Committed without fabricating supplier orders, and
 moves Active/`sourcing` jobs to Quote. Migration 0093 retires the job
-`confirmed` status by mapping it to `committed`; Orders retain Confirmed and
-their confirmation dates.
+`confirmed` status by mapping it to `committed`. Migration 0094 maps existing
+Committed orders to New and Confirmed orders to Processing, preserving their
+confirmation dates and procurement line states.
 
 Availability requests and supplier orders have independent tables and
 many-to-many allocations:
@@ -209,3 +212,16 @@ Final customer files use `lps/rosie_shared/YYYY-MM-DD/`; intermediates use
 `/tmp`. Migrations remain in the shared sequential record at
 `harness/agents/daisy/migrations/`. See the shared
 [schema](../supabase-schema.md) for lifecycle functions and trigger details.
+
+### EDD during intake
+
+The `job-requests` skill (v5.8.0) captures Expected install date (EDD) from the
+message, attachments and ingestion context when supported and unambiguous.
+Missing or ambiguous dates prompt a date question with an explicit **Unknown**
+option after known job/item data is saved. Unknown stays SQL NULL and does not
+block independent intake or quoting. Later answers update the same job with
+guarded writes; re-ingestion without a date preserves an existing EDD.
+
+Supplier coordination v3.8.0 reads the submitted AR’s `supplier_notes` with its
+line responses and relays applicable request-wide conditions to linked jobs.
+The note is supplier evidence, not permission to change job-line availability.

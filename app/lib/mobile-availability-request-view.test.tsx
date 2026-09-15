@@ -342,7 +342,8 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   assert.ok(view.container.querySelector('[style*="min-width: 960px"]'))
   await setWidth(390)
   view.rerender(<AvailabilityRequestView {...props} request={request({ status: 'closed' })} />)
-  assert.equal(view.container.querySelector('input, textarea, select'), null)
+  assert.equal(view.container.querySelector('input:not([readonly]), textarea:not([readonly]), select:not([disabled])'), null)
+  assert.equal((view.getByRole('textbox', { name: 'Note for this request' }) as HTMLTextAreaElement).readOnly, true)
   assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
 })
 

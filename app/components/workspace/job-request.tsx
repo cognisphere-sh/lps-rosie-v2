@@ -8,7 +8,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
-import { Markdown } from '@/components/workspace/chat-kit'
+import { Markdown, MarkdownFirstLine } from '@/components/workspace/chat-kit'
 import {
   EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
@@ -424,8 +424,8 @@ function renderSourcingNote(text: string) {
 }
 
 /**
- * Both notes use a single-line preview; sourcing Markdown renders in the
- * popover. Both keep their original source for editing.
+ * Both notes use a single-line preview; sourcing notes render their first
+ * line as Markdown. Both keep their full original source for editing.
  */
 function NoteCell({
   kind,
@@ -491,7 +491,7 @@ function NoteCell({
       >
         {summary ? (
           <span className="w-full truncate text-[12px] text-foreground">
-            {summary.replace(/\s+/g, ' ')}
+            {kind === 'internal' ? <MarkdownFirstLine text={summary} /> : summary.replace(/\s+/g, ' ')}
           </span>
         ) : (
           <span className="text-[12px] text-lps-dim">—</span>
@@ -505,13 +505,9 @@ function NoteCell({
         >
           <div className="flex items-baseline gap-2">
             <span className="text-[12.5px] font-bold text-foreground">{meta.label} note</span>
-            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{title}</span>
+            {kind !== 'shared' && <span className="min-w-0 truncate text-[11px] text-muted-foreground">{title}</span>}
           </div>
           {kind === 'shared' ? (
-            <>
-              <span className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">
-                The customer sees this
-              </span>
               <EditableTextarea
                 table={table}
                 id={id}
@@ -519,9 +515,8 @@ function NoteCell({
                 value={value}
                 onSaved={onSaved}
                 touchTarget={touchTarget}
-                placeholder="Add a note to share with the customer…"
+                placeholder="Add a shared note…"
               />
-            </>
           ) : (
             <>
               <EditableTextarea
@@ -888,8 +883,8 @@ export function RequestLinks({
                   describedBy={`${dateIdPrefix}-ar-${ar.id}-date`}
                   onOpen={() => openAvailabilityRequest(ar.id)}
                   className={cn(
-                    'flex-col justify-center gap-0.5 py-1',
-                    relatedOnly && 'min-h-11',
+                    'flex-row justify-center gap-1.5 py-0.5',
+                    relatedOnly && 'min-h-8',
                     isSubmittedARStatus(ar.status)
                       ? 'bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)] hover:bg-[var(--lps-tone-green-bg)]'
                       : isInProgressARStatus(ar.status)
@@ -925,7 +920,7 @@ export function RequestLinks({
                   }
                   className={cn(
                     'text-muted-foreground hover:text-primary',
-                    relatedOnly && 'min-h-11',
+                    relatedOnly && 'min-h-8',
                   )}
                 >
                   <MessagesSquare size={11} />
@@ -972,8 +967,8 @@ function JobSchedule({ request, edit }: { request: JobRequestRow; edit: Omit<Edi
     finally { setBusy(false) }
   }
   return <div className="flex flex-wrap gap-3 py-2 text-[12px]">
-    <label className="flex flex-col gap-1">Expected install date
-      <input aria-label="Expected install date" type="date" value={date} disabled={busy}
+    <label className="flex flex-col gap-1">Expected delivery / installation date
+      <input aria-label="Expected delivery / installation date" type="date" value={date} disabled={busy}
         onChange={(event) => setDate(event.target.value)}
         onBlur={(event) => { const next = event.currentTarget.value; setDate(next); if (next !== (request.expectedInstallDate ?? '')) void save('expected_install_date', next) }}
         className="min-h-11 rounded-md border border-input bg-background px-2" />
@@ -1044,7 +1039,7 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
     {
       label: 'Delivery',
       primary: request.fulfillmentMethod === 'pickup' ? 'Pickup' : shipping || 'No shipping address recorded',
-      secondary: request.expectedInstallDate ? `Expected install: ${request.expectedInstallDate}` : 'Expected install date not recorded',
+      secondary: request.expectedInstallDate ? `Expected delivery / installation date: ${request.expectedInstallDate}` : 'Expected delivery / installation date not recorded',
     },
     {
       label: 'Billing & payment',

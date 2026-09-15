@@ -259,6 +259,7 @@ export interface JobRequestRow {
     company: string | null
     email: string | null
     phone: string | null
+    type: CustomerType | null
     /** `customers.rosie_thread_id` — the customer's chat thread, when minted. */
     rosieThreadId: string | null
   } | null

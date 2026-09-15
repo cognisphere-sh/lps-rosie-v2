@@ -117,7 +117,7 @@ function RequestCell({
       )}
       {/* Our note about this line — what LPS said when it asked. */}
       {line.lpsNotes && (
-        <span className="block truncate text-[10.5px] italic text-muted-foreground" title={redactPartnerRequestRefs(line.lpsNotes)}>
+        <span className="block whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.lpsNotes)}>
           {redactPartnerRequestRefs(line.lpsNotes)}
         </span>
       )}
@@ -152,6 +152,8 @@ function AnswerCells({
         placeholder="Add note…"
         display={line.notes ?? ''}
         onCommit={(next) => void onPatch(line.id, { notes: next.trim() })}
+        ariaLabel={`Line ${line.id} notes`}
+        multiline
       />
     </>
   )
@@ -238,7 +240,7 @@ function ItemGroupRow({
             {group.name}
           </span>
           {note && (
-            <span className="block truncate text-[11px] text-muted-foreground" title={note}>
+            <span className="block whitespace-pre-wrap text-[11px] text-muted-foreground [overflow-wrap:anywhere]" title={note}>
               {note}
             </span>
           )}

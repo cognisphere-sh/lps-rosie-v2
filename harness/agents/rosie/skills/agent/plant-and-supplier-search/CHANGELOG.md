@@ -1,5 +1,13 @@
 # plant-and-supplier-search — changelog
 
+## 2.8.1
+
+- Align research handoffs with Chris's sourcing-note rule: the JR maintains an unlabelled plain-text current summary and latest facts only.
+
+## 2.8.0
+
+- Search every clear requested size/variant option and return the cheapest supported requested option plus all other supported requested-option prices for shared notes, per Chris's updated pricing authorization.
+
 ## 2.7.0
 
 - Reference the canonical current sourcing snapshot and row outcome; do not turn research or search history into a notes log or inferred supplier selection.

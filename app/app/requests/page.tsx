@@ -41,7 +41,7 @@ const EMPTY_FACETS: JobRequestFacets = { size: [], customer: [] }
 const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
 
 /** All current stages. Clearing the filter includes legacy archived jobs. */
-const OPEN_STATUSES = REQUEST_STATUS_OPTIONS.map((o) => o.label)
+const DEFAULT_STATUSES = ['Availability', 'Committed']
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v) => b.includes(v))
 
@@ -297,7 +297,7 @@ export default function RequestsPage() {
   const toast = useToast()
   const requestsMobile = useResolvedRequestsMobile()
   const [query, setQuery] = useState('')
-  const [status, setStatus] = useState<string[]>(OPEN_STATUSES)
+  const [status, setStatus] = useState<string[]>(DEFAULT_STATUSES)
   // Desktop owns Item status. Mobile always queries all item statuses while
   // this value remains parked for a truthful return to desktop/session restore.
   const [itemStatus, setItemStatus] = useState<string[]>([])
@@ -343,7 +343,7 @@ export default function RequestsPage() {
       const allowedDates = new Set<string>(REQUEST_DATE_RANGES.map((option) => option.label))
       if (saved) {
         setQuery(typeof saved.query === 'string' ? saved.query.slice(0, 500) : '')
-        setStatus(normalizeStoredRequestStatusLabels(saved.status, REQUEST_STATUS_OPTIONS, OPEN_STATUSES))
+        setStatus(normalizeStoredRequestStatusLabels(saved.status, REQUEST_STATUS_OPTIONS, DEFAULT_STATUSES))
         setItemStatus(normalizeStoredRequestStatusLabels(saved.itemStatus, ITEM_STATUS_OPTIONS, []))
         pendingCustomer.current = Array.isArray(saved.customer) ? saved.customer.filter((v) => typeof v === 'string') : []
         setCreated(Array.isArray(saved.created) ? saved.created.filter((v) => allowedDates.has(v)).slice(0, 1) : [])
@@ -637,7 +637,7 @@ export default function RequestsPage() {
   // "Clear all" returns the page to how it opens — which is not "no filters at
   // all", since the Status chip opens with Archived left out.
   const hasFilters =
-    !sameSet(status, OPEN_STATUSES) ||
+    !sameSet(status, DEFAULT_STATUSES) ||
     effectiveItemStatus.length > 0 ||
     customer.length > 0 ||
     created.length > 0 ||
@@ -646,7 +646,7 @@ export default function RequestsPage() {
 
   const clearAll = () => {
     setQuery('')
-    setStatus(OPEN_STATUSES)
+    setStatus(DEFAULT_STATUSES)
     if (requestsMobile === false) setItemStatus([])
     setCustomer([])
     setCreated([])
@@ -666,7 +666,7 @@ export default function RequestsPage() {
           query={query}
           onQuery={setQuery}
           chips={chips}
-          statusBaseline={OPEN_STATUSES}
+          statusBaseline={DEFAULT_STATUSES}
           resolvedMobile={requestsMobile}
           hasFilters={hasFilters}
           onClear={clearAll}

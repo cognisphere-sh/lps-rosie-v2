@@ -1133,7 +1133,7 @@ export async function updateFields(
     }
 
     if (column === 'expected_install_date' && raw.trim() && (!/^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) || Number.isNaN(Date.parse(raw.trim())) || new Date(raw.trim()).toISOString().slice(0, 10) !== raw.trim())) {
-      throw new Error('Expected install date must be a valid YYYY-MM-DD date')
+      throw new Error('Expected delivery / installation date must be a valid YYYY-MM-DD date')
     }
 
     if (ARRAY.has(column)) {

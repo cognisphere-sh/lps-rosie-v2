@@ -1,0 +1,128 @@
+'use client'
+
+// The supplier order queue, with lifecycle filters and shared plant views.
+
+import { useParams } from 'next/navigation'
+import { RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
+import { OrderLineGroups, OrderStatusFilters, OrderViewControls, PartnerOrderCard, type OrderFilter, type OrderView } from '@/components/workspace/orders'
+import type { Order } from '@/lib/orders'
+import { redactPartnerRequestRefs } from '@/lib/partner-display'
+
+export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
+  const params = useParams<{ id: string }>()
+  const supplierId = Number.parseInt(params.id, 10)
+  const [supplierName, setSupplierName] = useState<string | null>(null)
+  // The header bell is on every portal page, so this tab loads the same
+  // unanswered-request list the Requests tab shows.
+  const [alerts, setAlerts] = useState<PartnerAlert[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const revision = useRef(0)
+  const loadController = useRef<AbortController | null>(null)
+  const [statuses, setStatuses] = useState<OrderFilter[]>(['new', 'processing'])
+  const [view, setView] = useState<OrderView>('order')
+
+  const loadOrders = useCallback(async () => {
+    const version = ++revision.current
+    loadController.current?.abort()
+    const controller = new AbortController()
+    loadController.current = controller
+    try {
+      const res = await fetch(`/api/partner/${supplierId}/orders`, { cache: 'no-store', signal: controller.signal })
+      const body = await res.json() as { orders: Order[]; supplier: { name: string }; error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not load orders')
+      if (version !== revision.current) return
+      setError(null)
+      setOrders(body.orders)
+      setSupplierName(body.supplier.name)
+    } catch (error) { if (version === revision.current && !controller.signal.aborted) setError((error as Error).message) }
+    finally { if (version === revision.current) setLoading(false) }
+  }, [supplierId])
+
+  useEffect(() => {
+    setOrders([]); setSupplierName(null); setLoading(true); setError(null); setStatuses(['new', 'processing']); setView('order')
+    void loadOrders()
+    const refresh = () => { if (document.visibilityState === 'visible') void loadOrders() }
+    const timer = window.setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      revision.current += 1
+      loadController.current?.abort()
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [loadOrders])
+
+  useEffect(() => {
+    if (!Number.isInteger(supplierId)) return
+    let alive = true
+    setAlerts([])
+    void (async () => {
+      const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store' })
+      if (res.ok) {
+        const body = (await res.json()) as {
+          supplier: { name: string }
+          requests: { id: number; status: string; jobName: string | null; createdAt: string }[]
+        }
+        if (!alive) return
+        setSupplierName(body.supplier.name)
+        setAlerts(
+          body.requests
+            .filter((request) => request.status === 'new')
+            .map((request) => ({
+              id: request.id,
+              label: request.jobName ? redactPartnerRequestRefs(request.jobName) : 'Availability request',
+              at: Date.parse(request.createdAt),
+            })),
+        )
+      }
+    })().catch(() => {})
+    return () => { alive = false }
+  }, [supplierId])
+
+  const visibleOrders = orders.filter((order) => Boolean(order.closed || ['closed_won', 'closed_lost'].includes(order.status)) === closed)
+
+  const shown = closed ? visibleOrders : visibleOrders.filter((order) => statuses.includes(order.status as OrderFilter))
+
+  return (
+    <PartnerFrame
+      supplierId={supplierId}
+      supplierName={supplierName}
+      tab={closed ? "closed-orders" : "orders"}
+      title={closed ? "Closed Orders" : "Orders"}
+      hideHeaderOnDesktop
+      alerts={alerts}
+      onAgentReply={loadOrders}
+      onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
+      toolbar={(rightActions) => <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
+        <div className="flex min-h-[4.75rem] w-full items-center gap-3 rounded-2xl bg-card px-3 py-2.5">
+          <div className="flex min-w-0 flex-1 justify-center overflow-x-auto">
+            {closed ? <span className="text-[13px] font-semibold">{visibleOrders.length} closed orders</span> : <OrderStatusFilters orders={visibleOrders} selected={statuses} onChange={setStatuses} />}
+          </div>
+          <div className="flex flex-none items-center gap-2"><button type="button" aria-label="Refresh" title="Refresh" className="flex size-9 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint" onClick={() => void loadOrders()}><RefreshCw className="size-4" /></button>{rightActions}</div>
+        </div>
+      </div>}
+    >
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 pb-24 md:p-4 md:pb-24">
+        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive"><span>{error}{orders.length > 0 && ' The last loaded orders are still shown.'}</span><button type="button" className="min-h-11 rounded-lg border border-current px-4 font-semibold" onClick={() => void loadOrders()}>Retry</button></div>}
+        {loading && <p className="py-12 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
+        {!loading && !error && visibleOrders.length === 0 && <div className="flex flex-col items-center gap-2 py-16 text-center">
+          <span className="text-[14px] font-semibold text-foreground">{closed ? "No closed orders" : "No orders yet"}</span>
+          <span className="text-[12.5px] text-muted-foreground">{closed ? "Orders appear here when closed or when all their linked jobs are closed." : "New orders appear here once the customer confirms."}</span>
+        </div>}
+        {!loading && !error && visibleOrders.length > 0 && shown.length === 0 && <div role="status" className="flex flex-col items-center gap-2 py-16 text-center"><span className="text-[14px] font-semibold">{statuses.length === 0 ? 'No order buckets selected' : 'Nothing in the selected buckets'}</span><span className="text-[12.5px] text-muted-foreground">Select one or more buckets to see those orders.</span></div>}
+        {view === 'order' ? shown.map((order) => <PartnerOrderCard key={order.id} order={order} supplierId={supplierId} />)
+          : <OrderLineGroups orders={shown} groupBy={view} supplierId={supplierId} />}
+      </div>
+      <OrderViewControls value={view} onChange={setView} includeOrders floating />
+      </div>
+    </PartnerFrame>
+  )
+}

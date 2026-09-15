@@ -56,7 +56,7 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
 
   const focusedJobs = source('app/jobs/page.tsx')
   assert.match(focusedJobs, /hideHeaderOnDesktop/)
-  assert.match(focusedJobs, /<JobsTopActions \/>/)
+  assert.match(focusedJobs, /<JobsTopActions(?:\s|>)/)
 
   // The portal's request page joined the compact set with the 2026-08-30
   // redesign: its header card's strip carries the name.

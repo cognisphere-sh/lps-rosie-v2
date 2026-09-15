@@ -18,6 +18,7 @@ import {
   type SemanticPalette,
 } from '../components/workspace/partner-request-buckets.tsx'
 import type { ARDetail } from './availability.ts'
+import { PartnerRequestCard } from '../components/workspace/partner.tsx'
 
 let dom: JSDOM
 
@@ -102,6 +103,41 @@ const mixed = [
   request(5, 'submitted'),
 ]
 
+test('open and closed request cards show creation and each anonymous job schedule without truncating request notes', () => {
+  const note = 'Please allow room for the delivery truck at the south gate.\nCall the site contact before unloading the entire shipment.'
+  const value: ARDetail = {
+    ...request(8, 'new'),
+    createdAt: '2026-09-15T02:00:00Z',
+    lpsNotes: note,
+    jobSchedules: [
+      { jobRequestId: 11, jobName: 'Private courtyard', expectedInstallDate: '2026-09-20', fulfillmentMethod: 'pickup' },
+      { jobRequestId: 22, jobName: 'Private garden', expectedInstallDate: '2026-09-26', fulfillmentMethod: 'delivery' },
+    ],
+  }
+  const view = render(<PartnerRequestRow request={value} href="/partner/7/requests/8" />)
+  const noteElement = view.getByTitle(note, { normalizer: (text) => text })
+  assert.equal(noteElement.textContent, note)
+  assert.doesNotMatch(noteElement.className, /truncate|line-clamp/)
+  assert.match(noteElement.className, /whitespace-pre-wrap/)
+
+  for (const card of [
+    <PartnerRequestRow key="open" request={value} href="/partner/7/requests/8" />,
+    <PartnerRequestCard key="closed" request={{ ...value, status: 'closed' }} href="/partner/7/requests/8" />,
+  ]) {
+    view.rerender(card)
+    const link = view.getByRole('link')
+    assert.equal(link.getAttribute('href'), '/partner/7/requests/8')
+    assert.match(link.textContent ?? '', /Created 09-14/)
+    const schedules = within(link).getByLabelText('Job schedules')
+    assert.equal(schedules.children[0].textContent, 'Job 1EDD09-20FulfillmentPickup')
+    assert.equal(schedules.children[1].textContent, 'Job 2EDD09-26FulfillmentDelivery')
+    assert.doesNotMatch(link.textContent ?? '', /Private courtyard|Private garden|JR-11|JR-22/)
+  }
+
+  view.rerender(<PartnerRequestRow request={request(8, 'new')} href="/partner/7/requests/8" />)
+  assert.equal(view.getByLabelText('Job schedules').textContent, 'EDD—Fulfillment—')
+})
+
 test('fresh mounts default to New + Processing while independent toggles and Select all keep global counts', async () => {
   const user = userEvent.setup({ document })
   const view = render(<BucketHarness requests={mixed} />)
@@ -159,7 +195,7 @@ function assertAccessiblePalette(name: string, palette: SemanticPalette) {
 test('every rendered light/dark semantic text, check and border pair passes contrast and remains status-consistent', () => {
   const globals = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
   assert.match(globals, /:root \{[\s\S]*?--card: #FFFFFF;/)
-  assert.match(globals, /\.dark \{[\s\S]*?--card: #1A1A1A;/)
+  assert.match(globals, /\.dark(?:,\s*[^{}]+)?\s*\{[^{}]*--card: #1A1A1A;/)
   const selected: RequestBucketId[] = ['new', 'processing', 'submitted']
   const view = render(
     <>

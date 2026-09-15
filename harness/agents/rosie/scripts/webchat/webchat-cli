@@ -21,9 +21,11 @@ webchat-cli — reply to the web chat panel.
 
 USAGE
   scripts/webchat/webchat-cli send --text "…" [--file <path>]… [--thread-id <id>]
+  scripts/webchat/webchat-cli ask --questions-file <path.json> [--thread-id <id>] [--portal]
   scripts/webchat/webchat-cli --self-check
 
 FLAGS
+  --questions-file    JSON object: {title, questions:[{question, options:[...]}]}
   --text <text>       the reply body (markdown)
   --file <path>       attach a file, relative to the agent dir; repeatable
   --thread-id <id>    which thread's web transcript the reply lands in.
@@ -43,14 +45,14 @@ EOF
 }
 
 agent="${PI_AGENT_ID:-}"
-text="" selfcheck=false portal=false
+text="" selfcheck=false portal=false questions_file=""
 thread="${PI_THREAD_ID:-}"
 files=()
 
 cmd="${1:-}"
 case "$cmd" in
   -h|--help) usage; exit 0 ;;
-  send) shift ;;
+  send|ask) shift ;;
   --self-check) selfcheck=true; shift ;;
   *) echo "unknown command: ${cmd:-<none>} (expected: send)" >&2; usage >&2; exit 2 ;;
 esac
@@ -58,6 +60,7 @@ esac
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)    usage; exit 0 ;;
+    --questions-file) questions_file="$2"; shift 2 ;;
     --text)       text="$2"; shift 2 ;;
     --file)       files+=("$2"); shift 2 ;;
     --thread-id)  thread="$2"; shift 2 ;;
@@ -72,8 +75,13 @@ payload() {
   if [ ${#files[@]} -gt 0 ]; then
     list="$(printf '%s\n' "${files[@]}" | jq -R . | jq -sc .)"
   fi
-  jq -cn --arg text "$text" --arg thread "$thread" --argjson portal "$portal" --argjson att "$list" \
+  local questionnaire='null'
+  if [ -n "$questions_file" ]; then
+    questionnaire="$(jq -ce 'if type == "object" then . else error("questionnaire must be an object") end' "$questions_file")" || return 2
+  fi
+  jq -cn --argjson questionnaire "$questionnaire" --arg text "$text" --arg thread "$thread" --argjson portal "$portal" --argjson att "$list" \
     '{text:$text, attachments:$att}
+     + (if $questionnaire==null then {} else {questionnaire:$questionnaire} end)
      + (if $thread=="" then {} else {threadId:$thread} end)
      + (if $portal then {portal:true} else {} end)'
 }
@@ -84,7 +92,9 @@ if $selfcheck; then
     && { echo "self-check OK"; exit 0; } || { echo "self-check FAILED" >&2; exit 1; }
 fi
 
-[ -n "$text" ] || [ ${#files[@]} -gt 0 ] || {
+[ "$cmd" != "ask" ] || [ -n "$questions_file" ] || { echo "ask requires --questions-file" >&2; exit 2; }
+
+[ -n "$questions_file" ] || [ -n "$text" ] || [ ${#files[@]} -gt 0 ] || {
   echo "usage: webchat-cli send --text \"…\" [--file path]" >&2; exit 2; }
 
 # Prefer the runner-provided base; fall back to composing one only if it's absent.
@@ -96,9 +106,11 @@ else
   inbox="$PI_WEBHOOK_BASE/webchat"
 fi
 
+request_payload="$(payload)" || exit 2
+
 resp="$(curl -sS -X POST -H 'content-type: application/json' \
   -H "x-webhook-secret: ${COGNISPHERE_WEBHOOK_SECRET:-}" -w $'\n%{http_code}' \
-  --data "$(payload)" "$inbox/api/reply")" \
+  --data "$request_payload" "$inbox/api/reply")" \
   || { echo "webchat send failed — could not reach the inbox at $inbox" >&2; exit 1; }
 code="${resp##*$'\n'}"; body="${resp%$'\n'*}"
 if [ "$code" != "200" ]; then

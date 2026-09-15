@@ -92,6 +92,7 @@ function JobsWorkspace() {
   const router = useRouter()
   const params = useSearchParams()
   const breakpoint = useBreakpoint()
+  const [jobActionsTarget, setJobActionsTarget] = useState<HTMLDivElement | null>(null)
   const selection = useMemo(() => parseJobSelection(params.getAll('jr')), [params])
   const intakeRequested = params.getAll('intake').length === 1 && params.get('intake') === '1'
   const [jobs, setJobs] = useState<JobInboxRow[]>([])
@@ -401,7 +402,7 @@ function JobsWorkspace() {
         </>}
       >
         <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
-          {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions /></div>}
+          {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions><div ref={setJobActionsTarget} className="contents" /></JobsTopActions></div>}
           {membership === 'loading' && <div role="status" className="p-8 text-center text-muted-foreground">Checking this job…</div>}
           {membership === 'listed' && detailError && <div role="alert" className="p-3 text-sm text-destructive">Could not update this job. Showing the last saved data.<button className="ml-2 underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id, true)}>Retry</button></div>}
           {membership === 'error' && <div role="alert" className="p-8 text-center text-destructive">Could not load this job.<button className="mx-auto mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => selection.kind === 'valid' && void loadDetail(selection.id)}><RefreshCw size={14}/>Retry</button></div>}
@@ -410,6 +411,7 @@ function JobsWorkspace() {
             <FocusedJobRecord
               key={detail.id}
               request={detail}
+              actionsTarget={focusedDesktop ? jobActionsTarget : null}
               mobile={breakpoint === true}
               version={version}
               onSaved={() => {

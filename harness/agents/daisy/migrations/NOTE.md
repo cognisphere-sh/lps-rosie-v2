@@ -10,6 +10,74 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0098_order_confirmation_optional_method.sql`
+
+Applied 2026-09-15 at 14:28:40 UTC via psql in one transaction to the configured
+LPS Supabase project. Supplier confirmation requires a fulfillment date while
+pickup/delivery remains optional and managed by Chris.
+Replaces `update_partner_order` without changing data, lifecycle transitions,
+supplier scope, active/closed-order guards, note validation, locks, or RPC grants.
+The API restricts method updates to admin; the service-role RPC accepts a valid
+method or an explicit null and preserves the existing method when omitted.
+
+Disposable PostgreSQL 18.6 tests passed using the production 0092–0096 fixture
+chain. Checked date-only confirmation and Ready with no method, preservation and
+clearing of existing methods, missing-date errors and rollback, scope/closure
+guards, service-role-only permissions, and repeat application with saved dates
+and notes. The migration preserved all rows in ten related business tables.
+The live transaction verified the existing function matched the reviewed version,
+all order fields were preserved, and the new function and service-role-only
+permissions matched the migration. PostgREST schema reload was notified at commit.
+
+## `0097_job_delete_dependents.sql`
+
+Applied 2026-09-15 at 14:23:32 UTC via psql in one transaction to the configured
+LPS Supabase project. Job deletion now removes exclusive orders and ARs along
+with the canonical Rosie transcript; records shared with other jobs survive.
+Permanent thread markers prevent recreation and queue harness-session cleanup.
+
+Transaction-local fingerprints verified that all existing rows in the twelve
+job, availability, order and chat tables were unchanged. PostgREST schema reload
+was notified at commit. No historical orphan records were deleted.
+
+App and harness deployed through `scripts/server.sh restart` at 14:26 UTC.
+Both services, all four agents, and all webchat plugins started successfully;
+local and public login pages returned HTTP 200. Daisy and Rosie gws plugins
+remain unavailable because their Google OAuth credentials are not configured.
+
+## `0096_order_supplier_confirmation_note.sql`
+
+Applied 2026-09-15 at 13:36:08 UTC via psql in one transaction to the configured
+LPS Supabase project. Adds nullable `orders.supplier_notes`, separate from Chris's
+instructions, and saves it atomically through the scoped lifecycle RPC with the
+supplier's fulfillment date and confirmation status. Customer EDD stays on jobs
+and availability requests; fulfillment date belongs only to orders.
+
+The transaction checked that the existing order retained every previous field
+exactly, including its status, dates and update timestamp. Verified nullable text
+storage and service-role-only RPC grants. Read-only REST verified the new schema.
+Disposable PostgreSQL tests covered confirmation, rollback, note clearing,
+access, closed orders and repeat application, including saved note preservation.
+App deployment remains separate.
+
+## `0094_partner_order_lifecycle.sql` and `0095_availability_supplier_note.sql`
+
+Applied 2026-09-15 at 13:20:42 UTC via psql in one transaction to the configured
+LPS Supabase project. The existing Committed order moved to New; future orders
+default to New. Partner confirmation requires pickup/delivery method and fulfillment date,
+then orders advance from Processing to Order Ready. Added nullable request-wide
+supplier notes and guarded supplier/public submission routines.
+
+Transaction-local fingerprints verified preservation of the one order's other
+fields (apart from its update timestamp), 13 order lines, 13 order allocations,
+13 jobs, 153 job lines, 732 job audit entries, 15 availability requests,
+154 availability lines, 10 request/job links and 97 availability line/job links.
+No supplier notes were fabricated. Verified the order CHECK/default, all five
+changed/new RPCs' service-role-only grants, and unchanged job stages. PostgREST
+schema reload was notified at commit; live read-only REST schema checks passed.
+Both migrations passed disposable PostgreSQL tests before application; 0094
+also passed repeat-application checks. App deployment/restart was not part of this step.
+
 ## `0093_remove_job_confirmed_status.sql`
 
 Applied 2026-09-15 at 09:44 UTC via psql in one transaction to the configured

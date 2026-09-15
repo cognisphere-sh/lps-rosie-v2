@@ -1,79 +1,310 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { Check, ChevronDown, Layers, LayoutGrid, List } from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 
+import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { arResponseLabel } from '@/lib/availability'
-import { money, num } from '@/lib/format'
-import { isApsSupplier, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type FulfillmentMethod, type Order, type OrderCandidate } from '@/lib/orders'
+import { formatMonthDay, money, num } from '@/lib/format'
+import { isApsSupplier, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
+import { cn } from '@/lib/utils'
 
-const field = 'h-9 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
-const button = 'inline-flex min-h-9 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold hover:bg-muted disabled:opacity-50'
-const primary = 'inline-flex min-h-9 items-center justify-center rounded-md bg-primary px-3 text-[12px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50'
+const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
+const button = 'inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold hover:bg-muted disabled:opacity-50'
+const primary = 'inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-[12px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50'
 
-/** The same supplier-facing order lines on both sides; job allocations are admin only. */
-export function OrderCard({ order, supplierId, onChanged }: { order: Order; supplierId?: number; onChanged: () => void | Promise<void> }) {
-  const [fulfillmentDate, setFulfillmentDate] = useState(order.fulfillmentDate ?? '')
-  const [confirmationDate, setConfirmationDate] = useState(order.confirmationDate ?? new Date().toISOString().slice(0, 10))
+const orderPalettes = {
+  new: ['#075EA8', '#EAF4FF', '#1976C9', '#7FC4FF', '#102A3D', '#3E9BE0'],
+  processing: ['#8A3F00', '#FFF2DD', '#B85C00', '#FFB86B', '#3A2412', '#D57A1F'],
+  order_ready: ['#126B36', '#EAF8EF', '#25864B', '#79D99B', '#12301F', '#36A463'],
+  closed_won: ['#126B36', '#EAF8EF', '#25864B', '#79D99B', '#12301F', '#36A463'],
+  closed_lost: ['#A42B32', '#FFF0F1', '#B83D46', '#FFB2B9', '#3D1C22', '#E16A76'],
+  all: ['#1E3B28', '#EDF4EE', '#486251', '#E8E8E8', '#253029', '#9EAEA2'],
+}
+const orderBorder = 'border-[var(--order-border)] dark:border-[var(--order-dark-border)]'
+const orderText = 'text-[var(--order-text)] dark:text-[var(--order-dark-text)]'
+const orderTint = 'bg-[var(--order-bg)] dark:bg-[var(--order-dark-bg)]'
+function orderPalette(status: OrderStatus | 'all'): CSSProperties {
+  const [text, background, border, darkText, darkBackground, darkBorder] = orderPalettes[status]
+  return { '--order-text': text, '--order-bg': background, '--order-border': border,
+    '--order-dark-text': darkText, '--order-dark-bg': darkBackground, '--order-dark-border': darkBorder } as CSSProperties
+}
+
+function OrderStatusPill({ status }: { status: OrderStatus }) {
+  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex h-7 items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
+}
+
+function OrderMetadata({ order, showFulfillmentDate = false }: { order: Order; showFulfillmentDate?: boolean }) {
+  return <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+    <span className="whitespace-nowrap">Created: <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(order.createdAt) || '—'}</span></span>
+    {showFulfillmentDate && <span>Fulfillment date: <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>}
+    {order.fulfillmentMethod && <span className="rounded-md border border-border bg-background px-2 py-1">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : 'Delivery'}</span>}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span>Customer request:</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
+  </div>
+}
+
+/** Compact order rows open the supplier's dedicated order page. */
+export function PartnerOrderCard({ order, supplierId }: { order: Order; supplierId: number }) {
+  return <Link href={`/partner/${supplierId}/orders/${order.id}`} aria-label={`${ORDER_STATUS_META[order.status].label} order O-${order.id}`}
+    data-order-row-status={order.status} style={orderPalette(order.status)}
+    className={cn('grid flex-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-4 py-4 no-underline transition-colors hover:bg-lps-tint sm:grid-cols-[8.5rem_minmax(0,1fr)_6.5rem] sm:gap-4 sm:px-5', orderBorder)}>
+    <span className="col-start-1 row-start-1"><OrderStatusPill status={order.status} /></span>
+    <div className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-col gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+      <span className="truncate text-[16px] font-semibold leading-tight text-foreground">Order O-{order.id}</span>
+      {order.notes && <span className="whitespace-pre-wrap text-[13px] text-muted-foreground [overflow-wrap:anywhere]">{order.notes}</span>}
+      <OrderMetadata order={order} />
+    </div>
+    <span className="col-start-2 row-start-1 text-right text-[15px] font-semibold tabular-nums text-foreground sm:col-start-3 sm:w-[6.5rem]">{money(orderSubtotal(order)) || '—'}</span>
+  </Link>
+}
+
+export type OrderView = 'order' | 'status' | 'plant'
+export const ORDER_BUCKETS = ['new', 'processing', 'order_ready'] as const
+export type OrderFilter = (typeof ORDER_BUCKETS)[number]
+
+export function OrderStatusFilters({ orders, selected, onChange }: { orders: Order[]; selected: readonly OrderFilter[]; onChange: (value: OrderFilter[]) => void }) {
+  return <div role="group" aria-label="Order work buckets" className="flex gap-2 overflow-x-auto">
+    {(['all', ...ORDER_BUCKETS] as const).map((status) => {
+      const label = status === 'all' ? 'Select all' : ORDER_STATUS_META[status].label
+      const count = status === 'all' ? orders.length : orders.filter((order) => order.status === status).length
+      const active = status === 'all' ? ORDER_BUCKETS.every((bucket) => selected.includes(bucket)) : selected.includes(status)
+      return <button key={status} type="button" data-order-bucket={status} aria-pressed={active}
+        aria-label={status === 'all' ? `Select all order buckets, ${count} open orders` : `${label}: ${count} orders, ${active ? 'selected' : 'not selected'}`}
+        onClick={() => onChange(status === 'all' ? [...ORDER_BUCKETS] : active ? selected.filter((bucket) => bucket !== status) : [...selected, status])}
+        style={orderPalette(status)}
+        className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2', orderBorder, orderText,
+          active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)] dark:hover:bg-[var(--order-dark-bg)]')}>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium">{active && <Check aria-hidden="true" className="size-3.5" />}{label}</span><span className="text-[18px] font-semibold tabular-nums leading-tight">{count}</span>
+      </button>
+    })}
+  </div>
+}
+
+export function OrderViewControls({ value, onChange, includeOrders = false, floating = false }: { value: OrderView; onChange: (value: OrderView) => void; includeOrders?: boolean; floating?: boolean }) {
+  const views = [...(includeOrders ? [{ id: 'order' as const, label: 'By order', Icon: List }] : []), { id: 'plant' as const, label: 'By plant', Icon: Layers }, { id: 'status' as const, label: 'By status', Icon: LayoutGrid }]
+  return <div role="group" aria-label="Group order rows" className={cn('flex w-fit gap-1 rounded-xl border border-border bg-card p-1.5', floating && 'absolute bottom-3 left-1/2 -translate-x-1/2 shadow-lg')}>
+    {views.map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={value === id} onClick={() => onChange(id)} className={cn('flex size-9 cursor-pointer items-center justify-center rounded-lg border-none', value === id ? 'bg-foreground text-background' : 'bg-transparent text-muted-foreground hover:bg-lps-tint hover:text-foreground')}><Icon aria-hidden="true" className="size-5" /></button>)}
+  </div>
+}
+
+type OrderLine = { order: Order; item: OrderItem }
+const itemColors: Record<string, string> = {
+  available: 'text-[#126B36] dark:text-[#79D99B]', need_to_order: 'text-[#075EA8] dark:text-[#7FC4FF]',
+  arriving_soon: 'text-[#075EA8] dark:text-[#7FC4FF]', diff_size_qty_sub: 'text-[#7252BB] dark:text-[#BC9EFF]',
+  unavailable: 'text-[#A42B32] dark:text-[#FFB2B9]', pending: 'text-muted-foreground',
+}
+
+function OrderItemStatus({ status }: { status: string }) {
+  return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
+}
+
+/** Order quantities and supplier responses are a read-only snapshot. */
+function OrderLines({ lines, supplierId, showOrder = false }: { lines: OrderLine[]; supplierId?: number; showOrder?: boolean }) {
+  const [mobile, setMobile] = useState(false)
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const media = window.matchMedia('(max-width: 899px)')
+    const update = () => setMobile(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  const source = (order: Order) => supplierId != null && showOrder
+    ? <Link href={`/partner/${supplierId}/orders/${order.id}`} className="font-semibold text-primary underline underline-offset-2">O-{order.id}</Link> : null
+  const allocations = (item: OrderItem) => supplierId == null && item.allocations?.map((allocation) => <p key={allocation.jobRequestItemId} className="m-0 mt-1 text-[11px] text-muted-foreground">JR-{allocation.jobRequestId}{allocation.jobName ? ` · ${allocation.jobName}` : ''} · {num(allocation.quantity)}</p>)
+  if (mobile) return <div className="min-w-0 space-y-3" data-testid="order-mobile-lines">
+    {lines.map(({ order, item }, index) => <article key={`${order.id}:${item.id}`} aria-label={`Line ${index + 1}, ${item.name}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]">
+      <div className="min-w-0 border-b border-lps-hair px-3 py-3">
+        {showOrder && <div className="mb-2 text-[12px]">{source(order)} <span className="text-muted-foreground">· {ORDER_STATUS_META[order.status].label}</span></div>}
+        <p className="m-0 text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
+        <p className="m-0 mt-0.5 text-[12px] text-muted-foreground">Quantity {num(item.quantity)}{item.size ? ` · ${item.size}` : ''}</p>
+        {allocations(item)}
+      </div>
+      <dl className="m-0 grid min-w-0 grid-cols-2 gap-3 p-3">
+        <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} /></dd></div>
+        <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.unitPrice) || '—'}</dd></div>
+        <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
+        <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Nursery notes</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{item.notes || '—'}</dd></div>
+      </dl>
+    </article>)}
+  </div>
+  return <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <table className="w-full min-w-[700px] text-left text-[13px]">
+      <thead className="border-b border-border bg-secondary/60 text-[10.5px] font-bold uppercase tracking-[.04em] text-muted-foreground"><tr>{showOrder && <th className="px-3 py-3">Order</th>}<th className="px-3 py-3 text-right">Quantity</th><th className="px-3 py-3">Plant / size</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Unit price</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3">Nursery notes</th></tr></thead>
+      <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-border/50 align-top last:border-0">
+        {showOrder && <td className="px-3 py-3">{source(order)}<span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">{ORDER_STATUS_META[order.status].label}</span></td>}
+        <td className="px-3 py-3 text-right tabular-nums">{num(item.quantity)}</td>
+        <td className="min-w-40 px-3 py-3"><span className="font-semibold">{item.name}</span>{item.size && <span className="mt-1 block text-[12px] text-muted-foreground">{item.size}</span>}{allocations(item)}</td>
+        <td className="whitespace-nowrap px-3 py-3"><OrderItemStatus status={item.status} /></td>
+        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.unitPrice) || '—'}</td><td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.total) || '—'}</td>
+        <td className="min-w-36 px-3 py-3"><p className="m-0 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.notes || '—'}</p></td>
+      </tr>)}</tbody>
+    </table>
+  </div>
+}
+
+/** The same rows serve the page and the supplier's cross-order views. */
+export function OrderLineGroups({ orders, groupBy, supplierId }: { orders: Order[]; groupBy: 'status' | 'plant'; supplierId?: number }) {
+  const groups = new Map<string, { label: string; lines: OrderLine[] }>()
+  for (const order of orders) for (const item of order.items) {
+    const key = groupBy === 'status' ? item.status : item.name.trim().toLocaleLowerCase()
+    if (!groups.has(key)) groups.set(key, { label: groupBy === 'status' ? ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status : item.name, lines: [] })
+    groups.get(key)!.lines.push({ order, item })
+  }
+  return <div className="flex flex-col gap-3">
+    {[...groups].map(([key, group]) => <section key={key} aria-label={`${groupBy === 'status' ? 'Status' : 'Plant'}: ${group.label}`} className="min-w-0 space-y-2">
+      <h2 className="m-0 px-1 py-1 text-[13px] font-semibold">{group.label} <span className="ml-1 text-muted-foreground">({group.lines.length})</span></h2>
+      <OrderLines lines={group.lines} supplierId={supplierId} showOrder={supplierId != null} />
+    </section>)}
+  </div>
+}
+
+function OrderSummary({ order }: { order: Order }) {
+  return <section aria-label="Order summary" className="rounded-2xl border border-border bg-card px-4 py-5 md:px-6 md:py-6">
+    <div className="grid grid-cols-3 items-end gap-x-2 gap-y-4 min-[900px]:grid-cols-8">
+      {Object.entries(ORDER_ITEM_STATUS_LABELS).map(([status, label]) => <div key={status} className="flex min-w-0 flex-col items-center gap-2">
+        <span className="text-center text-[11px] text-muted-foreground md:text-[12.5px]">{label}</span>
+        <span className={cn('text-[17px] font-semibold tabular-nums leading-none', itemColors[status])}>{order.items.filter((item) => item.status === status).length || '-'}</span>
+      </div>)}
+      <div className="flex flex-col gap-2 border-t border-border pt-3 min-[900px]:items-center min-[900px]:border-0 min-[900px]:pt-0"><span className="text-[11px] text-muted-foreground md:text-[12.5px]">Total Items</span><span className="text-[17px] font-semibold tabular-nums leading-none">{order.items.length}</span></div>
+      <div className="col-span-2 flex min-w-0 flex-col items-end gap-2 border-t border-border pt-3 min-[900px]:col-span-1 min-[900px]:border-0 min-[900px]:pt-0"><span className="text-[10.5px] text-lps-dim">Subtotal</span><span className="max-w-full break-words text-[20px] font-semibold tabular-nums leading-none">{money(orderSubtotal(order)) || '—'}</span></div>
+    </div>
+  </section>
+}
+
+function OrderRequestLinks({ order, supplierId }: { order: Order; supplierId?: number }) {
+  return order.availabilityRequestIds.length > 0 && <nav aria-label="Order availability requests" className="flex flex-wrap items-center gap-2 text-[12px]">
+    <span className="text-muted-foreground">Availability requests:</span>{order.availabilityRequestIds.map((id) => <Link key={id} href={supplierId != null ? `/partner/${supplierId}/requests/${id}` : `/suppliers/${order.supplierId}?tab=requests&ar=${id}`} className="font-medium text-primary underline underline-offset-2">AR-{id}</Link>)}
+  </nav>
+}
+
+function OrderPrintSheet({ order }: { order: Order }) {
+  const [node, setNode] = useState<HTMLElement | null>(null)
+  useEffect(() => setNode(document.body), [])
+  if (!node) return null
+  return createPortal(<div id="order-print-sheet" className="hidden print:block" aria-hidden>
+    <h1 className="mb-2 text-[18px] font-bold">Order O-{order.id}</h1>
+    <p className="text-[12px]">{order.supplierName} · {ORDER_STATUS_META[order.status].label}</p>
+    <OrderMetadata order={order} showFulfillmentDate />
+    {order.notes && <p className="whitespace-pre-wrap text-[12px]">Note from Local Plant Supply: {order.notes}</p>}
+    {order.supplierNotes && <p className="whitespace-pre-wrap text-[12px]">Supplier note: {order.supplierNotes}</p>}
+    <p className="text-[11px]">Availability requests: {order.availabilityRequestIds.map((id) => `AR-${id}`).join(', ') || '—'}</p>
+    <table className="mt-3 w-full border-collapse text-left text-[11px] [&_td]:border [&_td]:border-neutral-400 [&_td]:p-2 [&_th]:border [&_th]:border-neutral-400 [&_th]:p-2">
+      <thead><tr>{['Plant / size', 'Quantity', 'Status', 'Unit price', 'Total', 'Nursery notes'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
+      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td>{item.name}{item.size ? ` · ${item.size}` : ''}</td><td>{num(item.quantity)}</td><td>{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td>{money(item.unitPrice) || '—'}</td><td>{money(item.total) || '—'}</td><td className="whitespace-pre-wrap">{item.notes}</td></tr>)}</tbody>
+      <tfoot><tr><td colSpan={6}>O-{order.id} · Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
+    </table>
+  </div>, node)
+}
+
+function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Order; busy: boolean; error: string | null; onClose: () => void; onSave: (body: object) => Promise<boolean> }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+  const [date, setDate] = useState(order.fulfillmentDate ?? '')
+  const [note, setNote] = useState(order.supplierNotes ?? '')
+  const confirming = order.status === 'new'
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null
+    dialog.current?.showModal()
+    return () => trigger?.focus()
+  }, [])
+  return createPortal(<dialog ref={dialog} aria-labelledby={titleId} aria-busy={busy} onCancel={(event) => { event.preventDefault(); if (!busy) onClose() }}
+    className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
+    <form className="flex flex-col gap-4" onSubmit={async (event) => {
+      event.preventDefault()
+      if (busy || !date) return
+      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, supplierNotes: note })) onClose()
+    }}>
+      <h2 id={titleId} className="m-0 text-[17px] font-semibold">{confirming ? 'Confirm order' : 'Fulfillment details'} · O-{order.id}</h2>
+      <div className="space-y-1"><span className="block text-[11px] text-muted-foreground">Customer request</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
+      <label className="flex flex-col gap-1 text-[12px] font-semibold">Fulfillment date<input aria-label={`Fulfillment date for O-${order.id}`} required type="date" className={`${field} w-full min-w-0`} value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} /></label>
+      <label className="flex flex-col gap-1 text-[12px] font-semibold">Note for this order<textarea aria-label="Note for this order" className="min-h-24 rounded-md border border-input bg-background p-2 text-[13px] font-normal" rows={3} maxLength={10000} value={note} disabled={busy} onChange={(event) => setNote(event.target.value)} placeholder="Timing or other order details…" /></label>
+      {confirming && <p className="m-0 text-[12px] text-muted-foreground">Confirm your fulfillment date to move this order to Processing.</p>}
+      {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy || !date}>{busy ? 'Saving…' : confirming ? 'Confirm order' : 'Save details'}</button></div>
+    </form>
+  </dialog>, document.body)
+}
+
+/** Admin and supplier views share the same guarded lifecycle controls. */
+export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillmentMethod = false, onChanged }: { order: Order; supplierId?: number; canEdit?: boolean; canEditFulfillmentMethod?: boolean; onChanged?: () => void | Promise<void> }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
+  const [view, setView] = useState<OrderView>('status')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const closed = order.status === 'closed_won' || order.status === 'closed_lost'
-  const endpoint = supplierId == null ? `/api/orders/${order.id}` : `/api/partner/${supplierId}/orders/${order.id}`
-
-  useEffect(() => {
-    setFulfillmentDate(order.fulfillmentDate ?? '')
-    setConfirmationDate(order.confirmationDate ?? new Date().toISOString().slice(0, 10))
-  }, [order.fulfillmentDate, order.confirmationDate])
+  const closed = order.closed === true || order.status === 'closed_won' || order.status === 'closed_lost'
+  const editable = canEdit && !closed
 
   async function write(body: object) {
-    setBusy(true)
-    setError(null)
+    if (!editable || busy) return false
+    setBusy(true); setError(null)
     try {
-      const res = await fetch(endpoint, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      const url = supplierId != null ? `/api/partner/${supplierId}/orders/${order.id}` : `/api/orders/${order.id}`
+      const res = await fetch(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       const result = await res.json() as { error?: string }
       if (!res.ok) throw new Error(result.error ?? 'Could not update order')
-      await onChanged()
-    } catch (error) { setError((error as Error).message) }
+      await onChanged?.()
+      return true
+    } catch (error) { setError((error as Error).message); return false }
     finally { setBusy(false) }
   }
 
-  return <article className="rounded-lg border border-border bg-card p-3">
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[14px] font-bold">Order O-{order.id}</h3>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold">{ORDER_STATUS_META[order.status]?.label ?? order.status}</span>
-        {supplierId == null && <span className="text-[12px] text-muted-foreground">{order.supplierName}</span>}
-      </div>
-      <span className="text-[13px] font-semibold">{money(orderSubtotal(order)) || 'Awaiting prices'}</span>
+  const actions = editable && (order.status === 'new'
+    ? <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Confirm order</button>
+    : <><button type="button" className={button} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Edit fulfillment details</button>{order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy || !order.fulfillmentDate} onClick={() => void write({ status: 'order_ready' })}>{busy ? 'Saving…' : 'Mark Order Ready'}</button>}</>)
+
+  const methodControl = editable && canEditFulfillmentMethod && <label className="flex flex-wrap items-center gap-2 text-[12px] font-semibold print:hidden">Pickup / delivery
+    <select aria-label={`Pickup or delivery for O-${order.id}`} className={field} value={order.fulfillmentMethod ?? ''} disabled={busy} onChange={(event) => void write({ fulfillmentMethod: event.target.value || null })}><option value="">Not set</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select>
+  </label>
+
+  if (supplierId != null) return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-5 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 [&>*]:shrink-0">
+      {error && !confirmOpen && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
+      <section aria-label="Order details" className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-3">
+        <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/60 px-3 py-2.5">
+          <OrderStatusPill status={order.status} /><h1 className="m-0 min-w-0 flex-1 text-[18px] font-semibold leading-6 text-foreground [overflow-wrap:anywhere]">Order O-{order.id}</h1>
+          {order.status === 'new' && actions}
+          <OrderMetadata order={order} showFulfillmentDate />
+        </header>
+        <div className="space-y-3 px-2 pb-1">{methodControl}<OrderRequestLinks order={order} supplierId={supplierId} />
+          {!canEdit && !closed && <p className="m-0 text-[12px] text-muted-foreground">This account has read-only access to this order.</p>}
+          {order.notes && <div className="space-y-1"><span className="text-[10.5px] font-medium text-lps-dim">Note from Local Plant Supply</span><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.notes}</p></div>}
+          {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Confirmed: {formatMonthDay(order.confirmationDate)}</p>}
+        </div>
+      </section>
+      <OrderPrintSheet order={order} />
+      <OrderSummary order={order} />
+      <OrderLines lines={order.items.map((item) => ({ order, item }))} supplierId={supplierId} />
+      {order.supplierNotes && <section aria-label="Supplier note" className="space-y-2 rounded-xl border border-border bg-card p-4"><h2 className="m-0 text-[13px] font-semibold">Note for this order</h2><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.supplierNotes}</p></section>}
+      {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-[12px]">
-        <thead className="border-b border-border text-[11px] text-muted-foreground"><tr><th className="py-2 pr-3">Plant / size</th><th className="px-2 py-2 text-right">Quantity</th><th className="px-2 py-2">Status</th><th className="px-2 py-2 text-right">Unit price</th><th className="py-2 pl-2 text-right">Total</th></tr></thead>
-        <tbody>{order.items.map((item) => <tr key={item.id} className="border-b border-border/50 last:border-0">
-          <td className="py-2 pr-3"><span className="font-medium">{item.name}</span>{item.size && <span className="ml-1.5 text-muted-foreground">{item.size}</span>}
-            {item.allocations?.map((allocation) => <div key={allocation.jobRequestItemId} className="mt-0.5 text-[11px] text-muted-foreground">JR-{allocation.jobRequestId}{allocation.jobName ? ` · ${allocation.jobName}` : ''} · {num(allocation.quantity)}</div>)}
-            {item.notes && <p className="mt-0.5 text-[11px] text-muted-foreground">{item.notes}</p>}
-          </td>
-          <td className="px-2 py-2 text-right">{num(item.quantity)}</td><td className="whitespace-nowrap px-2 py-2">{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td className="px-2 py-2 text-right">{money(item.unitPrice) || '—'}</td><td className="py-2 pl-2 text-right">{money(item.total) || '—'}</td>
-        </tr>)}</tbody>
-      </table>
+    {editable && order.status !== 'new' && <footer aria-label="Order actions" className="flex flex-none flex-wrap items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
+      {actions}
+    </footer>}
+    {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
+  </div>
+
+  return <article aria-label={`Order O-${order.id}`} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 md:p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap items-center gap-2">
+      <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order O-${order.id}`} onClick={() => setExpanded((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-md px-1 text-[16px] font-bold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={16} className={expanded ? '' : '-rotate-90'} />Order O-{order.id}</button>
+      <OrderStatusPill status={order.status} /><span className="text-[12px] text-muted-foreground">{order.supplierName}</span>
+    </div><div className="flex flex-wrap items-center gap-2">{actions}<span className="text-[14px] font-semibold">{money(orderSubtotal(order)) || '—'}</span></div></div>
+    {error && !confirmOpen && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
+    <OrderMetadata order={order} />
+    {methodControl}
+    <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground"><span>{order.items.length} items</span><span>Confirmation date: {formatMonthDay(order.confirmationDate) || '—'}</span></div>
+    <div id={contentId} hidden={!expanded} className="space-y-3">
+      <OrderRequestLinks order={order} />
+      {order.notes && <p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order.notes}</p>}
+      {order.supplierNotes && <div><h4 className="text-[12px] font-semibold">Supplier note</h4><p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order.supplierNotes}</p></div>}
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-[13px] font-semibold">Plants · {order.items.length}</h4><OrderViewControls value={view} onChange={setView} /></div>
+      <OrderLineGroups orders={[order]} groupBy={view === 'plant' ? 'plant' : 'status'} />
     </div>
-    {order.notes && <p className="mt-2 whitespace-pre-wrap text-[12px] text-muted-foreground">{order.notes}</p>}
-    <div className="mt-3 flex flex-wrap items-end gap-3">
-      <div className="flex min-h-9 items-center text-[12px] font-medium">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : 'Pickup / delivery to be arranged'}</div>
-      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Pickup/delivery date
-        <input aria-label={`Pickup/delivery date for O-${order.id}`} type="date" className={field} value={fulfillmentDate} disabled={busy || closed} onChange={(event) => setFulfillmentDate(event.target.value)} />
-      </label>
-      {order.status === 'committed' ? <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Confirmation date
-        <input aria-label={`Confirmation date for O-${order.id}`} type="date" className={field} value={confirmationDate} disabled={busy} onChange={(event) => setConfirmationDate(event.target.value)} />
-      </label> : <span className="pb-2 text-[12px] text-muted-foreground">Confirmation date: {order.confirmationDate ?? '—'}</span>}
-      {!closed && fulfillmentDate !== (order.fulfillmentDate ?? '') && <button className={button} disabled={busy} onClick={() => void write({ fulfillmentDate: fulfillmentDate || null })}>Save date</button>}
-      {order.status === 'committed' && <button className={primary} disabled={busy || !confirmationDate} onClick={() => void write({ status: 'confirmed', confirmationDate, fulfillmentDate: fulfillmentDate || null })}>{supplierId == null ? 'Record supplier confirmation' : 'Confirm order'}</button>}
-      {supplierId == null && !closed && <div className="ml-auto flex flex-wrap gap-2">
-        <button className={button} disabled={busy} onClick={() => void write({ status: 'closed_won' })}>Close Won</button>
-        <button className={button} disabled={busy} onClick={() => void write({ status: 'closed_lost' })}>Close Lost</button>
-      </div>}
-    </div>
-    {error && <p role="alert" className="mt-2 text-[12px] text-destructive">{error}</p>}
+    {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
   </article>
 }
 
@@ -93,7 +324,6 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   const [quantities, setQuantities] = useState<Record<string, string>>({})
   const [confirmed, setConfirmed] = useState(false)
   const [method, setMethod] = useState<FulfillmentMethod | ''>('')
-  const [date, setDate] = useState('')
   const [notes, setNotes] = useState('')
   const [createdId, setCreatedId] = useState<number | null>(null)
   const revision = useRef(0)
@@ -141,7 +371,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   async function create() {
     setCreating(true); setError(null)
     try {
-      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, fulfillmentDate: date || null, notes: notes || null, items: selectedItems }) })
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, notes: notes || null, items: selectedItems }) })
       const body = await res.json() as { id: number; error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not create order')
       setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNotes('')
@@ -150,12 +380,10 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
     finally { setCreating(false) }
   }
 
-  async function changed() { await load(); onChanged?.() }
-
   return <section className="flex flex-col gap-3 p-3" aria-label="Job orders">
     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} orders · Combine jobs or split quantities into separate supplier orders.</p><button className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button></div>
     {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
-    {createdId && <p role="status" className="text-[12px] font-medium">Order O-{createdId} created. It is ready for supplier confirmation in the Orders tab.</p>}
+    {createdId && <p role="status" className="text-[12px] font-medium">Order O-{createdId} created. Its status is New, awaiting partner confirmation.</p>}
     {open && <form className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3" onSubmit={(event) => { event.preventDefault(); void create() }}>
       <h3 className="text-[13px] font-bold">Create supplier order</h3>
       <div className="flex flex-wrap items-center gap-2"><span className="text-[12px]">JR-{jobRequestId}</span>
@@ -167,7 +395,6 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Supplier<select className={field} value={supplierId ?? ''} onChange={(event) => { setSupplierId(Number(event.target.value)); setConfirmed(false) }}><option value="" disabled>Select supplier</option>{suppliers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Pickup / delivery<select className={field} value={method} onChange={(event) => setMethod(event.target.value as FulfillmentMethod | '')}><option value="">To be arranged</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Pickup/delivery date<input type="date" className={field} value={date} onChange={(event) => setDate(event.target.value)} /></label>
       </div>
       {loading ? <p className="text-[12px] text-muted-foreground">Loading available quantities…</p> : candidates.length === 0 ? <p className="text-[12px] text-muted-foreground">No remaining supplier responses to order. Generate a quote and complete availability first.</p> : <div className="flex flex-col divide-y divide-border">
         {candidates.map((candidate) => <div key={candidate.availabilityRequestItemId} className="py-2">
@@ -196,10 +423,10 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       {invalidQuantity && <p role="alert" className="text-[12px] text-destructive">Enter positive quantities within the job and supplier quantities remaining.</p>}
       <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note to supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
       <label className="flex items-start gap-2 text-[12px]"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Customer has confirmed the selected quantities for every included job.</label>
-      <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !selectedItems.length || invalidQuantity}>{creating ? 'Creating…' : 'Create committed order'}</button></div>
+      <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !selectedItems.length || invalidQuantity}>{creating ? 'Creating…' : 'Create new order'}</button></div>
     </form>}
     {loading && !data && <p className="py-6 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
     {!loading && data?.orders.length === 0 && !open && <p className="py-6 text-center text-[12px] text-muted-foreground">No orders yet. Create an order once the customer confirms.</p>}
-    {data?.orders.map((order) => <OrderCard key={order.id} order={order} onChanged={changed} />)}
+    {data?.orders.map((order) => <OrderCard key={order.id} order={order} canEdit canEditFulfillmentMethod onChanged={async () => { await load(); onChanged?.() }} />)}
   </section>
 }

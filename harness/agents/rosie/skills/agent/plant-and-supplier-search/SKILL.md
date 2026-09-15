@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant pricing and suitable suppliers from inventory evidence. Covers exclusive APS price-list scoping and explicit supplier exceptions, broad and literal search, cultivar/size matching, smallest-priced-requested-size selection, likely equivalent catalogue-name pricing, source dates and stock-location checks, instructed wider searches, mandatory APS job-row gap/alternative notes with action-specific Chris approval, and answering research-only supplier lookups in chat. Use for pricing questions, job sourcing and quick quotes; a standalone search creates no job, sourcing notes or availability request and confirms no availability. (v2.7.0)
+description: Find plant pricing and suitable suppliers from inventory evidence. Covers exclusive APS price-list scoping and explicit supplier exceptions, broad and literal search, cultivar/size matching, lowest-priced-requested-option selection, likely equivalent catalogue-name pricing, source dates and stock-location checks, instructed wider searches, mandatory APS job-row gap/alternative notes with action-specific Chris approval, and answering research-only supplier lookups in chat. Use for pricing questions, job sourcing and quick quotes; a standalone search creates no job, sourcing notes or availability request and confirms no availability. (v2.8.1)
 metadata:
   author: lps
-  version: "2.7.0"
+  version: "2.8.1"
 ---
 
 # Plant and supplier search
@@ -67,18 +67,19 @@ For custom identity queries compare normalized keys (`name_key`,
 `normalize_plant_key()`, never raw text equality. A bad alias expansion goes
 to Daisy rather than being silently treated as a match.
 
-## Multiple requested size alternatives
+## Multiple requested options
 
-For a request such as `3 G / 5 G`, research **all requested sizes**. Chris's
-standing rule is to use the smallest requested size having supported applicable
-positive pricing, not whichever option is cheapest. Here “available” means
-price evidence exists, not supplier-confirmed physical stock. Return the chosen
-size/price and supported larger requested-size prices to the job owner for
-shared/customer-visible item notes (`external_notes`). Preserve original size
-options; do not choose an unrequested size or infer allocation, stock or a price.
-No redundant size-choice question is needed for clear size alternatives. If no
-requested size is priced, report the gap and follow the genuine-alternative
-approval rule. `job-requests` owns persistence and ambiguous mixed demands.
+For a request such as `3 G / 5 G`, research **all requested size/variant
+options**. Chris's standing rule is to use the cheapest requested option having
+supported applicable positive pricing, not the smallest size or assumed physical
+stock. Here “available” means price evidence exists, not supplier-confirmed
+physical stock. Return the chosen size/variant and price plus every other
+supported requested-option price to the job owner for shared/customer-visible
+item notes (`external_notes`). Preserve original options; do not choose an
+unrequested option or infer allocation, stock or a price. No redundant
+choice question is needed for clear alternatives. If no requested option is
+priced, report the gap and follow the genuine-alternative approval rule.
+`job-requests` owns persistence and ambiguous mixed demands.
 
 ## Likely equivalent names versus actual alternatives
 
@@ -122,8 +123,8 @@ ordinary-job APS availability workflow.
 
 For jobs, also return inventory UUIDs and findings to the owning `jr-<id>`
 thread as research context. `job-requests` section 3 owns compact sourcing
-snapshots and the row outcome: update current facts in place, without adding
-search/event history or inventing a selection. Add sourcing notes only under `job-requests`
+snapshots and the unlabelled plain-text row summary: always update current
+facts in place, without adding search/event history or inventing a selection. Add sourcing notes only under `job-requests`
 section 3: an AR was actually delivered/sent to that supplier, a concrete
 supplier action is required for the current order, Chris explicitly asks
 to record the note, or an explicit supplier selection/plant-sourcing decision

@@ -423,6 +423,7 @@ export function RequestsToolbar({
             onOpenChange={handleMobileFiltersOpenChange}
           />
         </div>
+        <div className="text-[11px] text-muted-foreground">{summary}</div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {controls}
           {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}
@@ -434,6 +435,8 @@ export function RequestsToolbar({
   return (
     <div ref={branch} {...focusOwnership} data-requests-toolbar-branch="desktop" className="flex-none">
       <Toolbar
+        singleRow
+        summaryBelowSearch
         rightActions={rightActions}
         placeholder={placeholder}
         query={query}

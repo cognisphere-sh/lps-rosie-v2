@@ -16,6 +16,9 @@ export interface DeleteRequestBody {
     availabilityRequestItems: number
     changelog: number
     answers: number
+    orders?: number
+    orderItems?: number
+    threads?: number
   }
 }
 
@@ -25,6 +28,9 @@ export function requestDeletionCounts(body: DeleteRequestBody): NonNullable<Dele
   if (!deleted) return null
   for (const value of [deleted.items, deleted.availabilityRequests, deleted.availabilityRequestItems, deleted.changelog, deleted.answers]) {
     if (!Number.isSafeInteger(value) || value < 0) return null
+  }
+  for (const value of [deleted.orders, deleted.orderItems, deleted.threads]) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) return null
   }
   return deleted
 }
@@ -97,7 +103,7 @@ export function DeleteRequestDialog({
         </h2>
         <p id="delete-request-impact" className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
           This permanently removes {plural(request.itemCount, 'line')} and the request&apos;s change history.
-          Supplier availability responses and orders are retained. This cannot be undone.
+          Its Rosie chat, orders and availability requests are also deleted. Orders and availability requests shared with other jobs are kept. This cannot be undone.
         </p>
         <p id="delete-request-status" role="status" aria-live="polite" className="mt-3 min-h-5 text-[12px] font-semibold text-muted-foreground">
           {busy ? 'Deleting request…' : ''}

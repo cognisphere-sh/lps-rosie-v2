@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { supplierLinksByRequest } from '@/lib/availability-queries'
+import type { CustomerType } from '@/lib/customers'
 import { parseEntries } from '@/lib/notes'
 import type {
   JobAddress,
@@ -62,6 +63,7 @@ interface CustomerRecord {
   company: string | null
   email: string | null
   phone: string | null
+  type: CustomerType | null
   rosie_thread_id: string | null
 }
 
@@ -385,12 +387,12 @@ async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['
   if (!ids.length) return map
   const { data, error } = await supabase
     .from('customers')
-    .select('id, name, company, email, phone, rosie_thread_id')
+    .select('id, name, company, email, phone, type, rosie_thread_id')
     .in('id', [...new Set(ids)])
   if (error) throw new Error(`customers: ${error.message}`)
   for (const c of (data ?? []) as CustomerRecord[]) {
     map.set(c.id, {
-      id: c.id, name: c.name, company: c.company, email: c.email, phone: c.phone,
+      id: c.id, name: c.name, company: c.company, email: c.email, phone: c.phone, type: c.type,
       rosieThreadId: c.rosie_thread_id,
     })
   }
@@ -499,6 +501,9 @@ export interface JobRequestDeletion {
   availabilityRequestItems: number
   changelog: number
   answers: number
+  orders?: number
+  orderItems?: number
+  threads?: number
 }
 
 /** `count: 'exact', head: true` over one table, filtered by one column. */
@@ -512,44 +517,11 @@ async function countWhere(table: string, column: string, values: number[]): Prom
   return count ?? 0
 }
 
-/**
- * Permanently delete the job, its demand lines and its change history.
- * Migration 0092 preserves supplier asks, answers and orders. Shared asks stay
- * open for surviving jobs; orphaned asks close and revoke their public links.
- * Returns null if there is no such request.
- */
+/** Delete the job and exclusively owned records atomically; shared records survive. */
 export async function deleteJobRequest(id: number): Promise<JobRequestDeletion | null> {
-  const { data: found, error: findError } = await supabase
-    .from('job_requests')
-    .select('id')
-    .eq('id', id)
-    .maybeSingle()
-  if (findError) throw new Error(`job_requests: ${findError.message}`)
-  if (!found) return null
-
-  const { data: links, error: arError } = await supabase
-    .from('availability_request_jobs')
-    .select('availability_request_id')
-    .eq('job_request_id', id)
-  if (arError) throw new Error(`availability_request_jobs: ${arError.message}`)
-  const arIds = (links ?? []).map((row) => row.availability_request_id)
-
-  const [items, changelog, arItems] = await Promise.all([
-    countWhere('job_request_items', 'job_request_id', [id]),
-    countWhere('job_request_changelog', 'job_request_id', [id]),
-    countWhere('availability_request_items', 'availability_request_id', arIds),
-  ])
-
-  const { error } = await supabase.from('job_requests').delete().eq('id', id)
+  const { data, error } = await supabase.rpc('delete_job_request', { p_job_request_id: id })
   if (error) throw new Error(`job_requests delete: ${error.message}`)
-
-  return {
-    items,
-    availabilityRequests: 0,
-    availabilityRequestItems: 0,
-    changelog,
-    answers: arItems,
-  }
+  return data as JobRequestDeletion | null
 }
 
 /**

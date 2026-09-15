@@ -48,9 +48,9 @@ export function PublicAvailability({ token }: { token: string }) {
       onPatch={async (itemId, changes) => {
         try { await write({ itemId, changes }) } catch (e) { setError((e as Error).message) }
       }}
-      onSubmit={async () => {
+      onSubmit={async (supplierNote) => {
         setBusy(true)
-        try { await write({ submit: true }) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+        try { await write({ submit: true, supplierNote }) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
       }} />
   </main>
 }

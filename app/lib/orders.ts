@@ -1,6 +1,7 @@
 import type { Tone } from '@/lib/job-requests'
+import type { ARJobSchedule } from '@/lib/availability'
 
-export const ORDER_STATUSES = ['committed', 'confirmed', 'closed_won', 'closed_lost'] as const
+export const ORDER_STATUSES = ['new', 'processing', 'order_ready', 'closed_won', 'closed_lost'] as const
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 export type FulfillmentMethod = 'pickup' | 'delivery'
 
@@ -8,8 +9,9 @@ export type FulfillmentMethod = 'pickup' | 'delivery'
 export const isApsSupplier = (name: string): boolean => /^(?:Austin Plant Supply|APS)$/i.test(name.trim())
 
 export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: Tone }> = {
-  committed: { label: 'Committed', tone: 'amber' },
-  confirmed: { label: 'Confirmed', tone: 'green' },
+  new: { label: 'New', tone: 'amber' },
+  processing: { label: 'Processing', tone: 'teal' },
+  order_ready: { label: 'Order Ready', tone: 'green' },
   closed_won: { label: 'Closed Won', tone: 'green' },
   closed_lost: { label: 'Closed Lost', tone: 'red' },
 }
@@ -40,6 +42,8 @@ export interface OrderItem {
 }
 
 export interface Order {
+  /** Archive classification for both views, including closure of every linked job. */
+  closed?: boolean
   id: number
   supplierId: number
   supplierName: string
@@ -49,7 +53,47 @@ export interface Order {
   fulfillmentDate: string | null
   notes: string | null
   createdAt: string
+  /** The supplier's commitment note, separate from the customer's order instructions. */
+  supplierNotes?: string | null
+  /** Customer-requested delivery/installation dates; portal schedules omit job identities. */
+  jobSchedules?: ARJobSchedule[]
+  availabilityRequestIds: number[]
   items: OrderItem[]
+}
+
+export interface PartnerOrderUpdate {
+  status?: 'processing' | 'order_ready'
+  fulfillmentMethod?: FulfillmentMethod | null
+  fulfillmentDate?: string | null
+  supplierNotes?: string | null
+}
+
+/** Lifecycle and required confirmation fields are checked again under a database lock. */
+export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Order update is required')
+  const body = value as Record<string, unknown>
+  if (!Object.keys(body).length || Object.keys(body).some((key) => !['status', 'fulfillmentMethod', 'fulfillmentDate', 'supplierNotes'].includes(key))) {
+    throw new Error('Choose an order status, pickup/delivery method, fulfillment date, or supplier note')
+  }
+  const update: PartnerOrderUpdate = {}
+  if ('status' in body) {
+    if (body.status !== 'processing' && body.status !== 'order_ready') throw new Error('Choose Processing or Order Ready')
+    update.status = body.status
+  }
+  if ('fulfillmentMethod' in body) {
+    if (body.fulfillmentMethod !== null && body.fulfillmentMethod !== 'pickup' && body.fulfillmentMethod !== 'delivery') {
+      throw new Error('fulfillmentMethod must be pickup or delivery')
+    }
+    update.fulfillmentMethod = body.fulfillmentMethod
+  }
+  if ('fulfillmentDate' in body) update.fulfillmentDate = orderDate(body.fulfillmentDate, 'Fulfillment date')
+  if ('supplierNotes' in body) {
+    if (body.supplierNotes != null && (typeof body.supplierNotes !== 'string' || body.supplierNotes.length > 10000)) {
+      throw new Error('Supplier note must be text up to 10000 characters')
+    }
+    update.supplierNotes = typeof body.supplierNotes === 'string' ? body.supplierNotes.trim() || null : null
+  }
+  return update
 }
 
 export interface OrderCandidate {
@@ -69,7 +113,6 @@ export interface CreateOrderInput {
   supplierId: number
   customerConfirmed: true
   fulfillmentMethod: FulfillmentMethod | null
-  fulfillmentDate: string | null
   notes: string | null
   items: {
     availabilityRequestItemId: number
@@ -96,6 +139,9 @@ export function parseCreateOrder(value: unknown): CreateOrderInput {
   const body = value as Record<string, unknown>
   if (!positiveId(body.supplierId)) throw new Error('supplierId is required')
   if (body.customerConfirmed !== true) throw new Error('Confirm the customer has placed this order')
+  if (body.fulfillmentDate != null && body.fulfillmentDate !== '') {
+    throw new Error('The supplier enters the fulfillment date when confirming the order')
+  }
   if (body.fulfillmentMethod != null && !['pickup', 'delivery'].includes(body.fulfillmentMethod as string)) {
     throw new Error('fulfillmentMethod must be pickup or delivery')
   }
@@ -124,7 +170,6 @@ export function parseCreateOrder(value: unknown): CreateOrderInput {
   return {
     supplierId: body.supplierId, customerConfirmed: true,
     fulfillmentMethod: (body.fulfillmentMethod as FulfillmentMethod | null | undefined) ?? null,
-    fulfillmentDate: orderDate(body.fulfillmentDate, 'Pickup/delivery date'),
     notes: (body.notes as string | null | undefined)?.trim() || null,
     items,
   }

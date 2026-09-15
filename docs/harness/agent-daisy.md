@@ -11,7 +11,8 @@ as **one dedicated thread per supplier company**.
 
 Current job sourcing uses APS price-list quotes first and Chris approval
 before availability sends; Rosie owns that workflow, customer-accepted
-Committed orders and supplier Confirmed orders. Supplier confirmation leaves
+orders, with the partner lifecycle New → Processing → Order Ready (migration
+0094). Partner confirmation records pickup/delivery details and leaves
 Job Requests Committed; their stages are Quote → Availability → Committed →
 Won/Lost. Daisy's order-message handoff
 preserves all references and quantities for consolidated grower requests or

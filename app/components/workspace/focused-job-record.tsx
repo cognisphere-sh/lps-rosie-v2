@@ -10,7 +10,6 @@ import { useToast } from '@/components/workspace/shell'
 import {
   REQUEST_STATUS_OPTIONS,
   requestStatusLabel,
-  requestStatusToken,
   requestStatusTone,
 } from '@/lib/job-requests'
 import type { JobRequestRow } from '@/lib/rows'
@@ -23,6 +22,7 @@ export function FocusedJobRecord({
   onSaved,
   onNameSaved,
   onDeleted,
+  actionsTarget,
 }: {
   request: JobRequestRow
   mobile: boolean
@@ -30,6 +30,7 @@ export function FocusedJobRecord({
   onSaved: () => void
   onNameSaved?: (requestId: number) => void
   onDeleted?: () => void
+  actionsTarget?: HTMLElement | null
 }) {
   const toast = useToast()
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -51,6 +52,7 @@ export function FocusedJobRecord({
       <FocusedJobHeader
         request={request}
         mobile={mobile}
+        actionsTarget={actionsTarget}
         status={
           <StatusPill
             table="job_requests"
@@ -58,7 +60,6 @@ export function FocusedJobRecord({
             column="status"
             value={request.status}
             label={requestStatusLabel(request.status)}
-            compactLabel={!mobile ? requestStatusToken(request.status) : undefined}
             accessibleLabel={requestStatusLabel(request.status)}
             tone={requestStatusTone(request.status)}
             options={REQUEST_STATUS_OPTIONS}
@@ -66,28 +67,29 @@ export function FocusedJobRecord({
             onSaved={onSaved}
           />
         }
+        actions={
+          <button
+            type="button"
+            aria-label={`Delete JR-${request.id}`}
+            onClick={(event) => {
+              deleteReturnFocus.current = event.currentTarget
+              setDeleteError('')
+              setDeleteOpen(true)
+            }}
+            className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-muted-foreground outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Trash2 aria-hidden="true" size={14} /> Delete job
+          </button>
+        }
         preview={
           <div data-focused-job-summary className="space-y-2 border-b border-border bg-lps-tint px-3 py-2.5">
-            <RequestLinks request={request} focusedMobile={mobile} relatedOnly={!mobile} />
             <DemandSummary lineTotal={request.lineTotal} itemCount={request.itemCount} counts={request.statusCounts} wrap />
+            <RequestLinks request={request} focusedMobile={mobile} relatedOnly={!mobile} />
           </div>
         }
         onNameSaved={onNameSaved ?? (() => onSaved())}
+        onDateSaved={() => onSaved()}
       />
-      <div className="flex justify-end border-b border-border px-3 py-1">
-        <button
-          type="button"
-          aria-label={`Delete JR-${request.id}`}
-          onClick={(event) => {
-            deleteReturnFocus.current = event.currentTarget
-            setDeleteError('')
-            setDeleteOpen(true)
-          }}
-          className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-muted-foreground outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Trash2 aria-hidden="true" size={14} /> Delete job
-        </button>
-      </div>
       <RequestBody
         request={request}
         version={version}
@@ -130,7 +132,8 @@ export function FocusedJobRecord({
               const availability = deleted.availabilityRequests
                 ? `, ${deleted.availabilityRequests} ${deleted.availabilityRequests === 1 ? 'availability request' : 'availability requests'}`
                 : ''
-              toast(`${ref} deleted · ${lines}${availability}`)
+              const orders = deleted.orders ? `, ${deleted.orders} ${deleted.orders === 1 ? 'order' : 'orders'}` : ''
+              toast(`${ref} deleted · ${lines}${availability}${orders}`)
               setDeleteOpen(false)
               onDeleted?.()
             }).catch(() => {

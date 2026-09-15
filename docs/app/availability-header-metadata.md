@@ -3,12 +3,21 @@
 The admin availability drawer, supplier-profile detail, and supplier/public
 request header place Created on and each linked job's EDD/Fulfillment pair
 inline in the existing header row, wrapping when space is limited. EDD is the
-display label for Expected install date; the data field and editor retain the
-full name. Fulfillment shows Pickup or Delivery. Missing values render as a dash.
+customer's expected delivery or installation date, stored in the existing
+`expected_install_date` field. It remains editable on the job. Fulfillment here
+shows the Pickup or Delivery method; job and availability requests have no
+fulfillment-date field. Only orders record a supplier's committed fulfillment
+date, separately from EDD. Missing values render as a dash.
 Dates use `MM-DD`; timestamps use America/Chicago and date-only install dates
 retain their calendar day.
 
-Combined availability requests retain a separate install-date/fulfillment pair
+Active partner request rows and archived cards also show Created, EDD and a
+Pickup/Delivery tag using the same linked-job schedules. Request and plant notes
+wrap on desktop in request lists, line tables, By item and By status views.
+Desktop note editors are multiline and size to their contents so longer notes
+use the available row space.
+
+Combined availability requests retain a separate EDD/pickup-or-delivery pair
 for every linked job. The admin drawer labels these schedules with the job name
 or JR reference. Supplier and public schedule payloads omit job identifiers and
 names, and their headers use Job 1, Job 2, etc. Existing customer and shipping

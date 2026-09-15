@@ -1,5 +1,29 @@
 # job-requests — changelog
 
+## 5.8.0
+
+- Capture EDD from ingestion evidence; ask for missing or ambiguous dates with an explicit Unknown option. Store unknown as NULL, continue independent intake work, and preserve existing dates on re-ingestion.
+
+## 5.7.0
+
+- Chris authorized sourcing notes to always reflect the latest status and information. The first overall row summary is now unlabelled plain text; retain compact latest supplier snapshots and replace superseded facts in place.
+
+## 5.6.0
+
+- Chris authorized quoted-offering fields to hold one actual offered plant and size only. Preserve original demand in customer context; every material difference uses `Substitute: <actual offering> instead of <original demand>`, without unavailable-price or rationale commentary.
+
+## 5.4.1
+
+- Replace the literal `Row:` heading in compact sourcing snapshots with `Outcome:` while preserving the same current-state summary and supplier entries.
+
+## 5.4.0
+
+- Chris changed multi-option pricing from smallest supported requested size to the cheapest supported requested option. Keep all other supported requested-option prices in customer-visible `external_notes` while preserving original demand and AR scope.
+
+## 5.3.0
+
+- Handle supplier AR responses only after explicit submission: saved local edits create no JR/Chris notification or sourcing-note update. Clarify that a submitted `available` AR answer carries the authoritative allocated-demand total but cannot automatically change its linked job item.
+
 ## 5.2.0
 
 - Retire Confirmed from the Job Request lifecycle. Supplier confirmation still makes Orders Confirmed and records their dates; linked jobs stay Committed until explicit Won/Lost closure.

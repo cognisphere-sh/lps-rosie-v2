@@ -21,7 +21,10 @@ export async function POST(req: Request, { params }: Context) {
     if (body.submit !== true && (!Number.isSafeInteger(body.itemId) || !body.changes)) {
       return NextResponse.json({ error: 'An item and answer are required.' }, { status: 400, headers })
     }
-    const { error } = await supabase.rpc('answer_public_availability', {
+    if ('supplierNote' in body && body.supplierNote != null && (typeof body.supplierNote !== 'string' || body.supplierNote.length > 10000)) throw new Error('Supplier note must be text of 10000 characters or fewer')
+    const { error } = body.submit === true && 'supplierNote' in body
+      ? await supabase.rpc('submit_public_availability_note', { p_token: token, p_note: body.supplierNote })
+      : await supabase.rpc('answer_public_availability', {
       p_token: token, p_item_id: body.itemId ?? null,
       p_changes: body.changes ?? null, p_submit: body.submit === true,
     })

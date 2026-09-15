@@ -73,7 +73,7 @@ test('the previous complete default restores all five job stages', () => {
   ), current)
 })
 
-test('legacy Confirmed job filters and display map to Committed while Orders retain Confirmed', () => {
+test('legacy Confirmed job filters map to Committed independently of the partner order lifecycle', () => {
   const fallback = REQUEST_STATUS_OPTIONS.map((option) => option.label)
   assert.deepEqual(normalizeStoredRequestStatusLabels(['Confirmed'], REQUEST_STATUS_OPTIONS, fallback), ['Committed'])
   assert.deepEqual(normalizeStoredRequestStatusLabels(['Confirmed', 'Committed', 'Availability'], REQUEST_STATUS_OPTIONS, fallback), ['Committed', 'Availability'])
@@ -83,8 +83,10 @@ test('legacy Confirmed job filters and display map to Committed while Orders ret
   assert.equal(requestStatusToken('confirmed'), 'Cmt')
   assert.equal(requestStatusTone('confirmed'), requestStatusTone('committed'))
   assert.equal((REQUEST_STATUSES as readonly string[]).includes('confirmed'), false)
-  assert.equal(ORDER_STATUSES.includes('confirmed'), true)
-  assert.equal(ORDER_STATUS_META.confirmed.label, 'Confirmed')
+  assert.deepEqual(ORDER_STATUSES, ['new', 'processing', 'order_ready', 'closed_won', 'closed_lost'])
+  assert.equal(ORDER_STATUS_META.new.label, 'New')
+  assert.equal(ORDER_STATUS_META.processing.label, 'Processing')
+  assert.equal(ORDER_STATUS_META.order_ready.label, 'Order Ready')
 })
 
 test('unknown saved labels cannot resolve to inherited object properties', () => {

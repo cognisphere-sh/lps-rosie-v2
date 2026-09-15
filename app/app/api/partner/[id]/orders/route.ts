@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const supplier = await partnerSupplier(gate.supplierId)
     if (!supplier) return NextResponse.json({ error: 'not found' }, { status: 404 })
     const orders = await listOrders({ supplierId: gate.supplierId, forSupplier: true })
-    return NextResponse.json({ orders, supplier })
+    return NextResponse.json({ orders, supplier, canEdit: true })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

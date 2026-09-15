@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, compact latest supplier snapshots and the row selection/price outcome, install and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.2.0)
+description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, compact latest supplier snapshots and the row selection/price outcome, source-based EDD intake with an Unknown option and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, submitted supplier-response handling and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.8.0)
 metadata:
   author: lps
-  version: "5.2.0"
+  version: "5.8.0"
 ---
 
 # Job requests
@@ -89,9 +89,29 @@ requirement. If the request is clear, proceed without extra questions.
            $expectedInstallDate, $fulfillmentMethod);
    ```
 
-   Save a supplied expected install date in `expected_install_date` and
-   pickup/delivery choice in `fulfillment_method` (`pickup` or `delivery`).
-   Keep unknown values NULL. The install date is the customer's planning date,
+   **Capture EDD during every job ingestion/creation, including quick quotes.**
+   Read the supplied message, attachments and ingestion context for the
+   expected install date (displayed as EDD). Save a supported, unambiguous
+   date in `expected_install_date`; use a date already supplied without asking
+   again. Resolve relative dates only when the source date and intended day
+   are clear. Do not substitute the ingestion/creation date, quote deadline
+   or supplier fulfillment date, or invent a day from a vague date range.
+
+   If EDD is missing or ambiguous, create/reuse the job and its known rows
+   first, leave `expected_install_date` NULL, then ask in the original request
+   conversation: "What is the expected install date (EDD)? Enter a date, or
+   choose Unknown." Every EDD question, including a webchat questionnaire,
+   must offer **Unknown** explicitly and allow the user to enter a date.
+   Unknown means SQL NULL, not the string "Unknown" or a placeholder date.
+   If the user/source already says the date is unknown, accept that without
+   asking again. Missing/unknown EDD does not block intake, sourcing or a
+   quote; continue work that does not depend on the date. Save a later answer
+   on the existing job using the guarded-write discipline in section 2.
+   Re-ingestion with no date must not erase an existing known EDD; clarify
+   conflicting dates before replacing it.
+
+   Save pickup/delivery choice in `fulfillment_method` (`pickup` or `delivery`)
+   and keep an unknown choice NULL. EDD is the customer's planning date,
    separate from the supplier order's actual confirmation and fulfillment dates.
 
 5. Create item rows before asking questions: one per clearly separate
@@ -123,29 +143,36 @@ requirement. If the request is clear, proceed without extra questions.
    concurrent app mapping wins. Never write derived thread references; the
    database links each job to `jr-<id>`.
 
-### Multiple requested sizes: standing quote rule
+### Multiple requested options: standing quote rule
 
-Chris's instruction (2026-09-11): for alternatives such as `3 G / 5 G`,
-quote/use the price of the **smallest requested size with supported applicable
-price data**, not the lowest-priced option and not an assertion of physical
-stock. Search each requested size, skip sizes without a supported positive
-price, and use the smallest priced requested size directly. Do not ask Chris
-to choose again unless the instruction conflicts with an explicit allocation,
-plant identity or another material requirement. No priced requested size
-means a price gap, not permission to choose an unrequested size.
+Chris's instruction (2026-09-15): for alternatives such as `3 G / 5 G`, quote/
+use the price of the **cheapest supported requested option**, not the smallest
+size, an assertion of physical stock or an unrequested option. Search every
+requested option, skip options without a supported positive price, and use the
+lowest supported price directly. Do not ask Chris to choose again unless the
+instruction conflicts with an explicit allocation, plant identity or another
+material requirement. No priced requested option means a price gap, not
+permission to choose an unrequested option.
 
-Preserve the original requested size alternatives in the item demand/customer
-context when recording the quoted size and price. Put the other larger
-requested sizes' supported prices in shared/customer-visible item
-`external_notes`, e.g. `5 G $25.00`. Where the row identifies the plant,
-use only size and price; follow `quote-generation` for minimal-word shared
-notes. Use actual prices only, without internal supplier/cost commentary or
-availability claims.
-State the chosen quoted size clearly and include larger-size prices only
-when actually supported; no extra demand rows or duplicated quantities.
-An unrequested size remains an approval-gated alternative. This rule authorizes
-quote sizing/pricing only: supplier AR scope must still respect the original
-requested alternatives and total quantity unless separately resolved.
+Preserve the original requested alternatives in the item demand/customer context
+when recording the quoted size/variant and price. Put every other supported
+requested-option price in shared/customer-visible item `external_notes`, e.g.
+`5 G $25.00`. The item `name` and `size` are the customer-facing **quoted
+offering**, so each must hold exactly the one actual quoted plant and size—never
+an `or` list, requested substitute or source proxy. Put every material
+difference from the original demand (plant, cultivar/variant, size or quantity)
+in `external_notes` with exactly `Substitute: <actual offering> instead of
+<original demand>`. Never mention unavailable prices, availability or the
+reason for a difference. Where the row identifies
+the plant, use only the necessary concise distinction;
+follow `quote-generation` for minimal-word shared notes. Preserve the original
+demand in `customer_notes`; do not silently rewrite it. Use actual prices only,
+without internal supplier/cost commentary or availability claims. State the
+chosen quoted option clearly and include every other supported requested-option
+price; no extra demand rows or duplicated quantities. An unrequested option
+remains an approval-gated alternative. This rule authorizes quote sizing/pricing
+only: supplier AR scope must still respect the original requested alternatives
+and total quantity unless separately resolved.
 
 ## 2. Read and write discipline
 
@@ -239,14 +266,15 @@ preserve other suppliers' current snapshots and current human decisions/constrai
 | Field | Content |
 |---|---|
 | `customer_notes` | Customer's words that structured fields do not hold: constraints, deadlines and identity clues. Preserve evidence; do not duplicate plant/size/quantity/address. |
-| Item `sourcing_notes` | One compact current row outcome plus one latest snapshot per qualifying supplier; no event history. |
+| Item `sourcing_notes` | One compact plain-text current row summary plus one latest snapshot per qualifying supplier; no event history. |
 | Job `sourcing_notes` | Current job-level sourcing actions/decisions only; no event history or duplicate item outcomes. |
 | `external_notes` | Customer-safe offer and delivery details; never internal sourcing. |
 
 ### Compact current snapshot (Chris, 2026-09-15)
 
-Sourcing notes answer **where this row stands now**. Keep one short overall
-row outcome and **one latest entry per supplier**. Replace the supplier's
+**Always update sourcing notes to reflect the latest status and information.**
+Sourcing notes answer **where this row stands now**. Keep one short, unlabelled
+plain-text overall row summary and **one latest entry per supplier**. Replace the supplier's
 previous update in place; do not append an event history, dated diary, old AR
 states, repeated quotes, conversation summaries or a list of completed steps.
 The existing changelog and contact transcript retain history.
@@ -256,14 +284,15 @@ The existing changelog and contact transcript retain history.
    availability, alternative or remaining decision. Preserve active human
    constraints and approval scope; omit superseded facts and resolved actions.
    If evidence conflicts, retain a short uncertainty instead of guessing.
-2. Put a single **`Row:`** summary first: selected supplier, selected size/variant
-   when needed, and the supported selected supplier price. Use `$105/unit` to
-   make the price basis clear. If also showing the customer's selling price,
-   label it `Quote $140/unit`; never confuse the two. No selection means state
-   the actual next decision, such as `Awaiting Chris selection` or `Awaiting
-   Chris alternative approval`, not an invented supplier choice. A quick quote
-   can say `Quote $105/unit · Availability not requested`; do not invent a
-   pending approval or follow-up after quote-only work stops.
+2. Put a single plain-text summary first, without a `Row:`, `Outcome:` or
+   other label: selected supplier, selected size/variant when needed, and the
+   supported selected supplier price. Use `$105/unit` to make the price basis
+   clear. If also showing the customer's selling price, label it `Quote
+   $140/unit`; never confuse the two. No selection means state the actual next
+   decision, such as `Awaiting Chris selection` or `Awaiting Chris alternative
+   approval`, not an invented supplier choice. A quick quote can say `Quote
+   $105/unit · Availability not requested`; do not invent a pending approval
+   or follow-up after quote-only work stops.
 3. Keep each supplier entry to **supplier: size/name/variant: price, current
    AR state, availability or alternative**, including only applicable facts.
    Use `**<u>Supplier name</u>**: ...` and short fragments separated by ` · `.
@@ -283,26 +312,26 @@ The existing changelog and contact transcript retain history.
    happened earlier. A later catalogue search must not erase a still-current
    supplier response.
 
-Use blank lines between the row outcome and supplier entries. **No tables,
+Use blank lines between the plain-text row summary and supplier entries. **No tables,
 pipe-delimited rows, divider lines or narrative paragraphs.** Store the
 Markdown itself in `sourcing_notes`, without a fenced code block. Only the
 attribute-free `<u>` tag is used for underline. These are formatting examples,
 not supplier selection, price or availability evidence:
 
 ```markdown
-**Row:** Selected APS · 15 G · $105/unit
+Selected APS · 15 G · $105/unit
 
 **<u>Austin Plant Supply</u>**: 15 G: $105/unit · [AR-42](ar:42) Completed · 12 available
 ```
 
 ```markdown
-**Row:** Awaiting Chris alternative approval
+Awaiting Chris alternative approval
 
 **<u>Austin Plant Supply</u>**: 15 G: No exact match · 30 G $175/unit alternative pending Chris · AR not requested
 ```
 
 ```markdown
-**Row:** Quote $105/unit · Availability not requested
+Quote $105/unit · Availability not requested
 
 **<u>Austin Plant Supply</u>**: 15 G: $105/unit price list
 ```
@@ -396,16 +425,21 @@ or authorize a size substitution.
 ## 5. Surface supplier responses; Chris controls availability
 
 Supplier responses are evidence for Chris, **not instructions to change
-availability**. Surface each safely matched response to Chris in the original
-request conversation: supplier, requested plant/size, reported quantity/price,
-AR reference/state, source and any uncertainty. Update the affected supplier's
-current snapshot and the single row outcome under section 3; replace its older
-update, preserve Chris's current selection and keep correspondence in chat.
-Present the specific proposed job-line status/quantity changes to Chris and
-ask for approval in the original request conversation. If he approves, apply
-only that scope after a fresh read and report the saved result. For combined
-AR rows, show each job's allocation alongside the shared supplier total before
-asking; never assign the whole available total to every job.
+availability**. Accept a supplier-thread relay only for an explicit AR
+submission; a local/saved, unsubmitted supplier edit never reaches this thread,
+Chris or sourcing notes. Surface each safely matched submitted response to
+Chris in the original request conversation: supplier, requested plant/size,
+reported quantity/price, AR reference/state, source and any uncertainty.
+Update the affected supplier's current snapshot and the single plain-text row
+summary under section 3; replace its older update, preserve Chris's current selection
+and keep correspondence in chat. Present the specific proposed job-line
+status/quantity changes to Chris and ask for approval in the original request
+conversation. If he approves, apply only that scope after a fresh read and
+report the saved result. For combined AR rows, show each job's allocation
+alongside the shared supplier total before asking; never assign the whole
+available total to every job. A supplier AR answer marked `available` carries
+that AR row's authoritative allocated demand total; it still does not set any
+job-item available quantity without Chris's exact approval.
 
 Do not automatically change job/item availability or status, available
 quantity, selected source or customer-facing offering from a supplier's reply

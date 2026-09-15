@@ -459,3 +459,41 @@ test('admin line picker remains the existing native select', () => {
     ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
 })
+
+test('desktop admin and supplier lines wrap the complete supplier and LPS notes', () => {
+  const notes = 'Ready next week after the entire new shipment has been inspected.\nPlease confirm the loading window.'
+  const lpsNotes = 'Use the delivery entrance at the back of the nursery.\nThe site contact will meet the truck there.'
+  for (const design of ['default', 'portal'] as const) {
+    const view = render(<ARLineTable items={[item({ notes, lpsNotes })]} design={design} editable={false} />)
+    for (const text of [notes, lpsNotes]) {
+      const display = view.getByTitle(text, { normalizer: (value) => value })
+      assert.equal(display.textContent, text)
+      assert.match(display.className, /whitespace-pre-wrap/)
+      assert.doesNotMatch(display.className, /truncate|line-clamp/)
+    }
+    view.unmount()
+  }
+})
+
+test('desktop note editors expand with their contents and save multiline notes on blur', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<[number, Record<string, string>]> = []
+  const details: Array<[number, Record<string, string>]> = []
+  const view = render(<ARLineTable items={[item()]} editable
+    onPatch={async (id, changes) => { patches.push([id, changes]) }}
+    onPatchDetails={async (id, changes) => { details.push([id, changes]) }} />)
+  for (const [label, note] of [
+    ['Line 19 notes', 'Ready next week.\nConfirm before pickup.'],
+    ['Line 19 note to supplier', 'Use the south gate.\nCall before unloading.'],
+  ]) {
+    const editor = view.getByRole('textbox', { name: label })
+    assert.equal(editor.tagName, 'TEXTAREA')
+    assert.match(editor.className, /h-auto/)
+    assert.match(editor.className, /field-sizing:content/)
+    assert.equal(editor.classList.contains('h-7'), false)
+    await user.type(editor, note)
+    await user.tab()
+  }
+  assert.deepEqual(patches, [[19, { notes: 'Ready next week.\nConfirm before pickup.' }]])
+  assert.deepEqual(details, [[19, { lps_notes: 'Use the south gate.\nCall before unloading.' }]])
+})

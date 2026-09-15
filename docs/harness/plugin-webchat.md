@@ -154,12 +154,16 @@ The pre-2026-08-26 files (`state/threads/*.jsonl`, `state/read.json`) were
 imported once (CHANGELOG, 2026-08-26) and are left on disk as the backup; the
 plugin no longer reads or writes them.
 
-**A job request's thread follows the job** (migrations 0079/0080): deleting
-the job deletes its `threads` row and transcript — the app then calls
-`api/reset` on `jr-<id>` so the plugin forgets its copy and the harness
-conversation is wiped — and closing the job (`closed_won` / `closed_lost` /
-`archived`) sets `threads.closed_at`, which hides the thread from the app's
-picker and bell without touching the transcript or this plugin.
+**A job request's thread follows the job** (migrations 0079/0080/0097).
+Deleting a job deletes its canonical `jr-<id>` database thread and transcript.
+A permanent `deleted_job_threads` marker prevents late replies, reads or retries
+from recreating the thread. Webchat reconciles these markers on startup, before
+HTTP requests and every 15 seconds, immediately evicts cached transcripts and
+read cursors, and resets the harness conversation. A busy turn leaves cleanup
+pending for retry, including across a server restart. Customer and supplier
+threads are preserved. Closing a job still hides its thread without deleting it.
+
+Apply migration 0097 before deploying/restarting this plugin version.
 
 ## Read state
 
@@ -256,3 +260,44 @@ run a throwaway harness dir containing only `harness.json`, `plugins/webchat/`
 and one agent with `plugins/webchat/` enabled, then check the log for
 `plugin loaded` with `"scope":"user"` and `agent started` listing `webchat`.
 `webchat-cli --self-check` verifies the CLI's payload offline.
+
+## Questionnaires
+
+Agents must use an interactive MCQ whenever useful quick-response options
+are available, including single questions and yes/no questions. Related
+questions belong in one questionnaire. Plain-text questions are for cases
+where useful choices cannot be offered. Every MCQ includes an always-visible free-text field with
+“Something else” as its placeholder.
+
+Recommended next steps also use MCQs: offer concrete actions, list the
+recommended action first with “(Recommended)” in its label, and include
+useful alternatives (including deferring when relevant). The agent waits for
+the user's reviewed submission before acting on the selected next step.
+
+Agents create a quick-choice questionnaire with:
+
+```bash
+scripts/webchat/webchat-cli ask --questions-file questions.json --thread-id jr-12
+```
+
+The file is an object such as:
+
+```json
+{"title":"Delivery preferences","questions":[{"question":"When should we deliver?","options":["Monday","Tuesday"]},{"question":"Where should we unload?","options":["Driveway","Curbside"]}]}
+```
+
+`POST api/reply` accepts this object as `questionnaire`; it validates 1–20
+questions, each with 1–10 distinct nonempty choices, and assigns a unique ID.
+The app adds a text field with the “Something else” placeholder to every
+question. Selecting a preset answer saves it and advances immediately; typed
+answers use Save answer. Users can go back with Previous or edit from review, then submit
+all question/answer pairs in one normal user message. There are no interim
+agent notifications. Failed sends keep the review available for retry.
+The existing thread and `--portal` visibility rules apply.
+
+Questionnaires use a versioned text envelope in `thread_messages.text`, so
+history and restarts need no schema migration. A submitted answer message
+references the questionnaire ID; the UI recognizes it when history reloads.
+Unsubmitted choices are local to the mounted card and reset on reload.
+The transport remains normal chat: simultaneous submissions from separate
+clients are separate messages, with no server-wide single-submission lock.

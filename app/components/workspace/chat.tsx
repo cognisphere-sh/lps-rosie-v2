@@ -1028,12 +1028,12 @@ export function AgentChat({
 
   const destinationCommitted =
     sameDestination(destination.current, committedDestination) && chat.ready && !chat.locked
-  const send = () => {
+  const send = (files = composer.files) => {
     const text = draft.trim()
     // Both click and Enter end here. The mounted fieldset is disabled during a
     // bind, and this exact-revision guard rejects even a synthetic stale event.
-    if (!destinationCommitted || (!text && !composer.files.length)) return
-    void chat.send(text, composer.files)
+    if (!destinationCommitted || (!text && !files.length)) return
+    void chat.send(text, files)
     setDraft('')
     composer.clear()
   }
@@ -1156,7 +1156,7 @@ export function AgentChat({
 
   if (focusedIntake) {
     const conversation = <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <Transcript messages={chat.messages} pending={chat.pending} error={chat.error} hasMore={chat.hasMore} loadingMore={chat.loadingMore} fileHref={fileHref} empty={emptyState} pendingLabel={`${agent.name} is working…`} suggestions={agent.suggestions} onSuggest={setDraft} onAction={onMarkdownAction} onRefresh={chat.refresh} onLoadMore={chat.loadMore} mobile={isMobile} wallpaper={chatWallpaperForAgent(appearance, agent.id)} />
+      <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])} messages={chat.messages} pending={chat.pending} error={chat.error} hasMore={chat.hasMore} loadingMore={chat.loadingMore} fileHref={fileHref} empty={emptyState} pendingLabel={`${agent.name} is working…`} suggestions={agent.suggestions} onSuggest={setDraft} onAction={onMarkdownAction} onRefresh={chat.refresh} onLoadMore={chat.loadMore} mobile={isMobile} wallpaper={chatWallpaperForAgent(appearance, agent.id)} />
       <Composer composer={composer} onSend={send} draft={draft} setDraft={setDraft} placeholder="Tell Rosie about the new request…" big={isMobile} disabled={!destinationCommitted} gateRef={composerGate} gateRevision={committedDestination.revision} />
     </div>
     return <div className={cn('flex min-h-0 flex-1 flex-col bg-background', isMobile ? 'absolute inset-0 z-[80]' : 'w-full')} style={{ ...chatThemeStyle(chatThemeForAgent(appearance, agent.id)), ...chatWallpaperStyle(chatWallpaperForAgent(appearance, agent.id)) }}>
@@ -1188,7 +1188,7 @@ export function AgentChat({
             mobile
           />
         )}
-        <Transcript
+        <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])}
           messages={chat.messages}
           pending={chat.pending}
           error={chat.error}
@@ -1337,7 +1337,7 @@ export function AgentChat({
         </button>
       </div>
 
-      <Transcript
+      <Transcript onQuestionnaireSubmit={(text) => chat.send(text, [])}
         messages={chat.messages}
         pending={chat.pending}
         error={chat.error}

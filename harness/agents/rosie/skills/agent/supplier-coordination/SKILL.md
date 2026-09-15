@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, private/public availability requests, independent preparation and clarification, multiple-plant/size demands and quote-only size-selection boundaries, useful LPS notes, HTML email, inventory mappings, factual supplier-response relays to Chris without automatic availability writes, likely equivalent catalogue-name pricing versus AR mappings, mandatory APS job-row notes and approval-gated alternatives, compact latest supplier snapshots and row outcomes, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no availability change. (v3.2.0)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, private/public availability requests, independent preparation and clarification, multiple-option demands and quote-only selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted supplier-response relays to Chris, supplier-authorized portal transcription, likely equivalent catalogue-name pricing versus AR mappings, mandatory APS job-row notes and approval-gated alternatives, compact latest supplier snapshots and row outcomes, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no job-line change. (v3.8.0)
 metadata:
   author: lps
-  version: "3.2.0"
+  version: "3.8.0"
 ---
 
 # Supplier coordination
@@ -25,8 +25,8 @@ including priced matches, gaps and 1–2 closest supported alternatives when
 found. Research-only supplier lookups remain chat-only; notes do not authorize
 contact or select an alternative. Do not treat a search handoff as a send
 instruction. `job-requests` section 3 owns the JR note format: one compact
-latest snapshot per supplier and one overall row outcome. Relay current facts
-for that update; never ask the job thread to append an event history. The
+latest snapshot per supplier and one unlabelled plain-text overall summary. Relay the
+latest current facts for that update; never ask the job thread to append an event history. The
 supplier transcript retains full correspondence.
 
 ## 1. Select the channel and preserve preferences
@@ -88,14 +88,18 @@ already supplied. Follow `job-requests` for the full intake sequence.
    each original job-item id and its allocated quantity. Keep unknown demand
    NULL; known allocations must be positive. Never duplicate one combined
    total onto each linked job.
-   Chris's smallest-priced-requested-size rule selects the quoted size based
-   on supported price data, not confirmed stock. It does not silently narrow
-   the supplier ask to that size: preserve original requested size alternatives
-   and single total quantity unless Chris separately resolves AR scope. Do not
-   infer extra quantities, allocation or availability from larger-size shared
-   price notes. A clear either-size request can retain its options without
-   redundant quote-size clarification; genuinely unresolved AR scope still needs
-   resolution before publication.
+   Chris's cheapest-supported-requested-option rule selects the quoted
+   size/variant based on supported price data, not confirmed stock. The JR's
+   quoted-offering `name`/`size` contain only that actual offered plant and one
+   actual size; the original demand and any customer-visible substitution note
+   stay on the JR. The note is exactly `Substitute: <actual offering> instead
+   of <original demand>`, never a reason or unavailable price. It does not
+   silently narrow the supplier ask to that option:
+   preserve original requested alternatives and single total quantity unless
+   Chris separately resolves AR scope. Do not infer extra quantities, allocation
+   or availability from shared notes recording other supported-option prices. A clear either-option request
+   can retain its alternatives without redundant quote clarification; genuinely
+   unresolved AR scope still needs resolution before publication.
    If a demand mentions multiple sizes or plants, check that the handoff
    resolves separate requirements versus alternatives and quantity allocation.
    Route unresolved choices to the job thread for clarification before
@@ -217,8 +221,15 @@ claim the request was emailed. The prepared draft/link remains reviewable.
 
 Listen for both `availability_updated` (draft/edit) and
 `availability_submitted` (explicit submission). Re-read request/items on each
-event and relay only actual changes. A saved price or note is supplier work
-but is not submission. Inventory prefill is neither supplier work nor an
+event to maintain safe current context, but **a local/saved, unsubmitted edit
+stays on this supplier thread**: do not notify any job thread or Chris, update
+JR sourcing notes, or treat it as a response. Relay only an explicit
+submission and only its actual saved answers. Include the saved request-wide
+`availability_requests.supplier_notes` along with line responses; it records
+supplier conditions for the whole AR and is separate from LPS instructions.
+Relay its applicable context to each linked job without turning it into a
+line-level availability change. A saved price or note is supplier
+work but is not submission. Inventory prefill is neither supplier work nor an
 answer. Preserve `submitted_at` as the latest explicit submission evidence. An AR
 shared across jobs stays open for its remaining open jobs. Reissue
 a fresh public token through the normal publication path when a link is
@@ -226,45 +237,43 @@ needed after reopening; do not reuse revoked tokens.
 
 | Supplier item status | Response |
 |---|---|
-| `available` | Has the requested plant/size/quantity. |
+| `available` | Has the requested plant/size/quantity; its saved `available_quantity` is the AR item's authoritative allocated demand total. |
 | `can_order` | Can source/order; becomes `need_to_order` (Need to Order) on a committed order row. |
 | `arriving_soon` | Arriving; ETA in notes. |
 | `diff_size_qty_sub` | Alternative plant/size or quantity; details in notes. |
 | `unavailable` | Cannot supply. |
 | NULL | Unanswered. |
 
-For every actual supplier change or resubmission, first establish a safe
-match to the AR and every affected request item via
-`availability_request_item_jobs` and `availability_request_jobs`. Relay a
-**factual, contextual response** to each linked `jr-<job_request_id>`: AR
-id/state, job id, allocated quantity, combined supplier quantity, supplier
-name/id, each requested plant and size (plus item id), the stated response,
-quantity, supplier price, mapping, short qualification, and source
-(`portal saved edit`, `portal submission`, or supplier message/email). Include
-whether it is partial or submitted. If the event cannot be safely tied to an
-AR/item/job or the supplier's plant context is ambiguous, do not guess or
-write a sourcing entry: flag it for Chris's review with the ambiguity and the
-source instead.
+For every **explicit supplier submission**, first establish a safe match to
+the AR and every affected request item via `availability_request_item_jobs` and
+`availability_request_jobs`. Relay a **factual, contextual response** to each
+linked `jr-<job_request_id>`: AR id/state, job id, allocated quantity, combined
+supplier quantity, supplier name/id, each requested plant and size (plus item
+id), the stated response, quantity, supplier price, mapping, short
+qualification and source (`portal submission`). Include whether it is partial
+or submitted. If the submission cannot be safely tied to an AR/item/job or the
+supplier's plant context is ambiguous, do not guess or write a sourcing entry:
+flag it for Chris's review with the ambiguity and source instead.
 
-The job thread applies its sourcing-note rule to the resulting factual
-supplier response (a sent AR's entry qualifies) and
-posts a concise internal alert to Chris naming the supplier, affected plants
-and source; it may link `[Open AR-<id>](ar:<id>)`. A useful shape is:
+The job thread applies its sourcing-note rule only to the resulting submitted
+supplier response (a sent AR's entry qualifies) and posts a concise internal
+alert to Chris naming the supplier, affected plants and source; it may link
+`[Open AR-<id>](ar:<id>)`. A useful shape is:
 `APS — Live Oak 15 G: 12 available at $105 (portal submission, AR-42).`
 Editing a Completed request returns it to Processing until the supplier
 submits again. These supplier-entered portal changes remain as saved; Rosie
 reports them without overwriting them. A response does **not** authorize Rosie
-to change job/item availability or status, available quantities, AR answers,
-selected supplier or the customer-facing offering. Surface it to Chris and
-update only qualifying current snapshots and the single row outcome under
-`job-requests` section 3. Replace the affected supplier's previous update;
-keep suppliers distinct and preserve Chris's current selection without
-copying the message history into the notes. A selected supplier
-is not inferred from availability, price or submission. No automatic customer
-message or acceptance follows. A response can supersede catalogue evidence
-in notes, but an unmentioned seeded price is not newly confirmed by a chat.
+to change job/item availability or status, available quantities, selected
+supplier or the customer-facing offering. Surface it to Chris and update only
+qualifying current snapshots and the single plain-text row summary under
+`job-requests` section 3. Replace the affected supplier's previous update; keep suppliers
+distinct and preserve Chris's current selection without copying the message
+history into the notes. A selected supplier is not inferred from availability,
+price or submission. No automatic customer message or acceptance follows. A
+response can supersede catalogue evidence in notes, but an unmentioned seeded
+price is not newly confirmed by a chat.
 
-## 5. Supplier messages are reported before any availability write
+## 5. Supplier messages and portal transcription
 
 All supplier messages, including ones naming a job, stay on this supplier
 thread. Public/private portal identity comes from trusted channel metadata,
@@ -272,53 +281,66 @@ not text claiming to be another supplier. Resolve email senders through known
 contacts. An ambiguous identity or job/request needs clarification first.
 
 1. Resolve the AR from trusted page/request metadata, then read the request
-   and all current linked jobs through the junction tables. With several plausible open asks, clarify which one; do
-   not apply an answer across all of them. Do not update a closed AR even if
-   a supplier asks. A closed-job follow-up can be recorded as a message and
-   relayed internally.
+   and all current linked jobs through the junction tables. With several
+   plausible open asks, clarify which one; do not apply an answer across all
+   of them. Do not update a closed AR even if a supplier asks. A closed-job
+   follow-up can be recorded as a message and relayed internally.
 2. Read the supplied text, attachment, image or voice note. Extract only what
    it actually says. A plant photo without quantity/price does not imply
-   either. Report the stated availability as supplier evidence, not a database
-   status instruction.
-3. Relay the factual response to the job thread and Chris as in section 4,
-   identifying supplier, requested plant/size and source (`supplier message`
-   or `supplier email`). The job thread updates qualifying Markdown entries,
-   including explicit supplier selections and plant-sourcing decisions, and
-   surfaces the response to Chris. Do not wait for or assume a webhook.
-   Without Chris's explicit instruction to change availability/AR answers,
-   stop at reporting and sourcing notes: no answer-field write or submission.
-4. **Only when Chris explicitly instructs an AR update**, use the atomic
-   supplier-answer hook with `app.actor = 'rosie'` for the specified request,
-   item and fields. A supplier's reply is not that authorization. Read the
-   current rows again and preserve other suppliers' requests and answers.
-   Values in `p_changes` must be JSON
-   strings; an empty string clears a field. The only permitted keys are
-   `status`, `available_quantity`, `unit_price`, `notes`.
+   either. A trusted supplier's **portal** response that safely identifies an
+   open AR item authorizes Rosie to transcribe that response into that AR; it
+   does not authorize a job-item change, supplier selection, customer message
+   or AR submission. Email/text outside the portal remains supplier evidence:
+   report it and require Chris's explicit AR-write instruction.
+3. For a trusted portal answer, re-read the AR item and its
+   `availability_request_item_jobs` allocations immediately before writing.
+   Use the atomic `answer_availability_request` hook with `app.actor =
+   'rosie'`; values in `p_changes` are JSON strings, an empty string clears a
+   field, and the only keys are `status`, `available_quantity`, `unit_price`
+   and `notes`. Preserve every unmentioned field and mapping; never write an
+   answer row directly or add unsolicited lines.
+
+   When the supplier says the item is `available`, set
+   `available_quantity` to the **authoritative allocated demand quantity**:
+   the current total of that AR item's positive allocations in
+   `availability_request_item_jobs`, not a guessed or separately stated
+   number. If the allocations are absent, NULL or cannot establish one
+   authoritative demand total, do not mark the item available; clarify the
+   scope. A partial quantity or alternative must use the appropriate
+   non-`available` status and the stated details instead.
 
    ```sql
    SET app.actor TO 'rosie';
    SELECT public.answer_availability_request(
      $arId, $supplierId, $arItemId,
-     '{"status":"available","available_quantity":"30","unit_price":"12.00"}'::jsonb,
+     '{"status":"available","available_quantity":"<allocated-demand-total>","unit_price":"12.00"}'::jsonb,
      false
    );
    ```
 
-   Leave unmentioned fields out of `p_changes`; preserve mappings. The RPC
-   serializes with public/private edits, checks request/job closure and
-   updates Processing. Do not write answer rows directly. Do not add request
-   lines from an unsolicited offer; relay it to the job thread.
-5. Rosie submits on Chris's explicit instruction only. A supplier saying a
+   The RPC serializes with public/private edits, checks request/job closure
+   and moves the AR to Processing. Do not submit: the supplier must review
+   and explicitly Submit.
+4. **Voice-to-text portal response sequence:** after a safe AR/item match,
+   first acknowledge the supplier with a brief `--portal` message (for
+   example, “Thanks — I’ll enter that response for you now.”). Then transcribe
+   the stated answer under step 3, verify the saved row, and send a second
+   `--portal` message asking them to review the entry and tap **Submit** (or
+   **Re-Submit**). Do not say it was submitted. If the match or transcription
+   is unsafe, acknowledge the message and ask the supplier to identify or
+   clarify the affected line instead; do not write it.
+5. Rosie submits only on Chris's explicit instruction. A supplier saying a
    reply is finished does not authorize Rosie to submit the AR. A supplier's
-   own portal Submit is already recorded and needs no duplicate write.
-   For an explicitly instructed submission
-   without another edit call the same RPC with NULL item/changes and
-   `p_submit = true`; it records Completed and `submitted_at`. Never claim
-   submission after a blocked/failed update.
-6. After an explicitly instructed update, report the actual saved result to
-   Chris and every affected job thread. Supplier-facing acknowledgement follows
-   the applicable contact gate. If matching remains unsafe, surface it for
-   Chris's review rather than applying it to a request or item.
+   own portal Submit is already recorded and needs no duplicate write. For an
+   explicitly instructed submission without another edit, call the same RPC
+   with NULL item/changes and `p_submit = true`; it records Completed and
+   `submitted_at`. Never claim submission after a blocked/failed update.
+6. A transcribed portal response remains local, saved supplier work until the
+   supplier explicitly submits. At submission, section 4 supplies the sole
+   job-thread/Chris relay and sourcing-note update. Do not send a separate
+   local-edit notification. After a Chris-instructed email/non-portal update,
+   report the actual saved result as directed; if matching remains unsafe,
+   surface it for Chris's review rather than applying it.
 
 For portal replies use `webchat-cli send --portal --text ...`; without
 `--portal` the supplier cannot see it. Routine clarifications within an
@@ -349,7 +371,7 @@ than submitting a duplicate action. Supplier confirmation makes the **Order
 Confirmed** and leaves each linked **Job Request Committed**. Job requests
 have no Confirmed stage. Relay the actual order status/date to every linked
 job and follow `job-requests` for its separate lifecycle; maintain only the
-latest relevant supplier snapshot and current row outcome.
+latest relevant supplier snapshot and plain-text current row summary.
 Use `close_order` only for an explicit Won/Lost outcome, never because an AR
 was submitted or a customer was silent.
 

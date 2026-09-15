@@ -121,3 +121,30 @@ per-agent config and prompt notes are documented in each agent's file.
 > Note: a plugin dir materializes on disk only once the plugin writes state, so
 > the authoritative list of enabled plugins per agent is its
 > `system_prompts/plugin-*.md` set, not the current contents of `plugins/`.
+
+### AR supplier response note (migration 0095)
+
+`availability_requests.supplier_notes` stores the supplier’s request-wide note,
+separate from LPS instructions and line notes. The new trusted submission RPCs
+validate supplier ownership or the public token and use the existing row-lock
+closure guard. The note and submitted status commit in one transaction. The
+normal submission event directs Rosie to the saved AR, including this note.
+Migration `0095_availability_supplier_note.sql` was applied and verified live
+on 2026-09-15 at 13:20 UTC alongside order migration 0094. App deployment is separate.
+
+### Job deletion cascade (migration 0097)
+
+`0097_job_delete_dependents.sql` replaces orphan-AR retention on job deletion
+with an atomic cascade for exclusively associated ARs and orders. Shared
+records are retained. The canonical Rosie thread is deleted and its permanent
+marker prevents recreation, while webchat retries harness-context cleanup.
+Migration 0097 was applied on 2026-09-15 at 14:23 UTC before app/plugin
+deployment. It does not retroactively delete already orphaned historical records.
+
+### Deployment verification — 2026-09-15
+
+The app and harness restarted at 14:26 UTC after migration 0097. Both services
+and all four agents are running; webchat is running for Daisy, Nova and Rosie.
+The local and public app login endpoints return HTTP 200. The Daisy and Rosie
+Google Workspace plugins still require Google sign-in through Settings; their
+credential-file secrets were absent before this deployment.

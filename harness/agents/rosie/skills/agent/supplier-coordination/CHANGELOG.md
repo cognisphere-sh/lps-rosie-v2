@@ -1,5 +1,29 @@
 # supplier-coordination — changelog
 
+## 3.8.0
+
+- Include submitted request-wide supplier notes in AR response reads and job relays, keeping them separate from LPS instructions and line availability.
+
+## 3.7.0
+
+- Align JR sourcing-note relays with Chris's latest-status rule: send current facts for an unlabelled plain-text overall summary and replace stale supplier snapshots in place.
+
+## 3.6.0
+
+- Distinguish the JR’s single actual quoted offering from the preserved original-demand scope of supplier availability requests, and relay the exact customer-facing Substitute note without reasons or unavailable prices.
+
+## 3.4.1
+
+- Relay the canonical compact sourcing summary as `Outcome:` rather than the retired `Row:` label.
+
+## 3.4.0
+
+- Align AR preparation with Chris's cheapest-supported-requested-option quote rule while retaining all original requested alternatives and total demand unless AR scope is separately resolved.
+
+## 3.3.0
+
+- Keep local/saved supplier portal edits on the supplier thread until explicit submission; only submissions relay to linked jobs and Chris. Authorize safe transcription of trusted portal answers, store an `available` answer's quantity from the authoritative AR allocation total, and require the voice-response sequence: acknowledge, update, then ask the supplier to review and Submit.
+
 ## 3.2.0
 
 - Distinguish supplier Order confirmation from the Job Request lifecycle: preserve Confirmed Orders and confirmation dates while linked jobs remain Committed. Remove Confirmed from open job-stage rules.

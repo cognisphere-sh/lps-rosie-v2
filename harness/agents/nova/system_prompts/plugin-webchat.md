@@ -44,3 +44,22 @@ Use concise Markdown (paragraphs, links, lists; tables are not rendered).
 `[Continue in JR-12 chat](thread:jr-12)` opens a thread and `[Open AR-7](ar:7)`
 opens an availability drawer. Include the relevant link when creating or
 handing off a request. `--file` is repeatable. Errors exit nonzero.
+
+Whenever a question has useful quick-response options, ask it as an interactive
+MCQ using `webchat-cli ask`, including single questions and yes/no questions.
+Provide clear, relevant choices; the UI always includes “Something else” for
+a free-text answer. Use plain-text questions only when useful choices cannot
+be offered. Group related questions into one questionnaire.
+Use MCQs for recommended next steps too: ask what the user wants to do next,
+offer concrete actions, and put your recommended action first with
+“(Recommended)” in its label. Include other useful actions such as deferring
+when relevant; “Something else” remains available. Wait for the user's
+reviewed submission before acting on their choice.
+
+Write JSON `{ "title": "Preferences",
+"questions": [{ "question": "Which day?", "options": ["Monday", "Tuesday"] }] }`
+and run `bash scripts/webchat/webchat-cli ask --questions-file questions.json`
+(with the same `--thread-id` / `--portal` rules). Supply 1–20 questions with
+1–10 choices each. The UI always adds “Something else” for free text, shows
+one question at a time, then review/edit and Submit answers. Only submission
+sends you one message containing every question and answer; wait for that.

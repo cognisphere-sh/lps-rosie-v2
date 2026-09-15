@@ -1,3 +1,4 @@
+import { questionnairePreview } from "../../harness/plugins/webchat/questions"
 import 'server-only'
 
 import { EventEmitter } from 'node:events'
@@ -82,7 +83,7 @@ function emitter(): EventEmitter {
           lastAt: row.last_at ? Date.parse(row.last_at) : 0,
           lastRole: row.last_role ?? null,
           lastSender: row.last_sender ?? null,
-          lastText: row.last_text ?? '',
+          lastText: questionnairePreview(row.last_text ?? ''),
           webReadId: row.web_read_id ?? 0,
           portalReadId: row.portal_read_id ?? 0,
           pending: Boolean(row.pending_since),

@@ -28,7 +28,7 @@ type Family = keyof typeof lightExpected
 type Role = keyof (typeof lightExpected)[Family]
 
 function cssBlock(selector: ':root' | '.dark'): string {
-  const start = globals.indexOf(`${selector} {`)
+  const start = globals.search(new RegExp(`${selector.replace('.', '\\.')}\\s*(?:,[^{]+)?\\s*\\{`))
   assert.notEqual(start, -1)
   const end = globals.indexOf('\n}', start)
   assert.notEqual(end, -1)
@@ -154,7 +154,7 @@ test('representative uses identify Rosie and Job references without replacing st
   assert.equal(requestCard.match(/ring-lps-accent-turquoise-border/g)?.length, 3)
 
   assert.match(globals, /:root \{[\s\S]*?--primary: #087F8C;/)
-  assert.match(globals, /\.dark \{[\s\S]*?--primary: #42C7C9;/)
+  assert.match(cssBlock('.dark'), /--primary: #42C7C9;/)
   assert.match(globals, /--lps-tone-green-bg: #E9F3EA;/)
   assert.match(globals, /--lps-tone-red-bg: #FAEAE5;/)
   assert.doesNotMatch(globals, /--lps-tone-(turquoise|light-blue)-/)

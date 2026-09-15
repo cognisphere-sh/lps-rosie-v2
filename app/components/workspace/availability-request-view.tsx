@@ -65,8 +65,10 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
   error: string
   saving: boolean
   onPatch: (itemId: number, changes: Record<string, string>) => Promise<void>
-  onSubmit: () => Promise<void>
+  onSubmit: (supplierNote: string) => Promise<void>
 }) {
+  const [supplierNote, setSupplierNote] = useState(request?.supplierNotes ?? '')
+  useEffect(() => { setSupplierNote(request?.supplierNotes ?? '') }, [request?.id, request?.supplierNotes])
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
     if (!window.matchMedia) return
@@ -157,6 +159,16 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
               drawerModal={mobile}
             />
 
+            <label className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-[13px] font-semibold">
+              Note for this request
+              <textarea aria-label="Note for this request" value={supplierNote} maxLength={10000}
+                readOnly={!editable} disabled={saving} rows={3}
+                placeholder="Add any conditions or information that apply to the whole request…"
+                className="w-full rounded-md border border-input bg-background p-2 text-[13px] font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onChange={(event) => setSupplierNote(event.target.value)} />
+              {editable && <span className="text-[11px] font-normal text-muted-foreground">Sent with your availability when you submit.</span>}
+            </label>
+
             {editable && request.items.some((item) => item.unitPrice != null) && request.status === 'new' && (
               <p className="m-0 text-[11.5px] text-muted-foreground">
                 Prices we already have on file are filled in — please correct any that have changed.
@@ -179,7 +191,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
         <div className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden">
           <button
             type="button"
-            onClick={() => void onSubmit()}
+            onClick={() => void onSubmit(supplierNote)}
             disabled={saving}
             className="min-h-12 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-3 py-2 text-[15px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 min-[900px]:max-w-sm"
           >

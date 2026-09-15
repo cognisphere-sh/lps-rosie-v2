@@ -903,9 +903,10 @@ function NewJobRequestButton({
 }
 
 /** Shell-owned focused Jobs actions: one New flow and the existing notification behavior. */
-export function JobsTopActions() {
+export function JobsTopActions({ children }: { children?: React.ReactNode }) {
   return (
-    <div aria-label="Job actions" className="flex min-h-11 items-center justify-end gap-1">
+    <div aria-label="Job actions" className="flex min-h-11 flex-wrap items-center justify-end gap-1">
+      {children}
       <NewJobRequestButton label="New job" fromSelectedEntry />
       <NotificationBell />
     </div>

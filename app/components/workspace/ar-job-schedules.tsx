@@ -3,9 +3,10 @@ import { formatMonthDay } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
 
 /** A combined request keeps dates paired with each job's fulfillment method. */
-export function ARJobSchedules({ schedules, showJobNames = false }: {
+export function ARJobSchedules({ schedules, showJobNames = false, showFulfillmentMethod = true }: {
   schedules?: ARJobSchedule[]
   showJobNames?: boolean
+  showFulfillmentMethod?: boolean
 }) {
   const rows: ARJobSchedule[] = schedules?.length ? schedules : [{ expectedInstallDate: null, fulfillmentMethod: null }]
   return (
@@ -24,12 +25,12 @@ export function ARJobSchedules({ schedules, showJobNames = false }: {
               <dt className="text-muted-foreground">EDD</dt>
               <dd className="m-0 font-semibold tabular-nums text-foreground">{formatMonthDay(schedule.expectedInstallDate) || '—'}</dd>
             </div>
-            <div className="flex items-baseline gap-1 whitespace-nowrap">
+            {showFulfillmentMethod && <div className="flex items-baseline gap-1 whitespace-nowrap">
               <dt className="text-muted-foreground">Fulfillment</dt>
               <dd className="m-0 font-semibold text-foreground">
                 {schedule.fulfillmentMethod === 'pickup' ? 'Pickup' : schedule.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'}
               </dd>
-            </div>
+            </div>}
           </dl>
         </div>
       ))}

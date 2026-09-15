@@ -13,7 +13,7 @@
 import { Printer } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AvailabilityRequestView } from '@/components/workspace/availability-request-view'
 import { ARSharing } from '@/components/workspace/ar-sharing'
@@ -49,6 +49,7 @@ export default function PartnerRequestPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const answerTail = useRef<Promise<void>>(Promise.resolve())
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/partner/${supplierId}`)
@@ -83,31 +84,40 @@ export default function PartnerRequestPage() {
 
   const patchItem = useCallback(
     async (itemId: number, changes: Record<string, string>) => {
-      setError('')
-      const res = await fetch(`/api/partner/${supplierId}/requests/${arId}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ itemId, changes }),
+      const operation = answerTail.current.catch(() => {}).then(async () => {
+        setError('')
+        const res = await fetch(`/api/partner/${supplierId}/requests/${arId}`, {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ itemId, changes }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: string }
+          throw new Error(body.error ?? 'Could not save')
+        }
+        await load()
       })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        setError(body.error ?? 'Could not save')
-      }
-      await load()
+      answerTail.current = operation
+      try { await operation } catch (error) { setError((error as Error).message) }
     },
     [supplierId, arId, load],
   )
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(async (supplierNote: string) => {
     setSaving(true)
     setError('')
-    const res = await fetch(`/api/partner/${supplierId}/requests/${arId}/submit`, { method: 'POST' })
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string }
-      setError(body.error ?? 'Could not submit')
-    }
-    await load()
-    setSaving(false)
+    try {
+      // Finish queued line saves before submitting the note and response.
+      await answerTail.current
+      const res = await fetch(`/api/partner/${supplierId}/requests/${arId}/submit`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierNote }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(body.error ?? 'Could not submit')
+      }
+      await load()
+    } catch (error) { setError((error as Error).message) }
+    finally { setSaving(false) }
   }, [supplierId, arId, load])
 
   // A closed request was reached from the Closed page and belongs to it, so
