@@ -14,8 +14,8 @@ import {
   newestNote,
 } from '@/components/workspace/job-request'
 import { JobIdentityLink } from '@/components/workspace/shell'
+import { JobMetadata } from '@/components/workspace/job-metadata'
 import { openChat } from '@/lib/chat-bus'
-import { formatDate } from '@/lib/format'
 import { jobRequestIdentityLine } from '@/lib/job-identity'
 import {
   REQUEST_STATUS_OPTIONS,
@@ -90,7 +90,7 @@ export function RequestCard({
             <div
               data-mobile-request-row="identity"
               data-mobile-request-primary
-              className="flex w-full max-w-full min-w-0 flex-nowrap items-center gap-1"
+              className="flex w-full max-w-full min-w-0 flex-wrap items-center gap-1"
             >
               <span
                 data-mobile-request-jr
@@ -114,7 +114,7 @@ export function RequestCard({
                 aria-label={`Open ${requestRef(request.id)}${mobileJobName ? ` — ${mobileJobName}` : ''}`}
                 onClick={(event) => event.stopPropagation()}
                 data-mobile-request-identity
-                className="block min-h-11 min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded-md text-[12.5px] leading-[44px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block min-h-11 min-w-0 flex-1 basis-40 overflow-hidden text-ellipsis whitespace-nowrap rounded-md text-[12.5px] leading-[44px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title={mobileIdentity}
               >
                 <span data-mobile-request-customer className="font-medium">{mobileCustomer}</span>
@@ -125,6 +125,7 @@ export function RequestCard({
                   </>
                 )}
               </Link>
+              <JobMetadata request={request} />
             </div>
             <div
               data-mobile-request-row="pending-chat"
@@ -167,7 +168,7 @@ export function RequestCard({
         ) : mobile === false && expanded ? (
           <div
             data-desktop-expanded-request-header
-            className="grid min-h-14 grid-cols-[44px_minmax(44px,1fr)_minmax(0,2fr)_minmax(44px,1fr)_44px] items-center"
+            className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1"
           >
             <button
               type="button"
@@ -200,10 +201,11 @@ export function RequestCard({
               aria-label={`Open ${requestRef(request.id)} — ${jobRequestIdentityLine(request)}`}
               data-desktop-job-identity
               title={jobRequestIdentityLine(request)}
-              className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-md text-center text-[12.5px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-w-0 flex-1 basis-40 overflow-hidden text-ellipsis whitespace-nowrap rounded-md text-center text-[12.5px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {jobRequestIdentityLine(request)}
             </Link>
+            <JobMetadata request={request} />
             <div data-balanced-header-flank="right" className="flex min-w-0 items-center justify-end overflow-hidden">
               <button
                 type="button"
@@ -259,12 +261,7 @@ export function RequestCard({
               tone={tone}
               options={REQUEST_STATUS_OPTIONS}
             />
-            <span
-              className="ml-auto whitespace-nowrap text-[11px] text-lps-dim"
-              title={`Created ${formatDate(request.createdAt)}`}
-            >
-              {formatDate(request.updatedAt)}
-            </span>
+            <JobMetadata request={request} />
             <button
               type="button"
               onClick={(event) => {
@@ -277,7 +274,7 @@ export function RequestCard({
               }}
               title={`Chat with Rosie about ${requestRef(request.id)}`}
               aria-label={`Chat with Rosie about ${requestRef(request.id)}`}
-              className="flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent hover:bg-muted md:size-[22px]"
+              className="ml-auto flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent hover:bg-muted md:size-[22px]"
             >
               <Image src="/rosie.png" alt="" width={22} height={22} className="size-[22px] rounded-full object-cover ring-1 ring-lps-accent-turquoise-border" />
             </button>

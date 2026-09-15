@@ -8,6 +8,7 @@ import { JSDOM } from 'jsdom'
 import ts from 'typescript'
 
 import { useJobUpdates } from './use-job-updates.ts'
+import { availabilityRequestStatusChanged } from './chat-bus.ts'
 import type { JobRequestRow } from './rows.ts'
 
 const require = createRequire(import.meta.url)
@@ -78,7 +79,7 @@ const batch = () => act(async () => { await new Promise((resolve) => setTimeout(
 
 function job(id = 19, name = 'Oak Grove'): JobRequestRow {
   return {
-    id, name, status: 'sourcing', customer: null,
+    id, name, status: 'quoted', customer: null,
     billing: { address: null, city: null, state: null, zip: null },
     shipping: { address: null, city: null, state: null, zip: null },
     customerNotes: null, sourcingNotes: null, externalNotes: null, notes: [],
@@ -271,4 +272,94 @@ test('reserved intake shows newly saved records before any chat reply and stays 
   saved = null
   emit()
   await waitFor(() => assert.match(view.container.textContent ?? '', /Nothing has been saved/))
+})
+
+function changeSearch(input: HTMLInputElement, value: string) {
+  const propsKey = Object.keys(input).find((key) => key.startsWith('__reactProps$'))!
+  const props = (input as unknown as Record<string, { onChange: (event: unknown) => void }>)[propsKey]
+  act(() => props.onChange({ target: { value } }))
+}
+
+test('Active jobs search reaches plant/notes beyond a list page without fetching or changing the selected job', async () => {
+  let inboxReads = 0, detailReads = 0
+  const inbox = Array.from({ length: 31 }, (_, i) => ({
+    ...job(19 + i, i === 0 ? 'Oak Grove' : `Project ${i}`),
+    customerCompany: null, customerContact: null, thread: null,
+    searchText: i === 30 ? 'JR-49\nProject 30\nMuskogee\nDo not substitute' : `JR-${19 + i}\nProject ${i}`,
+  }))
+  globalThis.fetch = (async (input) => {
+    if (String(input) === '/api/job-inbox') { inboxReads++; return response({ jobs: inbox }) }
+    if (String(input) === '/api/requests/19') { detailReads++; return response({ request: job() }) }
+    return response({})
+  }) as typeof fetch
+  const view = render(<JobsPage />)
+  await waitFor(() => assert.equal(view.container.querySelectorAll('[data-focused-job-rail-primary]').length, 31))
+  await waitFor(() => assert.ok(view.queryByRole('button', { name: /edit job name/i })))
+  const search = view.getByRole('searchbox', { name: 'Search active jobs' }) as HTMLInputElement
+  const main = view.getByRole('main', { name: 'Selected job' })
+  const allIds = [...view.container.querySelectorAll('[data-focused-job-rail-primary]')].map((row) => row.textContent)
+  const beforeInbox = inboxReads, beforeDetail = detailReads
+  search.focus()
+  changeSearch(search, '  MUSKOGEE substitute ')
+  assert.equal(view.container.querySelectorAll('[data-focused-job-rail-primary]').length, 1)
+  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, 'Project 30')
+  assert.equal(view.getByRole('status').textContent, '1 matching job')
+  assert.equal(document.activeElement, search)
+  assert.equal(view.getByRole('main', { name: 'Selected job' }), main)
+  assert.match(main.textContent ?? '', /Oak Grove/)
+  assert.equal(params.toString(), 'jr=19')
+  assert.equal(inboxReads, beforeInbox); assert.equal(detailReads, beforeDetail)
+
+  changeSearch(search, 'No such plant')
+  assert.ok(view.getByText('No matching active jobs'))
+  assert.equal(view.queryByText('No active jobs'), null)
+  assert.match(main.textContent ?? '', /Oak Grove/)
+  fireEvent.click(view.getByRole('button', { name: 'Collapse active jobs' }))
+  fireEvent.click(view.getByRole('button', { name: 'Expand active jobs' }))
+  assert.equal((view.getByRole('searchbox') as HTMLInputElement).value, 'No such plant')
+  fireEvent.click(view.getByRole('button', { name: 'Clear job search' }))
+  assert.equal(search.value, '')
+  assert.equal(document.activeElement, search)
+  assert.deepEqual([...view.container.querySelectorAll('[data-focused-job-rail-primary]')].map((row) => row.textContent), allIds)
+  assert.equal(params.toString(), 'jr=19')
+})
+
+test('live note changes recompute Active jobs matches while keeping search text, focus and selected details', async () => {
+  let searchText = 'JR-20\nSecond project\nCedar'
+  globalThis.fetch = (async (input) => String(input) === '/api/job-inbox'
+    ? response({ jobs: [{ ...job(20, 'Second project'), customerCompany: null, customerContact: null, thread: null, searchText }] })
+    : response({ request: job() })) as typeof fetch
+  const view = render(<JobsPage />)
+  await waitFor(() => assert.ok(view.queryByRole('button', { name: /edit job name/i })))
+  const search = view.getByRole('searchbox', { name: 'Search active jobs' }) as HTMLInputElement
+  const main = view.getByRole('main', { name: 'Selected job' })
+  search.focus()
+  changeSearch(search, 'Magnolia')
+  assert.ok(view.getByText('No matching active jobs'))
+  searchText = 'JR-20\nSecond project\nCustomer requested Magnolia'
+  emit()
+  await waitFor(() => assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, 'Second project'))
+  assert.equal(view.getByRole('searchbox'), search)
+  assert.equal(search.value, 'Magnolia')
+  assert.equal(document.activeElement, search)
+  assert.equal(view.getByRole('main', { name: 'Selected job' }), main)
+  assert.match(main.textContent ?? '', /Oak Grove/)
+  assert.equal(params.toString(), 'jr=19')
+})
+
+test('focused job AR tags immediately receive first and repeated submission dates', async () => {
+  const saved = { ...job(), supplierLinks: [{
+    supplierId: 7, name: 'APS', lpsPartner: true, rosieThreadId: null,
+    availabilityRequests: [{ id: 42, status: 'new', createdAt: '2026-09-01T12:00:00Z', submittedAt: null }],
+  }] }
+  globalThis.fetch = (async (input) => String(input) === '/api/job-inbox'
+    ? response({ jobs: [] }) : response({ request: saved })) as typeof fetch
+  const view = render(<JobsPage />)
+  await waitFor(() => assert.ok(view.queryByRole('button', { name: /edit job name/i })))
+  const main = view.getByRole('main', { name: 'Selected job' })
+  assert.match(main.textContent ?? '', /09-01/)
+  act(() => availabilityRequestStatusChanged({ arId: 42, status: 'submitted', submittedAt: '2026-09-15T12:00:00Z' }))
+  assert.match(main.textContent ?? '', /09-15/)
+  act(() => availabilityRequestStatusChanged({ arId: 42, status: 'submitted', submittedAt: '2026-09-16T12:00:00Z' }))
+  assert.match(main.textContent ?? '', /09-16/)
 })

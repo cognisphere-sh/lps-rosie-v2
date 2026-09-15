@@ -19,61 +19,42 @@ const { outputText } = ts.transpileModule(`const create = ${create.initializer.g
   compilerOptions: { target: ts.ScriptTarget.ES2022 },
 })
 const runCreate = new Function(
-  'groups', 'supplierId', 'share', 'fetch', 'toast', 'setBusy', 'onCreated', 'onClose',
+  'groups', 'supplierId', 'share', 'fetch', 'toast', 'setBusy', 'onCreated', 'onClose', 'setError', 'consolidate',
   `${outputText}\nreturn create();`,
 )
 
-type Outcome = 'success' | 'http-error' | 'malformed-error' | 'network-error'
-const cases: { name: string; supplierId: number; outcomes: Outcome[]; expected: string; share: boolean }[] = [
-  { name: 'single Partner', supplierId: 11, outcomes: ['success'], expected: 'Availability request created', share: false },
-  { name: 'single non-Partner', supplierId: 22, outcomes: ['success'], expected: 'Availability request created', share: true },
-  { name: 'multiple successes', supplierId: 22, outcomes: ['success', 'success', 'success'], expected: '3 availability requests created', share: false },
-  { name: 'mixed results', supplierId: 11, outcomes: ['success', 'http-error', 'success'], expected: '2 of 3 created · 1 failed', share: true },
-  { name: 'all failed', supplierId: 22, outcomes: ['http-error', 'malformed-error', 'network-error'], expected: '0 of 3 created · 3 failed', share: false },
-]
+test('cross-job selection creates one combined request with explicit source lines', async () => {
+  const groups = [
+    { requestId: 100, label: 'First job', itemIds: [200, 201] },
+    { requestId: 101, label: 'Second job', itemIds: [300] },
+  ]
+  const calls: { url: string; body: unknown }[] = []
+  const events: unknown[] = []
+  await runCreate(groups, 11, false, async (url: string, init: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init.body)) })
+    return { ok: true, json: async () => ({ id: 42 }) }
+  }, (message: string) => events.push(message),
+  (busy: boolean) => events.push(busy), () => events.push('refresh'), () => events.push('close'),
+  (error: string) => { if (error) events.push(error) }, true)
+  assert.deepEqual(calls, [{ url: '/api/availability-requests', body: {
+    jobRequestIds: [100, 101], supplierId: 11, shareCustomerDetails: false,
+    consolidateItems: true, itemIds: [200, 201, 300],
+  } }])
+  assert.deepEqual(events, [true, 'Availability request created', 'refresh', 'close', false])
+})
 
-for (const { name, supplierId, outcomes, expected, share } of cases) {
-  test(`${name}: accurate creation toast, unchanged payloads and completion callbacks`, async () => {
-    const groups = outcomes.map((_, index) => ({
-      requestId: 100 + index, label: `Job ${index}`, itemIds: [200 + index, 300 + index],
-    }))
-    const originalGroups = structuredClone(groups)
-    const calls: { url: string; init: RequestInit }[] = []
-    const events: unknown[] = []
-    await runCreate(groups, supplierId, share, async (url: string, init: RequestInit) => {
-      const outcome = outcomes[calls.length]
-      calls.push({ url, init })
-      if (outcome === 'network-error') throw new Error('Network unavailable')
-      return {
-        ok: outcome === 'success',
-        json: async () => {
-          // Success does not need a link or supplier-type response to say created.
-          assert.notEqual(outcome, 'success', 'successful response body must not be inspected')
-          if (outcome === 'malformed-error') throw new SyntaxError('Invalid JSON')
-          return { error: 'Creation failed' }
-        },
-      }
-    }, (message: string) => events.push(message),
-    (busy: boolean) => events.push(busy),
-    () => events.push('refresh'), () => events.push('close'))
+for (const network of [false, true]) test(`failed combined request retains selection and dialog (${network ? 'network' : 'HTTP'})`, async () => {
+  const events: unknown[] = []
+  await runCreate([{ requestId: 100, itemIds: [200] }], 11, false, async () => {
+    if (network) throw new Error('Network unavailable')
+    return { ok: false, json: async () => ({ error: 'Creation failed' }) }
+  }, () => assert.fail('No success toast'), (busy: boolean) => events.push(busy),
+  () => assert.fail('Keep selection'), () => assert.fail('Keep dialog'),
+  (error: string) => { if (error) events.push(error) }, false)
+  assert.deepEqual(events, [true, network ? 'Network unavailable' : 'Creation failed', false])
+})
 
-    assert.deepEqual(events, [true, false, expected, 'refresh', 'close'])
-    assert.doesNotMatch(expected, /sent|emailed/i)
-    assert.deepEqual(groups, originalGroups, 'selected lines must not be mutated')
-    assert.deepEqual(calls, groups.map((group) => ({
-      url: '/api/availability-requests',
-      init: {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          jobRequestId: group.requestId, supplierId, shareCustomerDetails: share, itemIds: group.itemIds,
-        }),
-      },
-    })), 'only the existing per-job create calls are made; no email or other calls')
-  })
-}
-
-test('no supplier selection still returns without any side effects', async () => {
+test('no supplier selection returns without side effects', async () => {
   const unexpected = () => assert.fail('no side effects without a selected supplier')
-  await runCreate([], null, false, unexpected, unexpected, unexpected, unexpected, unexpected)
+  await runCreate([], null, false, unexpected, unexpected, unexpected, unexpected, unexpected, unexpected, false)
 })

@@ -23,6 +23,8 @@ interface RequestRecord {
   customer_id: number | null
   name: string | null
   status: string
+  expected_install_date: string | null
+  fulfillment_method: 'pickup' | 'delivery' | null
   billing_address: string | null
   billing_city: string | null
   billing_state: string | null
@@ -122,7 +124,7 @@ function toItem(r: ItemRecord): JobRequestItem {
 }
 
 const REQUEST_COLUMNS =
-  'id, customer_id, name, status, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, customer_notes, sourcing_notes, external_notes, created_at, updated_at'
+  'id, customer_id, name, status, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, customer_notes, sourcing_notes, external_notes, created_at, updated_at'
 
 /**
  * Take the next job-request id without creating the row.
@@ -167,6 +169,8 @@ function toRow(
     id: r.id,
     name: r.name,
     status: r.status,
+    expectedInstallDate: r.expected_install_date,
+    fulfillmentMethod: r.fulfillment_method,
     customer,
     billing: addressOf(r.billing_address, r.billing_city, r.billing_state, r.billing_zip),
     shipping: addressOf(r.shipping_address, r.shipping_city, r.shipping_state, r.shipping_zip),
@@ -509,20 +513,9 @@ async function countWhere(table: string, column: string, values: number[]): Prom
 }
 
 /**
- * Delete one job request and everything hanging off it — **permanently**.
- *
- * A hard delete, not the `is_active` soft delete the suppliers table uses, and
- * for a reason: the availability requests a job produced are read by *supplier
- * id* in their own portal, not through the job's `is_active`, so retiring the
- * job would leave a supplier answering an ask for a job that no longer exists.
- * "Delete the request" has to mean the ask goes too.
- *
- * The cascade is the database's own (migrations 0055/0062): `job_request_items`,
- * `job_request_changelog` and `availability_requests` all reference
- * `job_requests` ON DELETE CASCADE, and `availability_request_items` cascades
- * from its request. This counts what is about to go before issuing the one
- * DELETE, because afterwards there is nothing left to count.
- *
+ * Permanently delete the job, its demand lines and its change history.
+ * Migration 0092 preserves supplier asks, answers and orders. Shared asks stay
+ * open for surviving jobs; orphaned asks close and revoke their public links.
  * Returns null if there is no such request.
  */
 export async function deleteJobRequest(id: number): Promise<JobRequestDeletion | null> {
@@ -534,12 +527,12 @@ export async function deleteJobRequest(id: number): Promise<JobRequestDeletion |
   if (findError) throw new Error(`job_requests: ${findError.message}`)
   if (!found) return null
 
-  const { data: ars, error: arError } = await supabase
-    .from('availability_requests')
-    .select('id')
+  const { data: links, error: arError } = await supabase
+    .from('availability_request_jobs')
+    .select('availability_request_id')
     .eq('job_request_id', id)
-  if (arError) throw new Error(`availability_requests: ${arError.message}`)
-  const arIds = ((ars ?? []) as { id: number }[]).map((r) => r.id)
+  if (arError) throw new Error(`availability_request_jobs: ${arError.message}`)
+  const arIds = (links ?? []).map((row) => row.availability_request_id)
 
   const [items, changelog, arItems] = await Promise.all([
     countWhere('job_request_items', 'job_request_id', [id]),
@@ -552,10 +545,10 @@ export async function deleteJobRequest(id: number): Promise<JobRequestDeletion |
 
   return {
     items,
-    availabilityRequests: arIds.length,
-    availabilityRequestItems: arItems,
+    availabilityRequests: 0,
+    availabilityRequestItems: 0,
     changelog,
-    answers: 0,
+    answers: arItems,
   }
 }
 

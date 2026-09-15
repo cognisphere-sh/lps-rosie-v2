@@ -31,6 +31,7 @@ import {
   buildRequestListUrl,
   normalizeStoredRequestStatusLabels,
 } from '@/lib/request-list-state'
+import { isApsSupplier } from '@/lib/orders'
 import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { useDebouncedSearch } from '@/lib/use-debounced'
 import { useJobUpdates } from '@/lib/use-job-updates'
@@ -44,21 +45,14 @@ const OPEN_STATUSES = REQUEST_STATUS_OPTIONS.map((o) => o.label)
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v) => b.includes(v))
 
-/** The selected lines of one request — an availability request is per job. */
+/** The selected lines grouped by their source job. */
 interface ARGroup {
   requestId: number
   label: string
   itemIds: number[]
 }
 
-/**
- * Send the selected lines to an LPS Partner as an availability request.
- *
- * One request per job: a selection spanning several jobs creates one per job,
- * because `availability_requests` ties a supplier's answer to the job it is
- * for. Only LPS Partners are offered — everyone else is reached through
- * their conversation thread (via daisy), not a portal they will never open.
- */
+/** Send selected lines from one or more jobs in a combined supplier request. */
 function AvailabilityRequestDialog({
   groups,
   onClose,
@@ -75,6 +69,9 @@ function AvailabilityRequestDialog({
   const [loaded, setLoaded] = useState(false)
   const [supplierId, setSupplierId] = useState<number | null>(null)
   const [share, setShare] = useState(false)
+  const [consolidate, setConsolidate] = useState(false)
+  const [quoteReady, setQuoteReady] = useState(false)
+  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -83,6 +80,7 @@ function AvailabilityRequestDialog({
       if (res.ok) {
         const body = (await res.json()) as { suppliers: typeof suppliers }
         setSuppliers(body.suppliers)
+        setSupplierId(body.suppliers.find((supplier) => isApsSupplier(supplier.name))?.id ?? null)
       }
       setLoaded(true)
     })().catch(() => setLoaded(true))
@@ -92,38 +90,23 @@ function AvailabilityRequestDialog({
   const create = async () => {
     if (supplierId == null) return
     setBusy(true)
-    const results = await Promise.allSettled(
-      groups.map((g) =>
-        fetch('/api/availability-requests', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            jobRequestId: g.requestId,
-            supplierId,
-            shareCustomerDetails: share,
-            itemIds: g.itemIds,
-          }),
-        }).then(async (res) => {
-          if (!res.ok) {
-            const body = (await res.json().catch(() => ({}))) as { error?: string }
-            throw new Error(body.error ?? 'failed')
-          }
+    setError('')
+    try {
+      const res = await fetch('/api/availability-requests', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jobRequestIds: groups.map((group) => group.requestId), supplierId,
+          shareCustomerDetails: share, consolidateItems: consolidate,
+          itemIds: groups.flatMap((group) => group.itemIds),
         }),
-      ),
-    )
-    setBusy(false)
-    const failed = results.filter((r) => r.status === 'rejected').length
-    if (failed) {
-      toast(`${groups.length - failed} of ${groups.length} created · ${failed} failed`)
-    } else {
-      toast(
-        groups.length === 1
-          ? 'Availability request created'
-          : `${groups.length} availability requests created`,
-      )
-    }
-    onCreated()
-    onClose()
+      })
+      const body = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not create availability request')
+      toast('Availability request created')
+      onCreated()
+      onClose()
+    } catch (e) { setError((e as Error).message) }
+    finally { setBusy(false) }
   }
 
   return (
@@ -145,7 +128,7 @@ function AvailabilityRequestDialog({
           ))}
           {groups.length > 1 && (
             <span className="text-[11px] text-muted-foreground">
-              One request per job will be created.
+              One combined availability request will be created.
             </span>
           )}
         </div>
@@ -175,6 +158,16 @@ function AvailabilityRequestDialog({
           )}
         </label>
 
+        <p className="text-[12px] text-muted-foreground">Generate the quote using APS pricing first. Quick quotes stop at Quote; send availability only when Chris approves.</p>
+        <label className="flex items-center gap-2 text-[12.5px]">
+          <input type="checkbox" checked={quoteReady} onChange={(event) => setQuoteReady(event.target.checked)} />
+          Quote prepared; Chris approved sending availability
+        </label>
+        {groups.length > 1 && <label className="flex items-center gap-2 text-[12.5px]">
+          <input type="checkbox" checked={consolidate} onChange={(event) => setConsolidate(event.target.checked)} />
+          Combine identical plant lines across jobs
+        </label>}
+        {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
         <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
           <input
             type="checkbox"
@@ -196,7 +189,7 @@ function AvailabilityRequestDialog({
           <button
             type="button"
             onClick={() => void create()}
-            disabled={busy || supplierId == null}
+            disabled={busy || supplierId == null || !quoteReady}
             className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-50"
           >
             {busy ? 'Sending…' : 'Send'}
@@ -207,18 +200,7 @@ function AvailabilityRequestDialog({
   )
 }
 
-/**
- * What can be done to a set of selected lines.
- *
- * Every action here is a write this app already owns. The design also offers
- * Email quote, Text quote, PDF quote and Place order; none of those are wired,
- * because none of them exist yet — rosie has no mailbox and may not contact a
- * customer unbidden (`docs/harness/agent-rosie.md`), and the order tables are
- * deferred by migration 0055. Buttons that only looked like they sent
- * something would be worse than their absence. Send availability request *is*
- * wired since migration 0062 — it writes `availability_requests`, which is a
- * database row an LPS Partner reads in their portal, not outreach.
- */
+/** Bulk status edits and combined availability requests; Orders live on each job. */
 function SelectionBar({
   ids,
   onClear,
@@ -383,12 +365,12 @@ export default function RequestsPage() {
     [reload],
   )
 
-  // The drawer has already re-read the one AR it wrote. Patch that status into
+  // The drawer has already re-read the one AR it wrote. Patch its status/date into
   // the mounted cards instead of refetching the full request page and facets.
   useEffect(
-    () => onAvailabilityRequestStatusChanged(({ arId, status }) => {
+    () => onAvailabilityRequestStatusChanged(({ arId, status, submittedAt }) => {
       setRequests((current) => current.map((request) => {
-        const supplierLinks = withAvailabilityRequestStatus(request.supplierLinks, arId, status)
+        const supplierLinks = withAvailabilityRequestStatus(request.supplierLinks, arId, status, submittedAt)
         return supplierLinks === request.supplierLinks ? request : { ...request, supplierLinks }
       }))
     }),
@@ -753,8 +735,7 @@ export default function RequestsPage() {
         )}
         {arDialogOpen && (
           <AvailabilityRequestDialog
-            // Selected lines grouped by their request — an availability
-            // request is per job, so a cross-job selection creates one each.
+            // Each source job retains its allocation in the combined request.
             groups={requests.flatMap((r) => {
               const itemIds = r.items.filter((it) => selected.has(it.id)).map((it) => it.id)
               return itemIds.length

@@ -15,9 +15,55 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-15
+
+### Changed
+
+- Removed Confirmed from Job Request statuses. Existing Confirmed jobs and saved
+  filters map to Committed; supplier confirmation leaves the job at Committed.
+  Orders retain their Confirmed stage and confirmation dates. Updated Rosie and
+  Daisy skills/prompts for the separate job and order lifecycles. Applied and
+  verified migration 0093 on the live database; all existing records were preserved.
+- Job request line notes now stay on one truncated line, with full text on hover
+  and formatted sourcing notes on click. Tab/Shift+Tab navigate cells across rows
+  and save text edits when moving to the next cell.
+
+- Added Active Jobs sidebar search across job references/names, customers,
+  plants/sizes and job/item notes. Filtering preserves the open job and existing
+  activity order and live updates.
+- Active Jobs cards show job/customer identity, sales status, a small unread
+  dot and a Created/EDD footer in MM-DD. Removed chat preview text, unread badge
+  prose and activity timestamp lines from the cards.
+- Job cards and focused headers show Created on, EDD and Fulfillment inline
+  in the existing header row. Availability headers likewise keep Created on and
+  each linked job’s EDD/Fulfillment pair inline, preserving separate schedules
+  on combined requests and wrapping when space is limited. EDD is the display
+  label for Expected install date; the field and editor keep their full name.
+  Dates use MM-DD; job AR links show bare submission dates for submitted
+  requests and creation dates for other stages. Full AR tags use yellow
+  backgrounds/text and dots for new and processing, green for submitted, and
+  gray without a dot for closed or unknown stages.
+- JR sourcing-note guidance now keeps one short latest entry per supplier and
+  one overall row summary with the selected supplier and price or pending
+  decision. Updates replace old state instead of accumulating event history.
+
 ## 2026-09-14
 
 ### Changed
+
+- Applied migration 0092 to the live Supabase database. Verified all existing
+  jobs and supplier responses were preserved, backfilled shared request/line
+  associations, and confirmed the new Orders tables, fields, permissions and API schema.
+
+- Job workflow now starts at Quote using APS pricing, stops for explicit quick quotes,
+  and requires Chris's approval before requesting availability or applying supplier
+  responses. Customer commitment creates Orders; supplier confirmation advances
+  them to Confirmed. Active is replaced by Quote and Committed is a separate stage.
+- Added job and supplier portal Orders tabs, split/combined order quantities,
+  Expected install date and Pickup / Delivery on jobs, and confirmation and
+  pickup/delivery dates on orders. Migration 0092 backfills many-to-many availability
+  associations and preserves shared supplier evidence when one job closes or is
+  deleted. Orders support Won/Lost closure and scoped supplier confirmation.
 
 - Job request plant status now displays Can Order instead of Need to Order.
   Existing saved filters restore the renamed label; stored status values stay the same.

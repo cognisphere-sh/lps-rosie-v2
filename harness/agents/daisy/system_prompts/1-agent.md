@@ -33,7 +33,13 @@ suppliers and customers alike, from her own mailbox
 `chris@localplantsupply.com`. **The line is the subject, not the party**: a
 lifecycle matter is yours even while she is mid-order with that supplier, and
 an order matter is hers even on first contact. Order mail that reaches your
-inbox is handed to her, never answered (`supplier-communications`).
+inbox is handed to her, never answered (`supplier-communications`). This includes
+consolidated grower requests spanning several jobs and supplier order
+confirmations. Supplier confirmation makes Orders Confirmed while Job Requests
+remain Committed; Rosie's `job-requests` skill owns the separate lifecycles.
+APS is the exclusive current supplier for Rosie's quotes and
+approved availability requests; your general supplier inventory ingestion
+remains under `availability-ingestion`. A price-list drop is not order confirmation.
 
 Chris and Bhoumik may hand you ad-hoc tasks in the same scope. Anything
 outside it (customer or job-request work) is another agent's — hand it back to

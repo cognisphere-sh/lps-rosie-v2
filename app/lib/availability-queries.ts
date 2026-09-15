@@ -4,12 +4,14 @@ import { randomUUID } from 'node:crypto'
 import type {
   ARDetail,
   ARItem,
+  ARJobSchedule,
   ARSummary,
   SupplierItemLine,
   SupplierLink,
 } from '@/lib/availability'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { supabase } from '@/lib/supabase'
+import { buildAvailabilitySnapshots } from '@/lib/availability-allocations'
 
 // The reads and writes behind availability requests (migration 0062).
 // Server-only for the same reason every other query module is: the client
@@ -18,7 +20,7 @@ import { supabase } from '@/lib/supabase'
 interface ARRecord {
   public_token: string | null
   id: number
-  job_request_id: number
+  job_request_id: number | null
   supplier_id: number
   share_customer_details: boolean
   status: string
@@ -72,17 +74,57 @@ async function supplierNames(ids: number[]): Promise<Map<number, string>> {
 /** id → job name for a set of requests, one query. */
 async function jobNames(ids: number[]): Promise<Map<number, string | null>> {
   if (!ids.length) return new Map()
-  const { data, error } = await supabase.from('job_requests').select('id, name').in('id', ids)
-  if (error) throw new Error(`job_requests: ${error.message}`)
+  const data = await availabilityLinks<{ id: number; name: string | null }>(supabase.from('job_requests')
+    .select('id, name').in('id', ids).order('id'))
   return new Map(
     (data ?? []).map((r) => [(r as { id: number }).id, (r as { name: string | null }).name]),
   )
 }
 
+/** Batch every linked job's schedule; source identity is admin-only metadata. */
+async function jobSchedules(ids: number[], includeJobIdentity: boolean): Promise<Map<number, ARJobSchedule>> {
+  if (!ids.length) return new Map()
+  const rows = await availabilityLinks<{
+    id: number
+    name: string | null
+    expected_install_date: string | null
+    fulfillment_method: 'pickup' | 'delivery' | null
+  }>(supabase.from('job_requests')
+    .select('id, name, expected_install_date, fulfillment_method').in('id', [...new Set(ids)]).order('id'))
+  return new Map(rows.map((job) => [job.id, {
+    ...(includeJobIdentity ? { jobRequestId: job.id, jobName: job.name } : {}),
+    expectedInstallDate: job.expected_install_date ?? null,
+    fulfillmentMethod: job.fulfillment_method ?? null,
+  }]))
+}
+
+/** Page junctions so combined grower requests retain all source associations. */
+async function availabilityLinks<T>(query: { range: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> }): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await query.range(from, from + 999)
+    if (error) throw new Error(error.message)
+    rows.push(...(data ?? []) as T[])
+    if ((data?.length ?? 0) < 1000) return rows
+  }
+}
+
+async function jobsByAvailability(ids: number[]): Promise<Map<number, number[]>> {
+  const result = new Map<number, number[]>()
+  if (!ids.length) return result
+  const data = await availabilityLinks<{ availability_request_id: number; job_request_id: number }>(supabase.from('availability_request_jobs')
+    .select('availability_request_id, job_request_id').in('availability_request_id', ids)
+    .order('availability_request_id').order('job_request_id'))
+  for (const row of data) result.set(row.availability_request_id,
+    [...(result.get(row.availability_request_id) ?? []), row.job_request_id])
+  return result
+}
+
 async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
   if (!records.length) return []
   const suppliers = await supplierNames([...new Set(records.map((r) => r.supplier_id))])
-  const jobs = await jobNames([...new Set(records.map((r) => r.job_request_id))])
+  const linkedJobs = await jobsByAvailability(records.map((r) => r.id))
+  const jobs = await jobNames([...new Set([...linkedJobs.values()].flat())])
 
   // Counts over every request at once — a list of forty must not be forty queries.
   const { data, error } = await supabase
@@ -102,8 +144,9 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
   return records.map((r) => ({
     publicToken: r.public_token,
     id: r.id,
-    jobRequestId: r.job_request_id,
-    jobName: jobs.get(r.job_request_id) ?? null,
+    jobRequestId: linkedJobs.get(r.id)?.[0] ?? r.job_request_id,
+    jobRequestIds: linkedJobs.get(r.id) ?? [],
+    jobName: (linkedJobs.get(r.id) ?? []).map((id) => jobs.get(id) || `JR-${id}`).join(' · ') || null,
     supplierId: r.supplier_id,
     supplierName: suppliers.get(r.supplier_id) ?? `Supplier ${r.supplier_id}`,
     shareCustomerDetails: r.share_customer_details,
@@ -129,7 +172,12 @@ export async function listAvailabilityRequests(scope: {
     .order('created_at', { ascending: false })
     .limit(500)
   if (scope.supplierIds?.length) q = q.in('supplier_id', scope.supplierIds)
-  if (scope.jobRequestId != null) q = q.eq('job_request_id', scope.jobRequestId)
+  if (scope.jobRequestId != null) {
+    const links = await availabilityLinks<{ availability_request_id: number }>(supabase.from('availability_request_jobs')
+      .select('availability_request_id').eq('job_request_id', scope.jobRequestId).order('availability_request_id'))
+    if (!links?.length) return []
+    q = q.in('id', links.map((link) => link.availability_request_id))
+  }
   const { data, error } = await q
   if (error) throw new Error(`availability_requests: ${error.message}`)
   return summarize((data ?? []) as ARRecord[])
@@ -161,6 +209,7 @@ export async function availabilityRequest(
   if (opts.forSupplierId != null && ar.supplier_id !== opts.forSupplierId) return null
 
   const [summary] = await summarize([ar])
+  const schedules = await jobSchedules(summary.jobRequestIds ?? [], opts.forSupplierId == null)
 
   const { data: itemData, error: itemErr } = await supabase
     .from('availability_request_items')
@@ -170,16 +219,21 @@ export async function availabilityRequest(
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`availability_request_items: ${itemErr.message}`)
 
+  const allocations = itemData?.length ? await availabilityLinks<{ availability_request_item_id: number; job_request_item_id: number; quantity: number | null }>(supabase.from('availability_request_item_jobs')
+    .select('availability_request_item_id, job_request_item_id, quantity')
+    .in('availability_request_item_id', itemData.map((item) => item.id))
+    .order('availability_request_item_id').order('job_request_item_id')) : []
+
   // Who the job is for — only crosses the line to the supplier when the
   // request was created with `share_customer_details`.
   let customer: ARDetail['customer'] = null
   let shipping: ARDetail['shipping'] = null
-  const disclose = opts.forSupplierId == null || ar.share_customer_details
+  const disclose = (summary.jobRequestIds?.length ?? 0) === 1 && (opts.forSupplierId == null || ar.share_customer_details)
   if (disclose) {
     const { data: job, error: jobErr } = await supabase
       .from('job_requests')
       .select('customer_id, shipping_address, shipping_city, shipping_state, shipping_zip')
-      .eq('id', ar.job_request_id)
+      .eq('id', summary.jobRequestId)
       .maybeSingle()
     if (jobErr) throw new Error(`job_requests: ${jobErr.message}`)
     if (job) {
@@ -211,7 +265,13 @@ export async function availabilityRequest(
   return {
     ...summary,
     publicToken: opts.forSupplierId == null || opts.includeSharing ? summary.publicToken : undefined,
-    items: ((itemData ?? []) as ARItemRecord[]).map(toARItem),
+    jobSchedules: [...schedules.values()],
+    items: ((itemData ?? []) as ARItemRecord[]).map((item) => ({
+      ...toARItem(item),
+      ...(opts.forSupplierId == null ? { allocations: (allocations ?? [])
+        .filter((allocation) => allocation.availability_request_item_id === item.id)
+        .map((allocation) => ({ jobRequestItemId: allocation.job_request_item_id, quantity: allocation.quantity })) } : {}),
+    })),
     customer,
     shipping,
   }
@@ -278,7 +338,9 @@ async function catalogPrices(
  * the only thing that says a line has been answered.
  */
 export async function createAvailabilityRequest(input: {
-  jobRequestId: number
+  jobRequestId?: number
+  jobRequestIds?: number[]
+  consolidateItems?: boolean
   supplierId: number
   shareCustomerDetails: boolean
   isPublic?: boolean
@@ -293,60 +355,28 @@ export async function createAvailabilityRequest(input: {
   const supplier = sup as { is_lps_partner: boolean; is_active: boolean } | null
   if (!supplier?.is_active) throw new Error('supplier not found')
 
-  if (!input.itemIds.length) throw new Error('at least one line is required')
+  const jobIds = [...new Set(input.jobRequestIds ?? (input.jobRequestId != null ? [input.jobRequestId] : []))]
+  const itemIds = [...new Set(input.itemIds)]
+  if (!itemIds.length || !jobIds.length) throw new Error('At least one job and line are required')
   const { data: items, error: itemErr } = await supabase
     .from('job_request_items')
-    .select('id, name, size, quantity')
-    .in('id', input.itemIds)
-    .eq('job_request_id', input.jobRequestId)
+    .select('id, job_request_id, name, size, quantity')
+    .in('id', itemIds)
+    .in('job_request_id', jobIds)
     .eq('is_active', true)
   if (itemErr) throw new Error(`job_request_items: ${itemErr.message}`)
-  if (!items?.length) throw new Error('no active lines of this request match the selection')
-
-  const lines = items as {
-    id: number
-    name: string
-    size: string | null
-    quantity: number | null
-  }[]
-  const { prices, fetched } = await catalogPrices(input.supplierId, lines)
-  if (fetched) {
-    const { error: progressError } = await supabase.rpc('record_job_workflow_event', {
-      p_job_request_id: input.jobRequestId, p_event: 'pricing_fetched',
-    })
-    if (progressError) throw new Error(`job workflow: ${progressError.message}`)
-  }
-
-  const { data: created, error: arErr } = await supabase
-    .from('availability_requests')
-    .insert({
-      job_request_id: input.jobRequestId,
-      supplier_id: input.supplierId,
-      share_customer_details: input.shareCustomerDetails,
-      public_token: input.isPublic || !supplier.is_lps_partner ? randomUUID() : null,
-    })
-    .select('id')
-    .single()
-  if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
-  const arId = (created as { id: number }).id
-
-  const { error: insErr } = await supabase.from('availability_request_items').insert(
-    lines.map((it) => ({
-      availability_request_id: arId,
-      job_request_item_id: it.id,
-      name: it.name,
-      size: it.size,
-      quantity: it.quantity,
-      unit_price: prices.get(it.id) ?? null,
-    })),
-  )
-  if (insErr) {
-    // Don't leave a request with no lines behind the failure.
-    await supabase.from('availability_requests').delete().eq('id', arId)
-    throw new Error(`availability_request_items: ${insErr.message}`)
-  }
-
-  return arId
+  if (items?.length !== itemIds.length) throw new Error('Every selected line must belong to an active line of the selected jobs')
+  const lines = items as { id: number; job_request_id: number; name: string; size: string | null; quantity: number | null }[]
+  const { prices } = await catalogPrices(input.supplierId, lines)
+  const snapshots = buildAvailabilitySnapshots(lines, prices, input.consolidateItems ?? false)
+  const { data: arId, error } = await supabase.rpc('create_availability_request', {
+    p_supplier_id: input.supplierId,
+    p_items: snapshots,
+    p_share_customer_details: input.shareCustomerDetails,
+    p_public_token: input.isPublic || !supplier.is_lps_partner ? randomUUID() : null,
+  })
+  if (error) throw new Error(`availability request: ${error.message}`)
+  return Number(arId)
 }
 
 /** Save an answer and its Processing state together under the request's row lock. */
@@ -440,6 +470,7 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
   if (!records.length) return []
 
   const summaries = await summarize(records)
+  const schedules = await jobSchedules(summaries.flatMap((summary) => summary.jobRequestIds ?? []), false)
 
   const { data: itemData, error: itemErr } = await supabase
     .from('availability_request_items')
@@ -464,7 +495,7 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
     shipping_state: string | null
     shipping_zip: string | null
   }
-  const sharedJobs = [...new Set(records.filter((r) => r.share_customer_details).map((r) => r.job_request_id))]
+  const sharedJobs = [...new Set(summaries.filter((r) => r.shareCustomerDetails && r.jobRequestIds?.length === 1).map((r) => r.jobRequestId).filter((id): id is number => id != null))]
   const jobById = new Map<number, SharedJob>()
   const customerById = new Map<number, ARDetail['customer']>()
   if (sharedJobs.length) {
@@ -490,9 +521,10 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
   }
 
   return summaries.map((summary) => {
-    const job = summary.shareCustomerDetails ? jobById.get(summary.jobRequestId) : undefined
+    const job = summary.shareCustomerDetails && summary.jobRequestIds?.length === 1 && summary.jobRequestId != null ? jobById.get(summary.jobRequestId) : undefined
     return {
       ...summary,
+      jobSchedules: (summary.jobRequestIds ?? []).flatMap((id) => schedules.has(id) ? [schedules.get(id)!] : []),
       items: itemsByAr.get(summary.id) ?? [],
       customer: job?.customer_id != null ? customerById.get(job.customer_id) ?? null : null,
       shipping: job
@@ -518,7 +550,7 @@ export async function supplierAvailabilityEventContext(arId: number, forSupplier
     .select('name, rosie_thread_id').eq('id', ar.supplier_id).single()
   if (error) throw new Error(error.message)
   return {
-    jobRequestId: ar.job_request_id as number,
+    jobRequestId: ar.job_request_id as number | null,
     supplierId: ar.supplier_id as number,
     supplierName: supplier.name as string,
     threadId: supplier.rosie_thread_id as string | null,
@@ -602,27 +634,36 @@ export async function supplierLinksByRequest(
 ): Promise<Record<number, SupplierLink[]>> {
   if (!jobRequestIds.length) return {}
 
+  const links = await availabilityLinks<{ availability_request_id: number; job_request_id: number }>(supabase.from('availability_request_jobs')
+    .select('availability_request_id, job_request_id').in('job_request_id', jobRequestIds)
+    .order('availability_request_id').order('job_request_id'))
+  if (!links?.length) return {}
   const { data: ars, error: arErr } = await supabase
     .from('availability_requests')
-    .select('id, job_request_id, supplier_id, status, created_at')
-    .in('job_request_id', jobRequestIds)
+    .select('id, supplier_id, status, created_at, submitted_at')
+    .in('id', [...new Set(links.map((link) => link.availability_request_id))])
     .eq('is_active', true)
     .order('created_at', { ascending: false })
   if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
+  const linkedRequests = (ars ?? []).flatMap((ar) => links
+    .filter((link) => link.availability_request_id === ar.id)
+    .map((link) => ({ ...ar, job_request_id: link.job_request_id })))
 
   // job → supplier → every AR link, newest first (the AR list is newest-first).
-  const engaged = new Map<number, Map<number, { id: number; status: string }[]>>()
-  for (const r of (ars ?? []) as {
+  const engaged = new Map<number, Map<number, SupplierLink['availabilityRequests']>>()
+  for (const r of linkedRequests as {
     id: number
     job_request_id: number
     supplier_id: number
     status: string
+    created_at: string | null
+    submitted_at: string | null
   }[]) {
     const bySupplier =
-      engaged.get(r.job_request_id) ?? new Map<number, { id: number; status: string }[]>()
+      engaged.get(r.job_request_id) ?? new Map<number, SupplierLink['availabilityRequests']>()
     bySupplier.set(r.supplier_id, [
       ...(bySupplier.get(r.supplier_id) ?? []),
-      { id: r.id, status: r.status },
+      { id: r.id, status: r.status, createdAt: r.created_at ?? null, submittedAt: r.submitted_at ?? null },
     ])
     engaged.set(r.job_request_id, bySupplier)
   }
@@ -706,12 +747,14 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
   const items = (itemData ?? []) as (ARItemRecord & { mapped_inventory_id: string | null })[]
   if (!items.length) return []
 
-  const jobs = await jobNames([...new Set(ars.map((r) => r.job_request_id))])
+  const linkedJobs = await jobsByAvailability(ars.map((r) => r.id))
+  const jobs = await jobNames([...new Set([...linkedJobs.values()].flat())])
 
   // Who each job is for — fetched **only** for the requests that were shared
   // with customer details, so a request that wasn't cannot leak one through
   // this route any more than through the cards.
-  const customerByJob = await sharedCustomerNames(ars)
+  const customerByJob = await sharedCustomerNames(ars.filter((ar) => linkedJobs.get(ar.id)?.length === 1)
+    .map((ar) => ({ ...ar, job_request_id: linkedJobs.get(ar.id)![0] })))
 
   // The mapped catalogue rows. A mapping whose row has since been retired
   // keeps its id and resolves to no name — the group falls back to what the
@@ -734,7 +777,8 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
     const ar = arById.get(raw.availability_request_id)
     if (!ar) return []
     const inv = raw.mapped_inventory_id ? invById.get(raw.mapped_inventory_id) : undefined
-    const jobName = jobs.get(ar.job_request_id) ?? null
+    const sourceJobs = linkedJobs.get(ar.id) ?? []
+    const jobName = sourceJobs.map((id) => jobs.get(id) || `JR-${id}`).join(' · ') || null
     return [{
       ...toARItem(raw),
       arId: ar.id,
@@ -742,8 +786,8 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
       arCreatedAt: ar.created_at,
       // The same name and redaction the portal's own cards use.
       arName: jobName ? redactPartnerRequestRefs(jobName) : 'Availability request',
-      arCustomer: ar.share_customer_details
-        ? customerByJob.get(ar.job_request_id) ?? null
+      arCustomer: ar.share_customer_details && sourceJobs.length === 1
+        ? customerByJob.get(sourceJobs[0]) ?? null
         : null,
       mappedInventoryId: raw.mapped_inventory_id,
       mappedName: inv?.name ?? null,
@@ -760,7 +804,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
  * flag never reaches either query.
  */
 async function sharedCustomerNames(ars: ARRecord[]): Promise<Map<number, string>> {
-  const jobIds = [...new Set(ars.filter((r) => r.share_customer_details).map((r) => r.job_request_id))]
+  const jobIds = [...new Set(ars.filter((r) => r.share_customer_details).map((r) => r.job_request_id).filter((id): id is number => id != null))]
   if (!jobIds.length) return new Map()
 
   const { data: jobData, error: jobErr } = await supabase

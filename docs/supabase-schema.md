@@ -20,6 +20,8 @@ migration 0049, the photo catalogue on 2026-08-16 after migration 0051, and
 the customer/job-request tables on 2026-08-17 when migrations 0055 and 0056
 created them, and the web-chat tables (`threads`, `thread_messages`) on
 2026-08-26 when migrations 0078–0080 created them.
+The job/order/availability workflow was re-verified live on 2026-09-14 after
+migration 0092, including allocation backfills, permissions and Realtime tables.
 **If you find a discrepancy, fix this file in the same change.**
 
 Applied migrations live in `harness/agents/daisy/migrations/`.
@@ -771,11 +773,13 @@ so nothing about a customer row's lifecycle can silently take requests with it.
 | `id` | bigint identity | no | PK |
 | `customer_id` | bigint → `customers.id` ON DELETE SET NULL | yes | **Nullable** — anonymous intake, mapped later |
 | `name` | text | yes | **What the job is called** — "Riverbend patio planting". Written by rosie at intake and editable in the app; NULL renders as `JR-<id>`, which is an unnamed request's real name. Never generated from the id. Added 2026-08-18 (migration 0059) |
-| `status` | text | no, default `sourcing` | **CHECK**: `sourcing` (Active) \| `quoted` (Quote) \| `availability` (Availability) \| `confirmed` (Confirmed) \| `closed_won` (Won) \| `closed_lost` (Lost) \| `archived` (legacy, not selectable). Migration 0089 restores Availability separately from Quote without rewriting existing statuses/history. The first four stages stay active. Migration 0088 adds lifecycle hooks, updated by 0089: saved pricing/completed lookups or shared quotes advance Active → Quote; delivered partner requests/sent availability emails advance Active/Quote → Availability; explicit customer confirmation advances any pre-confirmation working stage → Confirmed. Repeated pricing/quote events preserve Availability; all events preserve Confirmed/terminal/inactive jobs. Terminal/deactivated jobs close their threads and availability requests; reopening restores each recorded availability stage |
+| `status` | text | no, default `quoted` | **CHECK**: `quoted` (Quote) \| `availability` (Availability) \| `committed` (Committed, customer confirmed) \| `closed_won` (Won) \| `closed_lost` (Lost) \| `archived` (legacy). Quote comes first; Chris approves sending availability. Customer commitment creates orders. Supplier confirmation stays on Orders; the job remains Committed until Won/Lost. Migration 0093 maps former Confirmed jobs to Committed, preserving Orders, dates and existing audit history. Closing a job closes its availability requests only when all their linked jobs are closed; reopening restores the recorded request state |
+| `expected_install_date` | date | yes | Expected installation date for the customer job (0092) |
+| `fulfillment_method` | text | yes | Requested `pickup` or `delivery` (0092) |
 | `billing_address` / `billing_city` / `billing_state` / `billing_zip` | text | yes | |
 | `shipping_address` / `shipping_city` / `shipping_state` / `shipping_zip` | text | yes | |
 | `customer_notes` | text | yes | **The customer's words, verbatim.** Evidence — never edited. Holds only what the structured columns don't: constraints, deadlines, conditions — not the plants, the address or the identity |
-| `sourcing_notes` | text | yes | **Ours.** Free text, edited in place. At request level it holds what changed about the *job* ("Delivery date 8/22 → 8/29"); a line's sourcing detail belongs on the line. Named `internal_notes` until migration 0061 |
+| `sourcing_notes` | text | yes | **Ours.** Free text, edited in place. At request level it holds the current job-wide sourcing outcome or blocker; a line's supplier offers and selection belong on the line. Keep current state, not event history. Named `internal_notes` until migration 0061 |
 | `external_notes` | text | yes | Written to be **shown to the customer** |
 | `rosie_thread_ref` | bigint → `threads.id` ON DELETE SET NULL | yes | **Derived**: the `threads` row for (rosie, `jr-<id>`), linked on insert by `job_requests_link_threads`. The thread **closes with the job** (`threads.closed_at`, set when `status` becomes `closed_won` / `closed_lost` / `archived` or `is_active` goes false; cleared when it comes back) and is **deleted with it** (`job_requests_drop_thread`, transcript cascades). Excluded from the changelog. Never write. Added 2026-08-26 (migrations 0078–0080) |
 | `is_active` | boolean | no, default true | Soft delete |
@@ -804,7 +808,7 @@ the search RPCs and key columns, downstream.
 | `total` | numeric(12,2) | — | **`GENERATED ALWAYS AS (quantity * unit_price) STORED`** — never write it. NULL until both parts exist |
 | `status` | text | no, default `pending` | **CHECK**: `available` \| `unavailable` \| `alternative_proposed` (Diff Sz/Qnty/Sub) \| `need_to_order` (Can Order) \| `arriving_soon` (Arriving Soon) \| `pending`. Migration 0083 adds ordering/arrival states, preserving prior values and notes. Status changes do not place orders |
 | `customer_notes` | text | yes | The customer's words about this line, verbatim — and **only what no other column holds**. Not a restatement of `name`/`size`/`quantity`: constraints, preferences and conditions, not the ask (`job-requests` skill, §4) |
-| `sourcing_notes` | text | yes | **The sourcing sheet** — free text, edited in place, a terse line per supplier (`APS: $26/unit, availability requested`). Updated rather than appended to: the changelog holds what a line said before. Free text is allowed; nothing enforces the shape. Named `internal_notes` until migration 0061 |
+| `sourcing_notes` | text | yes | **The sourcing sheet** — free text, edited in place, one current line per supplier (size/name/variant, price, latest AR status, relevant alternative) plus one row summary (selected supplier/price or pending decision). Replace superseded updates rather than accumulating history: the changelog holds what a line said before. Free text is allowed; nothing enforces the shape. Named `internal_notes` until migration 0061 |
 | `external_notes` | text | yes | **Customer-visible.** A quantity change or a substitution is **named** here in the same change that makes it — what the customer is being offered, never why (`job-requests` §4). Sizes are written `XX G` |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
@@ -834,7 +838,7 @@ changed under you since you last looked.
 
 ### `availability_requests`
 
-One availability ask, from one job request to one active supplier. LPS Partners
+One availability ask, combining demand from one or more job requests for one active supplier. LPS Partners
 (`suppliers.is_lps_partner`) receive it in their portal; non-partners receive an
 HTML email and request-specific public response URL. Added 2026-08-19 by migration
 0062. Created by the app (Job Requests page → selection bar) or by rosie's
@@ -849,7 +853,7 @@ a supplier save. Migration 0088 adds the lifecycle hooks described below.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint identity | no | PK. Rendered `AR-<id>` |
-| `job_request_id` | bigint → `job_requests.id` ON DELETE CASCADE | no | |
+| `job_request_id` | bigint → `job_requests.id` ON DELETE SET NULL | yes | Legacy primary-job hint. Read `availability_request_jobs` for all associated jobs; deleting one job preserves the supplier request and answers (0092) |
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
 | `share_customer_details` | boolean | no, default false | Whether the portal shows the supplier who the job is for (customer name/company/contact routes and shipping address). Default is not to |
 | `status` | text | no, default `new` | **CHECK**: `new` \| `processing` \| `submitted` \| `closed` (`processing` added 2026-08-26, migration 0075). `new` = New, waiting on them (also re-set when LPS adds a line to a worked request); `processing` = Processing, answers saved but not submitted; `submitted` = Completed, explicit submission; `closed` = Closed, supplier edits rejected. Editing a Completed answer returns it to Processing; catalogue prices seeded on inserted lines leave it New |
@@ -862,16 +866,33 @@ a supplier save. Migration 0088 adds the lifecycle hooks described below.
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
 
 `record_job_workflow_event(p_job_request_id bigint, p_event text)` returns the
-stored job stage. Supported events are `pricing_fetched` (including a completed
-lookup with no match), `availability_sent`, `quote_shared` and
-`customer_confirmed`. Migration 0089 separates the working stages:
-`pricing_fetched`/`quote_shared` advance Active → Quote; `availability_sent`
-advances Active/Quote → Availability; confirmation advances Active/Quote/Availability
-→ Confirmed. Pricing/quote events never regress Availability. Stale events never regress
-Confirmed or reopen a closed/inactive job. Existing job changelog triggers audit
-the stage change. A quick quote records a job and its thread, fetches pricing and
-advances the job without creating an availability request; a general price
-question does not create a job.
+stored job stage. Supported events are `pricing_fetched` (including no-match
+lookups), `availability_sent`, `quote_shared` and `customer_confirmed`.
+`supplier_confirmed` remains accepted for older callers and `confirm_order`, but
+is a no-op for job status since 0093. A job starts at Quote; pricing and quote
+events preserve its stage. Availability delivery advances Quote → Availability;
+customer confirmation advances Quote/Availability → Committed. Supplier
+confirmation is recorded on Orders while the job remains Committed. Stale events
+preserve later stages and never reopen terminal or inactive jobs. The job
+changelog audits changes without rewriting earlier entries.
+A quick quote uses APS pricing and stops at Quote; otherwise Rosie asks Chris
+before sending availability. Supplier answers require Chris's approval before
+being applied to job items.
+
+`create_availability_request(p_supplier_id bigint, p_items jsonb,
+p_share_customer_details boolean DEFAULT false, p_public_token uuid DEFAULT NULL)`
+returns the new request ID. Each item contains `name`, `size`, `quantity`,
+`unit_price`, optional `mapped_inventory_id` and `lps_notes`, plus
+`allocations: [{job_request_item_id, quantity}]`. It locks active jobs and creates
+the header, snapshots and all associations in one transaction. Known allocations
+must be positive and total the requested quantity; NULL preserves an unspecified
+quantity. Source prices remain catalogue evidence, not supplier answers. Partner
+request links advance every represented job to Availability. Legacy direct
+inserts also populate the link tables through compatibility triggers. Editing a
+single-job availability quantity updates its allocation in the same transaction.
+For combined lines, edit the allocations explicitly and then set their matching
+total in the same transaction; all allocations must be known and sum to the
+new total, or all must be NULL for a NULL total. No quantity split is guessed.
 
 `answer_availability_request(p_request_id bigint, p_supplier_id bigint,
 p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL,
@@ -886,7 +907,7 @@ function are executable only by `service_role` (and database owners).
 
 ### `availability_request_items`
 
-The lines shared with the supplier — one or more of the job request's lines,
+The lines shared with the supplier — each can combine several customer job lines,
 **snapshotted at share time**: `name`, `size`, `quantity` are *copied*, not
 joined, because what we asked a supplier is evidence — a later edit to the job
 request must not silently rewrite the question they are answering.
@@ -905,7 +926,7 @@ pointer at live data rather than evidence of what we asked.
 |---|---|---|---|
 | `id` | bigint identity | no | PK |
 | `availability_request_id` | bigint → `availability_requests.id` ON DELETE CASCADE | no | |
-| `job_request_item_id` | bigint → `job_request_items.id` ON DELETE SET NULL | yes | The traceback; SET NULL so a deleted line doesn't take the supplier's answer with it |
+| `job_request_item_id` | bigint → `job_request_items.id` ON DELETE SET NULL | yes | Legacy primary-line hint; use `availability_request_item_jobs` for all demand allocations. Deleting customer demand preserves the supplier snapshot |
 | `name` / `size` / `quantity` | text / text / numeric | no / yes / yes | **The ask, snapshotted.** `quantity` CHECK: null or `> 0` |
 | `mapped_inventory_id` | uuid → `inventory.id` ON DELETE SET NULL | yes | **The mapped plant** — this supplier's own catalogue row our look-up matched to the line (same plant, same size, unambiguously), and what `unit_price` was seeded from. **NULL is the normal, interesting case**: nothing on their list mapped, which is the line they are most likely to surprise us on. It is outside `AR_ITEM_COLUMNS` and outside `updateARItem()`'s answer whitelist (`{changes: {mapped_inventory_id}}` is still refused) — it is read by `listPortalItemLines()` and written by `setARItemMapping()`, a separate entry point precisely so a mapping cannot ride in on an answer write or the reverse. **Two writers**: rosie's supplier thread at share time, and **the supplier themselves**, in the portal's *By item* view, where dragging a line onto one of their own catalogue rows sets it (the row must belong to their own company, checked through `head_branch_id`). That makes it the one column of ours a supplier can move — it says *which of my rows this ask is about*, never what they are answering. `createAvailabilityRequest()` is not one — the app's dialog still seeds a price without recording the row, so a priced-but-unmapped line is an app-made request rather than a contradiction, and every pre-0077 line is NULL. Not backfilled — a mapping says *this is the row we asked from*, which a later re-run search cannot reconstruct. SET NULL because the catalogue is re-ingested and has twice been reset outright; a partial index covers the non-null rows. Added 2026-08-26 (migration 0077) |
 | `status` | text | yes | **CHECK**, in picker order: `available` (Available) \| `unavailable` (Unavailable) \| `diff_size_qty_sub` (Diff Sz/Qnty/Sub) \| `can_order` (Can Order) \| `arriving_soon` (Arriving Soon). **NULL = Pending**, the unanswered state, selectable last. Selecting Pending persists NULL and retains quantity, price and notes. Only a non-NULL status counts as answered; choosing a status does not place an order |
@@ -915,6 +936,78 @@ pointer at live data rather than evidence of what we asked.
 | `lps_notes` | text | yes | **LPS's brief note to the supplier about this line** — the substitute and price the inventory data mapped ("Substitute ok: Muskogee Crape Myrtle 30 G @ \$265/unit"), a special request from the customer, or a customer note worth the supplier's eyes. A few words; written at share time; rendered under the plant name in the portal; not in the portal PATCH whitelist, so never supplier-editable. Added 2026-08-23 (migration 0070; semantics broadened + request-level sibling by 0071) |
 | `is_active` | boolean | no, default true | Soft delete |
 | `created_at` / `updated_at` | timestamptz | no, default `now()` | `updated_at` by trigger |
+
+### Availability and order associations (0092)
+
+| Table | Columns | Relationship |
+|---|---|---|
+| `availability_request_jobs` | `availability_request_id`, `job_request_id` | Composite primary key. All jobs represented by an availability request; neither side is unique alone |
+| `availability_request_item_jobs` | `availability_request_item_id`, `job_request_item_id`, `quantity` | Composite key on the IDs; positive finite quantity, or NULL for unspecified demand. One supplier line can combine customer lines, and one customer line can appear in multiple asks |
+| `order_item_job_request_items` | `order_item_id`, `job_request_item_id`, `quantity` | Composite key on the IDs; positive finite quantity. Jobs can span orders and orders can span jobs |
+
+Association foreign keys cascade when their referenced row is deleted. Supplier
+availability and order snapshots survive deleting a customer job or line. A shared
+availability request stays editable while any linked job is active; closing or
+deleting its last active job closes it and revokes the public token. Reopening
+any associated job restores recorded availability state and rotates a formerly
+public token.
+
+### `orders` and `order_items` (0092)
+
+`orders` is the supplier commitment displayed in the supplier portal Orders tab
+and every associated job's Orders tab. An order is created only after explicit
+customer confirmation; availability and job status edits alone do not place one.
+
+| Order column | Type | Notes |
+|---|---|---|
+| `id` | bigint identity | PK; displayed as the order number |
+| `supplier_id` | bigint → `suppliers.id` | Required; deletion restricted to preserve orders |
+| `status` | text | `committed` (default), `confirmed`, `closed_won`, `closed_lost` |
+| `fulfillment_method` | text, nullable | `pickup` or `delivery` |
+| `confirmation_date` | date, nullable | Supplier confirmation date |
+| `fulfillment_date` | date, nullable | Scheduled pickup/delivery date |
+| `notes` | text, nullable | Order-level notes |
+| `is_active` | boolean | Default true |
+| `created_at` / `updated_at` | timestamptz | Default now; update trigger |
+
+`order_items` contains `id`, `order_id` (cascade), nullable
+`availability_request_item_id` (SET NULL), snapshotted `name`, `size`, positive
+finite `quantity`, nullable positive `unit_price`, generated `total`, `status`,
+`notes`, `is_active`, `created_at` and `updated_at`. The status vocabulary is
+`available`, `unavailable`, `diff_size_qty_sub`, `need_to_order`, `arriving_soon`,
+`pending`. Availability `can_order` becomes order **Need to Order**; supplier
+confirmation does not invent an available quantity or replace that status.
+
+`create_order(p_supplier_id bigint, p_items jsonb,
+p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL,
+p_notes text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false)` returns
+an order ID. `p_customer_confirmed` must be true. Items are
+`[{availability_request_item_id, allocations: [{job_request_item_id, quantity}]}]`.
+The transaction verifies active supplier/job ownership and answered availability,
+locks customer jobs and supplier requests, creates snapshots and allocations, and
+sets represented jobs to Committed. Quantities cannot exceed remaining customer
+demand, availability allocations or the supplier's offered quantity. `can_order`
+uses requested quantity as its cap because a supplier may need to procure stock
+that is currently unavailable. Lost orders release quantities; successful closed
+orders still consume them. Failed creation leaves no partial order.
+
+`confirm_order(p_order_id bigint, p_supplier_id bigint,
+p_confirmation_date date DEFAULT CURRENT_DATE, p_fulfillment_date date DEFAULT NULL)`
+checks supplier ownership and active order state, sets the Order to Confirmed,
+and records confirmation/dates. Associated jobs remain Committed; supplier
+confirmation no longer creates a separate job stage (0093). Creating a later
+order also leaves the associated job Committed. The Order's Confirmed status and
+confirmation-date behavior are unchanged.
+
+`close_order(p_order_id bigint, p_status text)` accepts `closed_won` or
+`closed_lost`. Once all of a job's active orders are terminal and they cover every active
+customer line's known quantity, the job closes Won when all succeeded, or Lost
+when any failed. Open orders and unallocated/unknown demand keep the job open;
+Chris can close a partially accepted job manually. Terminal order outcomes cannot
+be reclassified through this RPC.
+These RPCs execute only for `service_role` and database owners; server routes
+authorize the caller and supplier. The five new tables follow the existing
+`authenticated` full-access RLS policy and are published to `supabase_realtime`.
 
 ### `threads`
 
@@ -967,7 +1060,8 @@ one subscription on `threads` and relays changes to browsers over SSE
 
 Migration 0091 also publishes `job_requests`, `job_request_items`,
 `availability_requests`, `availability_request_items`, `customers` and
-`suppliers`. The same server subscription relays data-free job invalidations
+`suppliers`. Migration 0092 adds the availability associations, orders, order
+items and order allocations. The same server subscription relays data-free job invalidations
 to internal app sessions, which re-read the existing APIs. RLS policies and
 default replica identities are unchanged; deletes do not need old row bodies.
 
@@ -1289,14 +1383,17 @@ by default.
 | `trg_dedupe_plant_aliases` | plant_aliases | BEFORE INSERT | Skips normalized duplicates **in either orientation**, self-pairs, empty keys |
 | `set_head_branch` | suppliers | BEFORE INSERT OR UPDATE OF `head_branch_id` | Defaults `head_branch_id` to the row's own id, and rejects a value that would chain — pointing at a branch, or demoting a head that still has locations |
 | `trg_job_requests_changelog` / `trg_job_request_items_changelog` | job_requests, job_request_items | AFTER INSERT OR UPDATE | One function, `log_job_request_changes()`: writes the audit entry into `job_request_changelog` (full non-null row on insert, old/new diff on update, no-op updates skipped) |
-| `job_request_items_pricing_progress` | job_request_items | AFTER INSERT OR UPDATE OF `unit_price` | Migrations 0088/0089: a non-null price on an active line advances its Active job to Quote without confirming stock; later stages stay unchanged |
-| `availability_requests_job_progress` | availability_requests | AFTER INSERT | Migrations 0088/0089: creating an active partner request delivers it to the portal and advances its Active/Quote job to Availability. Non-partner email delivery is recorded after the actual send |
-| `guard_ar_public_link` | availability_requests | BEFORE INSERT OR UPDATE | Migration 0088: refuse active requests on closed jobs, allow public links for active suppliers, capture prior stage on closure, revoke closed/inactive public links, and stamp explicit completion |
-| `close_ar_on_job_status_change` | job_requests | AFTER UPDATE OF `status`, `is_active` | Migration 0088: close every linked request and revoke its public URL on terminal/deactivated jobs; restore recorded prior stages and rotate formerly public URLs when the job reopens |
+| `job_request_items_pricing_progress` | job_request_items | AFTER INSERT OR UPDATE OF `unit_price` | Records pricing work without confirming stock; since 0092 jobs already start at Quote and this event preserves every stage |
+| `availability_request_jobs_progress` | availability_request_jobs | AFTER INSERT | Migration 0092: each partner request association advances that job from Quote to Availability; non-partner email delivery is recorded after actual send |
+| `guard_ar_public_link` | availability_requests | BEFORE INSERT OR UPDATE | 0092 permits shared requests while any associated job remains open; retains active-supplier public-link checks, closure history, revocation and submission stamps |
+| `close_ar_on_job_status_change` | job_requests | AFTER UPDATE OF `status`, `is_active` | 0092 closes a shared request only after all linked jobs are terminal/inactive; reopening any job restores its recorded stage and rotates prior public links |
+| `job_requests_preserve_shared_availability` | job_requests | BEFORE DELETE | Closes/revokes requests losing their last active job while retaining shared supplier evidence |
+| `availability_requests_sync_job_anchor` / `availability_request_items_sync_job_anchor` / `availability_request_item_jobs_link` | availability_requests, availability_request_items, availability_request_item_jobs | AFTER INSERT OR UPDATE | Populate authoritative job and demand associations from legacy anchors and line allocations |
+| `availability_request_items_quantity_allocations` | availability_request_items | BEFORE UPDATE OF `quantity` | Keeps single-job allocations synchronized; permits combined total edits only after allocations have been explicitly updated to match |
 | `availability_request_items_guard` | availability_request_items | BEFORE INSERT OR UPDATE of ask, answer or mapping columns | Migration 0088: lock the parent request and reject writes to closed/inactive requests, including direct agent writes and supplier catalogue mapping |
 | `availability_request_items_processing` | availability_request_items | AFTER UPDATE of answer columns | Migration 0088: saved changed answers set Processing, including replies entered by an admin or agent; seeded insert prices do not count as supplier responses |
 | `availability_request_items_reopen` | availability_request_items | AFTER INSERT | `availability_request_reopen_on_new_line()`: puts the parent request back to `new` when it was `processing` or `submitted`. Adding a line to a request the supplier already worked on is a new question, and it must reach their portal's New tab whoever added it — the app or an agent script. `closed` is left alone; `submitted_at` is untouched, so the portal's button still reads *Re-Submit*. Added 2026-08-26 (migration 0075) |
-| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items, threads, app_users | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `thread_messages` — messages are append-only and never updated |
+| `handle_updated_at` | suppliers, supplier_contacts, inventory, contacts, plant_aliases, plant_photos, users, chat_sessions, availability_queries, customers, job_requests, job_request_items, availability_requests, availability_request_items, orders, order_items, threads, app_users | BEFORE UPDATE | Stamps `updated_at` (`moddatetime`). Deliberately not on `thread_messages` — messages are append-only and never updated |
 | `suppliers_link_threads` / `customers_link_threads` / `job_requests_link_threads` | suppliers, customers, job_requests | BEFORE INSERT (OR UPDATE OF the `*_thread_id` columns) | `link_thread(agent, id)`: upserts the `threads` row for the text id and sets the derived `*_thread_ref` FK. Job requests link `jr-<id>` on insert. Migration 0078 |
 | `job_requests_drop_thread` | job_requests | AFTER DELETE | Deletes the job's `threads` row (transcript cascades). Migration 0079 |
 | `job_requests_close_thread` | job_requests | AFTER INSERT OR UPDATE OF `status`, `is_active` | Sets `threads.closed_at` when the job is `closed_won` / `closed_lost` / `archived` or inactive; clears it otherwise. Migration 0080 |
@@ -1408,6 +1505,8 @@ Gmail OAuth tokens) included.
 | `job_request_changelog` | enabled | `authenticated` full access (added 2026-08-17, migration 0055). Its real write-protection is that only the trigger writes it in practice |
 | `availability_requests` | enabled | `authenticated` full access (added 2026-08-19, migration 0062) |
 | `availability_request_items` | enabled | `authenticated` full access (added 2026-08-19, migration 0062) |
+| `availability_request_jobs` / `availability_request_item_jobs` | enabled | `authenticated` full access (0092) |
+| `orders` / `order_items` / `order_item_job_request_items` | enabled | `authenticated` full access (0092) |
 
 **`anon` now reaches no application table at all** — verified against the live
 REST API, every table and both views return `[]`.
@@ -1549,13 +1648,9 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
 - Never write `job_request_items.total` (generated) and never insert into
   `job_request_changelog` (trigger-written). A writer that wants the changelog
   to name it opens its session with `SET app.actor TO '<name>'`.
-- **Job requests are hard-deleted, not retired.** The app's `/requests` page
-  issues a real `DELETE` on `job_requests` and `job_request_items` rather than
-  clearing `is_active`, because an availability request is read in the supplier
-  portal by supplier id and would outlive a merely retired job. The FKs above do
-  the rest: lines, changelog entries and availability requests (with their items)
-  cascade from the request; a deleted **line** cascades only its changelog,
-  since `availability_request_items.job_request_item_id` is ON DELETE SET NULL
-  so the supplier's answer survives without it. `log_job_request_changes()`
-  fires on INSERT/UPDATE only, so a delete leaves no entry — and would have
-  nothing to leave it on.
+- **Job requests are hard-deleted by the app.** Lines, their changelog and their
+  association rows cascade. Availability requests and supplier answers now
+  survive (0092): legacy anchors become NULL, and other jobs retain their links.
+  Shared orders and order snapshots also survive customer deletion. Requests
+  losing their last active job close and revoke public links. The job audit
+  trigger covers INSERT/UPDATE, so deletion itself leaves no changelog entry.

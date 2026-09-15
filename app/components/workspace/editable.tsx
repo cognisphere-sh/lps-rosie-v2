@@ -140,6 +140,7 @@ export function EditableText({
     <button
       ref={trigger}
       type="button"
+      data-cell-editor
       title={title ?? 'Click to edit'}
       disabled={busy}
       onClick={(e) => {

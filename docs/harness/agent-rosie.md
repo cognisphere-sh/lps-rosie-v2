@@ -9,89 +9,115 @@ continues the operational task.
 
 ## Workflow
 
-- Before asking questions, Rosie completes all authorized work that does not
-  depend on an answer: create/reuse the job/thread, create item rows from the
-  supplied details, research pricing and save supported updates. Missing
-  size/quantity/price stays NULL; unresolved alternatives retain the original
-  wording without choosing or duplicating demand. She posts completed work,
-  pricing and other findings to the requester.
-  She may ask any clarifying question about the order. Remaining uncertainty
-  affecting a quote or availability request is resolved before generating
-  that output, including quick quotes and automatically published APS ARs.
-  She continues independent work while waiting and uses details already
-  supplied; a clear request needs no extra questions.
-- A new order creates a job and its `jr-<id>` thread in **Active**. Intake may
-  reserve an id before the job exists. The job thread creates the row and
-  item snapshots; unknown customer/job names stay NULL rather than invented.
-- An explicit **quick quote also creates a job/thread**, or uses the existing
-  job, but creates/sends **no availability request**. It uses APS or the
-  explicitly named supplier's inventory pricing. A simple pricing lookup or
-  general question creates neither a job nor an AR.
-- APS (`suppliers.id = 1`) is the current default for ordinary jobs. Its
-  private portal availability request publishes automatically, with no
-  additional send approval. Preserve customer-details sharing preferences.
-  Missing APS inventory prompts an offer to search other suppliers; that
-  wider search waits for instruction. Future supplier-selection criteria
-  are not implemented.
-- Partner requests use their portal; non-partner requests use a public AR
-  URL plus an HTML email containing that link. The email still follows the
-  specific-draft approval rule unless the action is already authorized.
-- Supplier lookups are answered in Chris's original chat first, including
-  searches for an existing job. Research alone adds no sourcing notes and
-  starts no supplier outreach or availability request. Notes require an AR
-  actually delivered/sent to that supplier, a concrete required supplier
-  action, Chris's explicit instruction to record them or an explicit supplier
-  selection/plant-sourcing decision. An unsent request
-  is recorded only for a real pending action or explicit note instruction,
-  and is labelled accurately. Quick-quote pricing alone adds no sourcing notes.
-- Inventory prices do not confirm availability. Rosie surfaces supplier
-  responses to Chris without automatically changing job/item availability,
-  status, available quantities, AR answers or selected supplier. Explicit
-  Chris instructions are required for agent-written availability changes;
-  supplier-entered portal answers remain as saved. Multiple suppliers' responses
-  stay separate. Qualifying sourcing notes use
-  Markdown: `**<u>Supplier name</u>**`, then short keywords and tracking numbers
-  for price, size, quantity, AR/status, ETA, required action and explicit plant
-  sourcing decisions such as `Selected by Chris` or `30 G approved`. No tables,
-  pipe-delimited rows, full sentences or divider lines. Separate entries with
-  blank lines. Changed answers update that
-  supplier's entry rather than adding a log.
+Rosie creates/reuses a job, its `jr-<id>` thread and supplied item rows before
+quote output or clarification, preserving unknown values as NULL. A job starts
+at **Quote**; **Active** is retired. Supplied expected install dates belong in
+`job_requests.expected_install_date`, and pickup/delivery in
+`job_requests.fulfillment_method`. A pricing-only question creates no job.
+
+**LPS currently works exclusively with APS (`suppliers.id = 1`).** Rosie
+produces the APS price-list quote before any availability request. An explicit
+quick-quote-only request stops after the quote and creates/sends no AR. For an
+ordinary request, she then asks Chris whether to send the availability request
+to APS and waits for his approval, retaining an explicit approval already given
+for the exact action. Creating a private APS portal request publishes it, so
+that creation is also approval-gated. Customer-details sharing preferences
+still apply. Other suppliers, including consolidated grower sourcing, require
+Chris's explicit exception.
+
+Rosie completes independent record creation, price research and supported
+updates before asking about unresolved details, and resolves material quote or
+AR scope questions before the affected output. Quotes do not imply stock or a
+reservation. APS-scoped job rows, including quick quotes, carry concise APS
+price/gap notes and supported alternatives under `job-requests`; alternative
+quote and AR approvals remain separate. General supplier research is answered
+in Chris's original chat and does not itself authorize outreach or notes.
+
+Supplier replies and portal submissions are evidence for Chris. Rosie reports
+them and maintains qualifying sourcing notes, then applies response-driven
+job-line status or availability changes only after Chris approves the specific
+scope. Portal answers remain as entered. She does not infer supplier selection
+from the first available or cheapest response. JR sourcing notes contain one
+compact current row outcome (selected supplier/price or the actual pending
+Chris decision), followed by one latest snapshot per supplier: size/name/variant,
+price, current AR state and relevant availability/alternative. Updates replace
+superseded facts rather than append event history; current constraints and
+approval scope remain. Quick-quote rows can state their quote price and that
+availability was not requested. `job-requests` section 3 owns the exact format
+and examples; history remains in the changelog and supplier transcript.
 
 | Job label | Stored key | Meaning |
 |---|---|---|
-| Active | `sourcing` | Intake only; no processing performed. |
-| Quote | `quoted` | Pricing fetched or quote shared. |
-| Availability | `availability` | Availability request delivered through a partner portal or sent email. |
-| Confirmed | `confirmed` | Customer explicitly confirmed the order. |
-| Won / Lost | `closed_won` / `closed_lost` | Request explicitly closed with that outcome. |
+| Quote | `quoted` | Initial request and APS quote; quick-quote-only work stops here. |
+| Availability | `availability` | Chris-approved availability request delivered. |
+| Committed | `committed` | Customer acceptance recorded and supplier orders created. |
+| Won / Lost | `closed_won` / `closed_lost` | Explicit closure with the actual outcome. |
 
 `record_job_workflow_event(job_id, event)` records `pricing_fetched`,
-`availability_sent`, `quote_shared` and `customer_confirmed`. Price writes
-and partner request creation also have database hooks. An unsuccessful
-inventory search is still completed pricing work; a draft or failed send
-is not a shared quote. Pricing/quote work advances Active to Quote; delivered
-availability advances Active/Quote to Availability. Customer confirmation
-advances any of those three stages to Confirmed. Quick quotes can skip
-Availability. Repeated pricing/quote events never regress Availability, and
-no workflow event regresses Confirmed or reopens Won/Lost jobs. Migration
-0089 restores the separate Availability stage and retains all existing stored
-statuses and history.
-`archived` remains a legacy stored terminal state, not a selectable stage.
+`quote_shared`, `availability_sent`, and `customer_confirmed` (Committed).
+The compatibility `supplier_confirmed` job event never changes a job stage;
+`confirm_order` changes only the supplier Order to Confirmed and records its
+dates. Linked Job Requests remain Committed until Won/Lost closure. Pricing/
+quote work never regresses later stages or reopens terminal jobs. A draft is
+not customer delivery and an AR submission is not order confirmation.
+`archived` is a legacy terminal state. Migration 0092 moves historical
+customer-confirmed jobs to Committed without fabricating supplier orders, and
+moves Active/`sourcing` jobs to Quote. Migration 0093 retires the job
+`confirmed` status by mapping it to `committed`; Orders retain Confirmed and
+their confirmation dates.
+
+Availability requests and supplier orders have independent tables and
+many-to-many allocations:
+
+- `availability_request_jobs` links AR headers to jobs;
+  `availability_request_item_jobs` links AR rows to job items with quantities.
+  `create_availability_request(...)` atomically creates the request, item
+  snapshots and allocations. Known positive allocations sum to the requested
+  quantity; if any allocation is unknown, its quantity and the combined total
+  remain NULL. Supplier orders require explicit positive allocations.
+- `orders` and `order_items` store customer-accepted supplier commitments.
+  `order_item_job_request_items` maps order rows and quantities to job items;
+  order rows retain their source `availability_request_item_id`.
+  `create_order(...)` requires actual customer acceptance and creates
+  Committed orders, mapping AR `can_order` to order `need_to_order`
+  (**Need to Order**). Orders appear in each linked job's Orders tab and the
+  supplier portal's Orders tab.
+- Supplier orders retain **Committed → Confirmed → Won/Lost**.
+  `confirm_order(...)` makes the Order Confirmed and records `confirmation_date`
+  and the agreed `fulfillment_date` (pickup/delivery date), while its linked
+  Job Requests remain Committed. A shared order's
+  `fulfillment_method` is `pickup` or `delivery`. These dates are separate
+  from each job's expected install date. `close_order(...)` records Won/Lost.
+  Automatic job closure requires all active demand to be known and fully
+  allocated to terminal orders; partial or unknown demand stays open for
+  Chris's explicit closure decision. Closed order outcomes cannot be
+  reclassified through that RPC.
+
+A job can have multiple ARs and orders, while an AR, AR row or order can serve
+several jobs. This supports large-plant grower consolidation without losing
+original demand. Legacy scalar job/item ids are compatibility hints only.
+Supplier threads resolve junction tables and relay updates to every affected
+job thread, retaining each quantity allocation and each original approval
+conversation. A combined supplier quantity is never copied to each job as its
+own available amount. One customer's acceptance cannot commit another job.
 
 | AR label | Stored key | Meaning |
 |---|---|---|
 | New | `new` | No supplier work yet. |
 | Processing | `processing` | Supplier saved work awaiting submission. |
 | Completed | `submitted` | Explicitly submitted. |
-| Closed | `closed` | Job/request closed; supplier edits refused. |
+| Closed | `closed` | Supplier edits refused. |
 
-Editing a Completed request returns it to Processing until resubmission.
-Job closure closes its ARs and revokes public links; job reopening restores
-each request's previous stage. Revoked tokens are not reused. Normal active
-job-stage changes leave ARs open. Public/private supplier edits and
-`answer_availability_request(...)` use the same database lock and closed-job
-checks; Rosie uses that RPC only when Chris explicitly instructs an AR update,
-not automatically for answers conveyed through chat/email.
+Editing Completed returns to Processing. Shared ARs close only after all linked
+jobs are terminal/inactive; reopening a job restores the remembered AR stage
+and uses a fresh public link. Public/private answer routes and
+`answer_availability_request(...)` use the same database locks and lifecycle
+checks. Rosie uses the answer RPC only on Chris's explicit instruction for AR
+changes. Supplier order confirmation is a separate operation.
+
+Partner requests use their private portal; explicitly authorized non-partner
+requests use a public AR URL and the approved HTML email containing it.
+Creating a link does not mean email delivery or authorize an extra send.
 
 ## Threads and approvals
 
@@ -100,7 +126,7 @@ not automatically for answers conveyed through chat/email.
 | `main` | Coordination with Chris/Bhoumik and dispatch of general/unmapped work. |
 | `jr-<id>` | A job's records, sourcing, status and quote; coordinates with contact threads. |
 | `customers.rosie_thread_id` | All communication with that customer, across every job; relays job updates to their job threads. |
-| `suppliers.rosie_thread_id` | All order-side communication with that supplier company, across every job; creates ARs and relays answers. |
+| `suppliers.rosie_thread_id` | All order-side communication with that supplier company; creates approved ARs, coordinates shared orders and relays results to all linked jobs. |
 
 Route external messages by correspondent first: a job id in a supplier or
 customer message does not bypass their contact thread. Missing entity thread
@@ -130,26 +156,19 @@ and are not hand-edited on the agent.
 
 | Skill | Responsibility |
 |---|---|
-| `job-requests` | Intake, concurrency, supplier rows, sourcing decisions, job events and answer reconciliation. Its database-access artifact documents SQL/storage tools. |
+| `job-requests` | Quote-first intake, concurrency, approval gates, compact latest supplier snapshots and row outcomes, many-to-many allocations, supplier orders, fulfillment dates and lifecycle. Its database-access artifact documents SQL/storage tools. |
 | `plant-and-supplier-search` | Search RPCs, exact identity/size checks, pricing evidence and instructed wider searches. |
-| `supplier-coordination` | Private/public AR creation, HTML email, supplier chat answers, AR events and follow-ups. |
+| `supplier-coordination` | Approved private/public AR creation, consolidated allocations, supplier responses, order confirmation and follow-ups. |
 | `customer-coordination` | Customer drafts/delivery, contact history and job-update/confirmation relays. |
 | `message-routing` | Thread dispatch, origin metadata, approval handoffs and email routing. |
 | `quote-generation` | Quick quotes, the default text format and approved HTML/PDF output. Replaces the former `text-quote-format` skill. |
 | `create-skill` | Harness-supplied skill maintenance procedure. |
 
-The default text quote is one line per plant/size:
-
-```text
-15 G Wax myrtle — $105.00
-15 G Mountain laurel — $175.00
-```
-
-These are formatting examples; actual prices come from inventory. No quantity
-prefix, line total or subtotal appears unless Chris requests a different
-format. The approved APS HTML template lives in
-`harness/agents/rosie/skills/agent/quote-generation/artifacts/` alongside its
-procedure. Historical templates remain in knowledge as references only.
+The `quote-generation` skill owns the default copyable text quote format,
+including quantity, size, plant, unit price, line total and subtotal. Actual
+prices come from APS's price list. Its approved HTML template lives in
+`harness/agents/rosie/skills/agent/quote-generation/artifacts/` alongside the
+procedure; historical templates remain in knowledge as references only.
 `knowledge/files/SCHEMA.md` remains a symlink to the shared schema document.
 
 ## Configuration and plugins

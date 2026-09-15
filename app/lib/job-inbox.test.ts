@@ -16,7 +16,7 @@ import {
 } from './job-inbox.ts'
 
 const row = (id: number, overrides: Partial<JobInboxRow> = {}): JobInboxRow => ({
-  id, name: null, status: 'sourcing', customer: null,
+  id, name: null, status: 'quoted', customer: null,
   customerCompany: null, customerContact: null,
   createdAt: '2026-08-29T10:00:00Z', updatedAt: null, thread: null, ...overrides,
 })
@@ -156,16 +156,21 @@ test('membership needs a successful list response before unavailable', () => {
   assert.equal(jobInboxMembership('invalid', true, false, false, false), 'unavailable')
 })
 
-test('row accessible name always states identity, activity and read state', () => {
+test('row accessible name states identity, compact Created/EDD dates and read state without chat prose', () => {
   const view = orderJobInbox([row(9, {
-    name: 'Courtyard', status: 'sourcing',
+    name: 'Courtyard', status: 'quoted',
+    createdAt: '2026-09-15T01:00:00Z', expectedInstallDate: '2026-10-03',
     thread: { lastId: 3, lastAt: '2026-08-29T13:00:00Z', lastText: 'Need more yaupon', webReadId: 2 },
   })])[0]
   assert.equal(
-    jobInboxRowAriaLabel(view, 'Sourcing', 'Aug 29, 1:00 PM'),
-    'JR-9 · Courtyard, Sourcing, Need more yaupon, Aug 29, 1:00 PM, Unread web chat',
+    jobInboxRowAriaLabel(view, 'Quote'),
+    'JR-9 · Courtyard, Quote, Created 09-14, EDD 10-03, Unread web chat',
   )
-  assert.match(jobInboxRowAriaLabel({ ...view, unread: false }, 'Sourcing', 'Now'), /No unread web chat$/)
+  assert.equal(
+    jobInboxRowAriaLabel({ ...view, createdAt: null, expectedInstallDate: undefined, unread: false }, 'Quote'),
+    'JR-9 · Courtyard, Quote, Created —, EDD —, No unread web chat',
+  )
+  assert.doesNotMatch(jobInboxRowAriaLabel(view, 'Quote'), /Need more yaupon|Job record updated/)
 })
 
 test('responsive behavior changes at exactly 900px', () => {
@@ -191,7 +196,7 @@ test('API query is bounded, complete, batched, active-only and privacy-scoped', 
   assert.match(query, /JOB_INBOX_MAX_ROWS \+ 1/)
   assert.match(query, /throw new JobInboxCapacityError/)
   assert.doesNotMatch(query, /shipping_(?:address|city|state|zip)/)
-  assert.match(query, /\.select\('id, customer_id, name, status, created_at, updated_at'\)/)
+  assert.match(query, /\.select\('id, customer_id, name, status, expected_install_date, customer_notes, sourcing_notes, external_notes, created_at, updated_at'\)/)
   assert.match(query, /customerCompany: customer\?\.company \?\? null/)
   assert.match(query, /customerContact: customer\?\.name \?\? null/)
   assert.doesNotMatch(query, /shipping:\s*\{/)

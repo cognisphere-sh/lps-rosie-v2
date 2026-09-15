@@ -39,9 +39,11 @@ export function onOpenAvailabilityRequest(handler: (arId: number) => void): () =
 export interface AvailabilityRequestStatusDetail {
   arId: number
   status: string
+  /** The server's confirmed stamp; null clears it, omission preserves older callers. */
+  submittedAt?: string | null
 }
 
-/** Tell mounted admin views that a drawer write changed an AR lifecycle state. */
+/** Tell mounted admin views that a drawer write changed an AR state or submission date. */
 export function availabilityRequestStatusChanged(detail: AvailabilityRequestStatusDetail): void {
   window.dispatchEvent(new CustomEvent<AvailabilityRequestStatusDetail>('lps:ar-status', { detail }))
 }

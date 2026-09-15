@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage actual customer job requests from intake to closure. Covers job/thread and item creation before clarification, independent pricing work, order clarification, multiple-plant/size demands, concurrent writes, APS-first sourcing, smallest-priced-requested-size quoting, likely equivalent catalogue-name pricing, mandatory APS job-row notes and evidence-supported alternatives with Chris approval, concise Markdown supplier entries and sourcing decisions, surfacing supplier responses without automatic availability changes, and lifecycle hooks. Use when creating or updating an order request, sourcing its items, receiving supplier/customer job updates or recording customer confirmation; pricing-only questions do not create a job, while quick quotes create/reuse a job, thread and supplied item rows before quote output, without an availability request. (v4.13.0)
+description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, compact latest supplier snapshots and the row selection/price outcome, install and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.2.0)
 metadata:
   author: lps
-  version: "4.13.0"
+  version: "5.2.0"
 ---
 
 # Job requests
@@ -14,7 +14,12 @@ own correspondence and relay order updates here. Read
 `artifacts/database-access.md` for SQL/storage command syntax on first use.
 Use `message-routing` for
 handoffs and approvals; drafting on this thread never requires Chris to move
-here to approve.
+here to approve. A job starts at **Quote**. Generate its APS price-list quote
+before any availability request. An explicit quick-quote-only request stops
+after the quote; otherwise ask Chris whether to send APS an availability
+request and wait for his approval. Customer acceptance creates supplier
+orders at **Committed**. Supplier confirmation advances the **Order** to
+**Confirmed**; the **Job Request remains Committed** until Won/Lost closure.
 
 ## 1. Intake: an order request or quick quote
 
@@ -40,7 +45,8 @@ Questions may cover any relevant detail, such as plant/cultivar, size,
 quantity, alternatives, budget, delivery timing/location, supplier or scope;
 these are examples, not a required checklist. Use answers already provided.
 Wait for needed answers before generating the affected quote or creating/
-sending the affected AR, including automatically published APS requests.
+sending the affected AR. Chris must also approve the availability send after
+the quote; creating an APS portal request is itself publication.
 Continue independent work, including supported record updates, while waiting.
 Apply answers to the existing job/items with guarded writes; do not recreate
 the job or duplicate rows when clarification arrives. Preliminary
@@ -52,7 +58,8 @@ requirement. If the request is clear, proceed without extra questions.
    quick-quote output (including a partial quote or draft), create/reuse the
    job, its `jr-<id>` thread and every supplied item row**; never treat a
    quote as exempt from intake. A quick quote creates/sends no AR. Preserve
-   `quote_only: true` in the quick-quote handoff so normal sourcing does not start an availability ask.
+   `quote_only: true` in the quick-quote handoff and stop after delivering the
+   quote internally; do not follow it with an availability-send approval ask.
    Ask if the intent is unclear; do not infer quick-quote intent from a simple
    question about pricing.
 2. For a new order or quick quote arriving outside a job thread, reserve its id with
@@ -68,16 +75,24 @@ requirement. If the request is clear, proceed without extra questions.
    `message-routing`. If unidentified, `customer_id` stays NULL and any
    identity clues go in `customer_notes`.
 4. Insert the reserved id with `OVERRIDING SYSTEM VALUE`. Explicitly set
-   `status = 'sourcing'` (displayed **Active**). Store a job/site name only when
+   `status = 'quoted'` (displayed **Quote**). Store a job/site name only when
    supplied: a real residence, address, PO or project. Leave `name` NULL
    otherwise; the app constructs the company/job display title.
 
    ```sql
    SET app.actor TO 'rosie';
-   INSERT INTO job_requests (id, customer_id, name, status, customer_notes)
+   INSERT INTO job_requests
+     (id, customer_id, name, status, customer_notes,
+      expected_install_date, fulfillment_method)
    OVERRIDING SYSTEM VALUE
-   VALUES ($jobId, $customerId, $name, 'sourcing', $customerNotes);
+   VALUES ($jobId, $customerId, $name, 'quoted', $customerNotes,
+           $expectedInstallDate, $fulfillmentMethod);
    ```
+
+   Save a supplied expected install date in `expected_install_date` and
+   pickup/delivery choice in `fulfillment_method` (`pickup` or `delivery`).
+   Keep unknown values NULL. The install date is the customer's planning date,
+   separate from the supplier order's actual confirmation and fulfillment dates.
 
 5. Create item rows before asking questions: one per clearly separate
    requested line, preserving the supplied plant name, size and quantity.
@@ -195,8 +210,9 @@ for the intended action before any affected quote (including a draft) or AR
 creation/send, including an alternative in supplier-visible notes. Note-taking
 is not approval; approval to quote is not approval to request availability,
 or vice versa. Continue independent work on the original/unambiguous lines.
-Use the existing Markdown format below and preserve supplier answers and human
-notes; no duplicate APS entries or invented availability/selection.
+Use the current-snapshot format below. Preserve current supplier facts and
+human decisions/constraints without carrying superseded history forward; no
+duplicate APS entries or invented availability/selection.
 
 For other sourcing entries, add a note only when at least one applies:
 
@@ -217,60 +233,88 @@ supplier lists, prices and alternatives stay in chat outside the standing APS
 job-row instruction. A lookup is not an
 instruction to contact suppliers or send ARs. Keep supported structured price
 updates and job intake moving under their own rules. Once a supplier entry
-qualifies, keep its request/response and pending action current; preserve
-other suppliers' existing entries and human notes.
+qualifies, keep only its latest relevant request/response and pending action;
+preserve other suppliers' current snapshots and current human decisions/constraints.
 
 | Field | Content |
 |---|---|
 | `customer_notes` | Customer's words that structured fields do not hold: constraints, deadlines and identity clues. Preserve evidence; do not duplicate plant/size/quantity/address. |
-| Item `sourcing_notes` | Markdown supplier entries for every APS-scoped job row under the standing instruction, sent ARs, required actions, explicit note instructions, and actual supplier selections/plant-sourcing decisions. |
-| Job `sourcing_notes` | Job-level sourcing actions/decisions or explicitly requested notes, under the same rule; plant-specific selections stay on their item. |
+| Item `sourcing_notes` | One compact current row outcome plus one latest snapshot per qualifying supplier; no event history. |
+| Job `sourcing_notes` | Current job-level sourcing actions/decisions only; no event history or duplicate item outcomes. |
 | `external_notes` | Customer-safe offer and delivery details; never internal sourcing. |
 
-Write sourcing notes as **Markdown entries, never tables or pipe-delimited
-rows**. Start each entry with the supplier name in bold and underline:
-`**<u>Supplier name</u>**`. Follow it with only important keywords and numbers
-to track: price, size, quantity, AR reference/state, ETA, required action or
-explicit sourcing decision.
-Use short fragments separated by ` · ` or line breaks, not full sentences or
-narrative statements. Omit irrelevant or unsupported details.
+### Compact current snapshot (Chris, 2026-09-15)
 
-Separate supplier entries with a blank line. **Do not add `----`, horizontal
-rules or other divider lines**; the bold, underlined names separate them.
-Apply this format when adding or updating entries. Store the Markdown itself in
-`sourcing_notes`, without wrapping it in a fenced code block; the Jobs page
-renders it. Use only the attribute-free `<u>` tag for underline.
+Sourcing notes answer **where this row stands now**. Keep one short overall
+row outcome and **one latest entry per supplier**. Replace the supplier's
+previous update in place; do not append an event history, dated diary, old AR
+states, repeated quotes, conversation summaries or a list of completed steps.
+The existing changelog and contact transcript retain history.
+
+1. Read the current row, supplier evidence and Chris's latest decisions under
+   section 2. Keep only facts needed to understand the current offering,
+   availability, alternative or remaining decision. Preserve active human
+   constraints and approval scope; omit superseded facts and resolved actions.
+   If evidence conflicts, retain a short uncertainty instead of guessing.
+2. Put a single **`Row:`** summary first: selected supplier, selected size/variant
+   when needed, and the supported selected supplier price. Use `$105/unit` to
+   make the price basis clear. If also showing the customer's selling price,
+   label it `Quote $140/unit`; never confuse the two. No selection means state
+   the actual next decision, such as `Awaiting Chris selection` or `Awaiting
+   Chris alternative approval`, not an invented supplier choice. A quick quote
+   can say `Quote $105/unit · Availability not requested`; do not invent a
+   pending approval or follow-up after quote-only work stops.
+3. Keep each supplier entry to **supplier: size/name/variant: price, current
+   AR state, availability or alternative**, including only applicable facts.
+   Use `**<u>Supplier name</u>**: ...` and short fragments separated by ` · `.
+   The row already names the requested plant, so repeat its name/variant only
+   to distinguish an offered alternative or material catalogue-name mapping.
+   Include the actual current AR reference/state (`[AR-42](ar:42) Completed`),
+   useful quantity/ETA, or `AR not requested` when it explains the decision.
+   A price list alone is not stock confirmation. Keep active alternatives
+   compact and explicitly pending the applicable Chris approval; remove
+   rejected/superseded alternatives from the current snapshot.
+4. Update the one row summary and affected supplier entry together when their
+   facts change. Keep other suppliers' latest relevant entries, not their
+   histories. Several current ARs/scopes for one supplier still belong in one
+   supplier entry with brief scope distinctions; do not collapse distinct live
+   allocations or duplicate a combined quantity onto each job. Retain an older
+   price or constraint only if it remains applicable, never solely to show what
+   happened earlier. A later catalogue search must not erase a still-current
+   supplier response.
+
+Use blank lines between the row outcome and supplier entries. **No tables,
+pipe-delimited rows, divider lines or narrative paragraphs.** Store the
+Markdown itself in `sourcing_notes`, without a fenced code block. Only the
+attribute-free `<u>` tag is used for underline. These are formatting examples,
+not supplier selection, price or availability evidence:
 
 ```markdown
-**<u>Austin Plant Supply</u>**
-$105 · 15 G · [AR-42](ar:42) · Sent · Pending
+**Row:** Selected APS · 15 G · $105/unit
 
-**<u>Acosta</u>**
-$98 · 15 G · Offered qty 20 · [AR-43](ar:43) · Completed · Selected by Chris
-
-**<u>Everde</u>**
-30 G · Price unknown · Send approved AR
+**<u>Austin Plant Supply</u>**: 15 G: $105/unit · [AR-42](ar:42) Completed · 12 available
 ```
 
-- Keep the supplier name explicit and include relevant known prices/quantities.
-  Add offered plant/size when it differs, then the latest AR state/response:
-  `Sub: Muskogee 30 G`, `8 available`, `Unavailable`, `ETA Sep 18`.
-- Two qualifying suppliers for one plant means two separate entries. Update
-  the existing entry when pricing, AR state, quantity, ETA or response changes.
-  Preserve
-  other suppliers' entries and any human notes. Do not append response history;
-  the changelog keeps it. Never replace a supplier response with catalogue
-  evidence after a later search.
-- Mention a catalogue date or generic-price basis when it materially
-  qualifies the price. Do not write narrative sourcing paragraphs.
-- Record explicit supplier selection and other sourcing decisions about the
-  plant with concise markers, such as `Selected by Chris`, `Excluded`,
-  `30 G approved`, `Split qty 10` or `Hold`. State the affected supplier,
-  plant/size or quantity when needed. Preserve the current decision when a
-  new supplier response arrives; update it only on an explicit new decision.
-  Availability, a low price, a completed AR or being the only respondent
-  does not mean selected. Never invent a selection or let one supplier's
-  response override a decision or another supplier's entry.
+```markdown
+**Row:** Awaiting Chris alternative approval
+
+**<u>Austin Plant Supply</u>**: 15 G: No exact match · 30 G $175/unit alternative pending Chris · AR not requested
+```
+
+```markdown
+**Row:** Quote $105/unit · Availability not requested
+
+**<u>Austin Plant Supply</u>**: 15 G: $105/unit price list
+```
+
+A selection appears only after Chris actually selects that supplier. Preserve
+an existing decision until he changes it; availability, price or being the
+only respondent does not mean selected. Use concise current markers such as
+`Excluded`, `30 G approved`, `Split qty 10` or `Hold` only where material.
+Mention a catalogue date or generic-price basis only when it qualifies the
+current price. Note updates do not authorize availability/status writes,
+substitutions, quotes or external communication beyond their existing gates.
+
 - Keep approved offering differences clear in customer-visible data. When
   `external_notes` is needed, use only the necessary distinction, e.g.
   `Muskogee 30 G instead` or `12 instead of 10`. Omit `Quoted for ...` and
@@ -292,10 +336,11 @@ returns findings to Chris first, even on an existing job; it does not start
 the normal job's availability-request workflow or create sourcing entries.
 Actual APS job sourcing and quick quotes do require the item notes in section 3.
 
-1. Read explicit supplier instructions and supplier preferences. **Austin
-   Plant Supply (`supplier_id = 1`) is the current default.** Use a named
-   supplier when instructed; do not invent future region/order-size/plant-type
-   selection rules. Preserve exclusions such as "don't ask Austin".
+1. Read explicit supplier instructions and supplier preferences. **LPS
+   currently works exclusively with Austin Plant Supply (`supplier_id = 1`).**
+   Use APS's price list for quotes and APS for approved availability requests.
+   Chris may explicitly authorize an exception, including combined grower
+   sourcing; research or a missing APS match does not imply that authorization.
 2. Search APS inventory for every plant using `plant-and-supplier-search`,
    or the instructed supplier's inventory. Check actual plant identity,
    cultivar, size and positive price; retain the inventory UUID and source
@@ -318,20 +363,24 @@ Actual APS job sourcing and quick quotes do require the item notes in section 3.
    On an instructed wider search, verify the exact plant/size, price, source date
    and location; catalogue stock remains unconfirmed. Newly discovered
    suppliers go to Daisy for onboarding before order-side coordination.
-5. After an actual pricing lookup, including no-match results, call the
-   lifecycle hook below with `pricing_fetched`. This is work done, so the
-   job moves from Active to Quote even if no price was found; later stages
-   remain unchanged.
-6. Once questions affecting the availability ask are resolved, route an APS
-   availability request for every ordinary job to APS's supplier
-   thread by default, including items absent from its inventory. An explicit
-   supplier override/exclusion takes precedence. The supplier thread follows
-   `supplier-coordination`: APS portal requests publish automatically,
-   privately by default; preserve the customer-details sharing preference. Send one
-   handoff per job/supplier with job/item ids, requested quantities, exact
-   inventory UUID mappings and prices, alternatives labelled with separate
-   quote/AR approval evidence (unapproved candidates are internal-only), and
-   interaction context. Do not create duplicate ARs on retry.
+5. After an actual pricing lookup, including no-match results, record
+   `pricing_fetched`, then generate the APS price-list quote using
+   `quote-generation`. Keep the job at Quote; later stages remain unchanged.
+   Resolve quote-blocking gaps without claiming unsupported prices or stock.
+   **If Chris asked only for a quick quote, stop here.**
+6. Otherwise, after producing the quote, ask Chris in the original request
+   chat whether to send the availability request to APS. Wait for his approval;
+   quote generation, an ordinary job request and supplier research do not
+   authorize publication. Preserve an explicit approval already given for
+   this exact send, while still producing the quote first. After approval and
+   scope clarification, route the ask to APS's supplier thread, including
+   unlisted items unless Chris limits the scope. Preserve customer-details
+   preferences. Include every job/item id and allocated quantity, quote
+   completion and send-approval evidence, exact inventory UUID mappings/prices,
+   and separate alternative approvals. A request may combine several jobs;
+   use the allocation relationships below and retain each origin conversation.
+   The supplier thread follows `supplier-coordination` and reuses the same
+   request on retry.
 7. Relay later supplier/customer changes through their owning threads. Keep
    qualifying sourcing entries current on actual AR delivery, edits, submission,
    closure and required follow-ups. A pending send must be labelled as pending.
@@ -349,8 +398,14 @@ or authorize a size substitution.
 Supplier responses are evidence for Chris, **not instructions to change
 availability**. Surface each safely matched response to Chris in the original
 request conversation: supplier, requested plant/size, reported quantity/price,
-AR reference/state, source and any uncertainty. Update the qualifying sourcing
-entry with concise response facts and retain any explicit sourcing decision.
+AR reference/state, source and any uncertainty. Update the affected supplier's
+current snapshot and the single row outcome under section 3; replace its older
+update, preserve Chris's current selection and keep correspondence in chat.
+Present the specific proposed job-line status/quantity changes to Chris and
+ask for approval in the original request conversation. If he approves, apply
+only that scope after a fresh read and report the saved result. For combined
+AR rows, show each job's allocation alongside the shared supplier total before
+asking; never assign the whole available total to every job.
 
 Do not automatically change job/item availability or status, available
 quantity, selected source or customer-facing offering from a supplier's reply
@@ -371,45 +426,102 @@ A supplier chat giving only a quantity does not confirm a seeded price.
 Preserve requested quantities and customer prices; do not infer customer
 acceptance from supplier availability.
 
-## 6. Job lifecycle hooks
-
-The app labels intentionally differ from stored keys:
+## 6. Job lifecycle and orders
 
 | Display | Stored status | Trigger |
 |---|---|---|
-| Active | `sourcing` | Actual order or quick quote recorded; no processing yet. |
-| Quote | `quoted` | Pricing fetched or quote shared. |
-| Availability | `availability` | Availability request delivered through a partner portal or sent email. |
-| Confirmed | `confirmed` | Customer explicitly confirms the order. |
+| Quote | `quoted` | Initial request and APS price-list quote; quote-only requests stop here. |
+| Availability | `availability` | Chris approves and the availability request is delivered. |
+| Committed | `committed` | Customer accepts and supplier orders are created for the accepted lines. |
 | Won | `closed_won` | Request explicitly closed as won. |
 | Lost | `closed_lost` | Request explicitly closed as lost. |
 
-`archived` is legacy, not a new workflow stage. Customer confirmation is
-**Confirmed**, not closure. Do not infer a lost sale from silence.
+`archived` is legacy, not a new workflow stage. Active/`sourcing` and job
+`confirmed` are retired. Customer acceptance is **Committed**. Supplier
+confirmation changes the **Order** to **Confirmed** while the **Job Request
+remains Committed**. Neither event closes the job. Do not infer a lost sale
+from silence. Never assign `confirmed` to a job or use the compatibility
+`supplier_confirmed` job event to advance its stage; confirm the order below.
+Historical customer-confirmed jobs migrate to Committed without invented order
+records; inspect their evidence before preparing any outstanding supplier order.
 
 ```sql
 SET app.actor TO 'rosie';
 SELECT public.record_job_workflow_event($jobId, 'pricing_fetched');
 ```
 
-Events are `pricing_fetched`, `availability_sent`, `quote_shared`, and
-`customer_confirmed`. Call only after the event actually occurs: a draft is
-not a shared quote, a failed send is not sent. `pricing_fetched` and
-`quote_shared` advance Active → Quote. `availability_sent` advances Active
-or Quote → Availability. `customer_confirmed` advances Active, Quote or
-Availability → Confirmed; quick quotes can skip Availability. Repeated
-pricing/quote events leave Availability unchanged, and no workflow event
-regresses Confirmed or reopens Won, Lost or archived jobs. Price writes and
-partner AR creation also have database hooks; explicit lookup completion is
-still needed when no price is saved.
+Record pricing/quote events only after the work occurs: a draft is not a
+shared quote, and a failed send is not sent. `availability_sent` advances
+Quote → Availability. Repeated pricing/quote events never move later stages
+backward or reopen a terminal job. Create accepted supplier orders through
+`create_order(...)` below; do not represent customer acceptance by changing
+a job status without creating its order records.
+Explicit lookup completion is still recorded when no price is saved.
 
-Close with a fresh read, a guarded status update and the explicit won/lost
-instruction. Database hooks close the job thread and all associated ARs,
-revoke public links and prevent closed AR edits. Reopening a closed job
-restores each AR to its previous stage through the database hook; do not
-reset all requests to New or reuse revoked public links. Active, Quote,
-Availability and Confirmed keep availability requests open; the job stage
-Availability is separate from each supplier request’s New/Processing/Completed/Closed status.
+Close with a fresh read and the explicit won/lost outcome. Use
+`close_order(orderId, 'closed_won' | 'closed_lost')` for an order. A job may
+be closed directly when the quote/request is lost before an order exists.
+Closing the last order closes a job automatically only when all active demand
+is known and fully allocated to terminal orders. Partial or unknown demand
+stays open for Chris's explicit closure decision. A closed order's Won/Lost
+outcome cannot be reclassified through `close_order`.
+Do not close a shared AR or another customer's order because only one linked
+job ended; database hooks preserve work for its other open jobs. Closed ARs
+cannot be edited; do not reuse revoked public links after reopening.
+Quote, Availability and Committed are the open job stages, separate
+from an AR's New/Processing/Completed/Closed state.
+
+### Order creation and many-to-many allocations
+
+Availability requests and orders are separate records. A job can have many
+ARs and orders, and an AR or order can serve several jobs. A consolidated
+grower request may combine compatible quantities from different job items;
+one job item may be split across AR items or orders. Never assume the legacy
+scalar `job_request_id` or `job_request_item_id` is the complete relationship.
+
+- `availability_request_jobs` connects AR headers to all jobs;
+  `availability_request_item_jobs` connects AR rows to job items and preserves
+  each allocated `quantity`.
+- `orders` and `order_items` hold supplier-facing commitments;
+  `order_item_job_request_items` allocates each order row back to job items.
+  Order rows retain their `availability_request_item_id` as source evidence.
+- Read every allocation before relaying answers, changing quantities or
+  creating orders. A combined supplier quantity is a shared total, never the
+  amount available to every linked job. Preserve job-specific demand, prices,
+  dates and customer privacy; combine only the exact approved scope.
+
+When customer acceptance is explicit and the accepted quantities, source AR
+rows and pickup/delivery plan are resolved, create the supplier order atomically:
+
+```sql
+SET app.actor TO 'rosie';
+SELECT public.create_order(
+  $supplierId,
+  '[{"availability_request_item_id":42,"allocations":[{"job_request_item_id":7,"quantity":10}]}]'::jsonb,
+  $fulfillmentMethod, $fulfillmentDate, $notes, true
+);
+```
+
+The final argument records actual customer acceptance, never a guess. Every
+allocation needs that customer's acceptance; one customer's go-ahead cannot
+commit another job. Use the real ids and accepted quantities, inspect existing
+allocations before retrying and never over-order or duplicate demand. Order
+creation records **Committed**, maps AR `can_order` to order `need_to_order`
+(**Need to Order**), and exposes the order in the supplier portal's Orders tab
+and every linked job's Orders tab. If acceptance arrives before suitable AR
+rows exist, preserve its evidence and complete the approved availability
+workflow before order creation; do not fabricate supplier responses.
+
+Store `orders.fulfillment_method` as `pickup`/`delivery` and
+`orders.fulfillment_date` as the agreed pickup/delivery date, separate from
+`job_requests.expected_install_date`. Do not guess a shared order's plan from
+one linked job when their requirements differ. Explicit supplier order
+confirmation uses `confirm_order(orderId, supplierId, confirmationDate,
+fulfillmentDate)`, makes the **Order Confirmed** and records `confirmation_date`.
+The **Job Request remains Committed**; it has no Confirmed stage. An
+availability submission does not confirm an order. Resolve ambiguous supplier
+confirmation before applying it; relay the actual order status/date to every
+affected job thread.
 
 ## 7. Quotes and customer updates
 
@@ -419,5 +531,5 @@ through `message-routing` in the original request thread. The customer thread
 sends exactly the approved content and relays the result here. Only actual
 customer delivery records `quote_shared`; save the shared quote link in
 `external_notes` without exposing internal notes. A customer confirmation
-relayed by the customer thread records `customer_confirmed` with its actual
-evidence. Resolve ambiguous acceptance rather than guessing.
+relayed by the customer thread supplies evidence for **Committed** order
+creation above. Resolve ambiguous or partial acceptance rather than guessing.

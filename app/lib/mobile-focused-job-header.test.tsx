@@ -9,7 +9,6 @@ import {
   FocusedJobHeader,
   focusedJobChatChoices,
   focusedJobChatMenuPosition,
-  formatEstimatedProjectDate,
   type FocusedJobChatTarget,
 } from '../components/workspace/focused-job-header.tsx'
 import { RequestLinks } from '../components/workspace/job-request.tsx'
@@ -47,7 +46,7 @@ function request(name: string | null): JobRequestRow {
   return {
     id: 27,
     name,
-    status: 'sourcing',
+    status: 'quoted',
     customer: {
       id: 4,
       name: 'Jamie Long',
@@ -78,7 +77,7 @@ const preview = <div data-testid="preview">Long Landscape · Austin, TX</div>
 test('rendered mobile header gives the full long Job name a wrapping, non-truncated track', () => {
   const longName = 'Long Landscape | 1700 Very Long Residential Boulevard Courtyard Installation Phase Two'
   const view = render(
-    <FocusedJobHeader request={request(longName)} mobile projectDate={null} status={status} preview={preview} />,
+    <FocusedJobHeader request={request(longName)} mobile status={status} preview={preview} />,
   )
   const header = view.container.querySelector<HTMLElement>('[data-focused-job-header="mobile"]')
   assert.ok(header)
@@ -94,38 +93,59 @@ test('rendered mobile header gives the full long Job name a wrapping, non-trunca
   assert.equal(view.getByTestId('preview').textContent, 'Long Landscape · Austin, TX')
 })
 
-test('mobile project date accepts only a real YYYY-MM-DD calendar day and is timezone-independent', () => {
-  assert.equal(formatEstimatedProjectDate('2026-08-30'), '8/30/26')
-  assert.equal(formatEstimatedProjectDate('2024-02-29'), '2/29/24')
-  assert.equal(formatEstimatedProjectDate('2000-02-29'), '2/29/00')
-  for (const invalid of [
-    '2025-02-29',
-    '1900-02-29',
-    '2026-02-30',
-    '2026-00-10',
-    '2026-13-10',
-    '2026-08-30T00:00:00Z',
-    '2026-01-01T00:30:00+14:00',
-    ' 2026-08-30',
-    '2026-08-30 ',
-    'August 30, 2026',
-    '',
-    0,
-    null,
-    undefined,
-  ]) assert.equal(formatEstimatedProjectDate(invalid), null, String(invalid))
+test('focused headers display the saved creation date, install date and fulfillment on mobile and desktop', () => {
+  for (const mobile of [true, false]) {
+    const dated = render(
+      <FocusedJobHeader request={{ ...request('Patio'), expectedInstallDate: '2026-08-30', fulfillmentMethod: 'pickup' }}
+        mobile={mobile} status={status} preview={preview} />,
+    )
+    const metadata = dated.container.querySelector('[data-job-metadata]')!
+    assert.deepEqual([...metadata.querySelectorAll('dt')].map((node) => node.textContent), ['Created on', 'EDD', 'Fulfillment'])
+    assert.deepEqual([...metadata.querySelectorAll('dd')].map((node) => node.textContent), ['08-29', '08-30', 'Pickup'])
+    assert.ok(metadata.parentElement?.querySelector(mobile ? 'h1' : '[data-desktop-job-identity]'))
+    dated.unmount()
 
-  const dated = render(
-    <FocusedJobHeader request={request('Patio')} mobile projectDate="2026-08-30" status={status} preview={preview} />,
-  )
-  assert.equal(dated.getByText('EPD: 8/30/26').textContent, 'EPD: 8/30/26')
-  dated.unmount()
+    const missing = render(
+      <FocusedJobHeader request={request('Patio')} mobile={mobile} status={status} preview={preview} />,
+    )
+    assert.deepEqual([...missing.container.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['08-29', '—', '—'])
+    assert.doesNotMatch(missing.container.querySelector('[data-job-metadata]')?.textContent ?? '', /08-31/)
+    missing.unmount()
+  }
+})
 
-  const missing = render(
-    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
-  )
-  assert.equal(missing.queryByText(/EPD:/), null)
-  assert.doesNotMatch(missing.container.textContent ?? '', /Created|Updated|8\/29\/26|8\/31\/26/)
+test('job AR links show the submitted date only while submitted, otherwise the creation date', () => {
+  const linked = request('Patio')
+  linked.supplierLinks = [{
+    supplierId: 88, name: 'APS', lpsPartner: true, rosieThreadId: null,
+    availabilityRequests: [
+      { id: 803, status: 'submitted', createdAt: '2026-09-01T12:00:00Z', submittedAt: '2026-09-15T01:00:00Z' },
+      { id: 802, status: 'new', createdAt: '2026-09-02T12:00:00Z', submittedAt: '2026-09-10T12:00:00Z' },
+      { id: 801, status: 'processing', createdAt: '2026-09-03T12:00:00Z', submittedAt: null },
+      { id: 800, status: 'closed', createdAt: '2026-09-04T12:00:00Z', submittedAt: '2026-09-10T12:00:00Z' },
+      { id: 799, status: 'submitted', createdAt: '2026-09-01T12:00:00Z', submittedAt: null },
+    ],
+  }]
+  for (const focusedMobile of [false, true]) {
+    const view = render(<RequestLinks request={linked} focusedMobile={focusedMobile} />)
+    for (const [id, expected] of [[803, '09-14'], [802, '09-02'], [801, '09-03'], [800, '09-04'], [799, '—']]) {
+      const link = view.getByRole('button', { name: new RegExp(`AR-${id}`) })
+      assert.equal(link.lastElementChild?.textContent, expected)
+      assert.equal(document.getElementById(link.getAttribute('aria-describedby')!)?.textContent, expected)
+      const dot = link.querySelector('[aria-hidden="true"]')
+      const tone = id === 800 ? 'grey' : id === 802 || id === 801 ? 'amber' : 'green'
+      assert.ok(link.classList.contains(`bg-[var(--lps-tone-${tone}-bg)]`))
+      assert.ok(link.classList.contains(`text-[var(--lps-tone-${tone}-fg)]`))
+      if (id === 800) {
+        assert.equal(dot, null)
+      } else {
+        assert.ok(dot)
+        assert.match(dot.className, id === 802 || id === 801 ? /lps-tone-amber-dot/ : /lps-tone-green-dot/)
+        assert.match(link.getAttribute('aria-label')!, id === 802 || id === 801 ? /In progress/ : /Completed/)
+      }
+    }
+    view.unmount()
+  }
 })
 
 test('focused mobile RequestLinks wraps long suppliers and keeps every AR reachable without duplicating nested chat at 320 and 390', () => {
@@ -202,7 +222,7 @@ test('ordinary and desktop-focused RequestLinks retain the established single-ro
   const name = view.getByText(linked.supplierLinks[0].name)
   assert.match(name.className, /truncate/)
   assert.equal(name.parentElement?.parentElement?.className,
-    'inline-flex flex-none items-stretch overflow-hidden rounded-full border border-lps-edge bg-card text-[10.5px] font-semibold')
+    'inline-flex min-w-0 max-w-full flex-none flex-wrap items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold')
 })
 
 test('chat choices normalize and dedupe existing routes in stable first-seen order without Job collisions', () => {
@@ -225,7 +245,7 @@ test('chat choices normalize and dedupe existing routes in stable first-seen ord
 
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
+    <FocusedJobHeader request={linked} mobile status={status} preview={preview}
       onOpenRosie={(target) => { opened = target }} />,
   )
   fireEvent.click(view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' }))
@@ -256,7 +276,7 @@ test('mobile 44px Rosie avatar opens an exact Job-first anchored menu with suppl
   ]
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
+    <FocusedJobHeader request={linked} mobile status={status} preview={preview}
       onOpenRosie={(target) => { opened = target }} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
@@ -295,7 +315,7 @@ test('mobile 44px Rosie avatar opens an exact Job-first anchored menu with suppl
 test('zero-supplier trigger and menu support Arrow open plus Enter on the canonical Job route', () => {
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview}
+    <FocusedJobHeader request={request('Patio')} mobile status={status} preview={preview}
       onOpenRosie={(target) => { opened = target }} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
@@ -317,7 +337,7 @@ test('menu keyboard navigation wraps, supports Home/End/Space, and routes the fo
   ]
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
+    <FocusedJobHeader request={linked} mobile status={status} preview={preview}
       onOpenRosie={(target) => { opened = target }} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
@@ -443,7 +463,7 @@ test('anchored menu clamps inward and chooses above or below from viewport space
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
   const view = render(
-    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
+    <FocusedJobHeader request={request('Patio')} mobile status={status} preview={preview} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
   trigger.getBoundingClientRect = () => ({
@@ -463,7 +483,7 @@ test('captured scroll and resize dismiss fully offscreen anchors without refocus
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
   const view = render(
-    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
+    <FocusedJobHeader request={request('Patio')} mobile status={status} preview={preview} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
   let box = { left: 268, right: 312, top: 20, bottom: 64 }
@@ -530,7 +550,7 @@ test('exact zero-visible-pixel boundaries dismiss while one visible pixel remain
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 480 })
   const view = render(
-    <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />,
+    <FocusedJobHeader request={request('Patio')} mobile status={status} preview={preview} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
   let box = { left: 268, right: 312, top: -43, bottom: 1 }
@@ -575,7 +595,7 @@ test('same-mounted supplier refresh updates and clamps the live menu without rep
   const a = supplier(1, 'Supplier A', 'supplier-a')
   const b = supplier(2, 'Supplier B', 'supplier-b')
   const c = supplier(3, 'Supplier C', 'supplier-c')
-  const props = { mobile: true, projectDate: null, status, preview }
+  const props = { mobile: true, status, preview }
   const view = render(<FocusedJobHeader {...props} request={refreshed([a])} />)
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
   fireEvent.click(trigger)
@@ -628,7 +648,7 @@ test('same-mounted supplier refresh updates and clamps the live menu without rep
 })
 
 test('outside pointer, Escape, Tab, repeated open and breakpoint cleanup follow menu dismissal semantics', async () => {
-  const props = { request: request('Patio'), projectDate: null, status, preview }
+  const props = { request: request('Patio'), status, preview }
   const view = render(<FocusedJobHeader {...props} mobile />)
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
 
@@ -670,7 +690,7 @@ test('Tab and Shift+Tab dismiss the body-portal menu into the trigger’s docume
   const view = render(
     <div>
       <button type="button">Before Rosie</button>
-      <FocusedJobHeader request={request('Patio')} mobile projectDate={null} status={status} preview={preview} />
+      <FocusedJobHeader request={request('Patio')} mobile status={status} preview={preview} />
       <button type="button">After Rosie</button>
     </div>,
   )
@@ -701,7 +721,7 @@ test('tall anchored menu scrolls and End plus Enter reaches the last 44px suppli
   }))
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader request={linked} mobile projectDate={null} status={status} preview={preview}
+    <FocusedJobHeader request={linked} mobile status={status} preview={preview}
       onOpenRosie={(target) => { opened = target }} />,
   )
   const trigger = view.getByRole('button', { name: 'Choose a Rosie chat for JR-27' })
@@ -722,11 +742,11 @@ test('tall anchored menu scrolls and End plus Enter reaches the last 44px suppli
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'supplier-48', label: 'Supplier 48' })
 })
 
-test('desktop branch keeps labelled avatar/direct route and uses the structured one-line identity with no EPD refinement', () => {
+test('desktop branch keeps labelled avatar/direct route and uses the structured one-line identity with install metadata', () => {
   const longName = 'Long Landscape | Courtyard Installation'
   let opened: FocusedJobChatTarget | null = null
   const view = render(
-    <FocusedJobHeader request={request(longName)} mobile={false} projectDate="2026-08-30" status={status} preview={preview} onOpenRosie={(target) => { opened = target }} />,
+    <FocusedJobHeader request={{ ...request(longName), expectedInstallDate: "2026-08-30" }} mobile={false} status={status} preview={preview} onOpenRosie={(target) => { opened = target }} />,
   )
   assert.ok(view.container.querySelector('[data-focused-job-header="desktop"]'))
   assert.equal(view.container.querySelector('[data-focused-job-header="mobile"]'), null)
@@ -740,7 +760,7 @@ test('desktop branch keeps labelled avatar/direct route and uses the structured 
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: longName })
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
   assert.equal(view.container.querySelectorAll('img').length, 1)
-  assert.equal(view.queryByText('EPD: 8/30/26'), null)
+  assert.equal(view.getByText('08-30').textContent, '08-30')
   assert.ok(view.getByTestId('status'))
   assert.ok(view.getByTestId('preview'))
 })

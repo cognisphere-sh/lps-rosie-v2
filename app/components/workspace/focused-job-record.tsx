@@ -51,8 +51,6 @@ export function FocusedJobRecord({
       <FocusedJobHeader
         request={request}
         mobile={mobile}
-        // No structured project date or fulfillment field exists.
-        projectDate={null}
         status={
           <StatusPill
             table="job_requests"

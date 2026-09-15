@@ -3,24 +3,13 @@
 import { useEffect, useState } from 'react'
 import { ARLineTable } from './availability'
 import { ARPrintSheet } from './ar-print-sheet'
+import { ARJobSchedules } from './ar-job-schedules'
 import { partnerRequestName as requestName } from './partner'
 import { AR_RESPONSE_OPTIONS, arResponseTone, arStatusLabel, arSubtotal, type ARDetail, type ARItem } from '@/lib/availability'
 import { toneDot } from '@/lib/job-requests'
-import { money } from '@/lib/format'
+import { formatMonthDay, money } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
-
-/** "Friday | 08/29/2026" — the header strip's date. */
-function formatStripDate(value: string) {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return (
-    <>
-      {d.toLocaleDateString('en-US', { weekday: 'long' })} <span className="text-lps-dim">|</span>{' '}
-      {d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
-    </>
-  )
-}
 
 /** A small caps label over a value — the header card's blocks. */
 function Field({ label, align = 'left', children }: { label: string; align?: 'left' | 'right'; children: React.ReactNode }) {
@@ -107,17 +96,18 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
                 requested date, then the customer's contact, the delivery
                 address and our note — each only where the request shares it. */}
             <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-3">
-              <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/60 px-3 py-2.5 min-[900px]:grid-cols-[auto_minmax(0,1fr)_auto]">
+              <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/60 px-3 py-2.5">
                 <span className="inline-flex h-8 items-center rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">
                   {arStatusLabel(request.status)}
                 </span>
-                <h1 className="col-span-2 row-start-2 m-0 min-w-0 text-[18px] font-semibold leading-6 text-foreground [overflow-wrap:anywhere] min-[900px]:col-span-1 min-[900px]:col-start-2 min-[900px]:row-start-1 min-[900px]:text-center">
+                <h1 className="m-0 min-w-0 flex-1 text-[18px] font-semibold leading-6 text-foreground [overflow-wrap:anywhere]">
                   {requestName(request)}
                 </h1>
-                <span className="col-start-2 row-start-1 text-right text-[11px] text-muted-foreground min-[900px]:col-start-3 min-[900px]:text-[17px] min-[900px]:font-semibold min-[900px]:text-foreground">
-                  {formatStripDate(request.createdAt)}
+                <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                  Created on <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(request.createdAt) || '—'}</span>
                 </span>
-              </div>
+                <ARJobSchedules schedules={request.jobSchedules} />
+              </header>
 
               {(request.customer || request.shipping?.address || request.lpsNotes) && (
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 px-2 pb-1 sm:grid-cols-[1fr_auto]">

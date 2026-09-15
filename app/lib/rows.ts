@@ -262,6 +262,8 @@ export interface JobRequestRow {
     /** `customers.rosie_thread_id` — the customer's chat thread, when minted. */
     rosieThreadId: string | null
   } | null
+  expectedInstallDate?: string | null
+  fulfillmentMethod?: 'pickup' | 'delivery' | null
   billing: JobAddress
   shipping: JobAddress
   customerNotes: string | null

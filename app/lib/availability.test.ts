@@ -95,10 +95,13 @@ test('an AR link accessible name includes the submitted state conveyed by its do
     availabilityRequestLinkLabel(7, 'Oak Hill', 'submitted'),
     'Open availability request AR-7 to Oak Hill — Completed',
   )
-  assert.equal(
-    availabilityRequestLinkLabel(7, 'Oak Hill', 'processing'),
-    'Open availability request AR-7 to Oak Hill',
-  )
+  for (const status of ['new', 'processing']) {
+    assert.equal(
+      availabilityRequestLinkLabel(7, 'Oak Hill', status),
+      'Open availability request AR-7 to Oak Hill — In progress',
+    )
+  }
+  assert.equal(availabilityRequestLinkLabel(7, 'Oak Hill', 'closed'), 'Open availability request AR-7 to Oak Hill — Closed')
 })
 
 test('a drawer status signal updates only its linked AR and preserves unrelated references', () => {
@@ -139,4 +142,24 @@ test('answeredIn counts the lines the supplier actually answered', () => {
     line({ id: 3 }),
   ]
   assert.equal(answeredIn(lines), 2)
+})
+
+test('confirmed submission stamps update on first submit and resubmit without changing creation dates', () => {
+  const createdAt = '2026-09-14T12:00:00Z'
+  const submittedAt = '2026-09-15T12:00:00Z'
+  const links: SupplierLink[] = [{ supplierId: 7, name: 'APS', lpsPartner: true, rosieThreadId: null,
+    availabilityRequests: [{ id: 42, status: 'new', createdAt, submittedAt: null }] }]
+  const first = withAvailabilityRequestStatus(links, 42, 'submitted', submittedAt)
+  assert.deepEqual(first[0].availabilityRequests[0], { id: 42, status: 'submitted', createdAt, submittedAt })
+  const nextStamp = '2026-09-16T12:00:00Z'
+  const resubmitted = withAvailabilityRequestStatus(first, 42, 'submitted', nextStamp)
+  assert.equal(resubmitted[0].availabilityRequests[0].submittedAt, nextStamp)
+  assert.notEqual(resubmitted, first, 'A same-status resubmit still changes the displayed date')
+  assert.equal(withAvailabilityRequestStatus(resubmitted, 42, 'submitted', nextStamp), resubmitted)
+  assert.equal(withAvailabilityRequestStatus(resubmitted, 42, 'submitted'), resubmitted)
+  const processing = withAvailabilityRequestStatus(resubmitted, 42, 'processing')
+  assert.equal(processing[0].availabilityRequests[0].submittedAt, nextStamp, 'Older status-only signals preserve the stored stamp')
+  const reopened = withAvailabilityRequestStatus(processing, 42, 'new', null)
+  assert.equal(reopened[0].availabilityRequests[0].submittedAt, null)
+  assert.equal(reopened[0].availabilityRequests[0].createdAt, createdAt)
 })

@@ -10,6 +10,42 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0093_remove_job_confirmed_status.sql`
+
+Applied 2026-09-15 at 09:44 UTC via psql in one transaction to the configured
+LPS Supabase project. Removes Confirmed only from Job Request statuses;
+supplier confirmation leaves jobs Committed. Orders retain Confirmed and their
+confirmation dates. Existing `supplier_confirmed` events remain accepted without
+changing the job stage. No live jobs required conversion.
+
+Verified all 13 jobs, 156 job lines, 13 availability requests, 121 availability
+lines, 10 request/job links, 101 line/job links and 689 job audit entries retained
+their exact row fingerprints. All three Order tables remain empty and unchanged.
+The job CHECK excludes Confirmed; the Orders CHECK, `confirm_order`, `close_order`
+and service-role-only RPC permissions are unchanged. PostgREST schema reload was
+notified in the transaction. Disposable PostgreSQL tests apply 0093 twice and
+cover conversion/audit history, preserved Confirmed Orders, supplier confirmation,
+combined jobs, split orders and partial/final closure. App deployment and a
+production harness restart were not part of this step.
+
+## `0092_job_orders_workflow.sql`
+
+Applied 2026-09-14 at 11:35 UTC via psql in one transaction to the configured
+LPS Supabase project. Adds the Orders tables, job install/fulfillment fields,
+order confirmation/fulfillment dates, and many-to-many availability and order
+allocations. Quote is the new job default; customer commitment and supplier
+confirmation are separate stages. No current jobs required the historical
+Active-to-Quote or Confirmed-to-Committed conversion.
+
+Verified all 13 jobs, 151 job lines, 12 availability requests and 101 availability
+lines were preserved; source-record fingerprints and job states matched before
+and after. Backfilled 12 request/job links and 100 line/job links with no missing
+or changed source allocations. New order tables are empty. Verified all five new
+tables' RLS, service-role access and Realtime membership; all five workflow RPCs
+remain executable only by service_role, and all eight new triggers are enabled.
+PostgREST schema reload completed and read-only API checks returned HTTP 200 for
+the new tables and date fields. App deployment/restart was not part of this step.
+
 ## `0091_job_realtime.sql`
 
 Applied 2026-09-11 via psql in one transaction. Adds `job_requests`,

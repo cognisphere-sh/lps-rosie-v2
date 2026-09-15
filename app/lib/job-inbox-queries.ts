@@ -7,16 +7,30 @@ import { supabase } from '@/lib/supabase'
 /** Explicit product ceiling: above this the UI refuses rather than silently truncating. */
 export const JOB_INBOX_MAX_ROWS = 5000
 const CHUNK = 250
+const ITEM_PAGE_SIZE = 1000
 
 interface RequestMeta {
   id: number
   customer_id: number | null
   name: string | null
   status: string
+  expected_install_date: string | null
+  customer_notes: string | null
+  sourcing_notes: string | null
+  external_notes: string | null
   created_at: string | null
   updated_at: string | null
 }
 interface CustomerMeta { id: number; name: string; company: string | null }
+interface ItemSearchMeta {
+  id: number
+  job_request_id: number
+  name: string
+  size: string | null
+  customer_notes: string | null
+  sourcing_notes: string | null
+  external_notes: string | null
+}
 interface ThreadMeta {
   thread_id: string
   last_seq: number | null
@@ -41,7 +55,8 @@ const chunks = <T,>(values: T[], size = CHUNK) =>
  * Request ids are read in stable bounded pages through MAX+1 (the sentinel).
  * Only after the complete active set is known are customer and exact canonical
  * Rosie thread metadata fetched in batches, then global activity ordering is
- * computed. No all-Rosie transcript query or supplier/customer thread can leak.
+ * computed. Active items are paged within bounded job-id batches to include
+ * every searchable name/note. No transcript query or other jobs can leak.
  */
 export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> {
   const requests: RequestMeta[] = []
@@ -50,7 +65,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
     const limit = Math.min(CHUNK, remaining)
     const { data, error } = await supabase
       .from('job_requests')
-      .select('id, customer_id, name, status, created_at, updated_at')
+      .select('id, customer_id, name, status, expected_install_date, customer_notes, sourcing_notes, external_notes, created_at, updated_at')
       .eq('is_active', true)
       .in('status', [...ACTIVE_JOB_STATUSES])
       .order('id', { ascending: true })
@@ -64,7 +79,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
 
   const customerIds = [...new Set(requests.flatMap((row) => row.customer_id == null ? [] : [row.customer_id]))]
   const threadIds = requests.map((row) => `jr-${row.id}`)
-  const [customerResults, threadResults] = await Promise.all([
+  const [customerResults, threadResults, itemResults] = await Promise.all([
     Promise.all(chunks(customerIds).map(async (ids) => {
       const { data, error } = await supabase
         .from('customers')
@@ -84,9 +99,33 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       if (error) throw new Error(`threads: ${error.message}`)
       return (data ?? []) as ThreadMeta[]
     })),
+    Promise.all(chunks(requests.map((request) => request.id)).map(async (ids) => {
+      const items: ItemSearchMeta[] = []
+      for (let from = 0; ; from += ITEM_PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from('job_request_items')
+          .select('id, job_request_id, name, size, customer_notes, sourcing_notes, external_notes')
+          .eq('is_active', true)
+          .in('job_request_id', ids)
+          .order('id', { ascending: true })
+          .range(from, from + ITEM_PAGE_SIZE - 1)
+        if (error) throw new Error(`job_request_items: ${error.message}`)
+        const rows = (data ?? []) as ItemSearchMeta[]
+        items.push(...rows)
+        if (rows.length < ITEM_PAGE_SIZE) break
+      }
+      return items
+    })),
   ])
   const customers = new Map(customerResults.flat().map((row) => [row.id, row]))
   const threads = new Map(threadResults.flat().map((row) => [row.thread_id, row]))
+  const itemText = new Map<number, string[]>()
+  for (const item of itemResults.flat()) {
+    const parts = itemText.get(item.job_request_id) ?? []
+    parts.push(...[item.name, item.size, item.customer_notes, item.sourcing_notes, item.external_notes]
+      .filter((value): value is string => Boolean(value)))
+    itemText.set(item.job_request_id, parts)
+  }
 
   const rows: JobInboxRow[] = requests.map((request) => {
     const customer = request.customer_id == null ? null : customers.get(request.customer_id)
@@ -98,7 +137,13 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       customer: customer ? customer.company || customer.name : null,
       customerCompany: customer?.company ?? null,
       customerContact: customer?.name ?? null,
+      searchText: [
+        `JR-${request.id}`, request.name, customer?.name, customer?.company,
+        request.customer_notes, request.sourcing_notes, request.external_notes,
+        ...(itemText.get(request.id) ?? []),
+      ].filter(Boolean).join('\n'),
       createdAt: request.created_at,
+      expectedInstallDate: request.expected_install_date ?? null,
       updatedAt: request.updated_at,
       thread: thread ? {
         lastId: Number(thread.last_seq ?? 0),

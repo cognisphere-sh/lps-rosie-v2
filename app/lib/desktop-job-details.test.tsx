@@ -57,7 +57,7 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
   return {
     id: 19,
     name: 'Oak Grove Rd. planting',
-    status: 'sourcing',
+    status: 'quoted',
     customer: {
       id: 4,
       name: 'Johnathan',
@@ -85,6 +85,21 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
 
 const status = <span data-testid="sales-status">Sourcing</span>
 
+test('collapsed, expanded and mobile job cards show created/install dates and fulfillment without opening details', () => {
+  for (const [mobile, expanded] of [[false, false], [false, true], [true, false], [true, true]]) {
+    const view = render(
+      <RequestCard request={request({ expectedInstallDate: '2026-09-20', fulfillmentMethod: 'delivery' })}
+        expanded={expanded} mobile={mobile} selected={new Set()} version={0}
+        onToggle={() => {}} onSelect={() => {}} onDelete={() => {}} onDeleteItem={() => {}} onSaved={() => {}} />,
+    )
+    const head = view.container.querySelector('[data-request-card-head]')!
+    assert.deepEqual([...head.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['09-01', '09-20', 'Delivery'])
+    assert.ok(head.querySelector('[data-job-metadata]')?.parentElement?.querySelector('a[href="/jobs?jr=19"]'))
+    assert.equal(view.container.querySelector('[data-compact-job-details]'), null)
+    view.unmount()
+  }
+})
+
 const sourcingMarkdown = '**<u>Austin Plant Supply</u>**\n$105 · 15 G · Qty 12 · [AR-42](ar:42) · Pending\n\n**<u>Acosta</u>**\n$98 · Qty 20 · Completed · Selected by Chris'
 const sourcingItem = {
   id: 51, name: 'Live Oak', size: '15 G', quantity: 12, availableQuantity: null,
@@ -99,6 +114,11 @@ for (const mobile of [false, true]) {
     const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1, sourcingNotes: sourcingMarkdown })}
       mobile={mobile} version={0} onSaved={() => {}} />)
     const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')!
+    assert.equal(table.querySelector('strong > u'), null)
+    const preview = within(table).getByRole('button', { name: /Edit sourcing note for Live Oak/ })
+    assert.equal(preview.title, sourcingMarkdown)
+    assert.ok(preview.querySelector('.truncate'))
+    fireEvent.click(preview)
     assert.deepEqual([...table.querySelectorAll('strong > u')].map((node) => node.textContent), ['Austin Plant Supply', 'Acosta'])
     assert.equal(table.querySelectorAll('hr').length, 0)
     assert.equal(table.querySelector('table'), null)
@@ -107,7 +127,7 @@ for (const mobile of [false, true]) {
     assert.equal(ar.parentElement?.closest('button'), null)
     fireEvent.click(ar)
     assert.deepEqual(opened, [42])
-    assert.equal(table.querySelector('.lps-pop'), null)
+    assert.ok(table.querySelector('.lps-pop'))
 
     fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
     const details = view.container.querySelector<HTMLElement>('[data-compact-job-details]')!
@@ -228,7 +248,7 @@ test('pure balanced geometry and rendered tracks keep exact center with 44px non
   for (const width of [900, 1024, 1440]) {
     const view = render(
       <div style={{ width }}>
-        <FocusedJobHeader request={long} mobile={false} projectDate={null} status={status} preview={null} />
+        <FocusedJobHeader request={long} mobile={false} status={status} preview={null} />
       </div>,
     )
     const header = view.container.querySelector<HTMLElement>('[data-focused-job-header="desktop"]')
@@ -243,7 +263,8 @@ test('pure balanced geometry and rendered tracks keep exact center with 44px non
     assert.match(identityRegion.firstElementChild?.className ?? '', /text-ellipsis/)
     assert.match(identityRegion.firstElementChild?.className ?? '', /overflow-hidden/)
     assert.doesNotMatch(identityRegion.firstElementChild?.className ?? '', /break-words|whitespace-normal/)
-    assert.match(header.className, /grid-cols-\[minmax\(44px,1fr\)_minmax\(0,2fr\)_minmax\(44px,1fr\)\]/)
+    assert.match(header.className, /flex-wrap/)
+    assert.equal(header.querySelector('[data-job-metadata]')?.parentElement, header)
     const flanks = header.querySelectorAll<HTMLElement>('[data-balanced-header-flank]')
     assert.equal(flanks.length, 2)
     assert.match(flanks[0].className, /overflow-hidden/)
@@ -263,7 +284,7 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
   })
   const expected = 'Land Water Light | Ox Eye Phase II | Dior Goodwin'
 
-  let view = render(<FocusedJobHeader request={value} mobile={false} projectDate={null} status={status} preview={null} />)
+  let view = render(<FocusedJobHeader request={value} mobile={false} status={status} preview={null} />)
   assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, expected)
   assert.equal(view.getByRole('button', { name: 'Edit job name for JR-34' }).textContent, 'Ox Eye Phase II')
   view.unmount()
@@ -278,8 +299,8 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
     createdAt: value.createdAt, updatedAt: value.updatedAt, thread: null,
   }
   const row = orderJobInbox([inbox])[0]
-  const aria = jobInboxRowAriaLabel(row, 'Quote', 'Sep 2, 10:00 AM')
-  view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote" activityLabel="Sep 2, 10:00 AM" ariaLabel={aria} onSelect={() => undefined} />)
+  const aria = jobInboxRowAriaLabel(row, 'Quote')
+  view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote" ariaLabel={aria} onSelect={() => undefined} />)
   assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, value.name)
   assert.ok(view.getByText('Land Water Light · Dior Goodwin'))
   assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.getAttribute('title'), `JR-34 · ${expected}`)
@@ -296,7 +317,7 @@ test('rendered missing and invalid identity candidates stay honest in the deskto
     sourcingNotes: 'PO-44 | Pickup | Install 9/9',
   })
   const view = render(
-    <FocusedJobHeader request={missing} mobile={false} projectDate={null} status={status} preview={null} />,
+    <FocusedJobHeader request={missing} mobile={false} status={status} preview={null} />,
   )
   const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
   assert.ok(identity)
@@ -305,7 +326,7 @@ test('rendered missing and invalid identity candidates stay honest in the deskto
   assert.equal(add.textContent, '')
   assert.doesNotMatch(identity.textContent, /Ignored Billing|PO-44|Pickup|Install|2026|Unassigned|JR-19/)
   view.unmount()
-  const mobile = render(<FocusedJobHeader request={{ ...missing, customer: { ...request().customer!, company: 'Company only', name: 'Contact only' } }} mobile projectDate={null} status={status} preview={null} />)
+  const mobile = render(<FocusedJobHeader request={{ ...missing, customer: { ...request().customer!, company: 'Company only', name: 'Contact only' } }} mobile status={status} preview={null} />)
   const mobileAdd = mobile.getByRole('button', { name: 'Add job name for JR-19' })
   assert.equal(mobileAdd.textContent, 'Add Job name')
   assert.doesNotMatch(mobileAdd.textContent ?? '', /Company only|Contact only/)
@@ -357,8 +378,9 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
 
   const expandedHeader = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
   assert.ok(expandedHeader)
-  assert.match(expandedHeader.className, /grid-cols-\[44px_minmax\(44px,1fr\)_minmax\(0,2fr\)_minmax\(44px,1fr\)_44px\]/)
-  assert.match(view.getByRole('button', { name: 'Active' }).className, /size-11|(?:min-h-11.*min-w-11)/)
+  assert.match(expandedHeader.className, /flex-wrap/)
+  assert.equal(expandedHeader.querySelector('[data-job-metadata]')?.parentElement, expandedHeader)
+  assert.match(view.getByRole('button', { name: 'Quote' }).className, /size-11|(?:min-h-11.*min-w-11)/)
   assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-19' }).className, /size-11/)
   assert.match(view.getByRole('button', { name: 'Delete JR-19' }).className, /size-11/)
 
@@ -574,7 +596,7 @@ test('focused Job name editor trims and PATCHes only name, cancels blank/Escape,
   assert.equal(refetches, 3)
   assert.ok(view.getByRole('button', { name: 'Edit job name for JR-20' }))
 
-  const older = { ...({ id: 19, name: 'Old', status: 'sourcing', customer: null, customerCompany: null, customerContact: null, createdAt: '2026-09-01T10:00:00Z', updatedAt: '2026-09-01T10:00:00Z', thread: null } satisfies JobInboxRow) }
+  const older = { ...({ id: 19, name: 'Old', status: 'quoted', customer: null, customerCompany: null, customerContact: null, createdAt: '2026-09-01T10:00:00Z', updatedAt: '2026-09-01T10:00:00Z', thread: null } satisfies JobInboxRow) }
   const newer = { ...older, id: 20, name: 'New', updatedAt: '2026-09-01T11:00:00Z' }
   assert.deepEqual(orderJobInbox([older, newer]).map((row) => row.id), [20, 19])
   const rowsRoute = readFileSync(new URL('../app/api/rows/route.ts', import.meta.url), 'utf8')
@@ -609,7 +631,7 @@ test('parent refetch lifecycle remounts both detail and rail before restoring th
         createdAt: value.createdAt, updatedAt: value.updatedAt, thread: null,
       }])[0]
       return <div ref={root}>
-        <FocusedJobsRailRow row={inbox} selected statusLabel="Sourcing" activityLabel="Now" ariaLabel="Focused row" onSelect={() => undefined} />
+        <FocusedJobsRailRow row={inbox} selected statusLabel="Sourcing" ariaLabel="Focused row" onSelect={() => undefined} />
         <FocusedJobRecord request={value} mobile={mobile} version={0} onSaved={() => undefined} onNameSaved={(id) => {
           pending.current = id
           setValue(request({ id, name: savedName, updatedAt: '2026-09-01T14:00:00Z' }))
@@ -731,7 +753,7 @@ test('focused Delete rejects network, 403, malformed and duplicate confirms, the
   assert.equal(requestDeletionCounts({ deleted: { items: -1, availabilityRequests: 0, availabilityRequestItems: 0, changelog: 0, answers: 0 } }), null)
 })
 
-test('expanded rail separates job and customer identity and shows the full colored status name', () => {
+test('sidebar cards show identity, status and Created/EDD dates without chat or activity text', () => {
   const base: JobInboxRow = {
     id: 34,
     name: 'Courtyard 🌿'.repeat(20),
@@ -739,21 +761,21 @@ test('expanded rail separates job and customer identity and shows the full color
     customer: 'must not be used',
     customerCompany: 'Land Water Light',
     customerContact: 'Dior Goodwin',
-    createdAt: '2026-09-01T12:00:00Z',
+    createdAt: '2026-09-02T01:00:00Z',
+    expectedInstallDate: '2026-09-20',
     updatedAt: '2026-09-01T13:00:00Z',
     thread: { lastId: 5, lastAt: '2026-09-01T14:00:00Z', lastText: 'Long snippet '.repeat(20), webReadId: 4 },
   }
   const row = orderJobInbox([base])[0]
   const expected = `JR-34 · Land Water Light | ${base.name} | Dior Goodwin`
   for (const selected of [false, true]) {
-    const label = jobInboxRowAriaLabel(row, 'Quote', 'Sep 1, 2:00 PM')
+    const label = jobInboxRowAriaLabel(row, 'Quote')
     const view = render(
       <div style={{ width: 292 }}>
         <FocusedJobsRailRow
           row={row}
           selected={selected}
           statusLabel="Quote"
-          activityLabel="Sep 1, 2:00 PM"
           ariaLabel={label}
           onSelect={() => undefined}
         />
@@ -771,7 +793,65 @@ test('expanded rail separates job and customer identity and shows the full color
     assert.equal(status.textContent, 'Quote')
     assert.equal(status.title, 'Quote')
     assert.equal(button.getAttribute('aria-current'), selected ? 'page' : null)
-    assert.match(button.textContent ?? '', /Quote.*Long snippet.*New web chat.*Sep 1, 2:00 PM/s)
+    assert.equal(button.querySelector('[data-focused-job-rail-dates]')?.textContent, 'Created 09-01EDD 09-20')
+    assert.doesNotMatch(button.textContent ?? '', /Long snippet|New web chat|Sep 1, 2:00 PM|Unread in team web chat/)
+    assert.ok(button.querySelector('[title="Unread messages"]'))
     view.unmount()
   }
+})
+
+
+test('job schedule saves the structured install date and fulfillment method', async () => {
+  const writes: unknown[] = []
+  globalThis.fetch = async (_url, init) => {
+    writes.push(JSON.parse(String(init?.body)))
+    return new Response('{}', { status: 200 })
+  }
+  const view = render(<FocusedJobRecord request={request({ expectedInstallDate: '2026-10-01', fulfillmentMethod: 'delivery' })}
+    mobile={false} version={0} onSaved={() => undefined} />)
+  fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
+  const date = view.getByLabelText('Expected install date') as HTMLInputElement
+  assert.equal(date.value, '2026-10-01')
+  fireEvent.change(date, { target: { value: '2026-10-02' } })
+  fireEvent.blur(date)
+  await waitFor(() => assert.equal(writes.length, 1))
+  await waitFor(() => assert.equal((view.getByLabelText('Pickup / Delivery') as HTMLSelectElement).disabled, false))
+  fireEvent.change(view.getByLabelText('Pickup / Delivery'), { target: { value: 'pickup' } })
+  await waitFor(() => assert.equal(writes.length, 2))
+  assert.deepEqual(writes, [
+    { table: 'job_requests', id: 19, column: 'expected_install_date', value: '2026-10-02' },
+    { table: 'job_requests', id: 19, column: 'fulfillment_method', value: 'pickup' },
+  ])
+})
+
+
+test('line table Tab saves edits, traverses cells and rows, and Shift+Tab reverses', async () => {
+  const writes: unknown[] = []
+  globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+    if (init?.method === 'PATCH') writes.push(JSON.parse(String(init.body)))
+    return { ok: true, json: async () => ({}) } as Response
+  }) as typeof fetch
+  const user = userEvent.setup({ document: dom.window.document })
+  const view = render(<FocusedJobRecord
+    request={request({ items: [sourcingItem, { ...sourcingItem, id: 52 }], itemCount: 2 })}
+    mobile={false} version={0} onSaved={() => {}} />)
+  const rows = view.container.querySelectorAll<HTMLElement>('[data-line-row]')
+  const cells = Array.from(rows[0].children) as HTMLElement[]
+  const demand = cells.findIndex((cell) => !!cell.querySelector('[title="Demand — what the customer asked for"]'))
+  await user.click(cells[demand].querySelector('button')!)
+  await user.clear(cells[demand].querySelector('input')!)
+  await user.type(cells[demand].querySelector('input')!, '25')
+  await user.tab()
+  assert.equal(document.activeElement, cells[demand + 1].querySelector('input'))
+  await waitFor(() => assert.deepEqual(writes, [{ table: 'job_request_items', id: 51, column: 'quantity', value: '25' }]))
+  await user.tab({ shift: true })
+  assert.equal(document.activeElement, cells[demand].querySelector('input'))
+  for (let index = demand + 1; index < cells.length; index++) {
+    await user.tab()
+    assert.ok(cells[index].contains(document.activeElement), `Tab should reach cell ${index}`)
+  }
+  await user.tab()
+  assert.ok(rows[1].firstElementChild!.contains(document.activeElement))
+  await user.tab({ shift: true })
+  assert.ok(cells.at(-1)!.contains(document.activeElement))
 })

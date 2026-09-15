@@ -116,7 +116,7 @@ afterEach(() => {
   dom.window.close()
 })
 
-const BASELINE = ['Active', 'Quote', 'Availability', 'Confirmed', 'Won', 'Lost']
+const BASELINE = ['Quote', 'Availability', 'Committed', 'Won', 'Lost']
 
 function useRequestChips() {
   const [status, setStatus] = useState(BASELINE)
@@ -167,7 +167,8 @@ test('mobile Filters portals one real modal, isolates/restores exact background 
   for (const status of BASELINE) {
     assert.equal((within(dialog).getByRole('checkbox', { name: status }) as HTMLInputElement).checked, true)
   }
-  assert.equal((within(dialog).getByRole('checkbox', { name: 'Confirmed' }) as HTMLInputElement).checked, true)
+  assert.equal(within(dialog).queryByRole('checkbox', { name: 'Confirmed' }), null)
+  assert.equal((within(dialog).getByRole('checkbox', { name: 'Committed' }) as HTMLInputElement).checked, true)
   const close = within(dialog).getByRole('button', { name: 'Close filters' })
   const clear = within(dialog).getByRole('button', { name: 'Clear all filters' })
   assert.equal(document.activeElement, close)
@@ -212,7 +213,7 @@ test('baseline status is zero active groups while real deviations and other grou
   await user.click(trigger)
   await waitFor(() => assert.ok(document.body.querySelector('[data-request-filter-portal]')))
   const portal = document.body.querySelector('[data-request-filter-portal]') as HTMLElement
-  await user.click(within(portal).getByRole('checkbox', { name: 'Confirmed' }))
+  await user.click(within(portal).getByRole('checkbox', { name: 'Committed' }))
   assert.equal(trigger.getAttribute('aria-label'), 'Filters, 1 active')
   await user.click(within(portal).getByRole('checkbox', { name: 'Oak Hill' }))
   assert.equal(trigger.getAttribute('aria-label'), 'Filters, 2 active')
@@ -323,7 +324,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
     requestStatusOptions: REQUEST_STATUS_OPTIONS,
     itemStatusOptions: ITEM_STATUS_OPTIONS,
   })
-  assert.equal(new URLSearchParams(query).get('status'), 'sourcing,quoted,availability,confirmed,closed_won,closed_lost')
+  assert.equal(new URLSearchParams(query).get('status'), 'quoted,availability,committed,closed_won,closed_lost')
   window.sessionStorage.setItem(storageKey, JSON.stringify({ ...stored, status: legacy }))
   assert.deepEqual(JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null').status, BASELINE)
 
@@ -333,7 +334,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
       REQUEST_STATUS_OPTIONS,
       BASELINE,
     ),
-    ['Quote', 'Active'],
+    ['Quote'],
   )
   assert.deepEqual(
     normalizeStoredRequestStatusLabels({ status: ['Quoted'] }, REQUEST_STATUS_OPTIONS, BASELINE),
@@ -361,10 +362,10 @@ test('mobile filter state rerenders preserve the chosen keyboard control while e
   let dialog = within(portal).getByRole('dialog', { name: 'Filters' })
   assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Close filters' }))
 
-  const confirmed = within(dialog).getByRole('checkbox', { name: 'Confirmed' }) as HTMLInputElement
-  await user.click(confirmed)
-  assert.equal(confirmed.checked, false)
-  assert.equal(document.activeElement, confirmed)
+  const committed = within(dialog).getByRole('checkbox', { name: 'Committed' }) as HTMLInputElement
+  await user.click(committed)
+  assert.equal(committed.checked, false)
+  assert.equal(document.activeElement, committed)
   assert.ok(document.body.contains(dialog))
 
   assert.equal(within(dialog).queryByText('Item status'), null)
@@ -393,7 +394,7 @@ test('mobile filter state rerenders preserve the chosen keyboard control while e
   portal = document.body.querySelector('[data-request-filter-portal]') as HTMLElement
   dialog = within(portal).getByRole('dialog', { name: 'Filters' })
   assert.equal(document.activeElement, within(dialog).getByRole('button', { name: 'Close filters' }))
-  assert.equal((within(dialog).getByRole('checkbox', { name: 'Confirmed' }) as HTMLInputElement).checked, false)
+  assert.equal((within(dialog).getByRole('checkbox', { name: 'Committed' }) as HTMLInputElement).checked, false)
   assert.equal(within(dialog).queryByText('Item status'), null)
   assert.equal(within(dialog).queryByRole('checkbox', { name: 'Pending' }), null)
   assert.equal((within(within(dialog).getByText('Created', { selector: 'legend' }).closest('fieldset') as HTMLElement)
@@ -417,14 +418,14 @@ test('unresolved/mobile/desktop each own exactly one branch and crossings close 
   assert.equal(view.getAllByRole('textbox', { name: 'Search plants, customers, JR-…' }).length, 1)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   assert.equal(actionMounts, 1)
-  await user.click(view.getByRole('button', { name: 'Status · 6' }))
-  assert.ok(view.getByRole('button', { name: 'Confirmed' }))
+  await user.click(view.getByRole('button', { name: 'Status · 5' }))
+  assert.ok(view.getByRole('button', { name: 'Committed' }))
 
   view.rerender(<ToolbarHarness resolved />)
   await settle()
   assert.ok(view.container.querySelector('[data-requests-toolbar-branch="mobile"]'))
   assert.equal(view.getAllByRole('textbox', { name: 'Search plants, customers, JR-…' }).length, 1)
-  assert.equal(view.queryByRole('button', { name: 'Status · 6' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Status · 5' }), null)
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 0)
   assert.equal(actionUnmounts, 1)
   assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Search plants, customers, JR-…' }))
@@ -439,10 +440,10 @@ test('unresolved/mobile/desktop each own exactly one branch and crossings close 
   assert.equal(document.querySelectorAll('#jobs-new-trigger').length, 1)
   assert.equal(document.activeElement, view.getByRole('textbox', { name: 'Search plants, customers, JR-…' }))
 
-  await user.click(view.getByRole('button', { name: 'Status · 6' }))
+  await user.click(view.getByRole('button', { name: 'Status · 5' }))
   view.rerender(<ToolbarHarness resolved />)
   await settle()
-  assert.equal(view.queryByRole('button', { name: 'Confirmed' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Committed' }), null)
   await user.click(view.getByRole('button', { name: 'Filters' }))
   await waitFor(() => assert.equal(document.querySelectorAll('#request-filter-surface').length, 1))
   await user.keyboard('{Escape}')
@@ -573,7 +574,7 @@ test('real media-query resolution is neutral in SSR and structural budgets bound
 const REQUEST: JobRequestRow = {
   id: 27,
   name: 'Courtyard',
-  status: 'sourcing',
+  status: 'quoted',
   customer: null,
   billing: { address: null, city: null, state: null, zip: null },
   shipping: { address: null, city: null, state: null, zip: null },
@@ -617,7 +618,7 @@ function StaticCard({
   )
 }
 
-test('v3 mobile All Jobs card is exactly two tight rows with full sales status, flexible identity and named Rosie Chat', async () => {
+test('mobile All Jobs card keeps metadata with its identity header and a separate action row', async () => {
   const user = userEvent.setup({ document })
   let toggles = 0
   const longRequest: JobRequestRow = {
@@ -634,8 +635,9 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
     if (data.mobileRequestJr !== undefined) return 'jr'
     if (data.mobileRequestStatus !== undefined) return 'status'
     if (data.mobileRequestIdentity !== undefined) return 'identity'
+    if (data.jobMetadata !== undefined) return 'metadata'
     return 'unexpected'
-  }), ['jr', 'status', 'identity'])
+  }), ['jr', 'status', 'identity', 'metadata'])
   assert.deepEqual([...rows[1].children].map((node) => {
     const data = (node as HTMLElement).dataset
     if (data.mobilePendingSummary !== undefined) return 'pending'
@@ -654,10 +656,11 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
   assert.match(head.className, /gap-1\.5/)
   assert.match(head.className, /py-2\.5/)
   assert.doesNotMatch(head.className, /min-h-|h-\[/)
+  assert.match(rows[0].className, /flex-wrap/)
+  assert.match(rows[1].className, /flex-nowrap/)
   for (const row of rows) {
-    assert.match(row.className, /flex-nowrap/)
     assert.match(row.className, /min-w-0/)
-    assert.doesNotMatch(row.className, /flex-wrap|overflow-x-auto|overflow-x-scroll/)
+    assert.doesNotMatch(row.className, /overflow-x-auto|overflow-x-scroll/)
   }
   const identity = view.container.querySelector<HTMLElement>('[data-mobile-request-identity]')
   assert.ok(identity)
@@ -679,10 +682,9 @@ test('v3 mobile All Jobs card is exactly two tight rows with full sales status, 
 
 test('v3 mobile sales states remain fully written and blank Job never repeats the JR fallback in identity', () => {
   const canonical = [
-    ['sourcing', 'Active'],
+    ['committed', 'Committed'],
     ['quoted', 'Quote'],
     ['availability', 'Availability'],
-    ['confirmed', 'Confirmed'],
     ['closed_won', 'Won'],
     ['closed_lost', 'Lost'],
     ['archived', 'Archived'],

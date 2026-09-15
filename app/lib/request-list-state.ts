@@ -33,7 +33,8 @@ export function normalizeStoredRequestStatusLabels(
   const legacy: Record<string, string[]> = {
     Substituted: ['Diff Sz/Qnty/Sub'], 'Different Sz/Qnty/Sub': ['Diff Sz/Qnty/Sub'],
     'Need to Order': ['Can Order'],
-    Sourcing: ['Active'], New: ['Active'],
+    Active: ['Quote'], Sourcing: ['Quote'], New: ['Quote'],
+    Confirmed: ['Committed'],
     Quoted: ['Quote'], 'Quote Delivered': ['Quote'], 'In Progress': ['Quote', 'Availability'],
     'Closed won': ['Won'], 'Closed Won': ['Won'], 'Closed lost': ['Lost'], 'Closed Lost': ['Lost'],
   }
@@ -43,13 +44,15 @@ export function normalizeStoredRequestStatusLabels(
       if (allowed.has(label) && !normalized.includes(label)) normalized.push(label)
     }
   }
-  // The old default selected every non-archived stage. Keep that intent when
-  // adding Availability and Confirmed, instead of hiding those jobs. A saved
-  // In Progress selection expands above and preserves any excluded Confirmed.
-  const oldDefault = ['Active', 'Quote', 'Won', 'Lost']
-  if (stored.some((value) => typeof value === 'string' && Object.hasOwn(legacy, value))
-    && normalized.length === 4 && oldDefault.every((label) => normalized.includes(label))
-    && allowed.has('Active') && allowed.has('Availability') && allowed.has('Confirmed')) return [...fallback]
+  // Preserve a previously complete default when Committed replaces Active.
+  const previousDefaults = [
+    ['Active', 'Quote', 'Availability', 'Confirmed', 'Won', 'Lost'],
+    ['Sourcing', 'Quoted', 'Availability', 'Confirmed', 'Closed won', 'Closed lost'],
+    ['Sourcing', 'Quote Delivered', 'Closed won', 'Closed lost'],
+    ['New', 'In Progress', 'Confirmed', 'Closed Won', 'Closed Lost'],
+  ]
+  if (previousDefaults.some((labels) => labels.length === stored.length
+    && labels.every((label) => stored.includes(label)))) return [...fallback]
   return normalized
 }
 

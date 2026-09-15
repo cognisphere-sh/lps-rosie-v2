@@ -5,6 +5,7 @@ import {
 } from 'react'
 
 import { ARSharing } from '@/components/workspace/ar-sharing'
+import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import {
   BodyModalPortal,
@@ -17,7 +18,7 @@ import {
   onOpenAvailabilityRequest,
 } from '@/lib/chat-bus'
 import type { ARDetail } from '@/lib/availability'
-import { formatDate } from '@/lib/format'
+import { formatMonthDay } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
 import { useJobUpdates } from '@/lib/use-job-updates'
 
@@ -323,6 +324,7 @@ export function AvailabilityRequestDrawer() {
         return false
       }
       const beforeStatus = arRef.current?.status
+      const beforeSubmittedAt = arRef.current?.submittedAt
       try {
         const response = await fetch(`/api/availability-requests/${target.id}`, {
           method: 'PATCH',
@@ -345,8 +347,8 @@ export function AvailabilityRequestDrawer() {
         const body = (await refreshed.json()) as { request: ARDetail }
         if (!latest()) return false
         setAr(body.request)
-        if (response.ok && body.request.status !== beforeStatus) {
-          availabilityRequestStatusChanged({ arId: target.id, status: body.request.status })
+        if (response.ok && (body.request.status !== beforeStatus || body.request.submittedAt !== beforeSubmittedAt)) {
+          availabilityRequestStatusChanged({ arId: target.id, status: body.request.status, submittedAt: body.request.submittedAt })
         }
         return response.ok
       } catch (caught) {
@@ -436,10 +438,20 @@ export function AvailabilityRequestDrawer() {
           onClick={(event) => event.stopPropagation()}
           className="flex h-full w-full max-w-[640px] flex-col overflow-hidden border-l border-border bg-background shadow-[var(--lps-shadow)] min-[900px]:overflow-y-auto"
         >
-          <header className="flex flex-none items-center gap-2 border-b border-border bg-background pb-2 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(12px,env(safe-area-inset-top))] min-[900px]:border-b-0 min-[900px]:px-4 min-[900px]:pb-0 min-[900px]:pt-4">
-            <h2 id="availability-request-drawer-title" className="m-0 min-w-0 break-words text-[14px] font-bold text-foreground">
-              Availability request AR-{arId}
-            </h2>
+          <header className="flex flex-none items-start gap-2 border-b border-border bg-background pb-2 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(12px,env(safe-area-inset-top))] min-[900px]:border-b-0 min-[900px]:px-4 min-[900px]:pb-0 min-[900px]:pt-4">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 id="availability-request-drawer-title" className="m-0 min-w-0 break-words text-[14px] font-bold text-foreground">
+                Availability request AR-{arId}
+              </h2>
+              {ar && (
+                <>
+                  <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                    Created on <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(ar.createdAt) || '—'}</span>
+                  </span>
+                  <ARJobSchedules schedules={ar.jobSchedules} showJobNames />
+                </>
+              )}
+            </div>
             <button
               ref={closeButton}
               type="button"
@@ -492,13 +504,11 @@ export function AvailabilityRequestDrawer() {
                     <dt className="font-bold text-muted-foreground">Supplier</dt>
                     <dd className="m-0 break-words font-bold text-foreground">{ar.supplierName}</dd>
                     <dt className="font-bold text-muted-foreground">Job</dt>
-                    <dd className="m-0 break-words text-foreground">{ar.jobName ?? requestRef(ar.jobRequestId)}</dd>
-                    <dt className="font-bold text-muted-foreground">Sent</dt>
-                    <dd className="m-0 text-foreground">{formatDate(ar.createdAt)}</dd>
+                    <dd className="m-0 break-words text-foreground">{ar.jobName ?? (ar.jobRequestId != null ? requestRef(ar.jobRequestId) : 'Archived source job')}</dd>
                     {ar.submittedAt && (
                       <>
                         <dt className="font-bold text-muted-foreground">Submitted</dt>
-                        <dd className="m-0 text-foreground">{formatDate(ar.submittedAt)}</dd>
+                        <dd className="m-0 text-foreground">{formatMonthDay(ar.submittedAt)}</dd>
                       </>
                     )}
                   </dl>

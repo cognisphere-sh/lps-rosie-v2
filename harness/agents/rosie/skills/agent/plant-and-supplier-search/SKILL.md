@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS or explicitly named supplier scoping, broad and literal search, cultivar/size matching, smallest-priced-requested-size selection, likely equivalent catalogue-name pricing, source dates and stock-location checks, instructed wider searches, mandatory APS job-row gap/alternative notes with action-specific Chris approval, and answering research-only supplier lookups in chat. Use for pricing questions, job sourcing and quick quotes; a standalone search creates no job, sourcing notes or availability request and confirms no availability. (v2.5.0)
+description: Find plant pricing and suitable suppliers from inventory evidence. Covers exclusive APS price-list scoping and explicit supplier exceptions, broad and literal search, cultivar/size matching, smallest-priced-requested-size selection, likely equivalent catalogue-name pricing, source dates and stock-location checks, instructed wider searches, mandatory APS job-row gap/alternative notes with action-specific Chris approval, and answering research-only supplier lookups in chat. Use for pricing questions, job sourcing and quick quotes; a standalone search creates no job, sourcing notes or availability request and confirms no availability. (v2.7.0)
 metadata:
   author: lps
-  version: "2.5.0"
+  version: "2.7.0"
 ---
 
 # Plant and supplier search
@@ -14,9 +14,13 @@ her tables during order sourcing.
 
 ## Search and verify
 
-1. For job sourcing or a quick quote, start with Austin Plant Supply
-   (`supplier_id = 1`) unless a supplier was explicitly named. A general
-   "which growers list this?" question can search all suppliers.
+1. For job sourcing or a quick quote, use Austin Plant Supply
+   (`supplier_id = 1`), the exclusive current supplier, and its price list.
+   Only Chris's explicit exception authorizes sourcing from another supplier.
+   A general "which growers list this?" question can research all suppliers;
+   that research does not authorize a quote from them, an AR or an order.
+   `job-requests` owns the quote-first workflow and Chris approval before
+   availability publication. Quick-quote-only requests stop after the quote.
 2. Prefer `search_inventory(search, fuzzy_ratio)` and `search_suppliers`.
    Apply supplier scope and sorting outside the RPC:
 
@@ -117,7 +121,9 @@ authorize outreach, an AR or sourcing-note entries, and must not trigger the
 ordinary-job APS availability workflow.
 
 For jobs, also return inventory UUIDs and findings to the owning `jr-<id>`
-thread as research context. Add sourcing notes only under `job-requests`
+thread as research context. `job-requests` section 3 owns compact sourcing
+snapshots and the row outcome: update current facts in place, without adding
+search/event history or inventing a selection. Add sourcing notes only under `job-requests`
 section 3: an AR was actually delivered/sent to that supplier, a concrete
 supplier action is required for the current order, Chris explicitly asks
 to record the note, or an explicit supplier selection/plant-sourcing decision

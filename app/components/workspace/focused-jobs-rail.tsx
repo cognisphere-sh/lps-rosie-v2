@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ArrowLeft, PanelLeftClose, PanelLeftOpen, Search, X } from 'lucide-react'
 
 import {
   FOCUSED_JOBS_RAIL_STORE,
@@ -10,15 +10,57 @@ import {
   type JobInboxViewRow,
 } from '@/lib/job-inbox'
 import { requestRef, requestStatusTone, toneDot, toneStyle } from '@/lib/job-requests'
+import { formatMonthDay } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export const FOCUSED_JOBS_RAIL_ID = 'focused-jobs-rail'
+
+export function FocusedJobsRailSearch({ value, onChange, matches, loading }: {
+  value: string
+  onChange: (value: string) => void
+  matches: number
+  loading: boolean
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="flex-none border-b border-border p-2">
+      <div className="flex min-h-11 items-center rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-ring">
+        <Search aria-hidden="true" size={15} className="ml-3 flex-none text-muted-foreground" />
+        <input
+          ref={inputRef}
+          type="search"
+          aria-label="Search active jobs"
+          aria-describedby="active-jobs-search-help"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Name, plant, notes…"
+          className="min-h-11 min-w-0 flex-1 border-0 bg-transparent px-2 text-[12px] text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
+        />
+        {value && (
+          <button
+            type="button"
+            aria-label="Clear job search"
+            onClick={() => { onChange(''); inputRef.current?.focus() }}
+            className="flex size-11 flex-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X aria-hidden="true" size={15} />
+          </button>
+        )}
+      </div>
+      <p id="active-jobs-search-help" className="sr-only">Search job names, JR references, customers, plants, sizes and job or plant notes. All search words must match.</p>
+      {value.trim() && (
+        <p role="status" className="m-0 px-1 pt-2 text-[11px] text-muted-foreground">
+          {loading ? 'Loading active jobs…' : `${matches} matching ${matches === 1 ? 'job' : 'jobs'}`}
+        </p>
+      )}
+    </div>
+  )
+}
 
 export function FocusedJobsRailRow({
   row,
   selected,
   statusLabel,
-  activityLabel,
   buttonRef,
   onSelect,
   ariaLabel,
@@ -26,7 +68,6 @@ export function FocusedJobsRailRow({
   row: JobInboxViewRow
   selected: boolean
   statusLabel: string
-  activityLabel: string
   buttonRef?: (element: HTMLButtonElement | null) => void
   onSelect: () => void
   ariaLabel: string
@@ -47,7 +88,10 @@ export function FocusedJobsRailRow({
       )}
     >
       <span className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[10.5px] font-bold text-primary">{requestRef(row.id)}</span>
+        <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-primary">
+          {requestRef(row.id)}
+          {row.unread && <span aria-hidden="true" title="Unread messages" className="size-1.5 rounded-full bg-primary" />}
+        </span>
         <span
           data-job-status={row.status}
           title={statusLabel}
@@ -68,16 +112,9 @@ export function FocusedJobsRailRow({
       <span className="mt-1 block truncate text-[11px] text-muted-foreground" title={customer || 'Unassigned customer'}>
         {customer || 'Unassigned customer'}
       </span>
-      <span className="mt-2 flex min-w-0 items-center gap-1.5 border-t border-lps-hair pt-2 text-[10.5px] text-muted-foreground">
-        <span className="min-w-0 flex-1 truncate">{row.preview}</span>
-        {row.unread && (
-          <span className="flex-none rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">
-            New web chat
-          </span>
-        )}
-      </span>
-      <span className="mt-1 block truncate text-[10px] text-lps-dim">
-        {activityLabel}{row.unread ? ' · Unread in team web chat' : ''}
+      <span data-focused-job-rail-dates className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-lps-hair pt-2 text-[10.5px] text-muted-foreground">
+        <span>Created <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(row.createdAt) || '—'}</span></span>
+        <span>EDD <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(row.expectedInstallDate) || '—'}</span></span>
       </span>
     </button>
   )

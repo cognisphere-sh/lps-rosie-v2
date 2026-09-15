@@ -1,5 +1,17 @@
 # quote-generation — changelog
 
+## 2.19.0
+
+- Remove Confirmed from job-stage rules. Clarify that supplier confirmation advances Orders only; linked Job Requests stay Committed.
+
+## 2.18.0
+
+- Use the canonical compact supplier snapshot and row outcome when recording quote prices or gaps; replace superseded price updates without accumulating quote history.
+
+## 2.17.0
+
+- Generate APS price-list quotes before availability requests; stop quote-only work after output and let the job thread obtain Chris send approval for ordinary jobs. Distinguish customer commitment from supplier confirmation.
+
 ## 2.16.0
 
 2026-09-11 — Route explicitly requested compact Gmail-copy HTML tables to the

@@ -25,6 +25,9 @@ export const arStatusTone = (s: string): Tone => AR_STATUS_META[s as ARStatus]?.
 /** The existing lifecycle state the admin UI may safely call submitted. */
 export const isSubmittedARStatus = (status: string) => status === 'submitted'
 
+/** Open requests are in progress until the supplier submits them. */
+export const isInProgressARStatus = (status: string) => status === 'new' || status === 'processing'
+
 /** The AR segment's accessible name, including the state its visible indicator conveys. */
 export function availabilityRequestLinkLabel(
   id: number,
@@ -32,7 +35,9 @@ export function availabilityRequestLinkLabel(
   status: string,
 ): string {
   const base = `Open availability request AR-${id} to ${supplierName}`
-  return isSubmittedARStatus(status) ? `${base} — Completed` : base
+  return isSubmittedARStatus(status) ? `${base} — Completed`
+    : isInProgressARStatus(status) ? `${base} — In progress`
+      : status === 'closed' ? `${base} — Closed` : base
 }
 
 /**
@@ -80,6 +85,7 @@ export const AR_RESPONSE_OPTIONS = [
 export interface ARItem {
   id: number
   jobRequestItemId: number | null
+  allocations?: { jobRequestItemId: number; quantity: number | null }[]
   /** Snapshotted at share time; admins can correct it directly, while later job edits never rewrite it. */
   name: string
   size: string | null
@@ -114,7 +120,8 @@ export interface ARSummary {
   /** Sharing capability for admins and authorized partners. Omitted from public payloads. */
   publicToken?: string | null
   id: number
-  jobRequestId: number
+  jobRequestId: number | null
+  jobRequestIds?: number[]
   /** `job_requests.name`, null = unnamed (render the JR ref). */
   jobName: string | null
   supplierId: number
@@ -135,10 +142,22 @@ export interface ARSummary {
  */
 export interface ARDetail extends ARSummary {
   items: ARItem[]
+  /** One schedule per linked job; supplier/public payloads omit the job identity. */
+  jobSchedules?: ARJobSchedule[]
   /** Only present when customer details are shared (portal) or always (admin). */
   customer: { name: string; company: string | null; email: string | null; phone: string | null } | null
   /** Delivery destination; same disclosure rule as `customer`. */
   shipping: { address: string | null; city: string | null; state: string | null; zip: string | null } | null
+}
+
+/** Keep each install date paired with that job's fulfillment method. */
+export interface ARJobSchedule {
+  /** Admin only; never included in supplier/public schedule metadata. */
+  jobRequestId?: number
+  /** Admin only; never included in supplier/public schedule metadata. */
+  jobName?: string | null
+  expectedInstallDate: string | null
+  fulfillmentMethod: 'pickup' | 'delivery' | null
 }
 
 /**
@@ -151,7 +170,7 @@ export interface SupplierLink {
   name: string
   lpsPartner: boolean
   /** Every availability request this job has with them, newest first. */
-  availabilityRequests: { id: number; status: string }[]
+  availabilityRequests: { id: number; status: string; createdAt?: string | null; submittedAt?: string | null }[]
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
   rosieThreadId: string | null
 }
@@ -161,13 +180,14 @@ export function withAvailabilityRequestStatus(
   links: SupplierLink[],
   arId: number,
   status: string,
+  submittedAt?: string | null,
 ): SupplierLink[] {
   let changed = false
   const next = links.map((link) => {
     const availabilityRequests = link.availabilityRequests.map((ar) => {
-      if (ar.id !== arId || ar.status === status) return ar
+      if (ar.id !== arId || (ar.status === status && (submittedAt === undefined || ar.submittedAt === submittedAt))) return ar
       changed = true
-      return { ...ar, status }
+      return { ...ar, status, ...(submittedAt !== undefined ? { submittedAt } : {}) }
     })
     return availabilityRequests.some((ar, i) => ar !== link.availabilityRequests[i])
       ? { ...link, availabilityRequests }

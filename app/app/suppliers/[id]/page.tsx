@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AgentChatButton } from '@/components/workspace/agent-chat-button'
+import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import {
   ChevronDown, ChevronLeft, ChevronRight, FileIcon, GlobeIcon, MailIcon,
@@ -27,7 +28,7 @@ import {
 import { requestRef } from '@/lib/job-requests'
 import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
-import { formatDate, money, num } from '@/lib/format'
+import { formatDate, formatMonthDay, money, num } from '@/lib/format'
 import type {
   CellValue, Contact, PlantRow, SupplierProfile, SupplierRow, SupplierScopeLocation, SupplierSource,
 } from '@/lib/rows'
@@ -1545,7 +1546,7 @@ export default function SupplierProfilePage() {
                   >
                     <ARStatusPill status={r.status} />
                     <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-foreground">
-                      {r.jobName ?? requestRef(r.jobRequestId)}
+                      {r.jobName ?? (r.jobRequestId != null ? requestRef(r.jobRequestId) : 'Archived source job')}
                     </span>
                     {multi && <LocationTag name={r.supplierName} head={false} />}
                     {r.shareCustomerDetails && (
@@ -1573,10 +1574,10 @@ export default function SupplierProfilePage() {
                   <ChevronLeft size={13} /> All availability requests
                 </button>
 
-                <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
+                <header className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3">
                   <ARStatusPill status={openAr.status} />
                   <span className="text-[14px] font-bold text-foreground">
-                    {openAr.jobName ?? requestRef(openAr.jobRequestId)}
+                    {openAr.jobName ?? (openAr.jobRequestId != null ? requestRef(openAr.jobRequestId) : 'Archived source job')}
                   </span>
                   {multi && <LocationTag name={openAr.supplierName} head={false} />}
                   {openAr.shareCustomerDetails && (
@@ -1585,9 +1586,10 @@ export default function SupplierProfilePage() {
                     </span>
                   )}
                   <span className="text-[11px] text-lps-dim">
-                    Sent {formatDate(openAr.createdAt)}
-                    {openAr.submittedAt && ` · Submitted ${formatDate(openAr.submittedAt)}`}
+                    Created on {formatMonthDay(openAr.createdAt) || '—'}
+                    {openAr.submittedAt && ` · Submitted ${formatMonthDay(openAr.submittedAt)}`}
                   </span>
+                  <ARJobSchedules schedules={openAr.jobSchedules} showJobNames />
                   <div className="ml-auto flex items-center gap-2">
                     <a
                       href={`/partner/${openAr.supplierId}/requests/${openAr.id}`}
@@ -1608,7 +1610,7 @@ export default function SupplierProfilePage() {
                       {openAr.status === 'closed' ? 'Reopen' : 'Close'}
                     </Button>
                   </div>
-                </div>
+                </header>
 
                 {openAr.lpsNotes && (
                   <p className="m-0 rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] text-foreground">

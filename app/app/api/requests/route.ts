@@ -6,12 +6,12 @@ import {
   jobRequestSummary,
   listJobRequests,
 } from '@/lib/job-request-queries'
-import { ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
+import { canonicalRequestStatus, ITEM_STATUSES, REQUEST_STATUSES } from '@/lib/job-requests'
 
 /** Whitelisted: a client never names a status the CHECK would reject anyway. */
 function statusList(raw: string | null, allowed: readonly string[]): string[] | undefined {
   if (!raw) return undefined
-  const picked = raw.split(',').filter((v) => allowed.includes(v))
+  const picked = [...new Set(raw.split(',').filter((v) => allowed.includes(v)))]
   return picked.length ? picked : undefined
 }
 
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
     const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1
 
     const filters: JobRequestFilters = {
-      status: statusList(url.searchParams.get('status'), REQUEST_STATUSES),
+      status: statusList(url.searchParams.get('status')?.split(',').map(canonicalRequestStatus).join(',') ?? null, REQUEST_STATUSES),
       itemStatus: statusList(url.searchParams.get('itemStatus'), ITEM_STATUSES),
       size: list(url.searchParams.get('size')),
       customerId: list(url.searchParams.get('customer'))

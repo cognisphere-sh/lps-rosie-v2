@@ -9,6 +9,18 @@ availability validation and order-side supplier coordination left her scope
 (all rosie's — see [agent-rosie.md](agent-rosie.md)), and work is organised
 as **one dedicated thread per supplier company**.
 
+Current job sourcing uses APS price-list quotes first and Chris approval
+before availability sends; Rosie owns that workflow, customer-accepted
+Committed orders and supplier Confirmed orders. Supplier confirmation leaves
+Job Requests Committed; their stages are Quote → Availability → Committed →
+Won/Lost. Daisy's order-message handoff
+preserves all references and quantities for consolidated grower requests or
+orders spanning multiple jobs. General price-list ingestion remains Daisy's
+work and does not confirm job availability or an order.
+Full supplier correspondence remains in its transcript. Rosie's `job-requests`
+skill owns JR sourcing notes as compact latest supplier snapshots and one
+current row outcome; Daisy does not copy contact/event history into those notes.
+
 ## agent.json
 
 - **name**: `daisy`

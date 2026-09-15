@@ -1,3 +1,4 @@
+import { formatMonthDay } from '@/lib/format'
 import { structuredJobIdentityLine } from '@/lib/job-identity'
 
 export interface JobInboxRow {
@@ -8,7 +9,10 @@ export interface JobInboxRow {
   customer: string | null
   customerCompany: string | null
   customerContact: string | null
+  /** Job/customer identity and current job/item notes; excludes chat transcripts. */
+  searchText?: string
   createdAt: string | null
+  expectedInstallDate?: string | null
   updatedAt: string | null
   thread: null | {
     lastId: number
@@ -224,12 +228,13 @@ export const jobInboxRailPrimaryLine = (
 }
 
 export function jobInboxRowAriaLabel(
-  row: Pick<JobInboxViewRow, 'id' | 'name' | 'customerCompany' | 'customerContact' | 'status' | 'preview' | 'unread'>,
+  row: Pick<JobInboxViewRow, 'id' | 'name' | 'customerCompany' | 'customerContact' | 'createdAt' | 'expectedInstallDate' | 'unread'>,
   statusLabel: string,
-  activityLabel: string,
 ): string {
   const readState = row.unread ? 'Unread web chat' : 'No unread web chat'
-  return `${jobInboxRailPrimaryLine(row)}, ${statusLabel}, ${row.preview}, ${activityLabel}, ${readState}`
+  const created = formatMonthDay(row.createdAt) || '—'
+  const expected = formatMonthDay(row.expectedInstallDate) || '—'
+  return `${jobInboxRailPrimaryLine(row)}, ${statusLabel}, Created ${created}, EDD ${expected}, ${readState}`
 }
 
 export function hasFocusedIntakeEvidence(

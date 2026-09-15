@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Keep all communication with a customer on their dedicated thread. Covers identity/thread lookup, customer-safe drafts, approval in the original request interaction, exact approved delivery, contact history and job-update/confirmation relays. Use for customer messages, requested customer sends and updates about any of their orders. (v3.0.1)
+description: Keep all communication with a customer on their dedicated thread. Covers identity/thread lookup, customer-safe drafts, approval in the original request interaction, exact approved delivery, contact history, expected install and pickup/delivery details, and customer acceptance relays for committed orders. Use for customer messages, requested customer sends and updates about any of their orders. (v3.2.0)
 metadata:
   author: lps
-  version: "3.0.1"
+  version: "3.2.0"
 ---
 
 # Customer coordination
@@ -28,11 +28,16 @@ write discipline for customer fields.
    or their structured fields. The transcript is the communication log;
    there is no `customers.communication_notes` column.
 4. Explicit customer acceptance is relayed with its exact scope/evidence so
-   the job thread records **Confirmed** from Active, Quote or Availability.
-   Won/Lost require an explicit closure instruction; acceptance does not
-   close or reopen a job. A partial
-   acceptance or request to change the offer must be resolved by the job
-   thread before treating the whole order as confirmed.
+   the job thread creates **Committed** supplier orders for the accepted
+   quantities. Supplier confirmation makes those **Orders Confirmed** while
+   the **Job Request remains Committed**; jobs have no Confirmed stage.
+   One job may have several orders and one order may serve several jobs;
+   acceptance applies only to this customer's stated scope and quantities.
+   Relay supplied expected install dates and pickup/delivery choices for the
+   job's structured fields; keep the supplier's actual fulfillment date separate.
+   Won/Lost require an explicit closure instruction; acceptance does not close
+   or reopen a job. Resolve partial acceptance or offer changes before
+   committing the affected quantities.
 
 ## Outbound communication
 
@@ -58,7 +63,7 @@ write discipline for customer fields.
    thread's internal web chat; credit Chris if he sent it himself.
 6. Relay actual delivery to the job thread. A shared quote records
    `quote_shared` there and its public link in customer-visible notes. This
-   advances Active → Quote without moving Availability/Confirmed backwards.
+   keeps initial jobs at Quote without moving Availability/Committed backwards.
    An internal draft has not been shared with the customer.
 
 Post meaningful milestones in this thread so the whole customer history is

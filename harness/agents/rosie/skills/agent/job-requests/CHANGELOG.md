@@ -1,5 +1,17 @@
 # job-requests — changelog
 
+## 5.2.0
+
+- Retire Confirmed from the Job Request lifecycle. Supplier confirmation still makes Orders Confirmed and records their dates; linked jobs stay Committed until explicit Won/Lost closure.
+
+## 5.1.0
+
+- Keep JR sourcing notes as one short current row outcome and one latest snapshot per supplier. Replace superseded updates, preserve current decisions/constraints, and leave event history in the changelog and transcript; add selected, pending-approval and quote-only examples.
+
+## 5.0.0
+
+- Replace Active with a quote-first APS workflow, stop explicit quick quotes, and require Chris approval before availability publication. Add Committed supplier orders, supplier confirmation, fulfillment fields and many-to-many job/AR/order allocations.
+
 ## 4.13.0
 
 2026-09-11 — Aligned shared quote-note examples with Chris's minimum-word

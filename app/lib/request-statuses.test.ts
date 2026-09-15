@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ACTIVE_JOB_STATUSES, ITEM_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS, isActiveJobStatus, itemPill, requestStatusLabel } from './job-requests.ts'
+import { ACTIVE_JOB_STATUSES, ITEM_STATUS_OPTIONS, REQUEST_STATUSES, REQUEST_STATUS_OPTIONS, isActiveJobStatus, itemPill, requestStatusLabel, requestStatusToken, requestStatusTone } from './job-requests.ts'
+import { ORDER_STATUSES, ORDER_STATUS_META } from './orders.ts'
 import { AR_RESPONSE_OPTIONS, answeredIn, arResponseLabel } from './availability.ts'
 import { normalizeStoredRequestStatusLabels } from './request-list-state.ts'
 import { countItemFilters } from '../components/workspace/supplier-items.tsx'
 import type { SupplierItemLine } from './availability.ts'
 
 test('working sales stages stay active and terminal/legacy archived jobs do not', () => {
-  assert.deepEqual(REQUEST_STATUS_OPTIONS.map((o) => o.label), ['Active', 'Quote', 'Availability', 'Confirmed', 'Won', 'Lost'])
+  assert.deepEqual(REQUEST_STATUS_OPTIONS.map((o) => o.label), ['Quote', 'Availability', 'Committed', 'Won', 'Lost'])
   for (const status of ACTIVE_JOB_STATUSES) assert.equal(isActiveJobStatus(status), true)
-  for (const status of ['closed_won', 'closed_lost', 'archived']) assert.equal(isActiveJobStatus(status), false)
+  for (const status of ['confirmed', 'closed_won', 'closed_lost', 'archived']) assert.equal(isActiveJobStatus(status), false)
   assert.equal(requestStatusLabel('archived'), 'Archived')
 })
 
@@ -45,31 +46,45 @@ test('the persisted old default expands to include newly introduced working stag
 
 test('Quote and Availability remain separate active filters', () => {
   const options = REQUEST_STATUS_OPTIONS
-  assert.deepEqual(normalizeStoredRequestStatusLabels(['Active', 'Quote', 'Availability', 'Confirmed'], options, []), ['Active', 'Quote', 'Availability', 'Confirmed'])
-  assert.deepEqual(ACTIVE_JOB_STATUSES, ['sourcing', 'quoted', 'availability', 'confirmed'])
+  assert.deepEqual(normalizeStoredRequestStatusLabels(['Active', 'Quote', 'Availability', 'Confirmed'], options, []), ['Quote', 'Availability', 'Committed'])
+  assert.deepEqual(ACTIVE_JOB_STATUSES, ['quoted', 'availability', 'committed'])
 })
 
 
-test('a current filter that deliberately excludes Confirmed survives restoration', () => {
+test('a current filter that deliberately excludes Committed survives restoration', () => {
   const selected = ['Active', 'Quote', 'Won', 'Lost']
-  assert.deepEqual(normalizeStoredRequestStatusLabels(selected, REQUEST_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS.map((o) => o.label)), selected)
+  assert.deepEqual(normalizeStoredRequestStatusLabels(selected, REQUEST_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS.map((o) => o.label)), ['Quote', 'Won', 'Lost'])
 })
 
 
-test('saved In Progress includes both restored stages and preserves an excluded Confirmed', () => {
+test('saved In Progress includes both restored stages and preserves an excluded Committed', () => {
   assert.deepEqual(normalizeStoredRequestStatusLabels(
     ['New', 'In Progress', 'Closed Won', 'Closed Lost'], REQUEST_STATUS_OPTIONS, [],
-  ), ['Active', 'Quote', 'Availability', 'Won', 'Lost'])
+  ), ['Quote', 'Availability', 'Won', 'Lost'])
   assert.deepEqual(normalizeStoredRequestStatusLabels(
     ['In Progress', 'Quote Delivered', 'Availability', 'Quote'], REQUEST_STATUS_OPTIONS, [],
   ), ['Quote', 'Availability'])
 })
 
-test('the previous complete default restores all six stages', () => {
+test('the previous complete default restores all five job stages', () => {
   const current = REQUEST_STATUS_OPTIONS.map((o) => o.label)
   assert.deepEqual(normalizeStoredRequestStatusLabels(
     ['New', 'In Progress', 'Confirmed', 'Closed Won', 'Closed Lost'], REQUEST_STATUS_OPTIONS, current,
   ), current)
+})
+
+test('legacy Confirmed job filters and display map to Committed while Orders retain Confirmed', () => {
+  const fallback = REQUEST_STATUS_OPTIONS.map((option) => option.label)
+  assert.deepEqual(normalizeStoredRequestStatusLabels(['Confirmed'], REQUEST_STATUS_OPTIONS, fallback), ['Committed'])
+  assert.deepEqual(normalizeStoredRequestStatusLabels(['Confirmed', 'Committed', 'Availability'], REQUEST_STATUS_OPTIONS, fallback), ['Committed', 'Availability'])
+  assert.deepEqual(normalizeStoredRequestStatusLabels(['Quote', 'Availability', 'Committed', 'Confirmed', 'Won', 'Lost'], REQUEST_STATUS_OPTIONS, fallback), fallback)
+  assert.deepEqual(normalizeStoredRequestStatusLabels([], REQUEST_STATUS_OPTIONS, fallback), [])
+  assert.equal(requestStatusLabel('confirmed'), 'Committed')
+  assert.equal(requestStatusToken('confirmed'), 'Cmt')
+  assert.equal(requestStatusTone('confirmed'), requestStatusTone('committed'))
+  assert.equal((REQUEST_STATUSES as readonly string[]).includes('confirmed'), false)
+  assert.equal(ORDER_STATUSES.includes('confirmed'), true)
+  assert.equal(ORDER_STATUS_META.confirmed.label, 'Confirmed')
 })
 
 test('unknown saved labels cannot resolve to inherited object properties', () => {

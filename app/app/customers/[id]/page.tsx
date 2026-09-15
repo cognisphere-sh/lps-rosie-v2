@@ -317,8 +317,7 @@ export default function CustomerPage() {
             </span>
           </div>
 
-          {/* The same four figures the list shows as columns. Orders have no
-              source yet — order tables are deferred by migration 0055 — so
+          {/* The same four figures the list shows as columns. Customer-wide order rollups are not connected here, so
               they read "—" rather than borrowing a request's number. */}
           <div className="flex flex-wrap gap-x-10 gap-y-3 rounded-xl border border-border bg-card px-3.5 py-3">
             <Figure label="Active requests" value={String(active.length)} />
@@ -406,10 +405,9 @@ export default function CustomerPage() {
 
         {tab === 'orders' && (
           <div className="flex flex-col items-center gap-2 py-14 text-center">
-            <span className="text-[14px] font-semibold">Orders aren&rsquo;t tracked yet</span>
+            <span className="text-[14px] font-semibold">Orders are available by job</span>
             <span className="max-w-[420px] text-[12.5px] text-muted-foreground">
-              There are no order tables in the database — migration 0055 defers them, with a won
-              request as the hook they will be created from. This tab fills in when they land.
+              Open a job from Requests, then select its Orders tab to view or create supplier orders.
             </span>
           </div>
         )}

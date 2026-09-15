@@ -5,7 +5,7 @@
 // same order details, line table and history under each of their requests —
 // nothing here knows which page it is drawn on.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import { Markdown } from '@/components/workspace/chat-kit'
@@ -19,11 +19,12 @@ import { useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import {
   availabilityRequestLinkLabel,
+  isInProgressARStatus,
   isSubmittedARStatus,
 } from '@/lib/availability'
 import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { customerThreadId } from '@/lib/customers'
-import { formatDate, money, num } from '@/lib/format'
+import { formatDate, formatMonthDay, money, num } from '@/lib/format'
 import {
   ITEM_STATUS_OPTIONS,
   coverColor,
@@ -36,6 +37,7 @@ import {
   toneTint,
   type Tone,
 } from '@/lib/job-requests'
+import { JobOrders } from '@/components/workspace/orders'
 import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
@@ -62,6 +64,25 @@ const gridOf = (selectable: boolean, deletable = false) =>
 
 /** Under this the columns would crush, so the card scrolls sideways instead. */
 const GRID_MIN = 1050
+
+/** Navigate the visible cells in row order, letting blur save the old editor. */
+function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) return
+  const cells = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-line-row] > *'))
+  const index = cells.findIndex((cell) => cell.contains(event.target as Node))
+  if (index < 0) return
+  const step = event.shiftKey ? -1 : 1
+  for (let next = index + step; next >= 0 && next < cells.length; next += step) {
+    const cell = cells[next]
+    const target = cell.matches('[tabindex="0"]') ? cell
+      : cell.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)')
+    if (!target) continue
+    event.preventDefault()
+    target.focus()
+    if (target.hasAttribute('data-cell-editor')) target.click()
+    return
+  }
+}
 
 /** "1240 SE Ankeny St · Portland, OR · 97214" on one line. */
 export const addressLine = (a: JobAddress) =>
@@ -403,8 +424,8 @@ function renderSourcingNote(text: string) {
 }
 
 /**
- * Shared notes stay plain text; internal sourcing notes render Markdown in
- * the cell and popover. Both keep their original source for editing.
+ * Both notes use a single-line preview; sourcing Markdown renders in the
+ * popover. Both keep their original source for editing.
  */
 function NoteCell({
   kind,
@@ -428,20 +449,40 @@ function NoteCell({
   const [open, setOpen] = useState(false)
   const pop = useOutsideClose(open, () => setOpen(false))
 
+  const [position, setPosition] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 })
+  useLayoutEffect(() => {
+    if (!open) return
+    const box = pop.current?.getBoundingClientRect()
+    if (!box) return
+    const left = Math.max(8, Math.min(box.right - 340, window.innerWidth - 348))
+    setPosition(window.innerHeight - box.bottom >= 368
+      ? { left, top: box.bottom + 8 }
+      : { left, bottom: window.innerHeight - box.top + 8 })
+    const close = (event: Event) => {
+      if (event.target instanceof Node && pop.current?.contains(event.target)) return
+      setOpen(false)
+    }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open, pop])
+
   const meta = NOTE_KIND[kind]
   const summary = value?.trim() ?? ''
 
   return (
-    <div ref={pop} data-pop className="relative min-w-0 px-1.5">
-      {kind === 'internal' && summary && (
-        <div className="px-1 py-0.5 text-[12px] text-foreground" onClick={(event) => event.stopPropagation()}>
-          {renderSourcingNote(summary)}
-        </div>
-      )}
+    <div ref={pop} data-pop className="relative min-w-0 px-1.5"
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
+      }}
+    >
       <button
         type="button"
         aria-label={kind === 'internal' ? `Edit sourcing note for ${title}` : undefined}
-        title={kind === 'internal' ? 'Edit sourcing note' : summary || `Add a ${meta.label.toLowerCase()} note`}
+        title={summary || `Add a ${meta.label.toLowerCase()} note`}
         onClick={(e) => {
           e.stopPropagation()
           setOpen((v) => !v)
@@ -449,11 +490,9 @@ function NoteCell({
         className="flex w-full min-w-0 cursor-pointer flex-col items-start gap-px rounded-md border border-transparent bg-transparent px-1 py-0.5 text-left hover:border-border hover:bg-lps-tint"
       >
         {summary ? (
-          kind === 'internal' ? <span className="text-[11px] text-muted-foreground">Edit</span> : (
-            <span className="w-full truncate text-[12px] text-foreground">
-              {summary.replace(/\s+/g, ' ')}
-            </span>
-          )
+          <span className="w-full truncate text-[12px] text-foreground">
+            {summary.replace(/\s+/g, ' ')}
+          </span>
         ) : (
           <span className="text-[12px] text-lps-dim">—</span>
         )}
@@ -461,7 +500,8 @@ function NoteCell({
       {open && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="lps-pop absolute right-2 top-[calc(100%+8px)] z-[70] flex max-h-[360px] w-[340px] flex-col gap-2 overflow-auto rounded-2xl border border-border bg-popover p-3 shadow-[var(--lps-shadow)]"
+          style={position}
+          className="lps-pop fixed z-[70] flex max-h-[360px] w-[340px] flex-col gap-2 overflow-auto rounded-2xl border border-border bg-popover p-3 shadow-[var(--lps-shadow)]"
         >
           <div className="flex items-baseline gap-2">
             <span className="text-[12.5px] font-bold text-foreground">{meta.label} note</span>
@@ -533,6 +573,7 @@ function ItemRow({
 
   return (
     <div
+      data-line-row
       className="grid items-center border-b border-lps-hair last:border-b-0"
       style={{
         gridTemplateColumns: gridOf(!!onSelect, !!onDelete),
@@ -612,6 +653,7 @@ function ItemRow({
       {/* Generated by the database from demand and unit price. */}
       <div
         className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground"
+        tabIndex={0}
         title="Total — calculated from demand × unit price"
       >
         {money(item.total) || '—'}
@@ -675,7 +717,7 @@ function SupplierPill({
       data-focused-mobile-supplier-pill={focusedMobile ? '' : undefined}
       className={focusedMobile
         ? 'flex w-full min-w-0 max-w-full flex-wrap items-stretch overflow-visible rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold'
-        : 'inline-flex flex-none items-stretch overflow-hidden rounded-full border border-lps-edge bg-card text-[10.5px] font-semibold'}
+        : 'inline-flex min-w-0 max-w-full flex-none flex-wrap items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold'}
     >
       <span className={focusedMobile
         ? 'flex min-w-0 max-w-full basis-full items-start gap-1 border-b border-lps-hair px-2 py-1 text-foreground'
@@ -696,11 +738,13 @@ function SupplierPill({
 /** One thing a pill opens: an availability request, or a conversation. */
 function LinkSegment({
   title,
+  describedBy,
   onOpen,
   className,
   children,
 }: {
   title: string
+  describedBy?: string
   onOpen: () => void
   className?: string
   children: React.ReactNode
@@ -714,6 +758,7 @@ function LinkSegment({
       }}
       title={title}
       aria-label={title}
+      aria-describedby={describedBy}
       className={cn(
         'flex cursor-pointer items-center border-l border-lps-hair bg-transparent px-1.5 hover:bg-lps-tint',
         className,
@@ -734,8 +779,8 @@ function LinkSegment({
  * `suppliersHidden` folds the supplier strip away on small screens — on a
  * collapsed list card there is no empty half to ride, and who a job's
  * suppliers are is what you open the card to find out. `focusedMobile` is the
- * focused Job's narrow preview only: existing cards keep the segmented pill's
- * established single-row presentation.
+ * focused Job's narrow preview only: its supplier name gets a full-width row.
+ * All variants wrap dated AR segments to the available width.
  */
 export function RequestLinks({
   request,
@@ -751,6 +796,7 @@ export function RequestLinks({
   relatedOnly?: boolean
   className?: string
 }) {
+  const dateIdPrefix = useId()
   const customerName = request.customer?.company || request.customer?.name
   const contact = request.customer?.company && request.customer.name ? request.customer.name : null
   // Only the stored canonical customer thread is safe to open. Rosie owns
@@ -829,7 +875,7 @@ export function RequestLinks({
           className={cn(
             focusedMobile
               ? 'flex w-full min-w-0 max-w-full flex-wrap items-center gap-1'
-              : 'flex w-full flex-wrap items-center gap-1 md:ml-auto md:w-auto md:justify-end',
+              : 'flex w-full min-w-0 max-w-full flex-wrap items-center gap-1 md:ml-auto md:w-auto md:justify-end',
             suppliersHidden && 'hidden md:flex',
           )}
         >
@@ -839,22 +885,36 @@ export function RequestLinks({
                 <LinkSegment
                   key={ar.id}
                   title={availabilityRequestLinkLabel(ar.id, l.name, ar.status)}
+                  describedBy={`${dateIdPrefix}-ar-${ar.id}-date`}
                   onOpen={() => openAvailabilityRequest(ar.id)}
                   className={cn(
-                    'gap-1',
+                    'flex-col justify-center gap-0.5 py-1',
                     relatedOnly && 'min-h-11',
                     isSubmittedARStatus(ar.status)
-                      ? 'text-[var(--lps-tone-green-dot)]'
-                      : 'text-primary',
+                      ? 'bg-[var(--lps-tone-green-bg)] text-[var(--lps-tone-green-fg)] hover:bg-[var(--lps-tone-green-bg)]'
+                      : isInProgressARStatus(ar.status)
+                        ? 'bg-[var(--lps-tone-amber-bg)] text-[var(--lps-tone-amber-fg)] hover:bg-[var(--lps-tone-amber-bg)]'
+                        : 'bg-[var(--lps-tone-grey-bg)] text-[var(--lps-tone-grey-fg)] hover:bg-[var(--lps-tone-grey-bg)]',
+                    'hover:brightness-95',
                   )}
                 >
-                  AR-{ar.id}
-                  {isSubmittedARStatus(ar.status) && (
-                    <span
-                      aria-hidden="true"
-                      className="size-1.5 flex-none rounded-full bg-[var(--lps-tone-green-dot)]"
-                    />
-                  )}
+                  <span className="flex items-center gap-1">
+                    AR-{ar.id}
+                    {(isSubmittedARStatus(ar.status) || isInProgressARStatus(ar.status)) && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'size-1.5 flex-none rounded-full',
+                          isSubmittedARStatus(ar.status)
+                            ? 'bg-[var(--lps-tone-green-dot)]'
+                            : 'bg-[var(--lps-tone-amber-dot)]',
+                        )}
+                      />
+                    )}
+                  </span>
+                  <span id={`${dateIdPrefix}-ar-${ar.id}-date`} className="whitespace-nowrap text-[10px] font-normal opacity-80">
+                    {formatMonthDay(isSubmittedARStatus(ar.status) ? ar.submittedAt : ar.createdAt) || '—'}
+                  </span>
                 </LinkSegment>
               ))}
               {l.rosieThreadId && !focusedMobile && (
@@ -891,6 +951,42 @@ function DetailField({
       <EditableText {...props} />
     </div>
   )
+}
+
+function JobSchedule({ request, edit }: { request: JobRequestRow; edit: Omit<EditProps, 'column'> }) {
+  const [date, setDate] = useState(request.expectedInstallDate ?? '')
+  const [method, setMethod] = useState(request.fulfillmentMethod ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    setDate(request.expectedInstallDate ?? '')
+    setMethod(request.fulfillmentMethod ?? '')
+  }, [request.id, request.expectedInstallDate, request.fulfillmentMethod])
+  const save = async (column: string, value: string) => {
+    setBusy(true)
+    setError('')
+    try {
+      await patchRow(edit.table, edit.id, column, value)
+      edit.onSaved()
+    } catch (e) { setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  return <div className="flex flex-wrap gap-3 py-2 text-[12px]">
+    <label className="flex flex-col gap-1">Expected install date
+      <input aria-label="Expected install date" type="date" value={date} disabled={busy}
+        onChange={(event) => setDate(event.target.value)}
+        onBlur={(event) => { const next = event.currentTarget.value; setDate(next); if (next !== (request.expectedInstallDate ?? '')) void save('expected_install_date', next) }}
+        className="min-h-11 rounded-md border border-input bg-background px-2" />
+    </label>
+    <label className="flex flex-col gap-1">Pickup / Delivery
+      <select aria-label="Pickup / Delivery" value={method} disabled={busy}
+        onChange={(event) => { setMethod(event.target.value); void save('fulfillment_method', event.target.value) }}
+        className="min-h-11 rounded-md border border-input bg-background px-2">
+        <option value="">Not set</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option>
+      </select>
+    </label>
+    {error && <p role="alert" className="text-destructive">{error}</p>}
+  </div>
 }
 
 /** One of the two addresses, street over city/state/ZIP. */
@@ -947,8 +1043,8 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
     },
     {
       label: 'Delivery',
-      primary: shipping || 'No shipping address recorded',
-      secondary: 'Delivery schedule not recorded',
+      primary: request.fulfillmentMethod === 'pickup' ? 'Pickup' : shipping || 'No shipping address recorded',
+      secondary: request.expectedInstallDate ? `Expected install: ${request.expectedInstallDate}` : 'Expected install date not recorded',
     },
     {
       label: 'Billing & payment',
@@ -1085,6 +1181,7 @@ function CompactJobDetails({
             <SignatureAddress {...edit} prefix="billing" address={request.billing} />
           </SignatureBlock>
           <SignatureBlock label="Delivery">
+            <JobSchedule request={request} edit={edit} />
             <SignatureAddress {...edit} prefix="shipping" address={request.shipping} />
           </SignatureBlock>
           <SignatureBlock label="Other / notes">
@@ -1348,6 +1445,8 @@ export function RequestBody({
   emptyItemsCopy?: string
   onSaved: () => void
 }) {
+  const [tab, setTab] = useState<'items' | 'orders'>('items')
+  useEffect(() => setTab('items'), [request.id])
   const edit = { table: 'job_requests', id: request.id, onSaved, touchTarget: touchTargets }
   const ship = addressLine(request.shipping)
   const bill = addressLine(request.billing)
@@ -1370,6 +1469,14 @@ export function RequestBody({
 
   return (
     <>
+      <div role="tablist" aria-label="Job request" className="flex gap-1 border-t border-border px-3 py-1">
+        {(['items', 'orders'] as const).map((value) => <button key={value} type="button" role="tab"
+          aria-selected={tab === value} onClick={() => setTab(value)}
+          className={`min-h-11 rounded-md px-3 text-[12px] font-semibold ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
+          {value === 'items' ? 'Request items' : 'Orders'}
+        </button>)}
+      </div>
+      {tab === 'orders' ? <JobOrders jobRequestId={request.id} onChanged={onSaved} version={version} /> : <>
       {(!compactJobDetails || !summaryInHeader) && <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
         {!compactJobDetails && <RequestOverview request={request} />}
         {!summaryInHeader && <DemandSummary
@@ -1415,6 +1522,7 @@ export function RequestBody({
                   <span className="font-medium text-muted-foreground">Not recorded</span>
                 )}
               </div>
+              <JobSchedule request={request} edit={edit} />
               <div className="grid gap-3 md:grid-cols-2">
                 <AddressCard {...edit} label="Shipping address" prefix="shipping"
                   address={request.shipping} />
@@ -1442,7 +1550,7 @@ export function RequestBody({
       {/* The line table scrolls sideways rather than crushing its columns —
           the design fixes a min width for exactly this reason, and the two
           note columns are what would otherwise be squeezed out of existence. */}
-      <div data-request-line-table className="overflow-x-auto border-t border-border">
+      <div data-request-line-table onKeyDown={navigateLineCells} className="overflow-x-auto border-t border-border">
         <div
           style={{
             minWidth:
@@ -1501,6 +1609,7 @@ export function RequestBody({
       )}
 
       <ChangeHistory requestId={request.id} version={version} touchTarget={touchTargets} />
+      </>}
     </>
   )
 }

@@ -4,6 +4,11 @@ export const JOB_REALTIME_TABLES = [
   'job_request_items',
   'availability_requests',
   'availability_request_items',
+  'availability_request_jobs',
+  'availability_request_item_jobs',
+  'orders',
+  'order_items',
+  'order_item_job_request_items',
   'customers',
   'suppliers',
 ] as const

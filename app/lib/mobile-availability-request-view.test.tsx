@@ -9,7 +9,7 @@ import { AvailabilityRequestDrawer } from '../components/workspace/ar-drawer.tsx
 import { AvailabilityRequestView } from '../components/workspace/availability-request-view.tsx'
 import { ARLineTable, LineStatusPicker } from '../components/workspace/availability.tsx'
 import { BodyModalPortal } from '../components/workspace/body-modal-portal.tsx'
-import { openAvailabilityRequest } from './chat-bus.ts'
+import { onAvailabilityRequestStatusChanged, openAvailabilityRequest, type AvailabilityRequestStatusDetail } from './chat-bus.ts'
 import type { ARDetail, ARItem } from './availability.ts'
 
 let dom: JSDOM
@@ -400,6 +400,11 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
       id: 84,
       status: 'processing',
       submittedAt: '2026-08-31T18:00:00.000Z',
+      createdAt: '2026-08-31T02:00:00.000Z',
+      jobSchedules: [
+        { jobRequestId: 31, jobName: 'Courtyard', expectedInstallDate: '2026-09-20', fulfillmentMethod: 'pickup' },
+        { jobRequestId: 32, jobName: 'Pool garden', expectedInstallDate: '2026-09-26', fulfillmentMethod: 'delivery' },
+      ],
       items: [line(19, { quantity: 0, availableQuantity: 0, unitPrice: 0 }), line(20)],
     }),
     request({ id: 85, status: 'closed', submittedAt: '2026-08-30T12:00:00.000Z' }),
@@ -409,8 +414,14 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
   const summary = within(dialog).getByRole('region', { name: 'Request summary' })
   assert.match(summary.textContent ?? '', /Vivero São José — 北美苗圃/)
   assert.match(summary.textContent ?? '', /Courtyard 🌳 retrofit/)
-  assert.match(summary.textContent ?? '', /Sent/)
-  assert.match(summary.textContent ?? '', /Submitted/)
+  const header = dialog.querySelector('header')!
+  assert.match(header.textContent ?? '', /Created on 08-30/)
+  assert.ok(header.querySelector('#availability-request-drawer-title'))
+  assert.match(summary.textContent ?? '', /Submitted08-31/)
+  const schedules = header.querySelector('[aria-label="Job schedules"]')!
+  assert.equal(summary.querySelector('[aria-label="Job schedules"]'), null)
+  assert.equal(schedules.children[0].textContent, 'CourtyardEDD09-20FulfillmentPickup')
+  assert.equal(schedules.children[1].textContent, 'Pool gardenEDD09-26FulfillmentDelivery')
   assert.doesNotMatch(dialog.textContent ?? '', /Last updated|changed by|supplier changed|LPS changed|provenance/i)
   const first = within(mobileSurface(dialog)).getByRole('article', { name: /Line 1/ })
   assert.equal((within(first).getByLabelText(/requested quantity/) as HTMLInputElement).value, '0')
@@ -820,6 +831,35 @@ test('double submit issues one owned PATCH, failure stays unannounced, and switc
   await act(async () => patches[2].resolve(json({ error: 'STALE SUBMIT FAILURE' }, 500)))
   assert.doesNotMatch(second.textContent ?? '', /STALE SUBMIT FAILURE|Request submitted/)
   assert.ok(within(second).getByRole('button', { name: 'Submit request' }))
+})
+
+test('drawer publishes authoritative submission dates for first submit and same-status resubmit', async () => {
+  let current = request({ status: 'new', submittedAt: null })
+  let submissions = 0
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'PATCH') {
+      submissions++
+      current = { ...current, status: 'submitted', submittedAt: `2026-09-0${submissions}T16:00:00.000Z` }
+      return json({ ok: true })
+    }
+    return json({ request: current })
+  }) as typeof fetch
+  const signals: AvailabilityRequestStatusDetail[] = []
+  const unsubscribe = onAvailabilityRequestStatusChanged((signal) => signals.push(signal))
+  try {
+    const { view } = await openDrawer()
+    fireEvent.click(view.getByRole('button', { name: 'Submit request' }))
+    await waitFor(() => assert.deepEqual(signals, [
+      { arId: 84, status: 'submitted', submittedAt: '2026-09-01T16:00:00.000Z' },
+    ]))
+    fireEvent.click(view.getByRole('button', { name: 'Submit again' }))
+    await waitFor(() => assert.deepEqual(signals, [
+      { arId: 84, status: 'submitted', submittedAt: '2026-09-01T16:00:00.000Z' },
+      { arId: 84, status: 'submitted', submittedAt: '2026-09-02T16:00:00.000Z' },
+    ]))
+  } finally {
+    unsubscribe()
+  }
 })
 
 test('portal/profile/default line surfaces keep the task-start non-modal answer behavior and 1070px table opt-out', async () => {

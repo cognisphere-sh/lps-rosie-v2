@@ -1,5 +1,13 @@
 # customer-coordination — changelog
 
+## 3.2.0
+
+- Update customer-acceptance and quote-delivery guidance for Job Requests without a Confirmed stage; supplier confirmation remains an Order status.
+
+## 3.1.0
+
+- Relay scoped customer acceptance for Committed supplier orders, preserve multi-job allocation boundaries, and relay expected install and pickup/delivery details separately from supplier confirmation.
+
 ## 3.0.1
 
 2026-09-11 — Align quote delivery and confirmation relays with the six-stage job vocabulary; Won/Lost remain explicit closure outcomes.

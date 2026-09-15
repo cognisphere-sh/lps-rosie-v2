@@ -7,7 +7,7 @@ import { RefreshCw } from 'lucide-react'
 
 import { FocusedJobRecord } from '@/components/workspace/focused-job-record'
 import { focusConnectedJobNameTrigger } from '@/components/workspace/focused-job-header'
-import { FocusedJobsRailLayout, FocusedJobsRailRow } from '@/components/workspace/focused-jobs-rail'
+import { FocusedJobsRailLayout, FocusedJobsRailRow, FocusedJobsRailSearch } from '@/components/workspace/focused-jobs-rail'
 import { JobsTopActions, Shell } from '@/components/workspace/shell'
 import { withAvailabilityRequestStatus } from '@/lib/availability'
 import { onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
@@ -19,6 +19,7 @@ import {
   type JobInboxRow, type JobThreadPatch,
 } from '@/lib/job-inbox'
 import { requestRef, requestStatusLabel } from '@/lib/job-requests'
+import { searchJobInbox } from '@/lib/job-inbox-search'
 import type { JobRequestRow } from '@/lib/rows'
 import { useJobUpdates } from '@/lib/use-job-updates'
 
@@ -37,11 +38,6 @@ function useBreakpoint(): boolean | null {
     return () => mq.removeEventListener('change', sync)
   }, [])
   return mobile
-}
-
-function fmt(at: number) {
-  if (!at) return 'No dated activity'
-  return new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function IntakeSaved({ id }: { id: number }) {
@@ -100,6 +96,8 @@ function JobsWorkspace() {
   const intakeRequested = params.getAll('intake').length === 1 && params.get('intake') === '1'
   const [jobs, setJobs] = useState<JobInboxRow[]>([])
   const ordered = useMemo(() => orderJobInbox(jobs), [jobs])
+  const [jobSearch, setJobSearch] = useState('')
+  const matchingJobs = useMemo(() => searchJobInbox(ordered, jobSearch), [ordered, jobSearch])
   const [loading, setLoading] = useState(true)
   const [listReady, setListReady] = useState(false)
   const [listError, setListError] = useState('')
@@ -221,8 +219,7 @@ function JobsWorkspace() {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (pendingNameFocus.current !== id) return
         if (selection.kind !== 'valid' || selection.id !== id) return
-        const rail = rowsRef.current.get(id)
-        if (!rail?.isConnected || !focusConnectedJobNameTrigger(workRef.current, id)) return
+        if (!focusConnectedJobNameTrigger(workRef.current, id)) return
         pendingNameFocus.current = null
       }))
     })
@@ -243,10 +240,10 @@ function JobsWorkspace() {
   // The drawer has already re-read the one AR it wrote; patch that status
   // into the open job instead of refetching it.
   useEffect(
-    () => onAvailabilityRequestStatusChanged(({ arId, status }) => {
+    () => onAvailabilityRequestStatusChanged(({ arId, status, submittedAt }) => {
       setDetail((current) => {
         if (!current) return current
-        const supplierLinks = withAvailabilityRequestStatus(current.supplierLinks, arId, status)
+        const supplierLinks = withAvailabilityRequestStatus(current.supplierLinks, arId, status, submittedAt)
         return supplierLinks === current.supplierLinks ? current : { ...current, supplierLinks }
       })
     }),
@@ -373,20 +370,25 @@ function JobsWorkspace() {
         desktop={focusedDesktop}
         mobile={breakpoint === true}
         onBack={backToList}
-        rail={<div ref={listRef} onScroll={saveListPosition} className="min-h-0 flex-1 overflow-y-auto p-2">
+        rail={<>
+          <FocusedJobsRailSearch value={jobSearch} onChange={(value) => {
+            setJobSearch(value)
+            if (listRef.current) listRef.current.scrollTop = 0
+          }} matches={matchingJobs.length} loading={loading} />
+          <div ref={listRef} onScroll={saveListPosition} className="min-h-0 flex-1 overflow-y-auto p-2">
             {listError && <div role="alert" className="rounded-lg border border-destructive/40 p-3 text-[12px] text-destructive">{listError}<button className="mt-2 flex min-h-11 items-center gap-2 font-semibold underline" onClick={() => void refreshList()}><RefreshCw size={14}/>Retry</button></div>}
             {loading && !ordered.length && <div role="status" className="p-4 text-[12px] text-muted-foreground">Loading active jobs…</div>}
-            {listReady && !listError && !ordered.length && <div className="p-4 text-[12px] text-muted-foreground"><p className="font-semibold text-foreground">No active jobs</p><p>Start a new request with Rosie, or review completed work in All jobs.</p><Link className="font-semibold text-primary underline" href="/requests">All jobs</Link></div>}
-            {ordered.map((row) => {
-              const activity = fmt(row.activityAt)
+            {listReady && !listError && !matchingJobs.length && (jobSearch.trim()
+              ? <div className="p-4 text-[12px] text-muted-foreground"><p className="font-semibold text-foreground">No matching active jobs</p><p>Try another name, plant or note.</p></div>
+              : <div className="p-4 text-[12px] text-muted-foreground"><p className="font-semibold text-foreground">No active jobs</p><p>Start a new request with Rosie, or review completed work in All jobs.</p><Link className="font-semibold text-primary underline" href="/requests">All jobs</Link></div>)}
+            {matchingJobs.map((row) => {
               return (
                 <FocusedJobsRailRow
                   key={row.id}
                   row={row}
                   selected={selection.kind === 'valid' && selection.id === row.id}
                   statusLabel={requestStatusLabel(row.status)}
-                  activityLabel={activity}
-                  ariaLabel={jobInboxRowAriaLabel(row, requestStatusLabel(row.status), activity)}
+                  ariaLabel={jobInboxRowAriaLabel(row, requestStatusLabel(row.status))}
                   buttonRef={(element) => {
                     if (element) rowsRef.current.set(row.id, element)
                     else rowsRef.current.delete(row.id)
@@ -395,7 +397,8 @@ function JobsWorkspace() {
                 />
               )
             })}
-          </div>}
+          </div>
+        </>}
       >
         <main ref={workRef} tabIndex={-1} aria-label="Selected job" className="min-w-0 flex-1 overflow-y-auto bg-background outline-none">
           {focusedDesktop && <div className="sticky top-0 z-10 border-b border-border bg-card px-3 py-1"><JobsTopActions /></div>}

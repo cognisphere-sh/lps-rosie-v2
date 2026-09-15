@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS/named-supplier pricing without availability requests, smallest-priced-requested-size quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, mandatory APS job-row notes and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.16.0)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS price-list quoting first and Chris approval before any availability request, smallest-priced-requested-size quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, mandatory APS job-row notes and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.19.0)
 metadata:
   author: lps
-  version: "2.16.0"
+  version: "2.19.0"
 ---
 
 # Quote generation
@@ -20,8 +20,10 @@ pricing and other relevant information, and save supported prices. Add
 sourcing notes only when `job-requests` section 3 permits them: a sent AR,
 a concrete required supplier action, Chris's explicit note instruction or an
 explicit supplier selection/plant-sourcing decision. Chris's standing APS
-instruction in that section requires notes on every APS-scoped job item,
-including quick quotes: supported price or gap, plus 1–2 closest supported
+instruction in that section requires compact current snapshots on every
+APS-scoped job item, including quick quotes. Follow its one-supplier-entry
+and single-row-outcome format; replace superseded prices instead of appending
+quote history. Include the supported price or gap, plus 1–2 closest supported
 APS alternatives for gaps when found. Preserve requested lines and label
 candidates `Alternative · Chris approval pending`; never invent alternatives
 or overwrite a requested-line price with an unapproved candidate price.
@@ -52,15 +54,22 @@ clarification.
 - **Quick quote:** **before producing any quick-quote output, including a
   partial quote or draft, create/reuse its job and `jr-<id>` thread through
   `job-requests` intake and create/reuse every supplied item row.** Carry
-  `quote_only: true`. Use APS inventory or the explicitly named supplier
-  through `plant-and-supplier-search`. Do not create/send an AR or contact suppliers.
+  `quote_only: true`. Use APS's price list through
+  `plant-and-supplier-search`. APS is the exclusive current source unless
+  Chris explicitly authorizes an exception. Do not create/send an AR or contact suppliers.
   Inventory pricing is enough; supplier-confirmed availability is not
-  required. Record completed pricing through the `job-requests` hook to move
-  Active → Quote, even for a no-match lookup. Quick quotes skip the job’s
-  Availability stage. Keep item availability pending; do not imply a reservation.
+  required. Record completed pricing through the `job-requests` hook; the job
+  starts and remains at Quote even for a no-match lookup. **Stop after the
+  quick quote**; do not follow it with an availability-send approval ask.
+  Keep item availability pending; do not imply a reservation.
 - **Simple price lookup/general question:** answer using the same search
   evidence without creating a job or AR. Do not interpret a pricing question
   as a quick-quote request when the intent is unclear.
+- **Ordinary new job:** generate the APS price-list quote before any
+  availability request. After producing it, the job thread asks Chris whether
+  to send the availability request to APS, and waits for his approval. A
+  clear job request authorizes the quote, not portal publication. Preserve
+  Chris's existing explicit approval for this exact send without re-asking.
 - **Existing job:** read its current rows and recent changelog. A quick quote
   for that job also skips ARs; record completed pricing through the job hook.
   Ordinary job quotes use the selected offering and customer-facing price;
@@ -212,8 +221,9 @@ approval in the original request thread. The customer thread sends exactly the
 approved content and logs the actual contact.
 
 For a job, only actual customer delivery triggers `quote_shared` and records
-the shared link in customer-visible job notes. This advances Active → Quote,
-leaves Availability/Confirmed unchanged, and never reopens Won/Lost.
+the shared link in customer-visible job notes. This keeps an initial job at
+Quote, leaves Availability/Committed unchanged, and never reopens Won/Lost.
 A quote draft does not confirm
-an order; actual customer acceptance triggers `customer_confirmed` through
-`job-requests`.
+an order; actual customer acceptance creates **Committed** supplier orders
+through `job-requests`. Supplier confirmation makes an **Order Confirmed**;
+the **Job Request remains Committed** and has no Confirmed stage.

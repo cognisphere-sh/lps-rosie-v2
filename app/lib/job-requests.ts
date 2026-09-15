@@ -5,19 +5,18 @@
 // the two are reconciled — add a status here and to the migration's CHECK, and
 // nowhere else.
 
-/** Selectable job stages. Existing stored values retain their history. */
+/** Selectable job stages. Supplier confirmation belongs to Orders. */
 export const REQUEST_STATUSES = [
-  'sourcing',
   'quoted',
   'availability',
-  'confirmed',
+  'committed',
   'closed_won',
   'closed_lost',
 ] as const
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
 /** The existing open Job Request lifecycle shared by Jobs surfaces. */
-export const ACTIVE_JOB_STATUSES = ['sourcing', 'quoted', 'availability', 'confirmed'] as const satisfies readonly RequestStatus[]
+export const ACTIVE_JOB_STATUSES = ['quoted', 'availability', 'committed'] as const satisfies readonly RequestStatus[]
 export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_STATUSES)[number] =>
   (ACTIVE_JOB_STATUSES as readonly string[]).includes(status)
 
@@ -61,10 +60,9 @@ export const toneTint = (tone: Tone) =>
   `color-mix(in srgb, var(--lps-tone-${tone}-bg) 40%, transparent)`
 
 export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: Tone }> = {
-  sourcing: { label: 'Active', tone: 'amber' },
+  committed: { label: 'Committed', tone: 'amber' },
   quoted: { label: 'Quote', tone: 'teal' },
   availability: { label: 'Availability', tone: 'lime' },
-  confirmed: { label: 'Confirmed', tone: 'green' },
   closed_won: { label: 'Won', tone: 'green' },
   closed_lost: { label: 'Lost', tone: 'red' },
 }
@@ -78,19 +76,20 @@ export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }>
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
 }
 
+/** Read compatibility for saved job filters/rows from before migration 0093. */
+export const canonicalRequestStatus = (status: string): string => status === 'confirmed' ? 'committed' : status
 export const requestStatusLabel = (s: string) =>
-  REQUEST_STATUS_META[s as RequestStatus]?.label ?? (s === 'archived' ? 'Archived' : s)
+  REQUEST_STATUS_META[canonicalRequestStatus(s) as RequestStatus]?.label ?? (s === 'archived' ? 'Archived' : s)
 export const REQUEST_STATUS_TOKENS: Record<RequestStatus, string> = {
-  sourcing: 'Act',
+  committed: 'Cmt',
   quoted: 'Qte',
   availability: 'Avl',
-  confirmed: 'Cfm',
   closed_won: 'Won',
   closed_lost: 'Lost',
 }
-export const requestStatusToken = (s: string) => REQUEST_STATUS_TOKENS[s as RequestStatus] ?? '?'
+export const requestStatusToken = (s: string) => REQUEST_STATUS_TOKENS[canonicalRequestStatus(s) as RequestStatus] ?? '?'
 export const requestStatusTone = (s: string): Tone =>
-  REQUEST_STATUS_META[s as RequestStatus]?.tone ?? 'grey'
+  REQUEST_STATUS_META[canonicalRequestStatus(s) as RequestStatus]?.tone ?? 'grey'
 
 /** What the quantity pair says on its own, independent of the stored status. */
 export type Cover = 'unanswered' | 'none' | 'partial' | 'full'

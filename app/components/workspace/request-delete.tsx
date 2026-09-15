@@ -96,8 +96,8 @@ export function DeleteRequestDialog({
           Permanently delete {label}?
         </h2>
         <p id="delete-request-impact" className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          This permanently removes {plural(request.itemCount, 'line')}, all related availability
-          requests and their answers, and the request&apos;s change history. This cannot be undone.
+          This permanently removes {plural(request.itemCount, 'line')} and the request&apos;s change history.
+          Supplier availability responses and orders are retained. This cannot be undone.
         </p>
         <p id="delete-request-status" role="status" aria-live="polite" className="mt-3 min-h-5 text-[12px] font-semibold text-muted-foreground">
           {busy ? 'Deleting request…' : ''}

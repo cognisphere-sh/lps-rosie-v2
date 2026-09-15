@@ -7,6 +7,7 @@ import { MessageSquare, Pencil } from 'lucide-react'
 
 import { openChat } from '@/lib/chat-bus'
 import { patchRow } from '@/components/workspace/editable'
+import { JobMetadata } from '@/components/workspace/job-metadata'
 import { useToast } from '@/components/workspace/shell'
 import { JOB_NAME_MAX_LENGTH, jobRequestIdentityLine, storedJobIdentityComponents } from '@/lib/job-identity'
 import { canonicalJobThread } from '@/lib/job-inbox'
@@ -30,25 +31,6 @@ export interface FocusedJobChatMenuPosition {
   maxHeight: number
   top?: number
   bottom?: number
-}
-
-/** A strict project calendar date, never a timestamp or Date-parse fallback. */
-export function formatEstimatedProjectDate(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return null
-
-  const [, yearText, monthText, dayText] = match
-  const year = Number(yearText)
-  const month = Number(monthText)
-  const day = Number(dayText)
-  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-  if (month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) return null
-
-  // Format from the validated calendar components: no Date construction means
-  // no rollover and no browser/server timezone can move the project day.
-  return `${month}/${day}/${yearText.slice(-2)}`
 }
 
 export function focusedJobChatTarget(request: Pick<JobRequestRow, 'id' | 'name'>): FocusedJobChatTarget {
@@ -584,7 +566,6 @@ export function FocusedJobNameEditor({
 export function FocusedJobHeader({
   request,
   mobile,
-  projectDate,
   status,
   preview,
   onNameSaved = () => undefined,
@@ -592,21 +573,17 @@ export function FocusedJobHeader({
 }: {
   request: JobRequestRow
   mobile: boolean
-  /** Existing project-date metadata only; null keeps the honest omission. */
-  projectDate: string | null
   status: ReactNode
   preview: ReactNode
   onNameSaved?: (requestId: number) => void
   onOpenRosie?: (target: FocusedJobChatTarget) => void
 }) {
-  const projectDateLabel = formatEstimatedProjectDate(projectDate)
-
   return (
     <>
       {mobile ? (
         <div data-focused-job-header="mobile" className="border-b border-border px-3 py-2.5">
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-start gap-2">
+            <div className="min-w-0 flex-1 basis-40">
               <div className="text-[10px] font-bold uppercase tracking-[.06em] text-primary">
                 {requestRef(request.id)}
               </div>
@@ -619,30 +596,27 @@ export function FocusedJobHeader({
                 </p>
               )}
               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
-                {projectDateLabel && (
-                  <span className="whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
-                    EPD: {projectDateLabel}
-                  </span>
-                )}
                 {status}
               </div>
             </div>
+            <JobMetadata request={request} className="self-center" />
             <FocusedJobChatChooser request={request} onOpenRosie={onOpenRosie} />
           </div>
         </div>
       ) : (
         <div
           data-focused-job-header="desktop"
-          className="grid min-h-14 grid-cols-[minmax(44px,1fr)_minmax(0,2fr)_minmax(44px,1fr)] items-center border-b border-border px-3 py-1.5 max-[1279px]:grid-cols-[minmax(0,1fr)_44px]"
+          className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5"
         >
           <div data-balanced-header-flank="left" className="flex min-w-0 items-center gap-1 overflow-hidden">
             <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
             {status}
           </div>
-          <div data-desktop-job-identity className="min-w-0 max-[1279px]:col-span-2 max-[1279px]:row-start-2">
+          <div data-desktop-job-identity className="min-w-0 flex-1 basis-40">
             <FocusedJobNameEditor key={request.id} request={request} mobile={false} onSaved={onNameSaved} />
           </div>
-          <div data-balanced-header-flank="right" className="flex min-w-0 justify-end overflow-hidden max-[1279px]:col-start-2 max-[1279px]:row-start-1">
+          <JobMetadata request={request} />
+          <div data-balanced-header-flank="right" className="ml-auto flex min-w-0 justify-end overflow-hidden">
             <button
               type="button"
               onClick={() => onOpenRosie(focusedJobChatTarget(request))}

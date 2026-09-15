@@ -1,9 +1,9 @@
 ---
 name: supplier-communications
-description: Everything about talking to a supplier about their lifecycle, and recording it. Covers the split with rosie (lifecycle is yours, orders are hers), the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v6.1.0)
+description: Everything about talking to a supplier about their lifecycle, and recording it. Covers the split with rosie (lifecycle is yours; quotes, consolidated availability and orders are hers), the standing authorization rule (never email one unbidden), Chris's email style, composing and sending as Chris on the supplier's own thread, how replies come back, and where a supplier fact belongs. Use when asked to reply to, chase or first contact a supplier, whenever you or they make contact, when initial outreach to a Texas wholesale nursery comes up, and when deciding where to record something a supplier told you. (v6.4.0)
 metadata:
   author: lps
-  version: "6.1.0"
+  version: "6.4.0"
 ---
 
 # Supplier communications
@@ -20,8 +20,23 @@ the supplier's own record, and anything about a price list or availability
 drop itself. You say those from `chris.r@localplantsupply.com`.
 
 **Rosie owns every communication about an order or a job request** — an
-availability ask for a specific job, pricing on it, a substitute, a delivery
-date, a follow-up — from her own mailbox, `chris@localplantsupply.com`.
+availability ask for one or several jobs, pricing, a substitute, a supplier
+order confirmation, a pickup/delivery date or a follow-up — from her own
+mailbox, `chris@localplantsupply.com`. Her workflow uses APS price-list quotes
+first, Chris approval before APS availability sends and response-driven job
+line changes and customer acceptance for Committed orders. Supplier
+confirmation makes an **Order Confirmed** while its **Job Requests remain
+Committed**; jobs have no Confirmed stage. A quick-quote-only request stops at
+Quote. Her `job-requests` skill owns that lifecycle.
+
+An AR, AR row or supplier order can serve several jobs; do not force a
+single-job match when forwarding a consolidated grower message. Preserve all
+known request/order references and quantities and let Rosie resolve the
+allocation tables. Continue ingesting legitimate price-list drops under
+`availability-ingestion`; a general list is not a job availability answer or
+supplier order confirmation. Rosie's `job-requests` skill owns compact JR
+sourcing snapshots and their row outcome. Preserve full correspondence in the
+supplier transcript; do not copy contact/event history into JR sourcing notes.
 
 **The line is the subject, not the party.** A lifecycle matter is yours even
 while rosie is mid-order with that supplier; an order matter is hers even on

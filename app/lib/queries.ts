@@ -1034,7 +1034,7 @@ const WRITABLE: Record<string, string[]> = {
   // `sourcing_notes` IS writable — it is a free-text working sheet, kept
   // current by editing it, and the changelog records every before/after.
   job_requests: [
-    'name', 'status', 'external_notes', 'sourcing_notes',
+    'name', 'status', 'external_notes', 'sourcing_notes', 'expected_install_date', 'fulfillment_method',
     'billing_address', 'billing_city', 'billing_state', 'billing_zip',
     'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
   ],
@@ -1063,6 +1063,7 @@ const ENUMS: Record<string, readonly string[]> = {
   'suppliers.category': SUPPLIER_CATEGORIES,
   'customers.type': CUSTOMER_TYPES,
   'job_requests.status': REQUEST_STATUSES,
+  'job_requests.fulfillment_method': ['pickup', 'delivery'],
   'job_request_items.status': ITEM_STATUSES,
 }
 
@@ -1119,6 +1120,7 @@ export async function updateFields(
       // Empty classification dropdowns clear to NULL. Statuses remain required.
       const nullable = (table === 'suppliers' && column === 'category')
         || (table === 'customers' && column === 'type')
+        || (table === 'job_requests' && column === 'fulfillment_method')
       if (nullable && raw.trim() === '') {
         values[column] = null
         continue
@@ -1128,6 +1130,10 @@ export async function updateFields(
       }
       values[column] = raw
       continue
+    }
+
+    if (column === 'expected_install_date' && raw.trim() && (!/^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) || Number.isNaN(Date.parse(raw.trim())) || new Date(raw.trim()).toISOString().slice(0, 10) !== raw.trim())) {
+      throw new Error('Expected install date must be a valid YYYY-MM-DD date')
     }
 
     if (ARRAY.has(column)) {

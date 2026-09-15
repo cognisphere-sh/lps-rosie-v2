@@ -3,7 +3,7 @@
   "description": "Supplier discovery, onboarding and availability-ingestion agent for LPS — one dedicated thread per supplier company (suppliers.daisy_thread_id), fed by a router thread and per-supplier gws routing rules. Reachable on the Telegram main thread and in the web app's chat panel, which route to the same thread.",
   "model": {
     "provider": "openai-codex",
-    "id": "gpt-5.6-terra",
+    "id": "gpt-6-astra",
     "thinkingLevel": "medium"
   },
   "threadIdStrategy": {

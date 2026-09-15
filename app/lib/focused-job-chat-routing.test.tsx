@@ -91,7 +91,7 @@ afterEach(() => {
 
 function request(id: number, name: string): JobRequestRow {
   return {
-    id, name, status: 'sourcing', customer: null,
+    id, name, status: 'quoted', customer: null,
     billing: { address: null, city: null, state: null, zip: null },
     shipping: { address: null, city: null, state: null, zip: null },
     customerNotes: null, notes: [], externalNotes: null, sourcingNotes: null,
@@ -111,7 +111,7 @@ function renderedHandler<T>(element: Element, name: string): T {
 }
 
 test('focused Job avatar action rebinds retained JR-30 before send and visibly names canonical JR-31', async () => {
-  const view = render(<><FocusedJobHeader request={request(31, 'Courtyard')} mobile projectDate={null} status={<span>Sourcing</span>} preview={null} />{chat}</>)
+  const view = render(<><FocusedJobHeader request={request(31, 'Courtyard')} mobile status={<span>Sourcing</span>} preview={null} />{chat}</>)
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Old patio' }))
   await waitFor(() => assert.ok(view.getByText('JR-30 · Old patio')))
 
@@ -201,7 +201,7 @@ test('desktop focused action also commits JR-31 before its composer can post', a
     }
     return new Response(JSON.stringify({}), { status: 200 })
   }) as typeof fetch
-  const view = render(<><FocusedJobHeader request={request(31, 'Courtyard')} mobile={false} projectDate={null} status={<span>Sourcing</span>} preview={null} />{chat}</>)
+  const view = render(<><FocusedJobHeader request={request(31, 'Courtyard')} mobile={false} status={<span>Sourcing</span>} preview={null} />{chat}</>)
   act(() => openChat({ agentId: 'rosie', threadId: 'jr-30', label: 'Old patio' }))
   await waitFor(() => assert.ok(view.getByText('JR-30 · Old patio')))
   fireEvent.click(view.getByRole('button', { name: 'Chat with Rosie' }))

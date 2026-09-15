@@ -35,33 +35,40 @@ export async function GET(req: Request) {
 }
 
 /**
- * Create one availability request from a job request's selected lines.
+ * Create one availability request from selected lines across one or more jobs.
  * Body: { jobRequestId, supplierId, shareCustomerDetails, itemIds }.
  */
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as {
       jobRequestId?: number
+      jobRequestIds?: number[]
+      consolidateItems?: boolean
       supplierId?: number
       isPublic?: boolean
       shareCustomerDetails?: boolean
       itemIds?: number[]
     }
     if (
-      !Number.isInteger(body.jobRequestId) ||
+      (!Number.isInteger(body.jobRequestId) && (!Array.isArray(body.jobRequestIds) || !body.jobRequestIds.length || !body.jobRequestIds.every((id) => Number.isSafeInteger(id) && id > 0))) ||
       !Number.isInteger(body.supplierId) ||
-      !Array.isArray(body.itemIds)
+      !Array.isArray(body.itemIds) || !body.itemIds.length || !body.itemIds.every((id) => Number.isSafeInteger(id) && id > 0)
     ) {
       return NextResponse.json(
         { error: 'jobRequestId, supplierId and itemIds are required' },
         { status: 400 },
       )
     }
+    if (body.jobRequestIds !== undefined && (!Array.isArray(body.jobRequestIds) || !body.jobRequestIds.length || !body.jobRequestIds.every((id) => Number.isSafeInteger(id) && id > 0))) {
+      return NextResponse.json({ error: 'jobRequestIds must contain positive integer IDs' }, { status: 400 })
+    }
     if (body.isPublic !== undefined && typeof body.isPublic !== 'boolean') {
       return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
     }
     const id = await createAvailabilityRequest({
-      jobRequestId: body.jobRequestId!,
+      jobRequestId: body.jobRequestId,
+      jobRequestIds: body.jobRequestIds,
+      consolidateItems: body.consolidateItems === true,
       supplierId: body.supplierId!,
       shareCustomerDetails: !!body.shareCustomerDetails,
       isPublic: body.isPublic,

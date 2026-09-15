@@ -1,5 +1,13 @@
 # plant-and-supplier-search — changelog
 
+## 2.7.0
+
+- Reference the canonical current sourcing snapshot and row outcome; do not turn research or search history into a notes log or inferred supplier selection.
+
+## 2.6.0
+
+- Scope current job quotes and sourcing exclusively to APS price-list evidence unless Chris explicitly authorizes an exception; preserve research-only and quote-first availability approval boundaries.
+
 ## 2.5.0
 
 2026-09-11 — Research all requested sizes and choose the smallest with supported

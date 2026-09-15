@@ -1,5 +1,17 @@
 # supplier-communications — changelog
 
+## 6.4.0
+
+- Clarify the order-message handoff: supplier confirmation makes Orders Confirmed and leaves Job Requests Committed; Rosie owns their separate lifecycles.
+
+## 6.3.0
+
+- Keep full supplier correspondence in its transcript and defer compact JR sourcing snapshots and row outcomes to Rosie's job-requests skill.
+
+## 6.2.0
+
+- Route consolidated multi-job availability and supplier-order messages to Rosie with full references; distinguish APS quote/availability/order stages from general inventory ingestion.
+
 ## 6.1.0
 
 2026-08-25 (Bhoumik, same day as 6.0.0) — **the send approval is asked on the

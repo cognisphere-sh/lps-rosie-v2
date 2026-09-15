@@ -1,5 +1,17 @@
 # supplier-coordination — changelog
 
+## 3.2.0
+
+- Distinguish supplier Order confirmation from the Job Request lifecycle: preserve Confirmed Orders and confirmation dates while linked jobs remain Committed. Remove Confirmed from open job-stage rules.
+
+## 3.1.0
+
+- Relay current supplier facts for the canonical compact JR snapshot and single row outcome; replace the previous supplier update instead of appending event history.
+
+## 3.0.0
+
+- Require APS quote completion and Chris approval before AR publication. Use atomic many-to-many AR allocations, relay shared answers to every job, and coordinate separate supplier order confirmations and fulfillment dates.
+
 ## 2.10.0
 
 2026-09-11 — Clarify that smallest-priced-requested-size quote selection is not
