@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import test from 'node:test'
@@ -60,6 +61,40 @@ test('supplier answer saves and submissions are distinct events on the supplier 
   }
   assert.match(String(events[0].payload.text), /without submitting/)
   assert.match(String(events[1].payload.text), /submitted their answers/)
+})
+
+test('supplier-event seed permits response relays only after explicit submission', () => {
+  // Assert the source-of-truth seed, not an agent copy that is only refreshed
+  // on restart. These are instruction-contract checks, not an LLM simulation.
+  const seed = readFileSync(new URL('../../harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md', import.meta.url), 'utf8')
+    .replace(/\s+/g, ' ')
+  assert.match(seed, /On `availability_updated`, keep the local\/saved, unsubmitted edit on that supplier thread: do not notify any `jr-<id>` or Chris, update JR sourcing notes/)
+  assert.match(seed, /This includes edits after a previous submission; an old `submitted_at` does not submit the newer changes/)
+  assert.match(seed, /Trusted supplier portal text\/voice answers transcribed into an AR likewise stay unsubmitted until review and explicit submission/)
+  assert.match(seed, /Only on `availability_submitted` \(including explicit re-submission\), relay job-specific submitted answers to every affected `jr-<id>`/)
+  assert.match(seed, /this routing handoff is not a job-thread or Chris notification/)
+  assert.match(seed, /a delayed event never reopens or edits a closed request/)
+  assert.match(seed, /if newer unsubmitted edits followed a submission, do not relay those edits as submitted answers/)
+  assert.match(seed, /Surface only the submitted supplier response to Chris/)
+  assert.doesNotMatch(seed, /Surface the supplier response to Chris\./)
+  assert.match(seed, /Do not automatically update job\/item availability/)
+  assert.match(seed, /An availability submission does not confirm a supplier order/)
+})
+
+test('edits after submission and explicit re-submissions retain distinct supplier-only delivery', async () => {
+  const { plugin, events } = await supplierPlugin()
+  const types = ['availability_submitted', 'availability_updated', 'availability_submitted']
+  for (const type of types) {
+    assert.equal((await post(plugin, '/notify', { ...availabilityEvent, type })).status, 200)
+  }
+  assert.deepEqual(events.map(({ name }) => name), types)
+  for (const { name, payload } of events) {
+    assert.equal(payload.threadIdOverride, 'supplier-aps')
+    assert.equal(payload.channelId, 'supplier-aps')
+    assert.equal((payload.metadata as Record<string, unknown>).EventType, name)
+  }
+  assert.match(String(events[1].payload.text), /saved answer changes without submitting/)
+  assert.match(String(events[2].payload.text), /submitted their answers/)
 })
 
 test('missing supplier conversation wakes main for a canonical handoff', async () => {

@@ -19,6 +19,11 @@ here).
 
 ### Changed
 
+- Supplier-event instructions now keep saved/unsubmitted AR edits on the supplier
+  thread without JR/Chris alerts or sourcing-note updates, including transcribed
+  portal answers and edits after submission. Explicit submissions/re-submissions
+  still relay submitted answers; event delivery and database behavior are unchanged.
+  The plugin seed is the durable fix and takes effect on an operator harness restart.
 - Removed Confirmed from Job Request statuses. Existing Confirmed jobs and saved
   filters map to Committed; supplier confirmation leaves the job at Committed.
   Orders retain their Confirmed stage and confirmation dates. Updated Rosie and

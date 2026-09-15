@@ -8,14 +8,23 @@ partner portals and public request links included.
 An event is a pointer, not the state: everything it is about lives in the
 database (`availability_requests`, `availability_request_items`), so the
 notification carries identifiers only. What rosie does with one is her
-`supplier-coordination` skill. The supplier thread loads `availability_request_jobs` and
-`availability_request_item_jobs`, then relays job-specific answers to every
-affected job thread. Requests and request rows may span several jobs; keep
-allocated quantities distinct from the combined supplier answer.
-The job thread follows `job-requests` section 3: replace the affected supplier's
-current snapshot and maintain one overall row outcome. Repeated notifications
-must not accumulate an event history in JR sourcing notes; the database
-changelog and contact transcript retain that history.
+`supplier-coordination` skill. Saved, unsubmitted edits (`availability_updated`)
+stay on the supplier thread: no JR-thread or Chris notification and no JR
+sourcing-note update. This includes edits after a prior submission, and trusted
+supplier portal text/voice answers transcribed into the AR pending supplier
+review and explicit submission. An old `submitted_at` is not evidence that newer
+edits were submitted; transcription/submission authority stays in the skill.
+
+Only explicit submission or re-submission (`availability_submitted`) triggers
+the response relay. The supplier thread loads `availability_request_jobs` and
+`availability_request_item_jobs`, then relays job-specific submitted answers to
+every affected job thread for qualifying sourcing-note updates and an internal
+alert to Chris. Requests and request rows may span several jobs; keep allocated
+quantities distinct from the combined supplier answer. The job thread follows
+`job-requests` section 3: replace the affected supplier's current snapshot and
+maintain one overall row outcome. Repeated notifications must not accumulate
+an event history in JR sourcing notes; the database changelog and contact
+transcript retain that history.
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`
 
@@ -23,8 +32,12 @@ Called by the app (`app/lib/notify-supplier-events.ts`), best-effort — the
 database write has already committed, so a down harness costs freshness, not
 data. `availability_updated` means answers were saved without submitting;
 `availability_submitted` means the supplier explicitly submitted answers. A
-saved answer is not confirmation, and delayed events must not reopen a closed
-request. Both portal and public-link answer routes use these same events.
+saved answer is neither submission nor confirmation. Delayed events must not
+reopen or edit a closed request, or misrepresent newer unsubmitted edits as
+submitted answers: re-read current state and explicit submission evidence.
+Both portal and public-link answer routes use these same events. The plugin
+still delivers both event types to the supplier thread; this relay boundary is
+an agent instruction, not suppression of transport events or a database change.
 
 Body: `{ type, supplierId, supplierName, availabilityRequestId, jobRequestId,
 threadId }`. Supplier id/name and availability-request id are required; the
@@ -39,7 +52,9 @@ Delivery uses `threadIdOverride`: the event lands on the supplier's
 **`suppliers.rosie_thread_id`** thread (`supplier-<slug>`, migration 0068) —
 the app reads the column at update/submit time and passes it as `threadId`. A
 supplier whose column is still NULL wakes rosie's `main` thread instead,
-whose `message-routing` skill mints and records the id.
+whose `message-routing` skill mints and records the id and hands off the
+pointer to that supplier thread. This fallback is routing only, not permission
+to alert Chris or a job thread about a saved edit.
 
 ## Auth
 
@@ -66,6 +81,12 @@ An availability submission is not supplier order confirmation: accepted
 orders become Committed through `create_order`, and explicit supplier
 confirmation makes the Order Confirmed while linked Job Requests remain
 Committed. Jobs have no Confirmed stage. A delayed event must not close
-or reopen shared work based on the scalar job hint alone. The checked-in agent
-prompt mirrors the plugin seed; edit both together so the next seed preserves
-the same routing and approval rules.
+or reopen shared work based on the scalar job hint alone.
+
+The durable instruction source is
+`harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md`.
+Do not manually edit the generated agent prompt: an operator harness restart
+reseeds it from this source and applies the instruction correction. No app
+restart or database migration is required. Regression coverage in
+`app/lib/rosie-thread-events.test.ts` checks the seed's submission-only relay
+contract and distinct save/submit/re-submit delivery on the supplier thread.
