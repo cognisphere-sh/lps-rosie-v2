@@ -988,6 +988,7 @@ export function Transcript({
             >
               {questionnaire ? <ChatQuestionnaire key={questionnaire.id} value={questionnaire}
                 submitted={messages.some(answer => answer.role === 'user' && answer.id > 0 && answer.text.startsWith(answerHeading(questionnaire.id) + '\n'))}
+                collapsed={messages.some(answer => answer.role === 'user' && answer.id > m.id && answer.text.trim() !== '' && !answer.text.startsWith('Answers to questionnaire '))}
                 onSubmit={onQuestionnaireSubmit} displayText={displayText} />
                 : <Markdown text={questionnaireMessageText(m.text)} onAction={onAction} displayText={displayText} />}
             </div>

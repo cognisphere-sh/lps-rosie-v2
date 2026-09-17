@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, compact latest supplier snapshots and the row selection/price outcome, source-based EDD intake with an Unknown option and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, submitted supplier-response handling and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.8.0)
+description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, compact latest supplier snapshots and the row selection/price outcome, source-based EDD intake with an Unknown option and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, submitted supplier-response handling, Can Order quantity updates and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.9.0)
 metadata:
   author: lps
-  version: "5.8.0"
+  version: "5.9.0"
 ---
 
 # Job requests
@@ -450,7 +450,12 @@ first available response nor the cheapest quote selects the supplier. An
 unavailable response does not mark the whole plant unavailable.
 
 Only Chris's explicit instruction authorizes Rosie to change availability;
-apply it to the specified item/field after a fresh read. Selecting a supplier
+apply it to the specified item/field after a fresh read. **Whenever that
+instruction changes a job item to displayed Can Order, write the schema-valid
+`status = 'need_to_order'` and set `available_quantity` in the same guarded
+update to the approved demand scope: the item's `quantity` for the whole line,
+or its explicitly approved allocated quantity for a limited allocation. Never
+use a combined supplier total for every linked job item.** Selecting a supplier
 alone is a sourcing decision to record, not an instruction to mark the item
 available. Supplier-entered portal answers remain as saved by the supplier;
 Rosie reads and reports them without overwriting them. For supplier messages

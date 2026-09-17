@@ -10,6 +10,18 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0099_hidden_availability_requests.sql`
+
+Applied 2026-09-15 via psql in one transaction to the configured LPS project.
+Adds Hidden AR status, revokes public links, blocks item writes and supplier
+submission under the request lock, and preserves hiding across job closure.
+The transaction verified all five previous function definitions against the
+reviewed baseline and confirmed every existing AR and AR item row was unchanged.
+Disposable PostgreSQL regression checks passed for hidden submissions, notes,
+public links, item edits/inserts, job closure/reopening, explicit restoration,
+and restricted RPC permissions. App typecheck, production build and targeted
+availability tests passed.
+
 ## `0098_order_confirmation_optional_method.sql`
 
 Applied 2026-09-15 at 14:28:40 UTC via psql in one transaction to the configured

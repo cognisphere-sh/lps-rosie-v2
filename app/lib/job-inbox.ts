@@ -9,6 +9,7 @@ export interface JobInboxRow {
   customer: string | null
   customerCompany: string | null
   customerContact: string | null
+  customerType?: string | null
   /** Job/customer identity and current job/item notes; excludes chat transcripts. */
   searchText?: string
   createdAt: string | null

@@ -4,7 +4,7 @@ import { ACTIVE_JOB_STATUSES } from '@/lib/job-requests'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { AgentChatButton } from '@/components/workspace/agent-chat-button'
+import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { patchRow } from '@/components/workspace/editable'
 import { Shell, useIsMobile, useToast } from '@/components/workspace/shell'
 import { Cell, ColumnHead, ColumnPicker } from '@/components/workspace/table-parts'
@@ -292,13 +292,13 @@ export default function CustomersPage() {
                 </div>
                 <span className="text-[12.5px] font-semibold text-primary">Open customer →</span>
               </button>
-              {row.threadId && (
+              {(
                 <div className="absolute bottom-3 right-3.5">
-                  <AgentChatButton
-                    agentId="rosie"
+                  <CustomerChatButton
+                    customerId={row.id}
+                    avatar
                     threadId={row.threadId}
                     label={row.name}
-                    subject={row.name}
                   />
                 </div>
               )}
@@ -379,12 +379,12 @@ export default function CustomersPage() {
                       className="sticky right-0 z-10 border-b border-l border-lps-hair bg-card p-[4px_6px]"
                       style={{ width: ACTIONS_W, minWidth: ACTIONS_W }}
                     >
-                      {row.threadId && (
-                        <AgentChatButton
-                          agentId="rosie"
+                      {(
+                        <CustomerChatButton
+                          customerId={row.id}
+                          avatar
                           threadId={row.threadId}
                           label={row.name}
-                          subject={row.name}
                           size={22}
                           className="mx-auto"
                         />

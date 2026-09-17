@@ -21,7 +21,7 @@ interface RequestMeta {
   created_at: string | null
   updated_at: string | null
 }
-interface CustomerMeta { id: number; name: string; company: string | null }
+interface CustomerMeta { id: number; name: string; company: string | null; type: string | null }
 interface ItemSearchMeta {
   id: number
   job_request_id: number
@@ -83,7 +83,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
     Promise.all(chunks(customerIds).map(async (ids) => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, name, company')
+        .select('id, name, company, type')
         .eq('is_active', true)
         .in('id', ids)
       if (error) throw new Error(`customers: ${error.message}`)
@@ -137,6 +137,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       customer: customer ? customer.company || customer.name : null,
       customerCompany: customer?.company ?? null,
       customerContact: customer?.name ?? null,
+      customerType: customer?.type ?? null,
       searchText: [
         `JR-${request.id}`, request.name, customer?.name, customer?.company,
         request.customer_notes, request.sourcing_notes, request.external_notes,

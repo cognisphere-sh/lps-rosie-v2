@@ -5,10 +5,10 @@
 import type { Tone } from '@/lib/job-requests'
 
 /** `availability_requests.status` — the CHECK vocabulary, in lifecycle order. */
-export const AR_STATUSES = ['new', 'processing', 'submitted', 'closed'] as const
+export const AR_STATUSES = ['new', 'processing', 'submitted', 'closed', 'hidden'] as const
 export type ARStatus = (typeof AR_STATUSES)[number]
 
-// The portal's three working states, plus the admin's terminal one. `new` is
+// The portal's three working states, plus admin closure and hiding. `new` is
 // re-set whenever a line is added to a request the supplier already worked on
 // (migration 0075's trigger), so the ask goes back to the top of their New tab;
 // `processing` is any answer they have made since; `submitted` is the button.
@@ -17,6 +17,7 @@ export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
   processing: { label: 'Processing', tone: 'teal' },
   submitted: { label: 'Completed', tone: 'green' },
   closed: { label: 'Closed', tone: 'grey' },
+  hidden: { label: 'Hidden', tone: 'red' },
 }
 
 export const arStatusLabel = (s: string) => AR_STATUS_META[s as ARStatus]?.label ?? s
@@ -37,7 +38,7 @@ export function availabilityRequestLinkLabel(
   const base = `Open availability request AR-${id} to ${supplierName}`
   return isSubmittedARStatus(status) ? `${base} — Completed`
     : isInProgressARStatus(status) ? `${base} — In progress`
-      : status === 'closed' ? `${base} — Closed` : base
+      : status === 'closed' ? `${base} — Closed` : status === 'hidden' ? `${base} — Hidden` : base
 }
 
 /**
@@ -215,7 +216,7 @@ export function withAvailabilityRequestStatus(
 /** One availability-request line, plus the request and catalogue row it belongs to. */
 export interface SupplierItemLine extends ARItem {
   arId: number
-  /** `availability_requests.status` — new | processing | submitted | closed. */
+  /** `availability_requests.status` — new | processing | submitted | closed | hidden. */
   arStatus: string
   arCreatedAt: string
   /** The request's name as the portal prints it, already redacted. */

@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, private/public availability requests, independent preparation and clarification, multiple-option demands and quote-only selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted supplier-response relays to Chris, supplier-authorized portal transcription, likely equivalent catalogue-name pricing versus AR mappings, mandatory APS job-row notes and approval-gated alternatives, compact latest supplier snapshots and row outcomes, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no job-line change. (v3.8.0)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, private/public availability requests, independent preparation and clarification, multiple-option demands and quote-only selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted supplier-response relays to Chris, Can Order response processing, supplier-authorized portal transcription, likely equivalent catalogue-name pricing versus AR mappings, mandatory APS job-row notes and approval-gated alternatives, compact latest supplier snapshots and row outcomes, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no job-line change. (v3.9.0)
 metadata:
   author: lps
-  version: "3.8.0"
+  version: "3.9.0"
 ---
 
 # Supplier coordination
@@ -269,8 +269,13 @@ qualifying current snapshots and the single plain-text row summary under
 `job-requests` section 3. Replace the affected supplier's previous update; keep suppliers
 distinct and preserve Chris's current selection without copying the message
 history into the notes. A selected supplier is not inferred from availability,
-price or submission. No automatic customer message or acceptance follows. A
-response can supersede catalogue evidence in notes, but an unmentioned seeded
+price or submission. No automatic customer message or acceptance follows. If
+Chris expressly approves changing a linked job item in response to `can_order`,
+relay the exact job-item scope to its job thread: displayed Can Order is
+schema-valid `need_to_order`, and that same job-item update must set
+`available_quantity` to the approved whole-line demand or explicitly approved
+allocation. A shared supplier total is never copied to every linked job item.
+A response can supersede catalogue evidence in notes, but an unmentioned seeded
 price is not newly confirmed by a chat.
 
 ## 5. Supplier messages and portal transcription

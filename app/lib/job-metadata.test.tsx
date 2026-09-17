@@ -22,7 +22,7 @@ test('header EDD opens the picker, saves changes and restores failed edits', asy
         writes.push(JSON.parse(String(init?.body)))
         return new Response(fail ? JSON.stringify({ error: 'Save failed' }) : '{}', { status: fail ? 500 : 200 })
       }
-      const view = render(<JobMetadata request={{ id: 27, createdAt: null, expectedInstallDate: date, fulfillmentMethod: null }}
+      const view = render(<JobMetadata request={{ id: 27, expectedInstallDate: date, fulfillmentMethod: null }}
         showFulfillment={false} onDateSaved={(id) => saved.push(id)} />)
       const input = view.getByLabelText('Edit EDD') as HTMLInputElement
       let opened = false
@@ -40,5 +40,23 @@ test('header EDD opens the picker, saves changes and restores failed edits', asy
       assert.deepEqual(saved, [27])
       view.unmount()
     }
+    const writes: unknown[] = []
+    let fail = false
+    globalThis.fetch = async (_url, init) => {
+      writes.push(JSON.parse(String(init?.body)))
+      return new Response(fail ? JSON.stringify({ error: 'Save failed' }) : '{}', { status: fail ? 500 : 200 })
+    }
+    const view = render(<JobMetadata request={{ id: 27, expectedInstallDate: null, fulfillmentMethod: null }} onDateSaved={() => {}} />)
+    const select = view.getByRole('combobox', { name: 'Pickup or delivery' }) as HTMLSelectElement
+    assert.equal(select.selectedOptions[0].textContent, '-')
+    for (const value of ['pickup', 'delivery', '']) {
+      await act(async () => { fireEvent.change(select, { target: { value } }) })
+      assert.equal(select.value, value)
+      assert.deepEqual(writes.at(-1), { table: 'job_requests', id: 27, column: 'fulfillment_method', value })
+    }
+    fail = true
+    await act(async () => { fireEvent.change(select, { target: { value: 'pickup' } }) })
+    assert.equal(select.value, '')
+    assert.equal(view.getByRole('alert').textContent, 'Save failed')
   } finally { globalThis.fetch = originalFetch; cleanup(); dom.window.close() }
 })

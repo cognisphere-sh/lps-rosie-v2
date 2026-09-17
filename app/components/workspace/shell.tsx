@@ -545,7 +545,7 @@ export function Shell({
           title={title}
           toolbar={typeof toolbar === 'function' ? toolbar(!isMobile ? (
             <span className="flex items-center gap-1">
-              {page === 'requests' && !focusedIntake && <NewJobRequestButton fromSelectedEntry={replaceNewJobEntry} />}
+              {page === 'requests' && !focusedIntake && <NewJobRequestButton compact fromSelectedEntry={replaceNewJobEntry} />}
               <NotificationBell />
             </span>
           ) : null) : toolbar}
@@ -828,10 +828,12 @@ function fmtNotifAt(ms: number): string {
  */
 function NewJobRequestButton({
   fab = false,
+  compact = false,
   label = 'New job request',
   fromSelectedEntry = false,
 }: {
   fab?: boolean
+  compact?: boolean
   label?: string
   fromSelectedEntry?: boolean
 }) {
@@ -892,6 +894,7 @@ function NewJobRequestButton({
         'flex flex-none items-center border-none bg-primary font-semibold text-primary-foreground',
         fab
           ? 'absolute bottom-3 right-3 z-[64] size-12 justify-center rounded-full shadow-[var(--lps-shadow)]'
+          : compact ? 'h-9 min-w-9 gap-1.5 whitespace-nowrap rounded-full px-3 text-[12px]'
           : 'min-h-11 min-w-11 gap-1.5 rounded-full px-3 py-1.5 text-[12.5px]',
         busy ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-90',
       )}
@@ -907,7 +910,7 @@ export function JobsTopActions({ children }: { children?: React.ReactNode }) {
   return (
     <div aria-label="Job actions" className="flex min-h-11 flex-wrap items-center justify-end gap-1">
       {children}
-      <NewJobRequestButton label="New job" fromSelectedEntry />
+      <NewJobRequestButton compact fromSelectedEntry />
       <NotificationBell />
     </div>
   )

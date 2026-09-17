@@ -35,15 +35,15 @@ const monthDayFmt = new Intl.DateTimeFormat('en-US', {
 })
 
 /** Calendar dates stay on their saved day; event timestamps use business time. */
-export function formatMonthDay(value: string | null | undefined): string {
+export function formatMonthDay(value: string | null | undefined, separator = '-'): string {
   if (!value) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const day = new Date(`${value}T00:00:00Z`)
     if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== value) return ''
-    return `${value.slice(5, 7)}-${value.slice(8, 10)}`
+    return `${value.slice(5, 7)}${separator}${value.slice(8, 10)}`
   }
   const timestamp = new Date(value)
   if (!Number.isFinite(timestamp.getTime())) return ''
   const parts = monthDayFmt.formatToParts(timestamp)
-  return `${parts.find((part) => part.type === 'month')!.value}-${parts.find((part) => part.type === 'day')!.value}`
+  return `${parts.find((part) => part.type === 'month')!.value}${separator}${parts.find((part) => part.type === 'day')!.value}`
 }

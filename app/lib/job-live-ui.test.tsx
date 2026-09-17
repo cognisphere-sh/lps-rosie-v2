@@ -280,6 +280,41 @@ function changeSearch(input: HTMLInputElement, value: string) {
   act(() => props.onChange({ target: { value } }))
 }
 
+test('inline save keeps the focused record and open details mounted while reconciling', async () => {
+  let saved = job(), hold = false
+  let release!: (value: Response) => void
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input)
+    if (url === '/api/job-inbox') return response({ jobs: [] })
+    if (url === '/api/rows' && init?.method === 'PATCH') {
+      saved = { ...saved, name: JSON.parse(String(init.body)).value }
+      hold = true
+      return response({})
+    }
+    if (url === '/api/requests/19' && hold) return new Promise<Response>((resolve) => { release = resolve })
+    return response({ request: saved })
+  }) as typeof fetch
+  const view = render(<JobsPage />)
+  await waitFor(() => assert.ok(view.queryByRole('button', { name: /edit job name/i })))
+  const record = view.container.querySelector('[data-focused-job-record]')!
+  const main = view.getByRole('main', { name: 'Selected job' })
+  fireEvent.click(view.getByRole('button', { name: /Job details & notes/i }))
+  main.scrollTop = 185
+  fireEvent.click(view.getByRole('button', { name: /edit job name/i }))
+  const input = view.getByRole('textbox', { name: /edit job name/i }) as HTMLInputElement
+  changeSearch(input, 'Updated job name')
+  fireEvent.blur(input)
+  await waitFor(() => assert.ok(release))
+  assert.equal(view.container.querySelector('[data-focused-job-record]'), record)
+  assert.equal(view.queryByText('Checking this job…'), null)
+  assert.equal(view.getByRole('button', { name: /Job details & notes/i }).getAttribute('aria-expanded'), 'true')
+  await act(async () => release(response({ request: saved })))
+  await waitFor(() => assert.ok(view.queryByText('Updated job name')))
+  assert.equal(view.container.querySelector('[data-focused-job-record]'), record)
+  assert.equal(view.getByRole('button', { name: /Job details & notes/i }).getAttribute('aria-expanded'), 'true')
+  assert.equal(main.scrollTop, 185)
+})
+
 test('Active jobs search reaches plant/notes beyond a list page without fetching or changing the selected job', async () => {
   let inboxReads = 0, detailReads = 0
   const inbox = Array.from({ length: 31 }, (_, i) => ({

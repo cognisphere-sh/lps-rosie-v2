@@ -17,7 +17,7 @@ import {
   requestFilterActiveCount,
   useResolvedRequestsMobile,
 } from '../components/workspace/requests-toolbar.tsx'
-import type { Chip } from '../components/workspace/toolbar.tsx'
+import { Toolbar, type Chip } from '../components/workspace/toolbar.tsx'
 import { REQUEST_STATUS_OPTIONS, ITEM_STATUS_OPTIONS } from './job-requests.ts'
 import {
   buildRequestFilterQuery,
@@ -290,11 +290,11 @@ test('desktop Item status is parked across mobile with no mobile DOM, badge or q
   assert.equal(new URLSearchParams(view.container.firstElementChild?.getAttribute('data-effective-query') ?? '').get('itemStatus'), 'pending')
   assert.ok(view.getByRole('button', { name: 'Pending' }))
   const page = source('app/requests/page.tsx')
-  assert.match(page, /setItemStatus\(normalizeStoredRequestStatusLabels\(saved\.itemStatus/)
+  assert.match(page, /normalizeStoredRequestStatusLabels\(saved\.itemStatus/)
   assert.match(page, /JSON\.stringify\(\{ query, status, itemStatus, customer/)
   assert.match(page, /effectiveItemStatus = requestsMobile === false \? itemStatus : \[\]/)
   assert.match(page, /itemStatus: effectiveItemStatus/)
-  assert.match(page, /if \(requestsMobile === false\) setItemStatus\(\[\]\)/)
+  assert.match(page, /if \(requestsMobile === false\) setItemStatus\(DEFAULT_ITEM_STATUSES\)/)
 })
 
 test('legacy persisted Quoted filter restores and saves canonically without losing quoted jobs or creating a false deviation', () => {
@@ -347,7 +347,7 @@ test('legacy persisted Quoted filter restores and saves canonically without losi
   window.sessionStorage.setItem(storageKey, '{malformed')
   assert.throws(() => JSON.parse(window.sessionStorage.getItem(storageKey) ?? 'null'))
   const page = source('app/requests/page.tsx')
-  assert.match(page, /setStatus\(normalizeStoredRequestStatusLabels\(saved\.status, REQUEST_STATUS_OPTIONS, OPEN_STATUSES\)\)/)
+  assert.match(page, /setStatus\(normalizeStoredRequestStatusLabels\(saved\.status, REQUEST_STATUS_OPTIONS, DEFAULT_STATUSES\)\)/)
   assert.match(page, /catch \{ \/\* malformed tab state falls back to defaults \*\//)
   assert.match(page, /sessionStorage\.setItem\(REQUESTS_VISIT_STORE, JSON\.stringify\(\{ query, status,/)
 })
@@ -618,104 +618,87 @@ function StaticCard({
   )
 }
 
-test('mobile All Jobs card keeps metadata with its identity header and a separate action row', async () => {
+test('request cards show the requested identity, totals and contact rows without status counts', async () => {
   const user = userEvent.setup({ document })
-  let toggles = 0
-  const longRequest: JobRequestRow = {
-    ...REQUEST,
-    name: 'Courtyard planting and irrigation improvements across the entire east entrance',
-    status: 'quoted',
-    customer: { ...REQUEST.customer!, company: 'Land Water Light', name: 'Dior Goodwin' },
-  }
-  const view = render(<RequestCard request={longRequest} expanded={false} selected={new Set()} version={0} onToggle={() => { toggles += 1 }} onSelect={() => undefined} onDelete={() => undefined} onDeleteItem={() => undefined} onSaved={() => undefined} mobile />)
-  const rows = [...view.container.querySelectorAll<HTMLElement>('[data-mobile-request-row]')]
-  assert.equal(rows.length, 2)
-  assert.deepEqual([...rows[0].children].map((node) => {
-    const data = (node as HTMLElement).dataset
-    if (data.mobileRequestJr !== undefined) return 'jr'
-    if (data.mobileRequestStatus !== undefined) return 'status'
-    if (data.mobileRequestIdentity !== undefined) return 'identity'
-    if (data.jobMetadata !== undefined) return 'metadata'
-    return 'unexpected'
-  }), ['jr', 'status', 'identity', 'metadata'])
-  assert.deepEqual([...rows[1].children].map((node) => {
-    const data = (node as HTMLElement).dataset
-    if (data.mobilePendingSummary !== undefined) return 'pending'
-    if (data.mobileRequestRosie !== undefined) return 'rosie'
-    return 'unexpected'
-  }), ['pending', 'rosie'])
+  const request = { ...REQUEST, name: 'Courtyard', itemCount: 22,
+    notes: [{ kind: 'customer' as const, stamp: null, text: 'Please deliver all plants to the rear entrance after calling ahead.' }],
+    customer: { ...REQUEST.customer!, company: 'Land Water Light', name: 'Dior Goodwin', type: 'Homeowner/Retail' as const } }
+  const view = render(<StaticCard request={request} mobile />)
+  const identity = view.getByRole('link', { name: 'Open JR-27 — Land Water Light — Courtyard' })
+  assert.equal(identity.textContent, 'JR-27 - Retail Land Water Light - Courtyard')
+  assert.match(identity.title, /Created /)
+  assert.ok(view.getByText('22 items'))
+  assert.ok(view.getByLabelText('Edit EDD'))
+  assert.equal((view.getByRole('combobox', { name: 'Pickup or delivery' }) as HTMLSelectElement).value, '')
+  const customerPill = view.container.querySelector('[data-request-customer-pill]') as HTMLElement
+  assert.match(customerPill.className, /w-\[22rem\]/)
+  assert.equal(within(customerPill).getByRole('link', { name: 'Dior Goodwin' }).getAttribute('href'), `/customers/${request.customer.id}`)
+  assert.equal(identity.getAttribute('href'), '/jobs?jr=27')
+  const note = within(customerPill).getByText(request.notes[0].text)
+  assert.match(note.className, /truncate/)
+  assert.match(note.parentElement?.className ?? '', /flex-1/)
+  assert.equal(note.parentElement?.title, request.notes[0].text)
+  assert.equal(view.container.querySelector('[data-request-card-head]')?.children.length, 2)
+  assert.ok(view.container.querySelector('[data-request-card-secondary]')?.contains(customerPill))
+  assert.equal(view.queryByText('Customer Chat'), null)
+  assert.equal(view.queryByText('Rosie Chat'), null)
+  assert.equal(view.queryByText('Pending'), null)
+  assert.equal(view.queryByText('Created'), null)
   assert.equal(view.queryByRole('button', { name: /Expand|Collapse/ }), null)
-  assert.equal(view.container.querySelector('[data-mobile-request-chevron]'), null)
-  assert.equal(view.container.querySelector('[data-compact-status-token]'), null)
-  assert.equal(view.getByRole('button', { name: 'Quote' }).textContent?.replace(/\s+/g, ' ').trim(), 'Quote')
-  assert.equal(view.getByRole('link', { name: `Open JR-27 — ${longRequest.name}` }).textContent, `Land Water Light · ${longRequest.name}`)
-  assert.equal(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).textContent?.trim(), 'Rosie Chat')
-  assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }).className, /min-h-11/)
-  const head = view.container.querySelector<HTMLElement>('[data-request-card-head]')
-  assert.ok(head)
-  assert.match(head.className, /gap-1\.5/)
-  assert.match(head.className, /py-2\.5/)
-  assert.doesNotMatch(head.className, /min-h-|h-\[/)
-  assert.match(rows[0].className, /flex-wrap/)
-  assert.match(rows[1].className, /flex-nowrap/)
-  for (const row of rows) {
-    assert.match(row.className, /min-w-0/)
-    assert.doesNotMatch(row.className, /overflow-x-auto|overflow-x-scroll/)
-  }
-  const identity = view.container.querySelector<HTMLElement>('[data-mobile-request-identity]')
-  assert.ok(identity)
-  assert.match(identity.className, /flex-1/)
-  assert.match(identity.className, /min-w-0/)
-  assert.match(identity.className, /overflow-hidden/)
-  for (const width of [320, 390, 480]) {
-    await setViewport(width)
-    assert.equal(view.container.querySelectorAll('[data-mobile-request-row]').length, 2)
-    assert.equal(view.container.querySelector('[data-mobile-request-chevron]'), null)
-  }
-
   let opened: unknown
   window.addEventListener('lps:open-chat', (event) => { opened = (event as CustomEvent).detail }, { once: true })
   await user.click(view.getByRole('button', { name: 'Chat with Rosie about JR-27' }))
-  assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: longRequest.name })
-  assert.equal(toggles, 0)
-})
-
-test('v3 mobile sales states remain fully written and blank Job never repeats the JR fallback in identity', () => {
-  const canonical = [
-    ['committed', 'Committed'],
-    ['quoted', 'Quote'],
-    ['availability', 'Availability'],
-    ['closed_won', 'Won'],
-    ['closed_lost', 'Lost'],
-    ['archived', 'Archived'],
-  ] as const
-  const view = render(<StaticCard request={{ ...REQUEST, status: canonical[0][0] }} mobile />)
-  for (const [value, label] of canonical) {
-    view.rerender(<StaticCard request={{ ...REQUEST, status: value }} mobile />)
-    const owner = view.container.querySelector('[data-mobile-request-status]') as HTMLElement
-    const button = within(owner).getByRole('button', { name: label })
-    assert.equal(button.textContent?.replace(/\s+/g, ' ').trim(), label)
-    assert.equal(owner.querySelector('[data-compact-status-token]'), null)
-  }
-  view.rerender(<StaticCard request={{ ...REQUEST, name: ' ', customer: { ...REQUEST.customer!, company: ' ', name: ' Renée Customer ' } }} mobile />)
-  const identity = view.container.querySelector('[data-mobile-request-identity]') as HTMLAnchorElement
-  assert.equal(identity.textContent, 'Renée Customer')
-  assert.equal(identity.title, 'Renée Customer')
-  assert.equal(identity.querySelector('[data-mobile-request-job]'), null)
-  assert.equal(view.getAllByText('JR-27').length, 1)
-})
-
-test('v3 ignores inline expansion state on mobile while expanded desktop keeps complete request actions and data', () => {
-  const request = { ...REQUEST, itemCount: 22, statusCounts: { pending: 7, available: 6, alternative_proposed: 5, unavailable: 4 }, externalNotes: 'Private exact detail' }
-  const view = render(<StaticCard request={request} mobile expanded />)
-  assert.equal(view.container.querySelectorAll('[data-mobile-request-row]').length, 2)
-  assert.equal(view.queryByRole('button', { name: /More details|Job details/ }), null)
-  assert.equal(view.queryByText('Private exact detail'), null)
-  assert.equal(view.queryByText('Available'), null)
-  assert.match((view.container.querySelector('[data-mobile-pending-summary]') as HTMLElement).textContent ?? '', /7\s*Pending/)
-
+  assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: 'Courtyard' })
+  view.rerender(<StaticCard request={request} mobile={false} />)
+  assert.ok(view.getByRole('button', { name: 'Expand JR-27' }))
+  assert.equal(view.queryByRole('menuitem', { name: 'Delete JR-27' }), null)
+  const more = view.getByRole('button', { name: 'More actions for JR-27' })
+  await user.click(more)
+  assert.ok(view.getByRole('menuitem', { name: 'Delete JR-27' }))
+  await user.keyboard('{Escape}')
+  assert.equal(document.activeElement, more)
+  assert.equal(view.queryByText('Pending'), null)
   view.rerender(<StaticCard request={request} mobile={false} expanded />)
-  for (const label of ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending']) assert.ok(view.getByText(label))
-  assert.ok(view.getByRole('button', { name: 'Delete JR-27' }))
+  assert.ok(view.getByRole('button', { name: 'Collapse JR-27' }))
   assert.ok(view.getByRole('button', { name: 'Job details & notes' }))
+})
+
+test('status filter supports selecting and deselecting every option', async () => {
+  function Harness() {
+    const [values, setValues] = useState(['Committed', 'Availability'])
+    return <RequestFilters chips={[{ label: 'Status', values, onChange: setValues,
+      options: BASELINE, allLabel: 'All statuses', selectAllActions: true }]}
+      statusBaseline={['Committed', 'Availability']} onClear={() => {}} />
+  }
+  const user = userEvent.setup({ document })
+  const view = render(<Harness />)
+  await user.click(view.getByRole('button', { name: 'Filters' }))
+  const dialog = within(document.body).getByRole('dialog')
+  assert.equal(within(dialog).queryByRole('button', { name: 'All statuses' }), null)
+  await user.click(within(dialog).getByRole('button', { name: 'Select all' }))
+  assert.ok(within(dialog).getAllByRole('checkbox').every((input) => (input as HTMLInputElement).checked))
+  await user.click(within(dialog).getByRole('button', { name: 'Deselect all' }))
+  assert.ok(within(dialog).getAllByRole('checkbox').every((input) => !(input as HTMLInputElement).checked))
+})
+
+
+test('desktop Item status selects and deselects all options with distinct query behavior', async () => {
+  const options = ITEM_STATUS_OPTIONS.map((option) => option.label)
+  function Harness() {
+    const [values, setValues] = useState(options)
+    return <Toolbar placeholder="Search" query="" onQuery={() => {}} hasFilters={false} onClear={() => {}} summary=""
+      chips={[{ label: 'Item status', values, options, onChange: setValues, allLabel: 'All item statuses', selectAllActions: true }]} />
+  }
+  const user = userEvent.setup({ document })
+  const view = render(<Harness />)
+  await user.click(view.getByRole('button', { name: `Item status · ${options.length}` }))
+  assert.equal(view.queryByRole('button', { name: 'All item statuses' }), null)
+  await user.click(view.getByRole('button', { name: 'Deselect all' }))
+  assert.ok(view.getByRole('button', { name: 'Item status' }))
+  await user.click(view.getByRole('button', { name: 'Select all' }))
+  assert.ok(view.getByRole('button', { name: `Item status · ${options.length}` }))
+  const args = { status: ['Committed'], customer: [], created: [], updated: [], customerIds: new Map<string, number>(),
+    requestStatusOptions: REQUEST_STATUS_OPTIONS, itemStatusOptions: ITEM_STATUS_OPTIONS, itemStatusEmptyMeansNone: true }
+  assert.equal(new URLSearchParams(buildRequestFilterQuery({ ...args, itemStatus: [] })).get('itemStatus'), 'none')
+  assert.equal(new URLSearchParams(buildRequestFilterQuery({ ...args, itemStatus: options })).get('itemStatus'), null)
 })

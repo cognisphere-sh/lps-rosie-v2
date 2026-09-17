@@ -17,10 +17,11 @@ A workflow change counts — not everything here is software.
 | `supplier-natural-language-replies` | Let Austin reply naturally and keep the work current | staged | bhoumik |
 | `catalog-photo-upload-page` | Add catalog photos from the Photos page | staged | nova (blocked by bhoumik workflow) |
 | `catalog-photo-intake-review` | Review submitted catalog photos before publishing | staged | bhoumik |
+| `supplier-photo-cleanup` | Give Chris big-specimen photos for manual Pixel cleanup | staged · manual workaround agreed; automation/integration/media work parked | bhoumik (future automation only) |
 | `mobile-agent-chat-translucent-header` | Make the mobile agent-chat header translucent | routed | nova |
 | `job-request-delete-safety` | Make deleting a job request safe on mobile | shipped | nova |
-| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops Job Request sales lifecycle and history | staged · Sales labels/item7 supported; separate history follow-through | bhoumik |
-| `quote-opportunity-to-job-request-conversion` | Quick quote first, availability later, on the same Job Request | staged · item7 supported; future dashboard deferred, no conversion build | bhoumik |
+| `lps-ops-job-request-statuses` | Use Chris’s LPS Ops Job Request sales lifecycle and history | staged · current five Job stages recorded; JR-59 example/history follow-through, no status build | bhoumik |
+| `quote-opportunity-to-job-request-conversion` | Quick quote first, availability later, on the same Job Request | staged · same-JR quote path supported; direct-order gap linked separately, dashboard deferred | bhoumik |
 | `new-job-intake-customer-type-choice` | Let Chris identify a homeowner or landscape professional when a new job starts | drafted · optional intake/Job display; storage complete | nova |
 | `customer-type-retail-landscape-workflow-pricing` | Distinguish homeowners from landscape professionals without changing pricing yet | shipped · minimal customer storage; commercial policy open | bhoumik |
 | `company-only-customer-intake` | Save a known customer company before a contact person is known | staged · JR-41 blocker; identity contract decision required | bhoumik |
@@ -30,7 +31,7 @@ A workflow change counts — not everything here is software.
 | `availability-change-indicators` | Show supplier-response state without crowding requests | drafted | nova |
 | `customer-availability-update-workspace` | Show LPS-published availability in customer job details | drafted · urgent dependency | nova |
 | `customer-job-request-details-workspace` | Give customers a current job request details workspace | staged · urgent | bhoumik |
-| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · deferred pending sourcing stabilisation; no order build | bhoumik |
+| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · no-AR creation gap source-confirmed; historical dispatch deferral, no new build authorized | bhoumik |
 | `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
 | `supplier-outreach-human-tone` | Ask suppliers about availability like a person | shipped | rosie |
 | `approved-voice-playbook-governance` | Keep a reviewed playbook for writing in Chris’s voice | drafted | bhoumik |
@@ -63,6 +64,7 @@ A workflow change counts — not everything here is software.
 | `all-jobs-compact-filter-selectors` | Open compact Job filters only when needed | routed | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
+| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · BLOCKED on preserved/committed operator baseline; full name hierarchy needs separate Bhoumik decision | nova |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
 | `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed | nova |

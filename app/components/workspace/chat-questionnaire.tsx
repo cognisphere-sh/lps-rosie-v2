@@ -3,9 +3,10 @@
 import { useRef, useState } from 'react'
 import { questionnaireAnswers, type Questionnaire } from '../../../harness/plugins/webchat/questions'
 
-export function ChatQuestionnaire({ value, submitted, onSubmit, displayText = s => s }: {
+export function ChatQuestionnaire({ value, submitted, collapsed = false, onSubmit, displayText = s => s }: {
   value: Questionnaire
   submitted: boolean
+  collapsed?: boolean
   onSubmit?: (text: string) => Promise<boolean>
   displayText?: (text: string) => string
 }) {
@@ -42,7 +43,7 @@ export function ChatQuestionnaire({ value, submitted, onSubmit, displayText = s 
 
   return <section aria-label={displayText(value.title)} className="flex w-full min-w-0 max-w-full flex-col gap-3 [overflow-wrap:anywhere]">
     <h3 className="font-semibold">{displayText(value.title)}</h3>
-    {submitted || done ? <p role="status">Answers submitted.</p> : <>
+    {collapsed ? questions.map((question, i) => <p key={i} className="whitespace-pre-wrap">{displayText(question.question)}</p>) : submitted || done ? <p role="status">Answers submitted.</p> : <>
       <p className="text-sm text-muted-foreground" aria-live="polite">{review ? 'Review your answers' : `Question ${step + 1} of ${questions.length}`}</p>
       {review ? <ol className="flex min-w-0 max-w-full flex-col gap-3">
         {questions.map((question, i) => <li key={i} className="min-w-0 max-w-full">

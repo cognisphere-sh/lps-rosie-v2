@@ -31,6 +31,7 @@ import {
   buildRequestListUrl,
   normalizeStoredRequestStatusLabels,
 } from '@/lib/request-list-state'
+import { money } from '@/lib/format'
 import { isApsSupplier } from '@/lib/orders'
 import type { JobRequestFacets, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { useDebouncedSearch } from '@/lib/use-debounced'
@@ -42,6 +43,7 @@ const REQUESTS_VISIT_STORE = 'lps.requests.visit.v1'
 
 /** All current stages. Clearing the filter includes legacy archived jobs. */
 const DEFAULT_STATUSES = ['Availability', 'Committed']
+const DEFAULT_ITEM_STATUSES = ITEM_STATUS_OPTIONS.map((option) => option.label)
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v) => b.includes(v))
 
@@ -300,7 +302,7 @@ export default function RequestsPage() {
   const [status, setStatus] = useState<string[]>(DEFAULT_STATUSES)
   // Desktop owns Item status. Mobile always queries all item statuses while
   // this value remains parked for a truthful return to desktop/session restore.
-  const [itemStatus, setItemStatus] = useState<string[]>([])
+  const [itemStatus, setItemStatus] = useState<string[]>(DEFAULT_ITEM_STATUSES)
   const [customer, setCustomer] = useState<string[]>([])
   const [created, setCreated] = useState<string[]>([])
   const [updated, setUpdated] = useState<string[]>([])
@@ -313,11 +315,11 @@ export default function RequestsPage() {
 
   const [requests, setRequests] = useState<JobRequestRow[]>([])
   const [total, setTotal] = useState(0)
+  const [filteredTotals, setFilteredTotals] = useState<{ itemCount: number; subtotal: number } | null>(null)
   const [pageCount, setPageCount] = useState(1)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
   const [facets, setFacets] = useState<JobRequestFacets>(EMPTY_FACETS)
-  const [summary, setSummary] = useState({ requests: 0, items: 0 })
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   /** Selected line ids, across every card on the page. */
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -338,13 +340,15 @@ export default function RequestsPage() {
     try {
       const saved = JSON.parse(sessionStorage.getItem(REQUESTS_VISIT_STORE) ?? 'null') as Partial<{
         query: string; status: string[]; itemStatus: string[]; customer: string[]
-        created: string[]; updated: string[]; page: number
+        created: string[]; updated: string[]; page: number; explicitItemStatusSelection: boolean
       }> | null
       const allowedDates = new Set<string>(REQUEST_DATE_RANGES.map((option) => option.label))
       if (saved) {
         setQuery(typeof saved.query === 'string' ? saved.query.slice(0, 500) : '')
         setStatus(normalizeStoredRequestStatusLabels(saved.status, REQUEST_STATUS_OPTIONS, DEFAULT_STATUSES))
-        setItemStatus(normalizeStoredRequestStatusLabels(saved.itemStatus, ITEM_STATUS_OPTIONS, []))
+        setItemStatus(!saved.explicitItemStatusSelection && Array.isArray(saved.itemStatus) && saved.itemStatus.length === 0
+          ? DEFAULT_ITEM_STATUSES
+          : normalizeStoredRequestStatusLabels(saved.itemStatus, ITEM_STATUS_OPTIONS, DEFAULT_ITEM_STATUSES))
         pendingCustomer.current = Array.isArray(saved.customer) ? saved.customer.filter((v) => typeof v === 'string') : []
         setCreated(Array.isArray(saved.created) ? saved.created.filter((v) => allowedDates.has(v)).slice(0, 1) : [])
         setUpdated(Array.isArray(saved.updated) ? saved.updated.filter((v) => allowedDates.has(v)).slice(0, 1) : [])
@@ -355,7 +359,7 @@ export default function RequestsPage() {
 
   useEffect(() => {
     if (!restored) return
-    sessionStorage.setItem(REQUESTS_VISIT_STORE, JSON.stringify({ query, status, itemStatus, customer, created, updated, page }))
+    sessionStorage.setItem(REQUESTS_VISIT_STORE, JSON.stringify({ query, status, itemStatus, customer, created, updated, page, explicitItemStatusSelection: true }))
   }, [restored, query, status, itemStatus, customer, created, updated, page])
 
   // Job names are renamed from the chat panel's thread picker, not on this
@@ -387,13 +391,14 @@ export default function RequestsPage() {
   const serverQuery = useMemo(() => buildRequestFilterQuery({
     status,
     itemStatus: effectiveItemStatus,
+    itemStatusEmptyMeansNone: requestsMobile === false,
     customer,
     created,
     updated,
     customerIds,
     requestStatusOptions: REQUEST_STATUS_OPTIONS,
     itemStatusOptions: ITEM_STATUS_OPTIONS,
-  }), [status, effectiveItemStatus, customer, created, updated, customerIds])
+  }), [status, effectiveItemStatus, requestsMobile, customer, created, updated, customerIds])
 
   const { query: debounced, filters: debouncedFilters, settled } = useDebouncedSearch(query, serverQuery)
 
@@ -415,7 +420,6 @@ export default function RequestsPage() {
       if (!response.ok || data.error) throw new Error(data.error ?? 'Could not load job filters')
       const nextFacets = data.facets ?? EMPTY_FACETS
       setFacets(nextFacets)
-      setSummary(data.summary ?? { requests: 0, items: 0 })
       if (!didRestore.current) {
         didRestore.current = true
         const allowedCustomers = new Set(nextFacets.customer.map((c: { name: string; company: string | null }) => c.company || c.name))
@@ -447,6 +451,7 @@ export default function RequestsPage() {
       setError('')
       setRequests(data.requests ?? [])
       setTotal(data.total ?? 0)
+      setFilteredTotals(data.totals ?? null)
       const pages = data.pageCount ?? 1
       setPageCount(pages)
       if (page > Math.max(1, pages)) setPage(Math.max(1, pages))
@@ -468,7 +473,7 @@ export default function RequestsPage() {
 
   // A search or an item filter is asking about *lines*, so the cards that
   // matched open themselves — otherwise the answer is hidden behind a chevron.
-  const drillingIn = debounced.trim() !== '' || effectiveItemStatus.length > 0
+  const drillingIn = debounced.trim() !== '' || (requestsMobile === false && !sameSet(itemStatus, DEFAULT_ITEM_STATUSES))
   const expansionBaseline = useRef({ key: '', ids: new Set<number>() })
   useEffect(() => {
     const key = `${searchKey}|${page}|${drillingIn}`
@@ -601,6 +606,7 @@ export default function RequestsPage() {
       options: REQUEST_STATUS_OPTIONS.map((o) => o.label),
       onChange: setStatus,
       allLabel: 'All statuses',
+      selectAllActions: true,
     },
     {
       label: 'Item status',
@@ -608,6 +614,7 @@ export default function RequestsPage() {
       options: ITEM_STATUS_OPTIONS.map((o) => o.label),
       onChange: setItemStatus,
       allLabel: 'All item statuses',
+      selectAllActions: true,
     },
     {
       label: 'Customer',
@@ -638,7 +645,7 @@ export default function RequestsPage() {
   // all", since the Status chip opens with Archived left out.
   const hasFilters =
     !sameSet(status, DEFAULT_STATUSES) ||
-    effectiveItemStatus.length > 0 ||
+    (requestsMobile === false && !sameSet(itemStatus, DEFAULT_ITEM_STATUSES)) ||
     customer.length > 0 ||
     created.length > 0 ||
     updated.length > 0 ||
@@ -647,7 +654,7 @@ export default function RequestsPage() {
   const clearAll = () => {
     setQuery('')
     setStatus(DEFAULT_STATUSES)
-    if (requestsMobile === false) setItemStatus([])
+    if (requestsMobile === false) setItemStatus(DEFAULT_ITEM_STATUSES)
     setCustomer([])
     setCreated([])
     setUpdated([])
@@ -670,7 +677,7 @@ export default function RequestsPage() {
           resolvedMobile={requestsMobile}
           hasFilters={hasFilters}
           onClear={clearAll}
-          summary={`${total} ${total === 1 ? 'request' : 'requests'} · ${summary.items} line ${summary.items === 1 ? 'item' : 'items'}`}
+          summary=""
           pagination={{ page, pageCount, onPage: setPage, busy }}
           controls={requestsMobile === false ? (
             <button
@@ -772,6 +779,14 @@ export default function RequestsPage() {
           <div className="py-16 text-center text-[12.5px] text-muted-foreground">Loading…</div>
         )}
       </div>
+      <footer aria-label="Filtered job totals" aria-busy={busy || !settled}
+        className="flex flex-none flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-border bg-card px-4 py-2.5 pr-20 text-[12px] min-[900px]:pr-4">
+        <span className="font-semibold text-muted-foreground">Filtered totals</span>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 tabular-nums">
+          <span className="text-muted-foreground">Items <strong className="ml-1 text-foreground">{busy || !settled || error || !filteredTotals ? '—' : filteredTotals.itemCount.toLocaleString()}</strong></span>
+          <span className="text-muted-foreground">Subtotal <strong className="ml-1 text-foreground">{busy || !settled || error || !filteredTotals ? '—' : money(filteredTotals.subtotal) || '$0.00'}</strong></span>
+        </div>
+      </footer>
     </Shell>
   )
 }

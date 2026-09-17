@@ -3,6 +3,9 @@ import test from 'node:test'
 
 import {
   answeredIn,
+  AR_STATUSES,
+  arStatusLabel,
+  arStatusTone,
   availabilityRequestLinkLabel,
   groupSupplierItems,
   isSubmittedARStatus,
@@ -162,4 +165,10 @@ test('confirmed submission stamps update on first submit and resubmit without ch
   const reopened = withAvailabilityRequestStatus(processing, 42, 'new', null)
   assert.equal(reopened[0].availabilityRequests[0].submittedAt, null)
   assert.equal(reopened[0].availabilityRequests[0].createdAt, createdAt)
+})
+
+test('admin can select Hidden with a red status', () => {
+  assert.ok(AR_STATUSES.includes('hidden'))
+  assert.equal(arStatusLabel('hidden'), 'Hidden')
+  assert.equal(arStatusTone('hidden'), 'red')
 })

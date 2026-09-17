@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils'
 export interface Chip {
   label: string
   /**
-   * The picked option labels. Empty means "all" — a filter nobody has narrowed
-   * is the absence of a filter, not a list of every option.
+   * The picked option labels. Empty means "all" for ordinary filters.
+   * Filters with selectAllActions treat empty as no selected options.
    */
   values: string[]
   options: string[]
@@ -23,6 +23,7 @@ export interface Chip {
    * "the last 7 days" or "the last 30", never both.
    */
   single?: boolean
+  selectAllActions?: boolean
 }
 
 function ChipMenu({ chip }: { chip: Chip }) {
@@ -57,6 +58,10 @@ function ChipMenu({ chip }: { chip: Chip }) {
       </button>
       {open && (
         <div className="lps-pop absolute left-0 top-[calc(100%+6px)] z-[80] max-h-[280px] min-w-[200px] overflow-auto rounded-xl border border-border bg-popover p-1.5 shadow-[var(--lps-shadow)]">
+          {chip.selectAllActions ? <div className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-muted-foreground">
+            <button type="button" onClick={() => chip.onChange([...chip.options])} className="cursor-pointer hover:text-foreground">Select all</button>
+            <button type="button" onClick={() => chip.onChange([])} className="cursor-pointer hover:text-foreground">Deselect all</button>
+          </div> : (
           <button
             type="button"
             onClick={() => {
@@ -70,7 +75,7 @@ function ChipMenu({ chip }: { chip: Chip }) {
           >
             <span className="size-[15px] flex-none" />
             {chip.allLabel}
-          </button>
+          </button>)}
           {chip.options.map((o) => (
             <button
               key={o}
@@ -198,7 +203,7 @@ export function Toolbar({
             containerResponsive && 'h-11 rounded-md border-input bg-background px-1 text-[11px] font-medium shadow-none dark:bg-background md:text-[11px]',
           )}
         />
-        {summaryBelowSearch && <div className="mt-1 text-[11px] text-muted-foreground">{summary}</div>}
+        {summaryBelowSearch && summary && <div className="mt-1 text-[11px] text-muted-foreground">{summary}</div>}
       </div>
       {controls}
       {chips.map((chip) => (
@@ -221,7 +226,7 @@ export function Toolbar({
             containerResponsive || singleRow ? 'w-auto flex-none flex-nowrap gap-1.5' : 'flex-wrap gap-3 min-[900px]:w-full min-[1024px]:w-auto',
           )}
         >
-          {!summaryBelowSearch && <span className={cn(
+          {!summaryBelowSearch && summary && <span className={cn(
             'hidden whitespace-nowrap text-[12px] text-muted-foreground',
             containerResponsive ? 'md:@min-[700px]:inline md:text-[10px]' : 'md:inline',
           )}>
@@ -262,7 +267,7 @@ export function Toolbar({
       className={cn(
         'flex flex-none gap-2 border-b border-border bg-card px-4 py-2.5',
         singleRow
-          ? 'flex-nowrap items-start [&>button]:mt-1 [&>button]:shrink-0 [&>[data-menu]]:mt-1'
+          ? 'flex-nowrap items-center [&>button]:h-9 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>[data-menu]>button]:h-9 [&>[data-menu]>button]:whitespace-nowrap'
           : 'flex-wrap items-center',
       )}
     >

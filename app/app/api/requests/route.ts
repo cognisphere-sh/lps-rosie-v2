@@ -43,8 +43,8 @@ export async function GET(req: Request) {
     const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1
 
     const filters: JobRequestFilters = {
-      status: statusList(url.searchParams.get('status')?.split(',').map(canonicalRequestStatus).join(',') ?? null, REQUEST_STATUSES),
-      itemStatus: statusList(url.searchParams.get('itemStatus'), ITEM_STATUSES),
+      status: url.searchParams.get('status') === 'none' ? [] : statusList(url.searchParams.get('status')?.split(',').map(canonicalRequestStatus).join(',') ?? null, REQUEST_STATUSES),
+      itemStatus: url.searchParams.get('itemStatus') === 'none' ? [] : statusList(url.searchParams.get('itemStatus'), ITEM_STATUSES),
       size: list(url.searchParams.get('size')),
       customerId: list(url.searchParams.get('customer'))
         ?.map(Number)
@@ -53,8 +53,8 @@ export async function GET(req: Request) {
       updatedWithin: days(url.searchParams.get('updated')),
     }
 
-    const { requests, total, pageCount } = await listJobRequests(search, filters, page)
-    return NextResponse.json({ requests, total, pageCount, page })
+    const { requests, total, pageCount, totals } = await listJobRequests(search, filters, page)
+    return NextResponse.json({ requests, total, pageCount, page, totals })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

@@ -1,17 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { RequestCardHeader } from '@/components/workspace/request-list-card'
 
-import { FocusedJobHeader } from '@/components/workspace/focused-job-header'
-import { DemandSummary, RequestBody, RequestLinks, StatusPill } from '@/components/workspace/job-request'
+import { RequestBody } from '@/components/workspace/job-request'
 import { DeleteRequestDialog, deleteRequestFromApi, requestDeletionCounts } from '@/components/workspace/request-delete'
 import { useToast } from '@/components/workspace/shell'
-import {
-  REQUEST_STATUS_OPTIONS,
-  requestStatusLabel,
-  requestStatusTone,
-} from '@/lib/job-requests'
 import type { JobRequestRow } from '@/lib/rows'
 
 /** One selected focused Job. Its secondary tray state belongs to this exact JR. */
@@ -20,9 +14,7 @@ export function FocusedJobRecord({
   mobile,
   version,
   onSaved,
-  onNameSaved,
   onDeleted,
-  actionsTarget,
 }: {
   request: JobRequestRow
   mobile: boolean
@@ -33,6 +25,7 @@ export function FocusedJobRecord({
   actionsTarget?: HTMLElement | null
 }) {
   const toast = useToast()
+  const [expanded, setExpanded] = useState(true)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
@@ -40,6 +33,7 @@ export function FocusedJobRecord({
   const deleteReturnFocus = useRef<HTMLElement | null>(null)
   const deleteSubmitting = useRef(false)
   useEffect(() => {
+    setExpanded(true)
     setDetailsOpen(false)
     setDeleteOpen(false)
     setDeleteBusy(false)
@@ -48,59 +42,32 @@ export function FocusedJobRecord({
   }, [request.id])
 
   return (
-    <div data-focused-job-record={request.id} className="m-3 overflow-hidden rounded-xl border border-border bg-card">
-      <FocusedJobHeader
+    <div data-focused-job-record={request.id} className="m-3 overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+      <RequestCardHeader
         request={request}
         mobile={mobile}
-        actionsTarget={actionsTarget}
-        status={
-          <StatusPill
-            table="job_requests"
-            id={request.id}
-            column="status"
-            value={request.status}
-            label={requestStatusLabel(request.status)}
-            accessibleLabel={requestStatusLabel(request.status)}
-            tone={requestStatusTone(request.status)}
-            options={REQUEST_STATUS_OPTIONS}
-            touchTarget
-            onSaved={onSaved}
-          />
-        }
-        actions={
-          <button
-            type="button"
-            aria-label={`Delete JR-${request.id}`}
-            onClick={(event) => {
-              deleteReturnFocus.current = event.currentTarget
-              setDeleteError('')
-              setDeleteOpen(true)
-            }}
-            className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold text-muted-foreground outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Trash2 aria-hidden="true" size={14} /> Delete job
-          </button>
-        }
-        preview={
-          <div data-focused-job-summary className="space-y-2 border-b border-border bg-lps-tint px-3 py-2.5">
-            <DemandSummary lineTotal={request.lineTotal} itemCount={request.itemCount} counts={request.statusCounts} wrap />
-            <RequestLinks request={request} focusedMobile={mobile} relatedOnly={!mobile} />
-          </div>
-        }
-        onNameSaved={onNameSaved ?? (() => onSaved())}
-        onDateSaved={() => onSaved()}
-      />
-      <RequestBody
-        request={request}
-        version={version}
-        detailsOpen={detailsOpen}
-        onToggleDetails={() => setDetailsOpen((open) => !open)}
-        compactJobDetails
-        summaryInHeader
-        touchTargets
-        emptyItemsCopy="No active line items have been saved for this job yet."
+        expanded={expanded}
+        onToggle={() => setExpanded((open) => !open)}
         onSaved={onSaved}
+        showActions
+        onDelete={(returnFocus) => {
+          deleteReturnFocus.current = returnFocus
+          setDeleteError('')
+          setDeleteOpen(true)
+        }}
       />
+      <div id={`request-body-${request.id}`}>
+        {expanded && <RequestBody
+          request={request}
+          version={version}
+          detailsOpen={detailsOpen}
+          onToggleDetails={() => setDetailsOpen((open) => !open)}
+          compactJobDetails
+          touchTargets
+          emptyItemsCopy="No active line items have been saved for this job yet."
+          onSaved={onSaved}
+        />}
+      </div>
       {deleteOpen && (
         <DeleteRequestDialog
           request={request}

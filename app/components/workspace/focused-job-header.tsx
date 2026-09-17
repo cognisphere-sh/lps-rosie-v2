@@ -612,6 +612,7 @@ export function FocusedJobHeader({
       {mobile ? (
         <div data-focused-job-header="mobile" className="border-b border-border px-3 py-2.5">
           <div className="flex min-w-0 flex-wrap items-start gap-2">
+            <div className="flex-none">{status}</div>
             <div className="min-w-0 flex-1 basis-40">
               <div className="text-[10px] font-bold uppercase tracking-[.06em] text-primary">
                 {requestRef(request.id)}
@@ -625,7 +626,6 @@ export function FocusedJobHeader({
                 </p>
               )}
               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
-                {status}
                 {fulfillmentTag}
               </div>
             </div>
@@ -639,8 +639,8 @@ export function FocusedJobHeader({
           className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-1.5"
         >
           <div data-balanced-header-flank="left" className="flex min-w-0 items-center gap-1 overflow-hidden">
-            <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
             {status}
+            <span className="min-w-0 truncate font-bold text-primary">{requestRef(request.id)}</span>
             {fulfillmentTag}
           </div>
           <div data-desktop-job-identity className="min-w-0 flex-1 basis-40">

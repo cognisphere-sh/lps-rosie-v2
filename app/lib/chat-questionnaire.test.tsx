@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import userEvent from '@testing-library/user-event'
 import { JSDOM } from 'jsdom'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { ChatQuestionnaire } from '../components/workspace/chat-questionnaire'
+import { Transcript, type ChatMessage } from '../components/workspace/chat-kit'
 import { encodeQuestionnaire, parseQuestionnaire, questionnaireAnswers, validateQuestions } from '../../harness/plugins/webchat/questions'
 
 const value = {
@@ -20,6 +22,22 @@ beforeEach(() => {
   Object.defineProperty(dom.window.HTMLElement.prototype, 'detachEvent', { value() {} })
 })
 afterEach(() => { cleanup(); dom.window.close() })
+
+test('custom chat text collapses earlier questions only after a confirmed send, including loaded history', () => {
+  const question: ChatMessage = { id: 2, at: 0, role: 'agent', text: encodeQuestionnaire(value), files: [] }
+  const reply: ChatMessage = { id: 3, at: 1, role: 'user', text: 'Let me check first', files: [] }
+  const markup = (messages: ChatMessage[]) => renderToStaticMarkup(<Transcript messages={messages} pending={false} error="" hasMore={false} loadingMore={false} fileHref={() => ''} empty="" pendingLabel="Working" onRefresh={async () => {}} wallpaper="none" />)
+  for (const messages of [[{ ...reply, id: 1 }, question], [question, { ...reply, id: -1 }], [question, { ...reply, text: '' }]]) {
+    assert.match(markup(messages), /<fieldset/)
+  }
+  const collapsed = markup([question, reply])
+  assert.doesNotMatch(collapsed, /<fieldset|<textarea|Answers submitted\./)
+  assert.match(collapsed, /Which day\?/)
+  assert.match(collapsed, /Where\?/)
+  assert.doesNotMatch(collapsed, /Monday|Tuesday|Driveway|Curbside/)
+  assert.match(markup([question, reply, { ...question, id: 4 }]), /<fieldset/)
+  assert.match(markup([question, { ...reply, text: questionnaireAnswers(value, ['Monday', 'Driveway']) }]), /Answers submitted\./)
+})
 
 test('questionnaires round trip through durable text and reject invalid choices', () => {
   assert.deepEqual(parseQuestionnaire(encodeQuestionnaire(value)), value)

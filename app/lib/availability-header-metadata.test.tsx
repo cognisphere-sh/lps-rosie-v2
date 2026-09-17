@@ -163,3 +163,18 @@ test('admin schedules identify each source job and render missing dates/methods 
     dom.window.close()
   }
 })
+
+
+test('hidden requests remain visible to admin but disappear from every supplier read', async () => {
+  const { tables, queries } = fixture()
+  tables.availability_requests[0].status = 'hidden'
+  assert.equal((await queries.availabilityRequest(42)).status, 'hidden')
+  assert.equal((await queries.listAvailabilityRequests({ jobRequestId: 11 }))[0].status, 'hidden')
+  assert.equal(await queries.availabilityRequest(42, { forSupplierId: 7 }), null)
+  assert.equal(await queries.publicAvailabilityRequest(token), null)
+  assert.deepEqual(await queries.listPortalRequests(7), [])
+  assert.deepEqual(await queries.listPortalItemLines(7), [])
+  tables.availability_requests[0].status = 'new'
+  assert.equal((await queries.availabilityRequest(42, { forSupplierId: 7 })).status, 'new')
+  assert.equal((await queries.listPortalRequests(7)).length, 1)
+})

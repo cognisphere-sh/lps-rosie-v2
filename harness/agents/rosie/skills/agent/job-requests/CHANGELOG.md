@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 5.9.0
+
+- Chris authorized Can Order job-line updates to set schema-valid `need_to_order` and `available_quantity` together, using the approved whole-line demand or explicitly approved allocation rather than a shared supplier total.
+
 ## 5.8.0
 
 - Capture EDD from ingestion evidence; ask for missing or ambiguous dates with an explicit Unknown option. Store unknown as NULL, continue independent intake work, and preserve existing dates on re-ingestion.

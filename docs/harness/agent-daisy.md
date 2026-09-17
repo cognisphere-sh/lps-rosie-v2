@@ -675,3 +675,5 @@ Handing a file to a user is **not** a skill (`share-file-with-user` was retired
 2026-08-15): upload to `lps` under `daisy_shared/YYYY-MM-DD/` and sign the URL,
 both documented in `1.1-supabase.md` next to the scripts themselves, with the
 bucket-is-public caveat stated there and in SCHEMA.md's *Storage buckets*.
+
+Migration `0099_hidden_availability_requests.sql` adds the admin-only `hidden` AR status, revokes public links, guards answer/item writes under the AR row lock, and preserves hiding across linked job closure/reopening.

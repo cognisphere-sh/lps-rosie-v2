@@ -207,8 +207,8 @@ export async function availabilityRequest(
   if (error) throw new Error(`availability_requests: ${error.message}`)
   if (!data) return null
   const ar = data as ARRecord
-  if (opts.publicToken && (ar.public_token !== opts.publicToken || ar.status === 'closed')) return null
-  if (opts.forSupplierId != null && ar.supplier_id !== opts.forSupplierId) return null
+  if (opts.publicToken && (ar.public_token !== opts.publicToken || ar.status === 'closed' || ar.status === 'hidden')) return null
+  if (opts.forSupplierId != null && (ar.supplier_id !== opts.forSupplierId || ar.status === 'hidden')) return null
 
   const [summary] = await summarize([ar])
   const schedules = await jobSchedules(summary.jobRequestIds ?? [], opts.forSupplierId == null)
@@ -450,7 +450,7 @@ async function arForWrite(arId: number, forSupplierId?: number): Promise<ARRecor
   if (!ar || (forSupplierId != null && ar.supplier_id !== forSupplierId)) {
     throw new Error('availability request not found')
   }
-  if (ar.status === 'closed') throw new Error('this request is closed')
+  if (ar.status === 'closed' || ar.status === 'hidden') throw new Error('this request is closed or hidden')
   return ar
 }
 
@@ -465,6 +465,7 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
     .select(AR_COLUMNS)
     .eq('supplier_id', supplierId)
     .eq('is_active', true)
+    .neq('status', 'hidden')
     .order('created_at', { ascending: false })
     .limit(500)
   if (error) throw new Error(`availability_requests: ${error.message}`)
@@ -581,8 +582,8 @@ export async function submitAvailabilityRequest(arId: number, forSupplierId: num
  * anything, and the portal's button reads **Re-Submit** off it.
  */
 export async function setAvailabilityRequestStatus(arId: number, status: string): Promise<void> {
-  if (!['new', 'processing', 'submitted', 'closed'].includes(status)) {
-    throw new Error('status must be one of: new, processing, submitted, closed')
+  if (!['new', 'processing', 'submitted', 'closed', 'hidden'].includes(status)) {
+    throw new Error('status must be one of: new, processing, submitted, closed, hidden')
   }
   const stamp =
     status === 'submitted'
@@ -732,7 +733,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
     .select(AR_COLUMNS)
     .eq('supplier_id', supplierId)
     .eq('is_active', true)
-    .neq('status', 'closed')
+    .neq('status', 'closed').neq('status', 'hidden')
     .order('created_at', { ascending: false })
     .limit(500)
   if (arErr) throw new Error(`availability_requests: ${arErr.message}`)
@@ -919,7 +920,7 @@ export async function publicAvailabilityRequest(token: string) {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(token)) return null
   const { data, error } = await supabase.from('availability_requests')
     .select('id, supplier_id').eq('public_token', token)
-    .eq('is_active', true).neq('status', 'closed').maybeSingle()
+    .eq('is_active', true).neq('status', 'closed').neq('status', 'hidden').maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) return null
   const { data: supplier, error: supplierError } = await supabase.from('suppliers')

@@ -17,6 +17,10 @@ here).
 
 ## 2026-09-15
 
+- Add a red Hidden status to Admin’s AR picker. Hidden requests are excluded from supplier portal and public reads, reject supplier writes, and stay hidden across job lifecycle changes (migration 0099).
+
+- Collapse webchat quick-answer choices to plain question text when the user sends a custom chat message, preserving that state in loaded history.
+
 - Keep the requests desktop header controls in one row and move the live request and line-item count below search in small text.
 
 - Keep the order's Pickup/Delivery field under Chris/admin control with a separate editor. Supplier confirmation and date edits now save only fulfillment date and note; the API rejects supplier method changes. Migration 0098 allows confirmation and Ready before Chris sets the method, while retaining the required fulfillment date and lifecycle guards.

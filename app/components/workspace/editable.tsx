@@ -63,6 +63,8 @@ export function EditableText({
   align = 'left',
   title,
   touchTarget = false,
+  triggerContent,
+  className,
 }: EditProps & {
   value: string | number | null
   /** How the committed value reads when not editing (money, thousands, …). */
@@ -71,6 +73,8 @@ export function EditableText({
   numeric?: boolean
   align?: 'left' | 'right'
   title?: string
+  triggerContent?: ReactNode
+  className?: string
 }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -110,6 +114,7 @@ export function EditableText({
       <input
         autoFocus
         type={numeric ? 'number' : 'text'}
+        aria-label={title}
         step="any"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -142,6 +147,7 @@ export function EditableText({
       type="button"
       data-cell-editor
       title={title ?? 'Click to edit'}
+      aria-label={triggerContent ? title : undefined}
       disabled={busy}
       onClick={(e) => {
         e.stopPropagation()
@@ -154,9 +160,10 @@ export function EditableText({
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'text-right tabular-nums',
         busy && 'opacity-50',
+        className,
       )}
     >
-      {shown || <span className="text-lps-dim">{placeholder}</span>}
+      {triggerContent ?? (shown || <span className="text-lps-dim">{placeholder}</span>)}
     </button>
   )
 }

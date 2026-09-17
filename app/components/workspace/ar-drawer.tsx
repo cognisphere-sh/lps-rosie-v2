@@ -513,7 +513,7 @@ export function AvailabilityRequestDrawer() {
                     )}
                   </dl>
                 </section>
-                <ARSharing key={session.generation} id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
+                <ARSharing key={session.generation} id={ar.id} token={ar.publicToken ?? null} closed={(ar.status === 'closed' || ar.status === 'hidden')}
                   onChange={(publicToken) => {
                     if (isCurrent(session) && arRef.current) setAr({ ...arRef.current, publicToken })
                   }} />
@@ -531,22 +531,22 @@ export function AvailabilityRequestDrawer() {
                 )}
                 <ARLineTable
                   items={ar.items}
-                  editable={ar.status !== 'closed'}
+                  editable={ar.status !== 'closed' && ar.status !== 'hidden'}
                   onPatch={patchLine}
                   onPatchDetails={patchDetails}
                   mobileCards={mobile}
                   drawerModal
                 />
-                {ar.status === 'closed' && (
+                {(ar.status === 'closed' || ar.status === 'hidden') && (
                   <p className="m-0 text-[11.5px] text-muted-foreground">
-                    This request is closed. Reopen it from the status pill to edit plant details and answers, then {ar.submittedAt ? 'Submit again' : 'Submit request'}.
+                    This request is {ar.status}. Reopen it from the status pill to edit plant details and answers, then {ar.submittedAt ? 'Submit again' : 'Submit request'}.
                   </p>
                 )}
               </>
             )}
           </div>
 
-          {ar && ar.status !== 'closed' && (
+          {ar && ar.status !== 'closed' && ar.status !== 'hidden' && (
             <footer
               data-ar-drawer-footer
               className="flex flex-none flex-col gap-1.5 border-t border-border bg-background pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] min-[900px]:mx-4 min-[900px]:mb-4 min-[900px]:flex-row min-[900px]:items-center min-[900px]:border-t-0 min-[900px]:p-0"

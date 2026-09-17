@@ -66,6 +66,7 @@ export function buildRequestFilterQuery({
   customerIds,
   requestStatusOptions,
   itemStatusOptions,
+  itemStatusEmptyMeansNone = false,
 }: {
   status: string[]
   itemStatus: string[]
@@ -74,11 +75,15 @@ export function buildRequestFilterQuery({
   updated: string[]
   customerIds: ReadonlyMap<string, number>
   requestStatusOptions: readonly RequestFilterOption[]
+  itemStatusEmptyMeansNone?: boolean
   itemStatusOptions: readonly RequestFilterOption[]
 }) {
   const params = new URLSearchParams()
-  if (status.length) params.set('status', valuesOf(status, requestStatusOptions).join(','))
-  if (itemStatus.length) params.set('itemStatus', valuesOf(itemStatus, itemStatusOptions).join(','))
+  params.set('status', status.length ? valuesOf(status, requestStatusOptions).join(',') : 'none')
+  if (itemStatusEmptyMeansNone && !itemStatus.length) params.set('itemStatus', 'none')
+  else if (itemStatus.length && !(itemStatusEmptyMeansNone && itemStatusOptions.every((option) => itemStatus.includes(option.label)))) {
+    params.set('itemStatus', valuesOf(itemStatus, itemStatusOptions).join(','))
+  }
   if (customer.length) {
     params.set('customer', customer.map((name) => customerIds.get(name)).filter(Boolean).join(','))
   }

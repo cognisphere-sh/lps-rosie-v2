@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { useJobUpdates } from '@/lib/use-job-updates'
 
-import { AgentChatButton } from '@/components/workspace/agent-chat-button'
+import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { EditableText, EditableTextarea, patchRow, type EditProps } from '@/components/workspace/editable'
 import { ChevronDown, ChevronRight, MailIcon, MapPinIcon, PhoneIcon } from '@/components/workspace/icons'
 import { RequestBody, addressLine } from '@/components/workspace/job-request'
@@ -271,15 +271,15 @@ export default function CustomerPage() {
     <Shell
       page="customers"
       title={customer.name}
-      headerAction={chatThreadId ? (
-        <AgentChatButton
-          agentId="rosie"
+      headerAction={(
+        <CustomerChatButton
+          customerId={customer.id}
+          avatar
           threadId={chatThreadId}
           label={customer.name}
-          subject={customer.name}
           labelled
         />
-      ) : undefined}
+      )}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         {/* The details card. Everything on the customer record, editable in

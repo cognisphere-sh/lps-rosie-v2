@@ -23,6 +23,7 @@ import {
   isSubmittedARStatus,
 } from '@/lib/availability'
 import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
+import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { customerThreadId } from '@/lib/customers'
 import { formatDate, formatMonthDay, money, num } from '@/lib/format'
 import {
@@ -716,7 +717,7 @@ function SupplierPill({
     >
       <span className={focusedMobile
         ? 'flex min-w-0 max-w-full basis-full items-start gap-1 border-b border-lps-hair px-2 py-1 text-foreground'
-        : 'flex items-center gap-1 px-2 py-0.5 text-foreground'}>
+        : 'flex min-h-8 items-center gap-1 px-2 py-0.5 text-foreground'}>
         <SuppliersIcon size={11} className={cn(
           'flex-none text-muted-foreground',
           focusedMobile && 'mt-0.5',
@@ -782,6 +783,7 @@ export function RequestLinks({
   suppliersHidden = false,
   focusedMobile = false,
   relatedOnly = false,
+  hideCustomerChat = false,
   className,
 }: {
   request: JobRequestRow
@@ -789,13 +791,14 @@ export function RequestLinks({
   focusedMobile?: boolean
   /** Route actions only, for the compact desktop details tray. */
   relatedOnly?: boolean
+  hideCustomerChat?: boolean
   className?: string
 }) {
   const dateIdPrefix = useId()
   const customerName = request.customer?.company || request.customer?.name
   const contact = request.customer?.company && request.customer.name ? request.customer.name : null
-  // Only the stored canonical customer thread is safe to open. Rosie owns
-  // first-contact minting and collision handling; this strip never guesses.
+  // Reuse the recorded thread. The chat button resolves missing threads on
+  // the server before opening them.
   const customerThread = request.customer ? customerThreadId(request.customer) : null
 
   // Only where it is going; the street lives in the details drawer.
@@ -836,26 +839,12 @@ export function RequestLinks({
       )}>· {contact}</span>}
       {/* The customer's conversation, on the customer's own name — the one
           place it cannot be mistaken for a supplier's. */}
-      {customerThread && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            openChat({
-              agentId: 'rosie',
-              threadId: customerThread,
-              label: customerName ?? customerThread,
-            })
-          }}
-          title={`Open the customer conversation with ${customerName ?? customerThread}`}
-          aria-label={`Open the customer conversation with ${customerName ?? customerThread}`}
+      {request.customer && !hideCustomerChat && (
+        <CustomerChatButton customerId={request.customer.id} threadId={customerThread} label={customerName ?? 'Customer'}
           className={cn(
             'flex flex-none cursor-pointer items-center gap-1 rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-secondary',
             relatedOnly && 'min-h-11',
-          )}
-        >
-          <MessagesSquare size={11} /> Chat
-        </button>
+          )} />
       )}
       {!relatedOnly && locality && (
         <span className={cn(
@@ -907,7 +896,7 @@ export function RequestLinks({
                       />
                     )}
                   </span>
-                  <span id={`${dateIdPrefix}-ar-${ar.id}-date`} className="whitespace-nowrap text-[10px] font-normal opacity-80">
+                  <span id={`${dateIdPrefix}-ar-${ar.id}-date`} className="whitespace-nowrap text-[10.5px] font-normal opacity-80">
                     {formatMonthDay(isSubmittedARStatus(ar.status) ? ar.submittedAt : ar.createdAt) || '—'}
                   </span>
                 </LinkSegment>
@@ -1134,7 +1123,7 @@ function CompactJobDetails({
       .filter((value): value is string => Boolean(value))
     : []
   const hasRelatedRoutes = Boolean(
-    request.customer?.rosieThreadId?.trim() || request.supplierLinks.length,
+    request.customer || request.supplierLinks.length,
   )
 
   return (

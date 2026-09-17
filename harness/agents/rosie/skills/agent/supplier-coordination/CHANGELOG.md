@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 3.9.0
+
+- Chris authorized Can Order response handling: after his exact job-line approval, relay schema-valid `need_to_order` with the approved demand/allocation as `available_quantity`, never a shared supplier total.
+
 ## 3.8.0
 
 - Include submitted request-wide supplier notes in AR response reads and job relays, keeping them separate from LPS instructions and line availability.

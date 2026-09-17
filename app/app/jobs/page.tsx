@@ -215,8 +215,7 @@ function JobsWorkspace() {
 
   const savedJobName = useCallback((id: number) => {
     pendingNameFocus.current = id
-    setVersion((n) => n + 1)
-    void Promise.all([loadDetail(id), refreshList()]).then(() => {
+    void Promise.all([loadDetail(id, true), refreshList()]).then(() => {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (pendingNameFocus.current !== id) return
         if (selection.kind !== 'valid' || selection.id !== id) return
@@ -415,8 +414,9 @@ function JobsWorkspace() {
               mobile={breakpoint === true}
               version={version}
               onSaved={() => {
-                setVersion((n) => n + 1)
-                void loadDetail(detail.id)
+                // Keep the record, open sections and other drafts mounted while
+                // reconciling saved values and server-calculated totals.
+                void loadDetail(detail.id, true)
                 void refreshList()
               }}
               onNameSaved={savedJobName}

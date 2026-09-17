@@ -74,7 +74,8 @@ export function FocusedJobsRailRow({
 }) {
   const primary = jobInboxRailPrimaryLine(row)
   const tone = requestStatusTone(row.status)
-  const customer = [row.customerCompany?.trim(), row.customerContact?.trim()].filter(Boolean).join(' · ')
+  const customer = row.customerCompany?.trim() || row.customerContact?.trim() || 'Unassigned customer'
+  const retail = row.customerType === 'Homeowner/Retail'
   return (
     <button
       ref={buttonRef}
@@ -88,33 +89,32 @@ export function FocusedJobsRailRow({
       )}
     >
       <span className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-primary">
-          {requestRef(row.id)}
-          {row.unread && <span aria-hidden="true" title="Unread messages" className="size-1.5 rounded-full bg-primary" />}
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[10.5px] font-bold text-primary">
+          <span className="shrink-0">{requestRef(row.id)}</span>
+          <span className="truncate" title={`${retail ? 'Retail ' : ''}${customer}`}>· {retail ? 'Retail ' : ''}{customer}</span>
+          {row.unread && <span aria-hidden="true" title="Unread messages" className="size-1.5 shrink-0 rounded-full bg-primary" />}
         </span>
         <span
           data-job-status={row.status}
           title={statusLabel}
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
           style={toneStyle(tone)}
         >
           <span aria-hidden="true" className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
           <span>{statusLabel}</span>
         </span>
       </span>
-      <span
-        data-focused-job-rail-primary
-        className="line-clamp-2 min-w-0 break-words text-[13px] font-semibold leading-snug text-foreground [overflow-wrap:anywhere]"
-        title={primary}
-      >
-        {row.name?.trim() || requestRef(row.id)}
-      </span>
-      <span className="mt-1 block truncate text-[11px] text-muted-foreground" title={customer || 'Unassigned customer'}>
-        {customer || 'Unassigned customer'}
-      </span>
-      <span data-focused-job-rail-dates className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-lps-hair pt-2 text-[10.5px] text-muted-foreground">
-        <span>Created <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(row.createdAt) || '—'}</span></span>
-        <span>EDD <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(row.expectedInstallDate) || '—'}</span></span>
+      <span className="flex min-w-0 items-baseline justify-between gap-2">
+        <span
+          data-focused-job-rail-primary
+          className="min-w-0 truncate text-[13px] font-semibold leading-snug text-foreground"
+          title={`${primary} · Created ${formatMonthDay(row.createdAt) || '—'}`}
+        >
+          {row.name?.trim() || 'Unnamed job'}
+        </span>
+        <span data-focused-job-rail-dates className="shrink-0 text-[10.5px] text-muted-foreground">
+          <span aria-label="Expected delivery date"><span className="font-semibold tabular-nums text-foreground">{formatMonthDay(row.expectedInstallDate, '/') || '—'}</span></span>
+        </span>
       </span>
     </button>
   )

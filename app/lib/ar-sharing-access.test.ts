@@ -69,6 +69,9 @@ test('sharing database write cannot change another supplier request', async () =
   assert.equal(filters.is_active, true)
   await setAvailabilityRequestPublic(11, false, 7)
   assert.equal(token, null)
+  status = 'hidden'
+  await assert.rejects(setAvailabilityRequestPublic(11, true, 7), /hidden/)
+  assert.equal(token, null)
   status = 'closed'
   await assert.rejects(setAvailabilityRequestPublic(11, true, 7), /closed/)
   assert.equal(token, null)

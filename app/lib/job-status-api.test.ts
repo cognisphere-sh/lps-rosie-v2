@@ -28,6 +28,11 @@ test('legacy Confirmed request-list filters select Committed without widening or
       return { requests: [], total: 0, pageCount: 1 }
     } },
   })
+  const empty = await GET(new Request('http://localhost/api/requests?status=none'))
+  assert.equal(empty.status, 200)
+  assert.deepEqual(filters.status, [])
+  await GET(new Request('http://localhost/api/requests?itemStatus=none'))
+  assert.deepEqual(filters.itemStatus, [])
   let result = await GET(new Request('http://localhost/api/requests?status=confirmed&itemStatus=pending'))
   assert.equal(result.status, 200)
   assert.deepEqual(filters.status, ['committed'])

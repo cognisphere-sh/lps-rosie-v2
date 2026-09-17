@@ -48,6 +48,7 @@ function request(name: string | null): JobRequestRow {
     name,
     status: 'quoted',
     customer: {
+      type: null,
       id: 4,
       name: 'Jamie Long',
       company: 'Long Landscape',
@@ -101,15 +102,15 @@ test('focused headers display saved dates and a separate pickup tag on mobile an
     )
     assert.equal(dated.container.querySelector('[data-job-fulfillment]')?.textContent, 'Pickup')
     const metadata = dated.container.querySelector('[data-job-metadata]')!
-    assert.deepEqual([...metadata.querySelectorAll('dt')].map((node) => node.textContent), ['Created on', 'EDD'])
-    assert.deepEqual([...metadata.querySelectorAll('dd')].map((node) => node.textContent), ['08-29', '08-30'])
+    assert.deepEqual([...metadata.querySelectorAll('dt')].map((node) => node.textContent), ['EDD', 'Fulfillment'])
+    assert.equal(metadata.querySelector('dd')?.textContent, '08/30')
     assert.ok(metadata.parentElement?.querySelector(mobile ? 'h1' : '[data-desktop-job-identity]'))
     dated.unmount()
 
     const missing = render(
       <FocusedJobHeader request={request('Patio')} mobile={mobile} status={status} preview={preview} />,
     )
-    assert.deepEqual([...missing.container.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['08-29', '—'])
+    assert.equal(missing.container.querySelector('[data-job-metadata] dd')?.textContent, '—')
     assert.doesNotMatch(missing.container.querySelector('[data-job-metadata]')?.textContent ?? '', /08-31/)
     missing.unmount()
   }

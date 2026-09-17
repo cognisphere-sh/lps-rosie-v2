@@ -271,6 +271,17 @@ async function requestIdsMatchingCustomer(search: string): Promise<number[]> {
 const daysAgoIso = (days: number) =>
   new Date(Date.now() - days * 86_400_000).toISOString()
 
+export interface RequestTotals {
+  itemCount: number
+  subtotal: number
+}
+
+function visibleRequestItem(item: Pick<ItemRecord, 'job_request_id' | 'status' | 'size' | 'name'>, filters: JobRequestFilters, search: string, matchedItems: Set<number> | null) {
+  if (filters.itemStatus?.length && !filters.itemStatus.includes(item.status)) return false
+  if (filters.size?.length && !(item.size && filters.size.includes(item.size))) return false
+  return !(search && matchedItems?.has(item.job_request_id) && !item.name.toLowerCase().includes(search.toLowerCase()))
+}
+
 /**
  * One page of job requests, each carrying every one of its line items.
  *
@@ -283,7 +294,8 @@ export async function listJobRequests(
   search: string,
   filters: JobRequestFilters,
   page: number,
-): Promise<{ requests: JobRequestRow[]; total: number; pageCount: number }> {
+): Promise<{ requests: JobRequestRow[]; total: number; pageCount: number; totals: RequestTotals }> {
+  if ((filters.status && !filters.status.length) || (filters.itemStatus && !filters.itemStatus.length)) return { requests: [], total: 0, pageCount: 1, totals: { itemCount: 0, subtotal: 0 } }
   const q = search.trim()
 
   // Item- and customer-level matches both narrow the request set. A search
@@ -301,21 +313,21 @@ export async function listJobRequests(
     restrictTo = [...union]
   }
 
-  let query = supabase
-    .from('job_requests')
-    .select(REQUEST_COLUMNS, { count: 'exact' })
-    .eq('is_active', true)
-
-  if (restrictTo) {
-    if (!restrictTo.length) return { requests: [], total: 0, pageCount: 1 }
-    query = query.in('id', restrictTo)
+  if (restrictTo && !restrictTo.length) return { requests: [], total: 0, pageCount: 1, totals: { itemCount: 0, subtotal: 0 } }
+  const createdAfter = filters.createdWithin ? daysAgoIso(filters.createdWithin) : null
+  const updatedAfter = filters.updatedWithin ? daysAgoIso(filters.updatedWithin) : null
+  const filteredJobs = <Columns extends string>(columns: Columns, count = false) => {
+    let query = supabase.from('job_requests').select(columns, count ? { count: 'exact' } : {}).eq('is_active', true)
+    if (restrictTo) query = query.in('id', restrictTo)
+    if (filters.status?.length) query = query.in('status', filters.status)
+    if (filters.customerId?.length) query = query.in('customer_id', filters.customerId)
+    if (createdAfter) query = query.gte('created_at', createdAfter)
+    if (updatedAfter) query = query.gte('updated_at', updatedAfter)
+    return query
   }
-  if (filters.status?.length) query = query.in('status', filters.status)
-  if (filters.customerId?.length) query = query.in('customer_id', filters.customerId)
-  if (filters.createdWithin) query = query.gte('created_at', daysAgoIso(filters.createdWithin))
-  if (filters.updatedWithin) query = query.gte('updated_at', daysAgoIso(filters.updatedWithin))
+
   const from = (page - 1) * JOB_REQUEST_PAGE_SIZE
-  const { data, error, count } = await query
+  const { data, error, count } = await filteredJobs(REQUEST_COLUMNS, true)
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false })
     .range(from, from + JOB_REQUEST_PAGE_SIZE - 1)
@@ -335,23 +347,45 @@ export async function listJobRequests(
     // these decide which of its lines the expanded table draws. A search that
     // reached this request through one of its plants narrows to the plants it
     // matched; one that reached it through the customer or the id keeps them all.
-    const matchedByItem = itemIdSet?.has(r.id) ?? false
-    const visible = all.filter((it) => {
-      if (filters.itemStatus?.length && !filters.itemStatus.includes(it.status)) return false
-      if (filters.size?.length && !(it.size && filters.size.includes(it.size))) return false
-      if (q && matchedByItem && !it.name.toLowerCase().includes(q.toLowerCase())) return false
-      return true
-    })
+    const visible = all.filter((item) => visibleRequestItem(item, filters, q, itemIdSet))
 
     const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
     return toRow(r, all, customer, visible, linkMap[r.id] ?? [])
   })
+
+  // Scan only ids and amount fields for the footer, across every result page.
+  // Use the same job filters and visible-line predicate as the expanded cards.
+  const totals: RequestTotals = { itemCount: 0, subtotal: 0 }
+  let cents = 0
+  for (let offset = 0; ; offset += CHUNK) {
+    const { data: jobs, error: jobsError } = await filteredJobs('id').order('id', { ascending: true }).range(offset, offset + CHUNK - 1)
+    if (jobsError) throw new Error(`job totals: ${jobsError.message}`)
+    const ids = (jobs ?? []).map((job) => (job as unknown as { id: number }).id)
+    // Keep each IN filter small enough for PostgREST URLs.
+    for (let start = 0; start < ids.length; start += 100) {
+      for (let itemOffset = 0; ; itemOffset += CHUNK) {
+        const { data: lines, error: linesError } = await supabase.from('job_request_items')
+          .select('id, job_request_id, name, size, status, total').eq('is_active', true)
+          .in('job_request_id', ids.slice(start, start + 100)).order('id', { ascending: true }).range(itemOffset, itemOffset + CHUNK - 1)
+        if (linesError) throw new Error(`item totals: ${linesError.message}`)
+        for (const item of lines ?? []) {
+          if (!visibleRequestItem(item, filters, q, itemIdSet)) continue
+          totals.itemCount++
+          cents += Math.round(Number(item.total ?? 0) * 100)
+        }
+        if ((lines ?? []).length < CHUNK) break
+      }
+    }
+    if (ids.length < CHUNK) break
+  }
+  totals.subtotal = cents / 100
 
   const total = count ?? requests.length
   return {
     requests,
     total,
     pageCount: Math.max(1, Math.ceil(total / JOB_REQUEST_PAGE_SIZE)),
+    totals,
   }
 }
 

@@ -83,13 +83,17 @@ function FilterGroup({ chip }: { chip: Chip }) {
         <span aria-hidden="true" className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">
           {chip.label}
         </span>
+        {chip.selectAllActions ? <div className="flex items-center gap-2">
+          <button type="button" onClick={() => chip.onChange([...chip.options])} className="min-h-11 px-2 text-[12px] font-semibold text-muted-foreground underline">Select all</button>
+          <button type="button" onClick={() => chip.onChange([])} className="min-h-11 px-2 text-[12px] font-semibold text-muted-foreground underline">Deselect all</button>
+        </div> : (
         <button
           type="button"
           onClick={() => chip.onChange([])}
           className="min-h-11 flex-none cursor-pointer border-none bg-transparent px-2 text-[12px] font-semibold text-muted-foreground underline"
         >
           {chip.allLabel}
-        </button>
+        </button>)}
       </div>
       <div className="grid min-w-0 grid-cols-1 gap-1 sm:grid-cols-2">
         {chip.options.map((option) => (
@@ -423,7 +427,7 @@ export function RequestsToolbar({
             onOpenChange={handleMobileFiltersOpenChange}
           />
         </div>
-        <div className="text-[11px] text-muted-foreground">{summary}</div>
+        {summary && <div className="text-[11px] text-muted-foreground">{summary}</div>}
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {controls}
           {pagination && pagination.pageCount > 1 && <PageControls {...pagination} />}
@@ -436,7 +440,6 @@ export function RequestsToolbar({
     <div ref={branch} {...focusOwnership} data-requests-toolbar-branch="desktop" className="flex-none">
       <Toolbar
         singleRow
-        summaryBelowSearch
         rightActions={rightActions}
         placeholder={placeholder}
         query={query}

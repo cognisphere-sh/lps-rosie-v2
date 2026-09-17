@@ -2734,7 +2734,9 @@ uses Save answer after typing. Questionnaire cards, options, and review text
 wrap within the message width, including narrow panels. Submit answers sends
 all reviewed question/answer pairs through that surface's chat transport.
 The card disables repeat clicks while sending, preserves answers on failure,
-and recognizes completed submissions in loaded history. Draft answers reset
+and recognizes completed submissions in loaded history. Sending custom text
+from the chat composer collapses earlier question cards to their title and plain
+question text, including after reload; unsent messages do not collapse them. Draft answers reset
 when the card unmounts. Implementation: `chat-questionnaire.tsx` alongside
 `chat-kit.tsx`; the versioned envelope is shared with the Webchat plugin.
 
@@ -2756,3 +2758,7 @@ chat writes from recreating the deleted thread. Deleting one item remains a
 separate operation and does not delete its supplier records.
 
 The `/requests` desktop toolbar keeps search, filters, New request, and notifications in one row. The live request and line-item count appears in small text below search, including on mobile.
+
+### Hidden availability requests
+
+Admin’s AR status picker includes **Hidden**, shown in red. Hidden ARs remain visible to admins, but supplier portal lists, By item results, direct detail URLs and public links exclude them. Hiding revokes the public link and blocks answers, mapping changes, sharing and submission, including stale pages. Select an open status to restore supplier access; publish a fresh link if needed. Hidden requests stay hidden when linked jobs close or reopen. Database migration 0099 enforces these guards under row locks.
