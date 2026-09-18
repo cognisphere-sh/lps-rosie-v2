@@ -8,6 +8,7 @@
 
 import { useRef, useState, type ReactNode } from 'react'
 
+import { CheckIcon, CloseIcon } from '@/components/workspace/icons'
 import { useToast } from '@/components/workspace/shell'
 import { cn } from '@/lib/utils'
 
@@ -63,6 +64,7 @@ export function EditableText({
   align = 'left',
   title,
   touchTarget = false,
+  inlineControls = false,
   triggerContent,
   className,
 }: EditProps & {
@@ -75,6 +77,8 @@ export function EditableText({
   title?: string
   triggerContent?: ReactNode
   className?: string
+  /** Keep the editor in its cell with explicit save/cancel actions. */
+  inlineControls?: boolean
 }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -109,8 +113,14 @@ export function EditableText({
     }
   }
 
+  const cancel = (restoreFocus = true) => {
+    done.current = true
+    setEditing(false)
+    if (restoreFocus) restoreTrigger()
+  }
+
   if (editing) {
-    return (
+    const input = (
       <input
         autoFocus
         type={numeric ? 'number' : 'text'}
@@ -118,17 +128,18 @@ export function EditableText({
         step="any"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(false)}
+        onBlur={inlineControls ? undefined : () => void commit(false)}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
             void commit(true)
+          } else if (e.key === 'Tab') {
+            // Preserve Tab navigation while saving before focus leaves the cell.
+            void commit(false)
           } else if (e.key === 'Escape') {
             e.preventDefault()
-            done.current = true
-            setEditing(false)
-            restoreTrigger()
+            cancel()
           }
         }}
         className={cn(
@@ -137,6 +148,20 @@ export function EditableText({
           align === 'right' && 'text-right tabular-nums',
         )}
       />
+    )
+    if (!inlineControls) return input
+    return (
+      <span className="flex min-w-0 items-center gap-1" onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) void commit(false)
+      }}>
+        {input}
+        <button type="button" aria-label={`Save ${title ?? 'edit'}`} title="Save" disabled={busy}
+          onMouseDown={(event) => event.preventDefault()} onClick={() => void commit(true)}
+          className="inline-flex size-6 flex-none items-center justify-center rounded text-primary hover:bg-primary/10 disabled:opacity-50"><CheckIcon size={14} /></button>
+        <button type="button" aria-label={`Cancel ${title ?? 'edit'}`} title="Cancel" disabled={busy}
+          onMouseDown={(event) => event.preventDefault()} onClick={() => cancel()}
+          className="inline-flex size-6 flex-none items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:opacity-50"><CloseIcon size={14} /></button>
+      </span>
     )
   }
 
@@ -179,12 +204,18 @@ export function EditableTextarea({
   touchTarget = false,
   renderPreview,
   editLabel = 'Edit note',
+  inlineControls = false,
+  compact = false,
 }: EditProps & {
   value: string | null
   placeholder: string
   /** Formatted read view, kept outside the edit button so links remain usable. */
   renderPreview?: (value: string) => ReactNode
   editLabel?: string
+  /** Keep the textarea in its table cell with explicit save/cancel actions. */
+  inlineControls?: boolean
+  /** A one-line, spreadsheet-style note editor. */
+  compact?: boolean
 }) {
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -218,32 +249,53 @@ export function EditableTextarea({
     }
   }
 
+  const cancel = () => {
+    done.current = true
+    setEditing(false)
+    restoreTrigger()
+  }
+
   if (editing) {
-    return (
+    const textarea = (
       <textarea
         autoFocus
         aria-label={renderPreview ? editLabel : undefined}
-        rows={3}
+        rows={compact ? 1 : 3}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void commit(false)}
+        onBlur={inlineControls ? undefined : () => void commit(false)}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          if ((inlineControls || e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault()
             void commit(true)
+          } else if (inlineControls && e.key === 'Tab') {
+            void commit(false)
           } else if (e.key === 'Escape') {
             e.preventDefault()
-            done.current = true
-            setEditing(false)
-            restoreTrigger()
+            cancel()
           }
         }}
         className={cn(
           'w-full resize-y rounded-lg border border-primary bg-card p-2 text-[12.5px] text-foreground outline-none',
+          compact && 'resize-none rounded-md px-1.5 py-0.5',
           touchTarget && 'min-h-11',
         )}
       />
+    )
+    if (!inlineControls) return textarea
+    return (
+      <span className="flex min-w-0 items-center gap-1" onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) void commit(false)
+      }}>
+        {textarea}
+        <button type="button" aria-label={`Save ${editLabel}`} title="Save" disabled={busy}
+          onMouseDown={(event) => event.preventDefault()} onClick={() => void commit(true)}
+          className="inline-flex size-6 flex-none items-center justify-center rounded text-primary hover:bg-primary/10 disabled:opacity-50"><CheckIcon size={14} /></button>
+        <button type="button" aria-label={`Cancel ${editLabel}`} title="Cancel" disabled={busy}
+          onMouseDown={(event) => event.preventDefault()} onClick={cancel}
+          className="inline-flex size-6 flex-none items-center justify-center rounded text-muted-foreground hover:bg-muted disabled:opacity-50"><CloseIcon size={14} /></button>
+      </span>
     )
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { createOrder, listOrders, orderCandidates, orderJobChoices } from '@/lib/order-queries'
+import { createOrder, directOrderCandidates, listOrders, orderCandidates, orderJobChoices, orderSuppliers } from '@/lib/order-queries'
 import { parseCreateOrder, positiveId } from '@/lib/orders'
 import { resolveUser } from '@/lib/session'
 
@@ -19,12 +19,15 @@ export async function GET(req: Request) {
     if (!positiveId(jobId) && !positiveId(supplierId)) return NextResponse.json({ error: 'job or supplier is required' }, { status: 400 })
     const extraJobs = (url.searchParams.get('jobs') ?? '').split(',').filter(Boolean).map(Number)
     if (extraJobs.length > 100 || extraJobs.some((id) => !positiveId(id))) return NextResponse.json({ error: 'Invalid additional jobs' }, { status: 400 })
-    const [orders, candidates, jobs] = await Promise.all([
+    const allJobIds = positiveId(jobId) ? [jobId, ...extraJobs] : []
+    const [orders, candidates, directCandidates, jobs, suppliers] = await Promise.all([
       listOrders({ jobRequestId: positiveId(jobId) ? jobId : undefined, supplierId: positiveId(supplierId) ? supplierId : undefined }),
-      positiveId(jobId) ? orderCandidates([jobId, ...extraJobs]) : Promise.resolve([]),
+      positiveId(jobId) ? orderCandidates(allJobIds) : Promise.resolve([]),
+      positiveId(jobId) ? directOrderCandidates(allJobIds) : Promise.resolve([]),
       positiveId(jobId) ? orderJobChoices() : Promise.resolve([]),
+      positiveId(jobId) ? orderSuppliers() : Promise.resolve([]),
     ])
-    return NextResponse.json({ orders, candidates, jobs })
+    return NextResponse.json({ orders, candidates, directCandidates, jobs, suppliers })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }

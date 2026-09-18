@@ -17,7 +17,9 @@ export async function GET(req: Request, { params }: Context) {
     if (!await partnerSupplier(gate.supplierId)) return NextResponse.json({ error: 'not found' }, { status: 404 })
     const order = await orderDetail(parsed, gate.supplierId)
     if (!order) return NextResponse.json({ error: 'not found' }, { status: 404 })
-    return NextResponse.json({ order, canEdit: true, canEditFulfillmentMethod: gate.user.role === 'admin' })
+    // Pickup / delivery is Chris's customer-facing arrangement. It is never
+    // editable from a supplier portal account, including a supplier admin.
+    return NextResponse.json({ order, canEdit: true, canEditFulfillmentMethod: false })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 })
   }
@@ -35,8 +37,8 @@ export async function PATCH(req: Request, { params }: Context) {
     if (!order) return NextResponse.json({ error: 'not found' }, { status: 404 })
     if (order.closed || ['closed_won', 'closed_lost'].includes(order.status)) return NextResponse.json({ error: 'This order is closed' }, { status: 409 })
     const body: unknown = await req.json()
-    if (gate.user.role !== 'admin' && body != null && typeof body === 'object' && 'fulfillmentMethod' in body) {
-      return NextResponse.json({ error: 'Only admins can change pickup or delivery' }, { status: 403 })
+    if (body != null && typeof body === 'object' && 'fulfillmentMethod' in body) {
+      return NextResponse.json({ error: 'Pickup or delivery is managed by Chris' }, { status: 403 })
     }
     await updatePartnerOrder(parsed, gate.supplierId, parsePartnerOrderUpdate(body))
     return NextResponse.json({ ok: true })

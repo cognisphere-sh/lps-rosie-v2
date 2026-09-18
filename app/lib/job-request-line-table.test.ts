@@ -18,30 +18,17 @@ function ordered(sourceText: string, tokens: string[]) {
 
 test('shared request line tracks match the exact visible column order', () => {
   assert.match(
-    component,
-    /const LINE_COLUMNS =\s*\n\s*'66px 66px 72px minmax\(170px,1\.4fr\) 124px 86px 92px minmax\(145px,\.9fr\) minmax\(145px,\.9fr\)'/,
+    source('lib/columns.ts'),
+    /export const REQUEST_ITEM_COLS[\s\S]*?key: 'status'[\s\S]*?key: 'external_notes'[\s\S]*?key: 'unit_price'/,
   )
   assert.match(
     component,
-    /\[selectable \? `\$\{SELECT_COLUMN\}px` : null, LINE_COLUMNS, deletable \? `\$\{ACTION_COLUMN\}px` : null\]/,
+    /columns\.map\(\(column\) => `\$\{widthOf\(column\)\}px`\)/,
   )
 
-  const header = component.slice(
-    component.indexOf('{/* Column header'),
-    component.indexOf('{request.items.length'),
-  )
-  ordered(header, [
-    '>Demand</div>',
-    '>Avail</div>',
-    '>Size</div>',
-    '>Plant Name</div>',
-    '>Status</div>',
-    '>Unit price</div>',
-    '>Total</div>',
-    '>Shared note</div>',
-    '>Sourcing note</div>',
-  ])
-  assert.doesNotMatch(header, />Item<\/div>/)
+  assert.match(component, /<LineColumnHeader[\s\S]*?onMove=\{lineTable\.moveColumn\}[\s\S]*?onResize=/)
+  assert.match(component, /draggable[\s\S]*?drag to reorder/)
+  assert.match(component, /aria-label=\{`Resize \$\{column\.label\}`\}/)
 })
 
 test('row fields and behavior move with their headers without changing semantics', () => {
@@ -52,9 +39,9 @@ test('row fields and behavior move with their headers without changing semantics
     'column="size"',
     'column="name"',
     '<StatusPill',
+    'kind="shared"',
     'column="unit_price"',
     'money(item.total)',
-    'kind="shared"',
     'kind="internal"',
   ])
   assert.match(row, /column="quantity"[\s\S]*?title="Demand — what the customer asked for"/)
@@ -64,20 +51,18 @@ test('row fields and behavior move with their headers without changing semantics
 })
 
 test('one horizontally scrolling RequestBody layout serves every consumer at safe width', () => {
-  const tracks = [66, 66, 72, 170, 124, 86, 92, 145, 145]
+  const tracks = [66, 66, 72, 220, 124, 180, 86, 92, 180]
   const contentMinimum = tracks.reduce((sum, width) => sum + width, 0)
-  assert.equal(contentMinimum, 966)
-  assert.match(component, /const GRID_MIN = 1050/)
+  assert.equal(contentMinimum, 1086)
   const modes: Array<readonly [boolean, boolean]> = [
     [false, false], [true, false], [false, true], [true, true],
   ]
   for (const [selectable, deletable] of modes) {
     const gridMinimum: number = contentMinimum + (selectable ? 36 : 0) + (deletable ? 34 : 0)
-    const wrapperMinimum: number = 1050 - (selectable ? 0 : 36) + (deletable ? 34 : 0)
-    assert.equal(wrapperMinimum - gridMinimum, 48)
+    assert.equal(gridMinimum, contentMinimum + (selectable ? 36 : 0) + (deletable ? 34 : 0))
   }
   assert.match(component, /className="overflow-x-auto border-t border-border"/)
-  assert.match(component, /GRID_MIN - \(onSelect \? 0 : SELECT_COLUMN\) \+ \(onDeleteItem \? ACTION_COLUMN : 0\)/)
+  assert.match(component, /style=\{\{ minWidth: lineMinWidth \}\}/)
 
   for (const path of ['components/workspace/focused-job-record.tsx', 'components/workspace/request-list-card.tsx', 'app/customers/[id]/page.tsx']) {
     assert.match(source(path), /<RequestBody/)

@@ -5,7 +5,7 @@
 // same order details, line table and history under each of their requests —
 // nothing here knows which page it is drawn on.
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import { Markdown, MarkdownFirstLine } from '@/components/workspace/chat-kit'
@@ -39,32 +39,33 @@ import {
   type Tone,
 } from '@/lib/job-requests'
 import { JobOrders } from '@/components/workspace/orders'
+import { type ColumnDef } from '@/lib/columns'
+import { useTableConfig } from '@/lib/table-config'
 import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
 /**
  * The line-item grid, shared by the header and every row so they stay aligned.
  *
- * Select · Demand · Avail · Size · Plant Name · Status · Unit price · Total ·
- * Shared note · Sourcing note. The design draws one Notes column; the two
+ * Select · Demand · Avail · Size · Plant Name · Status · Shared note · Unit
+ * price · Total · Sourcing note. The design draws two Notes columns; the two
  * audiences are split here because they are not one field — `external_notes` is
  * written for the customer and `sourcing_notes` is our own working sheet, and
  * a single cell cannot honestly edit both.
  */
-const LINE_COLUMNS =
-  '66px 66px 72px minmax(170px,1.4fr) 124px 86px 92px minmax(145px,.9fr) minmax(145px,.9fr)'
-
 /** The select column only exists where something can act on a selection. */
 const SELECT_COLUMN = 36
 /** The trailing column holding a line's delete button, where lines can be deleted. */
 const ACTION_COLUMN = 34
-const gridOf = (selectable: boolean, deletable = false) =>
-  [selectable ? `${SELECT_COLUMN}px` : null, LINE_COLUMNS, deletable ? `${ACTION_COLUMN}px` : null]
+const gridOf = (
+  selectable: boolean,
+  deletable: boolean,
+  columns: readonly ColumnDef[],
+  widthOf: (column: ColumnDef) => number,
+) =>
+  [selectable ? `${SELECT_COLUMN}px` : null, ...columns.map((column) => `${widthOf(column)}px`), deletable ? `${ACTION_COLUMN}px` : null]
     .filter(Boolean)
     .join(' ')
-
-/** Under this the columns would crush, so the card scrolls sideways instead. */
-const GRID_MIN = 1050
 
 /** Navigate the visible cells in row order, letting blur save the old editor. */
 function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
@@ -474,6 +475,27 @@ function NoteCell({
   const meta = NOTE_KIND[kind]
   const summary = value?.trim() ?? ''
 
+  // Shared notes are edited like spreadsheet cells: the control stays in this
+  // column, rather than opening the note popover used for longer sourcing work.
+  if (kind === 'shared') {
+    return (
+      <div className="min-w-0 px-1.5">
+        <EditableTextarea
+          table={table}
+          id={id}
+          column="external_notes"
+          value={value}
+          onSaved={onSaved}
+          touchTarget={touchTarget}
+          placeholder="Add a shared note…"
+          editLabel={`Edit shared note for ${title}`}
+          inlineControls
+          compact
+        />
+      </div>
+    )
+  }
+
   return (
     <div ref={pop} data-pop className="relative min-w-0 px-1.5"
       onBlurCapture={(event) => {
@@ -506,33 +528,19 @@ function NoteCell({
         >
           <div className="flex items-baseline gap-2">
             <span className="text-[12.5px] font-bold text-foreground">{meta.label} note</span>
-            {kind !== 'shared' && <span className="min-w-0 truncate text-[11px] text-muted-foreground">{title}</span>}
+            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{title}</span>
           </div>
-          {kind === 'shared' ? (
-              <EditableTextarea
-                table={table}
-                id={id}
-                column="external_notes"
-                value={value}
-                onSaved={onSaved}
-                touchTarget={touchTarget}
-                placeholder="Add a shared note…"
-              />
-          ) : (
-            <>
-              <EditableTextarea
-                table={table}
-                id={id}
-                column="sourcing_notes"
-                value={value}
-                onSaved={onSaved}
-                touchTarget={touchTarget}
-                placeholder="Supplier name, key details and numbers…"
-                renderPreview={renderSourcingNote}
-                editLabel={`Edit sourcing note for ${title}`}
-              />
-            </>
-          )}
+          <EditableTextarea
+            table={table}
+            id={id}
+            column="sourcing_notes"
+            value={value}
+            onSaved={onSaved}
+            touchTarget={touchTarget}
+            placeholder="Supplier name, key details and numbers…"
+            renderPreview={renderSourcingNote}
+            editLabel={`Edit sourcing note for ${title}`}
+          />
         </div>
       )}
     </div>
@@ -541,6 +549,8 @@ function NoteCell({
 
 function ItemRow({
   item,
+  columns,
+  widthOf,
   selected,
   onSelect,
   onDelete,
@@ -548,6 +558,8 @@ function ItemRow({
   touchTarget,
 }: {
   item: JobRequestItem
+  columns: readonly ColumnDef[]
+  widthOf: (column: ColumnDef) => number
   selected: boolean
   /** Omitted where the page has nothing to do with a selection. */
   onSelect?: () => void
@@ -572,7 +584,7 @@ function ItemRow({
       data-line-row
       className="grid items-center border-b border-lps-hair last:border-b-0"
       style={{
-        gridTemplateColumns: gridOf(!!onSelect, !!onDelete),
+        gridTemplateColumns: gridOf(!!onSelect, !!onDelete, columns, widthOf),
         minHeight: '48px',
         padding: '4px 0',
         borderLeft: `3px solid ${toneDot(pill.tone)}`,
@@ -584,94 +596,21 @@ function ItemRow({
           <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />
         </div>
       )}
-      <div className="px-1">
-        <EditableText
-          {...edit}
-          column="quantity"
-          value={item.quantity}
-          numeric
-          align="right"
-          render={(v) => num(v)}
-          title="Demand — what the customer asked for"
-        />
-      </div>
-      {/* Colour lives on the wrapper so the button inherits it: blank means
-          nobody has answered, which is not the same as zero. */}
-      <div className="px-1" style={{ color: coverColor(cover) }}>
-        <EditableText
-          {...edit}
-          column="available_quantity"
-          value={item.availableQuantity}
-          numeric
-          align="right"
-          render={(v) => num(v)}
-          title="Avail — how many we can supply. Blank means not answered yet."
-        />
-      </div>
-      <div className="px-1">
-        <EditableText {...edit} column="size" value={item.size} />
-      </div>
-      <div className="flex min-w-0 flex-col gap-px px-1.5">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <EditableText {...edit} column="name" value={item.name} />
-        </span>
-        {/* The customer's own words about this line. Evidence, so it is shown
-            where the ask is read and never edited from here. */}
-        {item.customerNotes?.trim() && (
-          <span
-            title={item.customerNotes}
-            className="truncate px-1.5 text-[11px] italic text-muted-foreground"
-          >
-            {item.customerNotes.replace(/\s+/g, ' ')}
-          </span>
-        )}
-      </div>
-      <div className="px-1.5">
-        <StatusPill
-          {...edit}
-          column="status"
-          value={item.status}
-          label={pill.label}
-          tone={pill.tone}
-          options={ITEM_STATUS_OPTIONS}
-        />
-      </div>
-      <div className="px-1">
-        <EditableText
-          {...edit}
-          column="unit_price"
-          value={item.unitPrice}
-          numeric
-          align="right"
-          render={(v) => money(v)}
-        />
-      </div>
-      {/* Generated by the database from demand and unit price. */}
-      <div
-        className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground"
-        tabIndex={0}
-        title="Total — calculated from demand × unit price"
-      >
-        {money(item.total) || '—'}
-      </div>
-      <NoteCell
-        kind="shared"
-        table="job_request_items"
-        id={item.id}
-        title={title}
-        value={item.externalNotes}
-        onSaved={onSaved}
-        touchTarget={touchTarget}
-      />
-      <NoteCell
-        kind="internal"
-        table="job_request_items"
-        id={item.id}
-        title={title}
-        value={item.sourcingNotes}
-        onSaved={onSaved}
-        touchTarget={touchTarget}
-      />
+      {columns.map((column) => {
+        switch (column.key) {
+          case 'quantity': return <div key={column.key} className="px-1"><EditableText {...edit} column="quantity" value={item.quantity} numeric align="right" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
+          // Colour lives on the wrapper so blank availability remains distinct from zero.
+          case 'available_quantity': return <div key={column.key} className="px-1" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="right" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
+          case 'size': return <div key={column.key} className="px-1"><EditableText {...edit} column="size" value={item.size} /></div>
+          case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span>{item.customerNotes?.trim() && <span title={item.customerNotes} className="truncate px-1.5 text-[11px] italic text-muted-foreground">{item.customerNotes.replace(/\s+/g, ' ')}</span>}</div>
+          case 'status': return <div key={column.key} className="px-1.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
+          case 'external_notes': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.externalNotes} onSaved={onSaved} touchTarget={touchTarget} />
+          case 'unit_price': return <div key={column.key} className="px-1"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="right" render={(v) => money(v)} /></div>
+          case 'total': return <div key={column.key} className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — calculated from demand × unit price">{money(item.total) || '—'}</div>
+          case 'sourcing_notes': return <NoteCell key={column.key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.sourcingNotes} onSaved={onSaved} touchTarget={touchTarget} />
+          default: return null
+        }
+      })}
       {onDelete && (
         <div className="flex justify-center px-1">
           <button
@@ -685,6 +624,65 @@ function ItemRow({
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+/** A compact version of the inventory-table header: drag its label to move it,
+ * and drag its trailing edge to resize it. */
+function LineColumnHeader({
+  column,
+  width,
+  onMove,
+  onResize,
+}: {
+  column: ColumnDef
+  width: number
+  onMove: (from: string, to: string) => void
+  onResize: (width: number) => void
+}) {
+  const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const startX = event.clientX
+    const startWidth = width
+    const move = (next: MouseEvent) => onResize(startWidth + next.clientX - startX)
+    const stop = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', stop)
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', stop)
+  }
+
+  return (
+    <div
+      className="relative min-w-0 px-2 py-1.5"
+      onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
+      onDrop={(event) => {
+        event.preventDefault()
+        const from = event.dataTransfer.getData('text/plain')
+        if (from && from !== column.key) onMove(from, column.key)
+      }}
+    >
+      <span
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.setData('text/plain', column.key)
+          event.dataTransfer.effectAllowed = 'move'
+        }}
+        title={`${column.label} — drag to reorder`}
+        className="block cursor-grab truncate active:cursor-grabbing"
+      >
+        {column.label}
+      </span>
+      <div
+        role="separator"
+        aria-label={`Resize ${column.label}`}
+        aria-orientation="vertical"
+        onMouseDown={startResize}
+        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-lps-edge"
+      />
     </div>
   )
 }
@@ -1430,6 +1428,12 @@ export function RequestBody({
   onSaved: () => void
 }) {
   const [tab, setTab] = useState<'items' | 'orders'>('items')
+  // Uses the same persisted layout store and controls as inventory/supplier tables.
+  const lineTable = useTableConfig('requestItems')
+  const lineColumns = lineTable.visible
+  const lineGrid = gridOf(!!onSelect, !!onDeleteItem, lineColumns, lineTable.widthOf)
+  const lineMinWidth = lineColumns.reduce((sum, column) => sum + lineTable.widthOf(column), 0)
+    + (onSelect ? SELECT_COLUMN : 0) + (onDeleteItem ? ACTION_COLUMN : 0)
   useEffect(() => setTab('items'), [request.id])
   const edit = { table: 'job_requests', id: request.id, onSaved, touchTarget: touchTargets }
   const ship = addressLine(request.shipping)
@@ -1531,33 +1535,28 @@ export function RequestBody({
         </div>
       )}
 
-      {/* The line table scrolls sideways rather than crushing its columns —
-          the design fixes a min width for exactly this reason, and the two
-          note columns are what would otherwise be squeezed out of existence. */}
+      {/* The line table scrolls sideways rather than crushing resized columns. */}
       <div data-request-line-table onKeyDown={navigateLineCells} className="overflow-x-auto border-t border-border">
         <div
-          style={{
-            minWidth:
-              GRID_MIN - (onSelect ? 0 : SELECT_COLUMN) + (onDeleteItem ? ACTION_COLUMN : 0),
-          }}
+          style={{ minWidth: lineMinWidth }}
         >
           {/* Column header, repeated per card so it survives a collapsed neighbour. */}
           <div
             className="grid items-center border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-            style={{ gridTemplateColumns: gridOf(!!onSelect, !!onDeleteItem) }}
+            style={{ gridTemplateColumns: lineGrid }}
           >
             {/* Deliberately unlabelled: the column selects lines, and a
                 header control here would only mean "all of them". */}
             {onSelect && <div />}
-            <div className="px-2 py-1.5 text-right">Demand</div>
-            <div className="px-2 py-1.5 text-right">Avail</div>
-            <div className="px-2 py-1.5">Size</div>
-            <div className="px-2 py-1.5">Plant Name</div>
-            <div className="px-2 py-1.5">Status</div>
-            <div className="px-2 py-1.5 text-right">Unit price</div>
-            <div className="px-2 py-1.5 text-right">Total</div>
-            <div className="px-2 py-1.5">Shared note</div>
-            <div className="px-2 py-1.5">Sourcing note</div>
+            {lineColumns.map((column) => (
+              <LineColumnHeader
+                key={column.key}
+                column={column}
+                width={lineTable.widthOf(column)}
+                onMove={lineTable.moveColumn}
+                onResize={(width) => lineTable.resizeColumn(column.key, width)}
+              />
+            ))}
             {/* Unlabelled for the same reason the select column is: the header
                 cell of a per-row action could only mean "all of them". */}
             {onDeleteItem && <div />}
@@ -1567,6 +1566,8 @@ export function RequestBody({
               <ItemRow
                 key={item.id}
                 item={item}
+                columns={lineColumns}
+                widthOf={lineTable.widthOf}
                 selected={selected?.has(item.id) ?? false}
                 onSelect={onSelect && (() => onSelect([item.id], !selected?.has(item.id)))}
                 onDelete={onDeleteItem && (() => onDeleteItem(item))}

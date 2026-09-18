@@ -60,11 +60,12 @@ Preserve the original interaction context in every handoff; follow
   pricing without an availability request.
 - **Quoted offering fields:** the quoted item name and size contain exactly the
   actual quoted plant and one actual quoted size, never original-demand options
-  or a proxy name. Preserve original demand in customer context; record every
-  plant, cultivar/variant, size or quantity difference in the shared
-  customer-visible item note as `Substitute: <actual offering> instead of
-  <original demand>`—never an unavailable price or why the difference was made.
-  `job-requests` owns exact persistence and AR scope.
+  or a proxy name. An approved pricing proxy retains requested identity; it
+  does not confirm cultivar or supply. Shared notes contain only necessary,
+  additional customer-useful exceptions, not phase labels, pricing-identity
+  explanations or supplier/price-sheet references. Missing pricing never means
+  physical unavailability. `quote-generation` owns the concise shared-note
+  procedure; `job-requests` owns persistence, phase preservation and AR scope.
 - **Multiple requested size/variant options:** quote the cheapest supported
   requested option; record every other supported requested-option price in the
   shared customer-visible item note. Preserve the original demand and do not
@@ -93,11 +94,13 @@ Preserve the original interaction context in every handoff; follow
   Add sourcing notes only for a sent availability request, a concrete required
   supplier action, Chris's explicit note instruction or an explicit supplier
   selection/plant-sourcing decision; follow
-  `job-requests` for eligibility and the canonical note format: one compact
-  latest snapshot per supplier plus one unlabelled plain-text current overall summary,
-  including the selected supplier/price or actual pending Chris decision. Always update
-  notes to reflect the latest status and information. Notes show
-  current state; history stays in the changelog and contact transcript.
+  `job-requests` for the approved simpler note standard and cleanup safeguards.
+  Customer notes hold customer-origin requests; shared notes hold brief
+  customer-facing exceptions; sourcing holds only additional current internal
+  decisions/exceptions. Job-wide context belongs once at accessible job level.
+  Preserve necessary source/override evidence and meaningful supplier comparisons,
+  not duplicate prices/statuses or mandatory summary/supplier boilerplate.
+  Notes show current state; history stays in changelog/contact transcripts.
   Keep internal sourcing information out of customer-facing material.
 - **Text intended for copying belongs inside fenced code blocks.** When
   presenting a text quote, message draft or any other text for someone to

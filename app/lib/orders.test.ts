@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import ts from 'typescript'
 
-import { isApsSupplier, orderDate, orderSubtotal, parseCreateOrder, parsePartnerOrderUpdate, positiveId } from './orders'
+import { isApsSupplier, isDirectOrder, orderDate, orderSubtotal, parseCreateOrder, parseOrderItemUpdate, parsePartnerOrderUpdate, positiveId } from './orders'
 
 const require = createRequire(import.meta.url)
 function load(file: string, mocks: Record<string, unknown>) {
@@ -18,12 +18,29 @@ function load(file: string, mocks: Record<string, unknown>) {
 const input = () => ({ supplierId: 7, customerConfirmed: true, fulfillmentMethod: 'pickup', items: [{ availabilityRequestItemId: 101, allocations: [{ jobRequestItemId: 11, quantity: 2 }, { jobRequestItemId: 21, quantity: 3 }] }] })
 
 test('order creation requires explicit customer confirmation and precise positive allocations', () => {
-  assert.equal(parseCreateOrder(input()).items[0].allocations.length, 2)
+  const parsed = parseCreateOrder(input())
+  assert.equal(isDirectOrder(parsed), false)
+  if (isDirectOrder(parsed)) throw new Error('Expected an availability-backed order')
+  assert.equal(parsed.items[0].allocations.length, 2)
   for (const customerConfirmed of [undefined, false, 'true', 1]) assert.throws(() => parseCreateOrder({ ...input(), customerConfirmed }), /customer/)
   for (const quantity of [0, -1, NaN, Infinity, '2']) assert.throws(() => parseCreateOrder({ ...input(), items: [{ availabilityRequestItemId: 101, allocations: [{ jobRequestItemId: 11, quantity }] }] }), /positive/)
   assert.throws(() => parseCreateOrder({ ...input(), items: [input().items[0], input().items[0]] }), /unique/)
   assert.throws(() => parseCreateOrder({ ...input(), items: [{ availabilityRequestItemId: 101, allocations: [{ jobRequestItemId: 11, quantity: 1 }, { jobRequestItemId: 11, quantity: 2 }] }] }), /unique/)
   assert.throws(() => parseCreateOrder({ ...input(), fulfillmentMethod: 'truck' }), /pickup or delivery/)
+})
+
+test('a confirmed quote can create a direct order without an availability line', () => {
+  const direct = parseCreateOrder({ supplierId: 7, customerConfirmed: true, items: [{ jobRequestItemId: 11, quantity: 2 }] })
+  assert.equal(isDirectOrder(direct), true)
+  if (!isDirectOrder(direct)) throw new Error('Expected a direct order')
+  assert.deepEqual(direct.items, [{ jobRequestItemId: 11, quantity: 2 }])
+  assert.throws(() => parseCreateOrder({ supplierId: 7, customerConfirmed: true, items: [{ jobRequestItemId: 11, quantity: 0 }] }), /positive/)
+})
+
+test('suppliers can update an open order line to a supported procurement status', () => {
+  assert.deepEqual(parseOrderItemUpdate({ status: 'unavailable' }), { status: 'unavailable' })
+  assert.throws(() => parseOrderItemUpdate({ status: 'invented' }), /valid plant status/)
+  assert.throws(() => parseOrderItemUpdate({ status: 'available', notes: 'extra' }), /valid plant status/)
 })
 
 test('order dates reject impossible dates and absent prices remain absent', () => {
@@ -207,7 +224,7 @@ test('supplier and admin portal access permits atomic lifecycle updates within t
     const previousWrites = writes.length
     const detail = await (await get()).json()
     assert.equal(detail.canEdit, true)
-    assert.equal(detail.canEditFulfillmentMethod, role === 'admin')
+    assert.equal(detail.canEditFulfillmentMethod, false)
     for (const invalidId of ['0', '-1', 'bad', '42x', '1.5']) {
       assert.equal((await get(invalidId)).status, 400)
       assert.equal((await patch({ status: 'processing' }, invalidId)).status, 400)
@@ -239,7 +256,7 @@ test('supplier and admin portal access permits atomic lifecycle updates within t
   assert.equal(writes.length, 4)
 })
 
-test('only Chris/admin can set or clear order pickup or delivery, while suppliers can confirm with a date and note', async () => {
+test('Pickup or delivery is never writable through a supplier portal session, while suppliers can confirm with a date and note', async () => {
   let role = 'partner'
   const writes: unknown[][] = []
   const { PATCH } = load('../app/api/partner/[id]/orders/[orderId]/route.ts', {
@@ -256,17 +273,15 @@ test('only Chris/admin can set or clear order pickup or delivery, while supplier
   for (const fulfillmentMethod of ['pickup', 'delivery', null, '', false]) {
     const response = await patch({ status: 'processing', fulfillmentDate: '2026-09-20', fulfillmentMethod })
     assert.equal(response.status, 403)
-    assert.equal((await response.json()).error, 'Only admins can change pickup or delivery')
+    assert.equal((await response.json()).error, 'Pickup or delivery is managed by Chris')
   }
   assert.equal(writes.length, 0, 'A forbidden method field rejects the entire confirmation')
   const confirmation = { status: 'processing', fulfillmentDate: '2026-09-20', supplierNotes: 'Ready by noon' }
   assert.equal((await patch(confirmation)).status, 200)
   assert.deepEqual(writes, [[42, 7, confirmation]])
   role = 'admin'
-  for (const fulfillmentMethod of ['pickup', 'delivery', null]) assert.equal((await patch({ fulfillmentMethod })).status, 200)
-  assert.deepEqual(writes.slice(1), [
-    [42, 7, { fulfillmentMethod: 'pickup' }], [42, 7, { fulfillmentMethod: 'delivery' }], [42, 7, { fulfillmentMethod: null }],
-  ])
+  for (const fulfillmentMethod of ['pickup', 'delivery', null]) assert.equal((await patch({ fulfillmentMethod })).status, 403)
+  assert.equal(writes.length, 1)
 })
 
 test('portal order lists advertise write access for suppliers and admins only after supplier authorization', async () => {

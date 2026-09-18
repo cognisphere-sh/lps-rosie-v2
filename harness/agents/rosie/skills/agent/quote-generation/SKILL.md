@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS price-list quoting first and Chris approval before any availability request, lowest-priced-requested-option quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, mandatory APS job-row notes and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.22.1)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS price-list quoting first and Chris approval before any availability request, lowest-priced-requested-option quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, minimal internal exceptions and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.25.0)
 metadata:
   author: lps
-  version: "2.22.1"
+  version: "2.25.0"
 ---
 
 # Quote generation
@@ -19,18 +19,21 @@ create/reuse its job/thread and item rows from supplied details, gather
 pricing and other relevant information, and save supported prices. Add
 sourcing notes only when `job-requests` section 3 permits them: a sent AR,
 a concrete required supplier action, Chris's explicit note instruction or an
-explicit supplier selection/plant-sourcing decision. Chris's standing APS
-instruction in that section requires compact current snapshots on every
-APS-scoped job item, including quick quotes. Follow its one-supplier-entry
-and unlabelled plain-text current-summary format; always replace superseded
-prices instead of appending quote history. Include the supported price or gap, plus 1–2 closest supported
-APS alternatives for gaps when found. Preserve requested lines and label
-candidates `Alternative · Chris approval pending`; never invent alternatives
-or overwrite a requested-line price with an unapproved candidate price.
+explicit supplier selection/plant-sourcing decision. Eligibility is not a
+requirement to duplicate information: Chris's simpler default removes mandatory
+APS notes on every row and dual summary/supplier boilerplate. Keep additional
+current decisions/exceptions only, preserving necessary source/proxy evidence,
+material supplier comparisons and pending constraints. Job-wide context goes
+once at accessible job level; no duplicate prices/statuses or history. Research
+1–2 closest supported APS alternatives for gaps and report them in chat; record
+only a material pending decision in sourcing. Preserve requested lines and
+label any such candidate as pending action-specific Chris approval; never
+invent alternatives or overwrite a requested price with an unapproved one.
 Apply `plant-and-supplier-search` to likely same-plant naming equivalents
 before treating a match as a candidate: use the supported applicable price
-directly, retain the requested name and record a quick catalogue-name mapping/
-evidence note in sourcing. No alternative label, substitution approval or
+directly and retain the requested name. Record only a necessary material
+catalogue-name/proxy qualification in sourcing; routine spelling mappings need
+no note when source evidence is accessible elsewhere. No alternative label, substitution approval or
 customer-facing substitution comment is needed for a mere likely-equivalent
 name difference. Chris explicitly includes Agave parryi truncata priced from
 Artichoke Parry’s Agave or generic Agave Parryi at the requested size. Do not
@@ -97,11 +100,16 @@ Quotes contain the approved offered plant, exactly one actual offered size,
 customer price and (when required by the chosen format) quantity. The item
 `name` and `size` used for the quote must be that actual offering, not the
 original demand, a multi-option `or` list or a catalogue proxy. Preserve the
-original demand in `customer_notes`; whenever the offering differs in plant,
-cultivar/variant, size or quantity, state the difference concisely in existing
-customer-visible `external_notes` before rendering as `Substitute: <actual
-offering> instead of <original demand>`; never state why it was changed or an
-unavailable price. Never copy sourcing notes,
+original customer demand and phase membership in `customer_notes`, not Chris's
+quote/pricing selections or approval history. Record only his final/current
+decision in `sourcing_notes`, with necessary evidence and pending constraints,
+under `job-requests` note ownership; omit intermediate decision/exploration
+traces. Whenever the offering differs in plant,
+cultivar/variant, size or quantity, retain only a necessary short exception in
+customer-visible `external_notes` before rendering, under the minimal-note rule
+below. An explicitly approved pricing proxy does not change the offered identity:
+retain the requested name, keep the pricing basis internal and defer identity
+resolution as Chris instructed. Never copy sourcing notes,
 supplier comparisons, supplier cost commentary, internal agent messages or
 unapproved substitutions. Keep original plant order unless instructed
 otherwise. Keep source pricing evidence in the internal chat and, only when
@@ -110,9 +118,27 @@ it in customer-facing quote rows.
 
 ### Minimal-word quote notes
 
-Chris's instruction (2026-09-11): keep quote notes as brief as possible.
-This applies to customer-visible quote comments, shared size-option notes and
-text/HTML/PDF quote notes, not unrelated operational notes.
+Chris's instruction (2026-09-17): shared notes contain only additional,
+customer-useful information not already evident in the row or grouping. Use
+short exceptions, not complete explanatory statements; leave NULL when none
+is needed. This applies to saved shared notes and text/HTML/PDF quote notes.
+
+- No phase names in item shared notes. Preserve phases in customer/original-demand
+  context and group output separately when requested; never merge phases.
+- No pricing-identity explanation, price-sheet reference or supplier name. An
+  approved Purple Pixie pricing basis for unspecified dwarf loropetalum is not
+  a customer note or cultivar substitution; retain the dwarf demand and resolve
+  identity later. Keep the evidence internal.
+- Size/color exceptions can be `5 G instead`, `Yellow instead of Red`, or
+  `5 G $25.00`. Use `Only 5G available`, `Red NA, only Yellow`, or
+  `5G NA, Only 7G` only when actual supplier-confirmed evidence supports each
+  availability claim. Missing price-list entries establish neither stock nor
+  physical unavailability. For pricing-only gaps use neutral `7 G price pending`
+  where useful, never `NA` or `Only ... available`.
+- For two requested sizes, quote the lowest-priced supported requested option
+  and note the other supported size price. If the other size is confirmed
+  unavailable, its brief `NA` note is appropriate; if merely unpriced, use
+  neutral `price pending`. Do not infer availability from pricing evidence.
 
 - Where the row or nearby label identifies the plant, list size and price only:
   `30 G $395.00; 45 G $595.00`. For just the larger option: `45 G $595.00`.
@@ -125,7 +151,8 @@ text/HTML/PDF quote notes, not unrelated operational notes.
   identifies the variety and makes the change clear. If the original-versus-
   offered distinction is not otherwise visible, retain the minimum meaningful
   clarification, e.g. `Podocarpus instead of Taxus—OK?`.
-  Do not remove a material substitution or caveat merely to shorten a note.
+  Do not remove a necessary actual-offering distinction or caveat merely to
+  shorten a note; a pricing proxy is not an actual substitution.
 - Retain material qualifications such as unconfirmed availability or excluded
   tax/delivery; shorten wording, never remove necessary meaning. Do not alter
   approved template branding/layout or imply approval/availability from brevity.

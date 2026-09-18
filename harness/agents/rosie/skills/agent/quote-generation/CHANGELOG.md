@@ -1,5 +1,18 @@
 # quote-generation — changelog
 
+## 2.25.0 — 2026-09-17
+
+- Chris-approved simpler note standard removes every-APS-row entries and dual summary/supplier boilerplate from quote preparation. Keep material current internal exceptions and necessary proxy evidence; shared/customer notes remain audience-specific. Research and action-specific alternative approvals remain required.
+
+## 2.24.0 — 2026-09-17
+
+- Chris clarified that quote-time customer notes preserve customer-origin demand and phases only; final/current internal quote/pricing decisions go in sourcing notes without approval/exploration history.
+
+## 2.23.0 — 2026-09-17
+
+- Chris-authorized concise shared notes: only additional customer-useful exceptions; no phase labels, supplier/price-sheet references or pricing-identity explanations. Preserve phase grouping elsewhere.
+- Replace fixed substitution sentences; approved dwarf loropetalum/Purple Pixie pricing retains demand identity. Availability/NA wording needs actual evidence, never missing catalogue pricing; other requested sizes carry supported prices or neutral pricing gaps.
+
 ## 2.22.1
 
 - Align quote-time APS sourcing notes with Chris's rule: keep the overall current summary unlabelled plain text and replace it with the latest facts.

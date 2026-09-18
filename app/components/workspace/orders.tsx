@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { arResponseLabel } from '@/lib/availability'
 import { formatMonthDay, money, num } from '@/lib/format'
-import { isApsSupplier, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
+import { isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type DirectOrderCandidate, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
@@ -36,11 +36,20 @@ function OrderStatusPill({ status }: { status: OrderStatus }) {
   return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex h-7 items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
 }
 
-function OrderMetadata({ order, showFulfillmentDate = false }: { order: Order; showFulfillmentDate?: boolean }) {
+function OrderMetadata({ order, showFulfillmentDate = false, onFulfillmentChange, busy = false }: {
+  order: Order; showFulfillmentDate?: boolean; onFulfillmentChange?: (method: FulfillmentMethod | null) => void; busy?: boolean
+}) {
   return <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
     <span className="whitespace-nowrap">Created: <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(order.createdAt) || '—'}</span></span>
     {showFulfillmentDate && <span>Fulfillment date: <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>}
-    {order.fulfillmentMethod && <span className="rounded-md border border-border bg-background px-2 py-1">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : 'Delivery'}</span>}
+    {(order.fulfillmentMethod || onFulfillmentChange) && <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
+      <span aria-hidden="true">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'}</span>
+      {onFulfillmentChange && <select aria-label={`Pickup or delivery for O-${order.id}`} value={order.fulfillmentMethod ?? ''} disabled={busy}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
+        onChange={(event) => onFulfillmentChange(event.target.value as FulfillmentMethod || null)}>
+        <option value="">—</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option>
+      </select>}
+    </span>}
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span>Customer request:</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
   </div>
 }
@@ -96,12 +105,14 @@ const itemColors: Record<string, string> = {
   unavailable: 'text-[#A42B32] dark:text-[#FFB2B9]', pending: 'text-muted-foreground',
 }
 
-function OrderItemStatus({ status }: { status: string }) {
+function OrderItemStatus({ status, onChange }: { status: string; onChange?: (status: string) => void }) {
+  if (onChange) return <select aria-label="Update plant status" className={`${field} h-8 max-w-40 py-0`} value={status} onChange={(event) => onChange(event.target.value)}>
+    {ORDER_ITEM_STATUSES.map((value) => <option key={value} value={value}>{ORDER_ITEM_STATUS_LABELS[value]}</option>)}
+  </select>
   return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
 }
 
-/** Order quantities and supplier responses are a read-only snapshot. */
-function OrderLines({ lines, supplierId, showOrder = false }: { lines: OrderLine[]; supplierId?: number; showOrder?: boolean }) {
+function OrderLines({ lines, supplierId, showOrder = false, onStatusChange }: { lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void }) {
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
     if (!window.matchMedia) return
@@ -123,7 +134,7 @@ function OrderLines({ lines, supplierId, showOrder = false }: { lines: OrderLine
         {allocations(item)}
       </div>
       <dl className="m-0 grid min-w-0 grid-cols-2 gap-3 p-3">
-        <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} /></dd></div>
+        <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></dd></div>
         <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.unitPrice) || '—'}</dd></div>
         <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
         <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Nursery notes</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{item.notes || '—'}</dd></div>
@@ -137,7 +148,7 @@ function OrderLines({ lines, supplierId, showOrder = false }: { lines: OrderLine
         {showOrder && <td className="px-3 py-3">{source(order)}<span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">{ORDER_STATUS_META[order.status].label}</span></td>}
         <td className="px-3 py-3 text-right tabular-nums">{num(item.quantity)}</td>
         <td className="min-w-40 px-3 py-3"><span className="font-semibold">{item.name}</span>{item.size && <span className="mt-1 block text-[12px] text-muted-foreground">{item.size}</span>}{allocations(item)}</td>
-        <td className="whitespace-nowrap px-3 py-3"><OrderItemStatus status={item.status} /></td>
+        <td className="whitespace-nowrap px-3 py-3"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></td>
         <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.unitPrice) || '—'}</td><td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.total) || '—'}</td>
         <td className="min-w-36 px-3 py-3"><p className="m-0 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.notes || '—'}</p></td>
       </tr>)}</tbody>
@@ -146,7 +157,7 @@ function OrderLines({ lines, supplierId, showOrder = false }: { lines: OrderLine
 }
 
 /** The same rows serve the page and the supplier's cross-order views. */
-export function OrderLineGroups({ orders, groupBy, supplierId }: { orders: Order[]; groupBy: 'status' | 'plant'; supplierId?: number }) {
+export function OrderLineGroups({ orders, groupBy, supplierId, onStatusChange }: { orders: Order[]; groupBy: 'status' | 'plant'; supplierId?: number; onStatusChange?: (item: OrderItem, status: string) => void }) {
   const groups = new Map<string, { label: string; lines: OrderLine[] }>()
   for (const order of orders) for (const item of order.items) {
     const key = groupBy === 'status' ? item.status : item.name.trim().toLocaleLowerCase()
@@ -156,7 +167,7 @@ export function OrderLineGroups({ orders, groupBy, supplierId }: { orders: Order
   return <div className="flex flex-col gap-3">
     {[...groups].map(([key, group]) => <section key={key} aria-label={`${groupBy === 'status' ? 'Status' : 'Plant'}: ${group.label}`} className="min-w-0 space-y-2">
       <h2 className="m-0 px-1 py-1 text-[13px] font-semibold">{group.label} <span className="ml-1 text-muted-foreground">({group.lines.length})</span></h2>
-      <OrderLines lines={group.lines} supplierId={supplierId} showOrder={supplierId != null} />
+      <OrderLines lines={group.lines} supplierId={supplierId} showOrder={supplierId != null} onStatusChange={onStatusChange} />
     </section>)}
   </div>
 }
@@ -228,12 +239,52 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
   </dialog>, document.body)
 }
 
+/** Match availability answers: selecting a status opens a deliberate save step. */
+function OrderItemStatusDialog({ order, item, initialStatus, busy, error, onClose, onSave }: {
+  order: Order; item: OrderItem; initialStatus: string; busy: boolean; error: string | null
+  onClose: () => void; onSave: (status: string, note: string) => void
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+  const [status, setStatus] = useState(initialStatus)
+  const [note, setNote] = useState('')
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null
+    dialog.current?.showModal()
+    return () => trigger?.focus()
+  }, [])
+  return createPortal(<dialog ref={dialog} aria-labelledby={titleId} aria-busy={busy} onCancel={(event) => { event.preventDefault(); if (!busy) onClose() }}
+    className="m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-[420px] overflow-y-auto rounded-2xl border border-border bg-popover p-4 text-foreground shadow-[var(--lps-shadow)] backdrop:bg-black/40">
+    <form className="flex flex-col gap-4" onSubmit={async (event) => {
+      event.preventDefault()
+      if (!busy) { onSave(status, note); onClose() }
+    }}>
+      <h2 id={titleId} className="m-0 text-[17px] font-semibold">Update plant status · O-{order.id}</h2>
+      <p className="m-0 text-[13px] text-muted-foreground">{item.name}{item.size ? ` · ${item.size}` : ''}</p>
+      <label className="flex flex-col gap-1 text-[12px] font-semibold">Status
+        <select aria-label={`Plant status for ${item.name}`} className={`${field} w-full`} value={status} disabled={busy} onChange={(event) => setStatus(event.target.value)}>
+          {ORDER_ITEM_STATUSES.map((value) => <option key={value} value={value}>{ORDER_ITEM_STATUS_LABELS[value]}</option>)}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-[12px] font-semibold">Details for Rosie
+        <textarea aria-label={`Status details for ${item.name}`} value={note} onChange={(event) => setNote(event.target.value)} maxLength={10000} rows={3}
+          placeholder={status === 'unavailable' ? 'Why is this unavailable?' : status === 'diff_size_qty_sub' ? 'Describe the size, quantity, or substitute.' : 'ETA, pricing, conditions, or other details…'} className="min-h-20 rounded-md border border-input bg-background p-2 text-[13px] font-normal" />
+      </label>
+      <p className="m-0 text-[12px] text-muted-foreground">This is staged until you save all order status changes.</p>
+      {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy}>{busy ? 'Saving…' : 'Save status'}</button></div>
+    </form>
+  </dialog>, document.body)
+}
+
 /** Admin and supplier views share the same guarded lifecycle controls. */
 export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillmentMethod = false, onChanged }: { order: Order; supplierId?: number; canEdit?: boolean; canEditFulfillmentMethod?: boolean; onChanged?: () => void | Promise<void> }) {
   const [expanded, setExpanded] = useState(false)
   const contentId = useId()
   const [view, setView] = useState<OrderView>('status')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [statusUpdate, setStatusUpdate] = useState<{ item: OrderItem; status: string } | null>(null)
+  const [stagedStatuses, setStagedStatuses] = useState<Record<number, { item: OrderItem; status: string; note: string }>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const closed = order.closed === true || order.status === 'closed_won' || order.status === 'closed_lost'
@@ -253,13 +304,47 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
     finally { setBusy(false) }
   }
 
+  async function writeItemStatus(item: OrderItem, status: string) {
+    if (!editable || busy) return false
+    setBusy(true); setError(null)
+    try {
+      const url = supplierId != null
+        ? `/api/partner/${supplierId}/orders/${order.id}/items/${item.id}`
+        : `/api/orders/${order.id}/items/${item.id}`
+      const res = await fetch(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status }) })
+      const body = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not update plant status')
+      await onChanged?.()
+      return true
+    } catch (error) { setError((error as Error).message); return false } finally { setBusy(false) }
+  }
+
+  function requestItemStatus(item: OrderItem, status: string) {
+    if (status !== item.status) setStatusUpdate({ item, status })
+  }
+
+  async function saveStagedStatuses() {
+    const changes = Object.values(stagedStatuses)
+    if (!changes.length || busy) return
+    setError(null)
+    try {
+      for (const change of changes) if (!(await writeItemStatus(change.item, change.status))) return
+      const url = supplierId != null ? `/api/partner/${supplierId}/orders/${order.id}/status-notification` : null
+      if (url) {
+        const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: changes.map(({ item, status, note }) => ({ itemId: item.id, status, note })) }) })
+        const body = await res.json() as { error?: string }; if (!res.ok) throw new Error(body.error ?? 'Could not notify Rosie')
+      }
+      setStagedStatuses({})
+    } catch (error) { setError((error as Error).message) }
+  }
+
+  // Confirming a supplier order belongs in the supplier portal. Chris's job
+  // cards remain a compact view/control surface for arrangement and tracking.
   const actions = editable && (order.status === 'new'
-    ? <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Confirm order</button>
+    ? supplierId != null && <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Confirm order</button>
     : <><button type="button" className={button} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Edit fulfillment details</button>{order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy || !order.fulfillmentDate} onClick={() => void write({ status: 'order_ready' })}>{busy ? 'Saving…' : 'Mark Order Ready'}</button>}</>)
 
-  const methodControl = editable && canEditFulfillmentMethod && <label className="flex flex-wrap items-center gap-2 text-[12px] font-semibold print:hidden">Pickup / delivery
-    <select aria-label={`Pickup or delivery for O-${order.id}`} className={field} value={order.fulfillmentMethod ?? ''} disabled={busy} onChange={(event) => void write({ fulfillmentMethod: event.target.value || null })}><option value="">Not set</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select>
-  </label>
+  const fulfillmentChange = editable && canEditFulfillmentMethod ? (method: FulfillmentMethod | null) => void write({ fulfillmentMethod: method }) : undefined
 
   if (supplierId != null) return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-5 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 [&>*]:shrink-0">
@@ -270,7 +355,7 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
           {order.status === 'new' && actions}
           <OrderMetadata order={order} showFulfillmentDate />
         </header>
-        <div className="space-y-3 px-2 pb-1">{methodControl}<OrderRequestLinks order={order} supplierId={supplierId} />
+        <div className="space-y-3 px-2 pb-1"><OrderRequestLinks order={order} supplierId={supplierId} />
           {!canEdit && !closed && <p className="m-0 text-[12px] text-muted-foreground">This account has read-only access to this order.</p>}
           {order.notes && <div className="space-y-1"><span className="text-[10.5px] font-medium text-lps-dim">Note from Local Plant Supply</span><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.notes}</p></div>}
           {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Confirmed: {formatMonthDay(order.confirmationDate)}</p>}
@@ -278,38 +363,49 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
       </section>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
-      <OrderLines lines={order.items.map((item) => ({ order, item }))} supplierId={supplierId} />
+      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} />
       {order.supplierNotes && <section aria-label="Supplier note" className="space-y-2 rounded-xl border border-border bg-card p-4"><h2 className="m-0 text-[13px] font-semibold">Note for this order</h2><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.supplierNotes}</p></section>}
       {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
     {editable && order.status !== 'new' && <footer aria-label="Order actions" className="flex flex-none flex-wrap items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
       {actions}
     </footer>}
+    {editable && Object.keys(stagedStatuses).length > 0 && <footer aria-label="Save order status changes" className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden"><button type="button" className={cn(primary, 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button><span className="text-[11.5px] text-muted-foreground">Sends one update to Rosie.</span></footer>}
     {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
+    {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} busy={busy} error={error}
+      onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
   </div>
 
-  return <article aria-label={`Order O-${order.id}`} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 md:p-4">
-    <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap items-center gap-2">
-      <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order O-${order.id}`} onClick={() => setExpanded((value) => !value)} className="flex min-h-11 items-center gap-2 rounded-md px-1 text-[16px] font-bold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={16} className={expanded ? '' : '-rotate-90'} />Order O-{order.id}</button>
-      <OrderStatusPill status={order.status} /><span className="text-[12px] text-muted-foreground">{order.supplierName}</span>
-    </div><div className="flex flex-wrap items-center gap-2">{actions}<span className="text-[14px] font-semibold">{money(orderSubtotal(order)) || '—'}</span></div></div>
-    {error && !confirmOpen && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
-    <OrderMetadata order={order} />
-    {methodControl}
-    <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground"><span>{order.items.length} items</span><span>Confirmation date: {formatMonthDay(order.confirmationDate) || '—'}</span></div>
-    <div id={contentId} hidden={!expanded} className="space-y-3">
+  return <article aria-label={`Order O-${order.id}`} className="flex-none overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <header className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order O-${order.id}`} onClick={() => setExpanded((value) => !value)} className="flex size-6 flex-none cursor-pointer items-center justify-center self-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={14} className={expanded ? '' : '-rotate-90'} /></button>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <OrderStatusPill status={order.status} /><span className="font-semibold text-foreground">Order O-{order.id}</span><span className="text-[12px] text-muted-foreground">{order.supplierName}</span>
+            <span className="ml-auto text-[14px] font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
+          </div>
+          <OrderMetadata order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground"><span>{order.items.length} items</span><span>Confirmation date: {formatMonthDay(order.confirmationDate) || '—'}</span>{actions}{Object.keys(stagedStatuses).length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button>}</div>
+        </div>
+      </div>
+    </header>
+    {error && !confirmOpen && <p role="alert" className="mx-3.5 mt-2 text-[12px] text-destructive">{error}</p>}
+    <div id={contentId} hidden={!expanded} className="space-y-3 border-t border-border p-3.5">
       <OrderRequestLinks order={order} />
       {order.notes && <p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order.notes}</p>}
       {order.supplierNotes && <div><h4 className="text-[12px] font-semibold">Supplier note</h4><p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order.supplierNotes}</p></div>}
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-[13px] font-semibold">Plants · {order.items.length}</h4><OrderViewControls value={view} onChange={setView} /></div>
-      <OrderLineGroups orders={[order]} groupBy={view === 'plant' ? 'plant' : 'status'} />
+      <OrderLineGroups orders={[{ ...order, items: order.items.map((item) => stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item) }]} groupBy={view === 'plant' ? 'plant' : 'status'} onStatusChange={editable ? requestItemStatus : undefined} />
     </div>
     {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
+    {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} busy={busy} error={error}
+      onClose={() => setStatusUpdate(null)} onSave={(status, note) => setStagedStatuses((current) => ({ ...current, [statusUpdate.item.id]: { item: statusUpdate.item, status, note } }))} />}
   </article>
 }
 
 interface JobChoice { id: number; name: string | null; fulfillment_method?: FulfillmentMethod | null }
-interface OrdersPayload { orders: Order[]; candidates: OrderCandidate[]; jobs: JobChoice[]; error?: string }
+interface OrdersPayload { orders: Order[]; candidates: OrderCandidate[]; directCandidates: DirectOrderCandidate[]; suppliers: { id: number; name: string }[]; jobs: JobChoice[]; error?: string }
 const allocationKey = (candidateId: number, jobItemId: number) => `${candidateId}:${jobItemId}`
 
 /** Create one supplier order from all or part of one or several customer jobs. */
@@ -340,8 +436,9 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       if (version !== revision.current) return
       setData(body)
       setError(null)
-      setSupplierId((current) => body.candidates.some((candidate) => candidate.supplierId === current) ? current
-        : body.candidates.find((candidate) => isApsSupplier(candidate.supplierName))?.supplierId ?? body.candidates[0]?.supplierId ?? null)
+      setSupplierId((current) => body.candidates.some((candidate) => candidate.supplierId === current) || body.suppliers?.some((supplier) => supplier.id === current) ? current
+        : body.candidates.find((candidate) => isApsSupplier(candidate.supplierName))?.supplierId ?? body.candidates[0]?.supplierId
+          ?? body.suppliers?.find((supplier) => isApsSupplier(supplier.name))?.id ?? body.suppliers?.[0]?.id ?? null)
       if (initializedJob.current !== jobRequestId) {
         setMethod(body.jobs.find((job) => job.id === jobRequestId)?.fulfillment_method ?? '')
         initializedJob.current = jobRequestId
@@ -354,7 +451,9 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   useEffect(() => { setQuantities({}); setConfirmed(false); setExtraJobs([]); setCreatedId(null) }, [jobRequestId])
 
   const candidates = (data?.candidates ?? []).filter((candidate) => candidate.supplierId === supplierId)
-  const suppliers = [...new Map((data?.candidates ?? []).map((candidate) => [candidate.supplierId, candidate.supplierName])).entries()]
+  const directCandidates = data?.directCandidates ?? []
+  const useDirect = candidates.length === 0 && directCandidates.length > 0
+  const suppliers = candidates.length ? [...new Map((data?.candidates ?? []).map((candidate) => [candidate.supplierId, candidate.supplierName])).entries()] : (data?.suppliers ?? []).map((supplier) => [supplier.id, supplier.name] as const)
   const selectedItems = candidates.flatMap((candidate) => {
     const allocations = candidate.allocations.flatMap((allocation) => {
       const value = quantities[allocationKey(candidate.availabilityRequestItemId, allocation.jobRequestItemId)]
@@ -362,16 +461,24 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
     })
     return allocations.length ? [{ availabilityRequestItemId: candidate.availabilityRequestItemId, allocations }] : []
   })
+  const selectedDirectItems = directCandidates.flatMap((candidate) => {
+    const raw = quantities[`direct:${candidate.jobRequestItemId}`]
+    return raw !== undefined ? [{ jobRequestItemId: candidate.jobRequestItemId, quantity: Number(raw) }] : []
+  })
   const invalidQuantity = candidates.some((candidate) => {
     const values = candidate.allocations.map((allocation) => ({ allocation, raw: quantities[allocationKey(candidate.availabilityRequestItemId, allocation.jobRequestItemId)] })).filter(({ raw }) => raw !== undefined)
     return values.some(({ allocation, raw }) => !Number.isFinite(Number(raw)) || Number(raw) <= 0 || Number(raw) > allocation.remainingQuantity)
       || values.reduce((sum, { raw }) => sum + Number(raw), 0) > candidate.remainingQuantity
   })
+    || directCandidates.some((candidate) => {
+      const raw = quantities[`direct:${candidate.jobRequestItemId}`]
+      return raw !== undefined && (!Number.isFinite(Number(raw)) || Number(raw) <= 0 || Number(raw) > candidate.remainingQuantity)
+    })
 
   async function create() {
     setCreating(true); setError(null)
     try {
-      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, notes: notes || null, items: selectedItems }) })
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, notes: notes || null, items: useDirect ? selectedDirectItems : selectedItems }) })
       const body = await res.json() as { id: number; error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not create order')
       setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNotes('')
@@ -396,7 +503,15 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Supplier<select className={field} value={supplierId ?? ''} onChange={(event) => { setSupplierId(Number(event.target.value)); setConfirmed(false) }}><option value="" disabled>Select supplier</option>{suppliers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Pickup / delivery<select className={field} value={method} onChange={(event) => setMethod(event.target.value as FulfillmentMethod | '')}><option value="">To be arranged</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>
       </div>
-      {loading ? <p className="text-[12px] text-muted-foreground">Loading available quantities…</p> : candidates.length === 0 ? <p className="text-[12px] text-muted-foreground">No remaining supplier responses to order. Generate a quote and complete availability first.</p> : <div className="flex flex-col divide-y divide-border">
+      {loading ? <p className="text-[12px] text-muted-foreground">Loading available quantities…</p> : useDirect ? <div className="flex flex-col divide-y divide-border">
+        <p className="py-2 text-[12px] text-muted-foreground">No availability request is required for these quoted lines. This order will commit the selected job.</p>
+        {directCandidates.map((candidate) => {
+          const key = `direct:${candidate.jobRequestItemId}`; const checked = quantities[key] !== undefined
+          return <div key={key} className="py-2"><div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">JR-{candidate.jobRequestId} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice) || 'Price pending'}</span></div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]"><label className="flex min-h-9 items-center gap-2"><input type="checkbox" aria-label={`Select ${candidate.name} for direct order`} checked={checked} onChange={(event) => { setQuantities((current) => { const next = { ...current }; if (event.target.checked) next[key] = String(candidate.remainingQuantity); else delete next[key]; return next }); setConfirmed(false) }} />Order quoted line</label><input aria-label={`Order quantity for ${candidate.name}`} type="number" min="0.001" step="any" max={candidate.remainingQuantity} disabled={!checked} className={`${field} w-24`} value={checked ? quantities[key] : ''} onChange={(event) => { setQuantities({ ...quantities, [key]: event.target.value }); setConfirmed(false) }} /><span className="text-[11px] text-muted-foreground">of {num(candidate.remainingQuantity)}</span></div>
+          </div>
+        })}
+      </div> : candidates.length === 0 ? <p className="text-[12px] text-muted-foreground">No remaining quoted or supplier-response lines to order.</p> : <div className="flex flex-col divide-y divide-border">
         {candidates.map((candidate) => <div key={candidate.availabilityRequestItemId} className="py-2">
           <div className="flex flex-wrap gap-x-2 text-[12px]"><span className="font-semibold">{candidate.name}</span><span>{candidate.size}</span><span className="text-muted-foreground">AR-{candidate.availabilityRequestId} · {arResponseLabel(candidate.status)} · {num(candidate.remainingQuantity)} remaining · {money(candidate.unitPrice) || 'Price pending'}</span></div>
           {candidate.allocations.map((allocation) => {
@@ -423,7 +538,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       {invalidQuantity && <p role="alert" className="text-[12px] text-destructive">Enter positive quantities within the job and supplier quantities remaining.</p>}
       <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note to supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
       <label className="flex items-start gap-2 text-[12px]"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Customer has confirmed the selected quantities for every included job.</label>
-      <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !selectedItems.length || invalidQuantity}>{creating ? 'Creating…' : 'Create new order'}</button></div>
+      <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !(useDirect ? selectedDirectItems : selectedItems).length || invalidQuantity}>{creating ? 'Creating…' : 'Create new order'}</button></div>
     </form>}
     {loading && !data && <p className="py-6 text-center text-[12px] text-muted-foreground">Loading orders…</p>}
     {!loading && data?.orders.length === 0 && !open && <p className="py-6 text-center text-[12px] text-muted-foreground">No orders yet. Create an order once the customer confirms.</p>}

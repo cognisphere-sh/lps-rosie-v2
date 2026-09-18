@@ -1,5 +1,18 @@
 # plant-and-supplier-search — changelog
 
+## 2.11.0 — 2026-09-17
+
+- Chris-approved simpler note default: research findings stay in chat; no every-APS-row entry or duplicate summary. Preserve material proxy/cultivar/source qualifications and pending decisions, not routine catalogue spelling/price restatements; alternative approval gates unchanged.
+
+## 2.10.0 — 2026-09-17
+
+- Chris explicitly asked to remember color-independent rose quote pricing: use a supported same-size generic/color-unspecified rose-series listing without repeated color approval. Preserve demand and distinguish pricing from stock, actual substitution and AR identity.
+
+## 2.9.0 — 2026-09-17
+
+- Chris-authorized concise shared notes: only additional customer-useful exceptions; no phase labels, supplier/price-sheet references or pricing-identity explanations. Preserve phase grouping elsewhere.
+- Replace fixed substitution sentences; approved dwarf loropetalum/Purple Pixie pricing retains demand identity. Availability/NA wording needs actual evidence, never missing catalogue pricing; other requested sizes carry supported prices or neutral pricing gaps.
+
 ## 2.8.1
 
 - Align research handoffs with Chris's sourcing-note rule: the JR maintains an unlabelled plain-text current summary and latest facts only.

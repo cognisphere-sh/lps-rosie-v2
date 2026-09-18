@@ -1,9 +1,9 @@
 ---
 name: html-quote
-description: Create a compact Gmail-ready HTML quote table with rich-copy controls. Covers fresh job/item pricing checks, concise existing shared notes, email-safe inline styling, content-fit columns, a reusable self-contained template, rich HTML and plain-text clipboard fallbacks, manual selection, visual/copy checks, private artifact previews and durable downloadable HTML. Use when Chris requests an HTML quote or a formatted table to copy into Gmail; not for an APS-branded PDF. (v1.2.0)
+description: Create a compact Gmail-ready HTML quote table with rich-copy controls. Covers fresh job/item pricing checks, concise existing shared notes, email-safe inline styling, content-fit columns, a reusable self-contained template, rich HTML and plain-text clipboard fallbacks, manual selection, visual/copy checks, private artifact previews and durable downloadable HTML. Use when Chris requests an HTML quote or a formatted table to copy into Gmail; not for an APS-branded PDF. (v1.3.0)
 metadata:
   author: rosie
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # HTML quote for Gmail
@@ -22,7 +22,11 @@ owns responsive hosting and privacy. Do not create competing rules here.
 2. Use current approved offerings, requested quantities and supported customer
    unit prices. The name and size cells must show only the one actual quoted
    plant and size, never an original-demand alternative list; material
-   differences use the exact customer-visible note `Substitute: <actual offering> instead of <original demand>`, not a reason or unavailable price. Preserve
+   differences use only necessary short customer-visible exceptions under
+   `quote-generation`, not a fixed substitution sentence. Approved pricing
+   proxies retain requested identity and have no shared pricing-basis note.
+   Keep phases in separate output grouping, not shared notes; never infer
+   availability or `NA` from a price-list gap. Preserve
    plant order; resolve material gaps before the affected quote. HTML generation
    alone does not authorize alternatives, an AR or email.
 3. Calculate line totals and subtotal with decimal arithmetic and cross-check

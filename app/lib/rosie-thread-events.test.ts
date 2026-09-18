@@ -63,6 +63,22 @@ test('supplier answer saves and submissions are distinct events on the supplier 
   assert.match(String(events[1].payload.text), /submitted their answers/)
 })
 
+test('a saved supplier order-line status wakes the same supplier/order thread', async () => {
+  const { plugin, events } = await supplierPlugin()
+  const result = await post(plugin, '/notify', {
+    type: 'order_status_updated', supplierId: 42, supplierName: 'Austin Plant Supply', threadId: 'supplier-aps',
+    orderId: 21, orderItemId: 83, status: 'arriving_soon',
+  })
+  assert.equal(result.status, 200)
+  assert.equal(events[0].name, 'order_status_updated')
+  assert.equal(events[0].payload.threadIdOverride, 'supplier-aps')
+  assert.deepEqual(events[0].payload.metadata, {
+    EventType: 'order_status_updated', SupplierId: 42, SupplierName: 'Austin Plant Supply',
+    OrderId: 21, OrderItemId: 83, OrderItemStatus: 'arriving_soon',
+  })
+  assert.match(String(events[0].payload.text), /order O-21/)
+})
+
 test('supplier-event seed permits response relays only after explicit submission', () => {
   // Assert the source-of-truth seed, not an agent copy that is only refreshed
   // on restart. These are instruction-contract checks, not an LLM simulation.

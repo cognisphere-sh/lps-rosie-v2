@@ -22,6 +22,12 @@ two places instead.
 
 -----$-----$-----$-----
 
+name: chris-rose-quote-pricing
+lastUpdated: 2026-09-17 11:15:51
+description: In JR-61 Chris said, “Color of Rose does not matter. Just match the size and quote for it. Remember this.” He authorized White Drift Rose 3 G pricing from the same-size generic Rose Drift listing. This is a durable quote-pricing preference, not evidence of stock or blanket permission to rewrite original plant demand. Procedure captured in plant-and-supplier-search.
+
+-----$-----$-----$-----
+
 name: chris-copy-ready-format
 lastUpdated: 2026-08-24 09:54:14
 description: Chris prefers copy-ready text sent as its own clean message, without commentary or caveats; place any context in a separate message before or after. He stated this while requesting the JR-8 pricing text. Relevant to future shareable-copy requests.

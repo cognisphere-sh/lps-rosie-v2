@@ -273,13 +273,28 @@ export const CUSTOMER_COLS: ColumnDef[] = [
 ]
 export const CUSTOMER_HIDDEN = ['address', 'zip', 'notes', 'created_at']
 
-export type TableId = 'suppliers' | 'plantMaster' | 'plants' | 'customers'
+/** The editable line grid inside an expanded job request. */
+export const REQUEST_ITEM_COLS: ColumnDef[] = [
+  { key: 'quantity', label: 'Demand', width: 66, minWidth: 56, align: 'right' },
+  { key: 'available_quantity', label: 'Avail', width: 66, minWidth: 56, align: 'right' },
+  { key: 'size', label: 'Size', width: 72, minWidth: 64 },
+  { key: 'name', label: 'Plant Name', width: 220, minWidth: 150 },
+  { key: 'status', label: 'Status', width: 124, minWidth: 104 },
+  // Kept beside Status by default because both describe what the customer sees.
+  { key: 'external_notes', label: 'Shared note', width: 180, minWidth: 120 },
+  { key: 'unit_price', label: 'Unit price', width: 86, minWidth: 72, align: 'right' },
+  { key: 'total', label: 'Total', width: 92, minWidth: 76, align: 'right' },
+  { key: 'sourcing_notes', label: 'Sourcing note', width: 180, minWidth: 120 },
+]
+
+export type TableId = 'suppliers' | 'plantMaster' | 'plants' | 'customers' | 'requestItems'
 
 export const TABLE_COLS: Record<TableId, ColumnDef[]> = {
   suppliers: SUPPLIER_COLS,
   plantMaster: MASTER_COLS,
   plants: PLANT_COLS,
   customers: CUSTOMER_COLS,
+  requestItems: REQUEST_ITEM_COLS,
 }
 
 export const DEFAULT_HIDDEN: Record<TableId, string[]> = {
@@ -287,4 +302,5 @@ export const DEFAULT_HIDDEN: Record<TableId, string[]> = {
   plantMaster: MASTER_HIDDEN,
   plants: PLANT_HIDDEN,
   customers: CUSTOMER_HIDDEN,
+  requestItems: [],
 }

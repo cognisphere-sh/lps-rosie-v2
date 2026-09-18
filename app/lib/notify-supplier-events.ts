@@ -18,15 +18,17 @@ import 'server-only'
 const HARNESS_URL = process.env.HARNESS_URL ?? 'http://127.0.0.1:3142'
 const SECRET = process.env.SUPPLIER_EVENTS_APP_SECRET
 
-export interface SupplierEvent {
-  type: 'availability_updated' | 'availability_submitted'
+interface SupplierEventBase {
   supplierId: number
   supplierName: string
-  availabilityRequestId: number
-  jobRequestId: number | null
   /** The supplier's `suppliers.rosie_thread_id`; null → rosie's main thread. */
   threadId: string | null
 }
+
+export type SupplierEvent =
+  | (SupplierEventBase & { type: 'availability_updated' | 'availability_submitted'; availabilityRequestId: number; jobRequestId: number | null })
+  | (SupplierEventBase & { type: 'order_status_updated'; orderId: number; orderItemId: number; status: string })
+  | (SupplierEventBase & { type: 'order_status_saved'; orderId: number; changes: { itemId: number; status: string; note: string }[] })
 
 export async function notifySupplierEvent(event: SupplierEvent): Promise<void> {
   if (!SECRET) return // not wired on this box — the tables still carry everything

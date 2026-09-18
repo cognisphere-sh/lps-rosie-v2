@@ -68,6 +68,17 @@ export interface PartnerOrderUpdate {
   supplierNotes?: string | null
 }
 
+export const ORDER_ITEM_STATUSES = ['pending', 'available', 'unavailable', 'diff_size_qty_sub', 'need_to_order', 'arriving_soon'] as const
+export type OrderItemStatus = (typeof ORDER_ITEM_STATUSES)[number]
+
+export function parseOrderItemUpdate(value: unknown): { status: OrderItemStatus } {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1
+    || !(ORDER_ITEM_STATUSES as readonly string[]).includes((value as { status?: unknown }).status as string)) {
+    throw new Error('Choose a valid plant status')
+  }
+  return { status: (value as { status: OrderItemStatus }).status }
+}
+
 /** Lifecycle and required confirmation fields are checked again under a database lock. */
 export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Order update is required')
@@ -109,6 +120,17 @@ export interface OrderCandidate {
   allocations: (OrderAllocation & { remainingQuantity: number })[]
 }
 
+/** Remaining quoted demand that can be ordered without a supplier response. */
+export interface DirectOrderCandidate {
+  jobRequestItemId: number
+  jobRequestId: number
+  jobName: string | null
+  name: string
+  size: string | null
+  unitPrice: number | null
+  remainingQuantity: number
+}
+
 export interface CreateOrderInput {
   supplierId: number
   customerConfirmed: true
@@ -118,6 +140,19 @@ export interface CreateOrderInput {
     availabilityRequestItemId: number
     allocations: { jobRequestItemId: number; quantity: number }[]
   }[]
+}
+
+/** A customer-confirmed order made from the quote, without supplier availability. */
+export interface CreateDirectOrderInput {
+  supplierId: number
+  customerConfirmed: true
+  fulfillmentMethod: FulfillmentMethod | null
+  notes: string | null
+  items: { jobRequestItemId: number; quantity: number }[]
+}
+
+export function isDirectOrder(input: CreateOrderInput | CreateDirectOrderInput): input is CreateDirectOrderInput {
+  return 'jobRequestItemId' in input.items[0]
 }
 
 export function positiveId(value: unknown): value is number {
@@ -134,7 +169,7 @@ export function orderDate(value: unknown, field: string): string | null {
   return value
 }
 
-export function parseCreateOrder(value: unknown): CreateOrderInput {
+export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirectOrderInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('order is required')
   const body = value as Record<string, unknown>
   if (!positiveId(body.supplierId)) throw new Error('supplierId is required')
@@ -146,7 +181,23 @@ export function parseCreateOrder(value: unknown): CreateOrderInput {
     throw new Error('fulfillmentMethod must be pickup or delivery')
   }
   if (body.notes != null && (typeof body.notes !== 'string' || body.notes.length > 10000)) throw new Error('notes must be text under 10000 characters')
-  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 500) throw new Error('Select between 1 and 500 availability lines')
+  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 500) throw new Error('Select between 1 and 500 order lines')
+  const direct = body.items.every((raw) => raw && typeof raw === 'object' && 'jobRequestItemId' in raw && !('availabilityRequestItemId' in raw))
+  if (direct) {
+    const seen = new Set<number>()
+    const items = body.items.map((raw: unknown) => {
+      const item = raw as Record<string, unknown>
+      if (!positiveId(item.jobRequestItemId) || seen.has(item.jobRequestItemId)) throw new Error('Each quoted line must have a unique valid ID')
+      seen.add(item.jobRequestItemId)
+      if (typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity <= 0 || item.quantity > 1e9) {
+        throw new Error('Order quantities must be positive numbers')
+      }
+      return { jobRequestItemId: item.jobRequestItemId, quantity: item.quantity }
+    })
+    return { supplierId: body.supplierId, customerConfirmed: true,
+      fulfillmentMethod: (body.fulfillmentMethod as FulfillmentMethod | null | undefined) ?? null,
+      notes: (body.notes as string | null | undefined)?.trim() || null, items }
+  }
   const seen = new Set<number>()
   const items = body.items.map((raw: unknown) => {
     if (!raw || typeof raw !== 'object') throw new Error('Invalid order line')

@@ -4,6 +4,12 @@ The app reports supplier answer changes from partner portals and public links.
 Events carry database identifiers; read the current availability request and
 items before acting. A saved edit is not a submission or confirmation.
 
+An `order_status_updated` event means the supplier explicitly saved a line
+status on an order. Keep this update on that supplier's order thread: read the
+current order and line before coordinating any follow-up. It is not approval to
+change Pickup/Delivery (Chris owns that arrangement) or to make unrelated job
+changes.
+
 Events land on `suppliers.rosie_thread_id`. If it is missing, they land on
 `main`: use `message-routing` to create/reuse the supplier thread and relay the
 pointer there; this routing handoff is not a job-thread or Chris notification.

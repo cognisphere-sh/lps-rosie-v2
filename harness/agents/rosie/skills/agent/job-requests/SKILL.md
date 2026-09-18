@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, compact latest supplier snapshots and the row selection/price outcome, source-based EDD intake with an Unknown option and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, submitted supplier-response handling, Can Order quantity updates and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.9.0)
+description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, minimal audience-specific notes and source/override safeguards, source-based EDD intake with an Unknown option and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, submitted supplier-response handling, Can Order quantity updates, Chris-authorized no-AR order overrides and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.13.0)
 metadata:
   author: lps
-  version: "5.9.0"
+  version: "5.13.0"
 ---
 
 # Job requests
@@ -159,13 +159,15 @@ when recording the quoted size/variant and price. Put every other supported
 requested-option price in shared/customer-visible item `external_notes`, e.g.
 `5 G $25.00`. The item `name` and `size` are the customer-facing **quoted
 offering**, so each must hold exactly the one actual quoted plant and size—never
-an `or` list, requested substitute or source proxy. Put every material
-difference from the original demand (plant, cultivar/variant, size or quantity)
-in `external_notes` with exactly `Substitute: <actual offering> instead of
-<original demand>`. Never mention unavailable prices, availability or the
-reason for a difference. Where the row identifies
-the plant, use only the necessary concise distinction;
-follow `quote-generation` for minimal-word shared notes. Preserve the original
+an `or` list or source proxy name. An explicitly approved pricing proxy does
+not relabel the requested offering or establish cultivar identity. Record its
+basis internally, not as a shared substitution note. For actual approved
+offering differences (plant, cultivar/variant, size or quantity), keep only the
+necessary short exception in `external_notes`; follow `quote-generation` for
+the canonical minimal-word rule, confirmed-evidence-only availability wording,
+and neutral unpriced-option notes. No phase labels, pricing-identity explanations,
+supplier names or price-sheet references belong in shared notes. Preserve
+phases in customer/original-demand context and separate output grouping. Preserve the original
 demand in `customer_notes`; do not silently rewrite it. Use actual prices only,
 without internal supplier/cost commentary or availability claims. State the
 chosen quoted option clearly and include every other supported requested-option
@@ -203,45 +205,37 @@ Archiving/deactivating records requires Chris's explicit direction.
 job.** When Chris asks to look for suppliers, return the options and evidence
 in his original request conversation. Do not add sourcing notes merely
 because a supplier was considered or a catalogue price/alternative was found,
-except for the standing APS job-row instruction below.
+unless a material decision, exception or required action below needs recording.
 
-**Standing APS job-row instruction (Chris, 2026-09-11):** For actual order
-sourcing and quick quotes using APS, add/update an APS sourcing entry on
-**every active requested item row in that APS scope**, including exact priced
-matches and rows with missing prices or no inventory match. This is Chris's
-explicit note instruction; no AR or supplier selection is required. It does
-not extend to standalone pricing/general questions or a research-only supplier
-lookup, even on an existing job, and does not override an APS exclusion.
-Record the supported requested-line price/size or concise gap (`Price unknown`,
-`No exact match`), distinguishing inventory evidence from supplier answers.
-First distinguish likely naming equivalents from real substitutions using
-`plant-and-supplier-search`. Chris authorizes supported pricing directly for
-likely same-plant catalogue names, including his Agave parryi truncata /
-Artichoke Parry’s Agave / Agave Parryi example. Record a brief catalogue-name
-mapping and evidence/pricing basis in the APS entry, not an `Alternative` or
-approval-pending marker for a mere name difference. Keep requested identity
-and size; use only an applicable supported price. This is pricing evidence,
-not confirmed identity for AR mapping or availability.
-For remaining pricing/match gaps, research and record **1–2 closest evidence-supported
-APS alternatives**, when found: candidate plant/cultivar, size and known price,
-with `Alternative · Chris approval pending`. Prefer the same plant in a nearby
-size, then a defensible related cultivar/plant; similarity must be supported
-by identity/size evidence, not merely search rank. Do not invent alternatives
-or prices, force two weak options, or widen to other suppliers without instruction.
-If none is supportable, record `No supported APS alternative found`.
-Keep candidates in the original requested row's APS entry; do not replace its
-requested identity, size, quantity or applicable price with candidate values.
-Ask Chris in the original request chat whether to **quote the specific
-alternative and/or request availability for it**. Obtain explicit confirmation
-for the intended action before any affected quote (including a draft) or AR
-creation/send, including an alternative in supplier-visible notes. Note-taking
-is not approval; approval to quote is not approval to request availability,
-or vice versa. Continue independent work on the original/unambiguous lines.
-Use the current-snapshot format below. Preserve current supplier facts and
-human decisions/constraints without carrying superseded history forward; no
-duplicate APS entries or invented availability/selection.
+**Simpler notes default (Chris approved, 2026-09-17):** Notes contain only
+additional information needed by their audience, once at the narrowest useful
+scope. This supersedes the every-APS-row research-note instruction and the
+mandatory overall-summary-plus-supplier-entry format. Exact supported prices,
+missing prices and ordinary AR/order statuses already visible elsewhere do
+not require duplicate notes, including on quick quotes.
 
-For other sourcing entries, add a note only when at least one applies:
+Continue researching every requested line and 1–2 closest supported APS
+alternatives for genuine gaps. Report findings in the original chat; record
+only a material unresolved decision/exception or required action in sourcing.
+Do not fill rows with `Price unknown`, `No exact match` or `No supported APS
+alternative found` when the fields/chat already make that clear. A necessary
+pending alternative identifies the plant/size and action-specific Chris
+approval still needed; do not replace demand or price with an unapproved
+candidate. Prefer the same plant in a nearby size, then a defensible related
+plant; do not invent options/prices or widen suppliers without instruction.
+
+Use `plant-and-supplier-search` to distinguish likely naming equivalents from
+real substitutions. Its approved direct-pricing conventions remain unchanged.
+Keep a concise pricing-proxy/cultivar qualification when necessary to avoid
+false identity or availability claims; routine catalogue spelling mappings
+need not be repeated if accessible source evidence suffices. Pricing permission
+never establishes exact AR identity or availability. Ask Chris in the original
+request chat to approve **quoting and/or requesting availability for the specific
+alternative** before that action, including drafts or supplier-visible hints.
+Quote approval is not AR approval, nor vice versa.
+
+A sourcing entry is eligible when at least one applies, but eligibility does
+not require a redundant note:
 
 - An availability request was actually delivered to that supplier's portal
   or sent by email. A created record, unsent draft or public link alone is
@@ -252,98 +246,97 @@ For other sourcing entries, add a note only when at least one applies:
   follow-up or treat an optional candidate as actionable to justify a note.
 - Chris explicitly asks to add or record the sourcing note.
 - Chris makes a supplier selection or another sourcing decision about the
-  plant, or an explicit approved decision is already recorded. Capture it in
-  that plant's sourcing note, even if no AR has been sent yet.
+  plant, or an explicit approved decision is already recorded. Capture any
+  additional decision once at its item/job scope, even without an AR; do not
+  repeat a selection already clearly accessible in linked structured records.
 
-This applies to both job-level and item-level `sourcing_notes`. Research-only
-supplier lists, prices and alternatives stay in chat outside the standing APS
-job-row instruction. A lookup is not an
-instruction to contact suppliers or send ARs. Keep supported structured price
-updates and job intake moving under their own rules. Once a supplier entry
-qualifies, keep only its latest relevant request/response and pending action;
-preserve other suppliers' current snapshots and current human decisions/constraints.
+This applies to job-level and item-level `sourcing_notes`. Research-only
+supplier lists/prices stay in chat; a lookup authorizes no contact or AR.
+Continue supported structured pricing/intake updates under their own rules.
+Preserve material supplier comparisons, final current decisions, necessary
+source/override provenance and unresolved constraints without event history.
 
 | Field | Content |
 |---|---|
-| `customer_notes` | Customer's words that structured fields do not hold: constraints, deadlines and identity clues. Preserve evidence; do not duplicate plant/size/quantity/address. |
-| Item `sourcing_notes` | One compact plain-text current row summary plus one latest snapshot per qualifying supplier; no event history. |
-| Job `sourcing_notes` | Current job-level sourcing actions/decisions only; no event history or duplicate item outcomes. |
-| `external_notes` | Customer-safe offer and delivery details; never internal sourcing. |
+| `customer_notes` | Only customer-origin additional information/requests that structured fields do not hold: constraints, preferences, deadlines, phase membership and original demand/options displaced by the quoted offering. Preserve customer evidence; never add Chris's pricing, offering or sourcing decisions, approval wording or exploration. Do not duplicate unchanged structured fields. |
+| Item `sourcing_notes` | Brief current internal decisions, exceptions or constraints not clear elsewhere; NULL when nothing additional is needed. Preserve necessary source/proxy evidence and meaningful supplier comparisons. |
+| Job `sourcing_notes` | Job-wide decisions, constraints and admin-override provenance once, visibly accessible with the job; do not repeat them on each row. |
+| `external_notes` | Only additional customer-useful exceptions/options, in short fragments; NULL when redundant. No phase names, pricing identity/basis or supplier/price-sheet references. Follow `quote-generation`. |
 
-### Compact current snapshot (Chris, 2026-09-15)
+**Note ownership (Chris, 2026-09-17):** Record Chris's final/current pricing,
+offering and sourcing decisions only in `sourcing_notes`, never in
+`customer_notes`. Do not retain intermediate choices, superseded approvals,
+exploration or a decision trace in either field; history remains in the
+changelog/transcript. Preserve genuine customer requests and alternative
+allowances separately from Chris's choices. When cleaning mixed notes, remove
+only the internal decision text from `customer_notes`, retain customer-origin
+phase/original-demand details, and ensure the final decision is captured once
+in the current sourcing snapshot. Keep necessary current source evidence,
+approval scope and unresolved constraints; a still-pending decision is not a
+final approval. Do not change offering, prices, availability or shared notes
+merely to clean note ownership.
 
-**Always update sourcing notes to reflect the latest status and information.**
-Sourcing notes answer **where this row stands now**. Keep one short, unlabelled
-plain-text overall row summary and **one latest entry per supplier**. Replace the supplier's
-previous update in place; do not append an event history, dated diary, old AR
-states, repeated quotes, conversation summaries or a list of completed steps.
-The existing changelog and contact transcript retain history.
+### Minimal current notes: update and cleanup
 
-1. Read the current row, supplier evidence and Chris's latest decisions under
-   section 2. Keep only facts needed to understand the current offering,
-   availability, alternative or remaining decision. Preserve active human
-   constraints and approval scope; omit superseded facts and resolved actions.
-   If evidence conflicts, retain a short uncertainty instead of guessing.
-2. Put a single plain-text summary first, without a `Row:`, `Outcome:` or
-   other label: selected supplier, selected size/variant when needed, and the
-   supported selected supplier price. Use `$105/unit` to make the price basis
-   clear. If also showing the customer's selling price, label it `Quote
-   $140/unit`; never confuse the two. No selection means state the actual next
-   decision, such as `Awaiting Chris selection` or `Awaiting Chris alternative
-   approval`, not an invented supplier choice. A quick quote can say `Quote
-   $105/unit · Availability not requested`; do not invent a pending approval
-   or follow-up after quote-only work stops.
-3. Keep each supplier entry to **supplier: size/name/variant: price, current
-   AR state, availability or alternative**, including only applicable facts.
-   Use `**<u>Supplier name</u>**: ...` and short fragments separated by ` · `.
-   The row already names the requested plant, so repeat its name/variant only
-   to distinguish an offered alternative or material catalogue-name mapping.
-   Include the actual current AR reference/state (`[AR-42](ar:42) Completed`),
-   useful quantity/ETA, or `AR not requested` when it explains the decision.
-   A price list alone is not stock confirmation. Keep active alternatives
-   compact and explicitly pending the applicable Chris approval; remove
-   rejected/superseded alternatives from the current snapshot.
-4. Update the one row summary and affected supplier entry together when their
-   facts change. Keep other suppliers' latest relevant entries, not their
-   histories. Several current ARs/scopes for one supplier still belong in one
-   supplier entry with brief scope distinctions; do not collapse distinct live
-   allocations or duplicate a combined quantity onto each job. Retain an older
-   price or constraint only if it remains applicable, never solely to show what
-   happened earlier. A later catalogue search must not erase a still-current
-   supplier response.
+1. Read the current row, recent changelog, source evidence and Chris's latest
+   decisions under section 2. Preserve final/current decisions, active constraints,
+   customer agreement and uncertainty; never invent a new business fact to
+   shorten a note. History stays in the existing changelog/contact transcript.
+2. Keep customer-origin requests, phase membership and displaced original
+   demand in `customer_notes`; keep short customer-useful exceptions/options
+   in `external_notes`. Put internal decisions/exceptions in `sourcing_notes`.
+   Do not move internal decision traces into customer notes or remove a genuine
+   customer condition just because it resembles an internal decision.
+3. Record job-wide context once in accessible job-level sourcing notes. This
+   includes the scope and authority of a Chris/admin availability override,
+   explicitly **not supplier-confirmed**, and necessary delivery unknowns.
+   Keep relevant publication-approval/source provenance there without copying
+   ordinary Order/AR statuses or repeating it across rows. If job-wide context
+   cannot be shown accessibly, retain the minimum row qualifier rather than
+   losing meaning; do not silently delete essential provenance.
+4. On each item keep only additional material information: an approved proxy
+   and unresolved identity, actual outstanding alternative approval, meaningful
+   supplier comparison, or a selected-source decision not otherwise clear.
+   Exact-match rows may be NULL when selected supplier and necessary source/
+   override evidence are clearly accessible through job/linked structured data.
+   Otherwise retain a minimal `APS selected` (only if genuinely selected) or
+   the necessary evidence qualifier. Do not use a blank note to erase a source
+   selection, cultivar uncertainty or active constraint.
+5. Use short plain-text fragments; supplier labels are useful only to distinguish
+   material offers from different suppliers. No mandatory summary, supplier
+   heading, price, AR link/status or boilerplate on every row. Omit information
+   already clear in structured fields; a materially different supplier price
+   may remain for a real comparison, labelled distinctly from the customer price.
+   Keep suppliers' evidence separate and preserve allocation scopes; do not
+   copy a shared available total onto each job. Replace superseded current facts,
+   never append a diary or turn catalogue evidence into supplier confirmation.
+6. Guard note-only writes and verify exact field changes. Cleanup does not
+   authorize changes to prices, quantities, offerings, statuses, AR answers,
+   orders or history. Preserve meaningful shared notes and customer evidence;
+   report what changed and what stayed operationally unchanged.
 
-Use blank lines between the plain-text row summary and supplier entries. **No tables,
-pipe-delimited rows, divider lines or narrative paragraphs.** Store the
-Markdown itself in `sourcing_notes`, without a fenced code block. Only the
-attribute-free `<u>` tag is used for underline. These are formatting examples,
-not supplier selection, price or availability evidence:
+Examples are formatting only, not business evidence:
 
-```markdown
-Selected APS · 15 G · $105/unit
-
-**<u>Austin Plant Supply</u>**: 15 G: $105/unit · [AR-42](ar:42) Completed · 12 available
+```text
+Chris-approved Purple Pixie pricing basis; cultivar unconfirmed.
 ```
 
-```markdown
-Awaiting Chris alternative approval
-
-**<u>Austin Plant Supply</u>**: 15 G: No exact match · 30 G $175/unit alternative pending Chris · AR not requested
+```text
+APS selected; grower alternative excluded by Chris.
 ```
 
-```markdown
-Quote $105/unit · Availability not requested
-
-**<u>Austin Plant Supply</u>**: 15 G: $105/unit price list
+```text
+APS 30 G alternative — Chris quote approval pending.
 ```
 
-A selection appears only after Chris actually selects that supplier. Preserve
-an existing decision until he changes it; availability, price or being the
-only respondent does not mean selected. Use concise current markers such as
-`Excluded`, `30 G approved`, `Split qty 10` or `Hold` only where material.
-Mention a catalogue date or generic-price basis only when it qualifies the
-current price. Note updates do not authorize availability/status writes,
-substitutions, quotes or external communication beyond their existing gates.
+A selection exists only after Chris actually selects the supplier; availability,
+price or being the only respondent does not select it. Note cleanup changes no
+approval gates for substitutions, quotes, AR publication or external sends.
 
+- Preserve phase separation in customer/original-demand context and output
+  grouping, not item shared notes. An approved Purple Pixie price for unspecified
+  dwarf loropetalum retains the requested identity and needs no shared note;
+  identity and availability remain unconfirmed. Keep the pricing basis internal.
 - Keep approved offering differences clear in customer-visible data. When
   `external_notes` is needed, use only the necessary distinction, e.g.
   `Muskogee 30 G instead` or `12 instead of 10`. Omit `Quoted for ...` and
@@ -363,7 +356,7 @@ uses `quote-generation` and skips AR creation and supplier contact.
 A request only to look for a supplier uses `plant-and-supplier-search` and
 returns findings to Chris first, even on an existing job; it does not start
 the normal job's availability-request workflow or create sourcing entries.
-Actual APS job sourcing and quick quotes do require the item notes in section 3.
+Actual APS job sourcing and quick quotes use the same minimal-note standard in section 3.
 
 1. Read explicit supplier instructions and supplier preferences. **LPS
    currently works exclusively with Austin Plant Supply (`supplier_id = 1`).**
@@ -373,12 +366,12 @@ Actual APS job sourcing and quick quotes do require the item notes in section 3.
 2. Search APS inventory for every plant using `plant-and-supplier-search`,
    or the instructed supplier's inventory. Check actual plant identity,
    cultivar, size and positive price; retain the inventory UUID and source
-   evidence. Copy the applicable price into `unit_price`; write a supplier
-   entry under section 3, including every APS-scoped row and evidence-supported
-   alternatives for gaps. No price means NULL, never zero. Catalogue stock stays
+   evidence. Copy the applicable price into `unit_price`; write only additional material
+   sourcing decisions/exceptions under section 3; report research gaps and
+   supported alternatives in chat. No price means NULL, never zero. Catalogue stock stays
    catalogue evidence: item status remains `pending`.
-3. A likely equivalent catalogue name follows the direct-pricing and concise
-   mapping-note rule in `plant-and-supplier-search`; no needless alternative
+3. A likely equivalent catalogue name follows the direct-pricing and necessary
+   source-qualification rule in `plant-and-supplier-search`; no needless alternative
    label or approval for the name difference alone. A genuinely different
    plant/size or unsupported equivalence is a candidate alternative, never a silent change
    to the customer's ask. Report it in chat and record APS gap alternatives
@@ -430,9 +423,9 @@ submission; a local/saved, unsubmitted supplier edit never reaches this thread,
 Chris or sourcing notes. Surface each safely matched submitted response to
 Chris in the original request conversation: supplier, requested plant/size,
 reported quantity/price, AR reference/state, source and any uncertainty.
-Update the affected supplier's current snapshot and the single plain-text row
-summary under section 3; replace its older update, preserve Chris's current selection
-and keep correspondence in chat. Present the specific proposed job-line
+Update only material current sourcing exceptions/decisions under section 3;
+replace superseded facts, preserve Chris's selection and keep correspondence
+in chat. Do not duplicate structured response/status fields. Present the specific proposed job-line
 status/quantity changes to Chris and ask for approval in the original request
 conversation. If he approves, apply only that scope after a fresh read and
 report the saved result. For combined AR rows, show each job's allocation
@@ -509,6 +502,54 @@ job ended; database hooks preserve work for its other open jobs. Closed ARs
 cannot be edited; do not reuse revoked public links after reopening.
 Quote, Availability and Committed are the open job stages, separate
 from an AR's New/Processing/Completed/Closed state.
+
+### Chris-authorized order without an AR
+
+Standing authorization from Chris (2026-09-17, JR-61): when he explicitly asks
+Rosie to create an order without an availability request, treat that as authority
+to mark the accepted, specified job demand available and, only if required and
+safely supported, create an internal/admin AR with available answers to support
+the order. This is Chris's override, not supplier-reported availability or
+supplier confirmation. It is not triggered by a price lookup, ordinary quote,
+customer acceptance alone or an instruction from a supplier.
+
+1. Read current job/items, last five changes and existing AR/order allocations.
+   Resolve material offering/quantity ambiguity; preserve accepted offerings,
+   original demand, phases and approved pricing-proxy identity distinctions.
+   For the authorized scope only, guard updates to `status = 'available'` and
+   `available_quantity` equal to its full demand or explicitly accepted partial
+   quantity. Record `Available by Chris instruction; not supplier-confirmed`
+   once at the accessible job level for a job-wide override (row level for a
+   limited scope); do not repeat it on every item. Preserve customer acceptance evidence and
+   selected supplier; never claim supplier evidence or invent prices/dates.
+2. Inspect the current supported order and AR contracts. Reuse existing suitable
+   records idempotently; do not duplicate allocated demand. An authorized admin
+   answer is distinct from a supplier submission: no invented sender,
+   `submitted_at`, confirmation date or supplier acknowledgement. Do not submit
+   merely to satisfy an assumed gate; the current `create_order` requires an
+   answered source, not explicit submission.
+3. A required support AR is **internal-only** unless Chris explicitly changes
+   that constraint in the original request chat. This standing rule authorizes
+   neither APS portal publication nor an email/customer send. NULL public token
+   and `share_customer_details = false` do not hide an APS partner request.
+   Do not create-then-hide, temporarily publish, bypass triggers or direct-insert
+   order records to defeat the supported API's gates.
+4. Current verified limitation (2026-09-17): `create_availability_request` has
+   no hidden-from-creation argument and creates a portal-visible New AR; hidden
+   ARs reject item creation/edits and `answer_availability_request`. Admin
+   answers without submission work only on nonhidden, portal-visible ARs.
+   Therefore no supported internal-only construction meets this standing rule
+   today. Complete the authorized job updates, preserve acceptance, and report
+   the blocker through the original chat. Ask Nova for a reviewed workflow/DB
+   capability (Bhoumik-owned), or obtain Chris's explicit publication approval;
+   do not assume either. Re-check the contract before a future attempt.
+5. Only once a supported, authorized path exists, create/reuse the order with
+   authoritative allocations and true customer acceptance. Re-read to verify
+   quantities/provenance/status and report actual records, not a promised order.
+   Current schema creates Order **New** (`new`) and Job **Committed**; Orders
+   then use Processing/Order Ready, not the older order labels elsewhere in this
+   skill. Never infer supplier confirmation from Chris's availability override.
+   Leave the job's lifecycle unchanged when no order could be created.
 
 ### Order creation and many-to-many allocations
 

@@ -1,5 +1,25 @@
 # job-requests — changelog
 
+## 5.13.0 — 2026-09-17
+
+- Chris approved the simpler default (JR-61 reviewed questionnaire): audience-specific additional notes only; supersedes every-APS-row research entries and mandatory summary-plus-supplier boilerplate.
+- Job-wide context and admin override provenance appear once accessibly; preserve material source/proxy/cultivar/selection facts and supplier comparisons. Guard note-only cleanup, retain customer demand/agreements and shared exceptions, remove duplicate prices/statuses without operational changes.
+
+## 5.12.0 — 2026-09-17
+
+- Chris authorized a standing explicit no-AR order override: scoped job availability on his authority, plus necessary internal/admin support AR only if safely supported; provenance never supplier confirmation.
+- Documented current no-internal-AR capability blocker, explicit publication gate, no fake submissions/create-then-hide or integrity bypass, and actual New-order/Committed-job result.
+
+## 5.11.0 — 2026-09-17
+
+- Chris clarified note ownership: customer notes contain only customer-origin requests/details; final/current Chris decisions belong in sourcing notes, never a trace of intermediate choices or exploration.
+- Added mixed-note cleanup guards preserving original demand, phase membership, necessary evidence and unresolved constraints without changing operational fields.
+
+## 5.10.0 — 2026-09-17
+
+- Chris-authorized concise shared notes: only additional customer-useful exceptions; no phase labels, supplier/price-sheet references or pricing-identity explanations. Preserve phase grouping elsewhere.
+- Replace fixed substitution sentences; approved dwarf loropetalum/Purple Pixie pricing retains demand identity. Availability/NA wording needs actual evidence, never missing catalogue pricing; other requested sizes carry supported prices or neutral pricing gaps.
+
 ## 5.9.0
 
 - Chris authorized Can Order job-line updates to set schema-valid `need_to_order` and `available_quantity` together, using the approved whole-line demand or explicitly approved allocation rather than a shared supplier total.

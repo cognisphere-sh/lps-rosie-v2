@@ -1,5 +1,19 @@
 # supplier-coordination — changelog
 
+## 3.12.0 — 2026-09-17
+
+- Chris approved simpler JR notes: relay evidence for material current decisions/exceptions, not mandatory APS entries or dual summary/supplier boilerplate. Retain distinct supplier evidence and job-wide override provenance once; do not duplicate visible AR/order statuses or prices. Communication/submission gates unchanged.
+
+## 3.11.0 — 2026-09-17
+
+- Linked Chris-authorized no-AR order override to job-requests; preserve admin-vs-supplier provenance and original-chat publication approval.
+- Captured verified hidden-AR creation/answer blocker; no automatic APS publication, temporary visibility, fake submission or unsupported order bypass.
+
+## 3.10.0 — 2026-09-17
+
+- Chris-authorized concise shared notes: only additional customer-useful exceptions; no phase labels, supplier/price-sheet references or pricing-identity explanations. Preserve phase grouping elsewhere.
+- Replace fixed substitution sentences; approved dwarf loropetalum/Purple Pixie pricing retains demand identity. Availability/NA wording needs actual evidence, never missing catalogue pricing; other requested sizes carry supported prices or neutral pricing gaps.
+
 ## 3.9.0
 
 - Chris authorized Can Order response handling: after his exact job-line approval, relay schema-valid `need_to_order` with the approved demand/allocation as `available_quantity`, never a shared supplier total.

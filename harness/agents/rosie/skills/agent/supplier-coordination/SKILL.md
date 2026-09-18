@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, private/public availability requests, independent preparation and clarification, multiple-option demands and quote-only selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted supplier-response relays to Chris, Can Order response processing, supplier-authorized portal transcription, likely equivalent catalogue-name pricing versus AR mappings, mandatory APS job-row notes and approval-gated alternatives, compact latest supplier snapshots and row outcomes, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no job-line change. (v3.9.0)
+description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, Chris-authorized no-AR overrides, private/public availability requests, independent preparation and clarification, multiple-option demands and quote-only selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted supplier-response relays to Chris, Can Order response processing, supplier-authorized portal transcription, likely equivalent catalogue-name pricing versus AR mappings, approval-gated alternatives, minimal sourcing exceptions and job-wide provenance, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no job-line change. (v3.12.0)
 metadata:
   author: lps
-  version: "3.9.0"
+  version: "3.12.0"
 ---
 
 # Supplier coordination
@@ -19,15 +19,16 @@ original chat response first, without starting outreach or an AR. The job
 thread adds sourcing notes only under `job-requests` section 3: a request
 actually sent/delivered, a concrete required supplier action, Chris's explicit
 note instruction or an explicit supplier selection/plant-sourcing decision.
-Chris's standing APS instruction also requires the job thread to maintain an
-APS entry on every APS-scoped item in actual job sourcing/quick quotes,
-including priced matches, gaps and 1–2 closest supported alternatives when
-found. Research-only supplier lookups remain chat-only; notes do not authorize
-contact or select an alternative. Do not treat a search handoff as a send
-instruction. `job-requests` section 3 owns the JR note format: one compact
-latest snapshot per supplier and one unlabelled plain-text overall summary. Relay the
-latest current facts for that update; never ask the job thread to append an event history. The
-supplier transcript retains full correspondence.
+Eligibility does not require a redundant note. Chris's approved simpler default
+replaces every-APS-row entries and dual summary/supplier boilerplate: keep only
+additional current internal decisions/exceptions, meaningful supplier comparisons
+and necessary source/override evidence. Job-wide context belongs once at an
+accessible job level; structured prices/statuses need no restatement. Research-only
+lookups remain chat-only. Notes do not authorize contact or select alternatives.
+Do not treat a search handoff as a send instruction. `job-requests` section 3
+owns note definitions and cleanup safeguards. Relay evidence for that review,
+not instructions to append history or duplicate every response. The supplier
+transcript retains full correspondence.
 
 ## 1. Select the channel and preserve preferences
 
@@ -92,8 +93,11 @@ already supplied. Follow `job-requests` for the full intake sequence.
    size/variant based on supported price data, not confirmed stock. The JR's
    quoted-offering `name`/`size` contain only that actual offered plant and one
    actual size; the original demand and any customer-visible substitution note
-   stay on the JR. The note is exactly `Substitute: <actual offering> instead
-   of <original demand>`, never a reason or unavailable price. It does not
+   stay on the JR. Shared notes follow `quote-generation`: only necessary
+   short customer-useful exceptions, no phases or pricing-basis explanations.
+   Approved pricing proxies do not establish identity or exact AR mappings.
+   Missing price entries never mean physical unavailability; `NA`/`available`
+   wording requires actual supplier evidence. The quote does not
    silently narrow the supplier ask to that option:
    preserve original requested alternatives and single total quantity unless
    Chris separately resolves AR scope. Do not infer extra quantities, allocation
@@ -147,8 +151,9 @@ already supplied. Follow `job-requests` for the full intake sequence.
    size or cultivar is not an exact mapping: leave the mapping NULL. Only
    describe an alternative in supplier-visible `lps_notes` after Chris has
    explicitly approved requesting availability for that alternative. Keep
-   unapproved candidates in internal APS sourcing notes and relay the approval
-   question to the original request chat; do not leak internal notes into the AR.
+   unapproved candidates in internal research chat (a material pending decision
+   may qualify for concise sourcing notes) and relay the approval question to
+   the original request chat; do not leak internal notes into the AR.
    Never replace a supplier-selected mapping with a later search result.
 5. Never seed answer `status`, `available_quantity` or supplier `notes`.
    NULL answer status means unanswered even with a prefilled price. Request
@@ -170,7 +175,7 @@ already supplied. Follow `job-requests` for the full intake sequence.
 7. Relay AR id, items, allocations, current state, mappings and delivery outcome
    to every affected job thread so each updates qualifying supplier entries under `job-requests`
    section 3. Unsent requests qualify only for a concrete pending action or
-   explicit note instruction (including the standing APS job-row instruction);
+   explicit note instruction or a material sourcing decision;
    label any pending action accurately, never as a delivered request. Include
    `[Open AR-<id>](ar:<id>)` in internal chat updates. Record
    `availability_sent` only after actual portal delivery/email send, through
@@ -265,8 +270,8 @@ submits again. These supplier-entered portal changes remain as saved; Rosie
 reports them without overwriting them. A response does **not** authorize Rosie
 to change job/item availability or status, available quantities, selected
 supplier or the customer-facing offering. Surface it to Chris and update only
-qualifying current snapshots and the single plain-text row summary under
-`job-requests` section 3. Replace the affected supplier's previous update; keep suppliers
+material current sourcing exceptions/decisions under `job-requests` section 3,
+without duplicating visible prices or AR/order statuses. Replace superseded facts; keep suppliers
 distinct and preserve Chris's current selection without copying the message
 history into the notes. A selected supplier is not inferred from availability,
 price or submission. No automatic customer message or acceptance follows. If
@@ -357,6 +362,31 @@ its email authorization.
 
 ## 6. Supplier orders and confirmation
 
+### Explicit Chris no-AR order override
+
+Follow `job-requests` → **Chris-authorized order without an AR** for Chris's
+standing authorization (2026-09-17): an explicit request to create an order
+without AR permits scoped job availability updates on Chris's authority and
+necessary internal/admin support AR answers only where safely supported.
+This is not supplier-reported availability, submission or confirmation. It does
+not authorize portal publication, email or customer sends. Preserve original
+request chat for any required approval and maintain admin-override provenance.
+
+Current verified blocker: the AR creation RPC defaults to portal-visible New
+and has no hidden-from-creation parameter; hidden ARs reject item insertion,
+updates and the answer RPC. Nonhidden admin answers without submission are
+supported, but are portal-visible. NULL public token does not make an APS AR
+internal. Never create-then-hide, temporarily publish or bypass these gates.
+No supported internal-only construction currently exists: preserve authorized
+job-side work and report the publication-approval/platform capability blocker.
+A reviewed Bhoumik-owned capability or explicit Chris publication approval is
+needed; do not automatically widen this standing permission. `create_order`
+requires answered source rows, not supplier submission; never fabricate one.
+Verify the current schema before retrying. Current Orders are New → Processing
+→ Order Ready, with Jobs Committed; older confirmation labels below do not
+override the live schema.
+
+
 Use `job-requests` for customer-accepted order creation and quantity allocation.
 Orders are separate from ARs and appear in the supplier portal's **Orders** tab.
 One order can contain rows from several requests and jobs; one job can have
@@ -376,7 +406,8 @@ than submitting a duplicate action. Supplier confirmation makes the **Order
 Confirmed** and leaves each linked **Job Request Committed**. Job requests
 have no Confirmed stage. Relay the actual order status/date to every linked
 job and follow `job-requests` for its separate lifecycle; maintain only the
-latest relevant supplier snapshot and plain-text current row summary.
+necessary current exceptions/decisions under section 3 of `job-requests`,
+not redundant order-status summaries.
 Use `close_order` only for an explicit Won/Lost outcome, never because an AR
 was submitted or a customer was silent.
 

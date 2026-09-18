@@ -31,7 +31,7 @@ A workflow change counts — not everything here is software.
 | `availability-change-indicators` | Show supplier-response state without crowding requests | drafted | nova |
 | `customer-availability-update-workspace` | Show LPS-published availability in customer job details | drafted · urgent dependency | nova |
 | `customer-job-request-details-workspace` | Give customers a current job request details workspace | staged · urgent | bhoumik |
-| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · no-AR creation gap source-confirmed; historical dispatch deferral, no new build authorized | bhoumik |
+| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · optional no-forced-supplier-availability improvement; JR-61 Order2 created via approved existing path, no build needed | bhoumik |
 | `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
 | `supplier-outreach-human-tone` | Ask suppliers about availability like a person | shipped | rosie |
 | `approved-voice-playbook-governance` | Keep a reviewed playbook for writing in Chris’s voice | drafted | bhoumik |
@@ -64,7 +64,10 @@ A workflow change counts — not everything here is software.
 | `all-jobs-compact-filter-selectors` | Open compact Job filters only when needed | routed | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
-| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · BLOCKED on preserved/committed operator baseline; full name hierarchy needs separate Bhoumik decision | nova |
+| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · exact QNTY + centered requested values serialized with note UI; BLOCKED baseline; botanical hierarchy separately held | nova |
+| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · BLOCKED operator baseline; existing history read source-confirmed with provenance/retention limits; no implementation | nova |
+| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · accepted separate slice; BLOCKED shared operator baseline; populated notes/audience/editor unchanged | nova |
+| `supplier-note-customer-routing` | Pass useful supplier plant facts to the customer, not private buying discussion | staged · Bhoumik notified347; ONE decision automatic clear selected-source facts vs review-first option; no routing/all-cell approval policy (2026-09-17T12:55:37-05:00) | bhoumik |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
 | `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed | nova |

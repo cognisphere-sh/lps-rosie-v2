@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { ARJobSchedule } from '@/lib/availability'
-import type { CreateOrderInput, Order, OrderAllocation, OrderCandidate, OrderItem, OrderStatus, FulfillmentMethod, PartnerOrderUpdate } from '@/lib/orders'
+import { isDirectOrder, type CreateDirectOrderInput, type CreateOrderInput, type DirectOrderCandidate, type Order, type OrderAllocation, type OrderCandidate, type OrderItem, type OrderStatus, type FulfillmentMethod, type PartnerOrderUpdate, type OrderItemStatus } from '@/lib/orders'
 import { supabase } from '@/lib/supabase'
 
 interface OrderRecord {
@@ -147,6 +147,45 @@ export async function orderJobChoices(): Promise<JobRecord[]> {
     .not('status', 'in', '(closed_won,closed_lost,archived)').order('created_at', { ascending: false }).order('id'))
 }
 
+/** Active suppliers and quote lines for the no-availability order path. */
+export async function orderSuppliers(): Promise<{ id: number; name: string }[]> {
+  return all<{ id: number; name: string }>(supabase.from('suppliers').select('id, name').eq('is_active', true).order('name').order('id'))
+}
+
+export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrderCandidate[]> {
+  const items = await all<{ id: number; job_request_id: number; name: string; size: string | null; quantity: number | null; unit_price: number | null }>(supabase.from('job_request_items')
+    .select('id, job_request_id, name, size, quantity, unit_price').in('job_request_id', unique(jobIds)).eq('is_active', true).order('id'))
+  if (!items.length) return []
+  const [jobs, allocations] = await Promise.all([
+    all<JobRecord>(supabase.from('job_requests').select('id, name').in('id', unique(jobIds)).eq('is_active', true)
+      .not('status', 'in', '(closed_won,closed_lost,archived)').order('id')),
+    all<AllocationRecord>(supabase.from('order_item_job_request_items').select('order_item_id, job_request_item_id, quantity')
+      .in('job_request_item_id', items.map((item) => item.id)).order('order_item_id').order('job_request_item_id')),
+  ])
+  if (!jobs.length) return []
+  const orderItemIds = unique(allocations.map((allocation) => allocation.order_item_id))
+  const orderItems = orderItemIds.length ? await all<{ id: number; order_id: number; is_active: boolean }>(supabase.from('order_items')
+    .select('id, order_id, is_active').in('id', orderItemIds).eq('is_active', true).order('id')) : []
+  const orderIds = unique(orderItems.map((item) => item.order_id))
+  const orders = orderIds.length ? await all<{ id: number; status: string; is_active: boolean }>(supabase.from('orders')
+    .select('id, status, is_active').in('id', orderIds).eq('is_active', true).neq('status', 'closed_lost').order('id')) : []
+  const liveOrders = new Set(orders.map((order) => order.id))
+  const orderForItem = new Map(orderItems.map((item) => [item.id, item.order_id]))
+  const used = new Map<number, number>()
+  for (const allocation of allocations) {
+    if (liveOrders.has(orderForItem.get(allocation.order_item_id) ?? -1)) {
+      used.set(allocation.job_request_item_id, (used.get(allocation.job_request_item_id) ?? 0) + Number(allocation.quantity))
+    }
+  }
+  const jobMap = new Map(jobs.map((job) => [job.id, job]))
+  return items.flatMap((item) => {
+    const job = jobMap.get(item.job_request_id)
+    const remaining = item.quantity == null ? 0 : Math.max(0, Number(item.quantity) - (used.get(item.id) ?? 0))
+    return job && remaining > 0 ? [{ jobRequestItemId: item.id, jobRequestId: item.job_request_id, jobName: job.name,
+      name: item.name, size: item.size, unitPrice: asNumber(item.unit_price), remainingQuantity: remaining }] : []
+  })
+}
+
 /** The uncommitted portion of each supplier answer and its selected customer jobs. */
 export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[]> {
   const jobItems = await jobItemsForJobs(unique(jobIds))
@@ -222,7 +261,16 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
 }
 
 /** All writes affecting associations and lifecycle run in a single database transaction. */
-export async function createOrder(input: CreateOrderInput): Promise<number> {
+export async function createOrder(input: CreateOrderInput | CreateDirectOrderInput): Promise<number> {
+  if (isDirectOrder(input)) {
+    const { data, error } = await supabase.rpc('create_direct_order', {
+      p_supplier_id: input.supplierId, p_customer_confirmed: input.customerConfirmed,
+      p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: null, p_notes: input.notes,
+      p_items: input.items.map((item) => ({ job_request_item_id: item.jobRequestItemId, quantity: item.quantity })),
+    })
+    if (error) throw new Error(error.message)
+    return Number(data)
+  }
   const { data, error } = await supabase.rpc('create_order', {
     p_supplier_id: input.supplierId, p_customer_confirmed: input.customerConfirmed,
     p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: null, p_notes: input.notes,
@@ -242,4 +290,29 @@ export async function updatePartnerOrder(id: number, supplierId: number, update:
   }
   const { error } = await supabase.rpc('update_partner_order', { p_order_id: id, p_supplier_id: supplierId, p_patch: patch })
   if (error) throw new Error(error.message)
+}
+
+/** Suppliers may keep their own order-line procurement state current. */
+export async function updatePartnerOrderItem(orderId: number, supplierId: number, itemId: number, status: OrderItemStatus): Promise<void> {
+  const { error } = await supabase.rpc('update_partner_order_item', {
+    p_order_id: orderId, p_supplier_id: supplierId, p_order_item_id: itemId, p_status: status,
+  })
+  if (error) throw new Error(error.message)
+}
+
+/** Saved order context for Rosie's supplier/order thread notification. */
+export async function supplierOrderEventContext(orderId: number, forSupplierId?: number) {
+  let query = supabase.from('orders').select('id, supplier_id').eq('id', orderId)
+  if (forSupplierId != null) query = query.eq('supplier_id', forSupplierId)
+  const { data: order, error: orderError } = await query.single()
+  if (orderError) throw new Error(orderError.message)
+  const { data: supplier, error: supplierError } = await supabase.from('suppliers')
+    .select('name, rosie_thread_id').eq('id', order.supplier_id).single()
+  if (supplierError) throw new Error(supplierError.message)
+  return {
+    supplierId: order.supplier_id as number,
+    supplierName: supplier.name as string,
+    threadId: supplier.rosie_thread_id as string | null,
+    orderId,
+  }
 }
