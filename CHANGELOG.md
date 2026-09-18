@@ -17,6 +17,8 @@ here).
 
 ## 2026-09-15
 
+- Add a user-space gws fork of harness 0.12.0: attachment reads now use deterministic collision-safe paths, print original filename/CID/MIME/API mappings, and refuse conflicting files or symlinks. Linux fd-pinned directory ancestry prevents asynchronous path-replacement races from redirecting writes/reuse; unsupported runtimes fail closed. Correct Node email CLI invocation in canonical plugin hints/prompt/skills. Legacy inbox files remain untouched; activation requires an operator harness restart/reseed.
+
 - Add a red Hidden status to Admin’s AR picker. Hidden requests are excluded from supplier portal and public reads, reject supplier writes, and stay hidden across job lifecycle changes (migration 0099).
 
 - Collapse webchat quick-answer choices to plain question text when the user sends a custom chat message, preserving that state in loaded history.

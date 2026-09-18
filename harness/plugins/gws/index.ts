@@ -1,0 +1,763 @@
+import { execFile } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
+import { access, appendFile, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+// Local duck-typed contract: the package has no public plugin type entrypoint.
+interface PluginInstanceContext {
+  stateDir: string;
+  config: unknown;
+  secrets: Record<string, string>;
+  timezone: string;
+  notify(name: string, payload: {
+    text: string;
+    channelId: string;
+    metadata?: Record<string, unknown>;
+    threadIdOverride?: string;
+    isSilent?: boolean;
+  }): void;
+  log: Record<"info" | "warn" | "error", (fields: object | string, message?: string) => void>;
+}
+import {
+  collectAttachments,
+  collectHeaders,
+  formatTs,
+  pickTextBody,
+  previewBody,
+  type GmailMessage,
+} from "./seed/scripts/gws/format-email-lib.mjs";
+
+const execFileP = promisify(execFile);
+const UNREAD_LABEL = "UNREAD";
+const LEDGER_FILE = "ingested-threads.jsonl";
+const ROUTES_FILE = "routes.json";
+const SETTINGS_FILE = "settings.json";
+
+interface GwsConfig {
+  pollIntervalSec?: number;
+  gmailQuery?: string;
+  firstOfThreadOnly?: boolean;
+  allowedSenders?: string;
+  requireAgentInTo?: boolean;
+  /** Read by the console's web sign-in flow (api/gws-oauth.ts), not by the
+   *  plugin itself. */
+  oauthScopes?: string;
+}
+
+/** Agent-writable overlay in `state/settings.json` (managed by
+ *  `scripts/gws/settings`). Same keys as the operator config; a key present
+ *  here wins over `config.json`. Re-read every poll tick, so a change takes
+ *  effect within one poll interval. `pollIntervalSec: -1` = passive: no
+ *  polling, no notifications. */
+type GwsSettings = GwsConfig;
+
+interface GwsSecrets {
+  GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE?: string;
+}
+
+interface GmailThread {
+  id: string;
+  messages?: GmailMessage[];
+}
+
+/** A rule in `state/routes.json`, written by `scripts/gws/routes`. `from` and
+ *  `subject` are case-insensitive, unanchored regexes — a plain string is
+ *  therefore a substring match. `gmailThreadId` is an anchored,
+ *  case-insensitive regex against the raw Gmail thread id, so a plain id is
+ *  an exact match. At least one of the three must be present. */
+interface RouteRule {
+  name?: string;
+  threadId: string;
+  from?: string;
+  subject?: string;
+  gmailThreadId?: string;
+}
+
+interface CompiledRoute {
+  name: string;
+  threadId: string;
+  from?: RegExp;
+  subject?: RegExp;
+  gmailThreadId?: RegExp;
+}
+
+/**
+ * Polls Gmail through the `gws` CLI. Unread filtering lives in the poll
+ * query itself (default `is:unread in:inbox`), not in code. For each
+ * matching thread it looks only at the most recent message and wakes the
+ * agent with a preview — headers, the first two lines of the body,
+ * attachment names — and the agent reads the rest with `scripts/gws/email`
+ * (set `requireAgentInTo: true` to only wake when the agent's own email is
+ * in the message's `To` header; anything else is then skipped entirely).
+ * Older messages in the thread are never re-emitted. Every unread message
+ * in a handled thread is marked read so the poll query stops re-matching
+ * it.
+ *
+ * (Backlog mode — `firstOfThreadOnly` — instead emits every message in a
+ * matching thread, waking only on the first.)
+ *
+ * Threading: the harness thread id is `<Subject> [<gmailThreadId>]` — taken
+ * from the first message of the Gmail thread so a later `Re: …` rewrite
+ * still routes to the same queue thread. Routing rules in
+ * `state/routes.json` (managed by `scripts/gws/routes`) override that: the
+ * first rule whose `from`/`subject`/`gmailThreadId` patterns match wins, so
+ * an agent can park replies to a mail it sent in a thread of its choosing —
+ * matching on the Gmail thread id is the exact form, since a reply stays in
+ * the same Gmail thread as the message that provoked it. The agent
+ * calls `gws` directly for send / reply-all; no helper CLI is shipped.
+ *
+ * Settings: the agent owns its own notification behavior. Everything in
+ * `configSchema` except `firstOfThreadOnly` can be overridden per-key by
+ * `state/settings.json` (written by `scripts/gws/settings`). A
+ * `pollIntervalSec` of -1 goes passive: the loop only re-reads settings,
+ * never touches Gmail, so no notifications fire and the mailbox stays
+ * unread. On start the plugin posts the effective settings to the agent's
+ * `main` channel so she can re-assert her preferences.
+ */
+export default class GwsPlugin {
+  manifest = {
+    displayName: "Google Workspace",
+    description:
+      "Gmail polling via the `gws` CLI. One notification per inbound message; the agent sends/replies by calling `gws` directly.",
+    configSchema: {
+      type: "object",
+      properties: {
+        pollIntervalSec: {
+          type: "integer",
+          default: 900,
+          minimum: -1,
+          description:
+            "Seconds between Gmail polls (min 10); -1 = passive: no polling, no notifications. Like every key here except firstOfThreadOnly, overridable by the agent via state/settings.json.",
+        },
+        gmailQuery: {
+          type: "string",
+          default: "is:unread in:inbox",
+          description:
+            "Gmail search query for the poll loop. Unread filtering happens here (`is:unread`), not in code — drop it from the query and already-read messages are handled too.",
+        },
+        firstOfThreadOnly: {
+          type: "boolean",
+          default: false,
+          description:
+            "Backlog mode: emit every message in matching threads but only wake on the first message of each thread (where messageId == threadId); other messages are delivered silently as context. Skip threads already in state/ingested-threads.jsonl, and append each new threadId to that ledger after emit.",
+        },
+        allowedSenders: {
+          type: "string",
+          default: "*",
+          description:
+            "Comma-separated list of allowed sender patterns; `*` is a wildcard (e.g. `*@abc.com`). Only messages whose `From` address matches an entry are read/emitted; all others are ignored (and marked read). The default `*` (and an empty string) allows every sender.",
+        },
+        requireAgentInTo: {
+          type: "boolean",
+          default: false,
+          description:
+            "Only emit a thread's latest message when the agent's own address is in its `To` header. When false (the default), every message matching the poll query is delivered and wakes the agent. Ignored in backlog mode.",
+        },
+        oauthScopes: {
+          type: "string",
+          default: "",
+          description:
+            "Comma-separated extra Google OAuth scopes requested at web sign-in (e.g. `https://www.googleapis.com/auth/calendar`). openid, email and `gmail.modify` are always included — modify is Google's read/write Gmail tier (read, drafts, send, labels, mark-read) and the poll loop needs it; the narrower Gmail scopes are subsets of it, so none is offered. Operator config only — read by the console's sign-in flow, not by the plugin; changing it requires signing in again.",
+        },
+      },
+      additionalProperties: false,
+    },
+    secretsSchema: {
+      type: "object",
+      properties: {
+        GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE: { type: "string" },
+      },
+      required: ["GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE"],
+      additionalProperties: false,
+    },
+  };
+
+  private ctx?: PluginInstanceContext;
+  private timer: NodeJS.Timeout | null = null;
+  private announceTimer: NodeJS.Timeout | null = null;
+  private stopped = false;
+  private baseCfg: GwsConfig = {};
+  private pollIntervalSec = 900;
+  private pollIntervalMs = 900_000;
+  private gmailQuery = "is:unread in:inbox";
+  private firstOfThreadOnly = false;
+  private requireAgentInTo = false;
+  private allowedSenders = "*";
+  private passive = false;
+  private allowedSenderPatterns: RegExp[] = [];
+  private agentEmail = "";
+  private routes: CompiledRoute[] = [];
+
+  async start(ctx: PluginInstanceContext): Promise<void> {
+    this.ctx = ctx;
+    this.baseCfg = (ctx.config as GwsConfig | undefined) ?? {};
+    this.firstOfThreadOnly = this.baseCfg.firstOfThreadOnly === true;
+    await this.loadSettings();
+
+    await this.verifyAuth();
+    await this.loadAgentEmail();
+    this.stopped = false;
+
+    // Tell the agent what her mailbox looks like right now. Delayed a few
+    // seconds because plugins start before the runner does — a notify fired
+    // straight from start() would be dropped.
+    this.announceTimer = setTimeout(() => void this.announceSettings(), 5000);
+
+    // Self-rescheduling poll: schedules the next tick only after the
+    // current one settles, so a slow poll never queues up overlapping ticks.
+    // Settings are re-read every tick, so an interval change (or passive
+    // toggle) takes effect within one poll interval.
+    const tick = async () => {
+      if (this.stopped) return;
+      try {
+        await this.loadSettings();
+        if (!this.passive) await this.pollOnce();
+      } catch (err) {
+        ctx.log.error({ err }, "gws poll tick failed; will retry next interval");
+      } finally {
+        if (!this.stopped) {
+          this.timer = setTimeout(tick, this.pollIntervalMs);
+        }
+      }
+    };
+    void tick();
+  }
+
+  async stop(): Promise<void> {
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    if (this.announceTimer) clearTimeout(this.announceTimer);
+    this.announceTimer = null;
+    this.ctx = undefined;
+  }
+
+  /** Merge the agent's `state/settings.json` overlay onto the operator
+   *  config and apply the result. Missing file or bad JSON → base config
+   *  only (bad JSON is logged; the file is agent-edited, so tolerate it). */
+  private async loadSettings(): Promise<void> {
+    const ctx = this.ctx!;
+    let overlay: GwsSettings = {};
+    try {
+      overlay = JSON.parse(
+        await readFile(join(ctx.stateDir, SETTINGS_FILE), "utf8"),
+      ) as GwsSettings;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        ctx.log.warn({ err }, "settings.json unreadable; using config defaults");
+      }
+    }
+    const cfg = this.baseCfg;
+    this.pollIntervalSec = overlay.pollIntervalSec ?? cfg.pollIntervalSec ?? 900;
+    this.passive = this.pollIntervalSec === -1;
+    // Passive still ticks (cheap: a settings-file read, no Gmail) so setting
+    // a real interval again is noticed within a minute.
+    this.pollIntervalMs = this.passive
+      ? 60_000
+      : Math.max(10, this.pollIntervalSec) * 1000;
+    this.gmailQuery = overlay.gmailQuery ?? cfg.gmailQuery ?? "is:unread in:inbox";
+    this.requireAgentInTo =
+      overlay.requireAgentInTo ?? cfg.requireAgentInTo ?? false;
+    this.allowedSenders = overlay.allowedSenders ?? cfg.allowedSenders ?? "*";
+    this.allowedSenderPatterns = parseSenderPatterns(this.allowedSenders);
+  }
+
+  /** One `gws_settings` message on the plugin's `main` channel per start:
+   *  the effective settings and how to change them, so the agent can
+   *  re-assert her notification preferences after every harness restart. */
+  private async announceSettings(): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx || this.stopped) return;
+    try {
+      await this.loadRoutes();
+    } catch {
+      // routes are informational here; the poll loop reports real errors
+    }
+    const effective = {
+      pollIntervalSec: this.pollIntervalSec,
+      gmailQuery: this.gmailQuery,
+      allowedSenders: this.allowedSenders,
+      requireAgentInTo: this.requireAgentInTo,
+    };
+    const text = [
+      `Gmail is up for ${this.agentEmail}. Effective notification settings:`,
+      JSON.stringify(effective, null, 2),
+      `Routing rules: ${this.routes.length} (plugins/gws/state/routes.json).`,
+      "You own these settings — change them with `bash scripts/gws/settings show|set|reset` (changes apply within one poll). `set --poll-interval-sec -1` goes passive: no email notifications, the mailbox is left untouched, and you read it only when you choose to search.",
+    ].join("\n");
+    ctx.notify("gws_settings", { text, channelId: "main" });
+  }
+
+  private async runGws(
+    args: string[],
+  ): Promise<{ stdout: string; stderr: string }> {
+    const ctx = this.ctx;
+    if (!ctx) throw new Error("gws plugin not started");
+    const creds =
+      (ctx.secrets as GwsSecrets).GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE ?? "";
+    return execFileP("gws", args, {
+      env: {
+        ...process.env,
+        GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE: creds,
+        GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: "file",
+      },
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  }
+
+  /** Look up the authenticated mailbox's primary address via `users.getProfile`.
+   *  The agent's address is what we match against `To`/`Cc`/`Bcc` headers to
+   *  decide whether an inbound message wakes the agent or parks as silent. */
+  private async loadAgentEmail(): Promise<void> {
+    const ctx = this.ctx!;
+    const params = JSON.stringify({ userId: "me" });
+    const { stdout } = await this.runGws([
+      "gmail",
+      "users",
+      "getProfile",
+      "--params",
+      params,
+    ]);
+    const profile = JSON.parse(stdout || "{}") as { emailAddress?: string };
+    const email = (profile.emailAddress ?? "").trim().toLowerCase();
+    if (!email) {
+      throw new Error(
+        "gws users.getProfile returned no emailAddress; cannot determine agent's own address.",
+      );
+    }
+    this.agentEmail = email;
+    ctx.log.info({ agentEmail: email }, "gws agent email resolved");
+  }
+
+  /** True when no allow-list is configured, or when any address in the `From`
+   *  header matches a configured sender pattern. Disallowed senders are never
+   *  read or emitted (their messages are still marked read so the poll query
+   *  stops re-matching them). */
+  private senderAllowed(from: string): boolean {
+    if (this.allowedSenderPatterns.length === 0) return true;
+    const emails = extractEmails(from);
+    return emails.some((e) =>
+      this.allowedSenderPatterns.some((re) => re.test(e)),
+    );
+  }
+
+  private async verifyAuth(): Promise<void> {
+    const ctx = this.ctx!;
+    const creds = (ctx.secrets as GwsSecrets)
+      .GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE;
+    if (!creds) {
+      throw new Error(
+        "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE is not set. Sign in with Google from the gws plugin card on this agent's Settings tab in the web console.",
+      );
+    }
+    try {
+      await access(creds, fsConstants.R_OK);
+    } catch {
+      throw new Error(
+        `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE points to '${creds}' but the file is not readable.`,
+      );
+    }
+    try {
+      await this.runGws(["auth", "status"]);
+      ctx.log.info("gws auth verified");
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException & {
+        stderr?: string;
+        code?: string | number;
+      };
+      if (e.code === "ENOENT") {
+        throw new Error(
+          "gws CLI not found on PATH. Install with `npm install -g @googleworkspace/cli`.",
+        );
+      }
+      const stderr = (e.stderr ?? "").toString().trim();
+      throw new Error(
+        `gws auth verification failed (exit ${e.code ?? "?"}) using credentials file '${creds}'. The file may be expired or invalid — sign in again from the web console's Settings page, or re-export it. Stderr: ${stderr || "(empty)"}`,
+      );
+    }
+  }
+
+  /** Re-read `state/routes.json` (rewritten under us by `scripts/gws/routes`)
+   *  and compile each rule's patterns. Bad rules are dropped with a warning
+   *  rather than failing the poll. */
+  private async loadRoutes(): Promise<void> {
+    const ctx = this.ctx!;
+    let raw: string;
+    try {
+      raw = await readFile(join(ctx.stateDir, ROUTES_FILE), "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        this.routes = [];
+        return;
+      }
+      throw err;
+    }
+    const parsed = JSON.parse(raw) as { routes?: RouteRule[] };
+    const compiled: CompiledRoute[] = [];
+    for (const r of parsed.routes ?? []) {
+      // A rule with no pattern at all would capture every inbound thread.
+      if (!r.threadId || (!r.from && !r.subject && !r.gmailThreadId)) {
+        ctx.log.warn(
+          { rule: r },
+          "skipping route: needs threadId + from/subject/gmailThreadId",
+        );
+        continue;
+      }
+      try {
+        compiled.push({
+          name: r.name ?? r.threadId,
+          threadId: sanitizeForPath(r.threadId),
+          from: r.from ? new RegExp(r.from, "i") : undefined,
+          subject: r.subject ? new RegExp(r.subject, "i") : undefined,
+          gmailThreadId: r.gmailThreadId
+            ? new RegExp(`^(?:${r.gmailThreadId})$`, "i")
+            : undefined,
+        });
+      } catch (err) {
+        ctx.log.warn({ err, rule: r }, "skipping route with invalid regex");
+      }
+    }
+    this.routes = compiled;
+  }
+
+  /** First matching rule wins; all patterns present on a rule must match. */
+  private routeFor(
+    subject: string,
+    from: string,
+    gmailThreadId: string,
+  ): string | null {
+    for (const r of this.routes) {
+      if (r.from && !r.from.test(from)) continue;
+      if (r.subject && !r.subject.test(subject)) continue;
+      if (r.gmailThreadId && !r.gmailThreadId.test(gmailThreadId)) continue;
+      this.ctx?.log.info(
+        { route: r.name, threadId: r.threadId, from, subject, gmailThreadId },
+        "gws route matched",
+      );
+      return r.threadId;
+    }
+    return null;
+  }
+
+  private async pollOnce(): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    try {
+      await this.loadRoutes();
+    } catch (err) {
+      ctx.log.error({ err }, "routes.json unreadable; keeping previous rules");
+    }
+
+    // Page through every result of the query — Gmail caps a single list
+    // response at maxResults, so a backlog query covering many days will
+    // otherwise drop everything past the first page.
+    const messages: Array<{ id: string; threadId: string }> = [];
+    let pageToken: string | undefined;
+    do {
+      const params = JSON.stringify({
+        userId: "me",
+        q: this.gmailQuery,
+        maxResults: 50,
+        ...(pageToken ? { pageToken } : {}),
+      });
+      const { stdout } = await this.runGws([
+        "gmail",
+        "users",
+        "messages",
+        "list",
+        "--params",
+        params,
+      ]);
+      const list = JSON.parse(stdout || "{}") as {
+        messages?: Array<{ id: string; threadId: string }>;
+        nextPageToken?: string;
+      };
+      if (list.messages) messages.push(...list.messages);
+      pageToken = list.nextPageToken;
+    } while (pageToken);
+
+    if (messages.length === 0) return;
+
+    // Backlog mode: drop any thread already recorded in the ledger; every
+    // remaining thread is dispatched in full, with handleThread deciding
+    // which messages wake the agent.
+    const alreadyIngested = this.firstOfThreadOnly
+      ? await this.readLedger()
+      : null;
+    const threadIds = new Set<string>();
+    for (const m of messages) {
+      if (this.firstOfThreadOnly && alreadyIngested!.has(m.threadId)) continue;
+      threadIds.add(m.threadId);
+    }
+    for (const tid of threadIds) {
+      try {
+        await this.handleThread(tid);
+      } catch (err) {
+        ctx.log.error(
+          { err, threadId: tid },
+          "failed to handle thread; will retry next tick",
+        );
+      }
+    }
+  }
+
+  private ledgerPath(): string {
+    return join(this.ctx!.stateDir, LEDGER_FILE);
+  }
+
+  private async readLedger(): Promise<Set<string>> {
+    const seen = new Set<string>();
+    let raw: string;
+    try {
+      raw = await readFile(this.ledgerPath(), "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return seen;
+      throw err;
+    }
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const row = JSON.parse(trimmed) as { threadId?: string };
+        if (row.threadId) seen.add(row.threadId);
+      } catch {
+        // tolerate hand-edited junk lines — the user may have annotated
+        this.ctx?.log.warn({ line: trimmed }, "skipping unparseable ledger line");
+      }
+    }
+    return seen;
+  }
+
+  private async appendLedger(
+    threadId: string,
+    subject: string,
+  ): Promise<void> {
+    const entry =
+      JSON.stringify({
+        threadId,
+        subject,
+        ingestedAt: new Date().toISOString().slice(0, 10),
+      }) + "\n";
+    await appendFile(this.ledgerPath(), entry, "utf8");
+  }
+
+  private async handleThread(threadId: string): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const params = JSON.stringify({ userId: "me", id: threadId, format: "full" });
+    const { stdout } = await this.runGws([
+      "gmail",
+      "users",
+      "threads",
+      "get",
+      "--params",
+      params,
+    ]);
+    const thread = JSON.parse(stdout) as GmailThread;
+    const raw = thread.messages ?? [];
+    if (raw.length === 0) return;
+
+    const ordered = [...raw].sort(
+      (a, b) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0),
+    );
+
+    // Subject is frozen at the first message so a later `Re: …` rewrite
+    // doesn't fork the harness thread id.
+    const firstHeaders = collectHeaders(ordered[0]!.payload);
+    const subject = firstHeaders.get("subject") ?? "(no subject)";
+    // A routing rule (state/routes.json) matching the thread's subject, the
+    // latest message's sender, or the Gmail thread id re-points the whole
+    // thread at its own thread id.
+    const lastFrom =
+      collectHeaders(ordered[ordered.length - 1]!.payload).get("from") ?? "";
+    const threadIdOverride =
+      this.routeFor(subject, lastFrom, threadId) ??
+      `${sanitizeForPath(subject)}[${threadId}]`;
+
+    // Backlog mode: deliver every message in the thread, most-recent first
+    // so the chronologically-first message (the only one that wakes the
+    // agent) is emitted last. Default mode: consider only the most recent
+    // message — older messages are never re-emitted. Unread filtering is
+    // not re-checked here: it is part of the gmail poll query (`is:unread`
+    // in the default `gmailQuery`), which is what matched this thread.
+    let toEmit: GmailMessage[];
+    if (this.firstOfThreadOnly) {
+      toEmit = [...ordered]
+        .reverse()
+        .filter((m) =>
+          this.senderAllowed(collectHeaders(m.payload).get("from") ?? ""),
+        );
+    } else {
+      const last = ordered[ordered.length - 1]!;
+      const to = collectHeaders(last.payload).get("to") ?? "";
+      toEmit =
+        (!this.requireAgentInTo ||
+          extractEmails(to).includes(this.agentEmail)) &&
+        this.senderAllowed(lastFrom)
+          ? [last]
+          : [];
+    }
+
+    // Resolve every message's payload first, then emit. `formatEmail` shells
+    // out to `gws`, so awaiting it between `ctx.notify` calls would yield the
+    // event loop mid-thread and let the runner dequeue an earlier message as
+    // its own batch before the next is enqueued — splitting what should be one
+    // batch (and missing the steer window, which only fires once a batch is
+    // streaming). Building all payloads up front keeps the emit loop below
+    // free of awaits, so same-thread rows enqueue atomically and batch.
+    const pending: Array<{
+      invoked: boolean;
+      text: string;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    for (const m of toEmit) {
+      const h = collectHeaders(m.payload);
+      const from = h.get("from") ?? "(unknown sender)";
+      const to = h.get("to") ?? "(unknown recipient)";
+      const timestamp = m.internalDate
+        ? formatTs(Number(m.internalDate), ctx.timezone)
+        : (h.get("date") ?? "(unknown)");
+
+      const header = [
+        `Subject: ${subject}`,
+        `From: ${from}`,
+        `To: ${to}`,
+        `TimeStamp: ${timestamp}`,
+      ].join("\n");
+
+      // Backlog mode: only the first message of the thread wakes the agent;
+      // every other message is silent context.
+      // Default mode: agent address in `To` → wake (with a body preview).
+      // When requireAgentInTo is false, wake on every delivered message too
+      // — otherwise Cc/Bcc / not-addressed → silent.
+      const invoked = this.firstOfThreadOnly
+        ? m.id === threadId
+        : !this.requireAgentInTo ||
+          extractEmails(to).includes(this.agentEmail);
+
+      // Notifications carry a preview, not the mail: the first two lines of
+      // the message's own text, plus the names of its attachments. Full
+      // bodies (and attachment downloads) are one `scripts/gws/email read`
+      // away, so a thread of long quoted-history emails doesn't spend the
+      // agent's context on mail it may not need to read.
+      let text = header;
+      if (invoked) {
+        const preview = previewBody(pickTextBody(m.payload));
+        const blocks = [preview.text || "(no plain-text body)"];
+        if (preview.truncated) {
+          blocks.push(`[preview — full body: scripts/gws/email read ${m.id}]`);
+        }
+        const names = collectAttachments(m.payload)
+          .map((p) => p.filename)
+          .filter((n): n is string => !!n);
+        if (names.length > 0) {
+          blocks.push(
+            `Attachments: ${names.join(", ")}\n[download: scripts/gws/email read ${m.id} --attachments]`,
+          );
+        }
+        text = `${header}\n\n${blocks.join("\n\n")}`;
+      }
+
+      pending.push({
+        invoked,
+        text,
+        metadata: {
+          MessageId: m.id,
+          From: from,
+          ReceivedAt: timestamp,
+        },
+      });
+    }
+
+    // Synchronous emit — no awaits between notify() calls, so the runner sees
+    // every row of this thread as `queued` before its worker can dequeue, and
+    // pulls them into a single batch.
+    for (const p of pending) {
+      ctx.notify(p.invoked ? "email_received" : "email_silent", {
+        text: p.text,
+        channelId: threadId,
+        threadIdOverride,
+        isSilent: !p.invoked,
+        metadata: p.metadata,
+      });
+    }
+
+    // Mark every unread message in the thread read so the poll query stops
+    // re-matching it, regardless of which (if any) message we emitted.
+    const unreadToMark = ordered.filter((m) => hasLabel(m, UNREAD_LABEL));
+    if (unreadToMark.length > 0) await this.markRead(unreadToMark);
+
+    if (this.firstOfThreadOnly) {
+      try {
+        await this.appendLedger(threadId, subject);
+      } catch (err) {
+        ctx.log.warn(
+          { err, threadId },
+          "failed to append to ingested-threads ledger; thread may be re-emitted on the next poll",
+        );
+      }
+    }
+  }
+
+  private async markRead(messages: GmailMessage[]): Promise<void> {
+    const ctx = this.ctx;
+    for (const m of messages) {
+      try {
+        const params = JSON.stringify({ userId: "me", id: m.id });
+        const json = JSON.stringify({ removeLabelIds: [UNREAD_LABEL] });
+        await this.runGws([
+          "gmail",
+          "users",
+          "messages",
+          "modify",
+          "--params",
+          params,
+          "--json",
+          json,
+        ]);
+      } catch (err) {
+        ctx?.log.warn({ err, id: m.id }, "failed to mark message as read");
+      }
+    }
+  }
+}
+
+function hasLabel(m: GmailMessage, label: string): boolean {
+  return (m.labelIds ?? []).includes(label);
+}
+
+/** Pull all email addresses out of an RFC-5322 address header. Handles
+ *  `name <addr>`, bare `addr`, quoted display names, and comma-separated
+ *  lists. Returns lowercased addresses for case-insensitive comparison. */
+function extractEmails(header: string): string[] {
+  const matches = header.match(/[\w!#$%&'*+/=?^`{|}~.-]+@[\w.-]+/g) ?? [];
+  return matches.map((e) => e.toLowerCase());
+}
+
+/** Parse a comma-separated allow-list of sender patterns into anchored,
+ *  case-insensitive regexes. `*` is the only wildcard (matches any run of
+ *  characters); every other regex metacharacter is escaped literally. Blank
+ *  entries are dropped, so an empty / whitespace-only config yields no
+ *  patterns (which `senderAllowed` treats as "allow every sender"). */
+function parseSenderPatterns(raw: string): RegExp[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0)
+    .map((pattern) => {
+      const escaped = pattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*/g, ".*");
+      return new RegExp(`^${escaped}$`);
+    });
+}
+
+/** Strip characters that would break a directory name; `<Subject>` is used
+ *  as the prefix of the harness thread id, which becomes a sessions/ dir. */
+function sanitizeForPath(s: string): string {
+  return s.replace(/[/\\\0]+/g, "_").slice(0, 120).trim() || "(no subject)";
+}

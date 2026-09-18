@@ -7,7 +7,8 @@ developer agent (`nova`) or a human — and updated **after every change** under
 documented in [`../base-harness/`](../base-harness/README.md).
 
 Layout: one file per agent (`agent-<id>.md`) and one per user-space plugin
-(`plugin-<id>.md`).
+(`plugin-<id>.md`). The local [Google Workspace fork](plugin-gws.md) documents
+collision-safe attachment downloads, canonical CLI invocation and reseeding.
 
 ## This deployment
 
