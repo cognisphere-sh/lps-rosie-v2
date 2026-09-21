@@ -547,23 +547,13 @@ export default function RequestsPage() {
     [reload, toast],
   )
 
-  /**
-   * Delete one line — permanently. A supplier already asked about it keeps
-   * their answer (`availability_request_items` is SET NULL, not cascaded), so
-   * the confirm says so rather than letting it be a surprise afterwards.
-   */
+  /** Delete one line and the supplier-request row that belongs exclusively to it. */
   const deleteItem = useCallback(
     async (request: JobRequestRow, item: JobRequestItem) => {
       const label = [item.name, item.size].filter(Boolean).join(' · ') || 'this line'
-      // The card knows the job has suppliers engaged, not which lines they were
-      // asked about — so this says what happens to an answer if there is one,
-      // and the toast afterwards says how many there actually were.
-      const kept = request.supplierLinks.length
-        ? ' Any supplier answer about it is kept, no longer linked to a line.'
-        : ''
       if (
         !window.confirm(
-          `Delete ${label} from ${requestRef(request.id)} permanently?${kept} This cannot be undone.`,
+          `Delete ${label} from ${requestRef(request.id)} permanently? Its matching supplier-request row will also be deleted. This cannot be undone.`,
         )
       ) {
         return
@@ -572,16 +562,16 @@ export default function RequestsPage() {
       const res = await fetch(`/api/requests/${request.id}/items/${item.id}`, { method: 'DELETE' })
       const body = (await res.json().catch(() => ({}))) as {
         error?: string
-        deleted?: { answers: number }
+        deleted?: { availabilityRequestItems: number }
       }
       if (!res.ok) {
         toast(`Could not delete the line${body.error ? ` — ${body.error}` : ''}`)
         return
       }
-      const answers = body.deleted?.answers ?? 0
+      const arItems = body.deleted?.availabilityRequestItems ?? 0
       toast(
         'Line deleted' +
-          (answers ? ` · ${plural(answers, 'supplier answer')} kept, no longer linked` : ''),
+          (arItems ? ` · ${plural(arItems, 'supplier-request row')} deleted` : ''),
       )
       reload()
     },

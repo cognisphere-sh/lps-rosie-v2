@@ -564,8 +564,8 @@ export async function deleteJobRequest(id: number): Promise<JobRequestDeletion |
  * The request id is part of the lookup rather than decoration: it is what stops
  * a wrong id in the URL from deleting a line of somebody else's job.
  *
- * Its changelog entries cascade away with it. Any `availability_request_items`
- * already asked about this line do **not** — see `JobRequestDeletion.answers`.
+ * Its changelog and exclusively associated availability-request rows cascade
+ * away with it. A combined supplier ask retains its other job allocations.
  *
  * Returns null if the request has no such line.
  */
@@ -573,28 +573,22 @@ export async function deleteJobRequestItem(
   requestId: number,
   itemId: number,
 ): Promise<JobRequestDeletion | null> {
-  const { data: found, error: findError } = await supabase
-    .from('job_request_items')
-    .select('id')
-    .eq('id', itemId)
-    .eq('job_request_id', requestId)
-    .maybeSingle()
-  if (findError) throw new Error(`job_request_items: ${findError.message}`)
-  if (!found) return null
-
-  const [changelog, answers] = await Promise.all([
-    countWhere('job_request_changelog', 'item_id', [itemId]),
-    countWhere('availability_request_items', 'job_request_item_id', [itemId]),
-  ])
-
-  const { error } = await supabase.from('job_request_items').delete().eq('id', itemId)
+  const { data, error } = await supabase.rpc('delete_job_request_item', {
+    p_job_request_id: requestId,
+    p_job_request_item_id: itemId,
+  })
   if (error) throw new Error(`job_request_items delete: ${error.message}`)
+  return data as JobRequestDeletion | null
+}
 
-  return {
-    items: 1,
-    availabilityRequests: 0,
-    availabilityRequestItems: 0,
-    changelog,
-    answers,
-  }
+/** Add an editable placeholder line to an active request. */
+export async function createJobRequestItem(requestId: number): Promise<number> {
+  const { data: request, error: requestError } = await supabase.from('job_requests')
+    .select('id').eq('id', requestId).eq('is_active', true).maybeSingle()
+  if (requestError) throw new Error(`job_requests: ${requestError.message}`)
+  if (!request) throw new Error('Job request not found')
+  const { data, error } = await supabase.from('job_request_items')
+    .insert({ job_request_id: requestId, name: 'New item' }).select('id').single()
+  if (error) throw new Error(`job_request_items insert: ${error.message}`)
+  return Number((data as { id: number }).id)
 }

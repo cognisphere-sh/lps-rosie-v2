@@ -300,6 +300,16 @@ export async function updatePartnerOrderItem(orderId: number, supplierId: number
   if (error) throw new Error(error.message)
 }
 
+/** Remove one order line and its job allocations. An empty order is removed too. */
+export async function deleteOrderItem(orderId: number, itemId: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc('delete_order_item', {
+    p_order_id: orderId,
+    p_order_item_id: itemId,
+  })
+  if (error) throw new Error(error.message)
+  return data === true
+}
+
 /** Saved order context for Rosie's supplier/order thread notification. */
 export async function supplierOrderEventContext(orderId: number, forSupplierId?: number) {
   let query = supabase.from('orders').select('id, supplier_id').eq('id', orderId)

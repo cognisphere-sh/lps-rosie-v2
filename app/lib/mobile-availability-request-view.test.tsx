@@ -395,7 +395,7 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
   assert.equal(dialog.querySelectorAll('[style*="min-width: 1070px"]').length > 0, true)
 })
 
-test('desktop drawer width is draggable, bounded to the viewport, and remembered', async () => {
+test('desktop drawer width is draggable, can fill the page through presets, and is remembered', async () => {
   installStore([request()])
   await setWidth(1280)
   const { dialog } = await openDrawer()
@@ -407,9 +407,13 @@ test('desktop drawer width is draggable, bounded to the viewport, and remembered
   await waitFor(() => assert.equal(dialog.style.getPropertyValue('--ar-drawer-width'), '840px'))
   assert.equal(window.localStorage.getItem('lps:availability-request-drawer-width'), '840')
 
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Full' }))
+  await waitFor(() => assert.equal(dialog.style.getPropertyValue('--ar-drawer-width'), '1280px'))
+
   await setWidth(900)
   await act(async () => { window.dispatchEvent(new window.Event('resize')) })
-  assert.equal(dialog.style.getPropertyValue('--ar-drawer-width'), '660px')
+  assert.equal(dialog.style.getPropertyValue('--ar-drawer-width'), '900px')
+  assert.equal(window.localStorage.getItem('lps:availability-request-drawer-width'), '900')
 })
 
 test('summary stays truthful, zero and null remain distinct, and Submit wording derives only from submittedAt including closed copy', async () => {

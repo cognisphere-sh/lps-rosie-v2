@@ -31,13 +31,15 @@ A workflow change counts — not everything here is software.
 | `availability-change-indicators` | Show supplier-response state without crowding requests | drafted | nova |
 | `customer-availability-update-workspace` | Show LPS-published availability in customer job details | drafted · urgent dependency | nova |
 | `customer-job-request-details-workspace` | Give customers a current job request details workspace | staged · urgent | bhoumik |
-| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · optional no-forced-supplier-availability improvement; JR-61 Order2 created via approved existing path, no build needed | bhoumik |
+| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · direct-order SOURCE IMPLEMENTED / LIVE BLOCKED for JR-62; operator already asked to approve/apply0100, no new design | bhoumik |
 | `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
 | `supplier-outreach-human-tone` | Ask suppliers about availability like a person | shipped | rosie |
 | `approved-voice-playbook-governance` | Keep a reviewed playbook for writing in Chris’s voice | drafted | bhoumik |
 | `voice-playbook-review-screen` | Review Chris-voice guidance and examples in one place | drafted | nova |
 | `app-wide-compact-headers` | Make app headers compact and purposeful | drafted · ready to route refinement | nova |
 | `job-inbox-workspace` | Put active Job Requests in an inbox workspace | routed | nova |
+| `ops-ar-main-workspace` | Open supplier availability work in the main Ops workspace | routed · 2026-09-20T19:21:10-05:00 MULTIPLE AR tabs correction delivered; IMPLEMENTATION HOLD: operator baseline686/auth/resource, source-only plan | nova |
+| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · current owner accepts opt-in new-workspace1–2 plan; independent check confirms item3 SOURCE/RUNTIME MAPPING HOLD, auth absent/no live test (2026-09-20T19:44:51-05:00) | nova |
 | `focused-jobs-rail-collapse` | Collapse the focused Jobs rail when Chris needs the work width | routed | nova |
 | `job-inbox-activity-semantics` | Define trustworthy Job Request inbox activity and unread meaning | staged | bhoumik |
 | `copy-ready-plain-text-quotes` | Make plain-text quotes ready to copy and send | shipped | rosie |

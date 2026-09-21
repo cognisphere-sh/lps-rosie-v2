@@ -1,5 +1,10 @@
 # message-routing — changelog
 
+## 2.2.0 — 2026-09-18
+
+- Route new intake directly to a new job id without searching jobs by matching plants or asking duplicate-job questions based on plant overlap.
+- Reuse only explicitly identified jobs, established job context or the same known/reserved id on retry; accepted-quote conversion still follows its identified job.
+
 ## 2.1.0 — 2026-09-18
 
 - Preserve committed-intake/direct-order intent, accepted lines/quantities, supplied-price evidence and missing-price scope through handoffs; use `skip_availability: true` for direct ordering.

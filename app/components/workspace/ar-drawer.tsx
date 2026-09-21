@@ -7,6 +7,7 @@ import {
 import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
+import { SizePill } from '@/components/workspace/chat-kit'
 import {
   BodyModalPortal,
   firstModalFocusTarget,
@@ -30,12 +31,9 @@ interface DrawerSession {
 const DRAWER_WIDTH_STORE = 'lps:availability-request-drawer-width'
 const DRAWER_DEFAULT_WIDTH = 640
 const DRAWER_MIN_WIDTH = 360
-const DRAWER_MAX_WIDTH = 960
 
 function clampDrawerWidth(width: number): number {
-  // Preserve enough of the Jobs workspace to keep this a sidebar, even on a
-  // smaller desktop viewport.
-  const max = Math.max(DRAWER_MIN_WIDTH, Math.min(DRAWER_MAX_WIDTH, window.innerWidth - 240))
+  const max = Math.max(DRAWER_MIN_WIDTH, window.innerWidth)
   return Math.min(Math.max(width, DRAWER_MIN_WIDTH), max)
 }
 
@@ -533,6 +531,16 @@ export function AvailabilityRequestDrawer() {
               <CloseIcon size={14} />
             </button>
           </header>
+
+          <div className="hidden flex-none items-center gap-1 border-b border-border px-4 py-2 min-[900px]:flex">
+            {([
+              ['Full', () => clampDrawerWidth(window.innerWidth)],
+              ['50%', () => clampDrawerWidth(Math.round(window.innerWidth * 0.5))],
+              ['30%', () => clampDrawerWidth(Math.round(window.innerWidth * 0.3))],
+            ] as const).map(([label, target]) => (
+              <SizePill key={label} label={label} width={width} target={target} onPick={setWidth} />
+            ))}
+          </div>
 
           <div
             data-ar-drawer-scroller

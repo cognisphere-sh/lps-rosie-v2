@@ -40,6 +40,7 @@ import {
 } from '@/lib/job-requests'
 import { JobOrders } from '@/components/workspace/orders'
 import { type ColumnDef } from '@/lib/columns'
+import { quoteLineTotal } from '@/lib/job-request-html-quote'
 import { useTableConfig } from '@/lib/table-config'
 import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
@@ -487,7 +488,7 @@ function NoteCell({
           value={value}
           onSaved={onSaved}
           touchTarget={touchTarget}
-          placeholder="Add a shared note…"
+          placeholder=""
           editLabel={`Edit shared note for ${title}`}
           inlineControls
           compact
@@ -606,7 +607,7 @@ function ItemRow({
           case 'status': return <div key={column.key} className="px-1.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
           case 'external_notes': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.externalNotes} onSaved={onSaved} touchTarget={touchTarget} />
           case 'unit_price': return <div key={column.key} className="px-1"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="right" render={(v) => money(v)} /></div>
-          case 'total': return <div key={column.key} className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — calculated from demand × unit price">{money(item.total) || '—'}</div>
+          case 'total': return <div key={column.key} className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
           case 'sourcing_notes': return <NoteCell key={column.key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.sourcingNotes} onSaved={onSaved} touchTarget={touchTarget} />
           default: return null
         }
@@ -1455,6 +1456,17 @@ export function RequestBody({
       .filter(Boolean)
       .join('  ·  ') || 'No address or notes recorded'
 
+  async function addItem() {
+    try {
+      const response = await fetch(`/api/requests/${request.id}/items`, { method: 'POST' })
+      const body = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) throw new Error(body.error ?? 'Could not add a line')
+      onSaved()
+    } catch (error) {
+      window.alert((error as Error).message)
+    }
+  }
+
   return (
     <>
       <div role="tablist" aria-label="Job request" className="flex gap-1 border-t border-border px-3 py-1">
@@ -1536,6 +1548,11 @@ export function RequestBody({
       )}
 
       {/* The line table scrolls sideways rather than crushing resized columns. */}
+      {onDeleteItem && <div className="flex justify-end border-t border-border bg-lps-tint px-3 py-2">
+        <button type="button" onClick={() => void addItem()} className="min-h-9 rounded-md border border-border bg-card px-3 text-[12px] font-semibold hover:bg-muted">
+          New row
+        </button>
+      </div>}
       <div data-request-line-table onKeyDown={navigateLineCells} className="overflow-x-auto border-t border-border">
         <div
           style={{ minWidth: lineMinWidth }}

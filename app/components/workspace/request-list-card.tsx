@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
+import { CopyQuoteMenu } from '@/components/workspace/copy-quote-menu'
 
 import { ChevronDown, ChevronRight } from '@/components/workspace/icons'
 import {
@@ -101,7 +102,10 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>}
         <RequestCardOverview request={request} edit={edit} tone={tone} />
-        {showActions && <JobActionsMenu requestId={request.id} onDelete={onDelete} />}
+        {showActions && <div className="flex flex-none items-center gap-1">
+          <CopyQuoteMenu request={request} />
+          <JobActionsMenu requestId={request.id} onDelete={onDelete} />
+        </div>}
       </div>
 
       {(latest || request.customer || request.supplierLinks.length > 0) && (

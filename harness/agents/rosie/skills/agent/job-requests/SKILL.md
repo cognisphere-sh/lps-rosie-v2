@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from intake to closure. Covers Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.14.0)
+description: Manage customer job requests from intake to closure. Covers new intake without plant-based duplicate-job searches, known-job reuse, Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.15.0)
 metadata:
   author: lps
-  version: "5.14.0"
+  version: "5.15.0"
 ---
 
 # Job requests
@@ -42,6 +42,15 @@ procedure in section 6; an ordinary unaccepted quote does not authorize an order
 
 ## 1. Intake: an order request or quick quote
 
+**New intake creates a new job without a duplicate-plant search.** Do not search
+existing job requests for matching or similar plants, sizes, quantities or item
+lists, even for the same customer. Do not merge requests or ask whether to reuse
+a job because its plants overlap. In this skill, “create/reuse” means create a
+new job unless the request explicitly identifies an existing job, the current
+job thread/context establishes it, or the work is a retry/continuation of the
+same known or reserved job id. Accepted-quote conversion uses that quote's
+identified job; plant similarity is not a job reference.
+
 You may ask any clarifying question about an order request before generating
 a quote (including a quick quote), creating/sending an availability request,
 or creating the affected order.
@@ -49,8 +58,8 @@ or creating the affected order.
 asking.** Once order/quick-quote intent is established, perform the intake
 writes below: create/reuse the job and `jr-<id>` thread, create item rows from
 the supplied details, and save known customer/job information. Do not stop at
-a plan or hold all records until every detail is clarified. Review existing
-records and conversation history, use `plant-and-supplier-search` to gather
+a plan or hold all records until every detail is clarified. Review the current
+request history and any identified job's records; use `plant-and-supplier-search` to gather
 missing pricing, preserve supplied/accepted prices, save supported prices and
 only the sourcing notes allowed by section 3, and record completed pricing
 through the lifecycle hook. Research clearly labelled candidate
@@ -85,14 +94,17 @@ requirement. If the request is clear, proceed without extra questions.
    quote internally; do not follow it with an availability-send approval ask.
    Ask if the intent is unclear; do not infer quick-quote intent from a simple
    question about pricing.
-2. For a new order or quick quote arriving outside a job thread, reserve its id with
+2. For a new order or quick quote arriving outside a job thread, reserve its id
+   directly without searching other jobs' plants, using
    `SELECT reserve_job_request_id();` and hand the complete ask, id and
    interaction context to `jr-<id>`. The app's New job request action also
    reserves an id and opens this thread. On main acknowledge with
    `[Continue in JR-<id> chat](thread:jr-<id>)`; the receiving job thread
    creates the records. Existing-job messages go to its existing thread.
-3. Read `job_requests WHERE id = <id>` first. If present, work on that row;
-   never duplicate a job on retry. Find an existing customer by email, phone,
+3. Read `job_requests WHERE id = <id>` for the known or reserved id only. If
+   present, work on that row; never duplicate that same job on retry. This is
+   an exact-id check, not a search for jobs with matching plants.
+   Find an existing customer by email, phone,
    then known name/company. Do not infer a person's name from an address.
    A new, identified customer gets its own `rosie_thread_id` through
    `message-routing`. If unidentified, `customer_id` stays NULL and any
@@ -566,7 +578,9 @@ No AR, supplier answer or availability override is required.
 
 1. Create/reuse the job, its `jr-<id>` thread and every supplied item before
    ordering. Read current rows, recent changes and **all** existing order
-   allocations, including AR-backed orders. Preserve exact commitment evidence,
+   allocations for those identified job-item ids, including AR-backed orders.
+   Do not search other jobs by plant to decide whether to reuse a job.
+   Preserve exact commitment evidence,
    accepted offerings and positive quantities. Use APS (`supplier_id = 1`)
    unless Chris explicitly selected another supplier. Resolve only material
    ambiguity; do not re-ask for acceptance already established in the request.

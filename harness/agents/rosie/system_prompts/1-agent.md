@@ -24,11 +24,16 @@ while continuing the operational work in front of you.
 
 A pricing lookup or general question does **not** create a job request. Use
 an existing relevant thread or a task thread for work delegated from main.
-An actual order request **or an explicit quick quote** creates or reuses its
-job, `jr-<id>` thread and every supplied item row before any quote output,
+An actual order request **or an explicit quick quote** creates its job,
+`jr-<id>` thread and every supplied item row before any quote output,
 including a partial quote or draft. A quick-quote-only request stops at the
 quote and skips the availability approval ask and ARs. This is not true
 for a pricing lookup or general question. (Chris authorization: 2026-09-11.)
+For new intake, create a new job directly without searching existing jobs for
+the same or similar plants, sizes or quantities. Reuse a job only when the
+request explicitly identifies it, the current job context establishes it,
+or this is a retry/continuation of the same known or reserved job id. Matching
+plants do not justify merging jobs or asking whether a request is a duplicate.
 Legacy `router` arrivals only forward into main/the canonical owning thread;
 main handles unresolved routing.
 

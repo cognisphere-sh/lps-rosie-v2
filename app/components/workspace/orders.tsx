@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, ChevronDown, Layers, LayoutGrid, List } from 'lucide-react'
+import { Check, ChevronDown, Layers, LayoutGrid, List, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -112,7 +112,7 @@ function OrderItemStatus({ status, onChange }: { status: string; onChange?: (sta
   return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
 }
 
-function OrderLines({ lines, supplierId, showOrder = false, onStatusChange }: { lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void }) {
+function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete }: { lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void }) {
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
     if (!window.matchMedia) return
@@ -137,20 +137,20 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange }: { 
         <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></dd></div>
         <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.unitPrice) || '—'}</dd></div>
         <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
-        <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Nursery notes</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{item.notes || '—'}</dd></div>
+        <div className="col-span-2 flex items-end justify-between gap-2 space-y-1"><div><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Nursery notes</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{item.notes || '—'}</dd></div>{onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
       </dl>
     </article>)}
   </div>
   return <div className="overflow-x-auto rounded-xl border border-border bg-card">
     <table className="w-full min-w-[700px] text-left text-[13px]">
-      <thead className="border-b border-border bg-secondary/60 text-[10.5px] font-bold uppercase tracking-[.04em] text-muted-foreground"><tr>{showOrder && <th className="px-3 py-3">Order</th>}<th className="px-3 py-3 text-right">Quantity</th><th className="px-3 py-3">Plant / size</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Unit price</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3">Nursery notes</th></tr></thead>
+      <thead className="border-b border-border bg-secondary/60 text-[10.5px] font-bold uppercase tracking-[.04em] text-muted-foreground"><tr>{showOrder && <th className="px-3 py-3">Order</th>}<th className="px-3 py-3 text-right">Quantity</th><th className="px-3 py-3">Plant / size</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Unit price</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3">Nursery notes</th>{onDelete && <th className="w-12" aria-label="Actions" />}</tr></thead>
       <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-border/50 align-top last:border-0">
         {showOrder && <td className="px-3 py-3">{source(order)}<span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">{ORDER_STATUS_META[order.status].label}</span></td>}
         <td className="px-3 py-3 text-right tabular-nums">{num(item.quantity)}</td>
         <td className="min-w-40 px-3 py-3"><span className="font-semibold">{item.name}</span>{item.size && <span className="mt-1 block text-[12px] text-muted-foreground">{item.size}</span>}{allocations(item)}</td>
         <td className="whitespace-nowrap px-3 py-3"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></td>
         <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.unitPrice) || '—'}</td><td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.total) || '—'}</td>
-        <td className="min-w-36 px-3 py-3"><p className="m-0 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.notes || '—'}</p></td>
+        <td className="min-w-36 px-3 py-3"><p className="m-0 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.notes || '—'}</p></td>{onDelete && <td className="px-2 py-2 text-center"><button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button></td>}
       </tr>)}</tbody>
     </table>
   </div>
@@ -323,6 +323,17 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
     if (status !== item.status) setStatusUpdate({ item, status })
   }
 
+  async function removeItem(item: OrderItem) {
+    if (!editable || busy || !window.confirm(`Delete ${item.name}${item.size ? ` · ${item.size}` : ''} from O-${order.id}?`)) return
+    setBusy(true); setError(null)
+    try {
+      const response = await fetch(`/api/orders/${order.id}/items/${item.id}`, { method: 'DELETE' })
+      const body = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) throw new Error(body.error ?? 'Could not delete order row')
+      await onChanged?.()
+    } catch (error) { setError((error as Error).message) } finally { setBusy(false) }
+  }
+
   async function saveStagedStatuses() {
     const changes = Object.values(stagedStatuses)
     if (!changes.length || busy) return
@@ -363,7 +374,7 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
       </section>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
-      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} />
+      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} onDelete={editable ? removeItem : undefined} />
       {order.supplierNotes && <section aria-label="Supplier note" className="space-y-2 rounded-xl border border-border bg-card p-4"><h2 className="m-0 text-[13px] font-semibold">Note for this order</h2><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.supplierNotes}</p></section>}
       {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
@@ -488,7 +499,7 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   }
 
   return <section className="flex flex-col gap-3 p-3" aria-label="Job orders">
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} orders · Combine jobs or split quantities into separate supplier orders.</p><button className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[12px] text-muted-foreground">{data?.orders.length ?? 0} orders · Combine jobs or split quantities into separate supplier orders.</p><div className="flex gap-2"><button type="button" className={button} onClick={() => setOpen(!open)}>{open ? 'Cancel new order' : 'Create order'}</button>{!open && <button type="button" className={button} onClick={() => setOpen(true)}>New row</button>}</div></div>
     {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
     {createdId && <p role="status" className="text-[12px] font-medium">Order O-{createdId} created. Its status is New, awaiting partner confirmation.</p>}
     {open && <form className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3" onSubmit={(event) => { event.preventDefault(); void create() }}>

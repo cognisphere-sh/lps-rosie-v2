@@ -15,6 +15,12 @@ at **Quote**; **Active** is retired. Supplied expected install dates belong in
 `job_requests.expected_install_date`, and pickup/delivery in
 `job_requests.fulfillment_method`. A pricing-only question creates no job.
 
+New intake creates a new job directly, without searching existing requests for
+the same or similar plants, sizes, quantities or item lists, even for the same
+customer. Reuse is limited to an explicitly identified job, established job
+context, or a retry/continuation of the same known/reserved id. Plant overlap
+does not justify merging jobs or asking whether a request is a duplicate.
+
 **LPS currently works exclusively with APS (`suppliers.id = 1`).** The usual
 business workflow is **Quote → Availability → Order**, with availability optional:
 

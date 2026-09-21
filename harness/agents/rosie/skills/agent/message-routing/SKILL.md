@@ -1,9 +1,9 @@
 ---
 name: message-routing
-description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.1.0)
+description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, new-job routing without plant-based duplicate searches, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.2.0)
 metadata:
   author: lps
-  version: "2.1.0"
+  version: "2.2.0"
 ---
 
 # Thread routing and approvals
@@ -32,6 +32,10 @@ the canonical owner or main; do not maintain a separate fifth workflow.
    the committed intent and carry supplied pricing and acceptance evidence.
    An accepted quote reuses its existing job. Both can proceed directly to
    order with `skip_availability: true`; do not route them into an AR task.
+   For new intake, reserve a new job id directly without searching existing
+   jobs for the same or similar plants. Reuse only an explicitly identified job,
+   an established job-thread context, or the same known/reserved id on retry.
+   Plant overlap is not a reason to merge jobs or ask a duplicate-job question.
 4. Supplier lifecycle messages (price lists/newsletters, onboarding, account
    setup, supplier-record corrections) go to Daisy's main/owning supplier
    thread. Order questions remain Rosie's. For a mixed message, relay the

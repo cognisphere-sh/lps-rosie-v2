@@ -25,6 +25,7 @@ test('shared request line tracks match the exact visible column order', () => {
     component,
     /columns\.map\(\(column\) => `\$\{widthOf\(column\)\}px`\)/,
   )
+  assert.doesNotMatch(component, /Add a shared note/)
 
   assert.match(component, /<LineColumnHeader[\s\S]*?onMove=\{lineTable\.moveColumn\}[\s\S]*?onResize=/)
   assert.match(component, /draggable[\s\S]*?drag to reorder/)
@@ -41,11 +42,12 @@ test('row fields and behavior move with their headers without changing semantics
     '<StatusPill',
     'kind="shared"',
     'column="unit_price"',
-    'money(item.total)',
+    'money(quoteLineTotal(item))',
     'kind="internal"',
   ])
   assert.match(row, /column="quantity"[\s\S]*?title="Demand — what the customer asked for"/)
   assert.match(row, /style=\{\{ color: coverColor\(cover\) \}\}[\s\S]*?column="available_quantity"[\s\S]*?title="Avail — how many we can supply\. Blank means not answered yet\."/)
+  assert.match(row, /zero when unavailable; otherwise available quantity × unit price, falling back to demand[\s\S]*?quoteLineTotal\(item\)/)
   assert.match(row, /column="name" value=\{item\.name\}[\s\S]*?item\.customerNotes/)
   assert.match(row, /<StatusPill[\s\S]*?column="status"[\s\S]*?options=\{ITEM_STATUS_OPTIONS\}/)
 })

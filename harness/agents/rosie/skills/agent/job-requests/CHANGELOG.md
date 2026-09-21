@@ -1,5 +1,10 @@
 # job-requests — changelog
 
+## 5.15.0 — 2026-09-18
+
+- Create new job requests directly without searching existing jobs for matching plants, sizes, quantities or item lists, including requests from the same customer.
+- Limit reuse to explicitly identified jobs, established job context and retries/continuations of the same known or reserved id. Keep order-allocation checks scoped to those identified job items; plant overlap does not prompt merging or duplicate-job questions.
+
 ## 5.14.0 — 2026-09-18
 
 - Make Quote → Availability → Order the usual route with optional availability; already committed intake and accepted quotes create/reuse jobs/items and proceed directly to orders without a new quote or AR approval ask.
