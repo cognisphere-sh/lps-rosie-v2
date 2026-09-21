@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-21
+
+- Avoid intermittent stdin `EAGAIN` in Daisy's `match-candidates` helper by passing each unchanged read-only SQL batch to the existing guarded query CLI via a private UTF-8 temporary file; preserve CSV parsing and failure exit codes, with offline transport and guard regression tests.
+
 ## 2026-09-15
 
 - Add a user-space gws fork of harness 0.12.0: attachment reads now use deterministic collision-safe paths, print original filename/CID/MIME/API mappings, and refuse conflicting files or symlinks. Linux fd-pinned directory ancestry prevents asynchronous path-replacement races from redirecting writes/reuse; unsupported runtimes fail closed. Correct Node email CLI invocation in canonical plugin hints/prompt/skills. Legacy inbox files remain untouched; activation requires an operator harness restart/reseed.

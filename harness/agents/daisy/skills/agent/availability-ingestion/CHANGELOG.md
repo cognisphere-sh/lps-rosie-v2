@@ -1,5 +1,14 @@
 # availability-ingestion — changelog
 
+## 2.3.1
+
+2026-09-21 (approved by Bhoumik) — fix intermittent `match-candidates`
+stdin `EAGAIN` by sending each unchanged SQL batch to the existing guarded
+query CLI through a private UTF-8 temporary file (`--csv -f`). Preserve
+matching, read-only SQL, CSV parsing and query failure handling; remove the
+file on normal return or Python exception unwinding. Add offline transport
+and guard regression tests. No operational procedure or database guard changes.
+
 ## 2.3.0
 
 2026-08-25 (Bhoumik) — the drop's **web panel messages**: post its arrival

@@ -61,6 +61,7 @@ import subprocess
 import sys
 import csv
 import io
+import tempfile
 
 COLUMNS = [
     "id", "name", "cultivar", "size", "size_std", "unit_price",
@@ -172,7 +173,14 @@ ORDER BY r.idx, r.is_active DESC, r.rn;
 
 
 def run_query(query_bin: str, sql: str):
-    proc = subprocess.run([query_bin, "--csv"], input=sql, capture_output=True, text=True)
+    # The query CLI reads stdin synchronously; a pipe can raise EAGAIN before
+    # all SQL arrives. Keep its guarded -f path, with an owner-only temp file.
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
+                                     prefix="match-candidates-", suffix=".sql") as source:
+        source.write(sql)
+        source.flush()
+        proc = subprocess.run([query_bin, "--csv", "-f", source.name],
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         sys.exit(2)

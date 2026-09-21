@@ -534,7 +534,13 @@ one.
   **active** rows for that supplier plus the best **retired** one, ranked by
   trigram similarity on the plant identity with a size-agreement bonus, over a
   narrow column set, marking any candidate whose cultivar contradicts the
-  entry's as `CULTIVAR MISMATCH` and excluding it from the suggestion. Rows are matched by reading those candidates, **not** by an
+  entry's as `CULTIVAR MISMATCH` and excluding it from the suggestion. Each
+  read-only SQL batch reaches the existing guarded query CLI through `--csv -f`
+  and a private, context-managed UTF-8 temporary file (mode `0600`), avoiding
+  synchronous stdin pipe `EAGAIN` failures without changing SQL or retrying queries.
+  The file is removed on normal return or Python exception unwinding; abrupt
+  process termination (for example, `SIGKILL`) can leave it behind.
+  Rows are matched by reading those candidates, **not** by an
   exact `(supplier_id, name_key, size)` key, because a respelled or re-sized name
   is invisible to a key and an update-in-place ingest would duplicate it. No
   entry is inserted until `search_inventory` — scoped to that location
