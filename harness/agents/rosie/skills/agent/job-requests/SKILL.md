@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from quote to closure. Covers intake and concurrent writes, APS price-list quotes, quick-quote stopping, Chris approval before availability sends and response-driven job-line changes, minimal audience-specific notes and source/override safeguards, source-based EDD intake with an Unknown option and fulfillment fields, committed jobs and orders, supplier confirmation on Orders only, submitted supplier-response handling, Can Order quantity updates, Chris-authorized no-AR order overrides and many-to-many job/availability/order allocations. Use for new job requests, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.13.0)
+description: Manage customer job requests from intake to closure. Covers Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.14.0)
 metadata:
   author: lps
-  version: "5.13.0"
+  version: "5.14.0"
 ---
 
 # Job requests
@@ -14,39 +14,62 @@ own correspondence and relay order updates here. Read
 `artifacts/database-access.md` for SQL/storage command syntax on first use.
 Use `message-routing` for
 handoffs and approvals; drafting on this thread never requires Chris to move
-here to approve. A job starts at **Quote**. Generate its APS price-list quote
-before any availability request. An explicit quick-quote-only request stops
-after the quote; otherwise ask Chris whether to send APS an availability
-request and wait for his approval. Customer acceptance creates supplier
-orders at **Committed**. Supplier confirmation advances the **Order** to
-**Confirmed**; the **Job Request remains Committed** until Won/Lost closure.
+here to approve. The usual business workflow is **Quote → Availability → Order**,
+but availability is optional. An already committed request enters through job
+intake and proceeds directly to an order; an accepted quote can also go straight
+to an order. Preserve supplied/accepted prices and use APS's price list only for
+missing prices on these paths. Do not create an AR or require a fresh quote.
+The Order stage is stored as Job **Committed** with a separate Order **New**;
+there is no job status `order`. Supplier confirmation moves the Order to
+**Processing**, then **Order Ready**; the Job remains Committed until closure.
+
+### Choose the path before starting availability work
+
+| Request intent | Route |
+|---|---|
+| Ordinary request needing pricing and availability | Create/reuse job/items → APS quote → Chris-approved availability request → order on customer acceptance. |
+| Already committed order, including a confirmed PO or Chris relaying customer commitment | Create/reuse job/items → preserve supplied prices and fill only missing prices from APS → direct order, without an AR or a new quote. |
+| Existing quote accepted for ordering, without an availability step | Reuse the job/items and accepted offering/prices → direct order; do not create an AR as a prerequisite. |
+| Explicit quick quote only | Create/reuse job/items → quote → stop, with no AR or availability approval ask. |
+| Price lookup or general question | Answer the question without creating a job, AR or order. |
+
+Commitment must identify the accepted scope; an enquiry or supplier response is
+not customer acceptance. Resolve only material uncertainty. Do not require a
+second acceptance or a special “skip availability” phrase when the request is
+already committed. A later acceptance supersedes an earlier `quote_only` handoff
+for its accepted scope and uses the existing job. Follow the direct-order
+procedure in section 6; an ordinary unaccepted quote does not authorize an order.
 
 ## 1. Intake: an order request or quick quote
 
 You may ask any clarifying question about an order request before generating
-a quote (including a quick quote) or creating/sending an availability request.
+a quote (including a quick quote), creating/sending an availability request,
+or creating the affected order.
 **Complete all authorized actions that do not depend on an answer before
 asking.** Once order/quick-quote intent is established, perform the intake
 writes below: create/reuse the job and `jr-<id>` thread, create item rows from
 the supplied details, and save known customer/job information. Do not stop at
 a plan or hold all records until every detail is clarified. Review existing
 records and conversation history, use `plant-and-supplier-search` to gather
-pricing, save supported prices and only the sourcing notes allowed by section
-3, and record completed pricing through the lifecycle hook. Research clearly labelled candidate
+missing pricing, preserve supplied/accepted prices, save supported prices and
+only the sourcing notes allowed by section 3, and record completed pricing
+through the lifecycle hook. Research clearly labelled candidate
 alternatives without selecting them. Verify writes before reporting them.
 Missing details block only actions that depend on those details.
 
 Post the created/updated job and rows, pricing and other findings, with any
 gaps or uncertainty, in the original request conversation via `message-routing`;
 external customer communication stays with `customer-coordination`. Then ask
-concise questions about anything still unclear that affects the quote or
-availability ask.
+concise questions about anything still unclear that affects the quote,
+availability ask or order.
 Questions may cover any relevant detail, such as plant/cultivar, size,
 quantity, alternatives, budget, delivery timing/location, supplier or scope;
 these are examples, not a required checklist. Use answers already provided.
 Wait for needed answers before generating the affected quote or creating/
-sending the affected AR. Chris must also approve the availability send after
-the quote; creating an APS portal request is itself publication.
+sending the affected AR or creating the affected order. On the availability
+path, Chris must also approve the availability send after the quote; creating
+an APS portal request is itself publication. Committed intake and direct
+quote-to-order work skip this availability approval ask entirely.
 Continue independent work, including supported record updates, while waiting.
 Apply answers to the existing job/items with guarded writes; do not recreate
 the job or duplicate rows when clarification arrives. Preliminary
@@ -77,7 +100,10 @@ requirement. If the request is clear, proceed without extra questions.
 4. Insert the reserved id with `OVERRIDING SYSTEM VALUE`. Explicitly set
    `status = 'quoted'` (displayed **Quote**). Store a job/site name only when
    supplied: a real residence, address, PO or project. Leave `name` NULL
-   otherwise; the app constructs the company/job display title.
+   otherwise; the app constructs the company/job display title. Even committed
+   intake creates this job record first; successful order creation advances it
+   to `committed` atomically. Do not generate a quote just because the initial
+   database status is `quoted`, or mark a job Committed without its order.
 
    ```sql
    SET app.actor TO 'rosie';
@@ -104,8 +130,8 @@ requirement. If the request is clear, proceed without extra questions.
    must offer **Unknown** explicitly and allow the user to enter a date.
    Unknown means SQL NULL, not the string "Unknown" or a placeholder date.
    If the user/source already says the date is unknown, accept that without
-   asking again. Missing/unknown EDD does not block intake, sourcing or a
-   quote; continue work that does not depend on the date. Save a later answer
+   asking again. Missing/unknown EDD does not block intake, sourcing, quoting
+   or direct orders; continue work that does not depend on the date. Save a later answer
    on the existing job using the guarded-write discipline in section 2.
    Re-ingestion with no date must not erase an existing known EDD; clarify
    conflicting dates before replacing it.
@@ -153,6 +179,9 @@ lowest supported price directly. Do not ask Chris to choose again unless the
 instruction conflicts with an explicit allocation, plant identity or another
 material requirement. No priced requested option means a price gap, not
 permission to choose an unrequested option.
+
+For an already accepted offering, preserve its selected size and price; this
+quote-selection rule does not authorize changing committed order terms.
 
 Preserve the original requested alternatives in the item demand/customer context
 when recording the quoted size/variant and price. Put every other supported
@@ -351,12 +380,32 @@ approval gates for substitutions, quotes, AR publication or external sends.
 
 ## 4. Sourcing and pricing
 
-For a normal job, run the following on this thread. A quick-quote instruction
-uses `quote-generation` and skips AR creation and supplier contact.
+Choose the request's path first. For an already committed request or an accepted
+quote moving directly to an order, prepare prices under the next paragraph and
+continue to section 6 without quote generation or availability work. A quick-quote
+instruction uses `quote-generation` and skips AR creation and supplier contact.
 A request only to look for a supplier uses `plant-and-supplier-search` and
 returns findings to Chris first, even on an existing job; it does not start
 the normal job's availability-request workflow or create sourcing entries.
 Actual APS job sourcing and quick quotes use the same minimal-note standard in section 3.
+
+**Committed-order pricing precedence:** use the applicable line prices supplied
+with the committed request, or the accepted prices already on its job/quote.
+Save them in `job_request_items.unit_price` before creating the order. Preserve
+their source and acceptance evidence in the originating message/attachment;
+record only material exceptions in notes. For a partly priced request, retain
+every supplied price and search APS only for missing prices. With no supplied
+pricing, use the supported APS price list for each line. A catalogue difference
+does not authorize replacing an agreed price or offering, or choosing a cheaper
+size after acceptance. Resolve conflicting prices or unclear unit-versus-total
+amounts without guessing; a budget or supplier cost is not an agreed selling
+price. Missing APS matches stay NULL and are surfaced for resolution, never
+zero or invented. Complete unblocked intake/pricing work while resolving gaps;
+do not create an AR merely to fill a price gap. This workflow expects supported
+prices on ordered lines; the RPC's nullable price field is not permission to
+silently order an unpriced line. Resolve the affected scope before ordering it.
+
+For ordinary quote/availability work:
 
 1. Read explicit supplier instructions and supplier preferences. **LPS
    currently works exclusively with Austin Plant Supply (`supplier_id = 1`).**
@@ -366,10 +415,12 @@ Actual APS job sourcing and quick quotes use the same minimal-note standard in s
 2. Search APS inventory for every plant using `plant-and-supplier-search`,
    or the instructed supplier's inventory. Check actual plant identity,
    cultivar, size and positive price; retain the inventory UUID and source
-   evidence. Copy the applicable price into `unit_price`; write only additional material
+   evidence. Copy the applicable price into `unit_price` only where no supplied
+   or accepted price applies; write only additional material
    sourcing decisions/exceptions under section 3; report research gaps and
    supported alternatives in chat. No price means NULL, never zero. Catalogue stock stays
-   catalogue evidence: item status remains `pending`.
+   catalogue evidence: new item status remains `pending`; pricing alone does
+   not change existing availability/status fields.
 3. A likely equivalent catalogue name follows the direct-pricing and necessary
    source-qualification rule in `plant-and-supplier-search`; no needless alternative
    label or approval for the name difference alone. A genuinely different
@@ -390,8 +441,11 @@ Actual APS job sourcing and quick quotes use the same minimal-note standard in s
    `quote-generation`. Keep the job at Quote; later stages remain unchanged.
    Resolve quote-blocking gaps without claiming unsupported prices or stock.
    **If Chris asked only for a quick quote, stop here.**
-6. Otherwise, after producing the quote, ask Chris in the original request
-   chat whether to send the availability request to APS. Wait for his approval;
+6. Re-read the latest intent and acceptance before starting availability work.
+   If the quote is now accepted for direct ordering, continue to section 6
+   without an AR or availability-send question. Otherwise, for a request
+   following the availability path, ask Chris in the original request chat
+   whether to send the availability request to APS. Wait for his approval;
    quote generation, an ordinary job request and supplier research do not
    authorize publication. Preserve an explicit approval already given for
    this exact send, while still producing the quote first. After approval and
@@ -462,16 +516,16 @@ acceptance from supplier availability.
 
 | Display | Stored status | Trigger |
 |---|---|---|
-| Quote | `quoted` | Initial request and APS price-list quote; quote-only requests stop here. |
-| Availability | `availability` | Chris approves and the availability request is delivered. |
-| Committed | `committed` | Customer accepts and supplier orders are created for the accepted lines. |
+| Quote | `quoted` | Initial job record and quoting; committed intake passes through this initial state without generating a quote. Quote-only work stops here. |
+| Availability | `availability` | Optional stage: Chris approves and the availability request is delivered. |
+| Committed (Order stage) | `committed` | Customer commitment is established and supplier orders exist for the accepted lines, with or without a prior AR. |
 | Won | `closed_won` | Request explicitly closed as won. |
 | Lost | `closed_lost` | Request explicitly closed as lost. |
 
 `archived` is legacy, not a new workflow stage. Active/`sourcing` and job
 `confirmed` are retired. Customer acceptance is **Committed**. Supplier
-confirmation changes the **Order** to **Confirmed** while the **Job Request
-remains Committed**. Neither event closes the job. Do not infer a lost sale
+confirmation changes the **Order** from **New** to **Processing** while the
+**Job Request remains Committed**. Neither event closes the job. Do not infer a lost sale
 from silence. Never assign `confirmed` to a job or use the compatibility
 `supplier_confirmed` job event to advance its stage; confirm the order below.
 Historical customer-confirmed jobs migrate to Committed without invented order
@@ -486,8 +540,8 @@ Record pricing/quote events only after the work occurs: a draft is not a
 shared quote, and a failed send is not sent. `availability_sent` advances
 Quote → Availability. Repeated pricing/quote events never move later stages
 backward or reopen a terminal job. Create accepted supplier orders through
-`create_order(...)` below; do not represent customer acceptance by changing
-a job status without creating its order records.
+`create_direct_order(...)` or `create_order(...)` below; do not represent
+customer acceptance by changing a job status without creating its order records.
 Explicit lookup completion is still recorded when no price is saved.
 
 Close with a fresh read and the explicit won/lost outcome. Use
@@ -503,53 +557,61 @@ cannot be edited; do not reuse revoked public links after reopening.
 Quote, Availability and Committed are the open job stages, separate
 from an AR's New/Processing/Completed/Closed state.
 
-### Chris-authorized order without an AR
+### Direct orders: committed intake and quote-to-order
 
-Standing authorization from Chris (2026-09-17, JR-61): when he explicitly asks
-Rosie to create an order without an availability request, treat that as authority
-to mark the accepted, specified job demand available and, only if required and
-safely supported, create an internal/admin AR with available answers to support
-the order. This is Chris's override, not supplier-reported availability or
-supplier confirmation. It is not triggered by a price lookup, ordinary quote,
-customer acceptance alone or an instruction from a supplier.
+Use this path for already committed requests and accepted quotes that skip
+availability. Migration 0100 provides `public.create_direct_order`; the earlier
+internal/admin support-AR workaround and its hidden-AR blocker are obsolete.
+No AR, supplier answer or availability override is required.
 
-1. Read current job/items, last five changes and existing AR/order allocations.
-   Resolve material offering/quantity ambiguity; preserve accepted offerings,
-   original demand, phases and approved pricing-proxy identity distinctions.
-   For the authorized scope only, guard updates to `status = 'available'` and
-   `available_quantity` equal to its full demand or explicitly accepted partial
-   quantity. Record `Available by Chris instruction; not supplier-confirmed`
-   once at the accessible job level for a job-wide override (row level for a
-   limited scope); do not repeat it on every item. Preserve customer acceptance evidence and
-   selected supplier; never claim supplier evidence or invent prices/dates.
-2. Inspect the current supported order and AR contracts. Reuse existing suitable
-   records idempotently; do not duplicate allocated demand. An authorized admin
-   answer is distinct from a supplier submission: no invented sender,
-   `submitted_at`, confirmation date or supplier acknowledgement. Do not submit
-   merely to satisfy an assumed gate; the current `create_order` requires an
-   answered source, not explicit submission.
-3. A required support AR is **internal-only** unless Chris explicitly changes
-   that constraint in the original request chat. This standing rule authorizes
-   neither APS portal publication nor an email/customer send. NULL public token
-   and `share_customer_details = false` do not hide an APS partner request.
-   Do not create-then-hide, temporarily publish, bypass triggers or direct-insert
-   order records to defeat the supported API's gates.
-4. Current verified limitation (2026-09-17): `create_availability_request` has
-   no hidden-from-creation argument and creates a portal-visible New AR; hidden
-   ARs reject item creation/edits and `answer_availability_request`. Admin
-   answers without submission work only on nonhidden, portal-visible ARs.
-   Therefore no supported internal-only construction meets this standing rule
-   today. Complete the authorized job updates, preserve acceptance, and report
-   the blocker through the original chat. Ask Nova for a reviewed workflow/DB
-   capability (Bhoumik-owned), or obtain Chris's explicit publication approval;
-   do not assume either. Re-check the contract before a future attempt.
-5. Only once a supported, authorized path exists, create/reuse the order with
-   authoritative allocations and true customer acceptance. Re-read to verify
-   quantities/provenance/status and report actual records, not a promised order.
-   Current schema creates Order **New** (`new`) and Job **Committed**; Orders
-   then use Processing/Order Ready, not the older order labels elsewhere in this
-   skill. Never infer supplier confirmation from Chris's availability override.
-   Leave the job's lifecycle unchanged when no order could be created.
+1. Create/reuse the job, its `jr-<id>` thread and every supplied item before
+   ordering. Read current rows, recent changes and **all** existing order
+   allocations, including AR-backed orders. Preserve exact commitment evidence,
+   accepted offerings and positive quantities. Use APS (`supplier_id = 1`)
+   unless Chris explicitly selected another supplier. Resolve only material
+   ambiguity; do not re-ask for acceptance already established in the request.
+2. Apply section 4's pricing precedence and save the resolved offering and
+   `unit_price` on each accepted job item. The RPC snapshots those fields;
+   it does not look up APS prices. Preserve original demand and phases. Do not
+   use a cheaper option to replace an accepted size or price. A separate quote
+   document, quote delivery, AR or availability-send approval is not required.
+3. Create the order atomically with real ids and accepted quantities:
+
+   ```sql
+   SET app.actor TO 'rosie';
+   SELECT public.create_direct_order(
+     $supplierId,
+     '[{"job_request_item_id":7,"quantity":10}]'::jsonb,
+     $fulfillmentMethod, $fulfillmentDate, $notes, true
+   );
+   ```
+
+   The final argument represents actual customer commitment, including an
+   already committed request relayed by Chris. For multiple jobs, every
+   included allocation needs its own customer's acceptance. Set method/date
+   only when supported; unknown values stay NULL and do not block creation.
+   Never copy customer EDD into the supplier's fulfillment date by assumption.
+4. The transaction creates an Order **New** and its allocations and moves
+   represented Quote/Availability jobs to **Committed**. Its order rows have
+   `availability_request_item_id = NULL` and snapshot job-item name, size, price,
+   shared note and current item status. Do not mark job items available, set
+   `available_quantity`, fabricate supplier answers/submissions or confirmation
+   dates, or create even a hidden/support AR to enable the order. An explicit
+   separate availability instruction follows section 5 with its own provenance.
+5. Verify the saved order, exact lines/prices/quantities, allocations and job
+   stage. After an uncertain result, inspect existing orders before retrying:
+   the RPC's remaining-demand cap does not make repeated partial orders
+   idempotent. Reuse an order already covering the accepted scope. Both direct
+   and AR-backed orders consume the same remaining customer demand.
+6. Report the actual order and relay its id/allocations to the supplier thread
+   with `skip_availability: true`, acceptance and pricing evidence, and origin
+   context. The order appears in the supplier portal's Orders tab; the committed
+   request authorizes this scoped creation. Do not ask to publish an AR or send
+   a separate email/customer message without its applicable authorization.
+
+If the deployed database lacks `create_direct_order`, report that specific
+capability gap with the prepared job/items; do not revive the support-AR
+workaround, fabricate availability or claim an order exists.
 
 ### Order creation and many-to-many allocations
 
@@ -564,14 +626,16 @@ scalar `job_request_id` or `job_request_item_id` is the complete relationship.
   each allocated `quantity`.
 - `orders` and `order_items` hold supplier-facing commitments;
   `order_item_job_request_items` allocates each order row back to job items.
-  Order rows retain their `availability_request_item_id` as source evidence.
+  AR-backed order rows retain their `availability_request_item_id` as source
+  evidence; direct order rows have NULL and link to the job items instead.
 - Read every allocation before relaying answers, changing quantities or
   creating orders. A combined supplier quantity is a shared total, never the
   amount available to every linked job. Preserve job-specific demand, prices,
   dates and customer privacy; combine only the exact approved scope.
 
-When customer acceptance is explicit and the accepted quantities, source AR
-rows and pickup/delivery plan are resolved, create the supplier order atomically:
+When the availability path has suitable answered AR rows and explicit customer
+acceptance, create the supplier order atomically with the accepted allocations
+and any known fulfillment details:
 
 ```sql
 SET app.actor TO 'rosie';
@@ -586,18 +650,23 @@ The final argument records actual customer acceptance, never a guess. Every
 allocation needs that customer's acceptance; one customer's go-ahead cannot
 commit another job. Use the real ids and accepted quantities, inspect existing
 allocations before retrying and never over-order or duplicate demand. Order
-creation records **Committed**, maps AR `can_order` to order `need_to_order`
+creation makes an Order **New** and its jobs **Committed**, maps AR `can_order`
+to order `need_to_order`
 (**Need to Order**), and exposes the order in the supplier portal's Orders tab
 and every linked job's Orders tab. If acceptance arrives before suitable AR
-rows exist, preserve its evidence and complete the approved availability
-workflow before order creation; do not fabricate supplier responses.
+rows exist, use the direct-order path above. Existing ARs do not force a new
+availability round; never fabricate responses or duplicate demand already ordered.
+Preserve existing ARs and their answers; a direct order alone is not permission
+to delete, hide or close a request still serving other work.
 
-Store `orders.fulfillment_method` as `pickup`/`delivery` and
+Store a known `orders.fulfillment_method` as `pickup`/`delivery` and
 `orders.fulfillment_date` as the agreed pickup/delivery date, separate from
 `job_requests.expected_install_date`. Do not guess a shared order's plan from
-one linked job when their requirements differ. Explicit supplier order
+one linked job when their requirements differ; unknown method/date stays NULL.
+Explicit supplier order
 confirmation uses `confirm_order(orderId, supplierId, confirmationDate,
-fulfillmentDate)`, makes the **Order Confirmed** and records `confirmation_date`.
+fulfillmentDate)`, moves the Order **New → Processing** and records `confirmation_date`.
+The next order stage is **Order Ready** (`order_ready`), via `update_partner_order`.
 The **Job Request remains Committed**; it has no Confirmed stage. An
 availability submission does not confirm an order. Resolve ambiguous supplier
 confirmation before applying it; relay the actual order status/date to every
@@ -611,5 +680,7 @@ through `message-routing` in the original request thread. The customer thread
 sends exactly the approved content and relays the result here. Only actual
 customer delivery records `quote_shared`; save the shared quote link in
 `external_notes` without exposing internal notes. A customer confirmation
-relayed by the customer thread supplies evidence for **Committed** order
-creation above. Resolve ambiguous or partial acceptance rather than guessing.
+relayed by the customer thread supplies evidence for **New** order creation
+and a **Committed** job, including the direct path without an AR. No quote
+output or new customer send is required for already committed intake. Use the
+order procedures above; resolve ambiguous or partial acceptance rather than guessing.

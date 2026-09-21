@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  useCallback, useEffect, useRef, useState, type KeyboardEvent,
+  useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent,
 } from 'react'
 
 import { ARSharing } from '@/components/workspace/ar-sharing'
@@ -25,6 +25,18 @@ import { useJobUpdates } from '@/lib/use-job-updates'
 interface DrawerSession {
   id: number
   generation: number
+}
+
+const DRAWER_WIDTH_STORE = 'lps:availability-request-drawer-width'
+const DRAWER_DEFAULT_WIDTH = 640
+const DRAWER_MIN_WIDTH = 360
+const DRAWER_MAX_WIDTH = 960
+
+function clampDrawerWidth(width: number): number {
+  // Preserve enough of the Jobs workspace to keep this a sidebar, even on a
+  // smaller desktop viewport.
+  const max = Math.max(DRAWER_MIN_WIDTH, Math.min(DRAWER_MAX_WIDTH, window.innerWidth - 240))
+  return Math.min(Math.max(width, DRAWER_MIN_WIDTH), max)
 }
 
 type WriteOperation =
@@ -66,6 +78,7 @@ export function AvailabilityRequestDrawer() {
   const [saving, setSaving] = useState(false)
   const [saveNotice, setSaveNotice] = useState('')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
+  const [width, setWidth] = useState(DRAWER_DEFAULT_WIDTH)
   const mobile = useDrawerMobile()
 
   const sessionRef = useRef<DrawerSession | null>(null)
@@ -78,6 +91,8 @@ export function AvailabilityRequestDrawer() {
   const returnFocusFrame = useRef<number | null>(null)
   const focusGeneration = useRef(0)
   const priorMobile = useRef<boolean | null>(null)
+  const widthHydrated = useRef(false)
+  const resizeCleanup = useRef<(() => void) | null>(null)
 
   const controllers = useRef(new Set<AbortController>())
   const loadController = useRef<AbortController | null>(null)
@@ -109,6 +124,11 @@ export function AvailabilityRequestDrawer() {
   const cancelReturnFocusFrame = useCallback(() => {
     if (returnFocusFrame.current != null) cancelAnimationFrame(returnFocusFrame.current)
     returnFocusFrame.current = null
+  }, [])
+
+  const stopResize = useCallback(() => {
+    resizeCleanup.current?.()
+    resizeCleanup.current = null
   }, [])
 
   const abortOperations = useCallback(() => {
@@ -148,6 +168,7 @@ export function AvailabilityRequestDrawer() {
     if (!current) return
     const closingHost = document.querySelector<HTMLElement>('[data-ar-drawer-host]')
     const preferred = returnFocus.current
+    stopResize()
     generation.current += 1
     sessionRef.current = null
     abortOperations()
@@ -157,7 +178,7 @@ export function AvailabilityRequestDrawer() {
     setSaveNotice('')
     setSaving(false)
     scheduleOutsideFocus(preferred, closingHost)
-  }, [abortOperations, scheduleOutsideFocus, setAr])
+  }, [abortOperations, scheduleOutsideFocus, setAr, stopResize])
 
   useEffect(() => onOpenAvailabilityRequest((id) => {
     cancelFocusFrame()
@@ -191,6 +212,34 @@ export function AvailabilityRequestDrawer() {
       vv.removeEventListener('scroll', update)
     }
   }, [])
+
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(DRAWER_WIDTH_STORE))
+      if (Number.isFinite(saved) && saved > 0) setWidth(clampDrawerWidth(saved))
+    } catch {
+      // Storage can be unavailable in a private browser context.
+    }
+    widthHydrated.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!widthHydrated.current) return
+    try {
+      window.localStorage.setItem(DRAWER_WIDTH_STORE, String(width))
+    } catch {
+      // The drawer remains usable if its preference cannot be saved.
+    }
+  }, [width])
+
+  useEffect(() => {
+    if (mobile) return
+    const clamp = () => setWidth((current) => clampDrawerWidth(current))
+    window.addEventListener('resize', clamp)
+    return () => window.removeEventListener('resize', clamp)
+  }, [mobile])
+
+  useEffect(() => () => stopResize(), [stopResize])
 
   const load = useCallback(async (target: DrawerSession, background = false) => {
     const sequence = ++loadSequence.current
@@ -416,6 +465,21 @@ export function AvailabilityRequestDrawer() {
     }
   }
 
+  const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    stopResize()
+    const startX = event.clientX
+    const startWidth = width
+    const move = (moved: MouseEvent) => setWidth(clampDrawerWidth(startWidth + (startX - moved.clientX)))
+    const up = () => stopResize()
+    resizeCleanup.current = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+  }
+
   if (!session) return null
   const arId = session.id
 
@@ -436,8 +500,15 @@ export function AvailabilityRequestDrawer() {
           tabIndex={-1}
           onKeyDown={keepFocusInside}
           onClick={(event) => event.stopPropagation()}
-          className="flex h-full w-full max-w-[640px] flex-col overflow-hidden border-l border-border bg-background shadow-[var(--lps-shadow)] min-[900px]:overflow-y-auto"
+          className="relative flex h-full w-full flex-col overflow-hidden border-l border-border bg-background shadow-[var(--lps-shadow)] min-[900px]:w-[var(--ar-drawer-width)] min-[900px]:overflow-y-auto"
+          style={{ '--ar-drawer-width': `${width}px` } as CSSProperties}
         >
+          <div
+            data-ar-drawer-resize-handle
+            onMouseDown={startResize}
+            title="Drag to resize"
+            className="absolute -left-[3px] bottom-0 top-0 z-20 hidden w-[7px] cursor-col-resize select-none hover:bg-lps-edge min-[900px]:block"
+          />
           <header className="flex flex-none items-start gap-2 border-b border-border bg-background pb-2 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(12px,env(safe-area-inset-top))] min-[900px]:border-b-0 min-[900px]:px-4 min-[900px]:pb-0 min-[900px]:pt-4">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
               <h2 id="availability-request-drawer-title" className="m-0 min-w-0 break-words text-[14px] font-bold text-foreground">

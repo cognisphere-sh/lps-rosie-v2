@@ -1,5 +1,10 @@
 # quote-generation — changelog
 
+## 2.26.0 — 2026-09-18
+
+- Route already committed requests and accepted quotes to direct-order creation without a new quote or AR; ask about availability only for requests following that path.
+- Preserve supplied/accepted prices and offerings, use APS for missing prices, and keep quote-only work stopped until later acceptance. Align order labels to New/Processing/Order Ready and jobs to Committed.
+
 ## 2.25.0 — 2026-09-17
 
 - Chris-approved simpler note standard removes every-APS-row entries and dual summary/supplier boilerplate from quote preparation. Keep material current internal exceptions and necessary proxy evidence; shared/customer notes remain audience-specific. Research and action-specific alternative approvals remain required.

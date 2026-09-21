@@ -1,9 +1,9 @@
 ---
 name: message-routing
-description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, task/quick-quote handoffs, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.0.0)
+description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.1.0)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # Thread routing and approvals
@@ -28,6 +28,10 @@ the canonical owner or main; do not maintain a separate fifth workflow.
    hand off to a new `jr-<id>` thread. Set `quote_only: true` for quick quotes;
    they create a job but no AR. Simple pricing/general questions create no
    job/AR; use an existing relevant thread or a task thread for the lookup.
+   An already committed order also creates/reuses its job and items; identify
+   the committed intent and carry supplied pricing and acceptance evidence.
+   An accepted quote reuses its existing job. Both can proceed directly to
+   order with `skip_availability: true`; do not route them into an AR task.
 4. Supplier lifecycle messages (price lists/newsletters, onboarding, account
    setup, supplier-record corrections) go to Daisy's main/owning supplier
    thread. Order questions remain Rosie's. For a mixed message, relay the
@@ -50,7 +54,14 @@ Use `bash scripts/agent-msg/send --to-agent rosie --thread-id <owner>
 --subject ... --message ...`. Each handoff carries:
 
 - Task, actual original request and known constraints; whether this is
-  `quote_only`.
+  `quote_only`, already committed intake, or an accepted quote going directly
+  to order. Use `skip_availability: true` for the direct path; these are handoff
+  instructions, not new database columns. Later explicit acceptance supersedes
+  an earlier quote-only intent for that scope.
+- Exact customer commitment evidence, accepted lines/quantities, supplied or
+  previously accepted prices and their message/attachment source. Preserve
+  which prices remain missing for APS lookup; do not lose these details or
+  turn a quote draft/supplier reply into acceptance during a relay.
 - Job/customer/supplier/AR/item ids when known; inventory UUIDs and mapped
   row/price evidence for sourcing.
 - `OriginThreadId` and `OriginChannel` from the originating human interaction,
@@ -72,7 +83,9 @@ arguments safely so currency `$`, backticks and substitutions stay literal.
    complete content, public URL and attachments where applicable. Supplier
    and customer skills decide whether the action requires approval. APS's
    ordinary private portal request publishes automatically; quick quotes
-   have no supplier contact.
+   have no supplier contact. A committed/direct-order handoff does not need
+   an availability approval: it authorizes the scoped order in the Orders tab,
+   with no AR. Separate customer/supplier messages retain their send rules.
 2. **Present any required approval in `OriginThreadId`, the original request
    chat, even if Chris has since switched chats**, while preserving the job
    as the record owner and the

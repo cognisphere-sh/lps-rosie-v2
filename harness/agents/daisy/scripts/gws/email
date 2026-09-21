@@ -22,8 +22,6 @@
  * shares its Gmail decoding with the plugin runtime via format-email-lib.mjs.
  */
 import { execFile } from "node:child_process";
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { promisify } from "node:util";
 
 import {
@@ -32,9 +30,9 @@ import {
   fetchAttachment,
   formatTs,
   pickTextBody,
-  sanitizeFilename,
   stripQuotedHistory,
 } from "./format-email-lib.mjs";
+import { planAttachmentFiles, prepareAttachmentDirectory } from "./attachment-files.mjs";
 
 const execFileP = promisify(execFile);
 const runGws = (args) => execFileP("gws", args, { maxBuffer: 64 * 1024 * 1024 });
@@ -51,7 +49,8 @@ USAGE
 READ OPTIONS
   --full            thread: print every message's body, not just the listing
   --attachments     download attachments into plugins/gws/inbox/<messageId>/
-                    and print each as <fileName>[<path>]
+                    and print each as <fileName>[<path>] + Attachment JSON mapping
+                    (stable numbered names; existing different files never replaced)
   --strip-quotes    drop the quoted reply history most clients paste below a
                     reply — prints only each message's own text
   --no-header       drop the Subject/From/To/TimeStamp block
@@ -191,20 +190,24 @@ async function attachmentLines(msg, parts, download) {
       (p) => `${p.filename} (not downloaded — rerun with --attachments)`,
     );
   }
-  const dir = join("plugins", "gws", "inbox", msg.id);
-  mkdirSync(dir, { recursive: true });
+  const files = planAttachmentFiles(msg.id, parts);
+  const directory = await prepareAttachmentDirectory(msg.id);
   const lines = [];
-  for (const part of parts) {
-    const filename = sanitizeFilename(part.filename ?? `attachment-${part.partId ?? "0"}`);
-    const target = join(dir, filename);
-    try {
-      await fetchAttachment(runGws, msg.id, part.body.attachmentId, target);
-      lines.push(`${filename}[${target}]`);
-    } catch (err) {
-      lines.push(`${filename} (fetch failed: ${err?.message ?? err})`);
+  try {
+    for (const file of files) {
+      try {
+        await fetchAttachment(runGws, msg.id, file.attachmentId, directory, file.filename);
+        lines.push(`${file.filename}[${file.path}]`);
+        lines.push(`Attachment: ${JSON.stringify({ ...file, status: "downloaded" })}`);
+      } catch (err) {
+        lines.push(`${file.filename} (fetch failed: ${err?.message ?? err})`);
+        lines.push(`Attachment: ${JSON.stringify({ ...file, status: "failed" })}`);
+      }
     }
+    return lines;
+  } finally {
+    await directory.close();
   }
-  return lines;
 }
 
 async function render(msg, args, tz) {

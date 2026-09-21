@@ -1,5 +1,10 @@
 # message-routing — changelog
 
+## 2.1.0 — 2026-09-18
+
+- Preserve committed-intake/direct-order intent, accepted lines/quantities, supplied-price evidence and missing-price scope through handoffs; use `skip_availability: true` for direct ordering.
+- Reuse accepted quotes' existing jobs and let later acceptance supersede quote-only intent. Distinguish authorized order creation from optional AR approval and separate message sends.
+
 ## 2.0.0
 
 2026-09-10 — Consolidate to main plus job/customer/supplier owners, preserving legacy forwarding. Route by correspondent first and retain original interaction metadata for approvals.

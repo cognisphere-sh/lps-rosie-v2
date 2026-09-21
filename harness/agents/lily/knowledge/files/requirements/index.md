@@ -61,12 +61,12 @@ A workflow change counts — not everything here is software.
 | `mobile-request-update-response-state` | Optional mobile request-response display | drafted · optional/unapproved; deferred pending existing-path findings | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed | nova |
-| `all-jobs-compact-filter-selectors` | Open compact Job filters only when needed | routed | nova |
+| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · current-owner visual refresh; committed five-stage/two-default/none semantics preserved | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
-| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · exact QNTY + centered requested values serialized with note UI; BLOCKED baseline; botanical hierarchy separately held | nova |
-| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · BLOCKED operator baseline; existing history read source-confirmed with provenance/retention limits; no implementation | nova |
-| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · accepted separate slice; BLOCKED shared operator baseline; populated notes/audience/editor unchanged | nova |
+| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY/centering isolated IN PROGRESS on owner-reported safe f9a2ddb; gates/release pending; broader table/botanical work held | nova |
+| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · isolated work in progress on Nova-reported safe f9a2ddb; fresh review/release pending | nova |
+| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · isolated work in progress on safe committed f9a2ddb; distinct empty-cell scope, not released | nova |
 | `supplier-note-customer-routing` | Pass useful supplier plant facts to the customer, not private buying discussion | staged · Bhoumik notified347; ONE decision automatic clear selected-source facts vs review-first option; no routing/all-cell approval policy (2026-09-17T12:55:37-05:00) | bhoumik |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |

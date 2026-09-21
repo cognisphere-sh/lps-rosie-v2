@@ -1,5 +1,13 @@
 # read-email — changelog
 
+## 1.2.1
+
+- Harden attachment I/O with pinned no-follow directory handles across fetch/write/reuse. Document the Linux procfs requirement and fail-closed behavior without overstating the lifetime of a printed path.
+
+## 1.2.0
+
+- Use deterministic numbered attachment paths and JSON MIME/CID mappings; document no-clobber rereads. Invoke the Node email executable directly, not with bash.
+
 ## 1.1.1
 
 - Wording: delivery is governed by the agent-owned gws settings

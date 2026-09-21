@@ -15,10 +15,10 @@ reply target · `From` · `ReceivedAt`. The body you get is the header, the
 **first two lines** of the sender's own text, and attachment names — no more:
 
 ```
-bash scripts/gws/email read <MessageId>                 # the full body
-bash scripts/gws/email read <MessageId> --attachments   # + download the files
-bash scripts/gws/email thread <Channel>                 # skim the whole thread
-bash scripts/gws/email search '<gmail query>'           # find anything else
+scripts/gws/email read <MessageId>                 # the full body
+scripts/gws/email read <MessageId> --attachments   # + download the files
+scripts/gws/email thread <Channel>                 # skim the whole thread
+scripts/gws/email search '<gmail query>'           # find anything else
 ```
 
 **Read the full message before acting on any email the preview doesn't

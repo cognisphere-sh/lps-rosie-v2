@@ -1,5 +1,11 @@
 # supplier-coordination — changelog
 
+## 3.13.0 — 2026-09-18
+
+- Skip AR preparation/publication for committed intake and direct quote-to-order handoffs; use the existing direct-order contract and its job allocations without requiring a source AR.
+- Replace the obsolete support-AR/hidden-AR blocker, preserve acceptance and supplied-price evidence, and distinguish authorized order creation from separate message sends and availability overrides.
+- Align supplier order lifecycle to New → Processing → Order Ready while jobs remain Committed.
+
 ## 3.12.0 — 2026-09-17
 
 - Chris approved simpler JR notes: relay evidence for material current decisions/exceptions, not mandatory APS entries or dual summary/supplier boilerplate. Retain distinct supplier evidence and job-wide override provenance once; do not duplicate visible AR/order statuses or prices. Communication/submission gates unchanged.

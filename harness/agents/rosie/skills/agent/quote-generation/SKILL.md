@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item creation and independent pricing work before clarification, order clarification before generation, APS price-list quoting first and Chris approval before any availability request, lowest-priced-requested-option quoting, minimal-word inline text-quote notes from existing shared notes and size/price options, likely equivalent catalogue-name pricing, minimal internal exceptions and approval-gated alternatives, mandatory job/item intake before any quick-quote output, the exact default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe fields, rendering and delivery handoff. Use when Chris asks for a quote, quick quote, text quote or quote document; quick quotes create/reuse a job and item rows without an AR; simple pricing questions create neither. (v2.25.0)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item intake, independent pricing before clarification, supplied/accepted-price preservation, APS fallback, optional availability and direct-order handoff, lowest-priced-requested-option quoting, concise shared notes, naming equivalents, minimal internal exceptions and approval-gated alternatives, the default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe rendering and delivery. Use for requested quotes, quick quotes or quote documents; already committed requests need no new quote, quick quotes stop without an AR, and simple pricing questions create no job. (v2.26.0)
 metadata:
   author: lps
-  version: "2.25.0"
+  version: "2.26.0"
 ---
 
 # Quote generation
@@ -14,9 +14,18 @@ customer delivery; `message-routing` owns any required approval routing.
 
 ## 1. Select the quoting path
 
+First check the current request's intent using `job-requests`. Already committed
+orders and existing accepted quotes may go directly to an order without an AR
+or a fresh quote document. Route that work to its direct-order procedure; do
+not start quote generation or ask about availability merely because intake
+initially stores `status = 'quoted'`. If a quote copy is separately requested,
+render the supplied/accepted offering and prices without repricing it.
+
 Before generating any quote, follow the intake guidance in `job-requests`:
 create/reuse its job/thread and item rows from supplied details, gather
-pricing and other relevant information, and save supported prices. Add
+missing pricing and other relevant information, and save supported prices.
+Preserve applicable supplied/accepted line prices; use APS for missing prices
+under `job-requests` section 4. Add
 sourcing notes only when `job-requests` section 3 permits them: a sent AR,
 a concrete required supplier action, Chris's explicit note instruction or an
 explicit supplier selection/plant-sourcing decision. Eligibility is not a
@@ -68,8 +77,10 @@ clarification.
 - **Simple price lookup/general question:** answer using the same search
   evidence without creating a job or AR. Do not interpret a pricing question
   as a quick-quote request when the intent is unclear.
-- **Ordinary new job:** generate the APS price-list quote before any
-  availability request. After producing it, the job thread asks Chris whether
+- **Ordinary new job needing availability:** generate the APS price-list quote
+  before the availability request. After producing it, re-read current intent:
+  an accepted quote going directly to order follows `job-requests` without an
+  AR or availability approval ask. Otherwise the job thread asks Chris whether
   to send the availability request to APS, and waits for his approval. A
   clear job request authorizes the quote, not portal publication. Preserve
   Chris's existing explicit approval for this exact send without re-asking.
@@ -82,7 +93,8 @@ clarification.
   clarify remaining gaps while preparing unambiguous lines. Keep unsupported
   lines out of a final priced quote and state that gap separately to Chris.
 
-For clear requested size or variant alternatives (`3 G / 5 G`), follow Chris's
+For clear requested size or variant alternatives (`3 G / 5 G`) without an
+already accepted offering/price, follow Chris's
 standing rule: quote the **cheapest supported requested option**, not the
 smallest size, an assumed physical stock position or an unrequested option. No
 redundant choice approval is needed. Quote that option explicitly; preserve the
@@ -257,7 +269,8 @@ approved content and logs the actual contact.
 For a job, only actual customer delivery triggers `quote_shared` and records
 the shared link in customer-visible job notes. This keeps an initial job at
 Quote, leaves Availability/Committed unchanged, and never reopens Won/Lost.
-A quote draft does not confirm
-an order; actual customer acceptance creates **Committed** supplier orders
-through `job-requests`. Supplier confirmation makes an **Order Confirmed**;
-the **Job Request remains Committed** and has no Confirmed stage.
+A quote draft does not confirm an order. Actual customer acceptance creates a
+supplier Order **New** and makes the Job **Committed** through `job-requests`,
+with or without an availability step. Reuse accepted prices and job items;
+do not restart quoting or require an AR. Supplier confirmation moves the
+Order to **Processing**, then **Order Ready**; the Job remains Committed.

@@ -1,5 +1,10 @@
 # plant-and-supplier-search — changelog
 
+## 2.12.0 — 2026-09-18
+
+- Preserve supplied/accepted prices and offerings on committed requests and accepted quotes; search APS for missing prices without requiring an AR or new quote.
+- Scope cheapest-requested-option research to unaccepted alternatives so catalogue searches do not replace an already accepted offering.
+
 ## 2.11.0 — 2026-09-17
 
 - Chris-approved simpler note default: research findings stay in chat; no every-APS-row entry or duplicate summary. Preserve material proxy/cultivar/source qualifications and pending decisions, not routine catalogue spelling/price restatements; alternative approval gates unchanged.

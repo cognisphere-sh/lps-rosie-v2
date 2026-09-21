@@ -999,6 +999,28 @@ uses requested quantity as its cap because a supplier may need to procure stock
 that is currently unavailable. Lost orders release quantities; successful closed
 orders still consume them. Failed creation leaves no partial order.
 
+`create_direct_order(p_supplier_id bigint, p_items jsonb,
+p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL,
+p_notes text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false)` (0100)
+returns an order ID for already committed requests or accepted quotes that skip
+availability. Items are `[{job_request_item_id, quantity}]` and explicit customer
+confirmation is required. The function locks jobs/items, checks active supplier
+and open jobs, and requires active lines and positive finite quantities. It
+creates a New order, snapshots each job item's name, size, unit price, shared
+note and current status with `availability_request_item_id = NULL`, writes
+`order_item_job_request_items` allocations and moves represented Quote or
+Availability jobs to Committed. No AR, supplier response or job availability
+override is needed, and the function does not create one or establish stock.
+
+Direct and AR-backed orders share the remaining-demand cap: active allocations
+on orders other than Lost consume demand, including successful closed orders.
+Known job quantities cannot be exceeded; callers must still supply the exact
+accepted scope and check existing orders before retrying partial quantities.
+The RPC does not perform a price lookup and permits nullable snapshot prices;
+Rosie's workflow saves supplied/accepted prices first and uses APS for missing
+prices, resolving unsupported prices before ordering affected lines. Unknown
+fulfillment method/date may remain NULL. The function is service-role-only.
+
 `update_partner_order` (0094) locks and checks supplier ownership and active order
 state. New → Processing requires a valid fulfillment date and
 records the confirmation date. Processing → Order Ready is the next permitted

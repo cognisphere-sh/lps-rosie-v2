@@ -1,9 +1,9 @@
 # Keep empty Shared note cells quiet but easy to edit
 
-- Status: routed — accepted separately by Nova; BLOCKED with serialized operator-baseline preservation, no implementation
+- Status: routed — in progress in isolated work on Nova-reported safe committed f9a2ddb; review/release pending
 - Route: nova
 - Raised: 2026-09-17 by Chris (Telegram648/photo648, via Nova)
-- Updated: 2026-09-17T12:49:16-05:00
+- Updated: 2026-09-18T10:08:47-05:00
 - Related: `sourcing-note-disclosure` — separate internal-note behavior, not applied here
 
 ## Problem
@@ -51,3 +51,5 @@ Repeated “Add a shared note…” text clutters the Job table even when there 
 
 - 2026-09-17T12:39:22-05:00 — Captured exact648 and inspected reference; reused the bounded existing source audit. Successfully delivered full requirement to Nova main, subject **Separate UI: quiet empty Shared note cell, populated notes unchanged**. Linked to but not a prerequisite for sourcing disclosure; no sourcing/history behavior applied to Shared. No Lily app/data/skill edits or Telegram.
 - 2026-09-17T12:42:45-05:00 — Nova12:41:07 accepts this separate slice with the same serial owner, but current operator baseline is BLOCKED before implementation; Nova651 already requested preservation/commit, no duplicate ask. Parent Telegram346 communicated both scopes and not-live status to Chris. No tests, edits or deployment claimed.
+- 2026-09-18T10:06:32-05:00 — Parent relays Nova10:06:16: Bhoumik665 at10:05:42 says “Execute your queued changes.” Nova resumes fresh protected-base preflight for sourcing disclosure, this separate empty-Shared slice and QNTY/requested-number centering under one serial owner, then the reviewed technical queue. Scoped execution approval does not prove baseline conflict resolution, implementation or release. Operator index/source, permissions/audience and independent technical/rendered gates remain protected; no harness self-restart, new builder or broad workflow/schema/notes-policy approval. Await builder evidence; no duplicate external reply.
+- 2026-09-18T10:08:47-05:00 — Parent relays Nova10:08:21: current clean committed `f9a2ddb` passes fresh baseline preflight and isolated work has started for the three approved slices. Status now IN PROGRESS, not blocked; no completion/release claim. Operator protections, fresh independent technical/rendered gates and this slice's distinct audience/behavior remain. No Lily repo re-audit or new builder. Separate compact-mobile-filter refresh is outside this scope.

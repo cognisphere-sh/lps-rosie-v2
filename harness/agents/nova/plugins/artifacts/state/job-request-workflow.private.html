@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From plant request to finished job · LPS</title>
+<style>
+/* Adapted from the publish-artifact single-file template. No external assets. */
+:root { color-scheme: light; --ink:#183d32; --muted:#52665d; --paper:#f4f3eb; --line:#b9c8bc; --green:#245c46; --amber:#775214; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow-wrap:anywhere; }
+main { max-width:59rem; margin:auto; padding:clamp(1rem,4vw,3rem) clamp(.75rem,3vw,2rem) 2rem; }
+header { border-top:.3rem solid var(--green); padding:1.35rem 0 1.45rem; }
+.eyebrow { font-size:.85rem; text-transform:uppercase; font-weight:750; letter-spacing:.13em; margin:0 0 .65rem; color:var(--muted); }
+h1 { font-family:Georgia,"Times New Roman",serif; font-size:clamp(2rem,5vw,3.3rem); line-height:1.06; font-weight:400; letter-spacing:-.035em; margin:0; max-width:15em; }
+.meta { color:var(--muted); font-size:.9rem; margin:.8rem 0 0; }
+.flow { list-style:none; padding:0 1rem 0 2.55rem; --card-pad:1.2rem; --card-vpad:1.1rem; margin:0; counter-reset:step; }
+.step { position:relative; padding:0 0 1.6rem; }
+.step:not(:last-child)::before { content:""; position:absolute; top:2rem; bottom:-.7rem; left:-1.5rem; border-left:.12rem solid #8b9e8f; }
+.step:not(:last-child)::after { content:""; position:absolute; bottom:.52rem; left:-1.72rem; width:.5rem; height:.5rem; border-right:.12rem solid #6f8977; border-bottom:.12rem solid #6f8977; transform:rotate(45deg); }
+.number { position:absolute; z-index:1; top:.9rem; left:-2.5rem; display:grid; place-items:center; width:2.1rem; height:2.1rem; border:.12rem solid var(--green); border-radius:50%; background:var(--paper); font-size:.95rem; font-weight:750; }
+#commit::before { top:0; }
+.card { position:relative; border:.06rem solid var(--line); border-radius:.75rem; background:#fffefa; padding:1.1rem 1.2rem; box-shadow:0 .2rem .5rem #193d3105; }
+.decision .card { border-left:.3rem double var(--amber); border-top-right-radius:0; }
+.decision .number { border-color:var(--amber); border-radius:.4rem; color:var(--amber); }
+.cardhead { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.45rem .7rem; margin-bottom:.6rem; }
+h2 { font-size:1.2rem; line-height:1.2; letter-spacing:-.015em; margin:0; }
+.role { font-size:.85rem; font-weight:700; background:#e7efe9; color:#244d3d; padding:.2rem .55rem; border-radius:.35rem; }
+.decision .role { background:#f5ecd8; color:#6c4a10; }
+p { margin:.5rem 0 0; }
+.split { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr)); gap:.75rem 1.25rem; }
+.offramp { border-left:.18rem solid #9b7440; background:#f7f1e3; padding:.65rem .8rem; font-size:.95rem; }
+.offramp::before { content:"↳"; margin-right:.4rem; font-weight:700; }
+.direct-rail { position:absolute; right:-.7rem; top:0; bottom:0; border-right:.12rem dashed #8c7760; }
+.branch::after { content:""; position:absolute; top:50%; bottom:calc(-1 * (var(--card-vpad) + 1.6rem + .06rem)); right:calc(-1 * (var(--card-pad) + .7rem + .06rem)); width:calc(var(--card-pad) + .7rem + .06rem); border-top:.12rem dashed #8c7760; border-right:.12rem dashed #8c7760; border-top-right-radius:.4rem; pointer-events:none; }
+.branch { position:relative; margin-top:.85rem; padding:.75rem .85rem; border:.1rem dashed #8c7760; border-radius:.45rem; color:#644722; background:#fbf6e9; font-size:.9rem; }
+.branch strong { display:block; letter-spacing:.02em; margin-bottom:.2rem; }
+.delivery { border-top:.06rem solid var(--line); padding-top:.65rem; font-size:.95rem; }
+.acceptance { margin:0 0 1.1rem auto; max-width:28rem; position:relative; border:.1rem solid #46816b; border-radius:.55rem; background:#eaf3ed; padding:.6rem .85rem; font-size:.95rem; }
+.acceptance::before { content:""; position:absolute; right:-.8rem; top:-.1rem; bottom:-.65rem; width:2.15rem; border-right:.12rem dashed #8c7760; border-bottom:.12rem dashed #8c7760; border-bottom-right-radius:.4rem; pointer-events:none; }
+.acceptance::after { content:"↓"; position:absolute; right:1rem; bottom:-1.3rem; font-weight:800; color:#245c46; }
+.acceptance .role { display:inline-block; margin-bottom:.2rem; background:#d4e8dc; }
+.state { display:inline-block; border:.06rem solid #a2b9a9; border-radius:.25rem; padding:.02rem .35rem; font-size:.9rem; font-weight:700; white-space:nowrap; }
+.order { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; margin:.35rem 0 .7rem; font-size:.9rem; }
+.order b { border:.06rem solid var(--line); border-radius:.3rem; padding:.25rem .5rem; }
+.endnotes { border-top:.12rem solid var(--green); padding:1rem 0 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr)); gap:1rem 1.8rem; }
+.endnotes h2 { font-size:1rem; }
+.endnotes p { font-size:.95rem; margin-top:.4rem; }
+footer { color:var(--muted); border-top:.06rem solid var(--line); margin-top:1.25rem; padding-top:.75rem; font-size:.85rem; }
+@media(max-width:40rem) { .card { padding:.9rem; } .split,.endnotes { grid-template-columns:1fr; } .flow { padding-left:2.25rem; --card-pad:.9rem; --card-vpad:.9rem; } .number { left:-2.2rem; width:1.8rem; height:1.8rem; } .step:not(:last-child)::before { left:-1.3rem; } .step:not(:last-child)::after { left:-1.52rem; } h2 { font-size:1.1rem; } }
+@media print { body { background:white; } main { max-width:none; padding:0; } .step { break-inside:avoid; } .card { box-shadow:none; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="eyebrow">LPS · Field guide</p>
+<h1>From plant request<br>to finished job</h1>
+<p class="meta">Current Rosie workflow · 18 September 2026</p>
+</header>
+<div id="primary">
+<ol class="flow" aria-label="Usual sourcing route; not a compulsory staircase">
+<li class="step" id="capture"><span class="number" aria-hidden="true">1</span><article class="card">
+<div class="cardhead"><h2>Capture · <span class="state">Quote</span></h2><span class="role">Rosie</span></div>
+<div class="split"><p>Order/quick quote? Create/reuse one Job Request and its lines. Expected install date may be Unknown.</p><p class="offramp">Price question? Answer only—no Job Request or availability request.</p></div>
+</article></li>
+<li class="step" id="quote"><span class="number" aria-hidden="true">2</span><article class="card">
+<div class="cardhead"><h2>Price &amp; draft</h2><span class="role">Rosie</span></div>
+<p>Use Austin Plant Supply unless Chris authorizes otherwise. Quote the cheapest priced requested option. Chris approves alternatives separately for quoting and supplier asks. Price is not stock confirmation.</p>
+<p class="delivery"><strong>Chris-approved draft → Customer</strong><br>Independent delivery; not automatic.</p>
+<aside class="branch" aria-label="Dashed route from quote step 2 to Order creation step 6; rollout unverified"><strong>2 ⇢ 6 · Direct-order check</strong>Source includes quote → Order without availability; <b>rollout unverified</b>. Rosie’s instructions use answered availability records. Current admin-override workaround needs separate publication approval—not invented supplier confirmation.</aside>
+</article></li>
+<li class="step decision" id="source"><span class="direct-rail" aria-hidden="true"></span><span class="number" aria-hidden="true">3</span><article class="card">
+<div class="cardhead"><h2>Stop or source</h2><span class="role">Chris</span></div>
+<div class="split"><p>Chris approves supplier publication after quoting; delivery starts <span class="state">Availability</span>.</p><p class="offramp">Quick quote stops—no availability request or follow-up approval ask. Resume on the same job.</p></div>
+</article></li>
+<li class="step" id="answer"><span class="direct-rail" aria-hidden="true"></span><span class="number" aria-hidden="true">4</span><article class="card">
+<div class="cardhead"><h2>Answer</h2><span class="role">Supplier</span></div>
+<p>Save keeps edits; Submit/Re-submit sends for review. Availability-request Completed means answered, not ordered. Responses do not automatically change the job or notify customers.</p>
+</article></li>
+<li class="step decision" id="choose"><span class="direct-rail" aria-hidden="true"></span><span class="number" aria-hidden="true">5</span><article class="card">
+<div class="cardhead"><h2>Choose</h2><span class="role">Chris</span></div>
+<p>Compare suppliers separately. Chris selects the source and authorizes job-line availability, quantities and offering changes. Neither cheapest price nor one reply selects a supplier.</p>
+</article></li>
+<li class="step" id="commit">
+<aside class="acceptance" aria-label="Independent customer acceptance input to Order creation, not a result of supplier response. Dashed unverified route from quote step 2 joins this acceptance-to-Order junction; it does not bypass acceptance."><span class="role">Customer · Independent input</span><br>Accepts exact lines/quantities.</aside>
+<article class="card"><span class="number" aria-hidden="true">6</span><div class="cardhead"><h2>Commit</h2><span class="role">Rosie</span></div>
+<p>Create separate supplier-visible Orders; job becomes <span class="state">Committed</span>. Allocate shared quantities once across jobs—never duplicate demand.</p>
+</article></li>
+<li class="step" id="fulfil"><span class="number" aria-hidden="true">7</span><article class="card">
+<div class="cardhead"><h2>Prepare &amp; fulfil</h2><span class="role">Supplier + Chris</span></div>
+<div class="order" aria-label="Order statuses: New, then Processing, then Order Ready">Order: <b>New</b><span aria-hidden="true">→</span><b>Processing</b><span aria-hidden="true">→</span><b>Order Ready</b></div>
+<p>Confirmation records supplier fulfillment date; Chris controls pickup/delivery. Expected install date is separate. Ready is not completed delivery.</p>
+</article></li>
+<li class="step decision" id="close"><span class="number" aria-hidden="true">8</span><article class="card">
+<div class="cardhead"><h2>Close</h2><span class="role">Chris</span></div>
+<p>Record <span class="state">Won/Lost</span> explicitly; acceptance and readiness do not close the job. Partial demand may remain open. Reopening restores linked availability work, not a terminal Order.</p>
+</article></li>
+</ol>
+<section class="endnotes" aria-label="Workflow boundaries">
+<div><h2>Not a compulsory staircase</h2><p>Revise quotes without moving later jobs backward. Shared availability work closes only after every linked job ends.</p></div>
+<div><h2>Notes</h2><p>Customer: original requests. Shared: customer-useful exceptions. Sourcing: internal decisions. Supplier notes never automatically become Shared.</p></div>
+</section>
+</div>
+<footer>Approvals: Chris’s original chat; exact authorized scope.<br>Source: Lily’s audited Rosie workflow brief · 18 September 2026</footer>
+</main>
+</body>
+</html>

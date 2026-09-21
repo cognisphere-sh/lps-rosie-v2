@@ -1,6 +1,8 @@
 /** Type declarations for `format-email-lib.mjs` (see that file for why the
  *  implementation is plain JavaScript). */
 
+import type { FileHandle } from "node:fs/promises";
+
 export interface GmailHeader {
   name: string;
   value: string;
@@ -48,5 +50,6 @@ export function fetchAttachment(
   runGws: GwsRunner,
   messageId: string,
   attachmentId: string,
-  target: string,
+  directory: FileHandle,
+  filename: string,
 ): Promise<void>;

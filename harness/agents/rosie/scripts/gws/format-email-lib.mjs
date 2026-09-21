@@ -8,7 +8,7 @@
  * `format-email-lib.d.mts`.
  */
 import { Buffer } from "node:buffer";
-import { writeFile } from "node:fs/promises";
+import { writeAttachmentFile } from "./attachment-files.mjs";
 
 export function collectHeaders(part) {
   const m = new Map();
@@ -102,7 +102,7 @@ export function previewBody(body, n = 2, width = 200) {
   return { text: kept.join("\n"), truncated };
 }
 
-export async function fetchAttachment(runGws, messageId, attachmentId, target) {
+export async function fetchAttachment(runGws, messageId, attachmentId, directory, filename) {
   const params = JSON.stringify({ userId: "me", messageId, id: attachmentId });
   const { stdout } = await runGws([
     "gmail",
@@ -114,7 +114,7 @@ export async function fetchAttachment(runGws, messageId, attachmentId, target) {
     params,
   ]);
   const att = JSON.parse(stdout);
-  await writeFile(target, Buffer.from(att.data, "base64url"));
+  await writeAttachmentFile(directory, filename, Buffer.from(att.data, "base64url"));
 }
 
 function walk(part, fn) {

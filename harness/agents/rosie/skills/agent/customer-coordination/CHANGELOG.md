@@ -1,5 +1,10 @@
 # customer-coordination — changelog
 
+## 3.3.0 — 2026-09-18
+
+- Relay already committed requests and accepted quotes with exact commitment scope, supplied pricing and source messages/attachments so the job thread can order directly without a new quote or AR.
+- Avoid asking for acceptance already established; use APS only for missing prices. Align order labels to New/Processing/Order Ready, with jobs Committed.
+
 ## 3.2.0
 
 - Update customer-acceptance and quote-delivery guidance for Job Requests without a Confirmed stage; supplier confirmation remains an Order status.

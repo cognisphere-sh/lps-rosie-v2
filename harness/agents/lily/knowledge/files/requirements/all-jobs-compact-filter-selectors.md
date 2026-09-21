@@ -1,76 +1,76 @@
-# Open compact Job filters only when needed
+# Open compact mobile Job filters only when needed
 
-- Status: routed
+- Status: routed · current-owner refresh; not shipped
 - Route: nova
 - Raised: 2026-09-11 by Chris (via Nova, Telegram 588–589)
-- Updated: 2026-09-11
+- Updated: 2026-09-18
 - Related: `mobile-all-jobs-toolbar` (prior card/toolbar work; mobile Item Status omission remains)
 
 ## Problem
 
-The mobile All Jobs Filters sheet makes Chris scroll past every Status, Customer and date-range option even when he is not changing them. Closed work also occupies a fresh Jobs view that he expects to show open work first.
+The mobile All Jobs Filters sheet makes Chris scroll past every Status, Customer and date-range option even when he is not changing them. His compact press-to-open visual request remains desired, but its earlier status/default assumptions have been superseded by committed operator work. This follow-on must change presentation only.
 
 ## Evidence
 
-- Chris, message 588: “Can we optimize for screen space. Lets try making these drop downs with selection. Press to select. If multi like status select and deselect with highlights. At opening of jobs view preselect/ show only only open status. So closed won or lost should be hidden.”
-- Photos 588–589 show full-height Created/Updated radio lists and Status/Customer checkbox lists; the current six displayed Sales labels are Active, Quote, Availability, Confirmed, Won, Lost.
-- Source/docs review confirms one shared All Jobs filter state across mobile/desktop, tab-scoped restoration, immediate filtering, and a mobile sheet with all options expanded. Mobile Item Status already has separate ignored/parked desktop state.
+- Historical Chris message 588: “Can we optimize for screen space. Lets try making these drop downs with selection. Press to select. If multi like status select and deselect with highlights. At opening of jobs view preselect/ show only only open status. So closed won or lost should be hidden.”
+- Historical photos 588–589 showed full-height Created/Updated radio lists and Status/Customer checkbox lists. Their old six-stage vocabulary is historical evidence, not current acceptance.
+- 2026-09-18 — Parent confirms the visual request remains desired only while preserving the new committed semantics: five stages **Quote, Availability, Committed, Won, Lost**; fresh/reset **Availability + Committed**; Select all/Deselect all; an empty Status selection means **no statuses/no results**, not unrestricted results.
+- Nova’s 10:08:21 preflight reports clean committed baseline `f9a2ddb` and that compact mobile selector presentation is still absent. Bhoumik’s Telegram 665 authorizes queued execution; the current owner is refreshing the source-only plan. Lily’s bounded current source inspection supports these filter semantics and the still-expanded mobile option lists; it is not a runtime/deployment test.
 
 ## What it should do
 
-### Compact mobile selectors
+### Compact mobile presentation
 
 Keep the existing Filters sheet, with four initially collapsed, press-to-open controls in this order: **Status, Customer, Created, Updated**. Each has its name, a truthful current-selection summary and a minimum 44px trigger. Closed controls occupy compact rows, not the height of their option lists.
 
-Status is multi-select, in exact current order **Active, Quote, Availability, Confirmed, Won, Lost**. Each press toggles the selected state with a visible highlight plus checkmark and corresponding accessible state; colour alone is insufficient. The options remain open for successive choices. At the default selection its summary may read **Status · Open (4)**; changed subsets show the selected name or selected count, never simply “Open.”
+Status is multi-select in exact current order **Quote, Availability, Committed, Won, Lost**. Each press toggles selection with a visible highlight, checkmark and corresponding accessible state; colour alone is insufficient. Keep the options open for successive choices. Preserve explicit **Select all** and **Deselect all**. Select all visibly selects all five; Deselect all selects none and returns no matching Jobs. A zero-selection summary must read **No statuses selected** (or equally clear), never All/unrestricted. The default summary can show **Availability + Committed**; other selections show their name/count. Do not call that pair “all open jobs,” since Quote is a separate selectable stage outside the starting pair.
 
-Customer retains the existing multi-select meaning and matching. Open a bounded selection list, with local option search for the existing long customer list. Search narrows the choices shown, not the selected customers or Job results on its own; selected customers survive option search. Closed summary shows All customers, the selected customer or a count. Do not change customer identity or matching as part of this layout.
+Customer keeps its existing multi-select meaning and matching. Open a bounded list with local option search for the long customer list. Searching options changes only which choices are shown, not the selected customers or Job result scope; selections survive option search. The collapsed summary shows All customers, the selected customer or a count. Customer’s existing empty/all meaning is not changed by Status’s none meaning.
 
-Created and Updated each retain one choice: All time, Today, Last 7 days, Last 14 days, Last 30 days. Their closed controls show the selected range; choosing a range closes that selector, not the whole Filters sheet. The existing rolling parent-request date meaning is unchanged.
+Created and Updated keep one choice each: All time, Today, Last 7 days, Last 14 days, Last 30 days. Their collapsed controls show the chosen range; choosing it closes that selector, not the whole Filters sheet. Preserve the rolling parent-request date meaning.
 
-Only the selector being used expands. Selection updates filters immediately as today; do not add a draft/Apply transaction, stacked modal or new confirmation. Pressing a trigger again, selecting another group, tapping outside that selector, or Escape can close it without losing selections. Nested Escape closes the selector first and restores its trigger focus; a later Escape closes the sheet. Keep explicit Close, sheet backdrop dismissal, focus containment and return focus. Long lists must scroll within available sheet/viewport space without hidden choices, clipped menus or sideways scrolling; search and the on-screen keyboard must not strand Close/reset controls.
+Only the selector being used expands. Apply selections immediately through the existing filter behavior; do not add a draft/Apply transaction, stacked modal or confirmation. Trigger re-press, opening another group, outside tap within the sheet or Escape may close a selector without losing its selections. Escape closes a nested selector first and returns focus to its trigger; a later Escape closes the sheet. Preserve explicit Close, sheet backdrop dismissal, focus containment and return focus. Long lists and the on-screen keyboard must not clip menus, create horizontal scrolling or strand Close/reset controls.
 
-### Open-work starting view for All Jobs
+### Preserve the current committed filter contract
 
-On a **fresh All Jobs entry with no usable saved selection**, preselect **Active, Quote, Availability, Confirmed** and exclude Won/Lost. This starting/default reset rule applies to the shared All Jobs list on mobile and desktop; compact selector styling is mobile-only. It is a presentation/query choice, not a lifecycle rule or a change to any Job record, focused rail or other app surface.
+This is **mobile visual work only**, not another Jobs-default change. Preserve the current shared All Jobs first-entry/reset selection of **Availability + Committed** on mobile and desktop. Quote, Won and Lost remain deliberately selectable. No Job status or lifecycle is mutated.
 
-Fresh means no usable filter-state restoration, not every render, refetch, resize, navigation return or browser refresh. Preserve deliberate status subsets, Won/Lost inclusion and explicit unrestricted selections when refreshing or restoring this tab. Existing valid saved all-six selections have no reliable intent marker; preserve them rather than guess they were the old default. Retain the established intent of recognized legacy saved selections while displaying only current labels. Invalid/missing state falls back safely to the open-work baseline; it must not accidentally become an unrestricted query.
+Do not reset on refresh, refetch, resize or return navigation. Preserve current valid saved/in-view subsets, explicit all-five and explicit empty selection through refresh, tab restore and mode crossing. Use the current committed normalization/fallback behavior for older or missing state; do not bring back the historical six-stage preservation rules, four-open baseline or empty-means-all migration from the abandoned candidate.
 
-Use the current Clear all filters / Clear all action to **reset the view to that open-work baseline**: empty Search, All customers, All time for both dates, first result page and no filter deviations. Make that reset meaning explicit with concise helper text such as “Resets to open jobs.” It is an intentional reset, not something done on a refresh. Mobile reset must leave the parked desktop Item Status choice alone; desktop reset retains its normal item-filter clearing behavior.
+Keep the distinction between **Deselect all statuses** and **Clear all filters/reset**: the former means no statuses/no results; the latter restores Availability + Committed and the current Search/customer/date/page reset behavior. Reset wording must not suggest unrestricted results or all open stages. Mobile reset continues to leave parked desktop Item Status untouched; desktop's existing Item Status behavior remains unchanged.
 
-Preserve the existing explicit **All statuses** unfiltered choice and empty-selection meaning, including legacy history handling; it must visibly read All statuses/unrestricted, never “None selected” while returning every status. All statuses is not the fresh-entry default or the reset state. An explicit selection of Won/Lost or All statuses stays in effect until the user changes/resets it.
-
-The Status group counts as zero deviations at the exact four-open-stage baseline and one when it differs, including unrestricted or all-six selections. Other groups retain their existing count meaning. Selected summaries, option states, badge/deviation indication and effective results must agree, including restoration and mobile/desktop crossing. Mobile Item Status remains absent from the sheet, accessibility tree, query, results constraint and badge; its desktop state stays isolated.
+Status contributes zero deviations at exactly Availability + Committed and one at any other selection, including all five or none. Other groups retain their current count meaning. Summary, highlights/checkmarks, accessible state, badge and effective results must agree. Mobile Item Status remains absent from the sheet/accessibility tree/query/result constraint/badge, with its desktop state isolated as currently implemented.
 
 ## Acceptance criteria
 
-- At 320px, 390px and 480px the initial mobile Filters sheet has four compact closed controls, not long exposed checkbox/radio lists; each trigger and selectable option has a minimum 44px target.
-- Status shows only Active, Quote, Availability, Confirmed, Won, Lost in that order. Multi-selection has highlight, checkmark and truthful accessible state; successive changes remain possible without reopening the selector.
-- Customer option search preserves selections, matching and result scope; long names and lists remain usable.
-- Created/Updated each allow exactly one existing range or All time; their closed summaries match the query and choosing one leaves the sheet open.
-- Opening/closing selectors never applies an extra reset or loses focus/selection. Keyboard/touch QA verifies nested Escape, Tab/Shift+Tab containment, sheet Close/backdrop and restored trigger focus.
-- Fresh first-entry mobile and desktop queries include exactly the four open stages. No Won/Lost appears unless intentionally selected/restored; this writes no Job status.
-- Deliberate Won-only, mixed, all-six and unrestricted selections survive refresh, revisit and mode crossing. Valid preexisting saved all-six state is retained. Missing/malformed state receives the open baseline rather than unrestricted results.
-- Recognized older saved-selection migration retains its prior inclusion intent; changing the default does not silently strip deliberately selected Won/Lost.
-- Clear/reset returns open stages, clear Search/customer/dates and page one; the Status deviation count returns to zero. Reset text distinguishes open-work reset from unrestricted All statuses.
-- Every applied non-default Status subset/unrestricted state counts as one Status deviation, not a count of chosen statuses; summaries/checks/badges/results agree after each action.
-- Mobile Item Status remains omitted/ignored, and mobile reset does not erase parked desktop Item Status. Desktop layout and ordinary selector interactions remain unchanged apart from the expressly shared initial/reset baseline.
-- Rendered before/after QA at 320/390/480 plus desktop covers long labels/customer lists, each selector open, keyboard-visible scrolling, close/reset access and 899/900 mode crossing. Unit/state tests alone are not visual acceptance.
+- At 320px, 390px and 480px, mobile Filters initially shows four compact closed controls rather than long exposed lists. Triggers, choices and Select all/Deselect all controls are at least 44px targets.
+- Status displays only Quote, Availability, Committed, Won, Lost in that order, with highlighted/checkmarked accessible multi-selection and no extra Apply step.
+- Select all selects all five current stages; Deselect all shows No statuses selected, returns no matching Jobs and counts as one Status deviation. It must never remove the Status constraint or show unrestricted results.
+- Fresh entry and explicit filter reset still select only Availability + Committed, with zero Status deviation. Merely opening/closing a selector does not alter filters or results.
+- Valid current saved/in-view Quote-only, mixed, Won/Lost, all-five and empty selections survive refresh, return navigation and 899/900 mode crossing under the committed restoration contract. Missing/legacy-state handling matches the new committed baseline, not the historical candidate.
+- Selected summary, checked/highlighted options, accessible state, active badge and effective query/results agree for baseline, partial, all-five and none.
+- Customer search retains selections and matching; long names/lists remain usable and its existing All customers behavior is unchanged.
+- Created/Updated retain one existing range or All time, truthful collapsed summaries, unchanged rolling-date meaning, and leave the sheet open after choosing a range.
+- Touch/keyboard QA verifies nested Escape before sheet dismissal, Tab/Shift+Tab containment, selector/sheet Close and outside dismissal, restored focus and keyboard-visible scroll/reset access.
+- Mobile Item Status remains omitted/ignored; mobile reset does not erase parked desktop state. Desktop selector layout and all committed desktop filter/default/reset behavior are unchanged.
+- Current-candidate rendered QA at 320/390/480 and desktop includes each selector open/closed, long content, on-screen-keyboard conditions, empty/all/default results and mode crossing. State tests alone are not visual acceptance.
+- Independent technical and visual review is tied to the actual refreshed candidate and baseline. Historical test results are not a current release gate pass; no shipped claim before verified release evidence.
 
 ## Out of scope
 
-- Status vocabulary/model, stored statuses, lifecycle, availability responses, permissions or money changes.
-- Changing date/timezone/window meaning, request order, server paging limits, customer matching or unfiltered/legacy-history API behavior.
-- Global defaults for other screens, forced reset of existing sessions, desktop layout redesign, a new Apply workflow or supplier/customer sends.
-- Reopening card/focused-Job design or the separate mobile Item Status decision.
+- Any change to status vocabulary/model, stored statuses, lifecycle, availability responses, money or permissions.
+- Changing current initial/reset defaults, explicit none/all behavior, committed saved-state normalization, date/timezone meaning, request order, paging limits or customer matching.
+- Desktop redesign, other-screen defaults, a new Apply workflow, supplier/customer sends, card/focused-Job redesign or Item Status policy.
+- Applying the old nine-path candidate/patch, reviving its old defaults or unrestricted empty behavior, or creating a duplicate builder.
 
 ## Assumptions
 
-- Chris’s general “At opening of jobs view” instruction covers the shared All Jobs list at both widths; his screenshot-driven selector compaction is mobile-only. It does not authorize changing other Jobs-related surfaces.
-- Preserving ambiguous saved all-six intent is safer than forcibly converting existing sessions. Reset offers an explicit way to adopt the new open default.
+- The existing Nova owner remains responsible for this queued visual slice. This is a corrected follow-up to that owner, not a new parallel implementation request.
+- Nova reports the operator baseline clean/committed; preserve that baseline and stop on new overlapping edits. Independent current-candidate technical and visual gates remain required.
 
 ## Handoff log
 
 - 2026-09-11 13:02:27 CDT — Nova relayed the exact wording: the opening-default clause says Jobs generally, while both references are mobile. Read-only audit complete; routed this full narrow follow-on to Nova, including saved-state migration and nested-focus caveats. No Lily implementation or production writes; concurrent operator work must be preserved.
 - 2026-09-11 13:06:17 CDT — Nova accepted and delegated to `compact-job-filter-selectors`: preserve legacy/all-six/unrestricted intent independently of fresh/reset defaults, nested Escape and mobile Item Status behavior. Owner uses an isolated candidate worktree and stops on overlapping operator edits; no live build/deploy before exact technical and visual gates.
 - 2026-09-11 13:38:04 CDT — Nova reports isolated nine-path candidate frozen for independent review: 43/43 focused tests and typecheck pass. Full suite has six CSS/token failures also reproduced on clean `c954d13`; reviewer is distinguishing baseline failures from candidate defects. Release is not green: no integration, commit, deployment or browser/visual QA yet. Original operator files/index remain untouched; status stays routed.
+- 2026-09-18 10:08:47 CDT — Parent superseded the preceding semantic assumptions with the clean committed five-stage/two-default/empty-none contract. Historical visual request remains desired; old candidate must not be applied. Full corrected visual-only brief successfully sent to Nova main for its existing owner, with new independent candidate gates; no duplicate implementation and not shipped.

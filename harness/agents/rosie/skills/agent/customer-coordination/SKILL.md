@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Keep all communication with a customer on their dedicated thread. Covers identity/thread lookup, customer-safe drafts, approval in the original request interaction, exact approved delivery, contact history, expected install and pickup/delivery details, and customer acceptance relays for committed orders. Use for customer messages, requested customer sends and updates about any of their orders. (v3.2.0)
+description: Keep all communication with a customer on their dedicated thread. Covers identity/thread lookup, customer-safe drafts, approval in the original request interaction, exact approved delivery, contact history, expected install and pickup/delivery details, already committed intake, supplied pricing and accepted-quote relays for orders with optional availability. Use for customer messages, committed requests, quote acceptance, requested customer sends and order updates. (v3.3.0)
 metadata:
   author: lps
-  version: "3.2.0"
+  version: "3.3.0"
 ---
 
 # Customer coordination
@@ -22,15 +22,22 @@ write discipline for customer fields.
 2. Identify the relevant job(s). Relay every job update to its `jr-<id>`:
    a new request, scope change, delivery date, question, acceptance or concern.
    Ambiguous identity/job references need clarification, not a guessed write.
-   A new order follows `job-requests` intake; a pricing question does not
-   create a job.
+   A new order follows `job-requests` intake, including a request that is
+   already committed. Relay the original message/attachments, supplied prices,
+   exact accepted scope and any instruction to skip availability. The job
+   thread creates/reuses the job and items before ordering. A pricing question
+   does not create a job.
 3. Put durable customer preferences/contact corrections in `customers.notes`
    or their structured fields. The transcript is the communication log;
    there is no `customers.communication_notes` column.
 4. Explicit customer acceptance is relayed with its exact scope/evidence so
-   the job thread creates **Committed** supplier orders for the accepted
-   quantities. Supplier confirmation makes those **Orders Confirmed** while
-   the **Job Request remains Committed**; jobs have no Confirmed stage.
+   the job thread creates supplier Orders **New** and makes their jobs
+   **Committed** for the accepted quantities. Already committed intake and
+   accepted quotes may go directly to an order: preserve supplied/accepted
+   pricing, fill only missing prices from APS, and require no new quote or AR.
+   Do not ask the customer to accept again when the commitment is already clear.
+   Supplier confirmation moves Orders to **Processing**, then **Order Ready**,
+   while the Job remains Committed; jobs have no Confirmed stage.
    One job may have several orders and one order may serve several jobs;
    acceptance applies only to this customer's stated scope and quantities.
    Relay supplied expected install dates and pickup/delivery choices for the

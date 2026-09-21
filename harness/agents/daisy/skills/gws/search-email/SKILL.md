@@ -1,9 +1,9 @@
 ---
 name: search-email
-description: Find mail in the mailbox and file it, with `scripts/gws/email search|labels|label`. Covers Gmail query syntax (sender, subject, dates, attachments, labels, negation, OR), narrowing a search that returns too much, checking whether something you sent went out, applying and creating labels, archiving, marking read/unread, doing it per-thread, and the standing Gmail filters that change what wakes you. Use when asked "did X ever email about…", "find that invoice", "what's still unanswered", "file/archive/label these", or whenever you need mail that never arrived as a notification. (v1.0.1)
+description: Find mail in the mailbox and file it, with `scripts/gws/email search|labels|label`. Covers Gmail query syntax (sender, subject, dates, attachments, labels, negation, OR), narrowing a search that returns too much, checking whether something you sent went out, applying and creating labels, archiving, marking read/unread, doing it per-thread, and the standing Gmail filters that change what wakes you. Use when asked "did X ever email about…", "find that invoice", "what's still unanswered", "file/archive/label these", or whenever you need mail that never arrived as a notification. (v1.0.2)
 metadata:
   author: cognisphere
-  version: "1.0.1"
+  version: "1.0.2"
 ---
 
 # Search and file email
@@ -13,8 +13,8 @@ each thread your gws settings let through — everything else in the mailbox is
 reachable only by searching for it.
 
 ```bash
-bash scripts/gws/email search 'from:alice@x.com newer_than:30d'   # id, subject, from, date, snippet
-bash scripts/gws/email read <id>                                   # then open the ones that matter
+scripts/gws/email search 'from:alice@x.com newer_than:30d'   # id, subject, from, date, snippet
+scripts/gws/email read <id>                                   # then open the ones that matter
 ```
 
 `search` lists the 10 most recent hits (`--max N` for more), oldest first, so
@@ -46,17 +46,17 @@ search. A query returning hundreds of hits is a query that needs another term
 Two searches worth knowing by heart:
 
 ```bash
-bash scripts/gws/email search 'in:sent newer_than:1d'          # did my reply actually go out?
-bash scripts/gws/email search 'is:unread in:inbox' --max 30    # what's sitting unhandled
+scripts/gws/email search 'in:sent newer_than:1d'          # did my reply actually go out?
+scripts/gws/email search 'is:unread in:inbox' --max 30    # what's sitting unhandled
 ```
 
 ## 2. File what you found
 
 ```bash
-bash scripts/gws/email labels                                   # the label names that exist
-bash scripts/gws/email label <id> --add Invoices --archive --read
-bash scripts/gws/email label <id> --add Invoices --create       # make the label if it's new
-bash scripts/gws/email label <threadId> --thread --add Invoices # the whole thread
+scripts/gws/email labels                                   # the label names that exist
+scripts/gws/email label <id> --add Invoices --archive --read
+scripts/gws/email label <id> --add Invoices --create       # make the label if it's new
+scripts/gws/email label <threadId> --thread --add Invoices # the whole thread
 ```
 
 - `--add` / `--remove` take label **names**, repeatable; unknown names fail

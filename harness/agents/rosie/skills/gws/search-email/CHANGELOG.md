@@ -1,5 +1,9 @@
 # search-email — changelog
 
+## 1.0.2
+
+- Invoke the Node email executable directly, not with bash.
+
 ## 1.0.1
 
 - Wording: what wakes you is decided by the agent-owned gws settings

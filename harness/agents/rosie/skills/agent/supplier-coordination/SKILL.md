@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage all order-side contact on a supplier's dedicated thread. Covers quote-first APS availability with Chris send approval, consolidated job allocations, supplier order confirmation, Chris-authorized no-AR overrides, private/public availability requests, independent preparation and clarification, multiple-option demands and quote-only selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted supplier-response relays to Chris, Can Order response processing, supplier-authorized portal transcription, likely equivalent catalogue-name pricing versus AR mappings, approval-gated alternatives, minimal sourcing exceptions and job-wide provenance, closed-request locks and job-thread handoffs. Use for supplier sourcing handoffs, availability events, supplier messages and follow-ups; a supplier lookup alone authorizes no outreach and a supplier reply alone authorizes no job-line change. (v3.12.0)
+description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.13.0)
 metadata:
   author: lps
-  version: "3.12.0"
+  version: "3.13.0"
 ---
 
 # Supplier coordination
@@ -32,6 +32,12 @@ transcript retains full correspondence.
 
 ## 1. Select the channel and preserve preferences
 
+Check the job thread's workflow path first. For already committed intake or an
+accepted quote moving directly to order, use section 6 and skip AR preparation,
+creation and availability approval asks. The job thread creates/reuses the
+direct order; do not create a support AR or ask the supplier to complete one.
+The channel rules below apply when an availability request is actually needed.
+
 - `is_lps_partner = true`: availability requests reach the supplier's private
   portal. This flag is derived from portal logins; do not change it.
 - Non-partner: create an availability request with a public URL and send
@@ -42,8 +48,8 @@ transcript retains full correspondence.
   customer-details decision, ask Chris through `message-routing`, record
   his answer and leave `share_customer_details = false` while waiting.
   Do not expose customer identity while that decision is pending.
-- **APS is the exclusive current supplier. Generate the APS price-list quote
-  first and obtain Chris's approval before creating/publishing its availability
+- **APS is the exclusive current supplier. On the availability path, generate
+  the APS price-list quote first and obtain Chris's approval before creating/publishing its availability
   request.** The job thread asks after the quote unless Chris explicitly
   approved that exact send already. A quick-quote-only handoff stops at quote:
   do not create an AR or send a follow-up availability approval ask. Require
@@ -362,30 +368,24 @@ its email authorization.
 
 ## 6. Supplier orders and confirmation
 
-### Explicit Chris no-AR order override
+### Orders without an availability request
 
-Follow `job-requests` → **Chris-authorized order without an AR** for Chris's
-standing authorization (2026-09-17): an explicit request to create an order
-without AR permits scoped job availability updates on Chris's authority and
-necessary internal/admin support AR answers only where safely supported.
-This is not supplier-reported availability, submission or confirmation. It does
-not authorize portal publication, email or customer sends. Preserve original
-request chat for any required approval and maintain admin-override provenance.
+Follow `job-requests` → **Direct orders: committed intake and quote-to-order**.
+Already committed requests and accepted quotes can use `create_direct_order`
+without any AR. The job thread preserves supplied/accepted prices and fills
+only missing prices from APS, then creates the order and relays its id, exact
+allocations, commitment/pricing evidence and `skip_availability: true` here.
+No new quote or separate availability-send approval is needed. This replaces
+the obsolete internal/admin support-AR workaround and hidden-AR blocker.
 
-Current verified blocker: the AR creation RPC defaults to portal-visible New
-and has no hidden-from-creation parameter; hidden ARs reject item insertion,
-updates and the answer RPC. Nonhidden admin answers without submission are
-supported, but are portal-visible. NULL public token does not make an APS AR
-internal. Never create-then-hide, temporarily publish or bypass these gates.
-No supported internal-only construction currently exists: preserve authorized
-job-side work and report the publication-approval/platform capability blocker.
-A reviewed Bhoumik-owned capability or explicit Chris publication approval is
-needed; do not automatically widen this standing permission. `create_order`
-requires answered source rows, not supplier submission; never fabricate one.
-Verify the current schema before retrying. Current Orders are New → Processing
-→ Order Ready, with Jobs Committed; older confirmation labels below do not
-override the live schema.
-
+Read the resulting order before coordinating it. A NULL source AR id is expected
+for a direct order; resolve its jobs through `order_item_job_request_items`.
+Do not create, publish, answer or submit an AR to supply missing source evidence,
+or mark job items available to enable ordering. Customer commitment and catalogue
+pricing do not establish supplier availability or confirmation. A separately
+authorized job availability override retains its own provenance under `job-requests`.
+The committed request authorizes the order's appearance in the supplier Orders
+tab; separate email/customer sends still follow their approval rules.
 
 Use `job-requests` for customer-accepted order creation and quantity allocation.
 Orders are separate from ARs and appear in the supplier portal's **Orders** tab.
@@ -394,7 +394,8 @@ several supplier orders. Read `order_items` and
 `order_item_job_request_items` before matching supplier messages or relaying
 updates. Preserve the supplier scope and every customer's allocated quantities.
 
-Customer acceptance creates **Committed** orders. An availability response or
+Customer acceptance creates **New** orders and makes linked jobs **Committed**.
+Orders progress **New → Processing → Order Ready**. An availability response or
 submission is not supplier confirmation of an order. When the supplier
 explicitly confirms the identified order, use
 `confirm_order(orderId, supplierId, confirmationDate, fulfillmentDate)` to
@@ -402,8 +403,9 @@ record the actual `confirmation_date` and agreed pickup/delivery date. Do not
 infer these dates from the job's expected install date. Ambiguous scope or
 partial confirmation must be resolved before confirming the full order.
 The supplier portal records its own confirmation directly; re-read it rather
-than submitting a duplicate action. Supplier confirmation makes the **Order
-Confirmed** and leaves each linked **Job Request Committed**. Job requests
+than submitting a duplicate action. Supplier confirmation moves the **Order
+to Processing** and leaves each linked **Job Request Committed**. Use
+`update_partner_order` for the subsequent Order Ready transition. Job requests
 have no Confirmed stage. Relay the actual order status/date to every linked
 job and follow `job-requests` for its separate lifecycle; maintain only the
 necessary current exceptions/decisions under section 3 of `job-requests`,

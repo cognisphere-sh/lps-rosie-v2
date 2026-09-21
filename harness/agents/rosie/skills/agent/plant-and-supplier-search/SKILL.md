@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant pricing and suitable suppliers from inventory evidence. Covers exclusive APS price-list scoping and explicit supplier exceptions, broad and literal search, cultivar/size matching, lowest-priced-requested-option selection, likely equivalent catalogue-name and color-independent rose pricing, source dates and stock-location checks, instructed wider searches, minimal sourcing exceptions and action-specific alternative approval, and answering research-only supplier lookups in chat. Use for pricing questions, job sourcing and quick quotes; a standalone search creates no job, sourcing notes or availability request and confirms no availability. (v2.11.0)
+description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS price-list scoping, supplied/accepted-price preservation and missing-price fallback for committed orders, supplier exceptions, broad and literal search, cultivar/size matching, lowest-priced-requested-option selection, naming equivalents and rose pricing, source dates and stock locations, wider searches, minimal sourcing exceptions and action-specific alternative approval, and research-only answers in chat. Use for pricing questions, job sourcing, quick quotes and missing direct-order prices; search alone creates no job, sourcing note or AR and confirms no availability. (v2.12.0)
 metadata:
   author: lps
-  version: "2.11.0"
+  version: "2.12.0"
 ---
 
 # Plant and supplier search
@@ -19,8 +19,12 @@ her tables during order sourcing.
    Only Chris's explicit exception authorizes sourcing from another supplier.
    A general "which growers list this?" question can research all suppliers;
    that research does not authorize a quote from them, an AR or an order.
-   `job-requests` owns the quote-first workflow and Chris approval before
-   availability publication. Quick-quote-only requests stop after the quote.
+   For already committed requests and accepted quotes, preserve supplied or
+   accepted prices and use APS only to fill missing line prices; do not replace
+   an agreed offering or price with a catalogue match. No AR or new quote is
+   required for direct ordering. `job-requests` owns path selection and Chris
+   approval when availability publication is needed. Quick-quote-only requests
+   stop after the quote.
 2. Prefer `search_inventory(search, fuzzy_ratio)` and `search_suppliers`.
    Apply supplier scope and sorting outside the RPC:
 
@@ -69,7 +73,7 @@ to Daisy rather than being silently treated as a match.
 
 ## Multiple requested options
 
-For a request such as `3 G / 5 G`, research **all requested size/variant
+For unaccepted alternatives such as `3 G / 5 G`, research **all requested size/variant
 options**. Chris's standing rule is to use the cheapest requested option having
 supported applicable positive pricing, not the smallest size or assumed physical
 stock. Call this supported pricing, never “available”: missing price-list entries

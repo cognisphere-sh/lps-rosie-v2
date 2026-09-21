@@ -1,9 +1,9 @@
 ---
 name: read-email
-description: Read the actual content of a Gmail message or thread with `scripts/gws/email` — email notifications carry only a two-line preview. Covers reading a full body, dropping quoted reply history, skimming a long thread before fetching, pulling an older message or one you were only Cc'd on, downloading and converting attachments, and finding mail the poller never delivered. Use whenever an email notification arrives and its preview isn't enough to answer, when asked "what did X say", "check the thread", "what's in the attachment", or before replying to anything non-trivial. Finding mail in the first place is the `search-email` skill. (v1.1.1)
+description: Read the actual content of a Gmail message or thread with `scripts/gws/email` — email notifications carry only a two-line preview. Covers reading a full body, dropping quoted reply history, skimming a long thread before fetching, pulling an older message or one you were only Cc'd on, downloading and converting attachments with safe filenames and MIME/CID mappings, and finding mail the poller never delivered. Use whenever an email notification arrives and its preview isn't enough to answer, when asked "what did X say", "check the thread", "what's in the attachment", or before replying to anything non-trivial. Finding mail in the first place is the `search-email` skill. (v1.2.1)
 metadata:
   author: cognisphere
-  version: "1.1.1"
+  version: "1.2.1"
 ---
 
 # Read an email
@@ -18,7 +18,7 @@ email) and `Channel` (the Gmail thread it belongs to).
 ## 1. Read the message
 
 ```bash
-bash scripts/gws/email read <MessageId>
+scripts/gws/email read <MessageId>
 ```
 
 Prints `Subject/From/To/TimeStamp/MessageId`, the body, and the attachment
@@ -39,8 +39,8 @@ schedule, promise or file anything based on the preview alone.
 ## 2. Read the thread
 
 ```bash
-bash scripts/gws/email thread <Channel>                      # skim: id, from, date, snippet
-bash scripts/gws/email thread <Channel> --full --strip-quotes  # every message's own text
+scripts/gws/email thread <Channel>                      # skim: id, from, date, snippet
+scripts/gws/email thread <Channel> --full --strip-quotes  # every message's own text
 ```
 
 Skim first on a long thread, then `read` the two or three messages that matter
@@ -56,6 +56,25 @@ text and images with the `read` tool; convert anything else first
 (`markitdown` for pdf/docx/xlsx, `pdftoppm` for a page image, `ffmpeg` for
 audio/video) — see the harness preamble for conversion guidance.
 
+Files use a deterministic MIME-order number plus a sanitized, length-bounded
+name (for example `1-image`, `2-image`); normal extensions are retained. Use
+**the printed path**, never reconstruct it from the original filename. Each
+file link is followed by an `Attachment:` JSON mapping: `originalFilename`,
+`contentId` (raw Content-ID, including brackets), `mimeType`, `partId`,
+`attachmentId`, `filename`, `path`, and `status`. Missing metadata is `null`.
+Match HTML `cid:` references to `contentId`, not the potentially duplicate
+filename. A `failed` status is not a usable download.
+
+Repeated reads use the same paths and reuse identical regular files. Existing
+different files and symlinks cause an explicit fetch failure, never overwrite.
+Legacy unnumbered downloads are left untouched; do not delete or replace them
+as part of a read. Inbox directory symlinks are rejected. Downloads require
+Linux procfs: the CLI pins directory handles during fetch/write/reuse so an
+ancestor rename/symlink cannot redirect its I/O. If this capability is
+unavailable, report the error rather than falling back to an ordinary path.
+Printed links are ordinary paths, not protection against a local process
+renaming or modifying files later.
+
 Attachments are fetched only when you ask, so a mailbox full of large files
 costs nothing until one is actually relevant.
 
@@ -66,7 +85,7 @@ and your `scripts/gws/settings` decide which those are. Anything else — an
 older message, filtered-out mail, your own sent mail — you have to go and find:
 
 ```bash
-bash scripts/gws/email search 'from:alice@x.com newer_than:7d'
+scripts/gws/email search 'from:alice@x.com newer_than:7d'
 ```
 
 Each hit's id is a `MessageId` for `email read`. The query syntax, narrowing a

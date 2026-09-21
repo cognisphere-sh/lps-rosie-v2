@@ -1,5 +1,11 @@
 # job-requests — changelog
 
+## 5.14.0 — 2026-09-18
+
+- Make Quote → Availability → Order the usual route with optional availability; already committed intake and accepted quotes create/reuse jobs/items and proceed directly to orders without a new quote or AR approval ask.
+- Preserve supplied/accepted prices and offerings; fill only missing prices from APS. Carry exact commitment evidence, resolve material gaps and retain quick-quote stopping behavior until later acceptance.
+- Replace the obsolete internal/admin support-AR workaround with migration 0100's `create_direct_order`, including exact allocations, retry checks and no invented availability. Align all order references to New → Processing → Order Ready while jobs remain Committed.
+
 ## 5.13.0 — 2026-09-17
 
 - Chris approved the simpler default (JR-61 reviewed questionnaire): audience-specific additional notes only; supersedes every-APS-row research entries and mandatory summary-plus-supplier boilerplate.
