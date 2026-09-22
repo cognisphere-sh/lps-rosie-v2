@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 2.3.0 — 2026-09-22
+
+- Route post-placement order-change notifications under standing send authorization while preserving supplier-thread ownership and other communication approval rules.
+
 ## 2.2.0 — 2026-09-18
 
 - Route new intake directly to a new job id without searching jobs by matching plants or asking duplicate-job questions based on plant overlap.

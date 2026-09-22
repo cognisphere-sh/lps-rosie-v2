@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import { partnerSupplier } from '@/lib/availability-queries'
-import { orderDetail, updatePartnerOrder } from '@/lib/order-queries'
+import { orderDetail, supplierOrderEventContext, updatePartnerOrder } from '@/lib/order-queries'
+import { notifySupplierEvent, type OrderHeaderChange } from '@/lib/notify-supplier-events'
 import { parsePartnerOrderUpdate, positiveId } from '@/lib/orders'
 import { requirePartnerAccess } from '@/lib/partner-auth'
 
@@ -40,7 +41,22 @@ export async function PATCH(req: Request, { params }: Context) {
     if (body != null && typeof body === 'object' && 'fulfillmentMethod' in body) {
       return NextResponse.json({ error: 'Pickup or delivery is managed by Chris' }, { status: 403 })
     }
-    await updatePartnerOrder(parsed, gate.supplierId, parsePartnerOrderUpdate(body))
+    const update = parsePartnerOrderUpdate(body)
+    const orderChanges: OrderHeaderChange[] = []
+    for (const field of ['status', 'fulfillmentDate', 'supplierNotes'] as const) {
+      if (field in update && (order[field] ?? null) !== (update[field] ?? null)) {
+        orderChanges.push({ field, previous: order[field] ?? null, value: update[field] ?? null })
+      }
+    }
+    await updatePartnerOrder(parsed, gate.supplierId, update)
+    // The write is committed. Notification failures must not make APS retry it.
+    if (orderChanges.length) {
+      try {
+        await notifySupplierEvent({ type: 'order_updated', ...await supplierOrderEventContext(parsed, gate.supplierId), orderChanges })
+      } catch (error) {
+        console.error('Order saved but Rosie notification failed', error)
+      }
+    }
     return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 })

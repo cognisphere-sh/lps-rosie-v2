@@ -1,5 +1,10 @@
 # job-requests — changelog
 
+## 5.17.0 — 2026-09-22
+
+- Require a brief, supplier-safe summary in orders.notes and a supplier notification whenever a placed order changes, including already-saved updates.
+- Preserve existing notes and allocations, verify actual changes, and track note/send completion without duplicate messages or recursive notifications.
+
 ## 5.16.0 — 2026-09-21
 
 - Add Chris's APS-only manual-input policy: an explicit manual price, size or supplier-useful note is a scoped APS quote/AR input while APS is exclusive, not supplier confirmation or a generic/proxy identity claim.

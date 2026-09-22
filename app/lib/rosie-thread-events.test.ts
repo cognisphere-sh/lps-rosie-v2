@@ -201,3 +201,37 @@ test('portal communication requires supplier identity before recording or delive
   assert.equal(transcript.length, 0)
   assert.equal(events.length, 0)
 })
+
+test('order confirmations, readiness and fulfillment edits wake Rosie in the order conversation', async () => {
+  const { plugin, events } = await supplierPlugin()
+  for (const [field, previous, value, wording] of [
+    ['status', 'new', 'processing', 'confirmed'],
+    ['status', 'processing', 'order_ready', 'marked ready'],
+    ['fulfillmentDate', '2026-09-24', '2026-09-25', 'updated'],
+    ['supplierNotes', 'Call first', null, 'updated'],
+  ]) {
+    const orderChanges = [{ field, previous, value }]
+    assert.equal((await post(plugin, '/notify', {
+      type: 'order_updated', supplierId: 42, supplierName: 'APS', threadId: 'supplier-aps', orderId: 21, orderChanges,
+    })).status, 200)
+    const event = events.at(-1)!
+    assert.equal(event.payload.threadIdOverride, 'supplier-aps')
+    assert.deepEqual(event.payload.metadata, {
+      EventType: 'order_updated', SupplierId: 42, SupplierName: 'APS', OrderId: 21, OrderChanges: orderChanges,
+    })
+    assert.ok(String(event.payload.text).includes(`${wording} order O-21`))
+  }
+})
+
+test('malformed order changes never wake Rosie', async () => {
+  const { plugin, events } = await supplierPlugin()
+  const valid = { type: 'order_updated', supplierId: 42, supplierName: 'APS', orderId: 21,
+    orderChanges: [{ field: 'status', previous: 'new', value: 'processing' }] }
+  for (const body of [
+    { ...valid, orderId: null }, { ...valid, orderChanges: [] }, { ...valid, orderChanges: [null] },
+    { ...valid, orderChanges: [{ field: 'status', previous: 'new', value: 'confirmed' }] },
+    { ...valid, orderChanges: [{ field: 'supplierId', previous: '42', value: '43' }] },
+    { ...valid, type: 'order_status_saved', orderId: null, changes: [{ itemId: 1, status: 'available', note: '' }] },
+  ]) assert.equal((await post(plugin, '/notify', body)).status, 400)
+  assert.equal(events.length, 0)
+})

@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item intake, independent pricing before clarification, supplied/accepted-price preservation, APS fallback, optional availability and direct-order handoff, lowest-priced-requested-option quoting, concise shared notes, naming equivalents, minimal internal exceptions and approval-gated alternatives, Chris-directed APS manual prices/sizes/notes, the default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe rendering and delivery. Use for requested quotes, quick quotes or quote documents; already committed requests need no new quote, quick quotes stop without an AR, and simple pricing questions create no job. (v2.27.0)
+description: Produce quick inventory quotes and customer-ready text quotes. Covers job/item intake, independent pricing before clarification, supplied/accepted-price preservation, APS fallback, optional availability and direct-order handoff, lowest-priced-requested-option quoting, concise shared notes, naming equivalents, minimal internal exceptions and approval-gated alternatives, Chris-directed APS manual prices/sizes/notes, the default quantity/size/plant/unit-price/line-total text format in a copyable code block, customer-safe content and delivery. Use for requested quotes, quick quotes or text quotes; already committed requests need no new quote, quick quotes stop without an AR, and simple pricing questions create no job. (v3.0.0)
 metadata:
   author: lps
-  version: "2.27.0"
+  version: "3.0.0"
 ---
 
 # Quote generation
@@ -137,7 +137,7 @@ it in customer-facing quote rows.
 Chris's instruction (2026-09-17): shared notes contain only additional,
 customer-useful information not already evident in the row or grouping. Use
 short exceptions, not complete explanatory statements; leave NULL when none
-is needed. This applies to saved shared notes and text/HTML/PDF quote notes.
+is needed. This applies to saved shared notes and text quote notes.
 
 - No phase names in item shared notes. Preserve phases in customer/original-demand
   context and group output separately when requested; never merge phases.
@@ -170,8 +170,7 @@ is needed. This applies to saved shared notes and text/HTML/PDF quote notes.
   Do not remove a necessary actual-offering distinction or caveat merely to
   shorten a note; a pricing proxy is not an actual substitution.
 - Retain material qualifications such as unconfirmed availability or excluded
-  tax/delivery; shorten wording, never remove necessary meaning. Do not alter
-  approved template branding/layout or imply approval/availability from brevity.
+  tax/delivery; shorten wording, never remove necessary meaning. Do not imply approval/availability from brevity.
 - In plain-text quotes, include a brief inline note **only when the item's
   existing shared/customer-facing `external_notes` is nonblank** (Chris,
   2026-09-11). Concisely render that note; do not invent or reconstruct an
@@ -229,39 +228,7 @@ applicable customer-safe inline item notes described above. Only an explicit
 format instruction changes this. A line whose quantity or customer unit price
 is unknown stays out of a final priced quote and is stated separately to Chris.
 
-## 3. HTML / PDF quote
-
-For a compact HTML table to copy into Gmail, follow `html-quote` for its
-email-safe template, copy controls, private preview and downloadable HTML.
-This skill still owns intake, pricing/offer approval and customer-safe notes;
-the email table does not replace the approved APS document template below.
-
-Use `artifacts/austin-plant-supply-modern-quote-template.html` (relative to
-this skill) for an APS document. Preserve its approved branding, logo and
-print layout. Do not substitute the old APS or legacy LPS templates. A new
-visual template needs Chris's review of the rendered result before first use.
-
-1. Fill the template placeholders (`DATE`, `QUOTE_NUMBER`, customer/address,
-   ship-to, item rows, total, notes) with customer-safe data and HTML escaping.
-   Quote numbers use `JR<id>-<YYYYMMDD>`, including quick quotes: their
-   job/thread is created before the document.
-2. One row per included item. Gallons display as `G`. Document quantities
-   and unit prices must be known before calculating line totals. Use decimal
-   currency arithmetic and verify the sum. Job `total` is generated from
-   requested quantity × customer unit price, never `available_quantity`.
-3. Make an approved offered plant/size difference clear using the row and,
-   only when necessary, a minimal customer-safe note. Do not add `Quoted for`
-   or repeat an evident selection; retain necessary questions or distinctions
-   under the minimal-word rule above. A catalogue spelling difference alone
-   needs no note. Missing address fields stay visibly blank.
-4. Write HTML to the thread's files, render PDF with
-   `scripts/agent/agent-browser`, and verify page breaks, content and totals.
-   Upload final files through `scripts/agent/supabase/upload` to
-   `lps/rosie_shared/YYYY-MM-DD/`, obtain a link with
-   `scripts/agent/supabase/sign-url`, and use the artifacts plugin when a
-   live HTML link is requested. Treat published files as customer-visible.
-
-## 4. Approval and delivery
+## 3. Approval and delivery
 
 Returning a requested draft/price quote to Chris is internal work; it is not
 permission to deliver it to a customer. If customer delivery is requested,

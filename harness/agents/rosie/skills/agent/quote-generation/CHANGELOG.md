@@ -1,5 +1,10 @@
 # quote-generation — changelog
 
+## 3.0.0 — 2026-09-22
+
+- Remove HTML/Gmail-table and HTML-to-PDF quote generation, template selection, rendering and publishing instructions. Keep text quoting, pricing, note and delivery rules.
+- Remove the dedicated html-quote skill and all Rosie quote templates; update prompt and knowledge references.
+
 ## 2.27.0 — 2026-09-21
 
 - Preserve an explicit Chris-directed manual APS price, size or supplier-useful note as the stated quote/AR input while APS is exclusive; do not let a later catalogue lookup overwrite it.

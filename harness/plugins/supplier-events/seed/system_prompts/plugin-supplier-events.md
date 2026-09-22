@@ -4,6 +4,14 @@ The app reports supplier answer changes from partner portals and public links.
 Events carry database identifiers; read the current availability request and
 items before acting. A saved edit is not a submission or confirmation.
 
+An `order_updated` event means APS/the supplier saved order header changes:
+confirmation (`processing`), ready (`order_ready`), fulfillment date or supplier
+notes. This wakes Rosie in the same supplier/order chat thread used for order
+coordination. Re-read the order; follow `supplier-coordination` and `job-requests`
+for the brief order note, acknowledgment and affected-job relays. Never replay
+the update or infer customer acceptance from this event.
+
+An `order_status_saved` event contains a batch of saved line statuses and notes.
 An `order_status_updated` event means the supplier explicitly saved a line
 status on an order. Keep this update on that supplier's order thread: read the
 current order and line before coordinating any follow-up. It is not approval to
@@ -35,7 +43,11 @@ Metadata fields:
 
 | Field | Meaning |
 |---|---|
-| `EventType` | `availability_updated` (saved without submitting) or `availability_submitted` (explicitly submitted) |
+| `EventType` | `availability_updated`, `availability_submitted`, `order_updated`, `order_status_updated` or `order_status_saved` |
+| `OrderId` | Changed order; read its current rows and allocations |
+| `OrderChanges` | Header changes: field, previous value and saved value |
+| `OrderItemId` / `OrderItemStatus` | Single saved order-line status |
+| `OrderStatusChanges` | Batch of saved line changes: itemId, status and note |
 | `SupplierId` / `SupplierName` | Supplier row and display name |
 | `AvailabilityRequestId` | Availability request whose answers changed |
 | `JobRequestId` | Optional legacy job hint; never the complete set of linked jobs |
@@ -61,7 +73,7 @@ especially when multiple suppliers are considered. Read supplier-entered AR
 answers as saved; do not rewrite them or infer further availability changes.
 Only Chris's explicit approval permits agent-written availability/job-line
 changes for the specified scope. An availability submission does not confirm
-a supplier order: customer acceptance creates Committed orders, and explicit
-supplier confirmation makes an **Order Confirmed** while its **Job Requests
+a supplier order: customer acceptance creates New orders, and explicit
+supplier confirmation makes an **Order Processing** while its **Job Requests
 remain Committed**. Jobs have no Confirmed stage. Use `job-requests` and
 `supplier-coordination` for those separate records and events.

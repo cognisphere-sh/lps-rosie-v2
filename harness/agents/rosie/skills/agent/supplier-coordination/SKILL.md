@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks, Chris-directed APS manual AR inputs and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.14.0)
+description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, post-placement change notifications and order notes, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks, Chris-directed APS manual AR inputs and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.15.0)
 metadata:
   author: lps
-  version: "3.14.0"
+  version: "3.15.0"
 ---
 
 # Supplier coordination
@@ -430,6 +430,39 @@ necessary current exceptions/decisions under section 3 of `job-requests`,
 not redundant order-status summaries.
 Use `close_order` only for an explicit Won/Lost outcome, never because an AR
 was submitted or a customer was silent.
+
+### Notify suppliers of changes after placement
+
+Every verified update to a placed order requires a brief `orders.notes`
+summary and a message to its supplier, as defined in `job-requests` →
+**Changes after order placement**. This includes updates the supplier submitted;
+acknowledge the recorded change without implying a new supplier confirmation.
+
+1. Re-read the saved order and changed fields, verify the supplier and all
+   affected allocations, and check the supplier transcript for a notification
+   already sent for this exact change. Combine fields from one update into
+   one concise message; do not repeat it on a retry or cross-thread relay.
+2. Have the job owner persist/verify the brief change summary in `orders.notes`.
+   For a supplier-originated update, relay the verified before/after details
+   to that owner. Preserve existing instructions and `orders.supplier_notes`.
+3. Send the supplier a short factual message identifying the order and what
+   changed, using verified old/new values where useful. Include the current
+   fulfillment plan when affected. Keep internal sourcing, approval chatter
+   and other customers' identities out of the message.
+4. Use the supplier's established channel and preferences: a partner portal
+   message on this supplier thread uses `webchat-cli send --portal --text ...`;
+   otherwise use the verified supplier email/contact channel. A saved order
+   appearing in Orders, an internal webchat message without `--portal`, or
+   an internal agent handoff is not a supplier message. This standing
+   instruction authorizes the scoped change notification, including email,
+   without a new draft-approval request. It does not authorize unrelated
+   outreach, new commitments, or changes to the order itself.
+5. Verify the send result and report the actual message reference/result to
+   the job owner. If delivery fails or the contact/channel is missing, keep
+   the notification pending, report the blocker and resolve/retry safely.
+   After an uncertain send, check contact history before resending. A task is
+   complete only when the note and actual supplier send are confirmed.
+   Adding the summary or logging delivery must not trigger another notice.
 
 ## 7. Follow-ups and records
 

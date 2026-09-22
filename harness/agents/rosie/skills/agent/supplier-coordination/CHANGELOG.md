@@ -1,5 +1,10 @@
 # supplier-coordination — changelog
 
+## 3.15.0 — 2026-09-22
+
+- Require actual supplier messages for verified post-placement order changes, with standing authorization for scoped portal/email notifications.
+- Coordinate brief orders.notes summaries with the job owner, acknowledge supplier-originated changes, and verify delivery with retry/deduplication safeguards.
+
 ## 3.14.0 — 2026-09-21
 
 - Add Chris's APS-only manual-input procedure for correcting an active unanswered AR's LPS-side size, seed price and supplier-useful notes without treating it as a supplier response.

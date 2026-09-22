@@ -25,7 +25,14 @@ interface SupplierEventBase {
   threadId: string | null
 }
 
+export interface OrderHeaderChange {
+  field: 'status' | 'fulfillmentDate' | 'supplierNotes'
+  previous: string | null
+  value: string | null
+}
+
 export type SupplierEvent =
+  | (SupplierEventBase & { type: 'order_updated'; orderId: number; orderChanges: OrderHeaderChange[] })
   | (SupplierEventBase & { type: 'availability_updated' | 'availability_submitted'; availabilityRequestId: number; jobRequestId: number | null })
   | (SupplierEventBase & { type: 'order_status_updated'; orderId: number; orderItemId: number; status: string })
   | (SupplierEventBase & { type: 'order_status_saved'; orderId: number; changes: { itemId: number; status: string; note: string }[] })

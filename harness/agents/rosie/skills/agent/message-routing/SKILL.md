@@ -1,9 +1,9 @@
 ---
 name: message-routing
-description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, new-job routing without plant-based duplicate searches, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.2.0)
+description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, new-job routing without plant-based duplicate searches, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.3.0)
 metadata:
   author: lps
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # Thread routing and approvals
@@ -90,6 +90,9 @@ arguments safely so currency `$`, backticks and substitutions stay literal.
    have no supplier contact. A committed/direct-order handoff does not need
    an availability approval: it authorizes the scoped order in the Orders tab,
    with no AR. Separate customer/supplier messages retain their send rules.
+   Post-placement order-change notifications have standing send authorization
+   under `supplier-coordination`; route the verified change to the supplier
+   thread for delivery without asking for fresh draft approval.
 2. **Present any required approval in `OriginThreadId`, the original request
    chat, even if Chris has since switched chats**, while preserving the job
    as the record owner and the

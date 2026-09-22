@@ -210,7 +210,9 @@ test('supplier and admin portal access permits atomic lifecycle updates within t
       : { ok: true, supplierId: 7, user: { role } } },
     '@/lib/availability-queries': { partnerSupplier: async () => supplierActive ? { id: 7 } : null },
     '@/lib/orders': { parsePartnerOrderUpdate, positiveId },
+    '@/lib/notify-supplier-events': { notifySupplierEvent: async () => {} },
     '@/lib/order-queries': {
+      supplierOrderEventContext: async () => ({ supplierId: 7, supplierName: 'APS', threadId: 'supplier-aps', orderId: 42 }),
       orderDetail: async (...args: unknown[]) => {
         scopes.push(args)
         return args[0] === 42 ? { id: 42, supplierId: 7, status: 'new', availabilityRequestIds: [10] }
@@ -270,7 +272,9 @@ test('Pickup or delivery is never writable through a supplier portal session, wh
     '@/lib/partner-auth': { requirePartnerAccess: async () => ({ ok: true, supplierId: 7, user: { role } }) },
     '@/lib/availability-queries': { partnerSupplier: async () => ({ id: 7 }) },
     '@/lib/orders': { parsePartnerOrderUpdate, positiveId },
+    '@/lib/notify-supplier-events': { notifySupplierEvent: async () => {} },
     '@/lib/order-queries': {
+      supplierOrderEventContext: async () => ({ supplierId: 7, supplierName: 'APS', threadId: 'supplier-aps', orderId: 42 }),
       orderDetail: async () => ({ id: 42, supplierId: 7, status: 'new', fulfillmentMethod: null }),
       updatePartnerOrder: async (...args: unknown[]) => { writes.push(args) },
     },
@@ -433,4 +437,57 @@ test('order closure follows every linked job for supplier and admin reads, with 
   tables.job_requests[0].status = 'committed'
   orders = await listOrders({ supplierId: 7, forSupplier: true })
   assert.equal(orders[0].closed, false)
+})
+
+test('partner header saves notify only after successful changes', async () => {
+  const saved: Record<string, unknown> = { id: 42, supplierId: 7, status: 'new', fulfillmentDate: null, supplierNotes: null }
+  const events: any[] = []
+  let failWrite = false
+  let failContext = false
+  const { PATCH } = load('../app/api/partner/[id]/orders/[orderId]/route.ts', {
+    'next/server': { NextResponse: Response },
+    '@/lib/partner-auth': { requirePartnerAccess: async () => ({ ok: true, supplierId: 7 }) },
+    '@/lib/availability-queries': { partnerSupplier: async () => ({ id: 7 }) },
+    '@/lib/orders': { parsePartnerOrderUpdate, positiveId },
+    '@/lib/order-queries': {
+      orderDetail: async () => ({ ...saved }),
+      updatePartnerOrder: async (id: number, supplier: number, update: object) => {
+        assert.equal(id, 42); assert.equal(supplier, 7)
+        if (failWrite) throw new Error('write failed')
+        Object.assign(saved, update)
+      },
+      supplierOrderEventContext: async () => {
+        if (failContext) throw new Error('context unavailable')
+        return { supplierId: 7, supplierName: 'APS', threadId: 'supplier-aps', orderId: 42 }
+      },
+    },
+    '@/lib/notify-supplier-events': { notifySupplierEvent: async (event: any) => {
+      for (const change of event.orderChanges) assert.equal(saved[change.field], change.value)
+      events.push(event)
+    } },
+  })
+  const patch = (body: object) => PATCH(new Request('https://lps.example/api/partner/7/orders/42', {
+    method: 'PATCH', body: JSON.stringify(body),
+  }), { params: Promise.resolve({ id: '7', orderId: '42' }) })
+  assert.equal((await patch({ status: 'processing', fulfillmentDate: '2026-09-25', supplierNotes: 'After noon' })).status, 200)
+  assert.equal(events.length, 1)
+  assert.deepEqual(events[0].orderChanges, [
+    { field: 'status', previous: 'new', value: 'processing' },
+    { field: 'fulfillmentDate', previous: null, value: '2026-09-25' },
+    { field: 'supplierNotes', previous: null, value: 'After noon' },
+  ])
+  assert.equal(events[0].threadId, 'supplier-aps')
+  assert.equal((await patch({ supplierNotes: ' After noon ' })).status, 200)
+  assert.equal(events.length, 1)
+  failWrite = true
+  assert.equal((await patch({ status: 'order_ready' })).status, 400)
+  assert.equal(events.length, 1)
+  failWrite = false
+  assert.equal((await patch({ status: 'order_ready' })).status, 200)
+  assert.equal(events.length, 2)
+  assert.equal((await patch({ supplierNotes: null })).status, 200)
+  assert.equal(events.length, 3)
+  failContext = true
+  assert.equal((await patch({ fulfillmentDate: '2026-09-26' })).status, 200)
+  assert.equal(saved.fulfillmentDate, '2026-09-26')
 })

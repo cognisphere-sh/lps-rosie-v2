@@ -1,6 +1,6 @@
 # Plugin: supplier-events
 
-**The app wakes rosie when a supplier saves or submits availability answers.**
+**The app wakes Rosie when a supplier saves order changes or saves/submits availability answers.**
 User-space plugin at `harness/plugins/supplier-events/`; enabled on
 [`rosie`](agent-rosie.md) only — she owns order-side supplier coordination,
 partner portals and public request links included.
@@ -46,6 +46,19 @@ hint; the agent resolves all current linked jobs from the database instead of
 assuming a single owner. Invalid identifiers or an unknown `type`
 return 400.
 
+## Order changes
+
+Successful supplier-portal header edits emit `order_updated` with `orderId`
+and `orderChanges` (`field`, `previous`, `value`). This covers confirmation
+(New → Processing), Order Ready, fulfillment-date changes and supplier notes,
+including clearing a note. Unchanged saves and failed writes emit no event.
+The existing `order_status_saved` event covers the portal's batch line-status
+save; `order_status_updated` supports a single line. All use the supplier's
+existing order-coordination chat, not a new conversation for each order.
+Rosie receives `OrderId` and `OrderChanges` (or `OrderStatusChanges`, or
+`OrderItemId`/`OrderItemStatus`) and re-reads current records before follow-up.
+Delivery uses the existing best-effort webhook; no durable retry queue is added.
+
 ## Threads — one per supplier
 
 Delivery uses `threadIdOverride`: the event lands on the supplier's
@@ -79,14 +92,14 @@ All PascalCase, documented for the agent in the seeded prompt fragment:
 The prompt requires Chris approval before response-driven job-line changes.
 An availability submission is not supplier order confirmation: accepted
 orders become Committed through `create_order`, and explicit supplier
-confirmation makes the Order Confirmed while linked Job Requests remain
+confirmation makes the Order Processing while linked Job Requests remain
 Committed. Jobs have no Confirmed stage. A delayed event must not close
 or reopen shared work based on the scalar job hint alone.
 
 The durable instruction source is
 `harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md`.
 Do not manually edit the generated agent prompt: an operator harness restart
-reseeds it from this source and applies the instruction correction. No app
-restart or database migration is required. Regression coverage in
+reseeds it from this source and applies the instruction correction. These code changes require an app deployment and harness/plugin restart; no
+database migration is required. Regression coverage in
 `app/lib/rosie-thread-events.test.ts` checks the seed's submission-only relay
 contract and distinct save/submit/re-submit delivery on the supplier thread.

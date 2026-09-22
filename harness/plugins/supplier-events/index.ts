@@ -9,6 +9,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  *
  * - `availability_updated` — a supplier saved answers without submitting.
  * - `availability_submitted` — a supplier explicitly submitted their answers.
+ * - `order_updated` — confirmation, ready status, fulfillment date or supplier notes.
+ * - `order_status_updated` / `order_status_saved` — order-line status changes.
  *
  * Everything the event is *about* lives in the database
  * (availability_requests, availability_request_items), so the notification
@@ -37,6 +39,7 @@ interface SupplierEventBody {
   orderId?: number | null;
   orderItemId?: number | null;
   status?: string;
+  orderChanges?: { field: string; previous: string | null; value: string | null }[];
   changes?: { itemId?: number; status?: string; note?: string }[];
   /** The supplier's `rosie_thread_id`; null → the main thread. */
   threadId?: string | null;
@@ -108,7 +111,7 @@ export default class SupplierEventsPlugin {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return json(400, { error: "event must be an object" });
     }
-    if (body.type !== "availability_submitted" && body.type !== "availability_updated" && body.type !== "order_status_updated" && body.type !== "order_status_saved") {
+    if (body.type !== "availability_submitted" && body.type !== "availability_updated" && body.type !== "order_status_updated" && body.type !== "order_status_saved" && body.type !== "order_updated") {
       return json(400, { error: "unsupported event type" });
     }
     if (!Number.isSafeInteger(body.supplierId) || Number(body.supplierId) <= 0 ||
@@ -122,9 +125,23 @@ export default class SupplierEventsPlugin {
     if (availability && body.jobRequestId != null && (!Number.isSafeInteger(body.jobRequestId) || body.jobRequestId <= 0)) {
       return json(400, { error: "jobRequestId must be a positive integer or null" });
     }
-    if (!availability && (!Number.isSafeInteger(body.orderId) || Number(body.orderId) <= 0
-      || !Number.isSafeInteger(body.orderItemId) || Number(body.orderItemId) <= 0 || typeof body.status !== "string" || !body.status.trim())) {
-      if (body.type !== "order_status_saved" || !Array.isArray(body.changes) || !body.changes.length || body.changes.some((change) => !Number.isSafeInteger(change.itemId) || Number(change.itemId) <= 0 || typeof change.status !== "string" || !change.status.trim() || typeof change.note !== "string")) return json(400, { error: "order status changes are required" });
+    if (!availability && (!Number.isSafeInteger(body.orderId) || Number(body.orderId) <= 0)) {
+      return json(400, { error: "orderId must be a positive integer" });
+    }
+    if (body.type === "order_updated") {
+      if (!Array.isArray(body.orderChanges) || !body.orderChanges.length || body.orderChanges.length > 3 || body.orderChanges.some((change) =>
+        !change || !["status", "fulfillmentDate", "supplierNotes"].includes(change.field) ||
+        !(change.previous === null || typeof change.previous === "string") ||
+        !(change.value === null || typeof change.value === "string") ||
+        (change.field === "status" && !["processing", "order_ready"].includes(change.value ?? "")))) {
+        return json(400, { error: "orderChanges are required" });
+      }
+    } else if (body.type === "order_status_saved") {
+      if (!Array.isArray(body.changes) || !body.changes.length || body.changes.some((change) => !change || !Number.isSafeInteger(change.itemId) || Number(change.itemId) <= 0 || typeof change.status !== "string" || !change.status.trim() || typeof change.note !== "string")) {
+        return json(400, { error: "order status changes are required" });
+      }
+    } else if (body.type === "order_status_updated" && (!Number.isSafeInteger(body.orderItemId) || Number(body.orderItemId) <= 0 || typeof body.status !== "string" || !body.status.trim())) {
+      return json(400, { error: "order item and status are required" });
     }
     if (body.threadId != null && typeof body.threadId !== "string") {
       return json(400, { error: "threadId must be a string or null" });
@@ -134,8 +151,14 @@ export default class SupplierEventsPlugin {
     const jr = body.jobRequestId;
     const about = jr != null ? ` (job request JR-${jr})` : "";
     const action = body.type === "availability_submitted" ? "submitted their answers" : "saved answer changes without submitting";
+    const savedStatus = body.orderChanges?.find((change) => change.field === "status")?.value;
+    const orderAction = savedStatus === "order_ready" ? "marked ready" : savedStatus === "processing" ? "confirmed" : "updated";
+    const orderSummary = body.orderChanges?.map((change) =>
+      `${change.field}: ${JSON.stringify(change.previous)} → ${JSON.stringify(change.value)}`,
+    ).join("; ");
     const text = availability
       ? `${body.supplierName.trim()} ${action} on availability request AR-${ar}${about}.`
+      : body.type === "order_updated" ? `${body.supplierName.trim()} ${orderAction} order O-${body.orderId}. Changes: ${orderSummary}`
       : body.type === "order_status_saved" ? `${body.supplierName.trim()} saved ${body.changes!.length} order status change${body.changes!.length === 1 ? '' : 's'} on order O-${body.orderId}.`
       : `${body.supplierName.trim()} saved ${body.status!.trim()} for line ${body.orderItemId} on order O-${body.orderId}.`;
 
@@ -152,7 +175,7 @@ export default class SupplierEventsPlugin {
         SupplierId: body.supplierId,
         SupplierName: body.supplierName,
         ...(availability ? { AvailabilityRequestId: ar, ...(jr != null ? { JobRequestId: jr } : {}) } : {}),
-        ...(!availability ? { OrderId: body.orderId, ...(body.type === "order_status_saved" ? { OrderStatusChanges: body.changes } : { OrderItemId: body.orderItemId, OrderItemStatus: body.status!.trim() }) } : {}),
+        ...(!availability ? { OrderId: body.orderId, ...(body.type === "order_updated" ? { OrderChanges: body.orderChanges } : body.type === "order_status_saved" ? { OrderStatusChanges: body.changes } : { OrderItemId: body.orderItemId, OrderItemStatus: body.status!.trim() }) } : {}),
       },
     });
     return json(200, { ok: true });
