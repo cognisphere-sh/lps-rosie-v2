@@ -3,7 +3,7 @@
   "description": "LPS order-coordination agent: owns APS price-list quotes first, Chris approval before availability sends and job-line updates, customer-committed supplier orders, supplier confirmation and closure. Supports job/availability/order quantity allocations across multiple requests. Quick-quote-only work stops at Quote; communication approval returns to the original request chat.",
   "model": {
     "provider": "openai-codex",
-    "id": "gpt-5.6-terra",
+    "id": "gpt-5.6-luna",
     "thinkingLevel": "high"
   },
   "threadIdStrategy": {

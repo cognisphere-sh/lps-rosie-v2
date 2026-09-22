@@ -3,7 +3,7 @@ import { Shell } from '@/components/workspace/shell'
 
 export default function SettingsPage() {
   return (
-    <Shell page="settings" title="Settings" hideHeaderOnMobile>
+    <Shell page="settings" title="Settings" hideHeaderOnMobile hideHeaderOnDesktop>
       <SettingsView />
     </Shell>
   )

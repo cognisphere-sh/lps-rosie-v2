@@ -1,9 +1,9 @@
 # Open supplier availability work in the main Ops workspace
 
-- Status: routed — implementation HOLD: current operator baseline overlaps; auth/resource gates also pending. Source-only plan, nothing implemented/released.
+- Status: routed — **OPERATOR HOLD** (Bhoumik709): no full AR main-workspace/tabs/chat-switch implementation until a new go-ahead. Desired direction retained; no implementation/release claimed.
 - Route: nova — UI/UX only
 - Raised: 2026-09-20 by Chris via Nova, Telegram680 at19:04:37 CDT
-- Updated: 2026-09-20T19:25:08-05:00
+- Updated: 2026-09-22T09:16:33-05:00
 
 ## Problem
 
@@ -16,7 +16,13 @@ Chris finds the AR side panel suboptimal for collaborating with a supplier. He w
 - Chris687 explicitly clarifies multiple supplier ARs mean **multiple AR tabs**, each loading its full AR and corresponding supplier chat (Nova19:20:29, confirmed688; exact wording in feedback **Multiple requests mean multiple AR tabs**). This supersedes the earlier single changing AR-tab interpretation. One tab per distinct authorized linked AR, including separate AR tabs for the same supplier; chat remains supplier-scoped.
 - Bounded current source/docs check confirms existing Ops Supplier chat is **Chris/team talking to Rosie in the supplier’s stored conversation**, not a direct supplier composer. The supplier portal exposes a separately filtered audience; internal messages do not become supplier-visible on navigation. Detailed source evidence: `workspace/threads/main/tasks/ops-ar-main-workspace/contract-check-2026-09-20.md`. Source-only, not live verification.
 
-## What it should do
+## Execution hold — supersedes technical-readiness-only blocking
+
+Bhoumik Telegram709 at2026-09-22T09:15:43-05:00: **“Do not implement AR full page view yet.”** Nova relayed at09:16:06 and acknowledged in710. This holds the whole full-AR main-workspace/tab/chat-switch implementation even if baseline, auth or resource gates clear. No work resumes without a new go-ahead.
+
+The separate focused Ops Job **AR drawer table items1–2** authorized under706 remain allowed. They are not approval to implement the full view, tabs or chat switching. Do not bundle this held scope into them. The later AR-reference meeting question remains discussion-only, with no workflow authorization.
+
+## What it should do — retained desired design, not current execution permission
 
 ### Main area and navigation
 
@@ -61,11 +67,11 @@ Do not bundle/restart the existing table/note/filter releases. Nova must perform
 - All three original product questions are answered; none is repeated. Chris689 explicitly accepts two ARs sharing one supplier thread. “Supplier chat” retains the existing Ops meaning—Rosie in supplier context—with honest labeling, not a new direct-to-supplier channel. If Chris later asks for direct messaging, separate that workflow/permission slice for Bhoumik.
 - **Deferred, nonblocking next-meeting question (Chris689):** “When two ARs share one supplier conversation, how should I clearly communicate which AR I am referring to? What is my workflow?” Logged for Chris/Bhoumik at `workspace/threads/main/files/next-meeting-agenda.md`. Tab selection is not established as communicating the AR reference. Discussion only: do not solve/build now, infer automatic context insertion/messages/relay, create AR threads or block approved tabs. No meeting time was supplied; nothing scheduled.
 - Initial scope is focused Ops Job chips/tabs, sourced only from existing authorized AR links and deduplicated by actual AR identity. Draft restoration is in-session UI state, not new persistent storage. Shared ARs remain unfiltered whole requests. Any later request for true AR-specific chat must be staged separately for Bhoumik; it is not implied by the visible AR tabs.
-- No design/product blocker identified. Nova’s 2026-09-20T19:18:56-05:00 preflight finds UI-only implementation feasible but blocked by overlapping operator edits; a committed current baseline was already requested in Telegram686. Auth is absent and a resource window remains pending as separate gates. Source availability does not prove live readiness; no repeat operator request, build/tests or implementation while held.
+- **Explicit operator permission now blocks execution.** The September20 source-only preflight found UI-only feasibility but operator-edit overlaps, absent auth and a pending resource window; baseline was already requested686. Those historical technical gates do not authorize resumption if cleared. Await a new go-ahead for this full-view scope before any fresh implementation/preflight work; no repeat operator question or build/tests now.
 
 ## Related work
 
-`ar-table-presentation.md` — 2026-09-20T19:40:18-05:00 linked current-owner UI slice: Avail qty between Need/Size and modest narrower Plant only, same implementation HOLD. Chris693 explicitly identifies JR-status-modal captured details for Notes after Status; that item3 is SOURCE/RUNTIME MAPPING HOLD, not AR-note substitution or an inferred Shared-note/cross-record workflow. Full main-workspace/multiple-tabs scope unchanged.
+`ar-table-presentation.md` — 2026-09-22T09:14:06-05:00 Bhoumik706 authorizes fresh verification and isolated supported **table** execution by the same owner, NOT this whole main-workspace/tabs/chat project. Owner reports clean current a3c26aa with no main workspace yet; parent confirms safe1–2 reachable opt-in placement in **focused Ops Job → AR drawer**, reusable by a future main workspace, all other entries preserved. Item3 JR-origin explanation mapping remains unresolved; no AR/private-Sourcing substitution. No edits/completion/release reported. This requirement's broader scope and authorization/gates are not superseded by706.
 
 `job-inbox-workspace.md` / `focused-job-chat-routing.md` supply context. `supplier-note-customer-routing.md` remains separately staged. `focused-jr-table-layout.md`, `sourcing-note-disclosure.md`, `shared-note-empty-cell.md` and `all-jobs-compact-filter-selectors.md` remain separate held releases.
 
@@ -77,3 +83,4 @@ Do not bundle/restart the existing table/note/filter releases. Nova must perform
 - 2026-09-20T19:19:17-05:00 — Parent relays Nova19:18:56: UI-only feasible, IMPLEMENTATION HOLD due operator overlaps; committed current baseline already requested in686. Auth/resource gates also remain pending. Owner has a source-only plan for scoped focused entry, whole-AR content/action preservation, exact supplier chat and safe in-session draft restoration. No implementation, tests, API/workflow changes or old table/filter bundling. Technical baseline/proposal evidence retained in task contract check; Lily did not repeat preflight or contact operator.
 - 2026-09-20T19:21:10-05:00 — Chris687/Nova688 supersede the single changing AR tab with multiple supplier/AR-identified tabs, one per distinct authorized linked AR. Canonical behavior/acceptance updated; correction delivered successfully to Nova’s current owner, no duplicate builder. Same-supplier tabs retain the same supplier-scoped chat/drafts; responsive accessible tab overflow required, no close/delete semantics. Existing baseline/auth/resource implementation HOLD remains.
 - 2026-09-20T19:25:08-05:00 — Chris689 accepts the shared supplier-thread model and explicitly requests only a next-meeting agenda item on clearly referring to an AR in that conversation. Logged in `workspace/threads/main/files/next-meeting-agenda.md`; no duplicate feature requirement, new product/UI/workflow authorization or extra blocker. Parent/Nova internal notification only; parent owns external acknowledgement.
+- 2026-09-22T09:16:33-05:00 — Parent relays Bhoumik709 exact “Do not implement AR full page view yet.” (09:15:43), via Nova09:16:06/Nova710 acknowledgement. Marked OPERATOR HOLD across requirement/index/task; desired design remains, no implementation until new go-ahead. Separate706 AR-drawer table items1–2 remain allowed and are not full-view implementation. Nova already acknowledged, so no duplicate owner route/builder/source changes. AR-reference agenda unchanged in discussion-only scope.

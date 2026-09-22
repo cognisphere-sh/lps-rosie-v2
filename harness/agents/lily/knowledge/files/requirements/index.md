@@ -38,8 +38,8 @@ A workflow change counts — not everything here is software.
 | `voice-playbook-review-screen` | Review Chris-voice guidance and examples in one place | drafted | nova |
 | `app-wide-compact-headers` | Make app headers compact and purposeful | drafted · ready to route refinement | nova |
 | `job-inbox-workspace` | Put active Job Requests in an inbox workspace | routed | nova |
-| `ops-ar-main-workspace` | Open supplier availability work in the main Ops workspace | routed · 2026-09-20T19:21:10-05:00 MULTIPLE AR tabs correction delivered; IMPLEMENTATION HOLD: operator baseline686/auth/resource, source-only plan | nova |
-| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · current owner accepts opt-in new-workspace1–2 plan; independent check confirms item3 SOURCE/RUNTIME MAPPING HOLD, auth absent/no live test (2026-09-20T19:44:51-05:00) | nova |
+| `ops-ar-main-workspace` | Open supplier availability work in the main Ops workspace | routed · 2026-09-22T09:16:33-05:00 OPERATOR HOLD Bhoumik709/Nova710: no full-view/tabs/chat-switch implementation until new go-ahead; separate706 drawer items1–2 allowed | nova |
+| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · Bhoumik706 EXECUTION AUTHORIZED; same-owner fresh verification/in progress; reachable focused Ops AR drawer opt-in1–2, item3 unresolved; full-page project separately OPERATOR HOLD709, not completed/released (2026-09-22T09:16:33-05:00) | nova |
 | `focused-jobs-rail-collapse` | Collapse the focused Jobs rail when Chris needs the work width | routed | nova |
 | `job-inbox-activity-semantics` | Define trustworthy Job Request inbox activity and unread meaning | staged | bhoumik |
 | `copy-ready-plain-text-quotes` | Make plain-text quotes ready to copy and send | shipped | rosie |
