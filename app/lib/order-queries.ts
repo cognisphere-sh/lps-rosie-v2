@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { ARJobSchedule } from '@/lib/availability'
-import { isDirectOrder, type CreateDirectOrderInput, type CreateOrderInput, type DirectOrderCandidate, type Order, type OrderAllocation, type OrderCandidate, type OrderItem, type OrderStatus, type FulfillmentMethod, type PartnerOrderUpdate, type OrderItemStatus } from '@/lib/orders'
+import { isDirectOrder, type CreateDirectOrderInput, type CreateOrderInput, type DirectOrderCandidate, type Order, type OrderAllocation, type OrderShareJob, type OrderCandidate, type OrderItem, type OrderStatus, type FulfillmentMethod, type PartnerOrderUpdate, type OrderItemStatus } from '@/lib/orders'
 import { supabase } from '@/lib/supabase'
 
 interface OrderRecord {
@@ -14,7 +14,7 @@ interface ItemRecord {
 }
 interface AllocationRecord { order_item_id: number; job_request_item_id: number; quantity: number }
 interface JobItemRecord { id: number; job_request_id: number; quantity?: number | null }
-interface JobRecord { id: number; name: string | null; status?: string; is_active?: boolean; fulfillment_method?: FulfillmentMethod | null; expected_install_date?: string | null }
+interface JobRecord { customer_id?: number | null; shipping_address?: string | null; shipping_city?: string | null; shipping_state?: string | null; shipping_zip?: string | null; id: number; name: string | null; status?: string; is_active?: boolean; fulfillment_method?: FulfillmentMethod | null; expected_install_date?: string | null }
 
 const ORDER_COLUMNS = 'id, supplier_id, status, fulfillment_method, confirmation_date, fulfillment_date, notes, supplier_notes, created_at'
 const ITEM_COLUMNS = 'id, order_id, availability_request_item_id, name, size, quantity, unit_price, total, status, notes'
@@ -82,6 +82,7 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
   }
   const allocationMap = new Map<number, OrderAllocation[]>()
   const orderJobClosures = new Map<number, boolean[]>()
+  const orderShareJobs = new Map<number, Map<number, OrderShareJob>>()
   const orderSchedules = new Map<number, Map<number, ARJobSchedule>>()
   const orderForItem = new Map(items.map((item) => [item.id, item.order_id]))
   if (items.length) {
@@ -91,7 +92,11 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
       const jobItems = await all<JobItemRecord>(supabase.from('job_request_items').select('id, job_request_id').in('id', unique(links.map((link) => link.job_request_item_id))).order('id'))
       const jobs = jobItems.length ? await all<JobRecord>(supabase.from('job_requests').select(scope.forSupplier
         ? 'id, status, is_active, expected_install_date, fulfillment_method'
-        : 'id, name, status, is_active, expected_install_date, fulfillment_method').in('id', unique(jobItems.map((item) => item.job_request_id))).order('id')) : []
+        : 'id, name, status, is_active, expected_install_date, fulfillment_method, customer_id, shipping_address, shipping_city, shipping_state, shipping_zip').in('id', unique(jobItems.map((item) => item.job_request_id))).order('id')) : []
+      const customerIds = scope.forSupplier ? [] : unique(jobs.flatMap((job) => job.customer_id == null ? [] : [job.customer_id]))
+      const customers = customerIds.length ? await all<NonNullable<OrderShareJob['customer']> & { id: number }>(supabase.from('customers')
+        .select('id, name, company, email, phone').in('id', customerIds).order('id')) : []
+      const customerMap = new Map(customers.map(({ id, ...customer }) => [id, customer]))
       const jobItemMap = new Map(jobItems.map((item) => [item.id, item.job_request_id]))
       const jobMap = new Map(jobs.map((job) => [job.id, job]))
       for (const link of links) {
@@ -106,6 +111,13 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
           schedules.set(jobId, { expectedInstallDate: job.expected_install_date ?? null, fulfillmentMethod: job.fulfillment_method ?? null,
             ...(!scope.forSupplier ? { jobRequestId: jobId, jobName: job.name } : {}) })
           orderSchedules.set(orderId, schedules)
+          if (!scope.forSupplier) {
+            const shareJobs = orderShareJobs.get(orderId) ?? new Map<number, OrderShareJob>()
+            shareJobs.set(jobId, { jobRequestId: jobId, jobName: job.name, expectedInstallDate: job.expected_install_date ?? null,
+              customer: job.customer_id == null ? null : customerMap.get(job.customer_id) ?? null,
+              shippingAddress: [job.shipping_address, job.shipping_city, job.shipping_state, job.shipping_zip].filter(Boolean).join(', ') || null })
+            orderShareJobs.set(orderId, shareJobs)
+          }
         }
         if (scope.forSupplier || jobId == null) continue
         const allocations = allocationMap.get(link.order_item_id) ?? []
@@ -131,6 +143,7 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
     status: order.status, fulfillmentMethod: order.fulfillment_method, confirmationDate: order.confirmation_date,
     fulfillmentDate: order.fulfillment_date, notes: order.notes, createdAt: order.created_at, items: itemMap.get(order.id) ?? [],
     supplierNotes: order.supplier_notes ?? null,
+    ...(!scope.forSupplier ? { shareJobs: [...(orderShareJobs.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, job]) => job) } : {}),
     jobSchedules: [...(orderSchedules.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, schedule]) => schedule),
     availabilityRequestIds: [...(availabilityRequestMap.get(order.id) ?? [])].sort((a, b) => a - b),
   }))

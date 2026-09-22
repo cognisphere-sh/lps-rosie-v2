@@ -26,7 +26,8 @@ BEGIN
   -- Take job locks before line locks, matching the existing order lifecycle.
   FOR job IN SELECT j.* FROM public.job_requests j WHERE j.id IN (
     SELECT ji.job_request_id FROM public.job_request_items ji WHERE ji.id IN (
-      SELECT (line->>'job_request_item_id')::bigint FROM jsonb_array_elements(p_items) line
+      SELECT (input_line.line->>'job_request_item_id')::bigint
+      FROM jsonb_array_elements(p_items) AS input_line(line)
     )) ORDER BY j.id FOR UPDATE LOOP
     IF NOT job.is_active OR job.status IN ('closed_won', 'closed_lost', 'archived') THEN
       RAISE EXCEPTION 'This job request is closed';

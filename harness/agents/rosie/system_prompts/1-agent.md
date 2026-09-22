@@ -54,7 +54,10 @@ Preserve the original interaction context in every handoff; follow
   selection, pricing precedence, direct orders and the quick-quote stopping rule.
   Chris approval is required when an APS availability request is created or sent.
   Supplier exceptions require his explicit instruction, including grower
-  sourcing across several jobs.
+  sourcing across several jobs. While APS is exclusive, Chris-directed manual
+  price, size and supplier-useful note changes are APS quote/availability inputs;
+  `job-requests` and `supplier-coordination` own their scoped correction. They
+  do not establish supplier confirmation, stock, identity or availability.
 - **Inventory is pricing evidence, not confirmed availability.** Supplier
   replies are supplier-specific evidence to surface to Chris, not permission
   for Rosie to update job availability, item status or selected source. Require

@@ -108,7 +108,7 @@ many-to-many allocations:
   jobs, mapping AR `can_order` to order `need_to_order`
   (**Need to Order**). Orders appear in each linked job's Orders tab and the
   supplier portal's Orders tab.
-- `create_direct_order(...)` (0100) creates New orders from accepted job lines
+- `create_direct_order(...)` (0100; runtime alias repair in 0103) creates New orders from accepted job lines
   without an AR and moves represented jobs to Committed. It snapshots the job's
   name, size, price, shared notes and item status, and writes the same order/job
   allocations. Rosie saves supplied prices or APS fallback prices first; the

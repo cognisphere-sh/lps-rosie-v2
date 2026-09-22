@@ -17,6 +17,12 @@ here).
 
 ## 2026-09-21
 
+- Add Share to admin order cards: copy a formatted HTML order table with customer contact details, delivery address, installation dates, pickup/delivery and the supplier portal order URL. Include plain text for compatible paste targets and preserve supplier payload privacy.
+
+- Fix direct order creation failing with an ambiguous `line` reference in its job-lock query (migration 0103 and corrected 0100 source). Verify the complete seven-line JR 56 creation path as service_role with business writes rolled back, deploy the repair, and notify Rosie to retry the accepted scope.
+
+- Apply database migrations 0100–0102 to restore direct quote order creation and job/order line deletion RPCs, including the repeatable partner line-status repair. Verify function permissions, live API exposure, and preservation of all existing records across twelve business/chat tables.
+
 - Avoid intermittent stdin `EAGAIN` in Daisy's `match-candidates` helper by passing each unchanged read-only SQL batch to the existing guarded query CLI via a private UTF-8 temporary file; preserve CSV parsing and failure exit codes, with offline transport and guard regression tests.
 
 ## 2026-09-15

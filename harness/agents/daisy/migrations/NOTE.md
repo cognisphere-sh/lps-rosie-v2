@@ -10,6 +10,53 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0103_direct_order_input_alias.sql`
+
+Applied 2026-09-21 at 15:59:34 UTC via psql in one transaction. Repairs the
+runtime SQLSTATE 42702 in `create_direct_order`: its job-lock query now reads
+`input_line.line` from `jsonb_array_elements(p_items) AS input_line(line)`,
+avoiding collision with the PL/pgSQL variable `line`. Updated 0100's source
+with the same fix for fresh applications; existing deployments use 0103.
+
+The original ambiguity was reproduced before repair. Both the rolled-back
+rehearsal and deployment transaction called the repaired function as
+`service_role` against JR 56's seven approved active lines. Verified seven
+order lines totaling $1,957, seven allocations, no AR backing, a New delivery
+order with null supplier fulfillment date, and the job moving to Committed.
+A repeated call was rejected by the remaining-demand guard. All test business
+writes were rolled back to a savepoint; fingerprints across twelve tables
+matched before commit. Sequence values consumed by the probes were not reset.
+Exact function body and restricted execution grants were verified, and the API
+exposed the RPC after schema reload. The earlier 0100 checks covered only early
+validation failures and did not exercise the job-lock query.
+
+Notified Rosie in `jr-56` via the authenticated webchat endpoint as Codex
+(message 9, HTTP 200), preserving Chris's existing authorization for seven
+lines including $130 Delivery, the app-set September 22 EDD, and 404 Inwood Rd,
+78746. Requested a scoped retry after checking existing allocations, without
+an AR workaround. This deployment itself retained no test order.
+
+## `0100_direct_quote_orders.sql`–`0102_job_and_order_line_delete.sql`
+
+Applied 2026-09-21 at 15:51:10 UTC via psql in one transaction to the configured
+LPS project. Live inspection found `create_direct_order`, `delete_job_request_item`
+and `delete_order_item` missing; `update_partner_order_item` already existed.
+Applied 0100 and 0102 and reapplied the idempotent 0101 repair.
+
+A rolled-back rehearsal and the committed transaction verified exact function
+bodies, invoker security, fixed search paths, service-role-only execution, and
+direct-order rejection of missing customer confirmation or empty items.
+Transaction-local fingerprints verified all rows in twelve job, availability,
+order and chat tables were unchanged. PostgREST schema reload was notified at
+commit; a subsequent live OpenAPI read exposed all four RPCs.
+The order logic/API tests passed; the partner order UI test process was killed
+by SIGKILL before completion, so that suite is not reported as passing.
+
+No order was created or agent message sent by this deployment. JR 56 had zero
+order allocations, status `availability`, and EDD 2026-09-22 at preflight; the
+reported customer acceptance instead referred to September 23. The migration
+preserved those records and did not reconcile that discrepancy.
+
 ## `0099_hidden_availability_requests.sql`
 
 Applied 2026-09-15 via psql in one transaction to the configured LPS project.

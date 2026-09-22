@@ -157,13 +157,15 @@ test('orders keep customer EDD separate from supplier commitment and deduplicate
       { order_item_id: 10, job_request_item_id: 11, quantity: 1 },
     ],
     job_request_items: [{ id: 11, job_request_id: 1 }, { id: 12, job_request_id: 1 }, { id: 21, job_request_id: 2 }],
+    customers: [{ id: 8, name: 'Jane', company: 'Gardens', email: 'jane@example.com', phone: '555-0100' }],
     job_requests: [
       { id: 2, name: 'Private Patio', expected_install_date: '2026-10-08', fulfillment_method: 'pickup', status: 'committed', is_active: true },
-      { id: 1, name: 'Private Garden', expected_install_date: '2026-10-03', fulfillment_method: 'delivery', status: 'committed', is_active: true },
+      { id: 1, name: 'Private Garden', customer_id: 8, shipping_address: '123 Garden St', expected_install_date: '2026-10-03', fulfillment_method: 'delivery', status: 'committed', is_active: true },
     ],
   })
   const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
   const [partnerOrder] = await listOrders({ supplierId: 7, forSupplier: true })
+  assert.equal(partnerOrder.shareJobs, undefined)
   assert.equal(partnerOrder.fulfillmentDate, '2026-10-05')
   assert.equal(partnerOrder.supplierNotes, 'Committed for Monday')
   assert.equal(partnerOrder.notes, 'Customer instructions')
@@ -173,6 +175,10 @@ test('orders keep customer EDD separate from supplier commitment and deduplicate
   ])
   assert.doesNotMatch(JSON.stringify(partnerOrder), /Private|jobRequest|allocations/)
   const [adminOrder] = await listOrders({ supplierId: 7 })
+  assert.equal(adminOrder.shareJobs.length, 2)
+  assert.equal(adminOrder.shareJobs[0].customer.email, 'jane@example.com')
+  assert.equal(adminOrder.shareJobs[0].customer.phone, '555-0100')
+  assert.equal(adminOrder.shareJobs[0].shippingAddress, '123 Garden St')
   assert.deepEqual(adminOrder.jobSchedules.map((schedule: { jobRequestId: number }) => schedule.jobRequestId), [1, 2])
   assert.equal(adminOrder.jobSchedules[0].jobName, 'Private Garden')
 })

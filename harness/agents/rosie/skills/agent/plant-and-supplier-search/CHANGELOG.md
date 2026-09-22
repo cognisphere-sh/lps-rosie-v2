@@ -1,5 +1,10 @@
 # plant-and-supplier-search — changelog
 
+## 2.13.0 — 2026-09-21
+
+- Preserve Chris-directed APS manual price, size and supplier-useful note inputs during catalogue research while APS is exclusive; research can corroborate but cannot overwrite the stated scope.
+- Clarify that manual/proxy pricing does not prove availability, identity/cultivar or authorize an AR mapping.
+
 ## 2.12.0 — 2026-09-18
 
 - Preserve supplied/accepted prices and offerings on committed requests and accepted quotes; search APS for missing prices without requiring an AR or new quote.

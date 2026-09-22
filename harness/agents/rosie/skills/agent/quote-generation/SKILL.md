@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item intake, independent pricing before clarification, supplied/accepted-price preservation, APS fallback, optional availability and direct-order handoff, lowest-priced-requested-option quoting, concise shared notes, naming equivalents, minimal internal exceptions and approval-gated alternatives, the default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe rendering and delivery. Use for requested quotes, quick quotes or quote documents; already committed requests need no new quote, quick quotes stop without an AR, and simple pricing questions create no job. (v2.26.0)
+description: Produce quick inventory quotes and customer-ready text, HTML or PDF quotes. Covers job/item intake, independent pricing before clarification, supplied/accepted-price preservation, APS fallback, optional availability and direct-order handoff, lowest-priced-requested-option quoting, concise shared notes, naming equivalents, minimal internal exceptions and approval-gated alternatives, Chris-directed APS manual prices/sizes/notes, the default quantity/size/plant/unit-price/line-total text format in a copyable code block, the approved APS template, customer-safe rendering and delivery. Use for requested quotes, quick quotes or quote documents; already committed requests need no new quote, quick quotes stop without an AR, and simple pricing questions create no job. (v2.27.0)
 metadata:
   author: lps
-  version: "2.26.0"
+  version: "2.27.0"
 ---
 
 # Quote generation
@@ -25,7 +25,11 @@ Before generating any quote, follow the intake guidance in `job-requests`:
 create/reuse its job/thread and item rows from supplied details, gather
 missing pricing and other relevant information, and save supported prices.
 Preserve applicable supplied/accepted line prices; use APS for missing prices
-under `job-requests` section 4. Add
+under `job-requests` section 4. While APS is exclusive, treat an explicit
+Chris-directed manual price, size or supplier-useful note as the APS input for
+its stated quote/AR scope rather than replacing it with a catalogue lookup.
+Persist it through `job-requests`; a price/proxy remains internal pricing evidence,
+not supplier confirmation, cultivar proof, availability or an unrequested offering. Add
 sourcing notes only when `job-requests` section 3 permits them: a sent AR,
 a concrete required supplier action, Chris's explicit note instruction or an
 explicit supplier selection/plant-sourcing decision. Eligibility is not a

@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS price-list scoping, supplied/accepted-price preservation and missing-price fallback for committed orders, supplier exceptions, broad and literal search, cultivar/size matching, lowest-priced-requested-option selection, naming equivalents and rose pricing, source dates and stock locations, wider searches, minimal sourcing exceptions and action-specific alternative approval, and research-only answers in chat. Use for pricing questions, job sourcing, quick quotes and missing direct-order prices; search alone creates no job, sourcing note or AR and confirms no availability. (v2.12.0)
+description: Find plant pricing and suitable suppliers from inventory evidence. Covers APS price-list scoping, supplied/accepted-price preservation and missing-price fallback for committed orders, supplier exceptions, broad and literal search, cultivar/size matching, lowest-priced-requested-option selection, naming equivalents and rose pricing, source dates and stock locations, Chris-directed APS manual-input preservation, wider searches, minimal sourcing exceptions and action-specific alternative approval, and research-only answers in chat. Use for pricing questions, job sourcing, quick quotes and missing direct-order prices; search alone creates no job, sourcing note or AR and confirms no availability. (v2.13.0)
 metadata:
   author: lps
-  version: "2.12.0"
+  version: "2.13.0"
 ---
 
 # Plant and supplier search
@@ -21,7 +21,11 @@ her tables during order sourcing.
    that research does not authorize a quote from them, an AR or an order.
    For already committed requests and accepted quotes, preserve supplied or
    accepted prices and use APS only to fill missing line prices; do not replace
-   an agreed offering or price with a catalogue match. No AR or new quote is
+   an agreed offering or price with a catalogue match. While APS is exclusive,
+   preserve an explicit Chris-directed manual APS price, size or supplier-useful
+   note for its stated quote/AR scope; catalogue research may corroborate it but
+   does not overwrite it. It is APS pricing/ask evidence only, never a supplier
+   response, stock/cultivar confirmation or authorization to map a proxy. No AR or new quote is
    required for direct ordering. `job-requests` owns path selection and Chris
    approval when availability publication is needed. Quick-quote-only requests
    stop after the quote.

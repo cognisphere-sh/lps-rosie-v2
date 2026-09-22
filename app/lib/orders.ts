@@ -41,9 +41,19 @@ export interface OrderItem {
   allocations?: OrderAllocation[]
 }
 
+export interface OrderShareJob {
+  jobRequestId: number
+  jobName: string | null
+  expectedInstallDate: string | null
+  customer: { name: string | null; company: string | null; email: string | null; phone: string | null } | null
+  shippingAddress: string | null
+}
+
 export interface Order {
   /** Archive classification for both views, including closure of every linked job. */
   closed?: boolean
+  /** Admin only: customer details for copying an order. */
+  shareJobs?: OrderShareJob[]
   id: number
   supplierId: number
   supplierName: string

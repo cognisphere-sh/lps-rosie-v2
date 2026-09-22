@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, ChevronDown, Layers, LayoutGrid, List, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Layers, LayoutGrid, List, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -10,6 +10,7 @@ import { arResponseLabel } from '@/lib/availability'
 import { formatMonthDay, money, num } from '@/lib/format'
 import { isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type DirectOrderCandidate, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
+import { orderShareContent } from '@/lib/order-share'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
 const button = 'inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-[12px] font-semibold hover:bg-muted disabled:opacity-50'
@@ -277,6 +278,34 @@ function OrderItemStatusDialog({ order, item, initialStatus, busy, error, onClos
   </dialog>, document.body)
 }
 
+function ShareOrderButton({ order }: { order: Order }) {
+  const [copying, setCopying] = useState(false)
+  const [message, setMessage] = useState('')
+  const [failed, setFailed] = useState(false)
+  async function copy() {
+    setCopying(true); setMessage(''); setFailed(false)
+    try {
+      const content = orderShareContent(order, window.location.origin)
+      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([content.html], { type: 'text/html' }),
+          'text/plain': new Blob([content.text], { type: 'text/plain' }),
+        })])
+        setMessage('Order copied')
+      } else {
+        await navigator.clipboard.writeText(content.html)
+        setMessage('Order HTML copied')
+      }
+    } catch {
+      setFailed(true); setMessage('Could not copy order. Please try again.')
+    } finally { setCopying(false) }
+  }
+  return <span className="inline-flex flex-wrap items-center gap-2 print:hidden">
+    <button type="button" className={cn(button, 'gap-1.5')} aria-label={`Share order O-${order.id}`} title="Copy order with customer details as HTML" disabled={copying} onClick={() => void copy()}><Share2 aria-hidden="true" size={14} />{copying ? 'Copying…' : 'Share'}</button>
+    {message && <span role={failed ? 'alert' : 'status'} className={cn('text-[11px]', failed ? 'text-destructive' : 'text-muted-foreground')}>{message}</span>}
+  </span>
+}
+
 /** Admin and supplier views share the same guarded lifecycle controls. */
 export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillmentMethod = false, onChanged }: { order: Order; supplierId?: number; canEdit?: boolean; canEditFulfillmentMethod?: boolean; onChanged?: () => void | Promise<void> }) {
   const [expanded, setExpanded] = useState(false)
@@ -397,6 +426,7 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
             <span className="ml-auto text-[14px] font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
           </div>
           <OrderMetadata order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
+          <ShareOrderButton order={order} />
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground"><span>{order.items.length} items</span><span>Confirmation date: {formatMonthDay(order.confirmationDate) || '—'}</span>{actions}{Object.keys(stagedStatuses).length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button>}</div>
         </div>
       </div>

@@ -31,7 +31,7 @@ A workflow change counts — not everything here is software.
 | `availability-change-indicators` | Show supplier-response state without crowding requests | drafted | nova |
 | `customer-availability-update-workspace` | Show LPS-published availability in customer job details | drafted · urgent dependency | nova |
 | `customer-job-request-details-workspace` | Give customers a current job request details workspace | staged · urgent | bhoumik |
-| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · direct-order SOURCE IMPLEMENTED / LIVE BLOCKED for JR-62; operator already asked to approve/apply0100, no new design | bhoumik |
+| `order-dispatch-and-supplier-response` | Send initial orders simply and receive supplier responses | staged · OPERATOR WORKING / RUNTIME FAILURE UNRESOLVED; direct function present but failing, Nova stopped by702, retries held | bhoumik |
 | `supplier-onboarding-review` | Keep supplier-qualification decisions out of Telegram | staged | bhoumik |
 | `supplier-outreach-human-tone` | Ask suppliers about availability like a person | shipped | rosie |
 | `approved-voice-playbook-governance` | Keep a reviewed playbook for writing in Chris’s voice | drafted | bhoumik |

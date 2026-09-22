@@ -1,5 +1,10 @@
 # job-requests — changelog
 
+## 5.16.0 — 2026-09-21
+
+- Add Chris's APS-only manual-input policy: an explicit manual price, size or supplier-useful note is a scoped APS quote/AR input while APS is exclusive, not supplier confirmation or a generic/proxy identity claim.
+- Preserve requested identity and allocations; permit a manual APS AR seed price without an exact inventory mapping, but keep proxies/unverified matches unmapped and route safe correction/state handling through supplier coordination.
+
 ## 5.15.0 — 2026-09-18
 
 - Create new job requests directly without searching existing jobs for matching plants, sizes, quantities or item lists, including requests from the same customer.

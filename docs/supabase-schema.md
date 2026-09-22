@@ -1001,7 +1001,8 @@ orders still consume them. Failed creation leaves no partial order.
 
 `create_direct_order(p_supplier_id bigint, p_items jsonb,
 p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL,
-p_notes text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false)` (0100)
+p_notes text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false)` (0100,
+runtime alias repair in 0103)
 returns an order ID for already committed requests or accepted quotes that skip
 availability. Items are `[{job_request_item_id, quantity}]` and explicit customer
 confirmation is required. The function locks jobs/items, checks active supplier

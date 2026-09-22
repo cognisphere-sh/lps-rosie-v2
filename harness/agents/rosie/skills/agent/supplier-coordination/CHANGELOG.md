@@ -1,5 +1,10 @@
 # supplier-coordination — changelog
 
+## 3.14.0 — 2026-09-21
+
+- Add Chris's APS-only manual-input procedure for correcting an active unanswered AR's LPS-side size, seed price and supplier-useful notes without treating it as a supplier response.
+- Preserve requested identity, allocations and exact-mapping boundaries; allow a manually directed APS price to remain unmapped when generic/proxy based, and restore New only when a field update mechanically advanced an otherwise unanswered request.
+
 ## 3.13.0 — 2026-09-18
 
 - Skip AR preparation/publication for committed intake and direct quote-to-order handoffs; use the existing direct-order contract and its job allocations without requiring a source AR.

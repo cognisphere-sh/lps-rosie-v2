@@ -1,5 +1,10 @@
 # quote-generation — changelog
 
+## 2.27.0 — 2026-09-21
+
+- Preserve an explicit Chris-directed manual APS price, size or supplier-useful note as the stated quote/AR input while APS is exclusive; do not let a later catalogue lookup overwrite it.
+- Clarify that the manual input remains pricing/ask evidence, not supplier confirmation, cultivar proof, availability or an unrequested offering.
+
 ## 2.26.0 — 2026-09-18
 
 - Route already committed requests and accepted quotes to direct-order creation without a new quote or AR; ask about availability only for requests following that path.

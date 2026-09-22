@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.13.0)
+description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks, Chris-directed APS manual AR inputs and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.14.0)
 metadata:
   author: lps
-  version: "3.13.0"
+  version: "3.14.0"
 ---
 
 # Supplier coordination
@@ -65,7 +65,25 @@ The channel rules below apply when an availability request is actually needed.
 ## 2. Create or reuse the availability request
 
 Before creating/sending an AR, review the handoff, existing records and
-inventory evidence to resolve what you can yourself. Complete all independent
+inventory evidence to resolve what you can yourself.
+
+### Chris-directed APS manual AR inputs
+
+While APS is exclusive, Chris may explicitly direct a manual price, size or
+supplier-useful note as an APS quote/AR input. On his stated scope, re-read the
+active AR, its lines, allocations and supplier state; for an unanswered,
+nonterminal APS line, guardedly correct only the LPS-side snapshot fields
+(`size`, seeded `unit_price`, `lps_notes`, and an exact mapping when supported).
+Preserve the requested name, quantity and allocations unless he explicitly changes
+them. A manual APS seed price can be retained with `mapped_inventory_id = NULL`
+when it is generic, proxy-based or otherwise not an exact inventory identity; never
+map it merely to justify the price. Do not write supplier-answer fields (`status`,
+`available_quantity`, `notes`), create a supplier response, infer stock/cultivar or
+availability, or send/publish anew because of the correction. Check the header after
+the write: if no supplier answer/submission exists and a field-level edit advanced
+it to Processing, restore the truthful New state with a guarded update; otherwise
+preserve its actual lifecycle state. This authorization is APS-only while exclusivity
+holds and does not generalize to another supplier or authorize a job-line change. Complete all independent
 work before requesting clarification, including supplier/request lookup,
 validated inventory mappings and supported price preparation. Have the job
 thread persist known job/item details and qualifying sourcing updates under

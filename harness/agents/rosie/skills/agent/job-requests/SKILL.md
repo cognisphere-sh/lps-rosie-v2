@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from intake to closure. Covers new intake without plant-based duplicate-job searches, known-job reuse, Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.15.0)
+description: Manage customer job requests from intake to closure. Covers new intake without plant-based duplicate-job searches, known-job reuse, Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, APS-only manual quote/AR inputs, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.16.0)
 metadata:
   author: lps
-  version: "5.15.0"
+  version: "5.16.0"
 ---
 
 # Job requests
@@ -418,6 +418,22 @@ prices on ordered lines; the RPC's nullable price field is not permission to
 silently order an unpriced line. Resolve the affected scope before ordering it.
 
 For ordinary quote/availability work:
+
+### Chris-directed APS manual inputs
+
+While APS is the exclusive supplier, an explicit Chris-directed manual **price**,
+**size**, or supplier-useful **note** change is an APS quote and availability-request
+input for the stated scope. Save the corresponding job offering/current internal
+decision under the normal guarded-write and note rules, then carry that exact scoped
+input into an active APS AR when Chris directs it. Re-read the AR, its items and
+allocations first; correct only unanswered LPS-side ask fields, preserve quantities
+and requested identity unless Chris explicitly changes them, and do not add a new
+request or send a new communication solely for the correction. A manual price may
+seed an APS AR even where no exact inventory mapping exists; keep `mapped_inventory_id`
+NULL for a generic/proxy/unverified identity. It is neither a supplier answer nor
+proof of stock, cultivar, substitute selection, availability, or order confirmation.
+Use `supplier-coordination` for the safe AR write/state check; do not write answer
+fields or change job availability/status from the manual input.
 
 1. Read explicit supplier instructions and supplier preferences. **LPS
    currently works exclusively with Austin Plant Supply (`supplier_id = 1`).**
