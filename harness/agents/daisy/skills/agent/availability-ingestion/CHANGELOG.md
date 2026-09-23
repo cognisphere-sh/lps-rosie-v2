@@ -1,5 +1,13 @@
 # availability-ingestion — changelog
 
+## 2.5.0
+
+- Use the shared authoring rule for procedural feedback: explicit Chris feedback authorizes its scope; inferred changes require his approval.
+
+## 2.4.0
+
+- Split source handling, normalization, writes, QA and completion into task references. Add a successful-receipt fingerprint helper to skip unchanged sources without masking failures or body amendments.
+
 ## 2.3.1
 
 2026-09-21 (approved by Bhoumik) — fix intermittent `match-candidates`

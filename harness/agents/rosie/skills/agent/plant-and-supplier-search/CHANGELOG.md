@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 2.14.0
+
+- Separate ordinary search from occasional pricing-equivalence rules and remove duplicated note/quote policy.
+
 ## 2.13.0 — 2026-09-21
 
 - Preserve Chris-directed APS manual price, size and supplier-useful note inputs during catalogue research while APS is exclusive; research can corroborate but cannot overwrite the stated scope.

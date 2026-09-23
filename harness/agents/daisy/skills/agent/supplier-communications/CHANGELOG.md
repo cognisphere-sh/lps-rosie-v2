@@ -1,5 +1,9 @@
 # supplier-communications — changelog
 
+## 6.5.0
+
+- Make transcript and send procedures canonical, remove repeated lifecycle policy, and keep order mail handoffs internal unless forwarding is authorized.
+
 ## 6.4.0
 
 - Clarify the order-message handoff: supplier confirmation makes Orders Confirmed and leaves Job Requests Committed; Rosie owns their separate lifecycles.

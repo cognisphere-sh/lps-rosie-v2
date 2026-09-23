@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 5.20.0
+
+- Replace the monolithic procedure with task references; preserve intake, approvals, lifecycle and concurrency rules. Read only the selected task and write discipline.
+
 ## 5.19.0 — 2026-09-22
 
 - Use database-assigned per-job AR and Order record names; keep numbering stable and separate from supplier messages, which still use only job names and portal links.

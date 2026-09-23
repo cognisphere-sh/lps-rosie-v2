@@ -1,5 +1,9 @@
 # plant-photo-catalogue — changelog
 
+## 1.7.0
+
+- Split photo intake, lookup/sharing, retirement and concurrent-edit references; keep existing normalization and reclamation scripts.
+
 ## 1.6.2
 
 2026-08-24 (harness 0.10.1). Description rephrased to the tightened spec —

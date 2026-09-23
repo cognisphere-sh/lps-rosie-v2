@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Render verified saved job rows; no network, database writes or sends."""
+import argparse
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import json
+from pathlib import Path
+import re
+import sys
+
+
+def positive_id(value, label):
+    if type(value) is not int or value <= 0:
+        raise ValueError(f"{label} must be a saved positive integer ID")
+
+
+def text_field(value, label, optional=False):
+    if optional and value is None:
+        return ""
+    if not isinstance(value, str) or (not optional and not value.strip()):
+        raise ValueError(f"{label} must be text")
+    if any(ord(c) < 32 for c in value) or "```" in value:
+        raise ValueError(f"{label} must be a single line without code fences")
+    return value.strip()
+
+
+def number(value, label):
+    if value is None or isinstance(value, bool) or isinstance(value, (dict, list)):
+        raise ValueError(f"{label} needs a supported positive number")
+    try:
+        result = Decimal(str(value))
+    except InvalidOperation:
+        raise ValueError(f"{label} needs a supported positive number") from None
+    if not result.is_finite() or result <= 0 or result > Decimal("99999999.99"):
+        raise ValueError(f"{label} is outside the supported positive range")
+    return result
+
+
+def money(value):
+    return f"${value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
+
+
+def render(data):
+    if not isinstance(data, dict):
+        raise ValueError("input must be a job object")
+    positive_id(data.get("job_id"), "job_id")
+    items = data.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("items must be a nonempty array of saved job rows")
+    lines, seen = [], set()
+    subtotal = Decimal(0)
+    for index, item in enumerate(items, 1):
+        prefix = f"item {index}"
+        if not isinstance(item, dict):
+            raise ValueError(f"{prefix} must be an object")
+        positive_id(item.get("id"), f"{prefix}.id")
+        if item["id"] in seen:
+            raise ValueError(f"{prefix} duplicates item ID {item['id']}")
+        seen.add(item["id"])
+        if "job_request_id" in item:
+            positive_id(item["job_request_id"], f"{prefix}.job_request_id")
+        if item.get("job_request_id", data["job_id"]) != data["job_id"]:
+            raise ValueError(f"{prefix} belongs to another job")
+        name = text_field(item.get("name"), f"{prefix}.name")
+        size = text_field(item.get("size"), f"{prefix}.size")
+        size = re.sub(r"\b(\d+(?:\.\d+)?)\s*(?:gallons?|gal(?:s|\.)?|g)(?![A-Za-z])", r"\1 G", size, flags=re.I)
+        # The agent resolves requested alternatives before rendering an offering.
+        if re.search(r"\bor\b|\d\s*G\s*/", size, re.I):
+            raise ValueError(f"{prefix}.size still contains alternative offerings")
+        quantity = number(item.get("quantity"), f"{prefix}.quantity")
+        price = number(item.get("unit_price"), f"{prefix}.unit_price")
+        if price != price.quantize(Decimal("0.01")):
+            raise ValueError(f"{prefix}.unit_price must use at most two decimal places")
+        note = text_field(item.get("external_notes"), f"{prefix}.external_notes", optional=True)
+        total = (quantity * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        subtotal += total
+        qty = format(quantity, "f")
+        if "." in qty:
+            qty = qty.rstrip("0").rstrip(".")
+        fields = [f"{qty} x {size} {name}"]
+        if note:
+            fields.append(note)
+        fields.extend([money(price), money(total)])
+        lines.append(" - ".join(fields))
+    return "```text\n" + "\n".join(lines) + f"\n\nSubtotal: {money(subtotal)}\n```"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", required=True, type=Path, help="JSON object: job_id, items (id, name, size, quantity, unit_price, external_notes)")
+    args = parser.parse_args()
+    try:
+        data = json.loads(args.input.read_text(), parse_float=Decimal)
+        result = render(data)
+    except (OSError, ValueError, InvalidOperation) as error:
+        print(json.dumps({"error": str(error)}), file=sys.stderr)
+        return 2
+    print(result)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

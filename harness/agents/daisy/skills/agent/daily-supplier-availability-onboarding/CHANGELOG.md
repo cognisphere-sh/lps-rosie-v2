@@ -1,5 +1,9 @@
 # daily-supplier-availability-onboarding — changelog
 
+## 2.12.0
+
+- Separate coordinator recovery, eligibility, research and reporting; retain run-state safeguards and avoid loading every downstream skill before its branch is needed.
+
 ## 2.11.0
 
 2026-08-28 — targeted-review import crash-window and physical-evidence fix.

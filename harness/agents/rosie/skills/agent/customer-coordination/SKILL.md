@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Keep all communication with a customer on their dedicated thread. Covers identity/thread lookup, customer-safe drafts, approval in the original request interaction, exact approved delivery, contact history, expected install and pickup/delivery details, already committed intake, supplied pricing and accepted-quote relays for orders with optional availability. Use for customer messages, committed requests, quote acceptance, requested customer sends and order updates. (v3.3.0)
+description: Handle customer contact on its dedicated thread. Covers inbound commitments, approved drafts, delivery and transcript records. Use for customer messages, acceptance or order updates. (v3.4.0)
 metadata:
   author: lps
-  version: "3.3.0"
+  version: "3.4.0"
 ---
 
 # Customer coordination

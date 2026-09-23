@@ -20,6 +20,10 @@ collision-safe attachment downloads, canonical CLI invocation and reseeding.
 
 ## Agents
 
+[Prompt maintenance](prompt-maintenance.md) documents the compact Rosie/Daisy/Lily
+instructions, task references, helper scripts and offline checks. Agent pages
+link separately to setup and historical migration material.
+
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
@@ -37,7 +41,7 @@ Comparison:
 | Plugins | admin, artifacts, gws, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, **gws** (`chris@localplantsupply.com` — configured, polling off until sign-in), scheduler, supplier-events, telegram, **webchat** (+ core: agent-messaging) | admin, artifacts, scheduler, telegram, **webchat** (+ core: agent-messaging) | admin, scheduler, telegram (+ core: agent-messaging) — **no webchat, no gws, no artifacts** |
 | Knowledge dir | `files/`: SCHEMA (symlink), suppliers, brand, credentials, plans, templates, plant-reference-photos; `memory.md` | `files/`: SCHEMA (symlink), templates; `memory.md` | `memory.md` only | `files/`: `feedback.md` (the log), `business/` (the picture), `requirements/` (the backlog); `memory.md` |
 | Migrations | 0001–0055 (the deployment's record; 0055's tables are rosie-owned) | — (recorded in daisy's dir) | — | — |
-| Skills | 7 LPS procedures + create-skill | job-requests, plant-and-supplier-search, quote-generation + create-skill | cognisphere-upgrade, create-plugin, create-skill | feedback-loop + create-skill |
+| Skills | Task menus in [Daisy](agent-daisy.md), plus database-access/create-skill | Task menus in [Rosie](agent-rosie.md), plus database-access/create-skill | cognisphere-upgrade, create-plugin, create-skill | feedback-loop, create-skill |
 
 The web app (`app/`) reads Supabase directly for its tables; it uses the
 harness for the operator login and for the **chat panel**, which talks to
@@ -63,7 +67,7 @@ ln -s ../../../../../docs/supabase-schema.md harness/agents/<agent>/knowledge/fi
 
 ### Shared across all agents
 
-These are byte-identical in every agent dir:
+The common runtime resources are shared:
 
 - **Extensions** (`extensions/`): `bash-guard.ts` prepends `set -u` to every
   agent `bash` command so an unset `$var` inside quotes fails loudly (opt out
@@ -86,25 +90,14 @@ These are byte-identical in every agent dir:
   Python `.venv` (`ddgs`, `markitdown`) and npm globals on every start; since
   harness 0.11.1 it also pins the global `pi` to `PI_VERSION` (0.84.4),
   installing that exact version on any mismatch.
-- **Base system prompts**: `0-base_prompt.md` (identity, tools, workspace,
-  skills, threads, task threads), `0.1-agent-directory.md` (roster), then the
-  per-agent `1-*.md` persona. Since harness 0.8.12 the ownership split is a
-  contract: `0-*` is harness-owned (replaced by the seed on every upgrade),
-  `plugin-<id>.md` is plugin-owned (reseeded on every agent start), and `1-*.md`
-  is deployment-owned — identity, persona and behaviour only, no procedures.
-  Step-by-step procedures live in `skills/agent/<slug>/` instead.
-
-  **One deployment override of the seed's wording**, carried by all four
-  agents: a skill is named by name, **never with a version number** — in a
-  task-thread brief, a prompt, another skill or a `docs/` listing — where the
-  seed's **Task threads** example asks for "skill name and its current
-  version". The receiving thread's `<available_skills>` is rebuilt at spawn, so
-  it resolves the name to the current version by itself, and a version copied
-  into a brief is wrong the moment the skill is bumped. Stated 2026-08-15; it
-  lived as an edit to `0-base_prompt.md` until harness 0.10.2 and now sits
-  where deployment behaviour belongs — a bullet in each agent's `1-agent.md`
-  (*Conventions & discipline*, *Working style* for nova), so the `0-*` files
-  are again byte-identical to the seed and the upgrade refresh cannot lose it.
+- **System prompts**: preserve harness-provided `0-*` base prompts unchanged.
+  Deployment-owned `1-*` files hold identity, boundaries and routing; plugin
+  prompts are reseeded on start. Rosie, Daisy and Lily's simplification is
+  limited to deployment prompts and agent skills; see
+  [prompt maintenance](prompt-maintenance.md). Nova is unchanged.
+- **Skill references** name the skill without copying its version; the current
+  version comes from the spawn-time catalogue. Each skill's own frontmatter
+  and changelog remain authoritative.
 
 ## Plugins
 

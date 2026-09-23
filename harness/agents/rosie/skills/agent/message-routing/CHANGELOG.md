@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 2.5.0
+
+- Move routing, handoff and approval detail into independently loaded tasks; shorten discovery metadata.
+
 ## 2.4.1 — 2026-09-22
 
 - Keep record numbers internal to handoffs and URL targets; supplier-facing Order/AR update messages use job names only.

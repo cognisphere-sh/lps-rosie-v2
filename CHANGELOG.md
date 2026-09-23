@@ -17,6 +17,10 @@ here).
 
 ## 2026-09-23
 
+- Have Rosie, Daisy and Lily apply Chris's explicit feedback to the relevant SOP, deployment prompt or skill without repeat approval. Propose inferred changes and apply only after Chris approves; retain agent ownership and unchanged harness base prompts.
+
+- Simplify Rosie, Daisy and Lily deployment prompts and skill discovery text; preserve harness-provided base prompts. Replace large procedures with task menus and focused references. Add decimal quote rendering, scoped schema reads, successful-source fingerprints and retry-safe feedback capture, with offline tests and instruction-size/link checks. Split agent setup and migration references from routine docs; document prompt ownership for upgrades.
+
 - Apply migration 0105: remove four unused old-app tables, the `rate_charts` view, three unused functions and both dated backup schemas (ten tables). Retain current app/auth data and functions; remove archives without local exports as requested. Refresh the shared schema reference.
 
 - Reduce the shared Supabase reference to the live table schema and RPC signatures, grants, inputs and result columns. Daisy and Rosie continue to read it through symlinks.

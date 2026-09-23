@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Print selected live Markdown schema sections, without making a second copy."""
+import argparse
+from pathlib import Path
+import re
+import sys
+
+
+def sections(text):
+    result, heading, lines, fenced = {}, None, [], False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+        match = re.match(r"^(#{2,3}) (.+)$", line) if not fenced else None
+        if match:
+            if heading is not None:
+                result[heading] = "\n".join(lines).strip()
+            heading = match[2].strip("`")
+            lines = [line]
+        elif heading is not None:
+            lines.append(line)
+    if heading is not None:
+        result[heading] = "\n".join(lines).strip()
+    return result
+
+
+def select(text, topics):
+    parts = sections(text)
+    selected = []
+    for topic in dict.fromkeys(topics):
+        if not topic.startswith("rpc:"):
+            if topic not in parts:
+                raise ValueError(f"unknown schema topic: {topic}; use --list")
+            selected.append(parts[topic])
+            continue
+        name = topic[4:]
+        rpc = parts.get("RPCs", "")
+        row = next((line for line in rpc.splitlines() if line.startswith(f"| `{name}(")), None)
+        if row is None or not re.fullmatch(r"[a-z_]+", name):
+            raise ValueError(f"unknown RPC: {name}; use --list")
+        # Include whole matching bullet blocks: related function contracts may
+        # share a bullet, and omitting its continuation would lose safeguards.
+        bullets = re.findall(r"^- .*?(?=\n\n|\n- |\Z)", rpc, re.M | re.S)
+        relevant = [b for b in bullets if re.search(r"\b" + re.escape(name) + r"\b", b)]
+        selected.append(f"### RPC `{name}`\n\n| Function and arguments | Returns | EXECUTE | Purpose |\n|---|---|---|---|\n" + row + "\n\n" + "\n\n".join(relevant))
+    return "\n\n".join(selected)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("topics", nargs="*", help="table/heading name or rpc:function_name")
+    parser.add_argument("--list", action="store_true", help="list available topics")
+    args = parser.parse_args()
+    source = Path(__file__).resolve().parents[4] / "knowledge/files/SCHEMA.md"
+    try:
+        text = source.read_text()
+        if args.list or not args.topics:
+            topics = list(sections(text))
+            topics += ["rpc:" + n for n in re.findall(r"^\| `([a-z_]+)\(", text, re.M)]
+            output = "\n".join(topics)
+        else:
+            output = select(text, args.topics)
+    except (OSError, ValueError) as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    print(f"Source: {source}\n\n{output}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 3.1.0
+
+- Remove duplicated intake/pricing/lifecycle instructions, retain task links and shared-note rules, and add deterministic decimal quote rendering.
+
 ## 3.0.0 — 2026-09-22
 
 - Remove HTML/Gmail-table and HTML-to-PDF quote generation, template selection, rendering and publishing instructions. Keep text quoting, pricing, note and delivery rules.

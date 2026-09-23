@@ -1,5 +1,13 @@
 # feedback-loop — changelog
 
+## 1.2.0
+
+- Apply or route explicit procedural feedback without repeat approval; keep inferred SOP/skill changes proposed until Chris approves, preserving ownership and harness base prompts.
+
+## 1.1.0
+
+- Split capture, understanding, proposal and routing; add locked idempotent feedback capture and a standalone requirement template.
+
 ## 1.0.0
 
 2026-08-25 (Chris). Initial version: the four stages of lily's job — logging

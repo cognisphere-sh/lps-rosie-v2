@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Fingerprint a complete effective source; record success only after verified ingestion."""
+import argparse
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+
+def fingerprint(scope, files, skill_dir):
+    if not scope.strip() or not files:
+        raise ValueError("a stable location/source scope and source files are required")
+    inputs = []
+    names = set()
+    for path in sorted(files, key=lambda p: p.name):
+        if path.name in names:
+            raise ValueError("source files need distinct names; include all body/attachment evidence")
+        names.add(path.name)
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        inputs.append({"name": path.name, "sha256": digest.hexdigest()})
+    rules = hashlib.sha256()
+    for path in [skill_dir / "SKILL.md", *sorted((skill_dir / "artifacts").glob("*.md"))]:
+        rules.update(path.name.encode())
+        rules.update(path.read_bytes())
+    payload = {"scope": scope, "files": inputs, "rules": rules.hexdigest()}
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return digest
+
+
+def read_state(path):
+    if not path.exists():
+        return None
+    state = json.loads(path.read_text())
+    if not isinstance(state, dict) or state.get("version") != 1 or not isinstance(state.get("fingerprint"), str) or not isinstance(state.get("scope"), str):
+        raise ValueError("invalid success receipt; inspect it before skipping work")
+    validate_evidence(state.get("evidence"))
+    return state
+
+
+def validate_evidence(evidence):
+    ids = evidence.get("source_ids") if isinstance(evidence, dict) else None
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) and i.strip() for i in ids) or evidence.get("verified") is not True:
+        raise ValueError("evidence needs nonempty source_ids and verified: true after database/QA checks")
+
+
+def record(path, scope, digest, expected, evidence_path):
+    if digest != expected:
+        raise ValueError("source/rules changed since check; do not record this run as successful")
+    evidence = json.loads(evidence_path.read_text())
+    validate_evidence(evidence)
+    state = {"version": 1, "scope": scope, "fingerprint": digest, "evidence": evidence,
+             "completed_at": datetime.now(timezone.utc).isoformat()}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.with_name(path.name + ".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        previous = read_state(path)
+        if previous and previous["scope"] != scope:
+            raise ValueError("receipt belongs to another scope; use a separate state file")
+        fd, temp = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w") as handle:
+                json.dump(state, handle, sort_keys=True)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp, path)
+        finally:
+            if os.path.exists(temp):
+                os.unlink(temp)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=["check", "record"])
+    parser.add_argument("--scope", required=True, help="stable farm/location + channel/list identity; don't use a company as a farm proxy")
+    parser.add_argument("--file", type=Path, action="append", required=True, dest="files", help="repeat for body/context and every attachment")
+    parser.add_argument("--state", type=Path, required=True, help="local successful-receipt JSON for this scope")
+    parser.add_argument("--expected", help="fingerprint returned by check, required for record")
+    parser.add_argument("--evidence", type=Path, help="verified receipt JSON with source_ids, required for record")
+    args = parser.parse_args()
+    try:
+        digest = fingerprint(args.scope, args.files, Path(__file__).resolve().parents[1])
+        previous = read_state(args.state)
+        if previous and previous.get("scope") != args.scope:
+            raise ValueError("receipt belongs to another scope; use a separate state file")
+        if args.action == "record":
+            if not args.expected or not args.evidence:
+                raise ValueError("record requires --expected and --evidence after successful QA")
+            record(args.state, args.scope, digest, args.expected, args.evidence)
+            output = {"status": "recorded", "fingerprint": digest}
+        else:
+            same = previous is not None and previous["fingerprint"] == digest
+            output = {"status": "unchanged" if same else "process", "fingerprint": digest}
+            if same:
+                output["source_ids"] = previous["evidence"]["source_ids"]
+        print(json.dumps(output, separators=(",", ":")))
+    except (OSError, ValueError, KeyError) as error:
+        print(json.dumps({"error": str(error)}), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

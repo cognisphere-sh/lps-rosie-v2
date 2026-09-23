@@ -1,5 +1,13 @@
 # create-skill — changelog
 
+## 1.5.0
+
+- Apply Chris's explicit feedback to the relevant owned SOP, deployment prompt or skill; require his approval for inferred changes and preserve harness base prompts.
+
+## 1.4.0
+
+- Condense authoring instructions and require task-focused references, bounded helper output and a single owner per rule.
+
 ## 1.3.0
 
 - "What's included" is now a brief sketch of the main procedures, not an

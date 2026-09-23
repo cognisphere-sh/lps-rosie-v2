@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 3.18.0
+
+- Split supplier work by event/action; retain publication gates, submission-only relays, portal identity, allocation and send-verification rules.
+
 ## 3.17.0 — 2026-09-22
 
 - Use database-assigned per-job AR and Order record names; keep numbering stable and separate from supplier messages, which still use only job names and portal links.

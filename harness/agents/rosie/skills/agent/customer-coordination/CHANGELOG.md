@@ -1,5 +1,9 @@
 # customer-coordination — changelog
 
+## 3.4.0
+
+- Shorten discovery metadata; keep customer send and acceptance safeguards.
+
 ## 3.3.0 — 2026-09-18
 
 - Relay already committed requests and accepted quotes with exact commitment scope, supplied pricing and source messages/attachments so the job thread can order directly without a new quote or AR.

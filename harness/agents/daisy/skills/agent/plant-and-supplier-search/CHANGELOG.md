@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 1.8.0
+
+- Separate matching internals from lookup and reporting; shorten discovery metadata.
+
 ## 1.7.1
 
 2026-08-29, Bhoumik-approved correction before migration 0081 is applied.

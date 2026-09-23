@@ -1,105 +1,36 @@
 ---
 name: create-skill
-description: Author or update a versioned skill for a CogniSphere agent — capture a procedure (SOP, runbook, workflow) as skills/agent/<slug>/ with SKILL.md, version, changelog, scripts and artifacts. Covers the skill layout, the description spec (summary + contents + when-to-use + version), creating, updating/bumping, and verification. Use when asked to "create a skill", "add a skill to <agent>", "turn this SOP into a skill", "migrate this procedure to a skill" or "update/bump a skill" — and whenever a multi-step procedure is being written down for reuse, re-derived from scratch a second time, or found inlined in a prompt file or knowledge/ where it doesn't belong. (v1.3.0)
+description: Update reusable agent procedures. Covers feedback authorization, task menus, scripts, references, versions and verification. Use for Chris's procedural feedback or skill changes. (v1.5.0)
 metadata:
-  author: cognisphere
-  version: "1.3.0"
-  argument-hint: <agent-id> <skill-slug>
+  author: lps
+  version: "1.5.0"
 ---
 
-# Create or update an agent skill
+# Create or update a skill
 
-Skills are an agent's **procedural memory**: every step-by-step procedure
-lives as a skill under `agents/<agent-id>/skills/agent/<slug>/` — never
-inlined in `system_prompts/` (identity/behaviour only), `knowledge/`
-(reference facts only), or workspace notes. pi loads each skill at spawn and
-injects its name, description, and location into the system prompt, so the
-description is the only thing the agent sees before reading `SKILL.md`.
-
-## Layout
-
-```
-agents/<agent-id>/skills/agent/<slug>/
-├── SKILL.md        ← frontmatter + the procedure
-├── CHANGELOG.md    ← one entry per version, newest first
-├── scripts/        ← (optional) helper scripts the procedure invokes
-└── artifacts/      ← (optional) templates, examples, reference files
-```
-
-A skill is self-contained: everything the procedure needs lives inside its
-directory, referenced from `SKILL.md` by skill-relative paths. Don't put a
-skill's scripts in `scripts/agent/` or its files in the workspace.
-
-`skills/<plugin-id>/` scopes are plugin-owned (reseeded on every agent
-start) — never author or edit skills there.
-
-## Creating a skill
-
-1. Pick a short kebab-case `<slug>` naming the procedure.
-2. Write `SKILL.md`:
-
-```markdown
----
-name: <slug>
-description: <summary of what it does>. Covers <what's included: the procedures, topics, scripts and artifacts inside>. Use when <trigger phrases / task shapes>. (v1.0.0)
-metadata:
-  author: <who>
-  version: "1.0.0"
----
-
-# <Title>
-
-<the procedure: prerequisites, numbered steps, verification, failure modes>
-```
-
-   The description is the only thing the agent sees before deciding to read
-   `SKILL.md`, so it must carry four things:
-
-   - **Summary** — what the skill does, one line.
-   - **What's included** — a brief sketch of the main procedures and any
-     scripts/artifacts. Not an exhaustive table of contents.
-   - **When to use it** — trigger phrases / task shapes to match against,
-     including tasks where only one section of the skill applies.
-   - **Version** — `(vX.Y.Z)`, matching `metadata.version`; the description
-     version is what makes updates visible to a running agent.
-
-   Keep the whole description under 1000 characters (pi drops anything
-   over 1024). `metadata` carries `author` and `version`.
-3. Move helper scripts into `scripts/` (keep them executable) and
-   templates/reference files into `artifacts/`; reference both by
-   skill-relative path from `SKILL.md`.
-4. Start `CHANGELOG.md`:
-
-```markdown
-# <slug> — changelog
-
-## 1.0.0
-
-- Initial version: <one line on what the procedure covers>.
-```
-
-5. If the procedure came from a prompt file or `knowledge/SOPs/`, delete it
-   there and update `1-agent.md` to *reference* the skill (when to reach for
-   it), not restate its steps.
-
-## Updating a skill
-
-1. Edit `SKILL.md` (and `scripts/`/`artifacts/` as needed).
-2. Bump the version — semver: correction = patch, changed/added steps =
-   minor, incompatible rewrite = major — in **both** `metadata.version` and
-   the description text. They must always match.
-3. Add a `CHANGELOG.md` entry: what changed and why, newest first.
-
-The version bump is not optional: agents compare the version advertised in
-their prompt against the copy they last read, and only re-read `SKILL.md`
-when it moved.
-
-## Verify
-
-No harness restart is needed — pi re-reads the skills directory on each
-session spawn, so the skill appears in the agent's `<available_skills>`
-block on the next spawned session (or ask the agent to list its skills).
-Constraints (pi drops or warns otherwise): frontmatter must parse and
-`description` is required — a skill without one is skipped; `name` is
-lowercase kebab-case, ≤ 64 chars (falls back to the directory name if
-omitted); `description` ≤ 1024 chars.
+1. Chris's explicit feedback authorizes updating the relevant SOP, deployment
+   prompt or skill without reconfirmation. For implicit feedback or
+   inferred improvements, propose the concrete change and reason; apply it only
+   after Chris approves. Other edits need Chris/Bhoumik authorization; reuse it
+   when already granted.
+   Keep the source feedback/approval with the change; route edits outside your
+   ownership to the owning agent with that evidence.
+2. Own the procedure in `skills/agent/<kebab-slug>/`. Keep `SKILL.md` a short
+   workflow/task menu; split unrelated detail into `artifacts/<task>.md` and
+   load it only when that branch applies. Put executable repeatable work in
+   `scripts/`; describe inputs, output, failure behavior and retry safety.
+   Reference files relative to the skill directory. Don't author plugin scopes.
+3. Frontmatter needs `name`, `description`, `metadata.author`, `metadata.version`.
+   Description briefly states purpose, included tasks/helpers, trigger and
+   `(vX.Y.Z)` matching metadata. Names are lowercase kebab-case ≤64 characters;
+   descriptions ≤1024 characters. Avoid repeating policy in discovery metadata.
+4. Every edit bumps both versions: patch for corrections, minor for changed/
+   added steps, major for incompatibility. Add the newest entry to `CHANGELOG.md`.
+   New skills start at 1.0.0. The version makes running agents notice changes.
+5. Update relevant deployment-owned `1-*` prompts when policy/routing changes;
+   keep procedural detail in its skill and retain a trigger/pointer in prompts
+   or knowledge. Preserve harness base and plugin-owned prompts. Keep each rule
+   with its owner and link to it, rather than copying it.
+6. Verify frontmatter, links, executable helpers and meaningful failure/retry
+   cases offline. No live sends or business writes as tests. Skills are discovered
+   on the next session spawn without a harness restart.

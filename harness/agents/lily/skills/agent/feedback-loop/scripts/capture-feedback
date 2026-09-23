@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Append one feedback entry under a file lock; a stable source ID makes retries safe."""
+import argparse
+from datetime import date
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+
+
+def entry(data):
+    if not isinstance(data, dict):
+        raise ValueError("input must be an object")
+    event_id = data.get("id", "")
+    if not isinstance(event_id, str) or not re.fullmatch(r"[A-Za-z0-9:@/_.-]{1,160}", event_id):
+        raise ValueError("id must be a stable source message ID (letters, numbers, :@/_.-)")
+    day = data.get("date")
+    if not isinstance(day, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        raise ValueError("date must be YYYY-MM-DD from the inbound timestamp")
+    date.fromisoformat(day)
+    if data.get("source") not in {"telegram", "rosie", "daisy", "nova"}:
+        raise ValueError("source must be telegram, rosie, daisy or nova")
+    for key in ["title", "text"]:
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip() or "<!--" in value or "-->" in value:
+            raise ValueError(f"{key} must contain text without HTML comment markers")
+        if any(ord(c) < 32 and c != "\n" for c in value):
+            raise ValueError(f"{key} contains control characters")
+    if "\n" in data["title"]:
+        raise ValueError("title must be one line")
+    target = data.get("destination", "(watching)")
+    if not isinstance(target, str) or not re.fullmatch(r"\((?:watching|answered)\)|(?:business/)?[a-z0-9]+(?:-[a-z0-9]+)*(?:\.md)?", target):
+        raise ValueError("destination must be (watching), (answered), a requirement slug or business/topic.md")
+    # Hash normalized semantic input, not JSON formatting. Same ID with changed
+    # content is a conflict, not a silently discarded correction.
+    canonical = {k: data[k] for k in ["id", "date", "source", "title", "text"]}
+    canonical["destination"] = target
+    digest = hashlib.sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest()
+    marker = f"<!-- feedback-id: {event_id} sha256: {digest} -->"
+    body = data["text"].strip().replace("\n", "\n  ")
+    result = f"\n## {day}\n\n{marker}\n- **{data['title'].strip()}** — {body} _(via {data['source']})_\n  → {target}\n<!-- feedback-end: {event_id} -->\n"
+    return event_id, digest, result
+
+
+def capture(path, data):
+    event_id, digest, result = entry(data)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        handle.seek(0)
+        existing = handle.read()
+        match = re.search(r"<!-- feedback-id: " + re.escape(event_id) + r" sha256: ([a-f0-9]{64}) -->", existing)
+        if match:
+            if match[1] != digest:
+                raise ValueError("source ID already logged with different content; append a correction with its own ID")
+            if f"<!-- feedback-end: {event_id} -->" not in existing[match.end():]:
+                raise ValueError("incomplete prior entry; inspect and repair it before claiming capture succeeded")
+            return {"status": "already-recorded", "id": event_id}
+        if not existing:
+            result = "# Feedback log\n" + result
+        handle.write(result)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return {"status": "recorded", "id": event_id}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, required=True, help="JSON: id, date, source, title, text; optional destination")
+    args = parser.parse_args()
+    target = Path(__file__).resolve().parents[4] / "knowledge/files/feedback.md"
+    try:
+        result = capture(target, json.loads(args.input.read_text()))
+    except (OSError, ValueError) as error:
+        print(json.dumps({"error": str(error)}), file=sys.stderr)
+        return 2
+    print(json.dumps(result, separators=(",", ":")))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

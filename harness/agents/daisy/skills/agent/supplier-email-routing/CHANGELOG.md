@@ -1,5 +1,9 @@
 # supplier-email-routing — changelog
 
+## 2.2.0
+
+- Split identification, dispatch, route maintenance and labels; avoid repeated source reads and preserve routing boundaries.
+
 ## 2.1.0
 
 2026-08-25 (Bhoumik) — §4 gains the **order/job-request hand-off to rosie**.

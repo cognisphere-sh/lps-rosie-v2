@@ -1,5 +1,9 @@
 # supplier-onboarding — changelog
 
+## 2.5.0
+
+- Split identity, creation, enrichment, contacts and verification so supplier corrections avoid unrelated onboarding reads.
+
 ## 2.4.0
 
 2026-08-25 (Bhoumik) — contact during onboarding is recorded to the supplier
