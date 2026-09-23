@@ -6,7 +6,7 @@ import type { Order } from './orders'
 
 test('shared order includes contacts, dates, fulfillment, portal link and escaped table content', () => {
   const order: Order = {
-    id: 42, supplierId: 7, supplierName: 'APS', status: 'new', fulfillmentMethod: 'delivery', fulfillmentDate: null,
+    id: 42, recordName: 'JR-3:Order-2', supplierId: 7, supplierName: 'APS', status: 'new', fulfillmentMethod: 'delivery', fulfillmentDate: null,
     confirmationDate: null, createdAt: '', notes: null, availabilityRequestIds: [],
     shareJobs: [{ jobRequestId: 3, jobName: 'Garden', expectedInstallDate: '2026-10-12', shippingAddress: '123 Garden St',
       customer: { name: 'Jane <Doe>', company: 'Garden & Co', email: 'jane@example.com', phone: '555-0100' } },
@@ -20,7 +20,7 @@ test('shared order includes contacts, dates, fulfillment, portal link and escape
   assert.equal(document.querySelector('img'), null)
   assert.equal(document.querySelector('a')?.href, 'https://example.com/partner/7/orders/42')
   assert.equal(document.querySelectorAll('tbody tr').length, 1)
-  for (const expected of ['Jane <Doe>', 'Garden & Co', 'jane@example.com', '555-0100', '123 Garden St', '2026-10-12',
+  for (const expected of ['JR-3:Order-2', 'Jane <Doe>', 'Garden & Co', 'jane@example.com', '555-0100', '123 Garden St', '2026-10-12',
     'Pickup or delivery: Delivery', 'Installation date: To be confirmed', 'Customer: Not provided', '$20.00', 'Available']) {
     assert.ok(document.body.textContent?.includes(expected), expected)
     assert.ok(text.includes(expected), expected)

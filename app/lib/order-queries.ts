@@ -5,6 +5,7 @@ import { isDirectOrder, type CreateDirectOrderInput, type CreateOrderInput, type
 import { supabase } from '@/lib/supabase'
 
 interface OrderRecord {
+  record_name?: string | null
   id: number; supplier_id: number; status: OrderStatus; fulfillment_method: FulfillmentMethod | null
   confirmation_date: string | null; fulfillment_date: string | null; notes: string | null; supplier_notes: string | null; created_at: string
 }
@@ -16,7 +17,7 @@ interface AllocationRecord { order_item_id: number; job_request_item_id: number;
 interface JobItemRecord { id: number; job_request_id: number; quantity?: number | null }
 interface JobRecord { customer_id?: number | null; shipping_address?: string | null; shipping_city?: string | null; shipping_state?: string | null; shipping_zip?: string | null; id: number; name: string | null; status?: string; is_active?: boolean; fulfillment_method?: FulfillmentMethod | null; expected_install_date?: string | null }
 
-const ORDER_COLUMNS = 'id, supplier_id, status, fulfillment_method, confirmation_date, fulfillment_date, notes, supplier_notes, created_at'
+const ORDER_COLUMNS = 'record_name, id, supplier_id, status, fulfillment_method, confirmation_date, fulfillment_date, notes, supplier_notes, created_at'
 const ITEM_COLUMNS = 'id, order_id, availability_request_item_id, name, size, quantity, unit_price, total, status, notes'
 const unique = (ids: number[]) => [...new Set(ids)]
 const asNumber = (value: number | null) => value == null ? null : Number(value)
@@ -66,8 +67,8 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
   const sourceIds = unique(items.flatMap((item) => item.availability_request_item_id == null ? [] : [item.availability_request_item_id]))
   const sourceItems = sourceIds.length ? await all<{ id: number; availability_request_id: number }>(supabase.from('availability_request_items')
     .select('id, availability_request_id').in('id', sourceIds).eq('is_active', true).order('id')) : []
-  const sourceRequests = sourceItems.length ? await all<{ id: number; supplier_id: number }>(supabase.from('availability_requests')
-    .select('id, supplier_id').in('id', unique(sourceItems.map((item) => item.availability_request_id)))
+  const sourceRequests = sourceItems.length ? await all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests')
+    .select('id, supplier_id, record_name').in('id', unique(sourceItems.map((item) => item.availability_request_id)))
     .in('supplier_id', unique(records.map((order) => order.supplier_id))).eq('is_active', true).order('id')) : []
   const sourceRequestMap = new Map(sourceRequests.map((request) => [request.id, request.supplier_id]))
   const sourceItemMap = new Map(sourceItems.map((item) => [item.id, item.availability_request_id]))
@@ -137,6 +138,7 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
     itemMap.set(item.order_id, list)
   }
   return records.map((order) => ({
+    recordName: order.record_name ?? null,
     id: order.id, supplierId: order.supplier_id, supplierName: supplierNames.get(order.supplier_id) ?? `Supplier ${order.supplier_id}`,
     closed: ['closed_won', 'closed_lost'].includes(order.status)
       || Boolean(orderJobClosures.get(order.id)?.length && orderJobClosures.get(order.id)!.every(Boolean)),
@@ -145,6 +147,8 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
     supplierNotes: order.supplier_notes ?? null,
     ...(!scope.forSupplier ? { shareJobs: [...(orderShareJobs.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, job]) => job) } : {}),
     jobSchedules: [...(orderSchedules.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, schedule]) => schedule),
+    availabilityRequestNames: Object.fromEntries(sourceRequests.filter((request) => availabilityRequestMap.get(order.id)?.has(request.id) && request.record_name)
+      .map((request) => [request.id, request.record_name!])),
     availabilityRequestIds: [...(availabilityRequestMap.get(order.id) ?? [])].sort((a, b) => a - b),
   }))
 }
@@ -211,7 +215,7 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
     .select('id, availability_request_id, name, size, status, quantity, available_quantity, unit_price').in('id', arItemIds).eq('is_active', true).order('id'))
   if (!items.length) return []
   const [requests, jobs, priorItems, customerOrderAllocations] = await Promise.all([
-    all<{ id: number; supplier_id: number }>(supabase.from('availability_requests').select('id, supplier_id').in('id', unique(items.map((item) => item.availability_request_id))).eq('is_active', true).neq('status', 'closed').order('id')),
+    all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests').select('id, supplier_id, record_name').in('id', unique(items.map((item) => item.availability_request_id))).eq('is_active', true).neq('status', 'closed').order('id')),
     all<JobRecord>(supabase.from('job_requests').select('id, name').in('id', unique(jobIds)).eq('is_active', true).not('status', 'in', '(closed_won,closed_lost,archived)').order('id')),
     all<{ id: number; order_id: number; availability_request_item_id: number; quantity: number }>(supabase.from('order_items').select('id, order_id, availability_request_item_id, quantity').in('availability_request_item_id', arItemIds).eq('is_active', true).order('id')),
     all<AllocationRecord>(supabase.from('order_item_job_request_items').select('order_item_id, job_request_item_id, quantity').in('job_request_item_id', jobItems.map((item) => item.id)).order('order_item_id').order('job_request_item_id')),
@@ -269,7 +273,7 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
       const remaining = Math.min(remainingQuantity, allocationRemaining, demandRemaining)
       return remaining > 0 ? [{ jobRequestItemId: link.job_request_item_id, jobRequestId: jobId, jobName: jobMap.get(jobId) ?? null, quantity: Number(link.quantity), remainingQuantity: remaining }] : []
     })
-    return allocations.length ? [{ availabilityRequestItemId: item.id, availabilityRequestId: request.id, supplierId: request.supplier_id, supplierName: supplierMap.get(request.supplier_id)!, name: item.name, size: item.size, status: item.status, unitPrice: asNumber(item.unit_price), remainingQuantity, allocations }] : []
+    return allocations.length ? [{ availabilityRequestItemId: item.id, availabilityRequestId: request.id, availabilityRequestName: request.record_name ?? null, supplierId: request.supplier_id, supplierName: supplierMap.get(request.supplier_id)!, name: item.name, size: item.size, status: item.status, unitPrice: asNumber(item.unit_price), remainingQuantity, allocations }] : []
   })
 }
 

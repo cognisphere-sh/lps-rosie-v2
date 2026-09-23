@@ -3,8 +3,9 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-08-30 by Chris (via Telegram messages 431–432 and 435 / Nova handoff)
-- Updated: 2026-09-11
-- Follow-on: `all-jobs-compact-filter-selectors` — compact mobile selectors and shared fresh-entry/reset open-stage baseline; does not reopen the card layout.
+- Updated: 2026-09-22T15:36:37-05:00
+- Current narrow override: `mobile-job-card-chat-controls` — Chris718/Nova719 now remove all inline chats from current **mobile All Jobs list cards only**, keeping person/profile/notes, supplier identity/all AR access and Job actions. The older Rosie-must-remain criteria below are superseded for that list; focused and desktop chats remain unchanged. Do not reinstate historical exact-two-row/omitted-notes/date or old-status assumptions over current operator contracts. The linked requirement is current authority for this new slice, not a wholesale card rebuild.
+- Follow-on: `all-jobs-compact-filter-selectors` — compact mobile selectors and shared current five-stage/open-work baseline; separate filter scope.
 
 ## Problem
 

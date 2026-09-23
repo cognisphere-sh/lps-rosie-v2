@@ -10,7 +10,7 @@ test('shared requests appear on every source job, including associations beyond 
   const links = Array.from({ length: 1105 }, (_, i) => ({ availability_request_id: 42, job_request_id: i + 1 }))
   const tables: Record<string, Record<string, unknown>[]> = {
     availability_request_jobs: links,
-    availability_requests: [{ id: 42, job_request_id: 1, supplier_id: 7, status: 'submitted', is_active: true,
+    availability_requests: [{ id: 42, record_name: 'JR-1:AR-1', job_request_id: 1, supplier_id: 7, status: 'submitted', is_active: true,
       created_at: '2026-09-14T12:00:00Z', submitted_at: '2026-09-15T12:00:00Z' }],
     suppliers: [{ id: 7, name: 'APS', is_lps_partner: true, rosie_thread_id: 'supplier-7' }],
     job_requests: links.map((link) => ({ id: link.job_request_id, name: `Job ${link.job_request_id}` })),
@@ -37,9 +37,10 @@ test('shared requests appear on every source job, including associations beyond 
   new Function('require', 'module', 'exports', outputText)((name: string) => name in mocks ? mocks[name] : require(name), module, module.exports)
   const suppliers = await module.exports.supplierLinksByRequest(links.map((link) => link.job_request_id))
   assert.equal(Object.keys(suppliers).length, 1105)
-  assert.deepEqual(suppliers[1105][0].availabilityRequests, [{ id: 42, status: 'submitted',
+  assert.deepEqual(suppliers[1105][0].availabilityRequests, [{ id: 42, recordName: 'JR-1:AR-1', status: 'submitted',
     createdAt: '2026-09-14T12:00:00Z', submittedAt: '2026-09-15T12:00:00Z' }])
   const requests = await module.exports.listAvailabilityRequests({ jobRequestId: 1105 })
+  assert.equal(requests[0].recordName, 'JR-1:AR-1')
   assert.equal(requests.length, 1, 'A non-primary source job finds the combined request')
   assert.equal(requests[0].jobRequestIds.length, 1105, 'Disclosure must not mistake a truncated job list for a single job')
   assert.equal(requests[0].jobRequestIds.at(-1), 1105)

@@ -1,5 +1,17 @@
 # supplier-coordination — changelog
 
+## 3.17.0 — 2026-09-22
+
+- Use database-assigned per-job AR and Order record names; keep numbering stable and separate from supplier messages, which still use only job names and portal links.
+
+## 3.16.1 — 2026-09-22
+
+- Use only job names in supplier-facing references; omit JR/AR/order numbers from subjects, messages and link labels while preserving valid portal URL targets.
+
+## 3.16.0 — 2026-09-22
+
+- Require job names and verified direct supplier-portal links in all Order/AR update messages, including acknowledgments and follow-ups. Cover shared jobs, authorized public AR links and scoped job-name disclosure.
+
 ## 3.15.0 — 2026-09-22
 
 - Require actual supplier messages for verified post-placement order changes, with standing authorization for scoped portal/email notifications.

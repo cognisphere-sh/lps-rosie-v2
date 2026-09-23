@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft } from '@/components/workspace/icons'
 import { OrderCard } from '@/components/workspace/orders'
 import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
-import type { Order } from '@/lib/orders'
+import { orderRecordName, type Order } from '@/lib/orders'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 
 export default function PartnerOrderPage() {
@@ -77,7 +77,7 @@ export default function PartnerOrderPage() {
 
   const closed = Boolean(order?.closed || order?.status === 'closed_won' || order?.status === 'closed_lost')
 
-  return <PartnerFrame supplierId={supplierId} supplierName={order?.supplierName ?? null} tab={closed ? 'closed-orders' : 'orders'} title={`Order O-${orderId}`} hideHeaderOnDesktop
+  return <PartnerFrame supplierId={supplierId} supplierName={order?.supplierName ?? null} tab={closed ? 'closed-orders' : 'orders'} title={order ? `Order ${orderRecordName(order)}` : 'Order'} hideHeaderOnDesktop
     alerts={alerts} onAgentReply={load} onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
     toolbar={(rightActions) => <div className="flex flex-wrap items-center gap-2.5 px-3 py-3 md:px-4">
       <Link href={`/partner/${supplierId}/${closed ? 'closed-orders' : 'orders'}`} className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-card px-3.5 text-[12.5px] font-semibold text-foreground no-underline hover:bg-lps-tint"><span className="flex size-3.5"><ChevronLeft /></span>{closed ? 'Closed Orders' : 'Orders'}</Link>

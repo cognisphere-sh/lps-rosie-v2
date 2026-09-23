@@ -3,7 +3,7 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-09-02 by Chris (via Rosie handoff)
-- Updated: 2026-09-13 17:09:01 CDT
+- Updated: 2026-09-22T12:50:45-05:00
 
 ## Focused mobile presentation exception
 
@@ -47,6 +47,7 @@ This is display/UI behavior, not a customer/job data-model change. The still-sta
 - New database fields, migrations, data backfill, or parsing historical names.
 - Changing the Homeowner/Retail type, pricing, date, fulfillment, supplier, order, or lifecycle workflows.
 - Editing company or contact through the Job-name control.
+- Saved job-scoped AR/Order reference names. 2026-09-22T12:50:45-05:00: their existing operator rollout is separately unproven live; it does not rename the atomic Job, change this composition/editor scope or establish a blocker for this requirement. Evidence only: `workspace/threads/main/tasks/record-name-rollout/rollout-dependency.md` on Lily; no naming build/approval inferred.
 
 ## Assumptions
 

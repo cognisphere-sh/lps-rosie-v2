@@ -857,7 +857,8 @@ a supplier save. Migration 0088 adds the lifecycle hooks described below.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| `id` | bigint identity | no | PK. Rendered `AR-<id>` |
+| `id` | bigint identity | no | PK; retained in API/portal routes |
+| `record_name` | text, unique | yes | Stable `JR-<job>:AR-<n>`; independent per-job AR sequence assigned on first job link (0104). |
 | `job_request_id` | bigint → `job_requests.id` ON DELETE SET NULL | yes | Legacy primary-job hint. Read `availability_request_jobs` for all associated jobs; deleting one job preserves the supplier request and answers (0092) |
 | `supplier_id` | bigint → `suppliers.id` ON DELETE CASCADE | no | |
 | `share_customer_details` | boolean | no, default false | Whether the portal shows the supplier who the job is for (customer name/company/contact routes and shipping address). Default is not to |
@@ -966,7 +967,8 @@ customer confirmation; availability and job status edits alone do not place one.
 
 | Order column | Type | Notes |
 |---|---|---|
-| `id` | bigint identity | PK; displayed as the order number |
+| `id` | bigint identity | PK; retained in API/portal routes |
+| `record_name` | text, unique, nullable | Stable `JR-<job>:Order-<n>` assigned on first job allocation (0104). |
 | `supplier_id` | bigint → `suppliers.id` | Required; deletion restricted to preserve orders |
 | `status` | text | `new` (default), `processing`, `order_ready`, `closed_won`, `closed_lost`. Migration 0094 maps Committed to New and Confirmed to Processing; terminal history is retained |
 | `fulfillment_method` | text, nullable | `pickup` or `delivery`; set by Chris/admin, optional during supplier confirmation |
@@ -1696,3 +1698,13 @@ session (`app/proxy.ts`). Do not add a `NEXT_PUBLIC_` Supabase key.
   Shared orders and order snapshots also survive customer deletion. Requests
   losing their last active job close and revoke public links. The job audit
   trigger covers INSERT/UPDATE, so deletion itself leaves no changelog entry.
+
+### `job_record_counters` (0104)
+
+Service-role-only counter table keyed by `(job_request_id, record_type)` with
+`last_number`. AR and Order sequences are independent and allocated atomically.
+Counters survive record/job deletion; saved names never renumber. Shared records
+anchor to the first linked job; historical backfill uses the lowest linked job
+and creation order (id breaks ties). Unlinked historical records retain a null
+name until linked. Display names do not replace IDs, allocations or portal URLs.
+Supplier messages still use the actual job name and a direct link, not this label.

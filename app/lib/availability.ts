@@ -34,8 +34,9 @@ export function availabilityRequestLinkLabel(
   id: number,
   supplierName: string,
   status: string,
+  recordName?: string | null,
 ): string {
-  const base = `Open availability request AR-${id} to ${supplierName}`
+  const base = `Open availability request ${availabilityRecordName({ id, recordName })} to ${supplierName}`
   return isSubmittedARStatus(status) ? `${base} — Completed`
     : isInProgressARStatus(status) ? `${base} — In progress`
       : status === 'closed' ? `${base} — Closed` : status === 'hidden' ? `${base} — Hidden` : base
@@ -117,7 +118,10 @@ export function arSubtotal(items: ARItem[]): number | null {
 }
 
 /** An availability request as a list shows it. */
+export const availabilityRecordName = (request: { id: number; recordName?: string | null }) => request.recordName || `AR-${request.id}`
+
 export interface ARSummary {
+  recordName?: string | null
   /** Sharing capability for admins and authorized partners. Omitted from public payloads. */
   publicToken?: string | null
   id: number
@@ -173,7 +177,7 @@ export interface SupplierLink {
   name: string
   lpsPartner: boolean
   /** Every availability request this job has with them, newest first. */
-  availabilityRequests: { id: number; status: string; createdAt?: string | null; submittedAt?: string | null }[]
+  availabilityRequests: { id: number; recordName?: string | null; status: string; createdAt?: string | null; submittedAt?: string | null }[]
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
   rosieThreadId: string | null
 }

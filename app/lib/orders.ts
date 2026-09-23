@@ -49,7 +49,10 @@ export interface OrderShareJob {
   shippingAddress: string | null
 }
 
+export const orderRecordName = (order: { id: number; recordName?: string | null }) => order.recordName || `O-${order.id}`
+
 export interface Order {
+  recordName?: string | null
   /** Archive classification for both views, including closure of every linked job. */
   closed?: boolean
   /** Admin only: customer details for copying an order. */
@@ -67,6 +70,7 @@ export interface Order {
   supplierNotes?: string | null
   /** Customer-requested delivery/installation dates; portal schedules omit job identities. */
   jobSchedules?: ARJobSchedule[]
+  availabilityRequestNames?: Record<number, string>
   availabilityRequestIds: number[]
   items: OrderItem[]
 }
@@ -118,6 +122,7 @@ export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
 }
 
 export interface OrderCandidate {
+  availabilityRequestName?: string | null
   availabilityRequestItemId: number
   availabilityRequestId: number
   supplierId: number

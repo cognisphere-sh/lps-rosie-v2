@@ -52,6 +52,7 @@ A workflow change counts — not everything here is software.
 | `plant-search-toolbar-visual-unity` | Make Plant Search controls read as one toolbar | routed | nova |
 | `portal-availability-selector-dark-style` | Keep the Nursery Portal availability selector readable in the dark portal | routed | nova |
 | `portal-request-work-buckets` | Keep wholesale availability requests in clear work buckets | routed | nova |
+| `supplier-past-work-navigation` | Put supplier past Orders and Availability Requests behind exact Past order/Requests | routed · OWNER-REPORTED HOLD current-base overlap/existing operator record-name rollout; UI scope unchanged, no independent naming build (2026-09-22T12:50:45-05:00) | nova |
 | `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · partial; Request UI mapping blocked | bhoumik |
 | `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | shipped · core access; optional channel fit clarified Sep 11 | bhoumik |
 | `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | shipped · core access; optional channel fit clarified Sep 11 | bhoumik |
@@ -62,7 +63,8 @@ A workflow change counts — not everything here is software.
 | `mobile-request-update-response-workflow` | Optional durable response tracking for mobile updates | staged · optional/unapproved; deferred pending existing-path findings | bhoumik |
 | `mobile-request-update-response-state` | Optional mobile request-response display | drafted · optional/unapproved; deferred pending existing-path findings | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
-| `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed | nova |
+| `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed · current mobile-list chat direction superseded by linked removal scope | nova |
+| `mobile-job-card-chat-controls` | Remove chats from mobile Job list cards, not useful context | routed · same-owner ISOLATED IMPLEMENTATION on HEAD + operator-byte REVIEW overlay only; UNVALIDATED runner HOLD, QA/integration/release blocked (2026-09-22T15:44:06-05:00) | nova |
 | `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · current-owner visual refresh; committed five-stage/two-default/none semantics preserved | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |

@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Manage customer job requests from intake to closure. Covers new intake without plant-based duplicate-job searches, known-job reuse, Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, APS-only manual quote/AR inputs, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders, post-placement change notes and supplier notifications, and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.17.0)
+description: Manage customer job requests from intake to closure. Covers new intake without plant-based duplicate-job searches, known-job reuse, Quote to optional Availability to Order, already committed intake, supplied-price precedence and APS fallback, direct quote-to-order creation without ARs, quick-quote stopping, concurrent writes, Chris approval for availability sends and response-driven job-line changes, APS-only manual quote/AR inputs, minimal audience-specific notes, EDD intake with Unknown, fulfillment fields, New/Processing/Order Ready orders, per-job record names, post-placement change notes and supplier notifications, and many-to-many allocations. Use for new or already committed requests, accepted quotes, quick quotes, sourcing, supplier/customer updates, order creation or closure; pricing-only questions create no job. (v5.19.0)
 metadata:
   author: lps
-  version: "5.17.0"
+  version: "5.19.0"
 ---
 
 # Job requests
@@ -39,6 +39,22 @@ second acceptance or a special “skip availability” phrase when the request i
 already committed. A later acceptance supersedes an earlier `quote_only` handoff
 for its accepted scope and uses the existing job. Follow the direct-order
 procedure in section 6; an ordinary unaccepted quote does not authorize an order.
+
+### Stored Order and AR names
+
+Record names use `JR-<job id>:AR-<n>` and `JR-<job id>:Order-<n>`: for
+example, `JR-42:AR-1`, `JR-42:AR-2` and `JR-42:Order-1`. AR and Order
+sequences each start at 1 within a job. Read the saved `record_name` after
+creation; the database assigns it when the first job allocation is linked.
+Never use a global AR/order id as the per-job sequence or invent a number
+from a filtered list. Do not overwrite these names, renumber on edits/deletes,
+or change the job's own name. Shared records retain their first linked job's
+name anchor; historical backfill uses the lowest linked job. Primary keys,
+portal URLs and all allocations remain unchanged.
+
+These are **record names only**. Supplier messages still identify affected
+work by the actual job name, without JR/AR/order numbers, and include the
+verified direct portal link under `supplier-coordination`.
 
 ## 1. Intake: an order request or quick quote
 
@@ -724,8 +740,11 @@ Order creation is placement; an order need not be confirmed first.
    and supplier-safe. Do not put it only in job sourcing notes or overwrite
    `orders.supplier_notes`, which belongs to the supplier. Re-read/guard the
    note write against concurrent edits and do not append it again on retry.
-4. Relay the order id, supplier id, exact verified change summary, affected
-   allocations and originating context to the supplier thread. This standing
+4. Relay the order id, supplier id, current affected job name(s), direct
+   supplier-portal order URL, exact verified change summary, affected
+   allocations and originating context to the supplier thread. Follow
+   `supplier-coordination` for job-name and portal-link requirements on every
+   Order/AR update message, including shared records. This standing
    instruction authorizes the factual change notification without a fresh
    draft approval. A portal record update or internal handoff alone is not
    supplier notification. Follow `supplier-coordination` for the actual send.

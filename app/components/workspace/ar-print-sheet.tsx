@@ -17,7 +17,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
-import { AR_RESPONSE_OPTIONS, type ARDetail } from '@/lib/availability'
+import { availabilityRecordName, AR_RESPONSE_OPTIONS, type ARDetail } from '@/lib/availability'
 import { money, num } from '@/lib/format'
 
 export function ARPrintSheet({
@@ -34,7 +34,7 @@ export function ARPrintSheet({
   const [node, setNode] = useState<HTMLElement | null>(null)
   useEffect(() => setNode(document.body), [])
   if (!node) return null
-  const ref = `AR-${request.id}`
+  const ref = availabilityRecordName(request)
   const border = '1.5px solid #999'
   const cell = (extra: CSSProperties = {}): CSSProperties => ({ border, padding: '4px 6px', verticalAlign: 'top', ...extra })
   return createPortal(

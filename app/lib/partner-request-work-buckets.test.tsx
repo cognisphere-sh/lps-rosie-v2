@@ -107,6 +107,7 @@ test('open and closed request cards show creation and each anonymous job schedul
   const note = 'Please allow room for the delivery truck at the south gate.\nCall the site contact before unloading the entire shipment.'
   const value: ARDetail = {
     ...request(8, 'new'),
+    recordName: 'JR-42:AR-1',
     createdAt: '2026-09-15T02:00:00Z',
     lpsNotes: note,
     jobSchedules: [
@@ -127,6 +128,7 @@ test('open and closed request cards show creation and each anonymous job schedul
     view.rerender(card)
     const link = view.getByRole('link')
     assert.equal(link.getAttribute('href'), '/partner/7/requests/8')
+    assert.ok(link.textContent?.includes('JR-42:AR-1'))
     assert.match(link.textContent ?? '', /Created 09-14/)
     const schedules = within(link).getByLabelText('Job schedules')
     assert.equal(schedules.children[0].textContent, 'Job 1EDD09-20FulfillmentPickup')

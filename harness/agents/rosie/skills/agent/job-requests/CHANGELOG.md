@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 5.19.0 — 2026-09-22
+
+- Use database-assigned per-job AR and Order record names; keep numbering stable and separate from supplier messages, which still use only job names and portal links.
+
+## 5.18.0 — 2026-09-22
+
+- Carry affected job names and the direct supplier-portal order link in change handoffs; reference the mandatory job-name/link format for Order and AR updates.
+
 ## 5.17.0 — 2026-09-22
 
 - Require a brief, supplier-safe summary in orders.notes and a supplier notification whenever a placed order changes, including already-saved updates.

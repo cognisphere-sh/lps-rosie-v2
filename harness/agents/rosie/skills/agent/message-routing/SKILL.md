@@ -1,9 +1,9 @@
 ---
 name: message-routing
-description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, new-job routing without plant-based duplicate searches, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.3.0)
+description: Route work to Rosie's main, job, customer and supplier threads without losing the human interaction. Covers sender-first inbound routing, entity thread ids, new-job routing without plant-based duplicate searches, task/quick-quote/committed-order handoffs, acceptance and supplied-price evidence, optional availability, original-thread communication approvals, email routes and legacy router compatibility. Use for main coordination, unknown inbound messages, cross-thread work and any required customer/supplier approval. (v2.4.1)
 metadata:
   author: lps
-  version: "2.3.0"
+  version: "2.4.1"
 ---
 
 # Thread routing and approvals
@@ -73,7 +73,11 @@ Use `bash scripts/agent-msg/send --to-agent rosie --thread-id <owner>
   even if Chris has since switched chats.** Metadata identifies the
   interaction; it is not itself approval.
 - Return/owner thread; draft recipient, channel, full content and approval
-  evidence when sending approved communication.
+  evidence when sending approved communication. For Order/AR supplier updates,
+  carry the affected job name(s) and verified direct supplier-portal record
+  link(s), following `supplier-coordination`; preserve them in the sent message.
+  Keep JR/AR/order ids in internal handoff metadata and URL targets only;
+  supplier-visible references and link labels use the job name without numbers.
 
 For email, include MessageId, GmailThreadId, sender, subject, received time,
 attachment names and the mailbox it lives in. Let the contact thread read

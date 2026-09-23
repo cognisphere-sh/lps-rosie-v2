@@ -95,3 +95,12 @@ updates. The existing 30-second/focus/manual refresh moves cards between lists.
 Deleting a job permanently deletes its exclusively associated orders and ARs
 (migration 0097). Shared records remain for the other jobs, including their
 closed history; deleting the final associated job removes those records.
+
+Order and AR record titles use saved per-job names (`JR-42:Order-1`,
+`JR-42:AR-1`). Migration 0104 backfills linked historical records and assigns
+new names automatically; deploy it before the app that selects `record_name`.
+Sequences are independent per job/type and do not change after deletion,
+status edits or new allocations. Shared records keep their original naming
+anchor. Records without a job link keep the legacy ID fallback until linked.
+Numeric IDs and portal paths remain unchanged. Supplier chat/email updates
+continue to use actual job names only, with direct portal links.

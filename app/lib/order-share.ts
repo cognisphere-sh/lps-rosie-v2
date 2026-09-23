@@ -1,12 +1,12 @@
 import { money, num } from './format'
-import { ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type Order } from './orders'
+import { orderRecordName, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type Order } from './orders'
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 
 export function orderShareContent(order: Order, origin: string) {
   const url = new URL(`/partner/${order.supplierId}/orders/${order.id}`, origin).href
   const details = [
-    `Order O-${order.id} · ${order.supplierName}`,
+    `Order ${orderRecordName(order)} · ${order.supplierName}`,
     `Status: ${ORDER_STATUS_META[order.status].label}`,
     `Pickup or delivery: ${order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : 'To be confirmed'}`,
     ...(order.shareJobs?.length ? order.shareJobs.flatMap((job) => [

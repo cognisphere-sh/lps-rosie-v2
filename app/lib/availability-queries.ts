@@ -18,6 +18,7 @@ import { buildAvailabilitySnapshots } from '@/lib/availability-allocations'
 // holds the project's secret key.
 
 interface ARRecord {
+  record_name?: string | null
   public_token: string | null
   id: number
   job_request_id: number | null
@@ -46,7 +47,7 @@ interface ARItemRecord {
 
 
 const AR_COLUMNS =
-  'id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes, supplier_notes, public_token'
+  'record_name, id, job_request_id, supplier_id, share_customer_details, status, submitted_at, created_at, lps_notes, supplier_notes, public_token'
 const AR_ITEM_COLUMNS =
   'id, availability_request_id, job_request_item_id, name, size, quantity, status, available_quantity, unit_price, notes, lps_notes'
 
@@ -143,6 +144,7 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
   }
 
   return records.map((r) => ({
+    recordName: r.record_name ?? null,
     publicToken: r.public_token,
     id: r.id,
     jobRequestId: linkedJobs.get(r.id)?.[0] ?? r.job_request_id,
@@ -644,7 +646,7 @@ export async function supplierLinksByRequest(
   if (!links?.length) return {}
   const { data: ars, error: arErr } = await supabase
     .from('availability_requests')
-    .select('id, supplier_id, status, created_at, submitted_at')
+    .select('id, record_name, supplier_id, status, created_at, submitted_at')
     .in('id', [...new Set(links.map((link) => link.availability_request_id))])
     .eq('is_active', true)
     .order('created_at', { ascending: false })
@@ -656,6 +658,7 @@ export async function supplierLinksByRequest(
   // job → supplier → every AR link, newest first (the AR list is newest-first).
   const engaged = new Map<number, Map<number, SupplierLink['availabilityRequests']>>()
   for (const r of linkedRequests as {
+    record_name?: string | null
     id: number
     job_request_id: number
     supplier_id: number
@@ -667,7 +670,7 @@ export async function supplierLinksByRequest(
       engaged.get(r.job_request_id) ?? new Map<number, SupplierLink['availabilityRequests']>()
     bySupplier.set(r.supplier_id, [
       ...(bySupplier.get(r.supplier_id) ?? []),
-      { id: r.id, status: r.status, createdAt: r.created_at ?? null, submittedAt: r.submitted_at ?? null },
+      { id: r.id, recordName: r.record_name ?? null, status: r.status, createdAt: r.created_at ?? null, submittedAt: r.submitted_at ?? null },
     ])
     engaged.set(r.job_request_id, bySupplier)
   }

@@ -450,7 +450,7 @@ function PartnerNotificationBell({
 
 /** What a request reads as when it has no job name of its own. */
 export const partnerRequestName = (r: ARDetail) =>
-  r.jobName ? redactPartnerRequestRefs(r.jobName) : 'Availability request'
+  r.recordName || (r.jobName ? redactPartnerRequestRefs(r.jobName) : 'Availability request')
 
 /** Its customer, where the request shares one. */
 export const partnerCustomerLabel = (r: ARDetail) =>

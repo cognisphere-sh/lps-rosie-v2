@@ -1,5 +1,13 @@
 # message-routing — changelog
 
+## 2.4.1 — 2026-09-22
+
+- Keep record numbers internal to handoffs and URL targets; supplier-facing Order/AR update messages use job names only.
+
+## 2.4.0 — 2026-09-22
+
+- Preserve affected job names and direct supplier-portal Order/AR links through supplier-update handoffs and final message delivery.
+
 ## 2.3.0 — 2026-09-22
 
 - Route post-placement order-change notifications under standing send authorization while preserving supplier-thread ownership and other communication approval rules.

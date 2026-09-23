@@ -18,6 +18,7 @@ import {
 import { useToast } from '@/components/workspace/shell'
 import { useOutsideClose } from '@/components/workspace/table-parts'
 import {
+  availabilityRecordName,
   availabilityRequestLinkLabel,
   isInProgressARStatus,
   isSubmittedARStatus,
@@ -867,7 +868,7 @@ export function RequestLinks({
               {l.availabilityRequests.map((ar) => (
                 <LinkSegment
                   key={ar.id}
-                  title={availabilityRequestLinkLabel(ar.id, l.name, ar.status)}
+                  title={availabilityRequestLinkLabel(ar.id, l.name, ar.status, ar.recordName)}
                   describedBy={`${dateIdPrefix}-ar-${ar.id}-date`}
                   onOpen={() => openAvailabilityRequest(ar.id)}
                   className={cn(
@@ -882,7 +883,7 @@ export function RequestLinks({
                   )}
                 >
                   <span className="flex items-center gap-1">
-                    AR-{ar.id}
+                    {availabilityRecordName(ar)}
                     {(isSubmittedARStatus(ar.status) || isInProgressARStatus(ar.status)) && (
                       <span
                         aria-hidden="true"

@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, post-placement change notifications and order notes, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks, Chris-directed APS manual AR inputs and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.15.0)
+description: Manage order-side contact on a supplier's dedicated thread. Covers optional APS availability with Chris send approval, committed/direct-order handoffs without ARs, consolidated allocations, New/Processing/Order Ready orders, post-placement change notifications, per-job record names, job-name references, portal links and order notes, private/public requests, independent preparation, original demand and quote-selection boundaries, useful LPS notes, HTML email, inventory mappings, submitted-response relays, Can Order handling, supplier-authorized portal transcription, pricing versus availability evidence, approval-gated alternatives, minimal sourcing exceptions, closed-request locks, Chris-directed APS manual AR inputs and job-thread handoffs. Use for supplier sourcing or direct-order handoffs, availability events, supplier messages and follow-ups; lookup alone authorizes no outreach and supplier replies alone authorize no job-line change. (v3.17.0)
 metadata:
   author: lps
-  version: "3.15.0"
+  version: "3.17.0"
 ---
 
 # Supplier coordination
@@ -30,6 +30,22 @@ owns note definitions and cleanup safeguards. Relay evidence for that review,
 not instructions to append history or duplicate every response. The supplier
 transcript retains full correspondence.
 
+### Stored Order and AR names
+
+Record names use `JR-<job id>:AR-<n>` and `JR-<job id>:Order-<n>`: for
+example, `JR-42:AR-1`, `JR-42:AR-2` and `JR-42:Order-1`. AR and Order
+sequences each start at 1 within a job. Read the saved `record_name` after
+creation; the database assigns it when the first job allocation is linked.
+Never use a global AR/order id as the per-job sequence or invent a number
+from a filtered list. Do not overwrite these names, renumber on edits/deletes,
+or change the job's own name. Shared records retain their first linked job's
+name anchor; historical backfill uses the lowest linked job. Primary keys,
+portal URLs and all allocations remain unchanged.
+
+These are **record names only**. Supplier messages still identify affected
+work by the actual job name, without JR/AR/order numbers, and include the
+verified direct portal link under `supplier-coordination`.
+
 ## 1. Select the channel and preserve preferences
 
 Check the job thread's workflow path first. For already committed intake or an
@@ -47,6 +63,8 @@ The channel rules below apply when an availability request is actually needed.
   framing preferences. Preserve existing preferences. With no remembered
   customer-details decision, ask Chris through `message-routing`, record
   his answer and leave `share_customer_details = false` while waiting.
+  The job-name rule below separately authorizes naming the affected job in
+  order/AR update messages; do not ask again for that name-only disclosure.
   Do not expose customer identity while that decision is pending.
 - **APS is the exclusive current supplier. On the availability path, generate
   the APS price-list quote first and obtain Chris's approval before creating/publishing its availability
@@ -61,6 +79,42 @@ The channel rules below apply when an availability request is actually needed.
   for the specific plant/size before creation or send**, including hints in
   supplier-visible `lps_notes`. Approval to quote it is not AR authorization.
   Creating a portal request is not permission for an additional email.
+
+### Job names and portal links in supplier updates
+
+Every supplier-facing message about an Order or availability request (AR)
+update must identify it by the **job name** and include a **clickable direct
+link to that Order or AR in the supplier's portal**. Apply this to portal
+chat, email, acknowledgments, clarifications and follow-ups. Use only the job
+name as the visible reference: do not add JR, AR or order numbers in message
+subjects, body text or link labels. Internal ids remain available for record
+lookup and may remain in the actual portal URL; do not strip or alter them.
+
+- Read the current job name from `job_requests` through the actual order/AR
+  allocations. For shared records, name each job affected by the update and
+  make clear which change belongs to which job; do not assume the legacy
+  scalar job id is the complete relationship. Do not invent a name. If the
+  name is missing, resolve it with the job owner before sending.
+- Use the configured app origin and the verified supplier/record ids:
+  Order: `/partner/<supplierId>/orders/<orderId>`;
+  AR: `/partner/<supplierId>/requests/<arId>`. Send an absolute URL to the
+  specific record, not the portal home, an internal admin page or API endpoint.
+  For a non-partner AR, use its existing authorized public request URL
+  (`/public/availability/<token>`) so the recipient can open it. Never invent
+  a token or publish/change access merely to create a link.
+- Link text can be `View order` or `View availability request`; use a clickable
+  absolute URL in plain-text channels and a proper anchor in HTML email.
+  Verify the target belongs to this supplier and matches the record discussed.
+  For multiple records, include each relevant link next to its job reference.
+- This instruction explicitly authorizes using the affected job name in these
+  supplier messages without a separate customer-details approval. It does not
+  authorize sharing unrelated customer details or changing the portal's
+  `share_customer_details` setting. Keep internal sourcing and approval chatter
+  out of the message. Existing authorization rules for the send itself apply.
+
+Message shape: `<Job name>: <brief update>. View order: <absolute order URL>`
+or `<Job name>: <brief update>. View availability request: <absolute AR URL>`.
+Resolve these placeholders from current records before sending.
 
 ## 2. Create or reuse the availability request
 
@@ -445,8 +499,10 @@ acknowledge the recorded change without implying a new supplier confirmation.
 2. Have the job owner persist/verify the brief change summary in `orders.notes`.
    For a supplier-originated update, relay the verified before/after details
    to that owner. Preserve existing instructions and `orders.supplier_notes`.
-3. Send the supplier a short factual message identifying the order and what
-   changed, using verified old/new values where useful. Include the current
+3. Send the supplier a short factual message naming the affected job(s),
+   linking directly to the order in their portal, and explaining what
+   changed, using verified old/new values where useful. Follow the job-name
+   and portal-link rule in section 1. Include the current
    fulfillment plan when affected. Keep internal sourcing, approval chatter
    and other customers' identities out of the message.
 4. Use the supplier's established channel and preferences: a partner portal

@@ -18,7 +18,7 @@ import {
   availabilityRequestStatusChanged,
   onOpenAvailabilityRequest,
 } from '@/lib/chat-bus'
-import type { ARDetail } from '@/lib/availability'
+import { availabilityRecordName, type ARDetail } from '@/lib/availability'
 import { formatMonthDay } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
 import { useJobUpdates } from '@/lib/use-job-updates'
@@ -510,7 +510,7 @@ export function AvailabilityRequestDrawer() {
           <header className="flex flex-none items-start gap-2 border-b border-border bg-background pb-2 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(12px,env(safe-area-inset-top))] min-[900px]:border-b-0 min-[900px]:px-4 min-[900px]:pb-0 min-[900px]:pt-4">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
               <h2 id="availability-request-drawer-title" className="m-0 min-w-0 break-words text-[14px] font-bold text-foreground">
-                Availability request AR-{arId}
+                Availability request {availabilityRecordName(ar ?? { id: arId })}
               </h2>
               {ar && (
                 <>
@@ -525,7 +525,7 @@ export function AvailabilityRequestDrawer() {
               ref={closeButton}
               type="button"
               onClick={close}
-              aria-label={`Close availability request AR-${arId}`}
+              aria-label={`Close availability request ${availabilityRecordName(ar ?? { id: arId })}`}
               className="ml-auto flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground min-[900px]:size-7"
             >
               <CloseIcon size={14} />
