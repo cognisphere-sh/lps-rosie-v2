@@ -1,14 +1,32 @@
 # Migrations applied by Daisy
 
-> **Historical record — superseded. Not a description of the current schema.**
-> `public.rate_charts` has since been renamed to `public.inventory`, and
-> `rate_charts` now survives only as a backwards-compatibility *view* over it.
-> For the schema as it actually is, read `knowledge/SCHEMA.md` (the shared
-> `docs/supabase-schema.md`). This file is kept only to record what was run.
+> Historical migration record. For the current schema, read
+> `knowledge/files/SCHEMA.md` (the shared `docs/supabase-schema.md`).
 
 Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase MCP.
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
+
+## `0105_remove_unused_app_objects.sql`
+
+Applied 2026-09-23 via psql in one transaction after a rolled-back rehearsal.
+Removed four unused public tables (`availability_queries`, `chat_sessions`,
+`custom_commands`, `users`), the `rate_charts` view, three unused functions
+(`execute_readonly_query`, `normalize_identity_token_key`,
+`advance_job_on_partner_request`), and both archive schemas
+(`backup_20260814`, `backup_20260826`, ten tables total).
+
+Current app/agent references and database dependencies were checked before
+removal. Every DROP used RESTRICT. The transaction verified unchanged row
+counts for all 22 retained public tables and `auth.users`, and unchanged
+bodies/grants for 228 retained public functions, including extension functions.
+No local data exports were created, following the user's final instruction.
+PostgREST schema reload was notified. Live API checks passed for all 22 table
+reads, three search RPC calls and all 26 remaining RPC endpoints; removed
+endpoints were absent. The shared reference was checked against 269 columns
+and 87 constraints. Typecheck and production build passed. The app test run
+passed 53 of 61 files; eight unrelated UI test files failed without app code
+changes. Migration 0104 remains unapplied.
 
 ## `0103_direct_order_input_alias.sql`
 

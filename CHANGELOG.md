@@ -15,6 +15,12 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-23
+
+- Apply migration 0105: remove four unused old-app tables, the `rate_charts` view, three unused functions and both dated backup schemas (ten tables). Retain current app/auth data and functions; remove archives without local exports as requested. Refresh the shared schema reference.
+
+- Reduce the shared Supabase reference to the live table schema and RPC signatures, grants, inputs and result columns. Daisy and Rosie continue to read it through symlinks.
+
 ## 2026-09-21
 
 - Add Share to admin order cards: copy a formatted HTML order table with customer contact details, delivery address, installation dates, pickup/delivery and the supplier portal order URL. Include plain text for compatible paste targets and preserve supplier payload privacy.

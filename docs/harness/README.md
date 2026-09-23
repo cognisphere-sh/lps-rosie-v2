@@ -48,9 +48,9 @@ daisy, nova and rosie through the [`webchat`](plugin-webchat.md) plugin. See
 
 [`docs/supabase-schema.md`](../supabase-schema.md) is the single source of truth
 for the Supabase schema, for agents and the app alike.
-`harness/agents/daisy/knowledge/files/SCHEMA.md` is a **symlink** to it, so
-daisy's cwd-relative `knowledge/files/SCHEMA.md` references resolve to the
-shared file and edits through the symlink land there.
+Daisy and Rosie’s `knowledge/files/SCHEMA.md` files are **symlinks** to it;
+edits through either path update the shared reference. Applied database
+migrations are recorded in `harness/agents/daisy/migrations/NOTE.md`.
 
 Give any new agent that needs database access the same symlink — never a copy:
 
