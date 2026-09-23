@@ -82,7 +82,7 @@ function job(id = 19, name = 'Oak Grove'): JobRequestRow {
     id, name, status: 'quoted', customer: null,
     billing: { address: null, city: null, state: null, zip: null },
     shipping: { address: null, city: null, state: null, zip: null },
-    customerNotes: null, sourcingNotes: null, externalNotes: null, notes: [],
+    noteFromCustomer: null, noteInternal: null, noteForCustomer: null, notes: [],
     itemCount: 0, statusCounts: {}, lineTotal: 0, supplierLinks: [], items: [],
     createdAt: '2026-09-11T10:00:00Z', updatedAt: '2026-09-11T10:00:00Z',
   }
@@ -91,8 +91,8 @@ function job(id = 19, name = 'Oak Grove'): JobRequestRow {
 function withLine(request: JobRequestRow): JobRequestRow {
   return { ...request, status: 'quoted', itemCount: 1, lineTotal: 150, statusCounts: { available: 1 }, items: [{
     id: 100, name: 'Live oak from Rosie', size: '30 G', quantity: 3, availableQuantity: 3,
-    unitPrice: 50, total: 150, status: 'available', notes: [], customerNotes: null,
-    externalNotes: null, sourcingNotes: null, updatedAt: '2026-09-11T11:00:00Z',
+    unitPrice: 50, total: 150, status: 'available', notes: [], noteFromCustomer: null,
+    noteForCustomer: null, noteInternal: null, updatedAt: '2026-09-11T11:00:00Z',
   }] }
 }
 

@@ -1,5 +1,18 @@
 # quote-generation — changelog
 
+## 3.4.0
+
+- Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.
+
+## 3.3.0
+
+- Define external notes as customer-facing information from Chris/LPS sourcing or submitted supplier responses, at job and item scope. Preserve meaningful qualifications and keep internal/customer-origin notes out of rendering.
+- Render saved job external notes once before the item rows, while retaining item notes inline and the subtotal last.
+
+## 3.2.0
+
+- Read requested amounts from `demanded_quantity` in saved job rows and renderer input. Update examples and validation; quote format and decimal calculations are unchanged.
+
 ## 3.1.0
 
 - Remove duplicated intake/pricing/lifecycle instructions, retain task links and shared-note rules, and add deterministic decimal quote rendering.

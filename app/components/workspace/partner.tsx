@@ -1,6 +1,6 @@
 'use client'
 
-import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
+import { PartnerRequestCardLayout } from './partner-request-card-layout'
 
 // The supplier portal's chrome — the admin Shell's `WorkspaceFrame`
 // (frame.tsx), filled in for a supplier: their identity and three
@@ -19,7 +19,7 @@ import {
   Composer, SizePill, Transcript, useComposer,
   type ChatFile, type ChatMessage,
 } from '@/components/workspace/chat-kit'
-import { ARResponseSummary, ARStatusPill } from '@/components/workspace/availability'
+import { ARStatusPill } from '@/components/workspace/availability'
 import { WorkspaceFrame, moreItemClass, useIsMobile, useTheme } from '@/components/workspace/frame'
 import {
   ArchiveIcon, ChevronRight, FileIcon, LogoutIcon, RequestsIcon, SettingsIcon,
@@ -39,7 +39,6 @@ import {
 import type { ARDetail } from '@/lib/availability'
 import { currentPage } from '@/lib/chat-page'
 import { mergePartnerMessages } from '@/lib/partner-chat-messages'
-import { formatMonthDay } from '@/lib/format'
 import { useHistoryView } from '@/lib/history-view'
 import { subscribeEvents } from '@/lib/chat-events'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
@@ -472,35 +471,7 @@ export function PartnerRequestCard({
   request: ARDetail
   href: string
 }) {
-  const locality = [request.shipping?.city, request.shipping?.state].filter(Boolean).join(', ')
-  const customer = partnerCustomerLabel(request)
-  return (
-    <Link
-      href={href}
-      className="flex flex-none flex-col gap-1.5 overflow-hidden rounded-xl border border-border bg-card px-3.5 py-2.5 no-underline shadow-sm transition-shadow hover:bg-lps-tint hover:shadow-md"
-    >
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="min-w-0 max-w-[22rem] truncate text-[13.5px] font-semibold text-foreground">
-          {partnerRequestName(request)}
-        </span>
-        <ARStatusPill status={request.status} />
-        <span className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground">
-          Created <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(request.createdAt) || '—'}</span>
-        </span>
-      </div>
-
-      <ARJobSchedules schedules={request.jobSchedules} />
-
-      {(customer || locality) && (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
-          {customer && <span className="font-semibold text-foreground">{customer}</span>}
-          {locality && <span className="text-muted-foreground">· {locality}</span>}
-        </div>
-      )}
-
-      <ARResponseSummary items={request.items} answeredCount={request.answeredCount} />
-    </Link>
-  )
+  return <PartnerRequestCardLayout request={request} href={href} name={partnerRequestName(request)} status={<ARStatusPill status={request.status} />} />
 }
 
 // ------------------------------------------------------------------- frame
@@ -737,10 +708,8 @@ export function PartnerFrame({
   // name and the bar does not. Closed sits last: it is where work goes to rest,
   // not somewhere a supplier starts.
   const nav = [
-    { id: 'requests', label: 'Availability Requests', short: 'Requests', href: `/partner/${supplierId}`, Icon: RequestsIcon },
     { id: 'orders', label: 'Orders', short: 'Orders', href: `/partner/${supplierId}/orders`, Icon: FileIcon },
-    { id: 'closed-orders', label: 'Closed Orders', short: 'Closed orders', href: `/partner/${supplierId}/closed-orders`, Icon: ArchiveIcon },
-    { id: 'closed', label: 'Closed Requests', short: 'Closed requests', href: `/partner/${supplierId}/closed`, Icon: ArchiveIcon },
+    { id: 'requests', label: 'Availability Requests', short: 'Requests', href: `/partner/${supplierId}`, Icon: RequestsIcon },
   ]
 
   const bell = (mobile = false) => (
@@ -792,6 +761,10 @@ export function PartnerFrame({
       )}
       railBottom={({ navOpen: open, railBtn }) => (
         <>
+          <Link href={`/partner/${supplierId}/closed-orders`} title="Order/Request History" className={railBtn(tab === 'closed' || tab === 'closed-orders')}>
+            <span className="flex size-4 flex-none items-center justify-center"><ArchiveIcon /></span>
+            {open && <span>Order/Request History</span>}
+          </Link>
           <Link
             href={`/partner/${supplierId}/settings`}
             title="Settings"
@@ -809,6 +782,7 @@ export function PartnerFrame({
       )}
       moreBottom={() => (
         <>
+          <Link href={`/partner/${supplierId}/closed-orders`} className={moreItemClass}><ArchiveIcon size={14} />Order/Request History</Link>
           <Link href={`/partner/${supplierId}/settings`} className={moreItemClass}>
             <SettingsIcon size={14} />
             Settings

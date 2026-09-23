@@ -67,7 +67,9 @@ export function EditableText({
   inlineControls = false,
   triggerContent,
   className,
+  onCommit,
 }: EditProps & {
+  onCommit?: (value: string) => Promise<void>
   value: string | number | null
   /** How the committed value reads when not editing (money, thousands, …). */
   render?: (v: string | number | null) => string
@@ -103,7 +105,8 @@ export function EditableText({
     }
     setBusy(true)
     try {
-      await patchRow(table, id, column, next)
+      if (onCommit) await onCommit(next)
+      else await patchRow(table, id, column, next)
       onSaved(next)
     } catch (e) {
       toast((e as Error).message)
@@ -206,7 +209,9 @@ export function EditableTextarea({
   editLabel = 'Edit note',
   inlineControls = false,
   compact = false,
+  onCommit,
 }: EditProps & {
+  onCommit?: (value: string) => Promise<void>
   value: string | null
   placeholder: string
   /** Formatted read view, kept outside the edit button so links remain usable. */
@@ -239,7 +244,8 @@ export function EditableTextarea({
     }
     setBusy(true)
     try {
-      await patchRow(table, id, column, draft)
+      if (onCommit) await onCommit(draft)
+      else await patchRow(table, id, column, draft)
       onSaved()
     } catch (e) {
       toast((e as Error).message)
@@ -259,7 +265,7 @@ export function EditableTextarea({
     const textarea = (
       <textarea
         autoFocus
-        aria-label={renderPreview ? editLabel : undefined}
+        aria-label={editLabel}
         rows={compact ? 1 : 3}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -278,7 +284,7 @@ export function EditableTextarea({
         }}
         className={cn(
           'w-full resize-y rounded-lg border border-primary bg-card p-2 text-[12.5px] text-foreground outline-none',
-          compact && 'resize-none rounded-md px-1.5 py-0.5',
+          compact && 'resize-none rounded-md px-1.5 py-0.5 [field-sizing:content]',
           touchTarget && 'min-h-11',
         )}
       />
@@ -304,7 +310,7 @@ export function EditableTextarea({
       ref={trigger}
       type="button"
       disabled={busy}
-      aria-label={renderPreview ? editLabel : undefined}
+      aria-label={editLabel}
       onClick={(e) => {
         e.stopPropagation()
         setDraft(current)
@@ -313,6 +319,7 @@ export function EditableTextarea({
       }}
       className={cn(
         'w-full cursor-text whitespace-pre-wrap rounded-lg border border-transparent bg-transparent p-2 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
+        compact && 'rounded-md px-1.5 py-0.5 text-[11px] italic text-muted-foreground',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         busy && 'opacity-50',
       )}

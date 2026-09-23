@@ -235,3 +235,21 @@ and when; the summaries below are one line each.
   on apply). Daisy's onboarding sets both supplier columns.
 
 `migrations/NOTE.md` carries the full record, including 0028–0032 and 0035.
+
+- `0111_directional_notes.sql` — rename job, AR and order note columns to the
+  singular `note_from_customer`, `note_from_supplier`, `note_internal`,
+  `note_for_customer` and `note_for_supplier` contract. Preserve mixed legacy
+  order-line notes by source, update note-dependent RPCs, and add the missing
+  order customer/supplier directions. Disposable PostgreSQL fixtures verify
+  data/audit preservation, note ownership, public submissions and order snapshots.
+
+- `0112_drop_order_item_availability_anchor.sql` — applied 2026-09-23 13:44 UTC.
+  Drops the direct order-item AR pointer; existing job-item allocations resolve
+  related supplier requests and remaining quantities. Preserves all order
+  snapshots and junctions, updates creation and whole-job deletion, and serializes
+  same-supplier order creation. Rehearsal and apply verify unchanged retained
+  data across 12 tables and unchanged unrelated functions/privileges.
+
+- `0114_public_orders.sql` — pending deployment. Adds nullable unique order public
+  tokens, cleared by order closure/deactivation. Anonymous access remains in the
+  app's read-only token route; database grants are unchanged.

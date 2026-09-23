@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Own job intake, pricing, notes, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.20.0)
+description: Own job intake and naming, pricing, job/item note audiences, AR note handoffs, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.27.0)
 metadata:
   author: lps
-  version: "5.20.0"
+  version: "5.27.0"
 ---
 
 # Job requests
@@ -29,10 +29,10 @@ dependent output. APS is supplier 1 unless Chris explicitly authorizes another.
 
 | Task | Read |
 |---|---|
-| Create job/items, customer matching, EDD/Unknown, fulfillment | [intake](artifacts/intake.md) |
+| Create job/items, job naming, customer matching, EDD/Unknown, fulfillment | [intake](artifacts/intake.md) |
 | Requested size/variant alternatives | [requested options](artifacts/requested-options.md) |
 | Price lines or apply Chris's manual APS inputs | [pricing](artifacts/pricing.md), then `plant-and-supplier-search` |
-| Write/clean customer, internal or shared notes | [notes](artifacts/notes.md); `quote-generation` owns shared-note wording |
+| Write/clean job or item customer, external or internal notes; route AR notes | [notes](artifacts/notes.md); `quote-generation` owns shared-note wording |
 | Review submitted supplier evidence / approved job availability | [supplier responses](artifacts/supplier-responses.md) |
 | Create accepted order without an AR | [direct orders](artifacts/direct-orders.md) |
 | Create AR-backed order / allocate across jobs | [allocated orders](artifacts/allocated-orders.md) |

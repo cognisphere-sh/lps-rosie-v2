@@ -1,14 +1,5 @@
 'use client'
 
-// Closed requests — their own rail destination since 2026-08-26, and the only
-// place they appear. A closed request is finished work: it is not a fifth tab
-// on the requests page, because a tab is something you triage between and this
-// is something you look up. No tabs and no filters here either; the page is
-// one list, newest first.
-//
-// The cards are the requests page's own (`PartnerRequestCard`) and still open
-// the request, which reads as closed and read-only when it gets there.
-
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -18,6 +9,7 @@ import {
   partnerRequestName,
   type PartnerAlert,
 } from '@/components/workspace/partner'
+import { PartnerHistoryTabs } from '@/components/workspace/partner-history-tabs'
 import { type ARDetail } from '@/lib/availability'
 
 export default function PartnerClosedPage() {
@@ -64,7 +56,8 @@ export default function PartnerClosedPage() {
       supplierId={supplierId}
       supplierName={supplierName}
       tab="closed"
-      title="Closed Requests"
+      title="Order/Request History"
+      toolbar={<div className="p-3 md:p-4"><PartnerHistoryTabs supplierId={supplierId} selected="requests" /></div>}
       alerts={alerts}
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
     >

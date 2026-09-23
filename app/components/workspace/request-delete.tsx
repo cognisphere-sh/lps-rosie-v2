@@ -103,7 +103,7 @@ export function DeleteRequestDialog({
         </h2>
         <p id="delete-request-impact" className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
           This permanently removes {plural(request.itemCount, 'line')} and the request&apos;s change history.
-          Its Rosie chat, orders and availability requests are also deleted. Orders and availability requests shared with other jobs are kept. This cannot be undone.
+          Its Rosie chat and exclusive orders are also permanently deleted. Exclusive availability requests are removed from active views, with their saved records retained. Orders and availability requests shared with other jobs are kept. The job deletion cannot be undone.
         </p>
         <p id="delete-request-status" role="status" aria-live="polite" className="mt-3 min-h-5 text-[12px] font-semibold text-muted-foreground">
           {busy ? 'Deleting request…' : ''}

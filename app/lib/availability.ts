@@ -5,10 +5,10 @@
 import type { Tone } from '@/lib/job-requests'
 
 /** `availability_requests.status` — the CHECK vocabulary, in lifecycle order. */
-export const AR_STATUSES = ['new', 'processing', 'submitted', 'closed', 'hidden'] as const
+export const AR_STATUSES = ['new', 'processing', 'submitted', 'closed'] as const
 export type ARStatus = (typeof AR_STATUSES)[number]
 
-// The portal's three working states, plus admin closure and hiding. `new` is
+// The portal's three working states, plus admin closure. Deletion uses is_active. `new` is
 // re-set whenever a line is added to a request the supplier already worked on
 // (migration 0075's trigger), so the ask goes back to the top of their New tab;
 // `processing` is any answer they have made since; `submitted` is the button.
@@ -17,7 +17,6 @@ export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
   processing: { label: 'Processing', tone: 'teal' },
   submitted: { label: 'Completed', tone: 'green' },
   closed: { label: 'Closed', tone: 'grey' },
-  hidden: { label: 'Hidden', tone: 'red' },
 }
 
 export const arStatusLabel = (s: string) => AR_STATUS_META[s as ARStatus]?.label ?? s
@@ -39,7 +38,7 @@ export function availabilityRequestLinkLabel(
   const base = `Open availability request ${availabilityRecordName({ id, recordName })} to ${supplierName}`
   return isSubmittedARStatus(status) ? `${base} — Completed`
     : isInProgressARStatus(status) ? `${base} — In progress`
-      : status === 'closed' ? `${base} — Closed` : status === 'hidden' ? `${base} — Hidden` : base
+      : status === 'closed' ? `${base} — Closed` : base
 }
 
 /**
@@ -86,19 +85,19 @@ export const AR_RESPONSE_OPTIONS = [
 /** One line shared with the supplier, with their answer. */
 export interface ARItem {
   id: number
-  jobRequestItemId: number | null
   allocations?: { jobRequestItemId: number; quantity: number | null }[]
   /** Snapshotted at share time; admins can correct it directly, while later job edits never rewrite it. */
   name: string
   size: string | null
-  quantity: number | null
+  demandedQuantity: number | null
   /** The supplier's answer; null = not answered yet. */
   status: string | null
   availableQuantity: number | null
   unitPrice: number | null
-  notes: string | null
-  /** LPS's brief note to the supplier — e.g. the mapped substitute. Ours, never theirs to edit. */
-  lpsNotes: string | null
+  /** Additional supplier-provided details for LPS/Chris or the customer. */
+  noteFromSupplier: string | null
+  /** LPS/Chris context for the supplier: customer details, variety, special requests or other instructions. */
+  noteForSupplier: string | null
 }
 
 /**
@@ -125,6 +124,7 @@ export interface ARSummary {
   /** Sharing capability for admins and authorized partners. Omitted from public payloads. */
   publicToken?: string | null
   id: number
+  /** First linked job for navigation; derived from availability_request_jobs. */
   jobRequestId: number | null
   jobRequestIds?: number[]
   /** `job_requests.name`, null = unnamed (render the JR ref). */
@@ -138,9 +138,9 @@ export interface ARSummary {
   itemCount: number
   answeredCount: number
   /** LPS's job-level note to the supplier — delivery window, site constraints. Ours, never theirs to edit. */
-  lpsNotes: string | null
+  noteForSupplier: string | null
   /** Supplier response for the entire request, submitted with its answers. */
-  supplierNotes?: string | null
+  noteFromSupplier?: string | null
 }
 
 /**
@@ -182,6 +182,15 @@ export interface SupplierLink {
   rosieThreadId: string | null
 }
 
+/** Remove a deleted AR from mounted job links without changing its saved status. */
+export function withoutAvailabilityRequest(links: SupplierLink[], arId: number): SupplierLink[] {
+  return links.flatMap((link) => {
+    const availabilityRequests = link.availabilityRequests.filter((request) => request.id !== arId)
+    if (availabilityRequests.length === link.availabilityRequests.length) return [link]
+    return availabilityRequests.length ? [{ ...link, availabilityRequests }] : []
+  })
+}
+
 /** Apply one drawer status signal without refetching unrelated job-request data. */
 export function withAvailabilityRequestStatus(
   links: SupplierLink[],
@@ -220,7 +229,7 @@ export function withAvailabilityRequestStatus(
 /** One availability-request line, plus the request and catalogue row it belongs to. */
 export interface SupplierItemLine extends ARItem {
   arId: number
-  /** `availability_requests.status` — new | processing | submitted | closed | hidden. */
+  /** `availability_requests.status` — new | processing | submitted | closed. */
   arStatus: string
   arCreatedAt: string
   /** The request's name as the portal prints it, already redacted. */

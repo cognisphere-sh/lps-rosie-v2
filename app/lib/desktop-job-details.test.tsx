@@ -69,10 +69,10 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
     },
     billing: { address: '401 Billing Ave', city: 'Austin', state: 'TX', zip: '78701' },
     shipping: { address: '16202 Oak Grove Rd.', city: 'Buda', state: 'TX', zip: '78610' },
-    customerNotes: 'Use the south entrance.',
+    noteFromCustomer: 'Use the south entrance.',
     notes: [{ kind: 'customer', stamp: '2026-09-01 09:00', text: 'Use the south entrance.' }],
-    externalNotes: 'Share delivery updates.',
-    sourcingNotes: 'Call before loading.',
+    noteForCustomer: 'Share delivery updates.',
+    noteInternal: 'Call before loading.',
     itemCount: 0,
     statusCounts: { pending: 0, available: 0, substituted: 0, unavailable: 0 },
     lineTotal: 0,
@@ -104,19 +104,19 @@ test('collapsed, expanded and mobile job cards show adjacent created/install dat
 const sourcingMarkdown = '**<u>Austin Plant Supply</u>**\n$105 · 15 G · Qty 12 · [AR-42](ar:42) · Pending\n\n**<u>Acosta</u>**\n$98 · Qty 20 · Completed · Selected by Chris'
 const sourcingItem = {
   id: 51, name: 'Live Oak', size: '15 G', quantity: 12, availableQuantity: null,
-  unitPrice: 105, total: 1260, status: 'pending', notes: [], customerNotes: null,
-  externalNotes: '**Customer note stays plain**', sourcingNotes: sourcingMarkdown, updatedAt: null,
+  unitPrice: 105, total: 1260, status: 'pending', notes: [], noteFromCustomer: null,
+  noteForCustomer: '**Customer note stays plain**', noteInternal: sourcingMarkdown, updatedAt: null,
 }
 
 for (const mobile of [false, true]) {
   test(`focused Job ${mobile ? 'mobile' : 'desktop'} renders item and job sourcing Markdown with usable AR links`, () => {
     const opened: number[] = []
     const stop = onOpenAvailabilityRequest((id) => opened.push(id))
-    const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1, sourcingNotes: sourcingMarkdown })}
+    const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1, noteInternal: sourcingMarkdown })}
       mobile={mobile} version={0} onSaved={() => {}} />)
     const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')!
     assert.equal(table.querySelector('strong > u'), null)
-    const preview = within(table).getByRole('button', { name: /Edit sourcing note for Live Oak/ })
+    const preview = within(table).getByRole('button', { name: /Edit internal note for Live Oak/ })
     assert.equal(preview.title, sourcingMarkdown)
     assert.ok(preview.querySelector('.truncate'))
     fireEvent.click(preview)
@@ -134,7 +134,7 @@ for (const mobile of [false, true]) {
     const details = view.container.querySelector<HTMLElement>('[data-compact-job-details]')!
     assert.equal(details.querySelectorAll('strong > u').length, 2)
     assert.equal(details.querySelectorAll('hr').length, 0)
-    assert.ok(within(details).getByRole('button', { name: 'Edit job sourcing note' }))
+    assert.ok(within(details).getByRole('button', { name: 'Edit job internal note' }))
     stop()
   })
 }
@@ -147,39 +147,39 @@ test('job and item sourcing editors preserve raw Markdown and save it through th
   }
   const user = userEvent.setup({ document })
   let saved = 0
-  const initial = request({ items: [sourcingItem], itemCount: 1, sourcingNotes: sourcingMarkdown })
+  const initial = request({ items: [sourcingItem], itemCount: 1, noteInternal: sourcingMarkdown })
   const view = render(<FocusedJobRecord request={initial} mobile={false} version={0} onSaved={() => { saved++ }} />)
   await user.click(view.getByRole('button', { name: 'Job details & notes' }))
-  await user.click(view.getByRole('button', { name: 'Edit job sourcing note' }))
-  const jobInput = view.getByRole('textbox', { name: 'Edit job sourcing note' }) as HTMLTextAreaElement
+  await user.click(view.getByRole('button', { name: 'Edit job internal note' }))
+  const jobInput = view.getByRole('textbox', { name: 'Edit job internal note' }) as HTMLTextAreaElement
   assert.equal(jobInput.value, sourcingMarkdown)
   await user.keyboard('{Escape}')
   assert.equal(writes.length, 0)
-  await user.click(view.getByRole('button', { name: 'Edit job sourcing note' }))
+  await user.click(view.getByRole('button', { name: 'Edit job internal note' }))
   const edited = '**<u>Austin Plant Supply</u>**\n$110 · Qty 15 · Follow-up'
-  const editor = view.getByRole('textbox', { name: 'Edit job sourcing note' })
+  const editor = view.getByRole('textbox', { name: 'Edit job internal note' })
   await user.clear(editor)
   await user.type(editor, edited)
   await user.keyboard('{Control>}{Enter}{/Control}')
   await waitFor(() => assert.equal(saved, 1))
-  assert.deepEqual(writes[0], { table: 'job_requests', id: 19, column: 'sourcing_notes', value: edited })
-  view.rerender(<FocusedJobRecord request={{ ...initial, sourcingNotes: edited }} mobile={false} version={0} onSaved={() => { saved++ }} />)
+  assert.deepEqual(writes[0], { table: 'job_requests', id: 19, column: 'note_internal', value: edited })
+  view.rerender(<FocusedJobRecord request={{ ...initial, noteInternal: edited }} mobile={false} version={0} onSaved={() => { saved++ }} />)
   const details = view.container.querySelector<HTMLElement>('[data-compact-job-details]')!
   assert.equal(details.querySelector('strong > u')?.textContent, 'Austin Plant Supply')
   assert.ok(within(details).getByText('$110 · Qty 15 · Follow-up'))
 
-  await user.click(view.getByRole('button', { name: /Edit sourcing note for Live Oak/ }))
+  await user.click(view.getByRole('button', { name: /Edit internal note for Live Oak/ }))
   const popover = view.container.querySelector<HTMLElement>('.lps-pop')!
   assert.equal(popover.querySelectorAll('strong > u').length, 2)
   assert.equal(popover.querySelectorAll('hr').length, 0)
-  await user.click(within(popover).getByRole('button', { name: /Edit sourcing note for Live Oak/ }))
-  const itemInput = within(popover).getByRole('textbox', { name: /Edit sourcing note for Live Oak/ }) as HTMLTextAreaElement
+  await user.click(within(popover).getByRole('button', { name: /Edit internal note for Live Oak/ }))
+  const itemInput = within(popover).getByRole('textbox', { name: /Edit internal note for Live Oak/ }) as HTMLTextAreaElement
   assert.equal(itemInput.value, sourcingMarkdown)
   await user.clear(itemInput)
   await user.type(itemInput, edited)
   fireEvent.blur(itemInput)
   await waitFor(() => assert.equal(saved, 2))
-  assert.deepEqual(writes[1], { table: 'job_request_items', id: 51, column: 'sourcing_notes', value: edited })
+  assert.deepEqual(writes[1], { table: 'job_request_items', id: 51, column: 'note_internal', value: edited })
 })
 
 test('Markdown renders separators and safe underline without executing arbitrary HTML or formatting fenced code', () => {
@@ -215,10 +215,41 @@ test('structured identity is exact nonblank Company | Job/Site | Contact values 
     createdAt: '2026-09-01T12:00:00Z',
     updatedAt: '2026-09-01T13:00:00Z',
     billing: { address: 'must never become identity', city: 'Austin', state: 'TX', zip: null },
-    sourcingNotes: 'Install date 9/8; pickup; PO-44',
+    noteInternal: 'Install date 9/8; pickup; PO-44',
   }
   assert.equal(structuredJobIdentityLine(hostile), 'Johnathan')
   assert.equal(structuredJobIdentityLine({ ...blank, customer: null }), '')
+})
+
+test('full job names keep the customer or company prefix once in headers and inbox labels', () => {
+  for (const name of ['Urban Landscape Group | Oak Grove', 'Johnathan | 12 Live Oaks', 'Urban Landscape Group']) {
+    const value = request({ name })
+    assert.equal(structuredJobIdentityLine(value), name)
+    const inbox: JobInboxRow = {
+      id: value.id, name, status: value.status, customer: null,
+      customerCompany: value.customer!.company, customerContact: value.customer!.name,
+      createdAt: null, updatedAt: null, thread: null,
+    }
+    const aria = jobInboxRowAriaLabel(orderJobInbox([inbox])[0], 'Quote')
+    assert.equal(aria.split(name).length - 1, 1)
+    for (const mobile of [false, true]) {
+      const view = render(<FocusedJobHeader request={value} mobile={mobile} status={status} preview={null} />)
+      assert.equal(view.getByRole('button', { name: 'Edit job name for JR-19' }).textContent, name)
+      assert.equal(view.container.textContent!.split(name).length - 1, 1)
+      if (mobile) assert.equal(view.container.querySelector('[data-mobile-job-identity]'), null)
+      else assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, name)
+      view.unmount()
+    }
+    const card = render(<RequestCard request={value} expanded selected={new Set()} version={0}
+      onToggle={() => {}} onSelect={() => {}} onDelete={() => {}} onDeleteItem={() => {}} onSaved={() => {}} mobile={false} />)
+    const link = card.getByRole('link', { name: `Open JR-19 — ${name}` })
+    assert.equal(link.textContent, `JR-19 - ${name}`)
+    card.unmount()
+  }
+  assert.equal(structuredJobIdentityLine(request({ name: 'Urban | Oak Grove' })),
+    'Urban Landscape Group | Urban | Oak Grove | Johnathan')
+  assert.equal(structuredJobIdentityLine(request({ name: 'Jane Smith | Oak Grove', customer: null })),
+    'Jane Smith | Oak Grove')
 })
 
 test('pure balanced geometry and rendered tracks keep exact center with 44px nonoverlapping flanks', () => {
@@ -315,7 +346,7 @@ test('rendered missing and invalid identity candidates stay honest in the deskto
     billing: { address: 'Ignored Billing', city: 'Austin', state: 'TX', zip: null },
     createdAt: 'invalid',
     updatedAt: '2026-09-01T13:00:00Z',
-    sourcingNotes: 'PO-44 | Pickup | Install 9/9',
+    noteInternal: 'PO-44 | Pickup | Install 9/9',
   })
   const view = render(
     <FocusedJobHeader request={missing} mobile={false} status={status} preview={null} />,
@@ -426,10 +457,10 @@ test('closed compact disclosure label stays neutral for every independently stor
     customer: null,
     billing: { address: null, city: null, state: null, zip: null },
     shipping: { address: null, city: null, state: null, zip: null },
-    notes: [], externalNotes: null, sourcingNotes: null, supplierLinks: [], updatedAt: null,
+    notes: [], noteForCustomer: null, noteInternal: null, supplierLinks: [], updatedAt: null,
   })
   const variants: JobRequestRow[] = [
-    { ...empty, sourcingNotes: 'Exact sourcing fact' },
+    { ...empty, noteInternal: 'Exact sourcing fact' },
     { ...empty, updatedAt: '2026-09-01T13:00:00Z' },
     { ...empty, customer: { ...request().customer!, rosieThreadId: 'customer-johnathan' } },
     { ...empty, supplierLinks: [{ supplierId: 8, name: 'Supplier', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }] },
@@ -501,7 +532,7 @@ test('shared editable defaults stay compact while focused work explicitly opts i
   const textareaDefault = render(<EditableTextarea table="customers" id={4} column="notes" value="Note" placeholder="Add" onSaved={() => undefined} />)
   assert.doesNotMatch(textareaDefault.getByRole('button').className, /min-h-11/)
   textareaDefault.unmount()
-  const textareaFocused = render(<EditableTextarea table="job_requests" id={19} column="sourcing_notes" value="Note" placeholder="Add" touchTarget onSaved={() => undefined} />)
+  const textareaFocused = render(<EditableTextarea table="job_requests" id={19} column="note_internal" value="Note" placeholder="Add" touchTarget onSaved={() => undefined} />)
   assert.match(textareaFocused.getByRole('button').className, /min-h-11/)
   textareaFocused.unmount()
   const statusDefault = render(<StatusPill table="customers" id={4} column="status" value="active" label="Active" tone="green" options={[{ value: 'active', label: 'Active' }]} onSaved={() => undefined} />)
@@ -697,7 +728,8 @@ test('focused compact Delete keeps the permanent confirmation, focus return and 
   await user.click(trigger)
   let dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
   assert.match(dialog.textContent ?? '', /change history/i)
-  assert.match(dialog.textContent ?? '', /Rosie chat, orders and availability requests are also deleted/)
+  assert.match(dialog.textContent ?? '', /Rosie chat and exclusive orders are also permanently deleted/)
+  assert.match(dialog.textContent ?? '', /Exclusive availability requests are removed from active views, with their saved records retained/)
   assert.match(dialog.textContent ?? '', /shared with other jobs are kept/)
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -858,7 +890,7 @@ test('line table Tab saves edits, traverses cells and rows, and Shift+Tab revers
   await user.type(cells[demand].querySelector('input')!, '25')
   await user.tab()
   assert.equal(document.activeElement, cells[demand + 1].querySelector('input'))
-  await waitFor(() => assert.deepEqual(writes, [{ table: 'job_request_items', id: 51, column: 'quantity', value: '25' }]))
+  await waitFor(() => assert.deepEqual(writes, [{ table: 'job_request_items', id: 51, column: 'demanded_quantity', value: '25' }]))
   await user.tab({ shift: true })
   assert.equal(document.activeElement, cells[demand].querySelector('input'))
   for (let index = demand + 1; index < cells.length; index++) {

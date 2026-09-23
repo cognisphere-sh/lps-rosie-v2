@@ -44,7 +44,7 @@ const LEAD_MIN = 218
 
 // The portal's request page (2026-08-30 design) draws the same table without
 // the Line total column and without the tone bar/tint per row: Need · Size ·
-// Plant · Status · Avail qty · Price · Nursery notes over plain hairlines.
+// Plant · Status · Avail qty · Price · Note from supplier over plain hairlines.
 /** The portal design's tracks — the default's, less Line total. */
 const PORTAL_COLUMNS = '56px 90px minmax(220px,1.6fr) 150px 90px 100px minmax(200px,1fr)'
 const PORTAL_GRID_MIN = 960
@@ -551,7 +551,7 @@ export function AnswerCell({
         plain
           ? 'border bg-transparent text-muted-foreground focus-visible:text-foreground'
           : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
-        plain && !attention && 'border-transparent',
+        plain && !attention && 'border-transparent hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
         align === 'right' && 'text-right tabular-nums',
       )}
       style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
@@ -647,14 +647,14 @@ function StatusAnswerDialog({
   const [qty, setQty] = useState(
     item.availableQuantity != null
       ? String(item.availableQuantity)
-      : item.quantity != null
-        ? String(item.quantity)
+      : item.demandedQuantity != null
+        ? String(item.demandedQuantity)
         : '',
   )
   // Whatever we already have on file for this line is the prefill — the
   // supplier corrects a price far more often than they type a fresh one.
   const [price, setPrice] = useState(item.unitPrice == null ? '' : String(item.unitPrice))
-  const [notes, setNotes] = useState(item.notes ?? '')
+  const [notes, setNotes] = useState(item.noteFromSupplier ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
   const titleId = useId()
   const dialog = useRef<HTMLDivElement>(null)
@@ -676,7 +676,7 @@ function StatusAnswerDialog({
   }, [])
 
   const save = () => {
-    const changes: Record<string, string> = { status, notes: notes.trim() }
+    const changes: Record<string, string> = { status, note_from_supplier: notes.trim() }
     // An empty quantity clears the column, which is what `clearQty` wants and
     // what an emptied box on a Diff Sz/Qnty/Sub answer means too.
     if (spec.qty) changes.available_quantity = qty.trim()
@@ -734,7 +734,7 @@ function StatusAnswerDialog({
         <div className="flex flex-col gap-0.5">
           <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{spec.title}</span>
           <span className="text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
-            {num(item.quantity) || '—'} × {item.name}
+            {num(item.demandedQuantity) || '—'} × {item.name}
             {item.size ? ` · ${item.size}` : ''}
           </span>
         </div>
@@ -874,7 +874,7 @@ export function LineStatusPicker({
         else if (next === 'available') {
           void onPatch?.(item.id, {
             status: 'available',
-            available_quantity: item.quantity == null ? '' : String(item.quantity),
+            available_quantity: item.demandedQuantity == null ? '' : String(item.demandedQuantity),
           })
         } else setAnswering(next)
       }}
@@ -962,11 +962,11 @@ function LineRow({
     >
       {leading}
       {editDetails ? (
-        <AnswerCell value={item.quantity == null ? '' : String(item.quantity)} editable
-          placeholder="Qty" display={num(item.quantity)} onCommit={detail('quantity')}
+        <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable
+          placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
           ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal" />
       ) : <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
-        {num(item.quantity) || '—'}
+        {num(item.demandedQuantity) || '—'}
       </span>}
       {editDetails ? (
         <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
@@ -978,17 +978,16 @@ function LineRow({
         {editDetails ? <span className="flex flex-col gap-1">
           <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
             onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`} />
-          <AnswerCell value={item.lpsNotes ?? ''} editable placeholder="Note to supplier…" display={item.lpsNotes ?? ''}
-            onCommit={detail('lps_notes')} ariaLabel={`Line ${item.id} note to supplier`} multiline />
+          <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note to supplier…" display={item.noteForSupplier ?? ''}
+            onCommit={detail('note_for_supplier')} ariaLabel={`Line ${item.id} note to supplier`} multiline plain />
         </span> : <span className="block truncate text-[13px] font-semibold text-foreground">{item.name}</span>}
-        {/* LPS's note to the supplier — a few words, e.g. the alternative
-            sourcing mapped. Ours; the supplier's own note is the Notes cell. */}
-        {!editDetails && item.lpsNotes && (
+        {/* LPS context stays below the plant; supplier details have their own column. */}
+        {!editDetails && item.noteForSupplier && (
           <span
             className="block whitespace-pre-wrap text-[10.5px] text-muted-foreground [overflow-wrap:anywhere]"
-            title={displayText(item.lpsNotes)}
+            title={displayText(item.noteForSupplier)}
           >
-            {displayText(item.lpsNotes)}
+            {displayText(item.noteForSupplier)}
           </span>
         )}
       </span>
@@ -1029,13 +1028,13 @@ function LineRow({
         </span>
       )}
       <AnswerCell
-        value={item.notes ?? ''}
+        value={item.noteFromSupplier ?? ''}
         editable={editable}
         placeholder={portal ? 'Add note…' : 'Substitute, ETA, conditions…'}
-        display={item.notes ?? ''}
-        onCommit={commit('notes')}
+        display={item.noteFromSupplier ?? ''}
+        onCommit={commit('note_from_supplier')}
         plain={portal}
-        ariaLabel={`Line ${item.id} notes`}
+        ariaLabel={`Line ${item.id} supplier notes`}
         multiline
       />
     </div>
@@ -1120,6 +1119,11 @@ export function ARLineTable<T extends ARItem>({
                       <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
                         onCommit={detail('name')} ariaLabel={`${lineName} plant name`} touch />
                     </label>
+                    <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note to supplier</span>
+                      <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note to supplier…" display={item.noteForSupplier ?? ''}
+                        onCommit={detail('note_for_supplier')} ariaLabel={`${lineName} note to supplier`} multiline plain touch />
+                    </label>
                     <label className="flex min-w-0 flex-col gap-1">
                       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested size</span>
                       <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
@@ -1127,26 +1131,21 @@ export function ARLineTable<T extends ARItem>({
                     </label>
                     <label className="flex min-w-0 flex-col gap-1">
                       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested qty</span>
-                      <AnswerCell value={item.quantity == null ? '' : String(item.quantity)} editable
-                        placeholder="Qty" display={num(item.quantity)} onCommit={detail('quantity')}
+                      <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable
+                        placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
                         ariaLabel={`${lineName} requested quantity`} inputMode="decimal" touch />
-                    </label>
-                    <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note to supplier</span>
-                      <AnswerCell value={item.lpsNotes ?? ''} editable placeholder="Note to supplier…" display={item.lpsNotes ?? ''}
-                        onCommit={detail('lps_notes')} ariaLabel={`${lineName} note to supplier`} multiline touch />
                     </label>
                   </div> : <>
                     <p className="m-0 break-words text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
-                    <p className="m-0 mt-0.5 break-words text-[12px] text-muted-foreground">
-                      Need {num(item.quantity) || '—'}{item.size ? ` · ${item.size}` : ''}
-                    </p>
-                    {item.lpsNotes && (
+                    {item.noteForSupplier && (
                       <p className="m-0 mt-2 break-words text-[12px] leading-5 text-muted-foreground">
                         <span className="mr-1 font-bold text-foreground">LPS note:</span>
-                        {displayText?.(item.lpsNotes) ?? item.lpsNotes}
+                        {displayText?.(item.noteForSupplier) ?? item.noteForSupplier}
                       </p>
                     )}
+                    <p className="m-0 mt-0.5 break-words text-[12px] text-muted-foreground">
+                      Need {num(item.demandedQuantity) || '—'}{item.size ? ` · ${item.size}` : ''}
+                    </p>
                   </>}
                 </div>
                 <div className="grid min-w-0 grid-cols-2 gap-3 p-3">
@@ -1193,14 +1192,14 @@ export function ARLineTable<T extends ARItem>({
                     />
                   </label>
                   <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">{portal ? 'Nursery notes' : 'Notes'}</span>
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note from supplier</span>
                     <AnswerCell
-                      value={item.notes ?? ''}
+                      value={item.noteFromSupplier ?? ''}
                       editable={editable}
                       placeholder="Substitute, ETA, conditions…"
-                      display={item.notes ?? ''}
-                      onCommit={commit('notes')}
-                      ariaLabel={`${lineName} notes`}
+                      display={item.noteFromSupplier ?? ''}
+                      onCommit={commit('note_from_supplier')}
+                      ariaLabel={`${lineName} supplier notes`}
                       multiline
                       touch
                     />
@@ -1240,7 +1239,7 @@ export function ARLineTable<T extends ARItem>({
         <span className="px-1 text-right">Avail qty</span>
         <span className="px-1 text-right">Price</span>
         {!portal && <span className="px-1 text-right">Line total</span>}
-        <span className="px-1">{portal ? 'Nursery notes' : 'Notes'}</span>
+        <span className="px-1">Note from supplier</span>
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">

@@ -9,8 +9,8 @@ import { FocusedJobRecord } from '@/components/workspace/focused-job-record'
 import { focusConnectedJobNameTrigger } from '@/components/workspace/focused-job-header'
 import { FocusedJobsRailLayout, FocusedJobsRailRow, FocusedJobsRailSearch } from '@/components/workspace/focused-jobs-rail'
 import { JobsTopActions, Shell } from '@/components/workspace/shell'
-import { withAvailabilityRequestStatus } from '@/lib/availability'
-import { onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
+import { withAvailabilityRequestStatus, withoutAvailabilityRequest } from '@/lib/availability'
+import { onAvailabilityRequestDeleted, onAvailabilityRequestStatusChanged, openChat } from '@/lib/chat-bus'
 import { subscribeEvents } from '@/lib/chat-events'
 import {
   canonicalJobThread, hasFocusedIntakeEvidence, jobInboxEventAction, jobInboxLayout,
@@ -249,6 +249,10 @@ function JobsWorkspace() {
     }),
     [],
   )
+
+  useEffect(() => onAvailabilityRequestDeleted((arId) => {
+    setDetail((current) => current ? { ...current, supplierLinks: withoutAvailabilityRequest(current.supplierLinks, arId) } : current)
+  }), [])
 
   useEffect(() => {
     const previous = previousSelection.current

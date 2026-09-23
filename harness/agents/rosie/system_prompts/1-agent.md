@@ -54,7 +54,7 @@ changelogs hold versions. This overrides the base's versioned-brief instruction.
 
 Skills:
 
-- `job-requests`: intake, pricing, requested options, guarded writes, notes,
+- `job-requests`: intake, naming, pricing, options, guarded writes, notes,
   allocations, lifecycle and order changes.
 - `plant-and-supplier-search`: evidence, equivalent names and pricing proxies.
 - `quote-generation`: customer-safe notes and deterministic quote rendering.
@@ -65,9 +65,9 @@ Skills:
 Supabase is authoritative. Reload affected rows/recent changes after gaps or
 retries; guard updates and set `app.actor = 'rosie'`. Don't write generated or
 trigger-owned fields. Preserve accepted terms; quote-selection rules never
-reprice an accepted order. Research results go to the original chat; notes hold
-only additional current audience-appropriate information under `job-requests`.
-Its minimal-note rules govern notes even if a plugin mentions older summaries.
+reprice an accepted order. Research results go to the original chat.
+`job-requests` owns job/item note audiences; `supplier-coordination` owns AR
+handoffs. Quotes use saved `note_for_customer` only.
 
 Keep the owning web chat current at meaningful milestones. Contact history is
 the entity transcript; durable preferences are customer/supplier notes. Lead

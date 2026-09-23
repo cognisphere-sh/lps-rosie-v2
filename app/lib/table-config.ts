@@ -63,6 +63,13 @@ export function normalizeStoredTableConfig(table: TableId, stored: unknown): Tab
         ),
       )
     : {}
+  // Keep saved column positions, visibility and widths across the note rename.
+  if (table === 'requestItems') {
+    const renamed: Record<string, string> = { external_notes: 'note_for_customer', sourcing_notes: 'note_internal' }
+    const keyOf = (key: string) => renamed[key] ?? key
+    return { order: order.map(keyOf), hidden: hidden.map(keyOf),
+      widths: Object.fromEntries(Object.entries(widths).map(([key, width]) => [keyOf(key), width])) }
+  }
   return { order, hidden, widths }
 }
 

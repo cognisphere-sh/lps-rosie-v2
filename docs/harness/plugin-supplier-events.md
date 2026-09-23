@@ -23,7 +23,7 @@ alert to Chris. Requests and request rows may span several jobs; keep allocated
 quantities distinct from the combined supplier answer. The job thread follows
 `job-requests` section 3: replace the affected supplier's current snapshot and
 maintain one overall row outcome. Repeated notifications must not accumulate
-an event history in JR sourcing notes; the database changelog and contact
+an event history in JR internal notes; the database changelog and contact
 transcript retain that history.
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`

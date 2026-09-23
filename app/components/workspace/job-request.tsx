@@ -49,10 +49,10 @@ import { cn } from '@/lib/utils'
 /**
  * The line-item grid, shared by the header and every row so they stay aligned.
  *
- * Select · Demand · Avail · Size · Plant Name · Status · Shared note · Unit
- * price · Total · Sourcing note. The design draws two Notes columns; the two
- * audiences are split here because they are not one field — `external_notes` is
- * written for the customer and `sourcing_notes` is our own working sheet, and
+ * Select · Demand · Avail · Size · Plant Name · Status · Note for customer · Unit
+ * price · Total · Internal note. The design draws two Notes columns; the two
+ * audiences are split here because they are not one field — `note_for_customer` is
+ * written for the customer and `note_internal` is our own working sheet, and
  * a single cell cannot honestly edit both.
  */
 /** The select column only exists where something can act on a selection. */
@@ -365,8 +365,8 @@ export function DemandSummary({
 
 export const NOTE_KIND: Record<JobNote['kind'], { label: string; tone: Tone }> = {
   customer: { label: 'Customer', tone: 'amber' },
-  shared: { label: 'Shared', tone: 'green' },
-  internal: { label: 'Sourcing', tone: 'grey' },
+  shared: { label: 'For customer', tone: 'green' },
+  internal: { label: 'Internal', tone: 'grey' },
 }
 
 /** The parsed entries of one audience, oldest first. */
@@ -420,7 +420,7 @@ function NoteThread({ entries, empty }: { entries: JobNote[]; empty: string }) {
   )
 }
 
-function renderSourcingNote(text: string) {
+function renderInternalNote(text: string) {
   return <Markdown text={text} onAction={(scheme, target) => {
     if (scheme === 'ar') openAvailabilityRequest(Number.parseInt(target, 10))
     else openChat({ agentId: 'rosie', threadId: target })
@@ -428,7 +428,7 @@ function renderSourcingNote(text: string) {
 }
 
 /**
- * Both notes use a single-line preview; sourcing notes render their first
+ * Both notes use a single-line preview; internal notes render their first
  * line as Markdown. Both keep their full original source for editing.
  */
 function NoteCell({
@@ -477,7 +477,7 @@ function NoteCell({
   const meta = NOTE_KIND[kind]
   const summary = value?.trim() ?? ''
 
-  // Shared notes are edited like spreadsheet cells: the control stays in this
+  // Notes for customer are edited like spreadsheet cells: the control stays in this
   // column, rather than opening the note popover used for longer sourcing work.
   if (kind === 'shared') {
     return (
@@ -485,12 +485,12 @@ function NoteCell({
         <EditableTextarea
           table={table}
           id={id}
-          column="external_notes"
+          column="note_for_customer"
           value={value}
           onSaved={onSaved}
           touchTarget={touchTarget}
           placeholder=""
-          editLabel={`Edit shared note for ${title}`}
+          editLabel={`Edit note for customer for ${title}`}
           inlineControls
           compact
         />
@@ -506,7 +506,7 @@ function NoteCell({
     >
       <button
         type="button"
-        aria-label={kind === 'internal' ? `Edit sourcing note for ${title}` : undefined}
+        aria-label={kind === 'internal' ? `Edit internal note for ${title}` : undefined}
         title={summary || `Add a ${meta.label.toLowerCase()} note`}
         onClick={(e) => {
           e.stopPropagation()
@@ -535,13 +535,13 @@ function NoteCell({
           <EditableTextarea
             table={table}
             id={id}
-            column="sourcing_notes"
+            column="note_internal"
             value={value}
             onSaved={onSaved}
             touchTarget={touchTarget}
             placeholder="Supplier name, key details and numbers…"
-            renderPreview={renderSourcingNote}
-            editLabel={`Edit sourcing note for ${title}`}
+            renderPreview={renderInternalNote}
+            editLabel={`Edit internal note for ${title}`}
           />
         </div>
       )}
@@ -600,16 +600,16 @@ function ItemRow({
       )}
       {columns.map((column) => {
         switch (column.key) {
-          case 'quantity': return <div key={column.key} className="px-1"><EditableText {...edit} column="quantity" value={item.quantity} numeric align="right" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
+          case 'quantity': return <div key={column.key} className="px-1"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="right" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
           // Colour lives on the wrapper so blank availability remains distinct from zero.
           case 'available_quantity': return <div key={column.key} className="px-1" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="right" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
           case 'size': return <div key={column.key} className="px-1"><EditableText {...edit} column="size" value={item.size} /></div>
-          case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span>{item.customerNotes?.trim() && <span title={item.customerNotes} className="truncate px-1.5 text-[11px] italic text-muted-foreground">{item.customerNotes.replace(/\s+/g, ' ')}</span>}</div>
+          case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span><EditableTextarea {...edit} column="note_from_customer" value={item.noteFromCustomer} placeholder="Add note…" editLabel={`Customer note for ${item.name}`} compact /></div>
           case 'status': return <div key={column.key} className="px-1.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
-          case 'external_notes': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.externalNotes} onSaved={onSaved} touchTarget={touchTarget} />
+          case 'note_for_customer': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
           case 'unit_price': return <div key={column.key} className="px-1"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="right" render={(v) => money(v)} /></div>
           case 'total': return <div key={column.key} className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
-          case 'sourcing_notes': return <NoteCell key={column.key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.sourcingNotes} onSaved={onSaved} touchTarget={touchTarget} />
+          case 'note_internal': return <NoteCell key={column.key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
           default: return null
         }
       })}
@@ -768,7 +768,7 @@ function LinkSegment({
 /**
  * Who the job is for on the left, everything it opens on the right: the
  * customer and their conversation, where it ships, and every engaged supplier
- * with their availability requests and conversation. The sourcing notes used
+ * with their availability requests and conversation. The internal notes used
  * to carry these links, but a note is free text: the links belong to the job,
  * not to a sentence about it.
  *
@@ -1184,15 +1184,15 @@ function CompactJobDetails({
             </span>
             <NoteThread entries={entriesOf(request.notes, 'customer')} empty="Nothing on file." />
             <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-              Shared note — the customer sees this
+              Note for customer — the customer sees this
             </span>
-            <EditableTextarea {...edit} column="external_notes" value={request.externalNotes}
+            <EditableTextarea {...edit} column="note_for_customer" value={request.noteForCustomer}
               placeholder="Add a note to share with the customer…" />
             <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
-              Sourcing note — job changes only
+              Internal note
             </span>
-            <EditableTextarea {...edit} column="sourcing_notes" value={request.sourcingNotes}
-              placeholder="Add a sourcing note…" renderPreview={renderSourcingNote} editLabel="Edit job sourcing note" />
+            <EditableTextarea {...edit} column="note_internal" value={request.noteInternal}
+              placeholder="Add an internal note…" renderPreview={renderInternalNote} editLabel="Edit job internal note" />
             {hasRelatedRoutes && (
               <>
                 <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
@@ -1534,13 +1534,13 @@ export function RequestBody({
                 <NoteBlock label="The customer's own words">
                   <NoteThread entries={entriesOf(request.notes, 'customer')} empty="Nothing on file." />
                 </NoteBlock>
-                <NoteBlock label="Shared note — the customer sees this">
-                  <EditableTextarea {...edit} column="external_notes" value={request.externalNotes}
+                <NoteBlock label="Note for customer — the customer sees this">
+                  <EditableTextarea {...edit} column="note_for_customer" value={request.noteForCustomer}
                     placeholder="Add a note to share with the customer…" />
                 </NoteBlock>
-                <NoteBlock label="Sourcing note — job changes only">
-                  <EditableTextarea {...edit} column="sourcing_notes" value={request.sourcingNotes}
-                    placeholder="Add a sourcing note…" renderPreview={renderSourcingNote} editLabel="Edit job sourcing note" />
+                <NoteBlock label="Internal note">
+                  <EditableTextarea {...edit} column="note_internal" value={request.noteInternal}
+                    placeholder="Add an internal note…" renderPreview={renderInternalNote} editLabel="Edit job internal note" />
                 </NoteBlock>
               </div>
             </div>

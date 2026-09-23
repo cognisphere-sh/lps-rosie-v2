@@ -18,7 +18,7 @@ The business rules and exact write procedures have one owner:
 
 | Work | Entry point |
 |---|---|
-| Intake, EDD, pricing, notes, allocations, lifecycle | [job-requests](../../harness/agents/rosie/skills/agent/job-requests/SKILL.md) |
+| Intake, job naming, EDD, pricing, notes, allocations, lifecycle | [job-requests](../../harness/agents/rosie/skills/agent/job-requests/SKILL.md) |
 | Supplier requests, replies, confirmation, change notifications | [supplier-coordination](../../harness/agents/rosie/skills/agent/supplier-coordination/SKILL.md) |
 | Customer contact and acceptance | [customer-coordination](../../harness/agents/rosie/skills/agent/customer-coordination/SKILL.md) |
 | Thread/approval handoffs | [message-routing](../../harness/agents/rosie/skills/agent/message-routing/SKILL.md) |

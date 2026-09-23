@@ -45,15 +45,14 @@ afterEach(() => {
 
 const item = (changes: Partial<ARItem> = {}): ARItem => ({
   id: 19,
-  jobRequestItemId: 27,
   name: 'Live Oak',
   size: '30 G',
-  quantity: 12,
+  demandedQuantity: 12,
   status: null,
   availableQuantity: null,
   unitPrice: 12.5,
-  notes: null,
-  lpsNotes: null,
+  noteFromSupplier: null,
+  noteForSupplier: null,
   ...changes,
 })
 
@@ -135,7 +134,7 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
   assert.equal(view.getByLabelText('Price per unit').getAttribute('value'), '12.5')
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
-  assert.deepEqual(patches, [[19, { status: 'can_order', notes: 'Ready next week', unit_price: '12.5' }]])
+  assert.deepEqual(patches, [[19, { status: 'can_order', note_from_supplier: 'Ready next week', unit_price: '12.5' }]])
 })
 
 test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed focus candidates', async () => {
@@ -462,10 +461,14 @@ test('admin line picker remains the existing native select', () => {
 
 test('desktop admin and supplier lines wrap the complete supplier and LPS notes', () => {
   const notes = 'Ready next week after the entire new shipment has been inspected.\nPlease confirm the loading window.'
-  const lpsNotes = 'Use the delivery entrance at the back of the nursery.\nThe site contact will meet the truck there.'
+  const noteForSupplier = 'Use the delivery entrance at the back of the nursery.\nThe site contact will meet the truck there.'
   for (const design of ['default', 'portal'] as const) {
-    const view = render(<ARLineTable items={[item({ notes, lpsNotes })]} design={design} editable={false} />)
-    for (const text of [notes, lpsNotes]) {
+    const view = render(<ARLineTable items={[item({ noteFromSupplier: notes, noteForSupplier })]} design={design} editable={false} />)
+    assert.ok(view.getByText('Note from supplier'))
+    const plantCell = view.getByText(item().name).parentElement!
+    assert.ok(plantCell.contains(view.getByTitle(noteForSupplier, { normalizer: (value) => value })), 'LPS notes belong below the plant name')
+    assert.ok(!plantCell.contains(view.getByTitle(notes, { normalizer: (value) => value })), 'Note from supplier have a separate column')
+    for (const text of [notes, noteForSupplier]) {
       const display = view.getByTitle(text, { normalizer: (value) => value })
       assert.equal(display.textContent, text)
       assert.match(display.className, /whitespace-pre-wrap/)
@@ -483,7 +486,7 @@ test('desktop note editors expand with their contents and save multiline notes o
     onPatch={async (id, changes) => { patches.push([id, changes]) }}
     onPatchDetails={async (id, changes) => { details.push([id, changes]) }} />)
   for (const [label, note] of [
-    ['Line 19 notes', 'Ready next week.\nConfirm before pickup.'],
+    ['Line 19 supplier notes', 'Ready next week.\nConfirm before pickup.'],
     ['Line 19 note to supplier', 'Use the south gate.\nCall before unloading.'],
   ]) {
     const editor = view.getByRole('textbox', { name: label })
@@ -494,6 +497,6 @@ test('desktop note editors expand with their contents and save multiline notes o
     await user.type(editor, note)
     await user.tab()
   }
-  assert.deepEqual(patches, [[19, { notes: 'Ready next week.\nConfirm before pickup.' }]])
-  assert.deepEqual(details, [[19, { lps_notes: 'Use the south gate.\nCall before unloading.' }]])
+  assert.deepEqual(patches, [[19, { note_from_supplier: 'Ready next week.\nConfirm before pickup.' }]])
+  assert.deepEqual(details, [[19, { note_for_supplier: 'Use the south gate.\nCall before unloading.' }]])
 })

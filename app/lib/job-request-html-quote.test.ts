@@ -9,11 +9,11 @@ function request(): JobRequestRow {
     id: 42, name: 'Courtyard', status: 'quoted',
     customer: { id: 3, name: 'Taylor Lee', company: 'Lee Landscape', email: null, phone: null, type: null, rosieThreadId: null },
     billing: { address: null, city: null, state: null, zip: null }, shipping: { address: null, city: null, state: null, zip: null },
-    customerNotes: null, notes: [], externalNotes: null, sourcingNotes: null, itemCount: 2, statusCounts: {}, lineTotal: 390,
+    noteFromCustomer: null, notes: [], noteForCustomer: null, noteInternal: null, itemCount: 2, statusCounts: {}, lineTotal: 390,
     supplierLinks: [], createdAt: null, updatedAt: null,
     items: [
-      { id: 1, name: 'Live Oak <Specimen>', size: '15 G', quantity: 2, availableQuantity: 1, unitPrice: 120, total: 240, status: 'quoted', notes: [], customerNotes: null, externalNotes: '45 G $595.00', sourcingNotes: null, updatedAt: null },
-      { id: 2, name: 'Yaupon Holly', size: '7 G', quantity: 3, availableQuantity: 2, unitPrice: 50, total: 150, status: 'quoted', notes: [], customerNotes: null, externalNotes: null, sourcingNotes: null, updatedAt: null },
+      { id: 1, name: 'Live Oak <Specimen>', size: '15 G', quantity: 2, availableQuantity: 1, unitPrice: 120, total: 240, status: 'quoted', notes: [], noteFromCustomer: null, noteForCustomer: '45 G $595.00', noteInternal: null, updatedAt: null },
+      { id: 2, name: 'Yaupon Holly', size: '7 G', quantity: 3, availableQuantity: 2, unitPrice: 50, total: 150, status: 'quoted', notes: [], noteFromCustomer: null, noteForCustomer: null, noteInternal: null, updatedAt: null },
     ],
   }
 }
@@ -27,9 +27,19 @@ test('job request HTML quote is email-safe, customer-facing, and totals priced l
   assert.match(quote.html, /<strong>\$220\.00<\/strong>/)
   assert.match(quote.html, />\$100\.00<\/td>/)
   assert.doesNotMatch(quote.html, /\$150\.00/)
-  assert.doesNotMatch(quote.html, /availableQuantity|sourcingNotes/)
+  assert.doesNotMatch(quote.html, /availableQuantity|noteInternal/)
   assert.match(quote.text, /1 x 15 G Live Oak <Specimen> - 45 G \$595\.00 - \$120\.00 - \$120\.00/)
   assert.match(quote.text, /Subtotal: \$220\.00/)
+})
+
+test('job request HTML quote renders full job names once and escapes their slug', () => {
+  for (const prefix of ['Lee Landscape', 'Taylor Lee']) {
+    const value = request()
+    value.name = `${prefix} | Courtyard <Phase 2>`
+    const quote = jobRequestToHtmlQuote(value)
+    assert.ok(quote.html.includes(`<br>${prefix} | Courtyard &lt;Phase 2&gt;</p>`))
+    assert.doesNotMatch(quote.html, /Lee Landscape ·/)
+  }
 })
 
 test('job request HTML quote falls back to demand only while availability is unanswered', () => {

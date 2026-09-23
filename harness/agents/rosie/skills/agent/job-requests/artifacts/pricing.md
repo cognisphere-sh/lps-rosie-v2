@@ -6,14 +6,14 @@ continue to [direct orders](direct-orders.md) without quote generation or availa
 instruction uses `quote-generation` and skips AR creation and supplier contact.
 A request only to look for a supplier uses `plant-and-supplier-search` and
 returns findings to Chris first, even on an existing job; it does not start
-the normal job's availability-request workflow or create sourcing entries.
-Actual APS job sourcing and quick quotes use the same minimal-note standard in [notes](notes.md).
+the normal job's availability-request workflow. Record useful progress on an
+existing job under [notes](notes.md); a lookup alone creates no job.
 
 **Committed-order pricing precedence:** use the applicable line prices supplied
 with the committed request, or the accepted prices already on its job/quote.
 Save them in `job_request_items.unit_price` before creating the order. Preserve
 their source and acceptance evidence in the originating message/attachment;
-record only material exceptions in notes. For a partly priced request, retain
+keep useful progress and qualifications in internal notes. For a partly priced request, retain
 every supplied price and search APS only for missing prices. With no supplied
 pricing, use the supported APS price list for each line. A catalogue difference
 does not authorize replacing an agreed price or offering, or choosing a cheaper
@@ -52,9 +52,11 @@ fields or change job availability/status from the manual input.
    or the instructed supplier's inventory. Check actual plant identity,
    cultivar, size and positive price; retain the inventory UUID and source
    evidence. Copy the applicable price into `unit_price` only where no supplied
-   or accepted price applies; write only additional material
-   sourcing decisions/exceptions under [notes](notes.md); report research gaps and
-   supported alternatives in chat. No price means NULL, never zero. Catalogue stock stays
+   or accepted price applies; keep useful sourcing progress under [notes](notes.md).
+   For real gaps, research 1–2 closest supported APS alternatives, preferring
+   the same plant/nearby size, then defensible related plants; report them in
+   chat without selecting them or widening supplier scope.
+   No price means NULL, never zero. Catalogue stock stays
    catalogue evidence: new item status remains `pending`; pricing alone does
    not change existing availability/status fields.
 3. A likely equivalent catalogue name follows the direct-pricing and necessary
@@ -64,8 +66,8 @@ fields or change job availability/status from the manual input.
    to the customer's ask. Report it in chat and record APS gap alternatives
    under [notes](notes.md). Always obtain Chris's explicit confirmation in the original
    request chat before quoting an alternative or creating/sending an AR for
-   it; confirmation must cover the intended action. Other suppliers' candidate prices stay in chat
-   unless [notes](notes.md) permits a sourcing entry. An explicitly
+   it; confirmation must cover the intended action. Other suppliers' candidate
+   prices can be recorded internally when useful under [notes](notes.md). An explicitly
    requested supplier may price the item directly.
 4. **When APS has no matching inventory, report the gap in chat and offer to look
    for other suppliers.** Wait for Chris's instruction before widening.
@@ -89,18 +91,23 @@ fields or change job availability/status from the manual input.
    unlisted items unless Chris limits the scope. Preserve customer-details
    preferences. Include every job/item id and allocated quantity, quote
    completion and send-approval evidence, exact inventory UUID mappings/prices,
-   and separate alternative approvals. A request may combine several jobs;
+   separate alternative approvals, and supplier-relevant `note_from_customer` from
+   the job and its items for AR header/line `note_for_supplier`. Preserve note scope
+   and omit private customer details unless sharing is authorized.
+   A request may combine several jobs;
    use [allocation relationships](allocated-orders.md) and retain each origin conversation.
    The supplier thread follows `supplier-coordination` and reuses the same
    request on retry.
 7. Relay later supplier/customer changes through their owning threads. Keep
-   qualifying sourcing entries current on actual AR delivery, edits, submission,
-   closure and required follow-ups. A pending send must be labelled as pending.
+   sourcing progress current on AR preparation, delivery, authorized ask changes,
+   submission, closure and follow-ups. Unsubmitted supplier edits stay local;
+   classify submitted supplier notes by audience under [notes](notes.md).
+   A pending send must be labelled as pending.
    Report the priced lines, open requests and unresolved decisions on this
    job's chat; send any required approval to the original request thread.
 
 The existing Chris-approved cultivar/color pricing convention remains:
 crape myrtles, plumbago and salvias may use APS's generic line at the same
 size when the requested variety/color is unlisted. Explain `Generic price`
-in chat and on any qualifying supplier entry; it does not confirm that variety
+in chat and in internal notes where needed; it does not confirm that variety
 or authorize a size substitution.

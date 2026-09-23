@@ -17,6 +17,34 @@ here).
 
 ## 2026-09-23
 
+- Add admin-controlled public order links with copy/revoke controls, a read-only supplier view, and public URLs in copied orders. Migration 0114 revokes links on closure or deactivation; public payloads exclude customer notes and internal associations.
+
+- Made request and order clipboard buttons compact and consistent with app outline buttons; moved the quote template menu outside the card clipping boundary with viewport-aware placement.
+
+- Apply the directional-note rename (0111) and deploy its matching app at 2026-09-23 13:34:18 UTC. Preserve all saved notes and relationships; order items use supplier-origin notes and have no customer-origin note column. Build, 121 affected app tests, quote and migration checks pass; live job/AR/order reads and supplier note filtering are verified.
+
+- Apply migration 0112 at 13:44 UTC to remove `order_items.availability_request_item_id`. Derive related ARs and supplier quantity budgets through job-item allocations; preserve all 49 order items and their allocations, update both creation paths and job deletion, and align Rosie’s guidance. Database checks, order tests, typecheck, production build and instruction validation pass; the running app already includes the compatible queries.
+
+- Update Rosie's job naming to `Customer/Company Name | Slug`, using known customer identity and recognizable request details. Keep full names intact in app headers, inbox identity labels and HTML quotes without repeating the customer/company.
+
+- Standardize job, AR and order note columns as `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer` and `note_for_supplier`. Migration 0111 renames existing columns and preserves mixed legacy order notes by source. Update application queries, editors, order creation, supplier events, quotes, sharing, schema references and Rosie's versioned skills; supplier order payloads exclude customer notes.
+
+- Simplify Rosie’s job and item notes: customer input in `customer_notes`, customer-facing quote information in `external_notes`, and internal progress in `sourcing_notes`. Carry relevant customer notes into AR header/line `lps_notes` and route submitted supplier notes by audience. Update versioned skills and prompts; render job-level external notes once per quote.
+
+- Rename `job_request_items.quantity` to `demanded_quantity` in migration 0110 and deploy compatible job editing, availability snapshots, order calculations and quote rendering. Update the schema docs and Rosie’s database prompt, job-requests, supplier-coordination and quote-generation skills. Existing business data and totals were preserved; migration tests, targeted app/quote checks, typecheck, build and live API checks passed.
+
+- Replace Hidden with AR soft deletion in migration 0109. Preserve saved status, submission timestamp and public token when `is_active=false`; keep deleted ARs inaccessible. Remove closure-history columns and automatic AR reopening. Add admin Delete actions, update Rosie’s guidance, and retain exclusive AR snapshots when their job is deleted.
+
+- Apply migration 0109 and deploy the matching app at 11:18 UTC. Retained data for all 2,479 business rows was unchanged. Database lifecycle/access tests, targeted AR app tests, typecheck, build and instruction checks passed; older desktop job tests still use stale Delete-button selectors.
+
+- Remove the redundant AR header `job_request_id` in migration 0108. Use `availability_request_jobs` for creation, notifications, closure/reopening and deletion; preserve existing links and update Rosie's guidance and the pending record-name migration.
+
+- Apply migration 0108 and deploy the matching app at 10:45 UTC. Database lifecycle/deletion checks, four affected app test files, typecheck, build and live API/context reads passed; all 2,479 existing business rows were preserved.
+
+- Remove the legacy availability-line job-item column in migration 0106; use junction allocations for creation and deletion. Migration 0107 renames the requested total to `demanded_quantity` and the supplier answer note to `supplier_notes`, preserving `lps_notes` as LPS/Chris's additional supplier instructions. Update AR editors, tables, printing, order creation and Rosie's versioned guidance.
+
+- Apply migrations 0106–0107 and deploy the matching app at 10:18 UTC. Verify unchanged data across 11 business tables, database regressions, ten affected app test files, typecheck, production build and live admin/supplier/order reads.
+
 - Have Rosie, Daisy and Lily apply Chris's explicit feedback to the relevant SOP, deployment prompt or skill without repeat approval. Propose inferred changes and apply only after Chris approves; retain agent ownership and unchanged harness base prompts.
 
 - Simplify Rosie, Daisy and Lily deployment prompts and skill discovery text; preserve harness-provided base prompts. Replace large procedures with task menus and focused references. Add decimal quote rendering, scoped schema reads, successful-source fingerprints and retry-safe feedback capture, with offline tests and instruction-size/link checks. Split agent setup and migration references from routine docs; document prompt ownership for upgrades.

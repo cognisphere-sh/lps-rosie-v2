@@ -196,7 +196,7 @@ test('API query is bounded, complete, batched, active-only and privacy-scoped', 
   assert.match(query, /JOB_INBOX_MAX_ROWS \+ 1/)
   assert.match(query, /throw new JobInboxCapacityError/)
   assert.doesNotMatch(query, /shipping_(?:address|city|state|zip)/)
-  assert.match(query, /\.select\('id, customer_id, name, status, expected_install_date, customer_notes, sourcing_notes, external_notes, created_at, updated_at'\)/)
+  assert.match(query, /\.select\('id, customer_id, name, status, expected_install_date, note_from_customer, note_internal, note_for_customer, created_at, updated_at'\)/)
   assert.match(query, /customerCompany: customer\?\.company \?\? null/)
   assert.match(query, /customerContact: customer\?\.name \?\? null/)
   assert.doesNotMatch(query, /shipping:\s*\{/)

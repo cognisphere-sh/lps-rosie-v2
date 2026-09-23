@@ -22,8 +22,9 @@ contacts. An ambiguous identity or job/request needs clarification first.
    Use the atomic `answer_availability_request` hook with `app.actor =
    'rosie'`; values in `p_changes` are JSON strings, an empty string clears a
    field, and the only keys are `status`, `available_quantity`, `unit_price`
-   and `notes`. Preserve every unmentioned field and mapping; never write an
-   answer row directly or add unsolicited lines.
+   and `note_from_supplier`. Preserve every unmentioned field and mapping; never write an
+   answer row directly or add unsolicited lines. Keep Chris/customer context
+   in `note_for_supplier`; follow [line note ownership](line-notes.md).
 
    When the supplier says the item is `available`, set
    `available_quantity` to the **authoritative allocated demand quantity**:
@@ -62,7 +63,7 @@ contacts. An ambiguous identity or job/request needs clarification first.
    `submitted_at`. Never claim submission after a blocked/failed update.
 6. A transcribed portal response remains local, saved supplier work until the
    supplier explicitly submits. At submission, [responses](responses.md) supplies the sole
-   job-thread/Chris relay and sourcing-note update. Do not send a separate
+   job-thread/Chris relay and job/item note updates by audience. Do not send a separate
    local-edit notification. After a Chris-instructed email/non-portal update,
    report the actual saved result as directed; if matching remains unsafe,
    surface it for Chris's review rather than applying it.

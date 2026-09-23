@@ -56,7 +56,7 @@ test('single and multi-field job-status writes reject Confirmed before a databas
     method: 'PATCH', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ table: 'job_requests', id: 19, ...fields }),
   }))
-  for (const fields of [{ column: 'status', value: 'confirmed' }, { changes: { status: 'confirmed', sourcing_notes: 'Should not save' } }]) {
+  for (const fields of [{ column: 'status', value: 'confirmed' }, { changes: { status: 'confirmed', note_internal: 'Should not save' } }]) {
     const result = await patch(fields)
     assert.equal(result.status, 400)
     const body = await result.json()

@@ -22,7 +22,7 @@
 //   how it is said.
 //
 // Since 2026-08-30 the view is one flat table (Demand · Size · Name · Date ·
-// Status · Avail. Qty · Your Notes) drawn to the Figma comp, filtered by the
+// Status · Avail. Qty · Note from supplier) drawn to the Figma comp, filtered by the
 // answer-status tabs the home page draws above it.
 
 import { useState } from 'react'
@@ -39,7 +39,7 @@ import { formatDate, num } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
-/** Demand · Size · Name · Date · Status · Avail. Qty · Your Notes. */
+/** Demand · Size · Name · Date · Status · Avail. Qty · Note from supplier. */
 const COLUMNS = '72px 110px minmax(220px,1.4fr) 96px 160px 90px minmax(200px,1fr)'
 const GRID_MIN = 900
 
@@ -67,7 +67,7 @@ export function countItemFilters(lines: SupplierItemLine[]): Record<ItemFilterId
 
 /** The total asked for across a group's lines; null when no line carries one. */
 function demandOf(lines: SupplierItemLine[]): number | null {
-  const qs = lines.map((l) => l.quantity).filter((q): q is number => q != null)
+  const qs = lines.map((l) => l.demandedQuantity).filter((q): q is number => q != null)
   return qs.length ? qs.reduce((a, b) => a + b, 0) : null
 }
 
@@ -116,9 +116,9 @@ function RequestCell({
         </span>
       )}
       {/* Our note about this line — what LPS said when it asked. */}
-      {line.lpsNotes && (
-        <span className="block whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.lpsNotes)}>
-          {redactPartnerRequestRefs(line.lpsNotes)}
+      {line.noteForSupplier && (
+        <span className="block whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.noteForSupplier)}>
+          {redactPartnerRequestRefs(line.noteForSupplier)}
         </span>
       )}
     </span>
@@ -147,12 +147,12 @@ function AnswerCells({
         onCommit={(next) => void onPatch(line.id, { available_quantity: next.trim() })}
       />
       <AnswerCell
-        value={line.notes ?? ''}
+        value={line.noteFromSupplier ?? ''}
         editable
         placeholder="Add note…"
-        display={line.notes ?? ''}
-        onCommit={(next) => void onPatch(line.id, { notes: next.trim() })}
-        ariaLabel={`Line ${line.id} notes`}
+        display={line.noteFromSupplier ?? ''}
+        onCommit={(next) => void onPatch(line.id, { note_from_supplier: next.trim() })}
+        ariaLabel={`Line ${line.id} supplier notes`}
         multiline
       />
     </>
@@ -193,7 +193,7 @@ function ItemGroupRow({
   const takesDrop = mapped && draggingId != null && !group.lines.some((l) => l.id === draggingId)
   // Our per-line note, where every ask carries the same one — the usual case
   // for a plant asked for once, and worth a line under the name.
-  const notes = [...new Set(group.lines.map((l) => l.lpsNotes).filter((n): n is string => !!n))]
+  const notes = [...new Set(group.lines.map((l) => l.noteForSupplier).filter((n): n is string => !!n))]
   const note = notes.length === 1 ? redactPartnerRequestRefs(notes[0]) : null
 
   return (
@@ -257,7 +257,7 @@ function ItemGroupRow({
             style={{ gridTemplateColumns: COLUMNS, minHeight: 52, padding: '6px 16px' }}
           >
             <span className="px-1 text-center text-[12.5px] tabular-nums text-foreground">
-              {num(line.quantity) || '—'}
+              {num(line.demandedQuantity) || '—'}
             </span>
             <span className="truncate px-1 text-[12.5px] text-muted-foreground" title={line.size ?? undefined}>
               {line.size ?? '—'}
@@ -339,7 +339,7 @@ export function SupplierItemGroups({
         <span className="px-1">Date</span>
         <span className="px-1">Status</span>
         <span className="px-1 text-right">Avail. Qty</span>
-        <span className="px-1">Your Notes</span>
+        <span className="px-1">Note from supplier</span>
       </div>
       <div className="overflow-hidden rounded-xl border border-border" style={{ minWidth: GRID_MIN }}>
         {groups.map((group) => (

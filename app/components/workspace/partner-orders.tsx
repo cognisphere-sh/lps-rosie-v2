@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
 import { OrderLineGroups, OrderStatusFilters, OrderViewControls, PartnerOrderCard, type OrderFilter, type OrderView } from '@/components/workspace/orders'
+import { PartnerHistoryTabs } from './partner-history-tabs'
 import type { Order } from '@/lib/orders'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 
@@ -23,7 +24,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const revision = useRef(0)
   const loadController = useRef<AbortController | null>(null)
-  const [statuses, setStatuses] = useState<OrderFilter[]>(['new', 'processing'])
+  const [statuses, setStatuses] = useState<OrderFilter[]>(['new', 'processing', 'order_ready'])
   const [view, setView] = useState<OrderView>('order')
 
   const loadOrders = useCallback(async () => {
@@ -44,7 +45,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
   }, [supplierId])
 
   useEffect(() => {
-    setOrders([]); setSupplierName(null); setLoading(true); setError(null); setStatuses(['new', 'processing']); setView('order')
+    setOrders([]); setSupplierName(null); setLoading(true); setError(null); setStatuses(['new', 'processing', 'order_ready']); setView('order')
     void loadOrders()
     const refresh = () => { if (document.visibilityState === 'visible') void loadOrders() }
     const timer = window.setInterval(refresh, 30000)
@@ -95,7 +96,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
       supplierId={supplierId}
       supplierName={supplierName}
       tab={closed ? "closed-orders" : "orders"}
-      title={closed ? "Closed Orders" : "Orders"}
+      title={closed ? "Order/Request History" : "Orders"}
       hideHeaderOnDesktop
       alerts={alerts}
       onAgentReply={loadOrders}
@@ -103,7 +104,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
       toolbar={(rightActions) => <div className="relative flex flex-none items-center justify-center px-3 pt-3 md:px-4">
         <div className="flex min-h-[4.75rem] w-full items-center gap-3 rounded-2xl bg-card px-3 py-2.5">
           <div className="flex min-w-0 flex-1 justify-center overflow-x-auto">
-            {closed ? <span className="text-[13px] font-semibold">{visibleOrders.length} closed orders</span> : <OrderStatusFilters orders={visibleOrders} selected={statuses} onChange={setStatuses} />}
+            {closed ? <PartnerHistoryTabs supplierId={supplierId} selected="orders" /> : <OrderStatusFilters orders={visibleOrders} selected={statuses} onChange={setStatuses} />}
           </div>
           <div className="flex flex-none items-center gap-2"><button type="button" aria-label="Refresh" title="Refresh" className="flex size-9 items-center justify-center rounded-lg border border-border bg-card hover:bg-lps-tint" onClick={() => void loadOrders()}><RefreshCw className="size-4" /></button>{rightActions}</div>
         </div>

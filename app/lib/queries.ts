@@ -1027,22 +1027,22 @@ const WRITABLE: Record<string, string[]> = {
     'common_name', 'botanical_name', 'cultivar_variety_trade_name',
     'size', 'height', 'width', 'caliper', 'tags', 'caption', 'notes',
   ],
-  // Absent on purpose: `customer_notes` is the customer's own words and is
+  // Absent on purpose: `note_from_customer` is the customer's own words and is
   // evidence, not a field (docs/supabase-schema.md). `customer_id` is absent
   // too: mapping an anonymous request to a customer is a find-or-create
   // decision, not a typed correction.
-  // `sourcing_notes` IS writable — it is a free-text working sheet, kept
+  // `note_internal` IS writable — it is a free-text working sheet, kept
   // current by editing it, and the changelog records every before/after.
   job_requests: [
-    'name', 'status', 'external_notes', 'sourcing_notes', 'expected_install_date', 'fulfillment_method',
+    'name', 'status', 'note_for_customer', 'note_internal', 'expected_install_date', 'fulfillment_method',
     'billing_address', 'billing_city', 'billing_state', 'billing_zip',
     'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
   ],
-  // No `total`: generated from quantity × unit_price, so a write is rejected by
-  // Postgres outright. Same note rules as the request above.
+  // No `total`: generated from demanded_quantity × unit_price, so a write is rejected by
+  // Postgres outright. The customer line note is editable beneath the plant name.
   job_request_items: [
-    'name', 'size', 'quantity', 'available_quantity', 'unit_price',
-    'status', 'external_notes', 'sourcing_notes',
+    'name', 'size', 'demanded_quantity', 'available_quantity', 'unit_price',
+    'status', 'note_from_customer', 'note_for_customer', 'note_internal',
   ],
   // `notes` is durable facts about the customer, edited in place. There is no
   // contact-log column beside it any more: `communication_notes` was dropped by
@@ -1068,7 +1068,7 @@ const ENUMS: Record<string, readonly string[]> = {
 }
 
 const NUMERIC = new Set([
-  'unit_price', 'quantity', 'availability_update_days', 'available_quantity',
+  'unit_price', 'quantity', 'demanded_quantity', 'availability_update_days', 'available_quantity',
 ])
 // Checkbox columns arrive as the strings a form produces.
 // Array columns arrive as one comma-separated field. Splitting is all this does
@@ -1154,10 +1154,10 @@ export async function updateFields(
       if (INTEGER.has(column) && !Number.isInteger(n)) {
         throw new Error(`${column} must be a whole number of days`)
       }
-      // Both are CHECK-constrained (`quantity > 0`, `available_quantity >= 0`).
+      // Demand is positive; supplier availability can also be zero.
       // Naming the rule beats surfacing a constraint-violation string.
-      if (column === 'quantity' && n <= 0) {
-        throw new Error('quantity must be greater than zero')
+      if ((column === 'quantity' || column === 'demanded_quantity') && n <= 0) {
+        throw new Error(`${column} must be greater than zero`)
       }
       if (column === 'available_quantity' && n < 0) {
         throw new Error('available quantity cannot be negative')

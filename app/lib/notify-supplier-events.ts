@@ -26,7 +26,7 @@ interface SupplierEventBase {
 }
 
 export interface OrderHeaderChange {
-  field: 'status' | 'fulfillmentDate' | 'supplierNotes'
+  field: 'status' | 'fulfillmentDate' | 'noteFromSupplier'
   previous: string | null
   value: string | null
 }

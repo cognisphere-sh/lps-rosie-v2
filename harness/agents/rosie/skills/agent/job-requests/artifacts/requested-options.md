@@ -14,19 +14,19 @@ quote-selection rule does not authorize changing committed order terms.
 
 Preserve the original requested alternatives in the item demand/customer context
 when recording the quoted size/variant and price. Put every other supported
-requested-option price in shared/customer-visible item `external_notes`, e.g.
+requested-option price in shared/customer-visible item `note_for_customer`, e.g.
 `5 G $25.00`. The item `name` and `size` are the customer-facing **quoted
 offering**, so each must hold exactly the one actual quoted plant and size—never
 an `or` list or source proxy name. An explicitly approved pricing proxy does
 not relabel the requested offering or establish cultivar identity. Record its
 basis internally, not as a shared substitution note. For actual approved
 offering differences (plant, cultivar/variant, size or quantity), keep only the
-necessary short exception in `external_notes`; follow `quote-generation` for
+necessary short exception in `note_for_customer`; follow `quote-generation` for
 the canonical minimal-word rule, confirmed-evidence-only availability wording,
 and neutral unpriced-option notes. No phase labels, pricing-identity explanations,
-supplier names or price-sheet references belong in shared notes. Preserve
+supplier names or price-sheet references belong in notes for customer. Preserve
 phases in customer/original-demand context and separate output grouping. Preserve the original
-demand in `customer_notes`; do not silently rewrite it. Use actual prices only,
+demand in `note_from_customer`; do not silently rewrite it. Use actual prices only,
 without internal supplier/cost commentary or availability claims. State the
 chosen quoted option clearly and include every other supported requested-option
 price; no extra demand rows or duplicated quantities. An unrequested option

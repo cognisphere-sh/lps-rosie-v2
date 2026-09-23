@@ -10,21 +10,21 @@ import {
   groupSupplierItems,
   isSubmittedARStatus,
   withAvailabilityRequestStatus,
+  withoutAvailabilityRequest,
   type SupplierItemLine,
   type SupplierLink,
 } from './availability.ts'
 
 /** A line with everything defaulted, so each case states only what it is about. */
 const line = (o: Partial<SupplierItemLine> & { id: number }): SupplierItemLine => ({
-  jobRequestItemId: 1,
   name: 'x',
   size: null,
-  quantity: null,
+  demandedQuantity: null,
   status: null,
   availableQuantity: null,
   unitPrice: null,
-  notes: null,
-  lpsNotes: null,
+  noteFromSupplier: null,
+  noteForSupplier: null,
   arId: 1,
   arStatus: 'new',
   arCreatedAt: '2026-08-01T00:00:00Z',
@@ -167,8 +167,17 @@ test('confirmed submission stamps update on first submit and resubmit without ch
   assert.equal(reopened[0].availabilityRequests[0].createdAt, createdAt)
 })
 
-test('admin can select Hidden with a red status', () => {
-  assert.ok(AR_STATUSES.includes('hidden'))
-  assert.equal(arStatusLabel('hidden'), 'Hidden')
-  assert.equal(arStatusTone('hidden'), 'red')
+test('AR status vocabulary is independent of deletion', () => {
+  assert.deepEqual(AR_STATUSES, ['new', 'processing', 'submitted', 'closed'])
+})
+
+test('deletion removes the AR from every mounted supplier link while preserving other requests', () => {
+  const links: SupplierLink[] = [
+    { supplierId: 1, name: 'APS', lpsPartner: true, rosieThreadId: 'aps', availabilityRequests: [{ id: 11, status: 'new' }, { id: 12, status: 'submitted' }] },
+    { supplierId: 2, name: 'Other', lpsPartner: true, rosieThreadId: null, availabilityRequests: [{ id: 11, status: 'new' }] },
+  ]
+  const next = withoutAvailabilityRequest(links, 11)
+  assert.equal(next.length, 1)
+  assert.deepEqual(next[0].availabilityRequests, [{ id: 12, status: 'submitted' }])
+  assert.equal(links[0].availabilityRequests.length, 2)
 })

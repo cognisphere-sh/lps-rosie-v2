@@ -9,11 +9,11 @@ render = runpy.run_path(str(Path(__file__).with_name("render-quote")))["render"]
 class QuoteTests(unittest.TestCase):
     def job(self):
         return {"job_id": 42, "items": [
-            {"id": 7, "name": "Wax myrtle", "size": "15 gal.", "quantity": 4,
-             "unit_price": "105.00", "external_notes": None,
-             "available_quantity": 900, "sourcing_notes": "INTERNAL"},
-            {"id": 8, "name": "Mountain laurel", "size": "30 G", "quantity": 10,
-             "unit_price": "375.00", "external_notes": "45 G $595.00"}]}
+            {"id": 7, "name": "Wax myrtle", "size": "15 gal.", "demanded_quantity": 4,
+             "unit_price": "105.00", "note_for_customer": None,
+             "available_quantity": 900, "note_internal": "INTERNAL"},
+            {"id": 8, "name": "Mountain laurel", "size": "30 G", "demanded_quantity": 10,
+             "unit_price": "375.00", "note_for_customer": "45 G $595.00"}]}
 
     def test_default_copyable_quote_uses_requested_quantity_and_shared_notes_only(self):
         output = render(self.job())
@@ -23,19 +23,57 @@ class QuoteTests(unittest.TestCase):
     def test_decimal_totals_round_lines_then_sum(self):
         job = self.job()
         for item in job["items"]:
-            item.update(quantity="0.5", unit_price="0.01")
+            item.update(demanded_quantity="0.5", unit_price="0.01")
         self.assertIn("Subtotal: $0.02", render(job))
+
+    def test_job_and_item_note_for_customer_keep_private_fields_out(self):
+        job = self.job()
+        job["note_for_customer"] = "Delivery date to be confirmed"
+        for record in (job, *job["items"]):
+            record.update(note_from_customer="CUSTOMER INPUT",
+                          note_internal="INTERNAL FOLLOW-UP",
+                          note_from_supplier="RAW SUPPLIER RESPONSE",
+                          note_for_supplier="SUPPLIER INSTRUCTION")
+        self.assertEqual(render(job),
+                         "```text\nDelivery date to be confirmed\n\n"
+                         "4 x 15 G Wax myrtle - $105.00 - $420.00\n"
+                         "10 x 30 G Mountain laurel - 45 G $595.00 - $375.00 - $3,750.00\n\n"
+                         "Subtotal: $4,170.00\n```")
+
+    def test_blank_note_for_customer_never_fall_back_to_other_note_fields(self):
+        job = self.job()
+        for record in (job, *job["items"]):
+            record.update(note_from_customer="CUSTOMER INPUT",
+                          note_internal="INTERNAL FOLLOW-UP",
+                          note_from_supplier="RAW SUPPLIER RESPONSE")
+            record.pop("note_for_customer", None)
+        expected = ("```text\n4 x 15 G Wax myrtle - $105.00 - $420.00\n"
+                    "10 x 30 G Mountain laurel - $375.00 - $3,750.00\n\nSubtotal: $4,170.00\n```")
+        self.assertEqual(render(job), expected)
+        for blank in (None, "", "   "):
+            with self.subTest(blank=blank):
+                for record in (job, *job["items"]):
+                    record["note_for_customer"] = blank
+                self.assertEqual(render(job), expected)
+
+    def test_unsafe_job_notes_never_return_a_quote(self):
+        for value in ("Delivery\nINTERNAL", "```oops", "Delivery\tdate", 42):
+            with self.subTest(value=value):
+                job = self.job()
+                job["note_for_customer"] = value
+                with self.assertRaisesRegex(ValueError, "note_for_customer"):
+                    render(job)
 
     def test_exponent_quantity_is_rendered_plainly(self):
         job = self.job()
-        job["items"][0]["quantity"] = "1e2"
+        job["items"][0]["demanded_quantity"] = "1e2"
         self.assertIn("100 x 15 G", render(job))
 
     def test_invalid_lines_never_return_partial_quote(self):
-        for field, value in [("quantity", None), ("unit_price", "NaN"),
+        for field, value in [("demanded_quantity", None), ("unit_price", "NaN"),
                              ("unit_price", "Infinity"), ("unit_price", "0"),
-                             ("unit_price", "1.001"), ("quantity", True),
-                             ("size", "15 G or 30 G"), ("external_notes", "```oops"),
+                             ("unit_price", "1.001"), ("demanded_quantity", True),
+                             ("size", "15 G or 30 G"), ("note_for_customer", "```oops"),
                              ("name", "Live oak\nINTERNAL"), ("job_request_id", 99)]:
             with self.subTest(field=field, value=value):
                 job = self.job()
@@ -51,6 +89,13 @@ class QuoteTests(unittest.TestCase):
         job = self.job()
         job["job_id"] = None
         with self.assertRaises(ValueError):
+            render(job)
+
+    def test_obsolete_quantity_key_cannot_replace_requested_demand(self):
+        job = self.job()
+        item = job["items"][0]
+        item["quantity"] = item.pop("demanded_quantity")
+        with self.assertRaisesRegex(ValueError, "demanded_quantity"):
             render(job)
 
 

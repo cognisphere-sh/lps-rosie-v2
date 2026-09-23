@@ -37,10 +37,23 @@ export function balancedHeaderGeometry(width: number, edge = 0): BalancedHeaderG
   return { width, edge, flank, identity, identityCenter: width / 2 }
 }
 
-/** The three independently stored display components—never parsed or inferred. */
+/** Recognize a stored full job name only against a known customer/company name. */
+export function jobNameIncludesCustomer(request: StructuredJobIdentity): boolean {
+  const job = nonblankJobIdentity(request.name)
+  if (!job) return false
+  return [request.customer?.company, request.customer?.name].some((value) => {
+    const customer = nonblankJobIdentity(value)
+    return customer !== null && (job === customer || job.startsWith(`${customer} | `))
+  })
+}
+
+/** Keep full job names intact; legacy site-only names retain their separate identity. */
 export function storedJobIdentityComponents(
   request: StructuredJobIdentity,
 ): StoredJobIdentityComponents {
+  if (jobNameIncludesCustomer(request)) {
+    return { company: null, job: nonblankJobIdentity(request.name), contact: null }
+  }
   return {
     company: nonblankJobIdentity(request.customer?.company),
     job: nonblankJobIdentity(request.name),

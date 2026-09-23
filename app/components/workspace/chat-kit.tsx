@@ -48,7 +48,7 @@ export type MarkdownAction = (scheme: 'thread' | 'ar', target: string) => void
 
 /**
  * The agent writes markdown; this renders the subset that actually shows up in
- * chat and sourcing notes — bold, underline, inline code, links, bullet lists
+ * chat and internal notes — bold, underline, inline code, links, bullet lists
  * and horizontal rules. Formatting is rendered as React nodes, never raw HTML.
  */
 function inline(

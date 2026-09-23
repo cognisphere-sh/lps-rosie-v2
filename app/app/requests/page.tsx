@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, CloseIcon } from '@/components/workspace/icons'
 import {
   onAvailabilityRequestStatusChanged,
+  onAvailabilityRequestDeleted,
   onRenameThread,
 } from '@/lib/chat-bus'
 import { patchRow } from '@/components/workspace/editable'
@@ -17,7 +18,7 @@ import {
   useResolvedRequestsMobile,
 } from '@/components/workspace/requests-toolbar'
 import type { Chip } from '@/components/workspace/toolbar'
-import { withAvailabilityRequestStatus } from '@/lib/availability'
+import { withAvailabilityRequestStatus, withoutAvailabilityRequest } from '@/lib/availability'
 import {
   ITEM_STATUS_OPTIONS,
   REQUEST_STATUS_OPTIONS,
@@ -380,6 +381,12 @@ export default function RequestsPage() {
     }),
     [],
   )
+
+  useEffect(() => onAvailabilityRequestDeleted((arId) => {
+    setRequests((current) => current.map((request) => ({
+      ...request, supplierLinks: withoutAvailabilityRequest(request.supplierLinks, arId),
+    })))
+  }), [])
 
   const customerIds = useMemo(() => {
     const map = new Map<string, number>()

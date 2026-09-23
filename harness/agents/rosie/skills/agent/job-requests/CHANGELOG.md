@@ -1,5 +1,38 @@
 # job-requests — changelog
 
+## 5.27.0
+
+- Remove the stored order-item AR pointer. Resolve related ARs through job-item allocations and supplier scope; document transient AR selection and quantity checks across direct and response-based orders.
+
+## 5.26.0
+
+- Apply Chris's job naming format, `Customer/Company Name | Slug`, to the stored job name. Prefer a known company name, otherwise the customer's name; derive a concise, readable slug from supplied site, project or other identifiable request details. Keep known components when information is incomplete and complete the name with guarded updates when details arrive.
+
+## 5.25.0
+
+- Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.
+
+## 5.24.0
+
+- Apply the same simple note definitions to jobs and items: customer-supplied information, customer-facing quote notes and internal sourcing progress. Replace the older exception-only/AR-delivery eligibility restriction.
+- Carry supplier-relevant customer notes into the matching AR header or line, and classify submitted supplier notes into external or sourcing notes by audience without changing offerings, availability or communication approvals.
+
+## 5.23.1
+
+- Use `job_request_items.demanded_quantity` for customer demand, intake, generated totals and approved supply scope. Keep allocation/order `quantity` fields unchanged.
+
+## 5.23.0
+
+- Keep AR reopening explicit and retire exclusive ARs on job deletion while retaining supplier snapshots.
+
+## 5.22.0
+
+- Resolve AR headers through `availability_request_jobs` after removal of the redundant `job_request_id` column.
+
+## 5.21.0
+
+- Align AR handoffs with `demanded_quantity`, junction-only job-item associations and separate LPS/supplier line notes.
+
 ## 5.20.0
 
 - Replace the monolithic procedure with task references; preserve intake, approvals, lifecycle and concurrency rules. Read only the selected task and write discipline.

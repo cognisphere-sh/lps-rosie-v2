@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Coordinate supplier ARs and orders on the supplier thread. Includes creation, portal transcription, submitted replies, confirmation and change notices. Use for order-side supplier work or events. (v3.18.0)
+description: Coordinate supplier ARs and orders on the supplier thread. Includes customer-to-AR notes, supplier-to-job/item note handoffs, creation, portal transcription, submitted replies and order changes. Use for order-side supplier work or events. (v3.24.0)
 metadata:
   author: lps
-  version: "3.18.0"
+  version: "3.24.0"
 ---
 
 # Supplier coordination
@@ -21,6 +21,7 @@ and verify results. Reuse known records on retry; never duplicate shared demand.
 | Task | Read |
 |---|---|
 | Create/publish an approved AR | [channels and approval](artifacts/channels.md), [create request](artifacts/create-request.md) |
+| Carry customer notes into ARs or route supplier notes back to jobs/items | [note ownership and handoffs](artifacts/line-notes.md) |
 | Correct Chris-directed APS ask fields | [manual inputs](artifacts/manual-inputs.md) |
 | Send approved non-partner HTML email | [email](artifacts/email.md) |
 | Handle availability event/submission | [responses](artifacts/responses.md) |
@@ -35,6 +36,6 @@ answers never authorize job availability/source changes. Portal transcription
 does not submit; voice responses follow acknowledge → save → review/Submit.
 
 Finish with verified record/send results and exact affected allocations for
-each owner. `job-requests` owns current sourcing notes and assigned record names;
+each owner. `job-requests` owns job/item note audiences and assigned record names;
 contact history stays in this supplier's transcript. Internal messages never
 use `--portal`.

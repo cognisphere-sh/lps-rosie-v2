@@ -19,13 +19,13 @@ function ordered(sourceText: string, tokens: string[]) {
 test('shared request line tracks match the exact visible column order', () => {
   assert.match(
     source('lib/columns.ts'),
-    /export const REQUEST_ITEM_COLS[\s\S]*?key: 'status'[\s\S]*?key: 'external_notes'[\s\S]*?key: 'unit_price'/,
+    /export const REQUEST_ITEM_COLS[\s\S]*?key: 'status'[\s\S]*?key: 'note_for_customer'[\s\S]*?key: 'unit_price'/,
   )
   assert.match(
     component,
     /columns\.map\(\(column\) => `\$\{widthOf\(column\)\}px`\)/,
   )
-  assert.doesNotMatch(component, /Add a shared note/)
+  assert.doesNotMatch(component, /Add a note for customer/)
 
   assert.match(component, /<LineColumnHeader[\s\S]*?onMove=\{lineTable\.moveColumn\}[\s\S]*?onResize=/)
   assert.match(component, /draggable[\s\S]*?drag to reorder/)
@@ -35,7 +35,7 @@ test('shared request line tracks match the exact visible column order', () => {
 test('row fields and behavior move with their headers without changing semantics', () => {
   const row = component.slice(component.indexOf('function ItemRow('), component.indexOf('/** One labelled, editable field'))
   ordered(row, [
-    'column="quantity"',
+    'column="demanded_quantity"',
     'column="available_quantity"',
     'column="size"',
     'column="name"',
@@ -45,10 +45,10 @@ test('row fields and behavior move with their headers without changing semantics
     'money(quoteLineTotal(item))',
     'kind="internal"',
   ])
-  assert.match(row, /column="quantity"[\s\S]*?title="Demand — what the customer asked for"/)
+  assert.match(row, /column="demanded_quantity"[\s\S]*?title="Demand — what the customer asked for"/)
   assert.match(row, /style=\{\{ color: coverColor\(cover\) \}\}[\s\S]*?column="available_quantity"[\s\S]*?title="Avail — how many we can supply\. Blank means not answered yet\."/)
   assert.match(row, /zero when unavailable; otherwise available quantity × unit price, falling back to demand[\s\S]*?quoteLineTotal\(item\)/)
-  assert.match(row, /column="name" value=\{item\.name\}[\s\S]*?item\.customerNotes/)
+  assert.match(row, /column="name" value=\{item\.name\}[\s\S]*?item\.noteFromCustomer/)
   assert.match(row, /<StatusPill[\s\S]*?column="status"[\s\S]*?options=\{ITEM_STATUS_OPTIONS\}/)
 })
 
@@ -78,6 +78,16 @@ test('one horizontally scrolling RequestBody layout serves every consumer at saf
 test('the route reference documents the shared order without the former sequence', () => {
   const docs = source('../docs/app/README.md')
   const requests = docs.match(/\| `\/requests` \| client \|([^\n]+)/)?.[1] ?? ''
-  assert.match(requests, /Demand \/ Avail \/ Size \/ Plant Name \/ Status \/ Unit price \/ Total \/ Shared note \/ Sourcing note/)
+  assert.match(requests, /Demand \/ Avail \/ Size \/ Plant Name \/ Status \/ Unit price \/ Total \/ Note for customer \/ Internal note/)
   assert.doesNotMatch(requests, /Select \/ Item \/ Size \/ Demand/)
+})
+
+
+test('renaming note columns preserves saved job table layout', async () => {
+  const { normalizeStoredTableConfig } = await import('./table-config')
+  assert.deepEqual(normalizeStoredTableConfig('requestItems', {
+    order: ['name', 'sourcing_notes', 'external_notes'], hidden: ['sourcing_notes'],
+    widths: { sourcing_notes: 250, external_notes: 210 },
+  }), { order: ['name', 'note_internal', 'note_for_customer'], hidden: ['note_internal'],
+    widths: { note_internal: 250, note_for_customer: 210 } })
 })

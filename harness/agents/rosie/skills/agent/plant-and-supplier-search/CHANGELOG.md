@@ -1,5 +1,13 @@
 # plant-and-supplier-search — changelog
 
+## 2.16.0
+
+- Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.
+
+## 2.15.0
+
+- Let the job owner retain useful research progress in job/item sourcing notes under the simplified note definitions; remove the old no-note-until-eligible restriction. General lookups still create no jobs or outreach.
+
 ## 2.14.0
 
 - Separate ordinary search from occasional pricing-equivalence rules and remove duplicated note/quote policy.

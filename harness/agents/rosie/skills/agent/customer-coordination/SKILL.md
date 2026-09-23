@@ -1,9 +1,9 @@
 ---
 name: customer-coordination
-description: Handle customer contact on its dedicated thread. Covers inbound commitments, approved drafts, delivery and transcript records. Use for customer messages, acceptance or order updates. (v3.4.0)
+description: Handle customer contact on its dedicated thread. Covers inbound commitments, approved drafts, delivery and transcript records. Use for customer messages, acceptance or order updates. (v3.5.0)
 metadata:
   author: lps
-  version: "3.4.0"
+  version: "3.5.0"
 ---
 
 # Customer coordination
@@ -51,7 +51,7 @@ write discipline for customer fields.
 1. Receive the job thread's customer-safe draft or prepare a requested
    non-job draft here. Apply customer preferences. Use only requested/
    approved offerings, customer prices, relevant delivery details and
-   `external_notes`. No internal sourcing rows, supplier comparisons or
+   `note_for_customer`. No internal sourcing rows, supplier comparisons or
    agent messages. `quote-generation` owns quote formatting.
 2. Use `message-routing` for any required approval in **the original request chat**, retaining the draft, recipient, subject and attachments/links.
    Do not require approval on the job thread merely because the draft

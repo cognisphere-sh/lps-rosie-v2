@@ -1,15 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, ChevronDown, Layers, LayoutGrid, List, Share2, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Layers, LayoutGrid, List, Copy, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
+import { PartnerDetailHeader, PartnerFulfillment } from './partner-detail-header'
+import { SummaryStrip } from './partner-summary-strip'
+import { AnswerCell } from './availability'
+import { EditableText, EditableTextarea } from './editable'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { arResponseLabel } from '@/lib/availability'
 import { formatMonthDay, money, num } from '@/lib/format'
 import { orderRecordName, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type DirectOrderCandidate, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
+import { toneTint } from '@/lib/job-requests'
+import { CopyButton } from '@/components/workspace/copy-button'
+import { OrderSharing } from './order-sharing'
 import { orderShareContent } from '@/lib/order-share'
 
 const field = 'h-10 rounded-md border border-input bg-background px-2 text-[12px] outline-none focus-visible:border-ring'
@@ -55,6 +62,10 @@ function OrderMetadata({ order, showFulfillmentDate = false, onFulfillmentChange
   </div>
 }
 
+function OrderFulfillment({ order }: { order: Order }) {
+  return <PartnerFulfillment method={order.fulfillmentMethod} date={order.fulfillmentDate} />
+}
+
 /** Compact order rows open the supplier's dedicated order page. */
 export function PartnerOrderCard({ order, supplierId }: { order: Order; supplierId: number }) {
   return <Link href={`/partner/${supplierId}/orders/${order.id}`} aria-label={`${ORDER_STATUS_META[order.status].label} order ${orderRecordName(order)}`}
@@ -62,9 +73,11 @@ export function PartnerOrderCard({ order, supplierId }: { order: Order; supplier
     className={cn('grid flex-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-4 py-4 no-underline transition-colors hover:bg-lps-tint sm:grid-cols-[8.5rem_minmax(0,1fr)_6.5rem] sm:gap-4 sm:px-5', orderBorder)}>
     <span className="col-start-1 row-start-1"><OrderStatusPill status={order.status} /></span>
     <div className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-col gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
-      <span className="truncate text-[16px] font-semibold leading-tight text-foreground">Order {orderRecordName(order)}</span>
-      {order.notes && <span className="whitespace-pre-wrap text-[13px] text-muted-foreground [overflow-wrap:anywhere]">{order.notes}</span>}
-      <OrderMetadata order={order} />
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="min-w-0 truncate text-[16px] font-semibold leading-tight text-foreground" title={order.jobNames?.join(' · ') || orderRecordName(order)}>{order.jobNames?.join(' · ') || orderRecordName(order)}</span>
+        <div className="shrink-0"><OrderFulfillment order={order} /></div>
+      </div>
+      {order.noteForSupplier && <span className="whitespace-pre-wrap text-[13px] text-muted-foreground [overflow-wrap:anywhere]" title={order.noteForSupplier}>{order.noteForSupplier}</span>}
     </div>
     <span className="col-start-2 row-start-1 text-right text-[15px] font-semibold tabular-nums text-foreground sm:col-start-3 sm:w-[6.5rem]">{money(orderSubtotal(order)) || '—'}</span>
   </Link>
@@ -77,12 +90,12 @@ export type OrderFilter = (typeof ORDER_BUCKETS)[number]
 export function OrderStatusFilters({ orders, selected, onChange }: { orders: Order[]; selected: readonly OrderFilter[]; onChange: (value: OrderFilter[]) => void }) {
   return <div role="group" aria-label="Order work buckets" className="flex gap-2 overflow-x-auto">
     {(['all', ...ORDER_BUCKETS] as const).map((status) => {
-      const label = status === 'all' ? 'Select all' : ORDER_STATUS_META[status].label
+      const label = status === 'all' ? 'All' : status === 'order_ready' ? 'Ready' : ORDER_STATUS_META[status].label
       const count = status === 'all' ? orders.length : orders.filter((order) => order.status === status).length
-      const active = status === 'all' ? ORDER_BUCKETS.every((bucket) => selected.includes(bucket)) : selected.includes(status)
+      const active = status === 'all' ? ORDER_BUCKETS.every((bucket) => selected.includes(bucket)) : selected.length === 1 && selected.includes(status)
       return <button key={status} type="button" data-order-bucket={status} aria-pressed={active}
         aria-label={status === 'all' ? `Select all order buckets, ${count} open orders` : `${label}: ${count} orders, ${active ? 'selected' : 'not selected'}`}
-        onClick={() => onChange(status === 'all' ? [...ORDER_BUCKETS] : active ? selected.filter((bucket) => bucket !== status) : [...selected, status])}
+        onClick={() => onChange(status === 'all' ? [...ORDER_BUCKETS] : [status])}
         style={orderPalette(status)}
         className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2', orderBorder, orderText,
           active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)] dark:hover:bg-[var(--order-dark-bg)]')}>
@@ -99,6 +112,8 @@ export function OrderViewControls({ value, onChange, includeOrders = false, floa
   </div>
 }
 
+type OrderItemEditor = (item: OrderItem, column: string, value: string) => Promise<void>
+
 type OrderLine = { order: Order; item: OrderItem }
 const itemColors: Record<string, string> = {
   available: 'text-[#126B36] dark:text-[#79D99B]', need_to_order: 'text-[#075EA8] dark:text-[#7FC4FF]',
@@ -113,7 +128,23 @@ function OrderItemStatus({ status, onChange }: { status: string; onChange?: (sta
   return <span className={cn('inline-flex min-h-7 items-center rounded-full border border-current px-2.5 text-[12px] font-medium', itemColors[status] ?? 'text-muted-foreground')}>{ORDER_ITEM_STATUS_LABELS[status] ?? status}</span>
 }
 
-function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete }: { lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void }) {
+const supplierNoteFields = [
+  { key: 'noteForSupplier', label: 'Note for supplier' },
+  { key: 'noteFromSupplier', label: 'Note from supplier' },
+] as const
+const customerNoteFields = [
+  { key: 'noteFromCustomer', label: 'Note from customer' },
+  { key: 'noteForCustomer', label: 'Note for customer' },
+] as const
+
+function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDelete, onPriceChange, onEdit }: { onEdit?: OrderItemEditor; lines: OrderLine[]; supplierId?: number; showOrder?: boolean; onStatusChange?: (item: OrderItem, status: string) => void; onDelete?: (item: OrderItem) => void; onPriceChange?: (item: OrderItem, price: string) => void }) {
+  const cell = (item: OrderItem, column: string, value: string | number | null | undefined, numeric = false) => onEdit
+    ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} align={numeric ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} />
+    : <span>{column === 'unit_price' ? money(value) || '—' : numeric ? num(value) : value || '—'}</span>
+  const plantNote = (item: OrderItem) => onEdit
+    ? <EditableTextarea table="order_items" id={item.id} column="note_for_supplier" value={item.noteForSupplier} placeholder="Add note…" editLabel={`Note to supplier for ${item.name}`} compact onCommit={(value) => onEdit(item, 'note_for_supplier', value)} onSaved={() => {}} />
+    : item.noteForSupplier && <span className="block whitespace-pre-wrap px-1.5 text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]">{item.noteForSupplier}</span>
+  const noteFields = supplierId == null ? [supplierNoteFields[1], customerNoteFields[1]] : supplierNoteFields
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
     if (!window.matchMedia) return
@@ -126,39 +157,60 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   const source = (order: Order) => supplierId != null && showOrder
     ? <Link href={`/partner/${supplierId}/orders/${order.id}`} className="font-semibold text-primary underline underline-offset-2">{orderRecordName(order)}</Link> : null
   const allocations = (item: OrderItem) => supplierId == null && item.allocations?.map((allocation) => <p key={allocation.jobRequestItemId} className="m-0 mt-1 text-[11px] text-muted-foreground">JR-{allocation.jobRequestId}{allocation.jobName ? ` · ${allocation.jobName}` : ''} · {num(allocation.quantity)}</p>)
+  if (supplierId != null) return <div className="min-w-0 space-y-2" aria-label="Order plants" data-testid={mobile ? "order-mobile-lines" : undefined}>
+    {!mobile && <div className="overflow-x-auto"><table className="w-full min-w-[780px] border-separate border-spacing-y-2 text-left text-[12.5px]">
+      <thead className="bg-secondary/60 text-[10.5px] text-muted-foreground"><tr>{showOrder && <th className="p-2">Order</th>}{['Status', 'Qty', 'Size', 'Plant name', 'Notes from supplier', 'Price'].map((label) => <th key={label} className="p-2 last:text-right">{label}</th>)}</tr></thead>
+      <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="bg-card align-top">
+        {showOrder && <td className="p-3">{source(order)}</td>}
+        <td className={cn('rounded-l-xl border-y border-l border-border p-3', itemColors[item.status])}><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></td>
+        <td className="border-y border-border p-3 tabular-nums">{num(item.quantity)}</td><td className="border-y border-border p-3">{item.size || '—'}</td>
+        <td className="min-w-48 border-y border-border p-3"><span className="font-semibold">{item.name}</span>{item.noteForSupplier && <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.noteForSupplier}</p>}</td>
+        <td className="min-w-40 border-y border-border p-3 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.noteFromSupplier || '—'}</td>
+        <td className="w-28 rounded-r-xl border-y border-r border-border p-3"><AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} display={money(item.unitPrice)} editable={!!onPriceChange} placeholder="—" ariaLabel={`Price for ${item.name}`} inputMode="decimal" align="right" plain onCommit={(price) => onPriceChange?.(item, price)} /></td>
+      </tr>)}</tbody>
+    </table></div>}
+    {mobile && lines.map(({ order, item }, index) => <article aria-label={`Line ${index + 1}, ${item.name}`} key={`${order.id}:${item.id}`} className="space-y-3 rounded-xl border border-border bg-card p-3">
+      {showOrder && source(order)}
+      <OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} />
+      <div><p className="m-0 font-semibold">{item.name}</p><p className="m-0 text-[12px] text-muted-foreground">Qty {num(item.quantity)} · {item.size || '—'}</p>{item.noteForSupplier && <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] text-muted-foreground">{item.noteForSupplier}</p>}</div>
+      <div className="text-[12px]"><span className="text-muted-foreground">Notes from supplier</span><p className="m-0 whitespace-pre-wrap">{item.noteFromSupplier || '—'}</p></div>
+      <label className="flex items-center justify-between gap-3 text-[12px]">Price<AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} display={money(item.unitPrice)} editable={!!onPriceChange} placeholder="—" ariaLabel={`Price for ${item.name}`} inputMode="decimal" align="right" touch onCommit={(price) => onPriceChange?.(item, price)} /></label>
+    </article>)}
+  </div>
   if (mobile) return <div className="min-w-0 space-y-3" data-testid="order-mobile-lines">
     {lines.map(({ order, item }, index) => <article key={`${order.id}:${item.id}`} aria-label={`Line ${index + 1}, ${item.name}`} className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]">
-      <div className="min-w-0 border-b border-lps-hair px-3 py-3">
+      <div className="min-w-0 border-b border-lps-hair px-1.5 py-1">
         {showOrder && <div className="mb-2 text-[12px]">{source(order)} <span className="text-muted-foreground">· {ORDER_STATUS_META[order.status].label}</span></div>}
-        <p className="m-0 text-[15px] font-bold leading-5 text-foreground">{item.name}</p>
-        <p className="m-0 mt-0.5 text-[12px] text-muted-foreground">Quantity {num(item.quantity)}{item.size ? ` · ${item.size}` : ''}</p>
+        <p className="m-0 text-[15px] font-bold leading-5 text-foreground">{cell(item, 'name', item.name)}</p>
+        {plantNote(item)}
+        <div className="mt-0.5 grid grid-cols-2 gap-2 text-[12px] text-muted-foreground"><label>Quantity{cell(item, 'quantity', item.quantity, true)}</label><label>Size{cell(item, 'size', item.size)}</label></div>
         {allocations(item)}
       </div>
       <dl className="m-0 grid min-w-0 grid-cols-2 gap-3 p-3">
         <div className="col-span-2 space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Status</dt><dd className="m-0"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></dd></div>
-        <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.unitPrice) || '—'}</dd></div>
+        <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Unit price</dt><dd className="m-0 text-[13px] tabular-nums">{cell(item, 'unit_price', item.unitPrice, true)}</dd></div>
         <div className="space-y-1"><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Total</dt><dd className="m-0 text-[13px] tabular-nums">{money(item.total) || '—'}</dd></div>
-        <div className="col-span-2 flex items-end justify-between gap-2 space-y-1"><div><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Nursery notes</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{item.notes || '—'}</dd></div>{onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
+        <div className="col-span-2 flex items-end justify-between gap-2 space-y-1"><div className="space-y-2">{noteFields.map(({ key, label }) => <div key={key}><dt className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">{label}</dt><dd className="m-0 whitespace-pre-wrap text-[13px]">{cell(item, key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`), item[key])}</dd></div>)}</div>{onDelete && <button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
       </dl>
     </article>)}
   </div>
-  return <div className="overflow-x-auto rounded-xl border border-border bg-card">
-    <table className="w-full min-w-[700px] text-left text-[13px]">
-      <thead className="border-b border-border bg-secondary/60 text-[10.5px] font-bold uppercase tracking-[.04em] text-muted-foreground"><tr>{showOrder && <th className="px-3 py-3">Order</th>}<th className="px-3 py-3 text-right">Quantity</th><th className="px-3 py-3">Plant / size</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Unit price</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3">Nursery notes</th>{onDelete && <th className="w-12" aria-label="Actions" />}</tr></thead>
-      <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-border/50 align-top last:border-0">
-        {showOrder && <td className="px-3 py-3">{source(order)}<span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">{ORDER_STATUS_META[order.status].label}</span></td>}
-        <td className="px-3 py-3 text-right tabular-nums">{num(item.quantity)}</td>
-        <td className="min-w-40 px-3 py-3"><span className="font-semibold">{item.name}</span>{item.size && <span className="mt-1 block text-[12px] text-muted-foreground">{item.size}</span>}{allocations(item)}</td>
-        <td className="whitespace-nowrap px-3 py-3"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></td>
-        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.unitPrice) || '—'}</td><td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(item.total) || '—'}</td>
-        <td className="min-w-36 px-3 py-3"><p className="m-0 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item.notes || '—'}</p></td>{onDelete && <td className="px-2 py-2 text-center"><button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button></td>}
+  return <div className="overflow-x-auto border-y border-border bg-card">
+    <table className="w-full min-w-[700px] text-left text-[12.5px]">
+      <thead className="border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"><tr>{showOrder && <th className="px-1.5 py-1">Order</th>}<th className="px-1.5 py-1 text-right">Quantity</th><th className="px-1.5 py-1">Size</th><th className="px-1.5 py-1">Plant name</th><th className="px-1.5 py-1">Status</th><th className="px-1.5 py-1 text-right">Unit price</th><th className="px-1.5 py-1 text-right">Total</th><>{noteFields.map(({ key, label }) => <th key={key} className="px-1.5 py-1">{label}</th>)}</>{onDelete && <th className="w-12" aria-label="Actions" />}</tr></thead>
+      <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="border-b border-lps-hair align-middle last:border-0" style={{ background: toneTint(item.status === 'available' ? 'green' : item.status === 'unavailable' ? 'red' : item.status === 'diff_size_qty_sub' ? 'amber' : item.status === 'pending' ? 'grey' : 'teal') }}>
+        {showOrder && <td className="px-1.5 py-1">{source(order)}<span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">{ORDER_STATUS_META[order.status].label}</span></td>}
+        <td className="px-1.5 py-1 text-right tabular-nums">{cell(item, 'quantity', item.quantity, true)}</td>
+        <td className="min-w-24 px-1.5 py-1">{cell(item, 'size', item.size)}</td><td className="min-w-40 px-1.5 py-1">{cell(item, 'name', item.name)}{plantNote(item)}{allocations(item)}</td>
+        <td className="whitespace-nowrap px-1.5 py-1"><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></td>
+        <td className="whitespace-nowrap px-1.5 py-1 text-right tabular-nums">{cell(item, 'unit_price', item.unitPrice, true)}</td><td className="whitespace-nowrap px-1.5 py-1 text-right tabular-nums">{money(item.total) || '—'}</td>
+        {noteFields.map(({ key }) => <td key={key} className="min-w-36 px-1.5 py-1"><p className="m-0 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{cell(item, key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`), item[key])}</p></td>)}{onDelete && <td className="px-2 py-2 text-center"><button type="button" aria-label={`Delete ${item.name} from order`} title="Delete order row" onClick={() => onDelete(item)} className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button></td>}
       </tr>)}</tbody>
     </table>
   </div>
 }
 
 /** The same rows serve the page and the supplier's cross-order views. */
-export function OrderLineGroups({ orders, groupBy, supplierId, onStatusChange }: { orders: Order[]; groupBy: 'status' | 'plant'; supplierId?: number; onStatusChange?: (item: OrderItem, status: string) => void }) {
+export function OrderLineGroups({ orders, groupBy, supplierId, onStatusChange, onEdit }: { onEdit?: OrderItemEditor; orders: Order[]; groupBy: 'status' | 'plant'; supplierId?: number; onStatusChange?: (item: OrderItem, status: string) => void }) {
   const groups = new Map<string, { label: string; lines: OrderLine[] }>()
   for (const order of orders) for (const item of order.items) {
     const key = groupBy === 'status' ? item.status : item.name.trim().toLocaleLowerCase()
@@ -168,22 +220,13 @@ export function OrderLineGroups({ orders, groupBy, supplierId, onStatusChange }:
   return <div className="flex flex-col gap-3">
     {[...groups].map(([key, group]) => <section key={key} aria-label={`${groupBy === 'status' ? 'Status' : 'Plant'}: ${group.label}`} className="min-w-0 space-y-2">
       <h2 className="m-0 px-1 py-1 text-[13px] font-semibold">{group.label} <span className="ml-1 text-muted-foreground">({group.lines.length})</span></h2>
-      <OrderLines lines={group.lines} supplierId={supplierId} showOrder={supplierId != null} onStatusChange={onStatusChange} />
+      <OrderLines lines={group.lines} supplierId={supplierId} showOrder={supplierId != null} onStatusChange={onStatusChange} onEdit={onEdit} />
     </section>)}
   </div>
 }
 
 function OrderSummary({ order }: { order: Order }) {
-  return <section aria-label="Order summary" className="rounded-2xl border border-border bg-card px-4 py-5 md:px-6 md:py-6">
-    <div className="grid grid-cols-3 items-end gap-x-2 gap-y-4 min-[900px]:grid-cols-8">
-      {Object.entries(ORDER_ITEM_STATUS_LABELS).map(([status, label]) => <div key={status} className="flex min-w-0 flex-col items-center gap-2">
-        <span className="text-center text-[11px] text-muted-foreground md:text-[12.5px]">{label}</span>
-        <span className={cn('text-[17px] font-semibold tabular-nums leading-none', itemColors[status])}>{order.items.filter((item) => item.status === status).length || '-'}</span>
-      </div>)}
-      <div className="flex flex-col gap-2 border-t border-border pt-3 min-[900px]:items-center min-[900px]:border-0 min-[900px]:pt-0"><span className="text-[11px] text-muted-foreground md:text-[12.5px]">Total Items</span><span className="text-[17px] font-semibold tabular-nums leading-none">{order.items.length}</span></div>
-      <div className="col-span-2 flex min-w-0 flex-col items-end gap-2 border-t border-border pt-3 min-[900px]:col-span-1 min-[900px]:border-0 min-[900px]:pt-0"><span className="text-[10.5px] text-lps-dim">Subtotal</span><span className="max-w-full break-words text-[20px] font-semibold tabular-nums leading-none">{money(orderSubtotal(order)) || '—'}</span></div>
-    </div>
-  </section>
+  return <section aria-label="Order summary"><SummaryStrip items={order.items} subtotal={orderSubtotal(order)} statusOptions={Object.entries(ORDER_ITEM_STATUS_LABELS).map(([value, label]) => ({ value, label }))} /></section>
 }
 
 function OrderRequestLinks({ order, supplierId }: { order: Order; supplierId?: number }) {
@@ -197,16 +240,16 @@ function OrderPrintSheet({ order }: { order: Order }) {
   useEffect(() => setNode(document.body), [])
   if (!node) return null
   return createPortal(<div id="order-print-sheet" className="hidden print:block" aria-hidden>
-    <h1 className="mb-2 text-[18px] font-bold">Order {orderRecordName(order)}</h1>
+    <h1 className="mb-2 text-[18px] font-bold">{orderRecordName(order)}</h1>
     <p className="text-[12px]">{order.supplierName} · {ORDER_STATUS_META[order.status].label}</p>
-    <OrderMetadata order={order} showFulfillmentDate />
-    {order.notes && <p className="whitespace-pre-wrap text-[12px]">Note from Local Plant Supply: {order.notes}</p>}
-    {order.supplierNotes && <p className="whitespace-pre-wrap text-[12px]">Supplier note: {order.supplierNotes}</p>}
+    <OrderFulfillment order={order} />
+    {order.noteForSupplier && <p className="whitespace-pre-wrap text-[12px]">Note for supplier: {order.noteForSupplier}</p>}
+    {order.noteFromSupplier && <p className="whitespace-pre-wrap text-[12px]">Note from supplier: {order.noteFromSupplier}</p>}
     <p className="text-[11px]">Availability requests: {order.availabilityRequestIds.map((id) => order.availabilityRequestNames?.[id] || `AR-${id}`).join(', ') || '—'}</p>
     <table className="mt-3 w-full border-collapse text-left text-[11px] [&_td]:border [&_td]:border-neutral-400 [&_td]:p-2 [&_th]:border [&_th]:border-neutral-400 [&_th]:p-2">
-      <thead><tr>{['Plant / size', 'Quantity', 'Status', 'Unit price', 'Total', 'Nursery notes'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
-      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td>{item.name}{item.size ? ` · ${item.size}` : ''}</td><td>{num(item.quantity)}</td><td>{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td>{money(item.unitPrice) || '—'}</td><td>{money(item.total) || '—'}</td><td className="whitespace-pre-wrap">{item.notes}</td></tr>)}</tbody>
-      <tfoot><tr><td colSpan={6}>{orderRecordName(order)} · Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
+      <thead><tr>{['Plant / size', 'Quantity', 'Status', 'Unit price', 'Total', 'Note for supplier', 'Note from supplier'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
+      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td>{item.name}{item.size ? ` · ${item.size}` : ''}</td><td>{num(item.quantity)}</td><td>{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td>{money(item.unitPrice) || '—'}</td><td>{money(item.total) || '—'}</td><td className="whitespace-pre-wrap">{item.noteForSupplier}</td><td className="whitespace-pre-wrap">{item.noteFromSupplier}</td></tr>)}</tbody>
+      <tfoot><tr><td colSpan={7}>{orderRecordName(order)} · Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
     </table>
   </div>, node)
 }
@@ -215,7 +258,7 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const [date, setDate] = useState(order.fulfillmentDate ?? '')
-  const [note, setNote] = useState(order.supplierNotes ?? '')
+  const [note, setNote] = useState(order.noteFromSupplier ?? '')
   const confirming = order.status === 'new'
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null
@@ -227,15 +270,15 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
     <form className="flex flex-col gap-4" onSubmit={async (event) => {
       event.preventDefault()
       if (busy || !date) return
-      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, supplierNotes: note })) onClose()
+      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, noteFromSupplier: note })) onClose()
     }}>
-      <h2 id={titleId} className="m-0 text-[17px] font-semibold">{confirming ? 'Confirm order' : 'Fulfillment details'} · {orderRecordName(order)}</h2>
+      <h2 id={titleId} className="m-0 text-[17px] font-semibold">{confirming ? 'Acknowledge Received' : 'Fulfillment details'} · {orderRecordName(order)}</h2>
       <div className="space-y-1"><span className="block text-[11px] text-muted-foreground">Customer request</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">Fulfillment date<input aria-label={`Fulfillment date for ${orderRecordName(order)}`} required type="date" className={`${field} w-full min-w-0`} value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-[12px] font-semibold">Note for this order<textarea aria-label="Note for this order" className="min-h-24 rounded-md border border-input bg-background p-2 text-[13px] font-normal" rows={3} maxLength={10000} value={note} disabled={busy} onChange={(event) => setNote(event.target.value)} placeholder="Timing or other order details…" /></label>
-      {confirming && <p className="m-0 text-[12px] text-muted-foreground">Confirm your fulfillment date to move this order to Processing.</p>}
+      {confirming && <p className="m-0 text-[12px] text-muted-foreground">Set your fulfillment date to move this order to Processing.</p>}
       {error && <p role="alert" className="m-0 text-[12px] text-destructive">{error}</p>}
-      <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy || !date}>{busy ? 'Saving…' : confirming ? 'Confirm order' : 'Save details'}</button></div>
+      <div className="flex justify-end gap-2"><button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className={primary} disabled={busy || !date}>{busy ? 'Saving…' : confirming ? 'Acknowledge Received' : 'Save details'}</button></div>
     </form>
   </dialog>, document.body)
 }
@@ -301,7 +344,7 @@ function ShareOrderButton({ order }: { order: Order }) {
     } finally { setCopying(false) }
   }
   return <span className="inline-flex flex-wrap items-center gap-2 print:hidden">
-    <button type="button" className={cn(button, 'gap-1.5')} aria-label={`Share order ${orderRecordName(order)}`} title="Copy order with customer details as HTML" disabled={copying} onClick={() => void copy()}><Share2 aria-hidden="true" size={14} />{copying ? 'Copying…' : 'Share'}</button>
+    <CopyButton aria-label={`Copy order ${orderRecordName(order)}`} title="Copy order with customer details as HTML" disabled={copying} onClick={() => void copy()}><Copy aria-hidden="true" className="size-3.5" />{copying ? 'Copying…' : 'Copy order'}</CopyButton>
     {message && <span role={failed ? 'alert' : 'status'} className={cn('text-[11px]', failed ? 'text-destructive' : 'text-muted-foreground')}>{message}</span>}
   </span>
 }
@@ -333,6 +376,15 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
     finally { setBusy(false) }
   }
 
+  async function editItem(item: OrderItem, column: string, value: string) {
+    const response = await fetch(`/api/orders/${order.id}/items/${item.id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ column, value }),
+    })
+    const result = await response.json() as { error?: string }
+    if (!response.ok) throw new Error(result.error ?? 'Could not save order item')
+    await onChanged?.()
+  }
+
   async function writeItemStatus(item: OrderItem, status: string) {
     if (!editable || busy) return false
     setBusy(true); setError(null)
@@ -348,19 +400,23 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
     } catch (error) { setError((error as Error).message); return false } finally { setBusy(false) }
   }
 
-  function requestItemStatus(item: OrderItem, status: string) {
-    if (status !== item.status) setStatusUpdate({ item, status })
-  }
-
-  async function removeItem(item: OrderItem) {
-    if (!editable || busy || !window.confirm(`Delete ${item.name}${item.size ? ` · ${item.size}` : ''} from ${orderRecordName(order)}?`)) return
+  async function writeItemPrice(item: OrderItem, value: string) {
+    const price = value.trim() === '' ? null : Number(value)
+    if (price !== null && (!Number.isFinite(price) || price <= 0 || price >= 100000000 || Math.abs(price * 100 - Math.round(price * 100)) > 0.000001)) {
+      setError('Enter a positive price with at most two decimal places.'); return
+    }
+    if (!editable || busy || price === item.unitPrice) return
     setBusy(true); setError(null)
     try {
-      const response = await fetch(`/api/orders/${order.id}/items/${item.id}`, { method: 'DELETE' })
-      const body = await response.json().catch(() => ({})) as { error?: string }
-      if (!response.ok) throw new Error(body.error ?? 'Could not delete order row')
+      const res = await fetch(`/api/partner/${supplierId}/orders/${order.id}/items/${item.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ unitPrice: price }) })
+      const body = await res.json() as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not save price')
       await onChanged?.()
     } catch (error) { setError((error as Error).message) } finally { setBusy(false) }
+  }
+
+  function requestItemStatus(item: OrderItem, status: string) {
+    if (status !== item.status) setStatusUpdate({ item, status })
   }
 
   async function saveStagedStatuses() {
@@ -381,33 +437,28 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
   // Confirming a supplier order belongs in the supplier portal. Chris's job
   // cards remain a compact view/control surface for arrangement and tracking.
   const actions = editable && (order.status === 'new'
-    ? supplierId != null && <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Confirm order</button>
-    : <><button type="button" className={button} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Edit fulfillment details</button>{order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy || !order.fulfillmentDate} onClick={() => void write({ status: 'order_ready' })}>{busy ? 'Saving…' : 'Mark Order Ready'}</button>}</>)
+    ? supplierId != null && <button type="button" className={cn(primary, 'min-h-11 flex-none print:hidden')} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Acknowledge Received</button>
+    : <><button type="button" className={button} disabled={busy} onClick={() => { setError(null); setConfirmOpen(true) }}>Edit fulfillment details</button>{order.status === 'processing' && <button type="button" className={cn(primary, 'min-h-11', supplierId != null && 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy || !order.fulfillmentDate} onClick={() => void write({ status: 'order_ready' })}>{busy ? 'Saving…' : 'Mark as Ready'}</button>}</>)
 
   const fulfillmentChange = editable && canEditFulfillmentMethod ? (method: FulfillmentMethod | null) => void write({ fulfillmentMethod: method }) : undefined
 
   if (supplierId != null) return <div className="flex min-h-0 min-w-0 flex-1 flex-col">
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-5 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 [&>*]:shrink-0">
       {error && !confirmOpen && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
-      <section aria-label="Order details" className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-3">
-        <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-secondary/60 px-3 py-2.5">
-          <OrderStatusPill status={order.status} /><h1 className="m-0 min-w-0 flex-1 text-[18px] font-semibold leading-6 text-foreground [overflow-wrap:anywhere]">Order {orderRecordName(order)}</h1>
-          {order.status === 'new' && actions}
-          <OrderMetadata order={order} showFulfillmentDate />
-        </header>
-        <div className="space-y-3 px-2 pb-1"><OrderRequestLinks order={order} supplierId={supplierId} />
-          {!canEdit && !closed && <p className="m-0 text-[12px] text-muted-foreground">This account has read-only access to this order.</p>}
-          {order.notes && <div className="space-y-1"><span className="text-[10.5px] font-medium text-lps-dim">Note from Local Plant Supply</span><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.notes}</p></div>}
-          {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Confirmed: {formatMonthDay(order.confirmationDate)}</p>}
-        </div>
-      </section>
+      <PartnerDetailHeader name={order.jobNames?.join(' · ') || orderRecordName(order)} status={<OrderStatusPill status={order.status} />} schedule={<OrderFulfillment order={order} />}
+        contacts={order.customerDetails ?? []} note={order.noteForSupplier}>
+        <ARJobSchedules schedules={order.jobSchedules} />
+        <OrderRequestLinks order={order} supplierId={supplierId} />
+        {!canEdit && !closed && <p className="m-0 text-[12px] text-muted-foreground">This account has read-only access to this order.</p>}
+        {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Acknowledged: {formatMonthDay(order.confirmationDate)}</p>}
+      </PartnerDetailHeader>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
-      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} onDelete={editable ? removeItem : undefined} />
-      {order.supplierNotes && <section aria-label="Supplier note" className="space-y-2 rounded-xl border border-border bg-card p-4"><h2 className="m-0 text-[13px] font-semibold">Note for this order</h2><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.supplierNotes}</p></section>}
+      <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} onPriceChange={editable && !busy ? writeItemPrice : undefined} />
+      {order.noteFromSupplier && <section aria-label="Note from supplier" className="space-y-2 rounded-xl border border-border bg-card p-4"><h2 className="m-0 text-[13px] font-semibold">Note for this order</h2><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.noteFromSupplier}</p></section>}
       {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
-    {editable && order.status !== 'new' && <footer aria-label="Order actions" className="flex flex-none flex-wrap items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
+    {editable && <footer aria-label="Order actions" className="flex flex-none flex-wrap items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
       {actions}
     </footer>}
     {editable && Object.keys(stagedStatuses).length > 0 && <footer aria-label="Save order status changes" className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 py-3 md:px-4 print:hidden"><button type="button" className={cn(primary, 'min-h-12 flex-1 text-[15px] min-[900px]:max-w-sm')} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button><span className="text-[11.5px] text-muted-foreground">Sends one update to Rosie.</span></footer>}
@@ -420,24 +471,36 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
     <header className="flex flex-col gap-1.5 px-3.5 py-2.5 hover:bg-lps-tint">
       <div className="flex min-w-0 items-start gap-2.5">
         <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="flex size-6 flex-none cursor-pointer items-center justify-center self-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={14} className={expanded ? '' : '-rotate-90'} /></button>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <OrderStatusPill status={order.status} /><span className="font-semibold text-foreground">Order {orderRecordName(order)}</span><span className="text-[12px] text-muted-foreground">{order.supplierName}</span>
-            <span className="ml-auto text-[14px] font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+            <OrderStatusPill status={order.status} />
+            <span className="min-w-0 truncate text-[12.5px] font-semibold text-primary">{orderRecordName(order)}</span>
+            <div className="ml-auto flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              <OrderMetadata order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
+              <span aria-hidden="true">:</span><span>{order.items.length} {order.items.length === 1 ? 'item' : 'items'}</span>
+              <span aria-hidden="true">:</span><span className="font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
+            </div>
           </div>
-          <OrderMetadata order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
-          <ShareOrderButton order={order} />
-          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground"><span>{order.items.length} items</span><span>Confirmation date: {formatMonthDay(order.confirmationDate) || '—'}</span>{actions}{Object.keys(stagedStatuses).length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : `Save ${Object.keys(stagedStatuses).length} status change${Object.keys(stagedStatuses).length === 1 ? '' : 's'}`}</button>}</div>
         </div>
+        <ShareOrderButton order={order} />
+      </div>
+      {canEdit && <OrderSharing key={order.id} order={order} closed={closed} onChanged={onChanged} />}
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold">
+          <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
+          {order.noteFromSupplier && <span title={order.noteFromSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteFromSupplier}</span></span>}
+        </span>
+        <span>Fulfillment: <span className="font-semibold text-foreground">{formatMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
+        {order.confirmationDate && <span>Acknowledged: {formatMonthDay(order.confirmationDate)}</span>}
+        <div className="ml-auto"><OrderRequestLinks order={order} /></div>
       </div>
     </header>
     {error && !confirmOpen && <p role="alert" className="mx-3.5 mt-2 text-[12px] text-destructive">{error}</p>}
-    <div id={contentId} hidden={!expanded} className="space-y-3 border-t border-border p-3.5">
-      <OrderRequestLinks order={order} />
-      {order.notes && <p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order.notes}</p>}
-      {order.supplierNotes && <div><h4 className="text-[12px] font-semibold">Supplier note</h4><p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order.supplierNotes}</p></div>}
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-[13px] font-semibold">Plants · {order.items.length}</h4><OrderViewControls value={view} onChange={setView} /></div>
-      <OrderLineGroups orders={[{ ...order, items: order.items.map((item) => stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item) }]} groupBy={view === 'plant' ? 'plant' : 'status'} onStatusChange={editable ? requestItemStatus : undefined} />
+    <div id={contentId} hidden={!expanded} className="space-y-3 border-t border-border">
+      {editable && <div className="flex flex-wrap items-center gap-2 bg-lps-tint px-3.5 py-2">{actions}{Object.keys(stagedStatuses).length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void saveStagedStatuses()}>{busy ? 'Saving…' : 'Save status changes'}</button>}</div>}
+      {[...supplierNoteFields, ...customerNoteFields].map(({ key, label }) => order[key] && <div key={key} className="px-3.5"><h4 className="text-[12px] font-semibold">{label}</h4><p className="whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{order[key]}</p></div>)}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5"><h4 className="text-[13px] font-semibold">Plants · {order.items.length}</h4><OrderViewControls value={view} onChange={setView} /></div>
+      <OrderLineGroups orders={[{ ...order, items: order.items.map((item) => stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item) }]} groupBy={view === 'plant' ? 'plant' : 'status'} onEdit={editable ? editItem : undefined} onStatusChange={editable ? requestItemStatus : undefined} />
     </div>
     {editable && confirmOpen && <OrderConfirmation order={order} busy={busy} error={error} onClose={() => setConfirmOpen(false)} onSave={write} />}
     {editable && statusUpdate && <OrderItemStatusDialog order={order} item={statusUpdate.item} initialStatus={statusUpdate.status} busy={busy} error={error}
@@ -461,7 +524,9 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   const [quantities, setQuantities] = useState<Record<string, string>>({})
   const [confirmed, setConfirmed] = useState(false)
   const [method, setMethod] = useState<FulfillmentMethod | ''>('')
-  const [notes, setNotes] = useState('')
+  const [noteForSupplier, setNoteForSupplier] = useState('')
+  const [noteFromCustomer, setNoteFromCustomer] = useState('')
+  const [noteForCustomer, setNoteForCustomer] = useState('')
   const [createdId, setCreatedId] = useState<number | null>(null)
   const revision = useRef(0)
   const initializedJob = useRef<number | null>(null)
@@ -519,10 +584,10 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   async function create() {
     setCreating(true); setError(null)
     try {
-      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, notes: notes || null, items: useDirect ? selectedDirectItems : selectedItems }) })
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, noteForSupplier: noteForSupplier || null, noteFromCustomer: noteFromCustomer || null, noteForCustomer: noteForCustomer || null, items: useDirect ? selectedDirectItems : selectedItems }) })
       const body = await res.json() as { id: number; error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not create order')
-      setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNotes('')
+      setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNoteForSupplier(''); setNoteFromCustomer(''); setNoteForCustomer('')
       await load(); onChanged?.()
     } catch (error) { setError((error as Error).message) }
     finally { setCreating(false) }
@@ -577,7 +642,9 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
         </div>)}
       </div>}
       {invalidQuantity && <p role="alert" className="text-[12px] text-destructive">Enter positive quantities within the job and supplier quantities remaining.</p>}
-      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note to supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForSupplier} onChange={(event) => setNoteForSupplier(event.target.value)} /></label>
+      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note from customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteFromCustomer} onChange={(event) => setNoteFromCustomer(event.target.value)} /></label>
+      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForCustomer} onChange={(event) => setNoteForCustomer(event.target.value)} /></label>
       <label className="flex items-start gap-2 text-[12px]"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Customer has confirmed the selected quantities for every included job.</label>
       <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !(useDirect ? selectedDirectItems : selectedItems).length || invalidQuantity}>{creating ? 'Creating…' : 'Create new order'}</button></div>
     </form>}

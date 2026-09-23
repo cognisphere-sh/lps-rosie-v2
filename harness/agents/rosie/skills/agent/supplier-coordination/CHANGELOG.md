@@ -1,5 +1,35 @@
 # supplier-coordination — changelog
 
+## 3.24.0
+
+- Resolve order jobs and related ARs through the job-item mappings with supplier scope; remove instructions to inspect a nullable source AR pointer.
+
+## 3.23.0
+
+- Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.
+
+## 3.22.0
+
+- Read job and item customer notes when preparing ARs; preserve supplier-useful requirements in header/line LPS notes with their allocation scope.
+- Relay submitted supplier notes for audience-based updates to job/item external or sourcing notes, splitting mixed content and keeping unsubmitted edits local.
+
+## 3.21.1
+
+- Read job demand from `job_request_items.demanded_quantity` when building availability snapshots; retain per-job allocation `quantity`.
+
+## 3.21.0
+
+- Replace Hidden with AR soft deletion; preserve saved status/token, reject deleted-request work and require explicit AR reopening.
+
+## 3.20.0
+
+- Use `availability_request_jobs` for every AR header relationship; remove the legacy direct job hint and retain header history after line deletion.
+
+## 3.19.0
+
+- Separate line-level LPS instructions from supplier-authored responses; use `lps_notes` below the plant and `supplier_notes` in its own column. Preserve useful customer, variety and special-request details.
+- Use `demanded_quantity` for the AR line total and junction allocations for every job-item association.
+
 ## 3.18.0
 
 - Split supplier work by event/action; retain publication gates, submission-only relays, portal identity, allocation and send-verification rules.

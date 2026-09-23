@@ -25,19 +25,20 @@ No AR, supplier answer or availability override is required.
    SELECT public.create_direct_order(
      $supplierId,
      '[{"job_request_item_id":7,"quantity":10}]'::jsonb,
-     $fulfillmentMethod, $fulfillmentDate, $notes, true
+     $fulfillmentMethod, $fulfillmentDate, $noteForSupplier, true,
+     $noteFromCustomer, $noteForCustomer
    );
    ```
 
-   The final argument represents actual customer commitment, including an
+   The `true` argument represents actual customer commitment, including an
    already committed request relayed by Chris. For multiple jobs, every
    included allocation needs its own customer's acceptance. Set method/date
    only when supported; unknown values stay NULL and do not block creation.
    Never copy customer EDD into the supplier's fulfillment date by assumption.
 4. The transaction creates an Order **New** and its allocations and moves
-   represented Quote/Availability jobs to **Committed**. Its order rows have
-   `availability_request_item_id = NULL` and snapshot job-item name, size, price,
-   shared note and current item status. Do not mark job items available, set
+   represented Quote/Availability jobs to **Committed**. Its order rows link
+   through `order_item_job_request_items` and snapshot job-item name, size, price,
+   `note_for_customer` and current item status. Customer-origin line requirements remain on the job item; order items have no `note_from_customer`. Supplier note fields start NULL; pass header LPS instructions through `p_note_for_supplier`. Do not mark job items available, set
    `available_quantity`, fabricate supplier answers/submissions or confirmation
    dates, or create even a hidden/support AR to enable the order. An explicit
    separate availability instruction follows [supplier responses](supplier-responses.md) with its own provenance.

@@ -281,10 +281,10 @@ export const REQUEST_ITEM_COLS: ColumnDef[] = [
   { key: 'name', label: 'Plant Name', width: 220, minWidth: 150 },
   { key: 'status', label: 'Status', width: 124, minWidth: 104 },
   // Kept beside Status by default because both describe what the customer sees.
-  { key: 'external_notes', label: 'Shared note', width: 180, minWidth: 120 },
+  { key: 'note_for_customer', label: 'Note for customer', width: 180, minWidth: 120 },
   { key: 'unit_price', label: 'Unit price', width: 86, minWidth: 72, align: 'right' },
   { key: 'total', label: 'Total', width: 92, minWidth: 76, align: 'right' },
-  { key: 'sourcing_notes', label: 'Sourcing note', width: 180, minWidth: 120 },
+  { key: 'note_internal', label: 'Internal note', width: 180, minWidth: 120 },
 ]
 
 export type TableId = 'suppliers' | 'plantMaster' | 'plants' | 'customers' | 'requestItems'

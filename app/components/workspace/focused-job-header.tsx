@@ -607,6 +607,7 @@ export function FocusedJobHeader({
       {request.fulfillmentMethod === 'pickup' ? 'Pickup' : 'Delivery'}
     </span>
   )
+  const identityLine = jobRequestIdentityLine(request)
   return (
     <>
       {mobile ? (
@@ -620,9 +621,9 @@ export function FocusedJobHeader({
               <h1 className="m-0 min-w-0">
                 <FocusedJobNameEditor key={request.id} request={request} mobile onSaved={onNameSaved} />
               </h1>
-              {jobRequestIdentityLine(request) && (
+              {identityLine && identityLine !== request.name?.trim() && (
                 <p data-mobile-job-identity className="m-0 min-w-0 break-words text-[11px] font-semibold text-muted-foreground [overflow-wrap:anywhere]">
-                  {jobRequestIdentityLine(request)}
+                  {identityLine}
                 </p>
               )}
               <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">

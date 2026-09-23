@@ -36,6 +36,16 @@ export function onOpenAvailabilityRequest(handler: (arId: number) => void): () =
   return () => window.removeEventListener('lps:open-ar', listener)
 }
 
+export function availabilityRequestDeleted(arId: number): void {
+  window.dispatchEvent(new CustomEvent<number>('lps:ar-deleted', { detail: arId }))
+}
+
+export function onAvailabilityRequestDeleted(handler: (arId: number) => void): () => void {
+  const listener = (event: Event) => handler((event as CustomEvent<number>).detail)
+  window.addEventListener('lps:ar-deleted', listener)
+  return () => window.removeEventListener('lps:ar-deleted', listener)
+}
+
 export interface AvailabilityRequestStatusDetail {
   arId: number
   status: string

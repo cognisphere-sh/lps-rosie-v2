@@ -3,16 +3,20 @@
 Availability requests and orders are separate records. A job can have many
 ARs and orders, and an AR or order can serve several jobs. A consolidated
 grower request may combine compatible quantities from different job items;
-one job item may be split across AR items or orders. Never assume the legacy
-scalar `job_request_id` or `job_request_item_id` is the complete relationship.
+one job item may be split across AR items or orders. All AR job relationships
+live in the junctions: headers have no `job_request_id`, and lines have no direct
+`job_request_item_id`. Header links preserve history after individual job items
+are deleted. The AR line's total requested amount is `demanded_quantity`.
 
 - `availability_request_jobs` connects AR headers to all jobs;
   `availability_request_item_jobs` connects AR rows to job items and preserves
   each allocated `quantity`.
 - `orders` and `order_items` hold supplier-facing commitments;
   `order_item_job_request_items` allocates each order row back to job items.
-  AR-backed order rows retain their `availability_request_item_id` as source
-  evidence; direct order rows have NULL and link to the job items instead.
+  Order rows have no direct AR-item pointer. Resolve related ARs through
+  `order_item_job_request_items` → `availability_request_item_jobs`, restricted
+  to the order's supplier. These are related requests, not proof of which
+  response was used to create the order.
 - Read every allocation before relaying answers, changing quantities or
   creating orders. A combined supplier quantity is a shared total, never the
   amount available to every linked job. Preserve job-specific demand, prices,
@@ -43,6 +47,14 @@ rows exist, use [direct orders](direct-orders.md). Existing ARs do not force a n
 availability round; never fabricate responses or duplicate demand already ordered.
 Preserve existing ARs and their answers; a direct order alone is not permission
 to delete, hide or close a request still serving other work.
+
+The AR-item id in `create_order` is a transient selection used to validate and
+snapshot that response; it is not stored on `order_items`. Remaining AR capacity
+and allocations count active orders for the same supplier and linked job items,
+including direct orders and orders created using another related response.
+Count allocated quantities, never an entire shared order line for every job.
+Orders across all suppliers still consume the job item's remaining customer
+demand. Lost/inactive orders and inactive lines do not consume these limits.
 
 Store a known `orders.fulfillment_method` as `pickup`/`delivery` and
 `orders.fulfillment_date` as the agreed pickup/delivery date, separate from

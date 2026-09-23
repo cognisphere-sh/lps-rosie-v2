@@ -13,9 +13,10 @@ import {
   firstModalFocusTarget,
   validModalFocusTarget,
 } from '@/components/workspace/body-modal-portal'
-import { CloseIcon } from '@/components/workspace/icons'
+import { CloseIcon, TrashIcon } from '@/components/workspace/icons'
 import {
   availabilityRequestStatusChanged,
+  availabilityRequestDeleted,
   onOpenAvailabilityRequest,
 } from '@/lib/chat-bus'
 import { availabilityRecordName, type ARDetail } from '@/lib/availability'
@@ -41,6 +42,7 @@ type WriteOperation =
   | { kind: 'line'; itemId: number; fields: string[]; body: Record<string, unknown> }
   | { kind: 'status'; body: Record<string, unknown> }
   | { kind: 'submit'; body: Record<string, unknown> }
+  | { kind: 'delete'; body: Record<string, unknown> }
 
 function abortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
@@ -254,7 +256,10 @@ export function AvailabilityRequestDrawer() {
         cache: 'no-store',
         signal: controller.signal,
       })
-      if (!response.ok) throw new Error(`AR-${target.id} not found`)
+      if (!response.ok) {
+        if (response.status === 404 && isCurrent(target) && sequence === loadSequence.current && !controller.signal.aborted) setAr(null)
+        throw new Error(`AR-${target.id} not found`)
+      }
       const body = (await response.json()) as { request: ARDetail }
       if (!isCurrent(target) || sequence !== loadSequence.current || controller.signal.aborted) return
       setAr(body.request)
@@ -360,7 +365,7 @@ export function AvailabilityRequestDrawer() {
         lineControllers.current.delete(lineKey)
       } else if (operation.kind === 'status' && statusController.current === controller) {
         statusController.current = null
-      } else if (operation.kind === 'submit' && submitController.current === controller) {
+      } else if ((operation.kind === 'submit' || operation.kind === 'delete') && submitController.current === controller) {
         submitController.current = null
       }
     }
@@ -374,9 +379,9 @@ export function AvailabilityRequestDrawer() {
       const beforeSubmittedAt = arRef.current?.submittedAt
       try {
         const response = await fetch(`/api/availability-requests/${target.id}`, {
-          method: 'PATCH',
+          method: operation.kind === 'delete' ? 'DELETE' : 'PATCH',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(operation.body),
+          body: operation.kind === 'delete' ? undefined : JSON.stringify(operation.body),
           signal: controller.signal,
         })
         if (!latest()) return false
@@ -386,11 +391,22 @@ export function AvailabilityRequestDrawer() {
           setError(failed.error ?? 'Could not save')
         }
 
+        if (operation.kind === 'delete') {
+          if (response.ok) {
+            availabilityRequestDeleted(target.id)
+            close()
+          }
+          return response.ok
+        }
+
         const refreshed = await fetch(`/api/availability-requests/${target.id}`, {
           cache: 'no-store',
           signal: controller.signal,
         })
-        if (!refreshed.ok) throw new Error(`AR-${target.id} not found`)
+        if (!refreshed.ok) {
+          if (refreshed.status === 404 && latest()) setAr(null)
+          throw new Error(`AR-${target.id} not found`)
+        }
         const body = (await refreshed.json()) as { request: ARDetail }
         if (!latest()) return false
         setAr(body.request)
@@ -400,7 +416,7 @@ export function AvailabilityRequestDrawer() {
         return response.ok
       } catch (caught) {
         if (abortError(caught) || !latest()) return false
-        setError(operation.kind === 'submit' ? 'Could not submit request' : 'Could not save')
+        setError(operation.kind === 'delete' ? 'Could not delete request' : operation.kind === 'submit' ? 'Could not submit request' : 'Could not save')
         return false
       } finally {
         release()
@@ -410,7 +426,7 @@ export function AvailabilityRequestDrawer() {
     const result = writeTail.current.then(execute, execute)
     writeTail.current = result.then(() => undefined, () => undefined)
     return result
-  }, [isCurrent, setAr])
+  }, [close, isCurrent, setAr])
 
   const patchLine = useCallback(async (itemId: number, changes: Record<string, string>) => {
     await enqueueWrite({ kind: 'line', itemId, fields: Object.keys(changes), body: { itemId, changes } })
@@ -436,6 +452,23 @@ export function AvailabilityRequestDrawer() {
       }
     }
   }, [enqueueWrite, isCurrent])
+
+  const remove = async () => {
+    const target = sessionRef.current
+    if (!target || !arRef.current || submitToken.current) return
+    if (!window.confirm(`Delete ${availabilityRecordName(arRef.current)}? It will be removed from the app and supplier portal.`)) return
+    const token = Symbol('delete')
+    submitToken.current = token
+    setSaving(true)
+    try {
+      await enqueueWrite({ kind: 'delete', body: {} })
+    } finally {
+      if (submitToken.current === token) {
+        submitToken.current = null
+        if (isCurrent(target)) setSaving(false)
+      }
+    }
+  }
 
   const keepFocusInside = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
@@ -573,6 +606,10 @@ export function AvailabilityRequestDrawer() {
                       onChange={(status) => void enqueueWrite({ kind: 'status', body: { status } })}
                       touch={mobile}
                     />
+                    <button type="button" onClick={() => void remove()} disabled={saving}
+                      className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50">
+                      <TrashIcon size={14} /> Delete request
+                    </button>
                     {ar.shareCustomerDetails && (
                       <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
                         customer shared
@@ -592,31 +629,31 @@ export function AvailabilityRequestDrawer() {
                     )}
                   </dl>
                 </section>
-                <ARSharing key={session.generation} id={ar.id} token={ar.publicToken ?? null} closed={(ar.status === 'closed' || ar.status === 'hidden')}
+                <ARSharing key={session.generation} id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
                   onChange={(publicToken) => {
                     if (isCurrent(session) && arRef.current) setAr({ ...arRef.current, publicToken })
                   }} />
-                {ar.supplierNotes && <div className="rounded-lg border border-border bg-card p-3 text-[12px]">
-                  <div className="font-semibold">Supplier note</div>
-                  <p className="mt-1 whitespace-pre-wrap">{ar.supplierNotes}</p>
+                {ar.noteFromSupplier && <div className="rounded-lg border border-border bg-card p-3 text-[12px]">
+                  <div className="font-semibold">Note from supplier</div>
+                  <p className="mt-1 whitespace-pre-wrap">{ar.noteFromSupplier}</p>
                 </div>}
-                {ar.lpsNotes && (
+                {ar.noteForSupplier && (
                   <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] leading-5 text-foreground">
                     <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
                       Note to supplier
                     </span>
-                    {ar.lpsNotes}
+                    {ar.noteForSupplier}
                   </p>
                 )}
                 <ARLineTable
                   items={ar.items}
-                  editable={ar.status !== 'closed' && ar.status !== 'hidden'}
+                  editable={ar.status !== 'closed'}
                   onPatch={patchLine}
                   onPatchDetails={patchDetails}
                   mobileCards={mobile}
                   drawerModal
                 />
-                {(ar.status === 'closed' || ar.status === 'hidden') && (
+                {ar.status === 'closed' && (
                   <p className="m-0 text-[11.5px] text-muted-foreground">
                     This request is {ar.status}. Reopen it from the status pill to edit plant details and answers, then {ar.submittedAt ? 'Submit again' : 'Submit request'}.
                   </p>
@@ -625,7 +662,7 @@ export function AvailabilityRequestDrawer() {
             )}
           </div>
 
-          {ar && ar.status !== 'closed' && ar.status !== 'hidden' && (
+          {ar && ar.status !== 'closed' && (
             <footer
               data-ar-drawer-footer
               className="flex flex-none flex-col gap-1.5 border-t border-border bg-background pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] min-[900px]:mx-4 min-[900px]:mb-4 min-[900px]:flex-row min-[900px]:items-center min-[900px]:border-t-0 min-[900px]:p-0"

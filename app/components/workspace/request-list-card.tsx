@@ -20,6 +20,7 @@ import { EditableFulfillment, JobMetadata } from '@/components/workspace/job-met
 import { openChat } from '@/lib/chat-bus'
 import { customerThreadId } from '@/lib/customers'
 import { formatMonthDay, money } from '@/lib/format'
+import { jobNameIncludesCustomer } from '@/lib/job-identity'
 import {
   REQUEST_STATUS_OPTIONS,
   requestRef,
@@ -42,14 +43,15 @@ function RequestCardOverview({ request, edit, tone }: {
   const customer = trimmedIdentity(request.customer?.company) ?? trimmedIdentity(request.customer?.name) ?? 'Unassigned customer'
   const retail = request.customer?.type === 'Homeowner/Retail'
   const job = trimmedIdentity(request.name) ?? 'Unnamed job'
+  const fullJobName = jobNameIncludesCustomer(request)
   return <div className="min-w-0 flex-1">
     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} />
       <span className="group/job-name inline-flex min-w-0 max-w-full items-center gap-1 font-semibold">
       <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatMonthDay(request.createdAt) || '—'}`}
-        aria-label={`Open ${requestRef(request.id)} — ${customer} — ${job}`}
+        aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
         className="min-w-0 truncate text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{customer} - <span className="group-has-[input]/job-name:hidden">{job}</span>
+        <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
       </Link>
         <EditableText key={request.id} {...edit} column="name" value={request.name}
           placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
@@ -102,7 +104,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>}
         <RequestCardOverview request={request} edit={edit} tone={tone} />
-        {showActions && <div className="flex flex-none items-center gap-1">
+        {showActions && <div className="flex flex-none items-center gap-1 self-center">
           <CopyQuoteMenu request={request} />
           <JobActionsMenu requestId={request.id} onDelete={onDelete} />
         </div>}

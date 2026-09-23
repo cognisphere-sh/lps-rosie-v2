@@ -43,7 +43,7 @@ export async function PATCH(req: Request, { params }: Context) {
     }
     const update = parsePartnerOrderUpdate(body)
     const orderChanges: OrderHeaderChange[] = []
-    for (const field of ['status', 'fulfillmentDate', 'supplierNotes'] as const) {
+    for (const field of ['status', 'fulfillmentDate', 'noteFromSupplier'] as const) {
       if (field in update && (order[field] ?? null) !== (update[field] ?? null)) {
         orderChanges.push({ field, previous: order[field] ?? null, value: update[field] ?? null })
       }

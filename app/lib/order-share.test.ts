@@ -7,14 +7,17 @@ import type { Order } from './orders'
 test('shared order includes contacts, dates, fulfillment, portal link and escaped table content', () => {
   const order: Order = {
     id: 42, recordName: 'JR-3:Order-2', supplierId: 7, supplierName: 'APS', status: 'new', fulfillmentMethod: 'delivery', fulfillmentDate: null,
-    confirmationDate: null, createdAt: '', notes: null, availabilityRequestIds: [],
+    noteFromCustomer: 'Private customer header', noteForCustomer: 'Private quote update',
+    confirmationDate: null, createdAt: '', noteForSupplier: null, noteFromSupplier: null, availabilityRequestIds: [],
     shareJobs: [{ jobRequestId: 3, jobName: 'Garden', expectedInstallDate: '2026-10-12', shippingAddress: '123 Garden St',
       customer: { name: 'Jane <Doe>', company: 'Garden & Co', email: 'jane@example.com', phone: '555-0100' } },
     { jobRequestId: 4, jobName: 'Patio', expectedInstallDate: null, shippingAddress: null, customer: null }],
-    items: [{ id: 1, availabilityRequestItemId: null, name: '<img src=x onerror=alert(1)>', size: '5 gal', quantity: 2,
-      unitPrice: 10, total: 20, status: 'available', notes: 'Keep shaded\nCall first' }],
+    items: [{ id: 1, name: '<img src=x onerror=alert(1)>', size: '5 gal', quantity: 2,
+      unitPrice: 10, total: 20, status: 'available', noteForCustomer: 'Private customer price', noteForSupplier: 'Handle gently', noteFromSupplier: 'Keep shaded\nCall first' }],
   }
   const { html, text } = orderShareContent(order, 'https://example.com')
+  assert.doesNotMatch(html + text, /Private customer|Private quote/)
+  assert.match(text, /Handle gently/)
   const dom = new JSDOM(html)
   const document = dom.window.document
   assert.equal(document.querySelector('img'), null)
@@ -25,5 +28,9 @@ test('shared order includes contacts, dates, fulfillment, portal link and escape
     assert.ok(document.body.textContent?.includes(expected), expected)
     assert.ok(text.includes(expected), expected)
   }
+  order.publicToken = '11111111-1111-4111-8111-111111111111'
+  const published = orderShareContent(order, 'https://example.com')
+  assert.match(published.text, /Public order: https:\/\/example.com\/public\/orders\/11111111/)
+  assert.doesNotMatch(published.html, /\/partner\//)
   dom.window.close()
 })

@@ -17,8 +17,8 @@ Order creation is placement; an order need not be confirmed first.
    instructions and unrelated notes. Example: `09-22: Wax myrtle 15 G quantity
    10 → 12; pickup moved 09-24 → 09-25.` Use verified values only. This is an
    explicit exception to avoiding history in notes; keep the summary brief
-   and supplier-safe. Do not put it only in job sourcing notes or overwrite
-   `orders.supplier_notes`, which belongs to the supplier. Re-read/guard the
+   and supplier-safe. Do not put it only in job internal notes or overwrite
+   `orders.note_from_supplier`, which belongs to the supplier. Re-read/guard the
    note write against concurrent edits and do not append it again on retry.
 4. Relay the order id, supplier id, current affected job name(s), direct
    supplier-portal order URL, exact verified change summary, affected

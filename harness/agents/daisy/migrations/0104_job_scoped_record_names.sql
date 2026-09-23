@@ -46,7 +46,7 @@ GRANT EXECUTE ON FUNCTION public.assign_job_record_name(text,bigint,bigint) TO s
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT a.id, coalesce(min(l.job_request_id), a.job_request_id) AS job_id
+  FOR r IN SELECT a.id, min(l.job_request_id) AS job_id
     FROM public.availability_requests a LEFT JOIN public.availability_request_jobs l ON l.availability_request_id = a.id
     GROUP BY a.id ORDER BY a.created_at, a.id
   LOOP PERFORM public.assign_job_record_name('AR', r.id, r.job_id); END LOOP;

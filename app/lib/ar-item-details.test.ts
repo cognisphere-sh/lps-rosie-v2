@@ -45,13 +45,13 @@ function setup() {
 
 test('admin details are trimmed, typed and scoped to the active availability line', async () => {
   const { queries, writes, close } = setup()
-  await queries.updateARItemDetails(11, 19, { name: ' Live Oak ', size: ' 30 G ', quantity: ' 24.5 ', lps_notes: ' Friday ' })
+  await queries.updateARItemDetails(11, 19, { name: ' Live Oak ', size: ' 30 G ', demanded_quantity: ' 24.5 ', note_for_supplier: ' Friday ' })
   assert.deepEqual(writes, [{
-    values: { name: 'Live Oak', size: '30 G', quantity: 24.5, lps_notes: 'Friday' },
+    values: { name: 'Live Oak', size: '30 G', demanded_quantity: 24.5, note_for_supplier: 'Friday' },
     filters: { id: 19, availability_request_id: 11, is_active: true },
   }])
-  await queries.updateARItemDetails(11, 19, { size: '', quantity: ' ', lps_notes: '' })
-  assert.deepEqual(writes.at(-1)?.values, { size: null, quantity: null, lps_notes: null })
+  await queries.updateARItemDetails(11, 19, { size: '', demanded_quantity: ' ', note_for_supplier: '' })
+  assert.deepEqual(writes.at(-1)?.values, { size: null, demanded_quantity: null, note_for_supplier: null })
   await assert.rejects(queries.updateARItemDetails(11, 20, { name: 'Maple' }), /line not found/)
   const count = writes.length
   close()
@@ -62,9 +62,9 @@ test('admin details are trimmed, typed and scoped to the active availability lin
 test('invalid plant details fail before any database write', async () => {
   const { queries, writes } = setup()
   for (const changes of [
-    null, [], {}, { name: ' ' }, { quantity: '0' }, { quantity: '-1' },
-    { quantity: 'NaN' }, { quantity: 'Infinity' }, { quantity: '1e999' }, { quantity: '0x10' },
-    { quantity: 'twelve' }, { quantity: 12 }, { name: 123 },
+    null, [], {}, { name: ' ' }, { demanded_quantity: '0' }, { demanded_quantity: '-1' },
+    { demanded_quantity: 'NaN' }, { demanded_quantity: 'Infinity' }, { demanded_quantity: '1e999' }, { demanded_quantity: '0x10' },
+    { demanded_quantity: 'twelve' }, { demanded_quantity: 12 }, { name: 123 },
     { availability_request_id: '12' }, { job_request_item_id: '100' },
     { name: 'Maple', status: 'available' }, { is_active: 'false' },
   ]) {
@@ -87,12 +87,12 @@ test('admin route saves plant details and reports validation and closure errors'
   const patch = (body: object) => PATCH(new Request('https://lps.example/api/availability-requests/11', {
     method: 'PATCH', body: JSON.stringify(body),
   }), { params: Promise.resolve({ id: '11' }) })
-  assert.equal((await patch({ itemId: 19, details: { name: 'Maple', quantity: '5' } })).status, 200)
+  assert.equal((await patch({ itemId: 19, details: { name: 'Maple', demanded_quantity: '5' } })).status, 200)
   assert.equal(writes.length, 1)
   assert.equal(notifications.length, 1)
   for (const body of [
     { details: { name: 'Maple' } }, { itemId: 19, details: { name: '' } },
-    { itemId: 19, details: null }, { itemId: 19, details: { quantity: '-1' } },
+    { itemId: 19, details: null }, { itemId: 19, details: { demanded_quantity: '-1' } },
     { itemId: 19, details: { name: 'Maple' }, changes: { status: 'available' } },
   ]) {
     assert.equal((await patch(body)).status, 400)

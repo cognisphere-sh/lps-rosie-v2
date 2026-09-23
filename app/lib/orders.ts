@@ -29,14 +29,16 @@ export interface OrderAllocation {
 
 export interface OrderItem {
   id: number
-  availabilityRequestItemId: number | null
   name: string
   size: string | null
   quantity: number
   unitPrice: number | null
   total: number | null
   status: string
-  notes: string | null
+  noteForSupplier: string | null
+  noteFromSupplier: string | null
+  /** Admin only: customer communication is omitted from supplier payloads. */
+  noteForCustomer?: string | null
   /** Admin only; supplier order payloads omit internal job associations. */
   allocations?: OrderAllocation[]
 }
@@ -52,6 +54,10 @@ export interface OrderShareJob {
 export const orderRecordName = (order: { id: number; recordName?: string | null }) => order.recordName || `O-${order.id}`
 
 export interface Order {
+  /** Admin only: revocable public viewing capability. */
+  publicToken?: string | null
+  jobNames?: string[]
+  customerDetails?: { jobName: string | null; customer: OrderShareJob['customer']; address: string | null }[]
   recordName?: string | null
   /** Archive classification for both views, including closure of every linked job. */
   closed?: boolean
@@ -64,10 +70,13 @@ export interface Order {
   fulfillmentMethod: FulfillmentMethod | null
   confirmationDate: string | null
   fulfillmentDate: string | null
-  notes: string | null
+  noteForSupplier: string | null
+  /** Admin only: customer communication is omitted from supplier payloads. */
+  noteFromCustomer?: string | null
+  noteForCustomer?: string | null
   createdAt: string
   /** The supplier's commitment note, separate from the customer's order instructions. */
-  supplierNotes?: string | null
+  noteFromSupplier?: string | null
   /** Customer-requested delivery/installation dates; portal schedules omit job identities. */
   jobSchedules?: ARJobSchedule[]
   availabilityRequestNames?: Record<number, string>
@@ -79,7 +88,7 @@ export interface PartnerOrderUpdate {
   status?: 'processing' | 'order_ready'
   fulfillmentMethod?: FulfillmentMethod | null
   fulfillmentDate?: string | null
-  supplierNotes?: string | null
+  noteFromSupplier?: string | null
 }
 
 export const ORDER_ITEM_STATUSES = ['pending', 'available', 'unavailable', 'diff_size_qty_sub', 'need_to_order', 'arriving_soon'] as const
@@ -93,11 +102,20 @@ export function parseOrderItemUpdate(value: unknown): { status: OrderItemStatus 
   return { status: (value as { status: OrderItemStatus }).status }
 }
 
+/** Supplier price edits are separate from status updates. */
+export function parseOrderItemPrice(value: unknown): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1 || !('unitPrice' in value)) throw new Error('Provide a unit price')
+  const price = (value as { unitPrice: unknown }).unitPrice
+  if (price === null) return null
+  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price >= 100000000 || Math.abs(price * 100 - Math.round(price * 100)) > 0.000001) throw new Error('Enter a positive price with at most two decimal places')
+  return price
+}
+
 /** Lifecycle and required confirmation fields are checked again under a database lock. */
 export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Order update is required')
   const body = value as Record<string, unknown>
-  if (!Object.keys(body).length || Object.keys(body).some((key) => !['status', 'fulfillmentMethod', 'fulfillmentDate', 'supplierNotes'].includes(key))) {
+  if (!Object.keys(body).length || Object.keys(body).some((key) => !['status', 'fulfillmentMethod', 'fulfillmentDate', 'noteFromSupplier'].includes(key))) {
     throw new Error('Choose an order status, pickup/delivery method, fulfillment date, or supplier note')
   }
   const update: PartnerOrderUpdate = {}
@@ -112,11 +130,11 @@ export function parsePartnerOrderUpdate(value: unknown): PartnerOrderUpdate {
     update.fulfillmentMethod = body.fulfillmentMethod
   }
   if ('fulfillmentDate' in body) update.fulfillmentDate = orderDate(body.fulfillmentDate, 'Fulfillment date')
-  if ('supplierNotes' in body) {
-    if (body.supplierNotes != null && (typeof body.supplierNotes !== 'string' || body.supplierNotes.length > 10000)) {
-      throw new Error('Supplier note must be text up to 10000 characters')
+  if ('noteFromSupplier' in body) {
+    if (body.noteFromSupplier != null && (typeof body.noteFromSupplier !== 'string' || body.noteFromSupplier.length > 10000)) {
+      throw new Error('Note from supplier must be text up to 10000 characters')
     }
-    update.supplierNotes = typeof body.supplierNotes === 'string' ? body.supplierNotes.trim() || null : null
+    update.noteFromSupplier = typeof body.noteFromSupplier === 'string' ? body.noteFromSupplier.trim() || null : null
   }
   return update
 }
@@ -150,7 +168,9 @@ export interface CreateOrderInput {
   supplierId: number
   customerConfirmed: true
   fulfillmentMethod: FulfillmentMethod | null
-  notes: string | null
+  noteForSupplier: string | null
+  noteFromCustomer: string | null
+  noteForCustomer: string | null
   items: {
     availabilityRequestItemId: number
     allocations: { jobRequestItemId: number; quantity: number }[]
@@ -162,7 +182,9 @@ export interface CreateDirectOrderInput {
   supplierId: number
   customerConfirmed: true
   fulfillmentMethod: FulfillmentMethod | null
-  notes: string | null
+  noteForSupplier: string | null
+  noteFromCustomer: string | null
+  noteForCustomer: string | null
   items: { jobRequestItemId: number; quantity: number }[]
 }
 
@@ -195,7 +217,12 @@ export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirec
   if (body.fulfillmentMethod != null && !['pickup', 'delivery'].includes(body.fulfillmentMethod as string)) {
     throw new Error('fulfillmentMethod must be pickup or delivery')
   }
-  if (body.notes != null && (typeof body.notes !== 'string' || body.notes.length > 10000)) throw new Error('notes must be text under 10000 characters')
+  if ('notes' in body) throw new Error('Use noteForSupplier instead of notes')
+  for (const field of ['noteForSupplier', 'noteFromCustomer', 'noteForCustomer']) {
+    if (body[field] != null && (typeof body[field] !== 'string' || (body[field] as string).length > 10000)) {
+      throw new Error(`${field} must be text up to 10000 characters`)
+    }
+  }
   if (!Array.isArray(body.items) || !body.items.length || body.items.length > 500) throw new Error('Select between 1 and 500 order lines')
   const direct = body.items.every((raw) => raw && typeof raw === 'object' && 'jobRequestItemId' in raw && !('availabilityRequestItemId' in raw))
   if (direct) {
@@ -211,7 +238,9 @@ export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirec
     })
     return { supplierId: body.supplierId, customerConfirmed: true,
       fulfillmentMethod: (body.fulfillmentMethod as FulfillmentMethod | null | undefined) ?? null,
-      notes: (body.notes as string | null | undefined)?.trim() || null, items }
+      noteForSupplier: (body.noteForSupplier as string | null | undefined)?.trim() || null,
+      noteFromCustomer: (body.noteFromCustomer as string | null | undefined)?.trim() || null,
+      noteForCustomer: (body.noteForCustomer as string | null | undefined)?.trim() || null, items }
   }
   const seen = new Set<number>()
   const items = body.items.map((raw: unknown) => {
@@ -236,7 +265,9 @@ export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirec
   return {
     supplierId: body.supplierId, customerConfirmed: true,
     fulfillmentMethod: (body.fulfillmentMethod as FulfillmentMethod | null | undefined) ?? null,
-    notes: (body.notes as string | null | undefined)?.trim() || null,
+    noteForSupplier: (body.noteForSupplier as string | null | undefined)?.trim() || null,
+    noteFromCustomer: (body.noteFromCustomer as string | null | undefined)?.trim() || null,
+    noteForCustomer: (body.noteForCustomer as string | null | undefined)?.trim() || null,
     items,
   }
 }
@@ -245,4 +276,20 @@ export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirec
 export function orderSubtotal(order: Pick<Order, 'items'>): number | null {
   const totals = order.items.map((item) => item.total).filter((value): value is number => value != null)
   return totals.length ? totals.reduce((sum, value) => sum + value, 0) : null
+}
+
+/** Admin inline edits; totals remain database-generated. */
+export function parseOrderItemCell(column: unknown, value: unknown): Record<string, string | number | null> {
+  if (typeof column !== 'string' || !['name', 'size', 'quantity', 'unit_price', 'note_for_supplier', 'note_from_supplier', 'note_for_customer'].includes(column)) throw new Error('Invalid order item field')
+  if (typeof value !== 'string') throw new Error('Invalid field value')
+  const text = value.trim()
+  if (column === 'quantity' || column === 'unit_price') {
+    if (!text && column === 'unit_price') return { [column]: null }
+    const number = Number(text)
+    if (!text || !Number.isFinite(number) || number <= 0) throw new Error('Enter a positive number')
+    if (column === 'unit_price' && (number >= 100000000 || Math.abs(number * 100 - Math.round(number * 100)) > 0.000001)) throw new Error('Enter a price with at most two decimal places')
+    return { [column]: number }
+  }
+  if (column === 'name' && !text) throw new Error('Plant name is required')
+  return { [column]: text || null }
 }

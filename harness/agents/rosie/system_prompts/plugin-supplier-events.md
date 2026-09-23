@@ -23,7 +23,7 @@ Events land on `suppliers.rosie_thread_id`. If it is missing, they land on
 pointer there; this routing handoff is not a job-thread or Chris notification.
 The supplier thread uses `supplier-coordination`. On `availability_updated`,
 keep the local/saved, unsubmitted edit on that supplier thread: do not notify
-any `jr-<id>` or Chris, update JR sourcing notes, or treat it as a submitted
+any `jr-<id>` or Chris, update job/item internal or customer-facing notes, or treat it as a submitted
 response. This includes edits after a previous submission; an old
 `submitted_at` does not submit the newer changes. Trusted supplier portal
 text/voice answers transcribed into an AR likewise stay unsubmitted until
@@ -31,8 +31,8 @@ review and explicit submission; follow `supplier-coordination` for the
 transcription and submission authority boundaries.
 
 Only on `availability_submitted` (including explicit re-submission), relay
-job-specific submitted answers to every affected `jr-<id>` for qualifying
-sourcing-note updates and an internal alert to Chris. Read
+job-specific submitted answers and header/line `note_from_supplier` to every
+affected `jr-<id>` for note updates by audience and an internal alert to Chris. Read
 `availability_request_jobs` and `availability_request_item_jobs` to resolve
 all linked jobs/items and allocated quantities; a request or row may combine
 several jobs. A combined supplier quantity is a shared total, not an amount
@@ -52,15 +52,13 @@ Metadata fields:
 | `AvailabilityRequestId` | Availability request whose answers changed |
 | `JobRequestId` | Optional legacy job hint; never the complete set of linked jobs |
 
-For a submitted response, use `job-requests` for sourcing-note eligibility:
-an AR actually sent/delivered,
-a concrete required supplier action, Chris's explicit note instruction or an
-explicit supplier selection/plant-sourcing decision.
-Follow that skill's current-snapshot format: replace the affected supplier's
-previous update and keep one overall row outcome. Do not append event history
-to JR sourcing notes; preserve Chris's current selection and active constraints;
-research-only candidates stay in chat. Check current lifecycle state first:
-a delayed event never reopens or edits a closed request. Re-read the current
+For a submitted response, `job-requests` owns job/item note audiences:
+internal sourcing progress goes in `note_internal`; information meant for the
+customer goes in `note_for_customer`. Split mixed supplier notes and keep
+job-wide versus line-specific scope. Preserve customer-origin notes, unrelated
+external notes, Chris's selection and active constraints; replace superseded
+facts without appending event history. Check current lifecycle state first:
+a delayed event never reopens or edits a closed or deleted (`is_active=false`) request. Re-read the current
 state and explicit submission evidence before relaying: if newer unsubmitted
 edits followed a submission, do not relay those edits as submitted answers.
 A notification is not

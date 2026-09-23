@@ -66,20 +66,19 @@ function request(id: number, status: ARDetail['status']): ARDetail {
     createdAt: '2026-09-03T11:00:00.000Z',
     itemCount: 1,
     answeredCount: status === 'new' ? 0 : 1,
-    lpsNotes: null,
+    noteForSupplier: null,
     customer: null,
     shipping: null,
     items: [{
       id: id + 1000,
-      jobRequestItemId: id + 2000,
       name: `Plant ${id}`,
       size: '15 G',
-      quantity: 2,
+      demandedQuantity: 2,
       status: status === 'new' ? null : 'available',
       availableQuantity: status === 'new' ? null : 2,
       unitPrice: 10,
-      notes: null,
-      lpsNotes: null,
+      noteFromSupplier: null,
+      noteForSupplier: null,
     }],
   }
 }
@@ -103,13 +102,13 @@ const mixed = [
   request(5, 'submitted'),
 ]
 
-test('open and closed request cards show creation and each anonymous job schedule without truncating request notes', () => {
+test('open and closed request cards use job-card EDD pills without creation dates or truncated notes', () => {
   const note = 'Please allow room for the delivery truck at the south gate.\nCall the site contact before unloading the entire shipment.'
   const value: ARDetail = {
     ...request(8, 'new'),
     recordName: 'JR-42:AR-1',
     createdAt: '2026-09-15T02:00:00Z',
-    lpsNotes: note,
+    noteForSupplier: note,
     jobSchedules: [
       { jobRequestId: 11, jobName: 'Private courtyard', expectedInstallDate: '2026-09-20', fulfillmentMethod: 'pickup' },
       { jobRequestId: 22, jobName: 'Private garden', expectedInstallDate: '2026-09-26', fulfillmentMethod: 'delivery' },
@@ -129,48 +128,33 @@ test('open and closed request cards show creation and each anonymous job schedul
     const link = view.getByRole('link')
     assert.equal(link.getAttribute('href'), '/partner/7/requests/8')
     assert.ok(link.textContent?.includes('JR-42:AR-1'))
-    assert.match(link.textContent ?? '', /Created 09-14/)
+    assert.doesNotMatch(link.textContent ?? '', /Created/)
+    assert.ok(within(link).getAllByText('09/20')[0].className.includes('rounded-full'))
     const schedules = within(link).getByLabelText('Job schedules')
-    assert.equal(schedules.children[0].textContent, 'Job 1EDD09-20FulfillmentPickup')
-    assert.equal(schedules.children[1].textContent, 'Job 2EDD09-26FulfillmentDelivery')
+    assert.equal(schedules.children[0].textContent, 'Job 1EDD09/20Pickup')
+    assert.equal(schedules.children[1].textContent, 'Job 2EDD09/26Delivery')
     assert.doesNotMatch(link.textContent ?? '', /Private courtyard|Private garden|JR-11|JR-22/)
   }
 
   view.rerender(<PartnerRequestRow request={request(8, 'new')} href="/partner/7/requests/8" />)
-  assert.equal(view.getByLabelText('Job schedules').textContent, 'EDD—Fulfillment—')
+  assert.equal(view.getByLabelText('Job schedules').textContent, 'EDD—')
 })
 
-test('fresh mounts default to New + Processing while independent toggles and Select all keep global counts', async () => {
+test('All is the default and each status selects only its own requests', async () => {
   const user = userEvent.setup({ document })
   const view = render(<BucketHarness requests={mixed} />)
-  const group = view.getByRole('group', { name: 'Request work buckets' })
-
-  assert.equal(within(group).getByRole('button', { name: 'New: 2 requests, selected' }).getAttribute('aria-pressed'), 'true')
-  assert.equal(within(group).getByRole('button', { name: 'Processing: 1 requests, selected' }).getAttribute('aria-pressed'), 'true')
-  assert.equal(within(group).getByRole('button', { name: 'Completed: 2 requests, not selected' }).getAttribute('aria-pressed'), 'false')
-  assert.equal(view.getAllByRole('link').length, 3)
-  assert.equal(view.queryByRole('link', { name: 'Completed request: Job 4' }), null)
-
-  await user.click(within(group).getByRole('button', { name: 'Completed: 2 requests, not selected' }))
+  const group = within(view.getByRole('group', { name: 'Request work buckets' }))
   assert.equal(view.getAllByRole('link').length, 5)
-  await user.click(within(group).getByRole('button', { name: 'New: 2 requests, selected' }))
-  assert.equal(view.getAllByRole('link').length, 3)
-  assert.ok(view.getByRole('link', { name: 'Processing request: Job 3' }))
-  assert.ok(view.getByRole('link', { name: 'Completed request: Job 4' }))
-
-  await user.click(within(group).getByRole('button', { name: 'Select all request buckets, 5 open requests' }))
+  assert.equal(group.getByRole('button', { name: 'Select all request buckets, 5 open requests' }).getAttribute('aria-pressed'), 'true')
+  for (const [label, count] of [['New', 2], ['Processing', 1], ['Completed', 2]] as const) {
+    await user.click(group.getByRole('button', { name: `${label}: ${count} requests, not selected` }))
+    assert.equal(view.getAllByRole('link').length, count)
+    assert.ok(view.getAllByRole('link').every((link) => link.getAttribute('aria-label')?.startsWith(label)))
+    await user.click(group.getByRole('button', { name: `${label}: ${count} requests, selected` }))
+    assert.equal(view.getAllByRole('link').length, count)
+  }
+  await user.click(group.getByRole('button', { name: 'Select all request buckets, 5 open requests' }))
   assert.equal(view.getAllByRole('link').length, 5)
-  assert.equal(within(group).getByRole('button', { name: 'Select all request buckets, 5 open requests' }).getAttribute('aria-pressed'), 'true')
-  assert.ok(within(group).getByRole('button', { name: 'New: 2 requests, selected' }))
-  assert.ok(within(group).getByRole('button', { name: 'Processing: 1 requests, selected' }))
-  assert.ok(within(group).getByRole('button', { name: 'Completed: 2 requests, selected' }))
-
-  view.unmount()
-  const fresh = render(<BucketHarness requests={mixed} />)
-  assert.ok(fresh.getByRole('button', { name: 'New: 2 requests, selected' }))
-  assert.ok(fresh.getByRole('button', { name: 'Processing: 1 requests, selected' }))
-  assert.ok(fresh.getByRole('button', { name: 'Completed: 2 requests, not selected' }))
-  assert.equal(fresh.getAllByRole('link').length, 3)
 })
 
 function relativeLuminance(hex: string) {
@@ -212,14 +196,14 @@ test('every rendered light/dark semantic text, check and border pair passes cont
   for (const bucket of REQUEST_BUCKETS) {
     assertAccessiblePalette(bucket.label, bucket.palette)
     const control = view.container.querySelector<HTMLElement>(`[data-request-bucket="${bucket.id}"]`)!
-    assert.equal(control.getAttribute('aria-pressed'), 'true')
+    assert.equal(control.getAttribute('aria-pressed'), 'false')
     assert.match(control.getAttribute('aria-label') ?? '', new RegExp(`^${bucket.label}:`))
     assert.equal(control.style.getPropertyValue('--bucket-light-foreground'), bucket.palette.light.foreground)
     assert.equal(control.style.getPropertyValue('--bucket-dark-foreground'), bucket.palette.dark.foreground)
     assert.match(control.className, /bg-\[var\(--bucket-light-background\)\]/)
-    assert.match(control.className, /dark:bg-\[var\(--bucket-dark-background\)\]/)
+    assert.match(control.className, /dark:hover:bg-\[var\(--bucket-dark-background\)\]/)
     assert.match(control.className, /dark:border-\[var\(--bucket-dark-border\)\]/)
-    assert.ok(control.querySelector('svg'), `${bucket.label} selected check is visible`)
+    assert.equal(control.querySelector('svg'), null)
 
     const row = view.container.querySelector<HTMLElement>(`[data-request-row-status="${bucket.id}"]`)!
     const pill = row.querySelector<HTMLElement>(`[data-request-status="${bucket.id}"]`)!
@@ -231,8 +215,8 @@ test('every rendered light/dark semantic text, check and border pair passes cont
   }
 
   const row = view.container.querySelector<HTMLElement>('[data-request-row-status="new"]')!
-  assert.match(row.className, /grid-cols-\[minmax\(0,1fr\)_auto\]/)
-  assert.match(row.className, /sm:grid-cols-\[8\.5rem_minmax\(0,1fr\)_6\.5rem\]/)
+  assert.match(row.className, /flex-col/)
+  assert.match(row.className, /px-3\.5 py-2\.5/)
   assert.match(view.getByRole('group', { name: 'Request work buckets' }).className, /overflow-x-auto/)
 })
 
@@ -247,24 +231,24 @@ test('empty states distinguish no open work, no selection, hidden results and a 
   assert.match(view.getByRole('status').textContent ?? '', /Nothing in the selected buckets/)
   assert.doesNotMatch(view.getByRole('status').textContent ?? '', /no active request work/i)
 
-  view.rerender(<RequestBucketList requests={[request(5, 'submitted')]} selected={DEFAULT_REQUEST_BUCKETS} supplierId={7} />)
+  view.rerender(<RequestBucketList requests={[request(5, 'submitted')]} selected={['new']} supplierId={7} />)
   assert.match(view.getByRole('status').textContent ?? '', /No New or Processing requests/)
   assert.match(view.getByRole('status').textContent ?? '', /no active request work/i)
 })
 
-test('a refreshed submitted request leaves the default active buckets, Completed reveals it, and reopening to New restores it', async () => {
+test('All retains submitted requests and single-status filters follow reopened requests', async () => {
   const user = userEvent.setup({ document })
   const view = render(<BucketHarness requests={[request(8, 'processing')]} />)
   assert.ok(view.getByRole('link', { name: 'Processing request: Job 8' }))
 
   view.rerender(<BucketHarness requests={[request(8, 'submitted')]} />)
-  assert.equal(view.queryByRole('link'), null)
-  assert.match(view.getByRole('status').textContent ?? '', /No New or Processing requests/)
+  assert.ok(view.getByRole('link', { name: 'Completed request: Job 8' }))
   assert.ok(view.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
 
   await user.click(view.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
   assert.ok(view.getByRole('link', { name: 'Completed request: Job 8' }))
 
   view.rerender(<BucketHarness requests={[request(8, 'new')]} />)
+  await user.click(view.getByRole('button', { name: 'New: 1 requests, not selected' }))
   assert.ok(view.getByRole('link', { name: 'New request: Job 8' }))
 })

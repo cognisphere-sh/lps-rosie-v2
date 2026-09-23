@@ -1,4 +1,5 @@
 import { money, num } from '@/lib/format'
+import { jobNameIncludesCustomer } from '@/lib/job-identity'
 import { itemPill } from '@/lib/job-requests'
 import type { JobRequestItem, JobRequestRow } from '@/lib/rows'
 
@@ -42,7 +43,7 @@ function quoteLine(item: JobRequestItem): { quantity: string; size: string; name
     size: item.size?.trim() || '—',
     name: item.name,
     status: itemPill(item.status, item.quantity, item.availableQuantity).label,
-    note: item.externalNotes?.trim() || '—',
+    note: item.noteForCustomer?.trim() || '—',
     unit: money(item.unitPrice),
     total: money(total),
     amount: total,
@@ -64,6 +65,7 @@ export function jobRequestToHtmlQuote(request: JobRequestRow, options: QuoteTemp
   const subtotal = quoteLines.reduce((sum, line) => sum + line.amount, 0)
   const customer = request.customer?.company?.trim() || request.customer?.name?.trim() || 'Customer'
   const job = request.name?.trim() || `JR-${request.id}`
+  const identity = jobNameIncludesCustomer(request) ? job : `${customer} · ${job}`
   const cell = 'border:1px solid #d1d5db;padding:0.25rem 0.35rem;vertical-align:top;'
   const header = `${cell}background:#edf6f0;font-weight:700;text-align:left;white-space:nowrap;`
   const currency = `${cell}text-align:right;white-space:nowrap;`
@@ -71,7 +73,7 @@ export function jobRequestToHtmlQuote(request: JobRequestRow, options: QuoteTemp
   const rows = quoteLines.map((line) => `<tr><td style="${cell}white-space:nowrap">${escapeHtml(line.quantity)}</td><td style="${cell}white-space:nowrap">${escapeHtml(line.size)}</td><td style="${cell}max-width:12rem;white-space:normal">${escapeHtml(line.name)}</td>${statusCell(line)}<td style="${cell}max-width:12rem;white-space:normal">${escapeHtml(line.note)}</td><td style="${currency}">${escapeHtml(line.unit)}</td><td style="${currency}">${escapeHtml(line.total)}</td></tr>`).join('')
   const headings = ['Qty', 'Size', 'Plant', ...(options.includeAvailabilityStatus ? ['Status'] : []), 'Note', 'Each', 'Total'].map((label) => `<th style="${header}">${label}</th>`).join('')
   const subtotalText = money(subtotal)
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:0.85rem;color:#202820;background:#ffffff;padding:0.25rem"><p style="margin:0 0 0.75rem"><strong>Quote · JR-${request.id}</strong><br>${escapeHtml(customer)} · ${escapeHtml(job)}</p><table style="border-collapse:collapse;width:auto;max-width:100%;line-height:1.25;font-family:Arial,Helvetica,sans-serif;font-size:0.85rem;color:#202820;background:#ffffff"><thead><tr>${headings}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="${options.includeAvailabilityStatus ? 6 : 5}" style="${cell}text-align:right"><strong>Subtotal</strong></td><td style="${currency}"><strong>${subtotalText}</strong></td></tr></tfoot></table></div>`
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:0.85rem;color:#202820;background:#ffffff;padding:0.25rem"><p style="margin:0 0 0.75rem"><strong>Quote · JR-${request.id}</strong><br>${escapeHtml(identity)}</p><table style="border-collapse:collapse;width:auto;max-width:100%;line-height:1.25;font-family:Arial,Helvetica,sans-serif;font-size:0.85rem;color:#202820;background:#ffffff"><thead><tr>${headings}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="${options.includeAvailabilityStatus ? 6 : 5}" style="${cell}text-align:right"><strong>Subtotal</strong></td><td style="${currency}"><strong>${subtotalText}</strong></td></tr></tfoot></table></div>`
   const text = `${quoteLines.map((line) => `${line.quantity} x ${line.size} ${line.name}${options.includeAvailabilityStatus ? ` - ${line.status}` : ''}${line.note === '—' ? '' : ` - ${line.note}`} - ${line.unit} - ${line.total}`).join('\n')}\n\nSubtotal: ${subtotalText}`
   return { html, text }
 }

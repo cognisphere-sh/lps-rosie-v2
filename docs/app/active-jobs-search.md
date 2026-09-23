@@ -2,7 +2,7 @@
 
 The Active jobs sidebar has an accessible search field for job names, JR
 references, customer names and companies, plant names and sizes, and all three
-job/plant note fields (customer, sourcing and shared notes). Matching ignores
+job/plant note fields (customer, sourcing and notes for customer). Matching ignores
 case and surrounding whitespace; every search word must occur somewhere in the
 job's searchable fields. The full notes remain in the job rather than appearing
 in search results.

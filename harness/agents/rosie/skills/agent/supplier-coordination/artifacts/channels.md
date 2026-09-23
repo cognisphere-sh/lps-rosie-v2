@@ -29,5 +29,5 @@ The channel rules below apply when an availability request is actually needed.
   exception is needed for another supplier, including combined grower asks.
 - **Alternatives require explicit Chris confirmation to request availability
   for the specific plant/size before creation or send**, including hints in
-  supplier-visible `lps_notes`. Approval to quote it is not AR authorization.
+  supplier-visible `note_for_supplier`. Approval to quote it is not AR authorization.
   Creating a portal request is not permission for an additional email.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import {
   availabilityRequest,
+  deleteAvailabilityRequest,
   setAvailabilityRequestPublic,
   setAvailabilityRequestStatus,
   updateARItem,
@@ -26,6 +27,22 @@ export async function GET(
     return NextResponse.json({ request })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+}
+
+/** Admin soft deletion. Workflow state and public-token value are retained. */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: raw } = await params
+  const id = Number(raw)
+  if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ error: 'bad id' }, { status: 400 })
+  try {
+    if (!await deleteAvailabilityRequest(id)) return NextResponse.json({ error: 'not found' }, { status: 404 })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
   }
 }
 

@@ -21,7 +21,7 @@ stock/availability. Carry that pricing basis in the internal handoff.
 Chris's explicit additional pricing authorization (2026-09-17): use the
 supported Purple Pixie price for unspecified dwarf loropetalum at the requested
 size, retaining the dwarf demand without claiming cultivar identity. Resolve
-identity later; no shared note is needed for that pricing basis. This is pricing
+identity later; no note for customer is needed for that pricing basis. This is pricing
 permission only, not stock evidence, substitution selection or an exact AR mapping.
 Other pricing proxies still require explicit authorization.
 

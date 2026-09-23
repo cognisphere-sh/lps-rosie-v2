@@ -7,6 +7,164 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0112_drop_order_item_availability_anchor.sql`
+
+Applied 2026-09-23 13:44:00 UTC via psql after a rolled-back live rehearsal.
+Removes `order_items.availability_request_item_id` and its dependent index/FK.
+Order reads derive related ARs through shared job items and supplier scope.
+Creation can still select an AR response transiently, but stores no source
+pointer. Supplier limits count active allocations for that supplier/job scope,
+including direct orders; all suppliers consume remaining customer demand.
+Same-supplier creation is serialized, and job deletion uses the junctions.
+
+Requires `0111_directional_notes.sql`; a preflight guard rejects older schemas.
+Both live transactions verified unchanged retained data for 5,202 rows across
+12 tables, including all 49 order items and 49 order allocations, plus unchanged
+unrelated functions and execution privileges. All populated legacy pointers
+were already represented by the junctions. The committed column is absent and
+related AR queries succeed.
+
+Disposable PostgreSQL 18 checks pass for two applications, preserved data and
+privileges, both creation paths, shared/per-job quantities, cross-supplier
+scope, atomic failure, Can Order and shared/exclusive job deletion. The 21
+order tests, order-sharing test, typecheck, isolated production build and
+instruction validation pass. The partner-order UI test process was terminated
+by resource limits. Automatic approval review rejected authenticated API smoke
+testing because it would mint a test admin session from the app signing secret;
+no such session was used.
+
+The app deployed at 13:34:18 UTC already includes these order-query changes;
+its bundled source matches the current implementation. App and harness services
+remain active. Rosie uses job-requests 5.27.0 and supplier-coordination 3.24.0.
+
+## `0111_directional_notes.sql`
+
+Applied 2026-09-23 13:34:18 UTC after a rolled-back rehearsal. Renames existing job/AR/order fields to singular author and
+recipient names. Orders gain the missing customer fields; order lines gain
+separate supplier instructions and a customer-facing field, with no customer-origin field. Existing AR-backed line
+notes retain supplier authorship and direct-quote notes retain the customer
+audience. Historical text, timestamps and changelog are preserved. No old note
+columns or aliases remain on these six tables. Seven note-dependent functions
+are updated; order creation retains service-only access under renamed inputs.
+
+Disposable PostgreSQL coverage checks preservation, audit keys, privileges,
+public/supplier AR answers, header submission, blank clearing, both order
+creation paths and combined line note snapshots.
+
+The committed transaction verified unchanged text and other retained fields for
+645 job/AR/order rows, 244 allocations/associations, historical audit records,
+function permissions and unrelated functions. Order items have
+`note_from_supplier`, `note_for_supplier` and `note_for_customer`, with no
+`note_from_customer` or generic `notes` column.
+
+Production build/type checking, 121 affected app tests, nine quote tests,
+instruction validation and disposable PostgreSQL checks passed. Live job, AR,
+order and supplier API reads returned HTTP 200; supplier order payloads omit
+customer-facing notes, and old job-note write keys are rejected. App and
+harness services are active; all agents and supplier-events are running.
+Rosie's unrelated gws plugin lacks GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE;
+pre-deployment logs confirm the same error at 13:19 UTC. Its connection needs
+configuration. This does not affect the running supplier-events plugin or the
+verified notes paths.
+
+## `0110_job_item_demanded_quantity.sql`
+
+Applied 2026-09-23 11:36:11 UTC via psql in one transaction after a rolled-back
+rehearsal. Renames `job_request_items.quantity` to `demanded_quantity` and its
+positive-value constraint. PostgreSQL preserves the stored values and generated
+`total`; the three order functions now read the renamed field for remaining
+demand and job closure. Availability/order allocation and order-line `quantity`
+columns keep their existing contracts. Historical changelog JSON is preserved;
+new demand edits are logged under `demanded_quantity`.
+
+Rehearsal and apply verified unchanged contents for 2,479 rows across 11
+business tables, unchanged unrelated functions and unchanged function privileges.
+Disposable PostgreSQL checks covered null/fractional demand, generated totals,
+audit keys, both order creation paths, shared demand limits and Won/Lost closure.
+Targeted app and quote tests, typecheck, production build and instruction checks
+passed. Deployed the compatible app; live job detail/list, order candidates and
+availability reads returned HTTP 200, and obsolete/invalid demand edits were
+rejected before database writes. Rosie uses job-requests 5.23.1,
+supplier-coordination 3.21.1 and quote-generation 3.2.0. Migration 0104 remains
+unapplied.
+
+## `0109_ar_soft_delete.sql`
+
+Applied 2026-09-23 at 11:18 UTC via psql in one transaction after a rolled-back
+rehearsal. AR deletion now sets `is_active=false` while preserving status,
+submission date and public token. Deleted ARs are excluded from app and supplier
+access. Removes Hidden, `status_before_close` and `was_public_before_close`;
+job reopening leaves ARs closed until explicitly reopened. Whole-job deletion
+retires exclusive AR headers and retains their line snapshots; shared ARs and
+the durable deleted-job chat cleanup workflow remain supported.
+
+There were no live Hidden requests to convert. Rehearsal and apply verified
+unchanged retained data for 2,479 rows across 11 business tables, unchanged
+unrelated functions and unchanged execution privileges. Disposable PostgreSQL
+checks passed for all four statuses, retained private/public state, blocked
+supplier access and writes, explicit reopening, shared jobs and job deletion.
+
+Deployed the matching app with admin Delete actions after the database change.
+Targeted AR API, query, UI and prompt checks, typecheck, production build and
+instruction validation passed. Three existing desktop job deletion tests still
+expect a Delete button in components that no longer render it; they fail before
+reaching the updated confirmation text. Rosie's supplier-coordination skill is
+3.21.0 and job-requests is 5.23.0. Migration 0104 remains unapplied.
+
+Live admin detail/list, supplier detail/items and order reads returned HTTP 200;
+schema and notification-context reads passed, and the new DELETE route rejected
+an invalid ID before any write. App and harness services are active.
+
+## `0108_drop_availability_job_anchor.sql`
+
+Applied 2026-09-23 at 10:45 UTC via psql in one transaction after a rolled-back
+rehearsal. Removes `availability_requests.job_request_id` and its legacy sync
+trigger/function. Every header relationship now uses `availability_request_jobs`.
+All 14 populated legacy pointers were already linked, so no live backfill was
+needed. Migration backfills suppress new-delivery progress events.
+
+Creation establishes every validated job link atomically before inserting lines;
+closure/reopening and whole-job deletion use the junction. Retains `is_active`,
+all five statuses, prior-stage restoration and fresh-token reopening. Both
+rehearsal and apply verified unchanged data for 2,479 rows across 11 business
+tables, unchanged unrelated functions and unchanged execution privileges.
+
+Disposable PostgreSQL checks passed for legacy-only/shared/header-only links,
+job closure/reopening, private/public/hidden/inactive requests, failed creation,
+line/whole-job deletion, note ownership, order limits and pending migration 0104
+applied after column removal. Updated 0104's unapplied backfill to use only the
+junction; 0104 remains unapplied on the live database.
+
+Deployed the compatible app before the database change. Four affected app test
+files, typecheck, production build and instruction validation passed. Live admin
+detail/list, supplier detail/items and order reads returned HTTP 200; read-only
+notification-context checks also passed against the new schema. Rosie's
+supplier-coordination skill is 3.20.0 and job-requests is 5.22.0.
+
+## `0106_drop_availability_item_job_anchor.sql` and `0107_availability_item_demand_and_notes.sql`
+
+Applied 2026-09-23 at 10:18 UTC via psql in one transaction after a rolled-back
+rehearsal. Removes the redundant availability-line job-item hint,
+renames the supplier-facing requested total to `demanded_quantity`, and renames
+the supplier's line response note to `supplier_notes`. `lps_notes` remains the
+additional LPS/Chris instructions shown below the plant name. Per-job allocation
+quantities and header job associations retain their current names and behavior.
+
+Updates creation, quantity synchronization, supplier answer processing, order
+snapshots and job deletion. Disposable PostgreSQL checks cover relationship
+preservation, shared/last-line deletion, null demand, supplier/LPS note ownership,
+public answers, hidden requests and order limits. Both the live rehearsal and
+the committed transaction verified unchanged contents for 2,479 rows across
+11 business tables. All 181 legacy item pointers were already represented
+among the 254 availability lines, so no backfill was needed.
+
+Deployed the matching app after ten affected test files, typecheck, production
+build and agent-instruction validation passed. Authenticated live admin,
+supplier request, supplier item and order reads returned HTTP 200; verified
+the renamed fields, preserved notes and admin-only item allocations. Header
+reads tolerate the optional display names while migration 0104 remains pending.
+Rosie's supplier-coordination skill is 3.19.0 and job-requests is 5.21.0.
+
 ## `0105_remove_unused_app_objects.sql`
 
 Applied 2026-09-23 via psql in one transaction after a rolled-back rehearsal.

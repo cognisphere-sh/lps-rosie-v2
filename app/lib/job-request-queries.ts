@@ -34,9 +34,9 @@ interface RequestRecord {
   shipping_city: string | null
   shipping_state: string | null
   shipping_zip: string | null
-  customer_notes: string | null
-  sourcing_notes: string | null
-  external_notes: string | null
+  note_from_customer: string | null
+  note_internal: string | null
+  note_for_customer: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -46,14 +46,14 @@ interface ItemRecord {
   job_request_id: number
   name: string
   size: string | null
-  quantity: number | null
+  demanded_quantity: number | null
   available_quantity: number | null
   unit_price: number | null
   total: number | null
   status: string
-  customer_notes: string | null
-  sourcing_notes: string | null
-  external_notes: string | null
+  note_from_customer: string | null
+  note_internal: string | null
+  note_for_customer: string | null
   updated_at: string | null
 }
 
@@ -86,17 +86,17 @@ export interface JobRequestFilters {
  * message, has no stamp — it stays one unstamped entry rather than being
  * reshaped.
  *
- * `sourcing_notes` is deliberately absent from this timestamped-note parser:
+ * `note_internal` is deliberately absent from this timestamped-note parser:
  * its raw Markdown is preserved for editing and rendered by the UI.
  */
 function noteEntries(text: string | null, kind: JobNote['kind']): JobNote[] {
   return parseEntries(text).map((e) => ({ kind, ...e }))
 }
 
-function notesOf(r: { customer_notes: string | null; external_notes: string | null }): JobNote[] {
+function notesOf(r: { note_from_customer: string | null; note_for_customer: string | null }): JobNote[] {
   return [
-    ...noteEntries(r.customer_notes, 'customer'),
-    ...noteEntries(r.external_notes, 'shared'),
+    ...noteEntries(r.note_from_customer, 'customer'),
+    ...noteEntries(r.note_for_customer, 'shared'),
   ]
 }
 
@@ -112,21 +112,21 @@ function toItem(r: ItemRecord): JobRequestItem {
     id: r.id,
     name: r.name,
     size: r.size,
-    quantity: r.quantity == null ? null : Number(r.quantity),
+    quantity: r.demanded_quantity == null ? null : Number(r.demanded_quantity),
     availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
     unitPrice: r.unit_price == null ? null : Number(r.unit_price),
     total: r.total == null ? null : Number(r.total),
     status: r.status,
     notes: notesOf(r),
-    customerNotes: r.customer_notes,
-    externalNotes: r.external_notes,
-    sourcingNotes: r.sourcing_notes,
+    noteFromCustomer: r.note_from_customer,
+    noteForCustomer: r.note_for_customer,
+    noteInternal: r.note_internal,
     updatedAt: r.updated_at,
   }
 }
 
 const REQUEST_COLUMNS =
-  'id, customer_id, name, status, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, customer_notes, sourcing_notes, external_notes, created_at, updated_at'
+  'id, customer_id, name, status, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, note_from_customer, note_internal, note_for_customer, created_at, updated_at'
 
 /**
  * Take the next job-request id without creating the row.
@@ -176,10 +176,10 @@ function toRow(
     customer,
     billing: addressOf(r.billing_address, r.billing_city, r.billing_state, r.billing_zip),
     shipping: addressOf(r.shipping_address, r.shipping_city, r.shipping_state, r.shipping_zip),
-    customerNotes: r.customer_notes,
+    noteFromCustomer: r.note_from_customer,
     notes: notesOf(r),
-    externalNotes: r.external_notes,
-    sourcingNotes: r.sourcing_notes,
+    noteForCustomer: r.note_for_customer,
+    noteInternal: r.note_internal,
     itemCount: all.length,
     statusCounts,
     lineTotal,
@@ -199,7 +199,7 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     const { data, error } = await supabase
       .from('job_request_items')
       .select(
-        'id, job_request_id, name, size, quantity, available_quantity, unit_price, total, status, customer_notes, sourcing_notes, external_notes, updated_at',
+        'id, job_request_id, name, size, demanded_quantity, available_quantity, unit_price, total, status, note_from_customer, note_internal, note_for_customer, updated_at',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)

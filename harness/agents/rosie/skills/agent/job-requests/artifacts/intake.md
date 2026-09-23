@@ -19,7 +19,7 @@ the supplied details, and save known customer/job information. Do not stop at
 a plan or hold all records until every detail is clarified. Review the current
 request history and any identified job's records; use `plant-and-supplier-search` to gather
 missing pricing, preserve supplied/accepted prices, save supported prices and
-only the sourcing notes allowed by [notes](notes.md), and record completed pricing
+useful sourcing progress under [notes](notes.md), and record completed pricing
 through the lifecycle hook. Research clearly labelled candidate
 alternatives without selecting them. Verify writes before reporting them.
 Missing details block only actions that depend on those details.
@@ -66,22 +66,41 @@ requirement. If the request is clear, proceed without extra questions.
    then known name/company. Do not infer a person's name from an address.
    A new, identified customer gets its own `rosie_thread_id` through
    `message-routing`. If unidentified, `customer_id` stays NULL and any
-   identity clues go in `customer_notes`.
+   identity clues go in `note_from_customer`.
 4. Insert the reserved id with `OVERRIDING SYSTEM VALUE`. Explicitly set
-   `status = 'quoted'` (displayed **Quote**). Store a job/site name only when
-   supplied: a real residence, address, PO or project. Leave `name` NULL
-   otherwise; the app constructs the company/job display title. Even committed
-   intake creates this job record first; successful order creation advances it
-   to `committed` atomically. Do not generate a quote just because the initial
-   database status is `quoted`, or mark a job Committed without its order.
+   `status = 'quoted'` (displayed **Quote**). Store `job_requests.name` as
+   **`Customer/Company Name | Slug`**, with one space on each side of `|`.
+
+   - Use the known company name for a business customer; otherwise use the
+     customer's known name. Take identity from the supplied request or matched
+     customer record, never guess it from an email address or unrelated contact.
+   - Make the slug a short, readable identifier from the request: a site,
+     residence, project, address, PO, or other identifiable information, including
+     a recognizable plant/request description when no site or project is named.
+     Keep normal words and spaces; it is not a URL slug. For example,
+     `Acme Landscaping | Oak Grove` or `Jane Smith | 12 Live Oaks` when those
+     details are supplied. Do not invent a site, project or requirement.
+   - Store the complete name, including the customer/company prefix, once.
+     Do not rely on the app to construct it or add the prefix twice on retry.
+     Keep the name within 160 characters, shortening the slug if necessary.
+   - When one component is unknown, keep the known component alone without
+     an empty separator; leave `name` NULL only when neither is known. Continue
+     independent intake and complete the name through a guarded update when
+     the missing information arrives. Do not erase an existing known name
+     because a follow-up omits its details.
+
+   Even committed intake creates this job record first; successful order
+   creation advances it to `committed` atomically. Do not generate a quote just
+   because the initial database status is `quoted`, or mark a job Committed
+   without its order.
 
    ```sql
    SET app.actor TO 'rosie';
    INSERT INTO job_requests
-     (id, customer_id, name, status, customer_notes,
+     (id, customer_id, name, status, note_from_customer,
       expected_install_date, fulfillment_method)
    OVERRIDING SYSTEM VALUE
-   VALUES ($jobId, $customerId, $name, 'quoted', $customerNotes,
+   VALUES ($jobId, $customerId, $name, 'quoted', $noteFromCustomer,
            $expectedInstallDate, $fulfillmentMethod);
    ```
 
@@ -109,9 +128,17 @@ requirement. If the request is clear, proceed without extra questions.
    Save pickup/delivery choice in `fulfillment_method` (`pickup` or `delivery`)
    and keep an unknown choice NULL. EDD is the customer's planning date,
    separate from the supplier order's actual confirmation and fulfillment dates.
+   Save additional customer-supplied job-wide requests in
+   `job_requests.note_from_customer`, using [note audiences](notes.md).
 
 5. Create item rows before asking questions: one per clearly separate
-   requested line, preserving the supplied plant name, size and quantity.
+   requested line, preserving the supplied plant name, size and requested amount
+   in `demanded_quantity`.
+   Save the customer's additional line details in
+   `job_request_items.note_from_customer`: alternatives, color, special requests
+   and other requirements. Keep job-wide details on the job. These notes
+   supply relevant context for a later authorized AR; do not store internal
+   sourcing decisions or customer-facing quote commentary as customer input.
    Missing size, quantity or price stays NULL and does not prevent creating
    a row with a supplied plant name. If the plant name itself is missing,
    record the unresolved request in job notes and create the other rows;
@@ -119,7 +146,7 @@ requirement. If the request is clear, proceed without extra questions.
    Preserve unresolved alternatives in the original line without choosing,
    splitting or combining requirements. For example, record
    `20 live oaks, 15 G or 30 G` as one row with name `live oaks`, size
-   `15 G or 30 G` and quantity `20`, then research both sizes. For size-only
+   `15 G or 30 G` and `demanded_quantity = 20`, then research both sizes. For size-only
    alternatives, apply [requested-option selection](requested-options.md) without redundant clarification;
    do not assume a mix or duplicate the total.
    Follow an explicit allocation already supplied. For plant alternatives,
@@ -129,7 +156,7 @@ requirement. If the request is clear, proceed without extra questions.
    selecting a plant/size, or generating the affected quote/availability ask.
    Never duplicate a total across options or assume every named plant is
    required. Report prices for unresolved alternatives in chat; add them to
-   sourcing notes only when [notes](notes.md) applies. Leave `unit_price` NULL until
+   internal notes when useful for tracking progress under [notes](notes.md). Leave `unit_price` NULL until
    a price applies to the requested line.
    Normalize gallon tokens to `G` (`30 gal or larger` → `30 G or larger`).
    A duplicate-key error on the job means re-read, then add only genuinely

@@ -39,6 +39,11 @@ stays open for Chris's explicit closure decision. A closed order's Won/Lost
 outcome cannot be reclassified through `close_order`.
 Do not close a shared AR or another customer's order because only one linked
 job ended; database hooks preserve work for its other open jobs. Closed ARs
-cannot be edited; do not reuse revoked public links after reopening.
+cannot be edited; reopening a job leaves those ARs closed until explicitly
+reopened. Do not reuse public links revoked by closure. AR deletion uses only
+`is_active=false` and preserves the saved AR status, submission date and token.
+Inactive ARs are excluded from work and supplier access; job reopening never
+restores them. Whole-job deletion retires exclusive ARs while retaining their
+supplier snapshots; shared ARs remain for other linked jobs.
 Quote, Availability and Committed are the open job stages, separate
 from an AR's New/Processing/Completed/Closed state.

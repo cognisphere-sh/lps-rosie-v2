@@ -1,11 +1,20 @@
-### Minimal-word quote notes
+### Customer-facing quote notes
 
-Chris's instruction (2026-09-17): shared notes contain only additional,
-customer-useful information not already evident in the row or grouping. Use
-short exceptions, not complete explanatory statements; leave NULL when none
-is needed. This applies to saved shared notes and text quote notes.
+`note_for_customer` on jobs and items holds information meant for the customer
+and included in the quote. It can come from Chris/LPS's sourcing work or
+submitted AR `note_from_supplier`: relevant conditions, care/handling details,
+timing, options or special requests. `job-requests` owns
+[audience and scope](../../job-requests/artifacts/notes.md); split mixed supplier
+notes before saving, keeping internal costs, comparisons and follow-ups in
+`note_internal`. Customer-supplied requirements stay in `note_from_customer`;
+save a separate external note only when useful to communicate back.
 
-- No phase names in item shared notes. Preserve phases in customer/original-demand
+Use concise wording without losing meaning; notes need not be exceptions.
+Omit information already evident in the row/grouping and leave NULL when none
+is needed. Do not treat a supplier suggestion as an approved offering or copy
+raw supplier/customer/internal notes at render time.
+
+- No phase names in item notes for customer. Preserve phases in customer/original-demand
   context and group output separately when requested; never merge phases.
 - No pricing-identity explanation, price-sheet reference or supplier name. An
   approved Purple Pixie pricing basis for unspecified dwarf loropetalum is not
@@ -37,11 +46,16 @@ is needed. This applies to saved shared notes and text quote notes.
   shorten a note; a pricing proxy is not an actual substitution.
 - Retain material qualifications such as unconfirmed availability or excluded
   tax/delivery; shorten wording, never remove necessary meaning. Do not imply approval/availability from brevity.
+- Include saved job `note_for_customer` once before the item rows, separated
+  from them by one blank line. Keep job-wide conditions there, not repeated
+  on every item. Omit this line and separator when the job note is blank.
 - In plain-text quotes, include a brief inline note **only when the item's
-  existing shared/customer-facing `external_notes` is nonblank** (Chris,
+  existing shared/customer-facing `note_for_customer` is nonblank** (Chris,
   2026-09-11). Concisely render that note; do not invent or reconstruct an
-  inline note from sourcing notes or chat. If absent, omit the note and its
-  extra separator. Place the note after the plant name and before the unit
+  inline note from customer notes, internal notes, raw AR notes or chat.
+  Populate the appropriate external field under `job-requests` before rendering.
+  If absent, omit the note and its extra separator. Place the note after the
+  plant name and before the unit
   price, separated by dashes, as specified in [text format](text-format.md). Explanations
   for Chris remain outside the copyable quote. Do not duplicate a size option
   in both item comments and general notes unless needed for clarity.

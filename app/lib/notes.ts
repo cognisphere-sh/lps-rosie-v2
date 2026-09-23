@@ -3,7 +3,7 @@
  *
  * Text written by the agents' skills as entries separated by a blank line,
  * each stamped `[YYYY-MM-DD HH:MM America/Chicago]` — `job_requests`'
- * `customer_notes` / `external_notes` today. The two append-only contact logs
+ * `note_from_customer` / `note_for_customer` today. The two append-only contact logs
  * this convention was built for are both gone: `suppliers.communication_notes`
  * was frozen by migration 0063, `customers.communication_notes` dropped by
  * 0073, and each side's agent thread carries that history now. Nothing the app

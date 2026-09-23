@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant prices and supplier evidence. Includes scoped RPC search, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.14.0)
+description: Find plant prices and supplier evidence. Includes scoped RPC search, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.16.0)
 metadata:
   author: lps
-  version: "2.14.0"
+  version: "2.16.0"
 ---
 
 # Plant and supplier search
@@ -19,4 +19,5 @@ metadata:
    action-specific quote/AR approval; supported pricing is not availability.
 4. Return [evidence](artifacts/report.md) in the original chat. Keep queries
    scoped with explicit columns/limits; widen only when the evidence needs it.
-   Research does not create a job or sourcing note. `job-requests` owns writes.
+   Research does not create a job. `job-requests` owns writes and can retain
+   useful progress in an existing job's or item's internal notes.

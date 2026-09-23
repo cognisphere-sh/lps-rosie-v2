@@ -16,9 +16,9 @@ const require = createRequire(import.meta.url)
 
 function fixture() {
   const tables: Record<string, Record<string, unknown>[]> = {
-    availability_requests: [{ id: 42, job_request_id: 11, supplier_id: 7, status: 'new',
+    availability_requests: [{ id: 42, supplier_id: 7, status: 'new',
       public_token: token, is_active: true, share_customer_details: true,
-      created_at: '2026-09-15T02:00:00Z', submitted_at: null, lps_notes: null }],
+      created_at: '2026-09-15T02:00:00Z', submitted_at: null, note_for_supplier: null }],
     availability_request_jobs: [
       { availability_request_id: 42, job_request_id: 11 },
       { availability_request_id: 42, job_request_id: 22 },
@@ -103,7 +103,7 @@ test('schedule metadata keeps missing values and obeys existing single-job custo
   assert.equal(request.jobSchedules[0].jobName, undefined)
 })
 
-test('supplier header uses MM-DD creation dates and keeps combined dates paired with fulfillment', async () => {
+test('supplier header pairs combined fulfillment dates and colored delivery modes', async () => {
   const { queries } = fixture()
   const request: ARDetail = await queries.availabilityRequest(42, { forSupplierId: 7 })
   const html = renderToStaticMarkup(<AvailabilityRequestView request={request} loading={false} error="" saving={false}
@@ -112,19 +112,19 @@ test('supplier header uses MM-DD creation dates and keeps combined dates paired 
   try {
     const header = dom.window.document.querySelector('header')!
     assert.ok(header.querySelector('h1'))
-    assert.match(header.textContent ?? '', /Created on 09-14/)
+    assert.equal(header.querySelector('h1')?.textContent, 'Courtyard · Pool garden')
     const schedules = dom.window.document.querySelector('[aria-label="Job schedules"]')!
     assert.equal(schedules.parentElement, header, 'Schedule metadata is part of the title header row')
     assert.equal(schedules.children.length, 2)
-    assert.equal(schedules.children[0].textContent, 'Job 1EDD09-20FulfillmentPickup')
-    assert.equal(schedules.children[1].textContent, 'Job 2EDD09-26FulfillmentDelivery')
+    assert.equal(schedules.children[0].textContent, 'Job 1Pickup09-20')
+    assert.equal(schedules.children[1].textContent, 'Job 2Delivery09-26')
     assert.doesNotMatch(schedules.textContent ?? '', /JR-|Courtyard|Pool garden|Private/)
   } finally {
     dom.window.close()
   }
 })
 
-test('single-job supplier headers keep Created on, EDD and fulfillment with the request title', async () => {
+test('single-job supplier headers keep fulfillment date and mode with the job title', async () => {
   const { tables, queries } = fixture()
   tables.availability_request_jobs.pop()
   const request: ARDetail = await queries.availabilityRequest(42, { forSupplierId: 7 })
@@ -134,7 +134,7 @@ test('single-job supplier headers keep Created on, EDD and fulfillment with the 
   try {
     const header = dom.window.document.querySelector('header')!
     assert.equal(header.querySelector('h1')?.textContent, 'Courtyard')
-    assert.match(header.textContent ?? '', /Created on 09-14EDD09-20FulfillmentPickup/)
+    assert.match(header.textContent ?? '', /Pickup09-20/)
     const schedules = dom.window.document.querySelector('[aria-label="Job schedules"]')!
     assert.equal(schedules.parentElement, header)
     assert.equal(schedules.children.length, 1)
@@ -165,16 +165,18 @@ test('admin schedules identify each source job and render missing dates/methods 
 })
 
 
-test('hidden requests remain visible to admin but disappear from every supplier read', async () => {
+test('deleted requests disappear from admin and supplier reads while retaining their status and token', async () => {
   const { tables, queries } = fixture()
-  tables.availability_requests[0].status = 'hidden'
-  assert.equal((await queries.availabilityRequest(42)).status, 'hidden')
-  assert.equal((await queries.listAvailabilityRequests({ jobRequestId: 11 }))[0].status, 'hidden')
+  tables.availability_requests[0].is_active = false
+  assert.equal(await queries.availabilityRequest(42), null)
+  assert.deepEqual(await queries.listAvailabilityRequests({ jobRequestId: 11 }), [])
   assert.equal(await queries.availabilityRequest(42, { forSupplierId: 7 }), null)
   assert.equal(await queries.publicAvailabilityRequest(token), null)
   assert.deepEqual(await queries.listPortalRequests(7), [])
   assert.deepEqual(await queries.listPortalItemLines(7), [])
-  tables.availability_requests[0].status = 'new'
+  assert.equal(tables.availability_requests[0].status, 'new')
+  assert.equal(tables.availability_requests[0].public_token, token)
+  tables.availability_requests[0].is_active = true
   assert.equal((await queries.availabilityRequest(42, { forSupplierId: 7 })).status, 'new')
   assert.equal((await queries.listPortalRequests(7)).length, 1)
 })

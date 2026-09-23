@@ -1,5 +1,9 @@
 # customer-coordination — changelog
 
+## 3.5.0
+
+- Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.
+
 ## 3.4.0
 
 - Shorten discovery metadata; keep customer send and acceptance safeguards.

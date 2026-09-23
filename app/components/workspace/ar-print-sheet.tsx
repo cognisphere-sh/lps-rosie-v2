@@ -49,7 +49,7 @@ export function ARPrintSheet({
       <table className="w-full border-collapse text-[10px] text-black" style={{ border: '2px solid #999' }}>
         <thead>
           <tr className="bg-neutral-100 text-left">
-            {['Qty', 'Size', 'Name', 'Status', 'Avail. Qty', 'Price', 'Notes'].map((h) => (
+            {['Qty', 'Size', 'Name', 'Status', 'Avail. Qty', 'Price', 'Note from supplier'].map((h) => (
               <th key={h} className="font-bold" style={cell({ padding: '3px 6px' })}>
                 {h}
               </th>
@@ -59,13 +59,13 @@ export function ARPrintSheet({
         <tbody>
           {request.items.map((item) => (
             <tr key={item.id} style={{ breakInside: 'avoid' }}>
-              <td className="text-right tabular-nums" style={cell({ width: 34 })}>{num(item.quantity)}</td>
+              <td className="text-right tabular-nums" style={cell({ width: 34 })}>{num(item.demandedQuantity)}</td>
               <td style={cell({ width: 44 })}>{item.size ?? ''}</td>
               <td style={cell()}>
                 <span className="block font-bold">{item.name}</span>
-                {item.lpsNotes && (
+                {item.noteForSupplier && (
                   <span className="block text-[8.5px] italic leading-tight text-neutral-600">
-                    {displayText(item.lpsNotes)}
+                    {displayText(item.noteForSupplier)}
                   </span>
                 )}
               </td>
@@ -85,7 +85,7 @@ export function ARPrintSheet({
               </td>
               <td className="text-right tabular-nums" style={cell({ width: 44 })}>{num(item.availableQuantity)}</td>
               <td className="text-right tabular-nums" style={cell({ width: 54 })}>{money(item.unitPrice)}</td>
-              <td style={cell({ width: 96 })}>{item.notes ?? ''}</td>
+              <td style={cell({ width: 96 })}>{item.noteFromSupplier ?? ''}</td>
             </tr>
           ))}
         </tbody>

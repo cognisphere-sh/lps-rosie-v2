@@ -1,14 +1,12 @@
 'use client'
 
-import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
+import { PartnerRequestCardLayout } from './partner-request-card-layout'
 
 import { Check } from 'lucide-react'
-import Link from 'next/link'
 import type { CSSProperties } from 'react'
 
 import { partnerRequestName } from '@/components/workspace/partner'
-import { arSubtotal, type ARDetail } from '@/lib/availability'
-import { formatMonthDay, money } from '@/lib/format'
+import { type ARDetail } from '@/lib/availability'
 import { cn } from '@/lib/utils'
 
 export type SemanticPalette = {
@@ -51,7 +49,7 @@ export const SELECT_ALL_PALETTE: SemanticPalette = {
 }
 
 export type RequestBucketId = (typeof REQUEST_BUCKETS)[number]['id']
-export const DEFAULT_REQUEST_BUCKETS: readonly RequestBucketId[] = ['new', 'processing']
+export const DEFAULT_REQUEST_BUCKETS: readonly RequestBucketId[] = ['new', 'processing', 'submitted']
 
 function paletteVariables(palette: SemanticPalette): CSSProperties {
   return {
@@ -111,20 +109,20 @@ export function RequestBucketControls({
       >
         <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium">
           {allSelected && <Check aria-hidden="true" className="size-3.5" />}
-          Select all
+          All
         </span>
         <span className="text-[18px] font-semibold tabular-nums leading-tight">{total}</span>
       </button>
 
       {REQUEST_BUCKETS.map((bucket) => {
-        const isSelected = selected.includes(bucket.id)
+        const isSelected = !allSelected && selected.includes(bucket.id)
         return (
           <button
             key={bucket.id}
             type="button"
             data-request-bucket={bucket.id}
             onClick={() => onChange(
-              isSelected ? selected.filter((id) => id !== bucket.id) : [...selected, bucket.id],
+              [bucket.id],
             )}
             aria-pressed={isSelected}
             aria-label={`${bucket.label}: ${counts[bucket.id]} requests, ${isSelected ? 'selected' : 'not selected'}`}
@@ -171,42 +169,9 @@ function RequestStatusPill({ status }: { status: RequestBucketId }) {
 export function PartnerRequestRow({ request, href }: { request: ARDetail; href: string }) {
   const status = request.status as RequestBucketId
   const bucket = REQUEST_BUCKETS.find((entry) => entry.id === status)!
-  const total = arSubtotal(request.items)
-  const note = request.lpsNotes?.trim()
-
-  return (
-    <Link
-      href={href}
-      aria-label={`${bucket.label} request: ${partnerRequestName(request)}`}
-      data-request-row-status={status}
-      className={cn(
-        'grid flex-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-4 py-4 no-underline transition-colors hover:bg-lps-tint sm:grid-cols-[8.5rem_minmax(0,1fr)_6.5rem] sm:gap-4 sm:px-5',
-        'border-[var(--bucket-light-border)] dark:border-[var(--bucket-dark-border)]',
-      )}
-      style={paletteVariables(bucket.palette)}
-    >
-      <span className="col-start-1 row-start-1"><RequestStatusPill status={status} /></span>
-
-      <div className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-col gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
-        <span className="truncate text-[16px] font-semibold leading-tight text-foreground">
-          {partnerRequestName(request)}
-        </span>
-        {note && (
-          <span className="whitespace-pre-wrap text-[13px] text-muted-foreground [overflow-wrap:anywhere]" title={note}>
-            {note}
-          </span>
-        )}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-          <span className="whitespace-nowrap text-muted-foreground">Created <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(request.createdAt) || '—'}</span></span>
-          <ARJobSchedules schedules={request.jobSchedules} />
-        </div>
-      </div>
-
-      <span className="col-start-2 row-start-1 text-right text-[15px] font-semibold tabular-nums text-foreground sm:col-start-3 sm:w-[6.5rem]">
-        {total == null ? '—' : money(total)}
-      </span>
-    </Link>
-  )
+  return <PartnerRequestCardLayout request={request} href={href} name={partnerRequestName(request)}
+    label={`${bucket.label} request: ${partnerRequestName(request)}`} status={<RequestStatusPill status={status} />}
+    className="border-[var(--bucket-light-border)] dark:border-[var(--bucket-dark-border)]" style={paletteVariables(bucket.palette)} />
 }
 
 export function RequestBucketList({

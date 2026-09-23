@@ -9,7 +9,7 @@ import { AvailabilityRequestDrawer } from '../components/workspace/ar-drawer.tsx
 import { AvailabilityRequestView } from '../components/workspace/availability-request-view.tsx'
 import { ARLineTable, LineStatusPicker } from '../components/workspace/availability.tsx'
 import { BodyModalPortal } from '../components/workspace/body-modal-portal.tsx'
-import { onAvailabilityRequestStatusChanged, openAvailabilityRequest, type AvailabilityRequestStatusDetail } from './chat-bus.ts'
+import { onAvailabilityRequestDeleted, onAvailabilityRequestStatusChanged, openAvailabilityRequest, type AvailabilityRequestStatusDetail } from './chat-bus.ts'
 import type { ARDetail, ARItem } from './availability.ts'
 
 let dom: JSDOM
@@ -26,17 +26,16 @@ let visualViewport: {
 
 const line = (id: number, changes: Partial<ARItem> = {}): ARItem => ({
   id,
-  jobRequestItemId: id + 100,
   name: id === 19
     ? 'Quercus virginiana “Cathedral” 🌳 超長品種名稱 without separators'
     : `Ilex vomitoria line ${id}`,
   size: id === 19 ? '30 G multi-stem specification with long Unicode 尺寸' : null,
-  quantity: id === 19 ? 12 : 20,
+  demandedQuantity: id === 19 ? 12 : 20,
   status: id === 19 ? 'arriving_soon' : null,
   availableQuantity: id === 19 ? 8 : null,
   unitPrice: id === 19 ? 12.5 : null,
-  notes: id === 19 ? 'Four more expected next week — confirmé' : null,
-  lpsNotes: id === 19 ? 'Accept only the named cultivar.' : null,
+  noteFromSupplier: id === 19 ? 'Four more expected next week — confirmé' : null,
+  noteForSupplier: id === 19 ? 'Accept only the named cultivar.' : null,
   ...changes,
 })
 
@@ -52,7 +51,7 @@ const request = (changes: Partial<ARDetail> = {}): ARDetail => ({
   createdAt: '2026-08-30T15:00:00.000Z',
   itemCount: 2,
   answeredCount: 1,
-  lpsNotes: 'Keep the cultivar exact — 🚚 access is narrow and this deliberately long note must wrap.',
+  noteForSupplier: 'Keep the cultivar exact — 🚚 access is narrow and this deliberately long note must wrap.',
   customer: null,
   shipping: null,
   items: [line(19), line(20)],
@@ -162,10 +161,15 @@ function json(value: unknown, status = 200) {
 function installStore(initial: ARDetail[]) {
   const store = new Map(initial.map((entry) => [entry.id, entry]))
   const writes: Array<{ id: number; body: Record<string, unknown> }> = []
+  const deletions: number[] = []
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const id = Number(String(input).match(/availability-requests\/(\d+)/)?.[1])
     const current = store.get(id)
-    if (!current) return json({ error: 'missing' }, 404)
+    if (!current || deletions.includes(id)) return json({ error: 'missing' }, 404)
+    if (init?.method === 'DELETE') {
+      deletions.push(id)
+      return json({ ok: true })
+    }
     if (init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body)) as Record<string, unknown>
       writes.push({ id, body })
@@ -186,7 +190,7 @@ function installStore(initial: ARDetail[]) {
             status: changes.status === '' ? null : changes.status ?? item.status,
             availableQuantity: changes.available_quantity === '' ? null : changes.available_quantity != null ? Number(changes.available_quantity) : item.availableQuantity,
             unitPrice: changes.unit_price === '' ? null : changes.unit_price != null ? Number(changes.unit_price) : item.unitPrice,
-            notes: changes.notes ?? item.notes,
+            noteFromSupplier: changes.note_from_supplier ?? item.noteFromSupplier,
           }),
         }
       }
@@ -198,8 +202,8 @@ function installStore(initial: ARDetail[]) {
             ...item,
             name: details.name ?? item.name,
             size: details.size === '' ? null : details.size ?? item.size,
-            quantity: details.quantity === '' ? null : details.quantity != null ? Number(details.quantity) : item.quantity,
-            lpsNotes: details.lps_notes === '' ? null : details.lps_notes ?? item.lpsNotes,
+            demandedQuantity: details.demanded_quantity === '' ? null : details.demanded_quantity != null ? Number(details.demanded_quantity) : item.demandedQuantity,
+            noteForSupplier: details.note_for_supplier === '' ? null : details.note_for_supplier ?? item.noteForSupplier,
           }),
         }
       }
@@ -208,7 +212,7 @@ function installStore(initial: ARDetail[]) {
     }
     return json({ request: current })
   }) as typeof fetch
-  return { store, writes }
+  return { store, writes, deletions }
 }
 
 async function openDrawer(id = 84) {
@@ -234,8 +238,8 @@ test('drawer plant details save on mobile and desktop and survive reopening with
     const fields = [
       { label: /plant name/, column: 'name', value: `Live Oak ${width}` },
       { label: /requested size/, column: 'size', value: '15 G' },
-      { label: /requested quantity/, column: 'quantity', value: '24.5' },
-      { label: /note to supplier/, column: 'lps_notes', value: `Deliver Friday ${width}` },
+      { label: /requested quantity/, column: 'demanded_quantity', value: '24.5' },
+      { label: /note to supplier/, column: 'note_for_supplier', value: `Deliver Friday ${width}` },
     ]
     // Give every field a different value on the second pass too.
     fields[1].value = width === 390 ? '15 G' : '30 G'
@@ -259,7 +263,7 @@ test('drawer plant details save on mobile and desktop and survive reopening with
     assert.deepEqual(saved.items[1], line(20))
     assert.equal(saved.items[0].availableQuantity, 8)
     assert.equal(saved.items[0].unitPrice, 12.5)
-    assert.equal(saved.items[0].notes, line(19).notes)
+    assert.equal(saved.items[0].noteFromSupplier, line(19).noteFromSupplier)
   }
 })
 
@@ -291,7 +295,7 @@ test('moving between plant fields while a save is pending preserves every edit',
   await waitFor(() => assert.equal(writes.length, 3))
   assert.equal(store.get(84)!.items[0].name, 'Red Maple')
   assert.equal(store.get(84)!.items[0].size, '45 G')
-  assert.equal(store.get(84)!.items[0].quantity, 18)
+  assert.equal(store.get(84)!.items[0].demandedQuantity, 18)
 })
 
 test('supplier request cards edit quantities, multiline notes and complete answers, with one set of controls at each breakpoint', async () => {
@@ -324,7 +328,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await user.type(notes, 'First delivery{Enter}Second delivery')
   assert.equal(document.activeElement, notes)
   await user.tab()
-  assert.deepEqual(patches.at(-1), [19, { notes: 'First delivery\nSecond delivery' }])
+  assert.deepEqual(patches.at(-1), [19, { note_from_supplier: 'First delivery\nSecond delivery' }])
 
   const trigger = view.getByRole('button', { name: /Line 2, .* status, Pending/ })
   await user.click(trigger)
@@ -334,7 +338,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await user.type(within(dialog).getByLabelText('ETA / notes'), 'Next Friday')
   await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
   await waitFor(() => assert.equal(document.activeElement, trigger))
-  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', notes: 'Next Friday', unit_price: '24.50' }])
+  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', note_from_supplier: 'Next Friday', unit_price: '24.50' }])
 
   await setWidth(900)
   assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)
@@ -427,7 +431,7 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
         { jobRequestId: 31, jobName: 'Courtyard', expectedInstallDate: '2026-09-20', fulfillmentMethod: 'pickup' },
         { jobRequestId: 32, jobName: 'Pool garden', expectedInstallDate: '2026-09-26', fulfillmentMethod: 'delivery' },
       ],
-      items: [line(19, { quantity: 0, availableQuantity: 0, unitPrice: 0 }), line(20)],
+      items: [line(19, { demandedQuantity: 0, availableQuantity: 0, unitPrice: 0 }), line(20)],
     }),
     request({ id: 85, status: 'closed', submittedAt: '2026-08-30T12:00:00.000Z' }),
     request({ id: 86, status: 'processing', submittedAt: null }),
@@ -765,7 +769,7 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
   const secondChanges = (patches[1].body.changes as Record<string, string>)
   current = {
     ...current,
-    items: current.items.map((item) => item.id === 19 ? { ...item, notes: secondChanges.notes } : item),
+    items: current.items.map((item) => item.id === 19 ? { ...item, noteFromSupplier: secondChanges.note_from_supplier } : item),
   }
   await act(async () => patches[1].resolve(json({ ok: true })))
   await waitFor(() => assert.equal((within(mobileSurface(dialog)).getByLabelText(/Line 1, .* notes/) as HTMLTextAreaElement).value, 'second answer'))
@@ -913,4 +917,51 @@ test('portal/profile/default line surfaces keep the task-start non-modal answer 
   await user.keyboard('{Escape}')
   assert.ok(view.getByRole('button', { name: 'Save answer' }))
   assert.notEqual(document.activeElement, trigger)
+})
+
+test('admin deletion supports cancellation, preserves saved state and removes the mounted AR link', async () => {
+  const saved = request({ status: 'submitted', publicToken: '00000000-0000-4000-8000-000000000084' })
+  const { store, deletions } = installStore([saved])
+  const deleted: number[] = []
+  const off = onAvailabilityRequestDeleted((id) => deleted.push(id))
+  const user = userEvent.setup({ document })
+  const { view, dialog } = await openDrawer()
+  assert.deepEqual(Array.from(within(dialog).getByLabelText('Request status').querySelectorAll('option')).map((option) => option.value),
+    ['new', 'processing', 'submitted', 'closed'])
+  window.confirm = () => false
+  await user.click(view.getByRole('button', { name: 'Delete request' }))
+  assert.deepEqual(deletions, [])
+  window.confirm = () => true
+  await user.click(view.getByRole('button', { name: 'Delete request' }))
+  await waitFor(() => assert.equal(document.querySelector('[data-ar-drawer-host]'), null))
+  assert.deepEqual(deletions, [84])
+  assert.deepEqual(deleted, [84])
+  assert.deepEqual(store.get(84), saved)
+  off()
+})
+
+test('failed AR deletion leaves the drawer and its saved status available for retry', async () => {
+  installStore([request({ status: 'closed' })])
+  const savedFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => init?.method === 'DELETE'
+    ? json({ error: 'Could not delete the request' }, 400) : savedFetch(input, init)) as typeof fetch
+  window.confirm = () => true
+  const { view } = await openDrawer()
+  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Delete request' }))
+  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /Could not delete/))
+  assert.equal((view.getByLabelText('Request status') as HTMLSelectElement).value, 'closed')
+  assert.equal((view.getByRole('button', { name: 'Delete request' }) as HTMLButtonElement).disabled, false)
+})
+
+test('a background refresh removes cached controls when an AR was deleted elsewhere', async () => {
+  const { deletions } = installStore([request()])
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+  const { view } = await openDrawer()
+  assert.ok(view.getByLabelText('Request status'))
+  deletions.push(84)
+  fireEvent.focus(window)
+  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /AR-84 not found/))
+  assert.equal(view.queryByLabelText('Request status'), null)
+  assert.equal(view.queryByRole('button', { name: 'Delete request' }), null)
+  assert.equal(view.queryByTestId('availability-mobile-lines'), null)
 })

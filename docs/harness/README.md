@@ -118,7 +118,7 @@ per-agent config and prompt notes are documented in each agent's file.
 
 ### AR supplier response note (migration 0095)
 
-`availability_requests.supplier_notes` stores the supplier’s request-wide note,
+`availability_requests.note_from_supplier` stores the supplier’s request-wide note,
 separate from LPS instructions and line notes. The new trusted submission RPCs
 validate supplier ownership or the public token and use the existing row-lock
 closure guard. The note and submitted status commit in one transaction. The

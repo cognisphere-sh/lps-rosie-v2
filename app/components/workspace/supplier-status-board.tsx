@@ -32,14 +32,14 @@ const CARDS = AR_RESPONSE_OPTIONS.map((o) => ({
 
 /** The quantity asked across some lines — the card's total and a plant's. */
 const demandOf = (lines: SupplierItemLine[]) =>
-  lines.reduce((sum, l) => sum + (l.quantity ?? 0), 0)
+  lines.reduce((sum, l) => sum + (l.demandedQuantity ?? 0), 0)
 
 type Patch = (itemId: number, changes: Record<string, string>) => Promise<void>
 
 function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color: string; onPatch: Patch }) {
   // Our note about the plant, where every ask carries the same one; asks that
   // differ keep their own under their chip.
-  const notes = [...new Set(group.lines.map((l) => l.lpsNotes).filter((n): n is string => !!n))]
+  const notes = [...new Set(group.lines.map((l) => l.noteForSupplier).filter((n): n is string => !!n))]
   const shared = notes.length === 1 ? redactPartnerRequestRefs(notes[0]) : null
   return (
     <div className="flex flex-col gap-1.5 py-1.5 pl-3" style={{ borderLeft: `3px solid ${color}`, borderRadius: 2 }}>
@@ -66,11 +66,11 @@ function PlantEntry({ group, color, onPatch }: { group: SupplierItemGroup; color
               title={line.arName}
             >
               <span className="truncate">{line.arName}</span>
-              {line.quantity != null && <span className="flex-none">×{num(line.quantity)}</span>}
+              {line.demandedQuantity != null && <span className="flex-none">×{num(line.demandedQuantity)}</span>}
             </span>
-            {!shared && line.lpsNotes && (
-              <span className="w-full whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.lpsNotes)}>
-                {redactPartnerRequestRefs(line.lpsNotes)}
+            {!shared && line.noteForSupplier && (
+              <span className="w-full whitespace-pre-wrap text-[10.5px] italic text-muted-foreground [overflow-wrap:anywhere]" title={redactPartnerRequestRefs(line.noteForSupplier)}>
+                {redactPartnerRequestRefs(line.noteForSupplier)}
               </span>
             )}
             <span className="flex-none"><LineStatusPicker item={line} editable onPatch={onPatch} /></span>

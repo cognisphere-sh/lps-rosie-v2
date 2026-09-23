@@ -21,9 +21,9 @@ test('public request uses the partner summary, print sheet and submit flow, then
     id: 11, jobRequestId: 1, jobName: 'Garden project', supplierId: 7, supplierName: 'Nursery',
     status: 'new', publicToken: undefined, shareCustomerDetails: false, submittedAt: null,
     createdAt: '2026-09-10T12:00:00Z', itemCount: 1, answeredCount: 1,
-    lpsNotes: 'Deliver Friday', customer: null, shipping: null,
-    items: [{ id: 5, jobRequestItemId: 2, name: 'Live oak', size: '30 G', quantity: 4,
-      status: 'available', availableQuantity: 4, unitPrice: 12.5, notes: null, lpsNotes: null }],
+    noteForSupplier: 'Deliver Friday', customer: null, shipping: null,
+    items: [{ id: 5, name: 'Live oak', size: '30 G', demandedQuantity: 4,
+      status: 'available', availableQuantity: 4, unitPrice: 12.5, noteFromSupplier: null, noteForSupplier: null }],
   }
   globalThis.fetch = async (url, init) => {
     assert.equal(url, '/api/public/availability/token')

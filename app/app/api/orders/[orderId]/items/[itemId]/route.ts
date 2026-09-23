@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
-import { deleteOrderItem, orderDetail, updatePartnerOrderItem } from '@/lib/order-queries'
-import { parseOrderItemUpdate, positiveId } from '@/lib/orders'
+import { deleteOrderItem, orderDetail, updatePartnerOrderItem, updateOrderItemCell } from '@/lib/order-queries'
+import { parseOrderItemUpdate, parseOrderItemCell, positiveId } from '@/lib/orders'
 import { resolveUser } from '@/lib/session'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ orderId: string; itemId: string }> }) {
@@ -14,8 +14,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
     const detail = await orderDetail(order)
     if (!detail || !detail.items.some((line) => line.id === item)) return NextResponse.json({ error: 'not found' }, { status: 404 })
     if (detail.closed || ['closed_won', 'closed_lost'].includes(detail.status)) return NextResponse.json({ error: 'This order is closed' }, { status: 409 })
-    const status = parseOrderItemUpdate(await req.json()).status
-    await updatePartnerOrderItem(order, detail.supplierId, item, status)
+    const body = await req.json()
+    if ('column' in body) {
+      await updateOrderItemCell(order, item, parseOrderItemCell(body.column, body.value))
+    } else {
+      const status = parseOrderItemUpdate(body).status
+      await updatePartnerOrderItem(order, detail.supplierId, item, status)
+    }
     return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 })

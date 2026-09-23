@@ -12,8 +12,8 @@ test('filtered totals include every page and only matching active items, with ex
     is_active: true, created_at: '2026-09-01', updated_at: '2026-09-01',
   }))
   const items = jobs.flatMap((job) => [
-    { id: job.id * 2, job_request_id: job.id, name: 'Oak', status: 'pending', size: '5g', total: '0.10', quantity: 50, is_active: true },
-    { id: job.id * 2 + 1, job_request_id: job.id, name: 'Pine', status: 'available', size: '15g', total: '0.20', quantity: 20, is_active: true },
+    { id: job.id * 2, job_request_id: job.id, name: 'Oak', status: 'pending', size: '5g', total: '0.10', demanded_quantity: 50, is_active: true },
+    { id: job.id * 2 + 1, job_request_id: job.id, name: 'Pine', status: 'available', size: '15g', total: '0.20', demanded_quantity: 20, is_active: true },
   ])
   items.push({ ...items[0], id: 500, total: '900', is_active: false })
   // Exceed the database's 1,000-row cap within one matching job.
@@ -22,7 +22,10 @@ test('filtered totals include every page and only matching active items, with ex
     let rows: Record<string, any>[] = table === 'job_requests' ? [...jobs] : table === 'job_request_items' ? [...items] : []
     let bounds: [number, number] | null = null
     const query = {
-      select() { return query },
+      select(columns?: string) {
+        if (table === 'job_request_items' && columns) assert.ok(!columns.split(/,\s*/).includes('quantity'), 'Job demand reads use demanded_quantity')
+        return query
+      },
       eq(column: string, value: unknown) { rows = rows.filter((row) => row[column] === value); return query },
       in(column: string, values: unknown[]) { rows = rows.filter((row) => values.includes(row[column])); return query },
       gte(column: string, value: string) { rows = rows.filter((row) => row[column] >= value); return query },
@@ -49,6 +52,7 @@ test('filtered totals include every page and only matching active items, with ex
   const list = module.exports.listJobRequests
   const first = await list('', { status: ['committed'], itemStatus: ['pending'] }, 1)
   assert.equal(first.requests.length, 25)
+  assert.equal(first.requests[0].items[0].quantity, 50)
   assert.equal(first.total, 27)
   assert.deepEqual(first.totals, { itemCount: 1028, subtotal: 102.8 })
   const second = await list('', { status: ['committed'], itemStatus: ['pending'] }, 2)

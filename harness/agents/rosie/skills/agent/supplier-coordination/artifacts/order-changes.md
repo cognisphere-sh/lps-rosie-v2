@@ -11,7 +11,7 @@ acknowledge the recorded change without implying a new supplier confirmation.
    one concise message; do not repeat it on a retry or cross-thread relay.
 2. Have the job owner persist/verify the brief change summary in `orders.notes`.
    For a supplier-originated update, relay the verified before/after details
-   to that owner. Preserve existing instructions and `orders.supplier_notes`.
+   to that owner. Preserve existing instructions and `orders.note_from_supplier`.
 3. Send the supplier a short factual message naming the affected job(s),
    linking directly to the order in their portal, and explaining what
    changed, using verified old/new values where useful. Follow the job-name
