@@ -35,7 +35,7 @@ import {
   type SupplierItemGroup,
   type SupplierItemLine,
 } from '@/lib/availability'
-import { formatDate, num } from '@/lib/format'
+import { formatWeekdayMonthDay, num } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
@@ -269,7 +269,7 @@ function ItemGroupRow({
               onDragStart={() => onDragStartLine(line.id)}
               onDragEnd={onDragEndLine}
             />
-            <span className="truncate px-1 text-[12px] text-muted-foreground">{formatDate(line.arCreatedAt)}</span>
+            <span className="truncate px-1 text-[12px] text-muted-foreground">{formatWeekdayMonthDay(line.arCreatedAt)}</span>
             <AnswerCells line={line} onPatch={onPatch} />
           </div>
         ))}

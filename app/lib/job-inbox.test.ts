@@ -164,7 +164,7 @@ test('row accessible name states identity, compact Created/EDD dates and read st
   })])[0]
   assert.equal(
     jobInboxRowAriaLabel(view, 'Quote'),
-    'JR-9 · Courtyard, Quote, Created 09-14, EDD 10-03, Unread web chat',
+    'JR-9 · Courtyard, Quote, Created Mon, 09/14, EDD Sat, 10/03, Unread web chat',
   )
   assert.equal(
     jobInboxRowAriaLabel({ ...view, createdAt: null, expectedInstallDate: undefined, unread: false }, 'Quote'),

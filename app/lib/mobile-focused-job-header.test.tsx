@@ -103,7 +103,7 @@ test('focused headers display saved dates and a separate pickup tag on mobile an
     assert.equal(dated.container.querySelector('[data-job-fulfillment]')?.textContent, 'Pickup')
     const metadata = dated.container.querySelector('[data-job-metadata]')!
     assert.deepEqual([...metadata.querySelectorAll('dt')].map((node) => node.textContent), ['EDD', 'Fulfillment'])
-    assert.equal(metadata.querySelector('dd')?.textContent, '08/30')
+    assert.equal(metadata.querySelector('dd')?.textContent, 'Sun, 08/30')
     assert.ok(metadata.parentElement?.querySelector(mobile ? 'h1' : '[data-desktop-job-identity]'))
     dated.unmount()
 
@@ -130,7 +130,7 @@ test('job AR links show the submitted date only while submitted, otherwise the c
   }]
   for (const focusedMobile of [false, true]) {
     const view = render(<RequestLinks request={linked} focusedMobile={focusedMobile} />)
-    for (const [id, expected] of [[803, '09-14'], [802, '09-02'], [801, '09-03'], [800, '09-04'], [799, '—']]) {
+    for (const [id, expected] of [[803, 'Mon, 09/14'], [802, 'Wed, 09/02'], [801, 'Thu, 09/03'], [800, 'Fri, 09/04'], [799, '—']]) {
       const link = view.getByRole('button', { name: new RegExp(`AR-${id}`) })
       assert.equal(link.lastElementChild?.textContent, expected)
       assert.equal(document.getElementById(link.getAttribute('aria-describedby')!)?.textContent, expected)
@@ -762,7 +762,7 @@ test('desktop branch keeps labelled avatar/direct route and uses the structured 
   assert.deepEqual(opened, { agentId: 'rosie', threadId: 'jr-27', label: longName })
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
   assert.equal(view.container.querySelectorAll('img').length, 1)
-  assert.equal(view.getByText('08-30').textContent, '08-30')
+  assert.equal(view.getByText('Sun, 08/30').textContent, 'Sun, 08/30')
   assert.ok(view.getByTestId('status'))
   assert.ok(view.getByTestId('preview'))
 })

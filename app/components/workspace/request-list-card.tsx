@@ -19,7 +19,7 @@ import { EditableText } from '@/components/workspace/editable'
 import { EditableFulfillment, JobMetadata } from '@/components/workspace/job-metadata'
 import { openChat } from '@/lib/chat-bus'
 import { customerThreadId } from '@/lib/customers'
-import { formatMonthDay, money } from '@/lib/format'
+import { formatWeekdayMonthDay, money } from '@/lib/format'
 import { jobNameIncludesCustomer } from '@/lib/job-identity'
 import {
   REQUEST_STATUS_OPTIONS,
@@ -48,7 +48,7 @@ function RequestCardOverview({ request, edit, tone }: {
     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <StatusPill {...edit} column="status" value={request.status} label={requestStatusLabel(request.status)} accessibleLabel={requestStatusLabel(request.status)} tone={tone} options={REQUEST_STATUS_OPTIONS} />
       <span className="group/job-name inline-flex min-w-0 max-w-full items-center gap-1 font-semibold">
-      <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatMonthDay(request.createdAt) || '—'}`}
+      <Link href={`/jobs?jr=${request.id}`} title={`Created ${formatWeekdayMonthDay(request.createdAt) || '—'}`}
         aria-label={`Open ${requestRef(request.id)} — ${fullJobName ? job : `${customer} — ${job}`}`}
         className="min-w-0 truncate text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>

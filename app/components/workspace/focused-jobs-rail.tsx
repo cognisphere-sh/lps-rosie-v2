@@ -10,7 +10,7 @@ import {
   type JobInboxViewRow,
 } from '@/lib/job-inbox'
 import { requestRef, requestStatusTone, toneDot, toneStyle } from '@/lib/job-requests'
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export const FOCUSED_JOBS_RAIL_ID = 'focused-jobs-rail'
@@ -108,12 +108,12 @@ export function FocusedJobsRailRow({
         <span
           data-focused-job-rail-primary
           className="min-w-0 truncate text-[13px] font-semibold leading-snug text-foreground"
-          title={`${primary} · Created ${formatMonthDay(row.createdAt) || '—'}`}
+          title={`${primary} · Created ${formatWeekdayMonthDay(row.createdAt) || '—'}`}
         >
           {row.name?.trim() || 'Unnamed job'}
         </span>
         <span data-focused-job-rail-dates className="shrink-0 text-[10.5px] text-muted-foreground">
-          <span aria-label="Expected delivery date"><span className="font-semibold tabular-nums text-foreground">{formatMonthDay(row.expectedInstallDate, '/') || '—'}</span></span>
+          <span aria-label="Expected delivery date"><span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(row.expectedInstallDate) || '—'}</span></span>
         </span>
       </span>
     </button>

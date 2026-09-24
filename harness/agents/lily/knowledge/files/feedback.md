@@ -809,3 +809,80 @@ this file exists.
 
 - **Mobile list isolated review baseline** — Nova’s current owner reports fresh7c756c8 with only three nonoverlapping record-name hunks in the shared Job source; list header, focused record, Requests page and All Jobs docs are clean. Exact HEAD plus an enumerated tracked app/docs operator-byte overlay is authorized **for isolated implementation/review only**, with an independent manifest—not a clean shared base, production-base approval or operator commit. Same owner is implementing list-context/mobile supplier-links isolation while preserving the operator hunks; test execution is held under an **UNVALIDATED runner HOLD**. Compatible operator commit/rebase and renewed review are required before integration; no dirty deploy or bundled release. Parent delivered the exact scope/not-live message to Chris in Telegram356; no further external message needed. _(Nova15:43:27 via Lily main at2026-09-22T15:44:06-05:00; owner-reported, not independently verified)_
   → mobile-job-card-chat-controls
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:10:55-05:00:chris-telegram214-jr71 sha256: 65873781ae5dba540df12a253376389ef658dccc494146b9068cde575041afee -->
+- **Loaded records are not a usable job workspace** — Chris, Telegram214 on Praetorian JR71, relayed by Rosie at 2026-09-23 13:10:55 CDT: “its still not in the system, I can make a bunch of these subjective changes more quickly if we get in loaded. basically everything you asked could have been a question in the” [Message ends here; missing ending unknown.] Rosie reports JR71 already has 26 items persisted, while Chris cannot see/use the relevant app workflow and prefers subjective substitution choices there over serial Telegram questions. Rosie is already checking JR/AR visibility without supplier publication. Persistence is owner-reported, not Lily-verified; exact intended page, failure cause and any missing editing capability are not established. Original Telegram chat ID was not included in the handoff; stable Rosie handoff ID used pending attribution. _(via rosie)_
+  → (watching)
+<!-- feedback-end: rosie:main:2026-09-23T13:10:55-05:00:chris-telegram214-jr71 -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:12:55-05:00:jr71-visibility-findings sha256: eb3ffa54959ce363dd38770b433e6c9610fab99868b6c9c3810389a2bc87163a -->
+- **JR71 already exists; desired refinement surface unresolved** — Follow-up to Loaded records are not a usable job workspace (rosie:main:2026-09-23T13:10:55-05:00:chris-telegram214-jr71). Rosie now attributes original Chris214 to Telegram chat -1004491410854; photo197 and availability198 are context. Rosie reports DB verified JR71 active Quote, all26 items580–605 active, customer NULL, canonical jr-71. Existing route Jobs > JR-71 (/jobs?jr=71), searchable in Requests All jobs/Quote; no demonstrated stale/filter/auth defect and no reported failure of that exact route. No APS AR exists; owner reports AR insertion publishes immediately to supplier, inactive means deleted, and no usable unpublished AR draft. Rosie already sent Chris216 navigation/distinction; Job editor versus AR workspace intent remains unresolved. Separately Rosie reports Chris217 says original Sub options should remain customer-origin notes and unresolved 4-inch Frogfruit count internal, forwarded to owner; this is an attributed summary, not an exact quote or Lily-verified operational correction. No Lily live query, record change or publication. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:main:2026-09-23T13:12:55-05:00:jr71-visibility-findings -->
+
+## 2026-09-23
+
+<!-- feedback-id: telegram:-1004491410854:217 sha256: 86818a30e3ef480602fe14b7d7c8ad3dc5101c9a1c687450fdda3a1643a6c63c -->
+- **Subjective choices can be notes in the app** — Attributed relay, not exact quote: Rosie at 2026-09-23 13:12:45 CDT, relayed by Lily main at 13:14:02, reports Chris Telegram217 clarifies subjective questions could have been NOTES IN APP: customer-origin notes about substitution options; an internal note that quantity for 4-inch Frogfruit had not been selected. Rosie passed the scoped note-audience update to JR71 owner while preserving later choices. This narrows Chris214 to existing Job notes/refinement, not a request for an unpublished AR feature or supplier publication. Original customer options remain customer-origin notes; current unresolved internal decisions belong in internal sourcing context. Pending details must reflect latest state and not overwrite a later choice or reintroduce an already-resolved quantity unknown. Owner handling the case; Lily has not verified operational completion or changed records/guidance. Supersedes unresolved Job-versus-AR interpretation in earlier handoffs without inventing the ending of214. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: telegram:-1004491410854:217 -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:jr-71:2026-09-23T13:13:38-05:00:note-refinement-complete sha256: 1068ea62492d34f5309457dd8c71cb808380631d4db9984aba1985d2038b5f6e -->
+- **JR71 app-first note clarification completed by owner** — JR71 owner report13:13:38, via Lily main2026-09-23 13:15:24 CDT: original plan phrases “Sub soft leaf yucca” and “Sub dwarf pittosporum” preserved in customer-origin note_from_customer; only the actual Chris-approved Softleaf substitution is customer-facing. Internal note distinguishes requested ONE FLAT of 4-inch Frogfruit from quoted ONE POT at $1.95; pots per flat have not been selected. This is owner-reported completed note work, not Lily verification. Original source Sub options are not themselves approved substitutions or stock evidence. $1.95 is not a whole-flat quote. All26 editable Job rows already existed; no AR, creation publishes, and no hidden editable AR draft. No platform change requested. Close this capture as existing-note correction plus app-first refinement preference, not a new UI/AR draft project. Preserve true unknowns and prior decisions; no further clarifying question or duplicate operational work. _(via rosie)_
+  → (answered)
+<!-- feedback-end: rosie:jr-71:2026-09-23T13:13:38-05:00:note-refinement-complete -->
+
+## 2026-09-23
+
+<!-- feedback-id: telegram:-1004491410854:219 sha256: d34601241a2f4e78573ee3d5481fc1fa784e1f0bfee3bb9c44890aae41bcd25e -->
+- **Load edit and send should take minutes** — Chris Telegram219, exact quote via Rosie2026-09-23 13:15:39 CDT: “we are at 1hr 20m.... this can’t take more than 10m more like 1m to get it loaded, 2 m to edit, and then send off for replies.” The elapsed80minutes is Chris-reported, not Lily-measured system latency. The timing is a desired fast end-to-end load/edit/send outcome, not an accepted technical SLA or evidence of a missing UI. Rosie says she will obtain unambiguous final scope/send approval because AR creation immediately publishes, and will not continue serial note questions. Existing editable JR71 and the owner-reported scoped note correction remain the current path; no new AR draft feature, duplicate intake, timing guarantee or bypass of substitution/publication/send permissions follows. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: telegram:-1004491410854:219 -->
+
+## 2026-09-23
+
+<!-- feedback-id: telegram:-1004491410854:221 sha256: 2023187853c975dab5fcbc97302faf887ff49da9ad6c45c8f0192548eac43d55 -->
+- **Chris still cannot see JR71** — Chris Telegram221 exact fragment via Rosie2026-09-23 13:17:25 CDT: “don’t even see the JR.” This supersedes the earlier unknown actual-browser outcome: JR71 visibility/usability is now a concrete user-reported failure despite owner-verified active JR71 and26 persisted rows. Technical cause remains unverified; not yet proof of a filter/auth/link/stale-data defect. Rosie already escalated to Nova for /jobs?jr=71 and list/auth-filter verification; no AR published. Lily is not duplicating investigation or routing a speculative build. Separate note correction remains owner-reported complete. Chris219 speed concern stays open for existing-owner timeline/bottleneck findings; requested targets ~1minute load/~2minutes edit/≤10minutes load-edit-approved dispatch, not measured SLA/guarantee and not time to supplier reply. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: telegram:-1004491410854:221 -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:17:53-05:00:jr71-existing-timeline sha256: d28f37dcee3521c201102a43c47844fb562dde8d65e205dda26cfb0666200f93 -->
+- **JR71 intake fast but usable handoff delayed** — Rosie supplies existing timeline, no new audit: photo19712:34:06; availability19812:34:11; JR71+26rows reported created12:36:29 (~2m23s after photo). First main response had no direct usable Job link. Three substitution/flat questions12:36–12:37; partial pricing12:39; Chris responses12:53–12:55; Hawthorn clarification12:57. Scoped APS publication ask213 at13:00. Chris says not loaded13:10; first main direct Jobs→JR71 /jobs?jr=71 at13:11 (216), about37minutes after initial request and34m31s after reported rows. Speed complaint21913:15; explicit approval ask22013:15; cannot see JR22113:17, Nova investigating. No AR published. Owner identifies two removable frictions: working app link immediately with completed row intake; unresolved subjective substitution/quantity context retained in app notes rather than serial chats. Necessary scoped publication approval remains because AR creation publishes. This supplied interval does not account for Chris-reported80minutes; no invented earlier start or measured SLA. Human response gaps are not software latency. Desired ~1min load/~2min edit/≤10min overall ends at approved dispatch, not supplier reply. Lily recommends these narrow handoff improvements for owner consideration, not an authorized new SOP/UI/workflow build or approval bypass. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:main:2026-09-23T13:17:53-05:00:jr71-existing-timeline -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:18:28-05:00:jr71-source-triage sha256: 0ca014d08405511bad6de5b7015a26d294204e2031d9a3b3bc36e80578d1dc50 -->
+- **Quote exclusion is plausible not live-proven cause** — Rosie relays Nova source triage: current /requests default statuses Availability+Committed exclude Quote JR71; /jobs?jr=71 detail loads /api/requests/71 independently of list filters. Only unauthenticated login redirect was observed, not signed-in live route; deployed build provenance unknown. Chris has been directed to signed-in direct route or Quote filter plus clear search/customer/date filters, with screenshot/error requested only if direct route fails. This establishes a source-level plausible filter explanation, not proven live cause or accessibility. Existing approved five-stage/two-default/none filter contract remains unchanged; no permission to add Quote to defaults, change stage to make the record visible or build a new visibility feature. Await existing owner follow-through, no Lily duplicate audit or additional human question. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:main:2026-09-23T13:18:28-05:00:jr71-source-triage -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:20:08-05:00:jr71-final-triage sha256: 1b3c399ae7494f4d38ff232267d4d300dc65bfcc73d1a3560a3c1b507c39ce1a -->
+- **Login drops focused Job destination** — Rosie relays Nova FINAL triage2026-09-23 13:20:08 CDT: live JS bundle confirms fresh/reset All Jobs statuses Availability+Committed exclude Quote JR71. Concrete signed-out route defect: /jobs?jr=71 redirects to /login?next=%2Fjobs, dropping query; after login bare /jobs redirects to /requests and loses JR focus. Nova already starting narrow login-redirect fix review. Existing workaround communicated to Chris224: sign in first then paste /jobs?jr=71, or manually add Quote filter; Clear All resets and hides Quote again. Authenticated detail/API still not independently verified. No AR/data changes. Supersedes earlier source-only filter evidence and establishes a narrow existing-owner UI/navigation defect, not permission to change stage/default filters or create a new AR workflow. Lily duplicates neither investigation nor builder handoff; actual fix/release and Chris access remain unverified. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:main:2026-09-23T13:20:08-05:00:jr71-final-triage -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:25:07-05:00:app-first-guidance-complete sha256: f10b9428c1af354ba2bc39721c4f2f7e40e830356b15896edd356f91db3c1be4 -->
+- **Rosie completes narrow app-first intake guidance** — Rosie13:25:07, relayed by Lily main2026-09-23 13:25:50 CDT, reports smallest owned job-requests guidance change complete: canonical JR chat handoff/link immediately after known rows saved/verified, BEFORE optional subjective questions or price research. True customer options in note_from_customer; current unresolved sourcing/quantity in note_internal, removed once answered. Critical quote/AR/Order and supplier-publication/contact gates unchanged. Changes limited to owned skill/intake-note artifacts/changelog; routing reviewed not edited, no UI/schema/SLA/automatic AR/login-workaround change. Owner implementation completion is not operational-path, timing target or live visibility verification. Parent has one internal channel clarification pending because owner said original app conversation: ensure Telegram-origin intakes such as JR71 also get handoff back in original Telegram. No duplicate audit/edit if already covered, no further human question or Telegram message. Nova UI/visibility concern remains open. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:main:2026-09-23T13:25:07-05:00:app-first-guidance-complete -->
+
+## 2026-09-23
+
+<!-- feedback-id: rosie:main:2026-09-23T13:27:24-05:00:app-first-channel-complete sha256: ff91c97d88215ed68b82519a756d4d5565518e043482150270244aa3f762da6e -->
+- **Immediate Job handoff returns to originating channel** — Rosie13:27:24, relayed by Lily main2026-09-23 13:28:09 CDT, reports channel clarification complete in narrow owned skill/intake artifacts/changelog: immediate verified-row JR handoff/identity returns to original WEBCHAT OR TELEGRAM using existing routing. thread: links only inside app, never falsely presented as working Telegram links. No message-routing or operational edits. This closes the internal channel-guidance clarification, not usable direct HTTPS/app navigation or timing verification. No further owner/human question or audit needed. Nova actual signed-in redirect fix/release and usable JR evidence remain open; guidance text did not fix the UI bug. _(via rosie)_
+  → business/friction.md
+<!-- feedback-end: rosie:main:2026-09-23T13:27:24-05:00:app-first-channel-complete -->

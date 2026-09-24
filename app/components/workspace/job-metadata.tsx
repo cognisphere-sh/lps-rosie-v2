@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { patchRow } from '@/components/workspace/editable'
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
@@ -32,7 +32,7 @@ function EditableEdd({ request, onSaved }: { request: Pick<JobRequestRow, 'id' |
 
   return <>
     <span className={cn(dateTagClass, 'relative hover:bg-muted focus-within:ring-2 focus-within:ring-ring', !date && 'border-2 border-primary')}>
-      {!editing && (formatMonthDay(date, '/') || '—')}
+      {!editing && (formatWeekdayMonthDay(date) || '—')}
       <input type="date" aria-label="Edit EDD" value={date} disabled={busy}
         className={editing
           ? 'min-w-0 bg-transparent text-inherit outline-none disabled:cursor-wait'
@@ -90,7 +90,7 @@ export function JobMetadata({ request, className, onDateSaved, showFulfillment =
   showFulfillment?: boolean
 }) {
   const fields = [
-    ['EDD', formatMonthDay(request.expectedInstallDate, '/') || '—'],
+    ['EDD', formatWeekdayMonthDay(request.expectedInstallDate) || '—'],
     ['Fulfillment', request.fulfillmentMethod === 'pickup' ? 'Pickup' : request.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'],
   ]
 

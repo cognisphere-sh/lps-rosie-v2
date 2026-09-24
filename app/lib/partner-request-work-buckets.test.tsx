@@ -129,10 +129,10 @@ test('open and closed request cards use job-card EDD pills without creation date
     assert.equal(link.getAttribute('href'), '/partner/7/requests/8')
     assert.ok(link.textContent?.includes('JR-42:AR-1'))
     assert.doesNotMatch(link.textContent ?? '', /Created/)
-    assert.ok(within(link).getAllByText('09/20')[0].className.includes('rounded-full'))
+    assert.ok(within(link).getAllByText('Sun, 09/20')[0].className.includes('rounded-full'))
     const schedules = within(link).getByLabelText('Job schedules')
-    assert.equal(schedules.children[0].textContent, 'Job 1EDD09/20Pickup')
-    assert.equal(schedules.children[1].textContent, 'Job 2EDD09/26Delivery')
+    assert.equal(schedules.children[0].textContent, 'Job 1EDDSun, 09/20Pickup')
+    assert.equal(schedules.children[1].textContent, 'Job 2EDDSat, 09/26Delivery')
     assert.doesNotMatch(link.textContent ?? '', /Private courtyard|Private garden|JR-11|JR-22/)
   }
 

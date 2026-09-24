@@ -62,10 +62,24 @@ answer itself quotes a positive price clearly for that alternative. If not,
 look up its applicable **APS** price with `plant-and-supplier-search` (or
 Chris's authorized supplier exception), checking exact alternative identity,
 size and positive price. Distinguish an inventory list price from a
-supplier-confirmed quote and neither from actual availability. Present the alternative and supported price to Chris in the
-original request conversation and ask **whether to use that price** for the
-specified job item; wait for his selection before changing any price or
-customer-facing offering. Preserve accepted customer terms. If no reliable
+supplier-confirmed quote and neither from actual availability. Verify whether
+any supplier-entered amount is an applicable customer-facing unit price rather
+than a supplier cost or an ambiguous amount. Present the alternative and
+supported price to Chris in the original request conversation and ask
+**whether to use that price** for the specified job item; wait for his scoped
+selection before changing any price or customer-facing offering. If Chris
+explicitly approves applying the submitted different size/quantity/variant and
+its reliable new-offering price (or explicitly accepted price proxy), the
+selected quote/line `unit_price` must be for the **newly selected offering**:
+never carry forward the original size/variant's price merely because it is
+listed or was previously quoted. A different quantity alone does not establish
+a new unit price; verify the applicable terms rather than guessing. Preserve
+the original customer request in `note_from_customer`, record the actual
+selected difference under the note rules, and preserve already accepted
+customer terms until Chris authorizes their change. If the new offering has
+no supported customer-facing price, leave the affected new-offering price
+unresolved rather than reuse the old price or invent one; do not publish a
+revised quote/order for that affected scope until resolved. If no reliable
 price is found, tell Chris the gap and ask specifically whether to contact the
 supplier for **that alternative's price**. Only after his approval, hand the
 exact AR, supplier, alternative and original-chat approval evidence to the

@@ -1,4 +1,4 @@
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import { structuredJobIdentityLine } from '@/lib/job-identity'
 
 export interface JobInboxRow {
@@ -233,8 +233,8 @@ export function jobInboxRowAriaLabel(
   statusLabel: string,
 ): string {
   const readState = row.unread ? 'Unread web chat' : 'No unread web chat'
-  const created = formatMonthDay(row.createdAt) || '—'
-  const expected = formatMonthDay(row.expectedInstallDate) || '—'
+  const created = formatWeekdayMonthDay(row.createdAt) || '—'
+  const expected = formatWeekdayMonthDay(row.expectedInstallDate) || '—'
   return `${jobInboxRailPrimaryLine(row)}, ${statusLabel}, Created ${created}, EDD ${expected}, ${readState}`
 }
 

@@ -20,7 +20,7 @@ import {
   onOpenAvailabilityRequest,
 } from '@/lib/chat-bus'
 import { availabilityRecordName, type ARDetail } from '@/lib/availability'
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
 import { useJobUpdates } from '@/lib/use-job-updates'
 
@@ -548,7 +548,7 @@ export function AvailabilityRequestDrawer() {
               {ar && (
                 <>
                   <span className="whitespace-nowrap text-[11px] text-muted-foreground">
-                    Created on <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(ar.createdAt) || '—'}</span>
+                    Created on <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(ar.createdAt) || '—'}</span>
                   </span>
                   <ARJobSchedules schedules={ar.jobSchedules} showJobNames />
                 </>
@@ -624,7 +624,7 @@ export function AvailabilityRequestDrawer() {
                     {ar.submittedAt && (
                       <>
                         <dt className="font-bold text-muted-foreground">Submitted</dt>
-                        <dd className="m-0 text-foreground">{formatMonthDay(ar.submittedAt)}</dd>
+                        <dd className="m-0 text-foreground">{formatWeekdayMonthDay(ar.submittedAt)}</dd>
                       </>
                     )}
                   </dl>

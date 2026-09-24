@@ -124,6 +124,16 @@ fields or change job availability/status from the manual input.
    Report the priced lines, open requests and unresolved decisions on this
    job's chat; send any required approval to the original request thread.
 
+For a submitted supplier `diff_size_qty_sub` response, follow [supplier
+responses](supplier-responses.md) before repricing. Only after Chris approves
+an actual different-size/variant offering for a specified item and selects a
+supported new-offering price or authorized proxy may that item's selected quote
+use the alternative; the original size/variant's price is never the fallback
+for the newly selected offering, even when it remains listed. Preserve the
+original request and any already accepted customer terms until their scoped
+change is authorized. A missing new-offering price remains unresolved, not an
+excuse to reuse the old one.
+
 The existing Chris-approved cultivar/color pricing convention remains:
 crape myrtles, plumbago and salvias may use APS's generic line at the same
 size when the requested variety/color is unlisted. Explain `Generic price`

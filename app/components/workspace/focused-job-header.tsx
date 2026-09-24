@@ -12,7 +12,7 @@ import { useToast } from '@/components/workspace/shell'
 import { JOB_NAME_MAX_LENGTH, jobRequestIdentityLine, storedJobIdentityComponents } from '@/lib/job-identity'
 import { canonicalJobThread } from '@/lib/job-inbox'
 import { requestRef } from '@/lib/job-requests'
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import type { JobRequestRow } from '@/lib/rows'
 
 export interface FocusedJobChatTarget {
@@ -506,7 +506,7 @@ export function FocusedJobNameEditor({
         type="button"
         disabled={busy}
         aria-label={`${name ? 'Edit' : 'Add'} job name for JR-${request.id}`}
-        title={request.createdAt ? `Created ${formatMonthDay(request.createdAt)}` : (name ? `Edit Job name: ${name}` : 'Add Job name')}
+        title={request.createdAt ? `Created ${formatWeekdayMonthDay(request.createdAt)}` : (name ? `Edit Job name: ${name}` : 'Add Job name')}
         data-job-name-trigger={request.id}
         onClick={begin}
         className="min-h-11 w-full min-w-0 break-words rounded-md text-left text-[18px] font-bold leading-tight outline-none [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
@@ -532,7 +532,7 @@ export function FocusedJobNameEditor({
           type="button"
           disabled={busy}
           aria-label={`Edit job name for JR-${request.id}`}
-          title={request.createdAt ? `Created ${formatMonthDay(request.createdAt)}` : `Edit Job name: ${identity.job}`}
+          title={request.createdAt ? `Created ${formatWeekdayMonthDay(request.createdAt)}` : `Edit Job name: ${identity.job}`}
           data-job-name-trigger={request.id}
           onClick={begin}
           className="inline-flex min-h-11 max-w-full items-center rounded-md align-top font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"

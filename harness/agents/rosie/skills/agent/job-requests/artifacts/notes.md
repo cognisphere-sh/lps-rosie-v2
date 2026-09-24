@@ -9,13 +9,14 @@ eligibility rules.
 |---|---|
 | `note_from_customer` | Notes or additional information supplied by the customer: alternatives, color, special requests and other requirements. Preserve original demand/options when the quoted offering changes. |
 | `note_for_customer` | Notes included in the quote and shared with the customer. They may come from Chris/LPS's sourcing work or an AR supplier response. Include only information meant for the customer. |
-| `note_internal` | Brief current facts: supplier, priced plant/size and list or supplier price, actual received response (if any), and implemented line change/substitution. No approval/provenance narration or pending-response boilerplate. |
+| `note_internal` | Brief current supplier/price/received-response facts, implemented line changes and material unresolved sourcing or quantity choices. Do not turn open choices into selected offerings or customer-origin statements. No approval/provenance narration or pending-response boilerplate. |
 
 Keep notes concise and current, not an action log. Do not duplicate structured
 fields, copy a transcript or list steps taken; replace superseded facts in
 place and leave NULL when there is nothing useful to add. On an existing job,
-record only the current supplier/price/response state and any current actual
-line modification/substitution that matters; workflow records and chat carry
+record only the current supplier/price/response state, current actual line
+modification/substitution and still-material unresolved sourcing/quantity
+choices; workflow records and chat carry
 action history. A general price/supplier lookup still
 creates no job, AR or outreach. Report findings in Chris's original chat as
 well as updating relevant job notes when useful.
@@ -43,8 +44,10 @@ well as updating relevant job notes when useful.
    price-list gap. Keep unverified cultivar/proxy caveats and supplier-directed
    questions such as `Plum Delight cultivar not confirmed` or `RED Avail?`
    internal or in the supplier ask, not `note_for_customer`. In `note_internal`,
-   retain only material current supplier, price and response information, plus
-   any actual current item-line change/substitution. Identify the actual
+   retain only material current supplier, price and response information, actual
+   current item-line changes/substitutions, and unresolved sourcing or quantity
+   choices that affect the next decision. Resolve or remove the choice when
+   decided; do not leave a running deliberation. Identify the actual
    catalogue plant/size behind a proxy price where useful, without narrating
    who approved it or calling it an actual substitution. Include a supplier
    response only after actually received;
@@ -73,8 +76,9 @@ well as updating relevant job notes when useful.
    affected item only; do not mistake a pricing-only proxy for an actual plant
    substitution or erase the original customer demand. Do **not** retain
    rejected decisions or unused substitutions (e.g. `No 7G substitution`) in
-   internal notes: only implemented changes and the current supplier/price/
-   response state belong there. Do not turn internal notes into an approval,
+   internal notes: retain implemented changes, current supplier/price/response
+   state and any still-material unresolved sourcing or quantity choice. Do not
+   turn internal notes into an approval,
    sourcing-step or contact chronology; use structured records and transcripts.
 5. Guard note-only writes and verify the saved fields. Note updates do not
    change prices, quantities, offerings, availability, statuses, source selection

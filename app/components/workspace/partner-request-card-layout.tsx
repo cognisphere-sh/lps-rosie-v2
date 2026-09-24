@@ -24,11 +24,11 @@ export function PartnerRequestCardLayout({ request, href, name, status, classNam
         {schedules.map((schedule, index) => <div key={index} className="inline-flex items-center gap-1.5">
           {schedules.length > 1 && <span className="text-[11px] text-muted-foreground">Job {index + 1}</span>}
           <JobMetadata request={{ id: index, expectedInstallDate: schedule.expectedInstallDate, fulfillmentMethod: schedule.fulfillmentMethod }} showFulfillment={false} className="grid-cols-[max-content]" />
-          {schedules.length > 1 && <Fulfillment method={schedule.fulfillmentMethod} />}
+          {schedules.length > 1 && <PartnerCardFulfillment method={schedule.fulfillmentMethod} />}
         </div>)}
       </div>
       <span className="ml-auto flex items-center gap-2 whitespace-nowrap text-[11px] text-muted-foreground">
-        {schedules.length === 1 && <><Fulfillment method={schedules[0].fulfillmentMethod} /><span aria-hidden="true">:</span></>}
+        {schedules.length === 1 && <><PartnerCardFulfillment method={schedules[0].fulfillmentMethod} /><span aria-hidden="true">:</span></>}
         <span>{request.items.length} {request.items.length === 1 ? 'item' : 'items'}</span><span aria-hidden="true">:</span>
         <span className="font-semibold tabular-nums text-foreground">{total == null ? '—' : money(total)}</span>
       </span>
@@ -40,6 +40,6 @@ export function PartnerRequestCardLayout({ request, href, name, status, classNam
   </Link>
 }
 
-function Fulfillment({ method }: { method: string | null }) {
+export function PartnerCardFulfillment({ method }: { method: string | null }) {
   return <span className="inline-flex items-center rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary">{method === 'pickup' ? 'Pickup' : method === 'delivery' ? 'Delivery' : '—'}</span>
 }

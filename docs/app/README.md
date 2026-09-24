@@ -16,7 +16,7 @@ their supplier snapshots.
 
 Job Requests offer **Quote**, **Availability**, **Committed**, **Won**, **Lost**.
 Stored values are `quoted`, `availability`, `committed`, `closed_won`, `closed_lost`. Migration 0092 replaces Active with
-Quote and makes Quote the default. Legacy Archived rows remain readable.
+Quote and makes Quote the default **for newly created jobs**. The All jobs list separately defaults to Availability and Committed, so Quote jobs require a different status filter. Legacy Archived rows remain readable.
 Active Jobs, customer totals and Rosie's job picker include all three working
 stages. Migration 0093 removes the Job Request Confirmed stage, mapping saved
 Confirmed jobs and filters to Committed. Supplier Orders use New → Processing → Order Ready after migration 0094. Persisted Active/New/Sourcing filters restore to Quote; previously
@@ -2410,6 +2410,8 @@ missing or rotated `APP_SESSION_SECRET` fails closed, signing everyone out
 rather than letting stale cookies through. That check is load-bearing: pages
 read *and write* Supabase with the project's **secret** key, and nothing
 downstream re-authorizes the call.
+
+A signed-out internal job link such as `/jobs?jr=71` redirects to `/login?next=%2Fjobs%3Fjr%3D71`; after a successful admin login, the validated `next` opens that job instead of the bare Jobs list. Only one positive, safe-integer `jr` id survives the redirect; all unrelated query values are discarded rather than copied into a login URL or browser history. The login page accepts only same-app paths, strips other queries, rejects ambiguous/external destinations and honors `/change-password` before any deep link. Signed-in requests keep their original query string.
 
 A `partner` session is refused every path outside `/partner` and `/api/partner`
 — redirected to their own portal, or 403 on an API call. Ahead of that, a

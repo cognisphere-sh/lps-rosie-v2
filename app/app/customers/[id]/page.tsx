@@ -12,7 +12,7 @@ import { ChevronDown, ChevronRight, MailIcon, MapPinIcon, PhoneIcon } from '@/co
 import { RequestBody, addressLine } from '@/components/workspace/job-request'
 import { Shell } from '@/components/workspace/shell'
 import { CUSTOMER_TYPES, customerThreadId } from '@/lib/customers'
-import { formatDate, money } from '@/lib/format'
+import { formatWeekdayMonthDay, formatDate, money } from '@/lib/format'
 import { requestRef, requestStatusLabel, requestStatusTone, toneStyle } from '@/lib/job-requests'
 import type { CustomerRequest, CustomerRow, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
@@ -175,7 +175,7 @@ function RequestLine({
           {money(request.lineTotal) || '$0.00'}
         </span>
         <span className="flex-none whitespace-nowrap text-[10.5px] text-lps-dim">
-          {formatDate(request.createdAt)}
+          {formatWeekdayMonthDay(request.createdAt)}
         </span>
       </div>
 

@@ -29,7 +29,7 @@ import {
 import { requestRef } from '@/lib/job-requests'
 import { PLANT_FILTERS, filterQuery } from '@/lib/server-filters'
 import { PLANT_SORTS, clientOnlySort, sortQuery } from '@/lib/server-sort'
-import { formatDate, formatMonthDay, money, num } from '@/lib/format'
+import { formatDate, formatWeekdayMonthDay, money, num } from '@/lib/format'
 import type {
   CellValue, Contact, PlantRow, SupplierProfile, SupplierRow, SupplierScopeLocation, SupplierSource,
 } from '@/lib/rows'
@@ -1584,7 +1584,7 @@ export default function SupplierProfilePage() {
                       {r.answeredCount}/{r.itemCount} answered
                     </span>
                     <span className="whitespace-nowrap text-[11px] text-lps-dim">
-                      {formatDate(r.createdAt)}
+                      {formatWeekdayMonthDay(r.createdAt)}
                     </span>
                     <ChevronRight size={15} />
                   </button>
@@ -1612,8 +1612,8 @@ export default function SupplierProfilePage() {
                     </span>
                   )}
                   <span className="text-[11px] text-lps-dim">
-                    Created on {formatMonthDay(openAr.createdAt) || '—'}
-                    {openAr.submittedAt && ` · Submitted ${formatMonthDay(openAr.submittedAt)}`}
+                    Created on {formatWeekdayMonthDay(openAr.createdAt) || '—'}
+                    {openAr.submittedAt && ` · Submitted ${formatWeekdayMonthDay(openAr.submittedAt)}`}
                   </span>
                   <ARJobSchedules schedules={openAr.jobSchedules} showJobNames />
                   <div className="ml-auto flex items-center gap-2">

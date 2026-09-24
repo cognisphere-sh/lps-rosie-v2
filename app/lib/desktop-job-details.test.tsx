@@ -94,7 +94,7 @@ test('collapsed, expanded and mobile job cards show adjacent created/install dat
         onToggle={() => {}} onSelect={() => {}} onDelete={() => {}} onDeleteItem={() => {}} onSaved={() => {}} />,
     )
     const head = view.container.querySelector('[data-request-card-head]')!
-    assert.deepEqual([...head.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['09/20'])
+    assert.deepEqual([...head.querySelectorAll('[data-job-metadata] dd')].map((node) => node.textContent), ['Sun, 09/20'])
     assert.ok(head.querySelector('[data-job-metadata]')?.parentElement?.querySelector('a[href="/jobs?jr=19"]'))
     assert.equal(view.container.querySelector('[data-compact-job-details]'), null)
     view.unmount()
@@ -832,7 +832,7 @@ test('sidebar cards show identity, status and Created/EDD dates without chat or 
     const primary = view.container.querySelector<HTMLElement>('[data-focused-job-rail-primary]')
     assert.ok(primary)
     assert.equal(primary.textContent, base.name)
-    assert.equal(primary.title, `${expected} · Created 09-01`)
+    assert.equal(primary.title, `${expected} · Created Tue, 09/01`)
     assert.match(primary.className, /truncate/)
     assert.ok(view.getByText('Land Water Light · Dior Goodwin'))
     const status = view.container.querySelector<HTMLElement>('[data-job-status="quoted"]')!
@@ -840,7 +840,7 @@ test('sidebar cards show identity, status and Created/EDD dates without chat or 
     assert.equal(status.textContent, 'Quote')
     assert.equal(status.title, 'Quote')
     assert.equal(button.getAttribute('aria-current'), selected ? 'page' : null)
-    assert.equal(button.querySelector('[data-focused-job-rail-dates]')?.textContent, '09/20')
+    assert.equal(button.querySelector('[data-focused-job-rail-dates]')?.textContent, 'Sun, 09/20')
     assert.doesNotMatch(button.textContent ?? '', /Long snippet|New web chat|Sep 1, 2:00 PM|Unread in team web chat/)
     assert.ok(button.querySelector('[title="Unread messages"]'))
     view.unmount()

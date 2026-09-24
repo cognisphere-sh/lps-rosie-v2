@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { loginDestination } from '@/lib/login-return'
 
 /**
  * Sign-in for both populations: the internal team and LPS Partner suppliers.
@@ -44,10 +45,8 @@ function LoginForm() {
       })
       const body = (await res.json().catch(() => ({}))) as { next?: string; error?: string }
       if (res.ok) {
-        // The deep link that triggered the sign-in wins, but only if it is a
-        // path on this app — an absolute URL here would be an open redirect.
-        const next = params.get('next')
-        router.push(next && next.startsWith('/') && !next.startsWith('//') ? next : body.next ?? '/')
+        // Keep a safe job deep link, but never override a required password change.
+        router.push(loginDestination(params.get('next'), body.next ?? '/'))
         router.refresh()
       } else if (res.status === 401) {
         setError('Invalid username or password.')

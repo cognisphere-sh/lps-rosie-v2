@@ -5,6 +5,8 @@ import { Check, ChevronDown, Layers, LayoutGrid, List, Copy, Trash2 } from 'luci
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
+import { PartnerCardFulfillment } from './partner-request-card-layout'
+import { JobMetadata } from './job-metadata'
 import { PartnerDetailHeader, PartnerFulfillment } from './partner-detail-header'
 import { SummaryStrip } from './partner-summary-strip'
 import { AnswerCell } from './availability'
@@ -68,18 +70,25 @@ function OrderFulfillment({ order }: { order: Order }) {
 
 /** Compact order rows open the supplier's dedicated order page. */
 export function PartnerOrderCard({ order, supplierId }: { order: Order; supplierId: number }) {
+  const name = order.jobNames?.join(' · ') || orderRecordName(order)
+  const note = order.noteForSupplier?.trim()
   return <Link href={`/partner/${supplierId}/orders/${order.id}`} aria-label={`${ORDER_STATUS_META[order.status].label} order ${orderRecordName(order)}`}
-    data-order-row-status={order.status} style={orderPalette(order.status)}
-    className={cn('grid flex-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-4 py-4 no-underline transition-colors hover:bg-lps-tint sm:grid-cols-[8.5rem_minmax(0,1fr)_6.5rem] sm:gap-4 sm:px-5', orderBorder)}>
-    <span className="col-start-1 row-start-1"><OrderStatusPill status={order.status} /></span>
-    <div className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-col gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="min-w-0 truncate text-[16px] font-semibold leading-tight text-foreground" title={order.jobNames?.join(' · ') || orderRecordName(order)}>{order.jobNames?.join(' · ') || orderRecordName(order)}</span>
-        <div className="shrink-0"><OrderFulfillment order={order} /></div>
-      </div>
-      {order.noteForSupplier && <span className="whitespace-pre-wrap text-[13px] text-muted-foreground [overflow-wrap:anywhere]" title={order.noteForSupplier}>{order.noteForSupplier}</span>}
+    data-order-row-status={order.status}
+    className="flex flex-none flex-col gap-1.5 rounded-xl border border-border bg-card px-3.5 py-2.5 no-underline shadow-sm transition-shadow hover:bg-lps-tint hover:shadow-md">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+      <span className="inline-flex [&>span]:h-6 [&>span]:w-auto [&>span]:px-2 [&>span]:text-[11px]"><OrderStatusPill status={order.status} /></span>
+      <span className="min-w-0 max-w-full truncate text-[12.5px] font-semibold text-foreground" title={name}>{name}</span>
+      <JobMetadata request={{ id: order.id, expectedInstallDate: order.fulfillmentDate, fulfillmentMethod: order.fulfillmentMethod }} showFulfillment={false} className="grid-cols-[max-content]" />
+      <span className="ml-auto flex items-center gap-2 whitespace-nowrap text-[11px] text-muted-foreground">
+        <PartnerCardFulfillment method={order.fulfillmentMethod} /><span aria-hidden="true">:</span>
+        <span>{order.items.length} {order.items.length === 1 ? 'item' : 'items'}</span><span aria-hidden="true">:</span>
+        <span className="font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
+      </span>
     </div>
-    <span className="col-start-2 row-start-1 text-right text-[15px] font-semibold tabular-nums text-foreground sm:col-start-3 sm:w-[6.5rem]">{money(orderSubtotal(order)) || '—'}</span>
+    {(order.customerDetails?.length || note) && <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+      {order.customerDetails?.map(({ customer }, index) => (customer?.company || customer?.name) && <span key={index} className="font-semibold text-foreground">{customer?.company || customer?.name}</span>)}
+      {note && <span title={note} className="whitespace-pre-wrap [overflow-wrap:anywhere]">{note}</span>}
+    </div>}
   </Link>
 }
 

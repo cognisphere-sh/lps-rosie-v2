@@ -441,7 +441,7 @@ test('summary stays truthful, zero and null remain distinct, and Submit wording 
   assert.match(summary.textContent ?? '', /Vivero São José — 北美苗圃/)
   assert.match(summary.textContent ?? '', /Courtyard 🌳 retrofit/)
   const header = dialog.querySelector('header')!
-  assert.match(header.textContent ?? '', /Created on 08-30/)
+  assert.match(header.textContent ?? '', /Created on Sun, 08\/30/)
   assert.ok(header.querySelector('#availability-request-drawer-title'))
   assert.match(summary.textContent ?? '', /Submitted08-31/)
   const schedules = header.querySelector('[aria-label="Job schedules"]')!

@@ -17,6 +17,8 @@ here).
 
 ## 2026-09-23
 
+- Restore signed-out `/jobs?jr=<id>` deep links after login by carrying only the validated job id through `next`; discard unrelated query values and reject unsafe redirects. Clarify the All jobs list's Availability/Committed default filters (distinct from the Quote creation stage).
+
 - Apply migration 0114 at 14:40:01 UTC for public order links. Rolled-back rehearsal, commit-time preservation checks, and independent post-commit verification passed; all four existing orders remain unchanged and private. App deployment was not part of this migration run.
 
 - Add admin-controlled public order links with copy/revoke controls, a read-only supplier view, and public URLs in copied orders. Migration 0114 revokes links on closure or deactivation; public payloads exclude customer notes and internal associations.

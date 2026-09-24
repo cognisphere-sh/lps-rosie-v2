@@ -26,7 +26,7 @@ import {
 import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { customerThreadId } from '@/lib/customers'
-import { formatDate, formatMonthDay, money, num } from '@/lib/format'
+import { formatWeekdayMonthDay, money, num } from '@/lib/format'
 import {
   ITEM_STATUS_OPTIONS,
   coverColor,
@@ -897,7 +897,7 @@ export function RequestLinks({
                     )}
                   </span>
                   <span id={`${dateIdPrefix}-ar-${ar.id}-date`} className="whitespace-nowrap text-[10.5px] font-normal opacity-80">
-                    {formatMonthDay(isSubmittedARStatus(ar.status) ? ar.submittedAt : ar.createdAt) || '—'}
+                    {formatWeekdayMonthDay(isSubmittedARStatus(ar.status) ? ar.submittedAt : ar.createdAt) || '—'}
                   </span>
                 </LinkSegment>
               ))}
@@ -1223,12 +1223,12 @@ const ACTOR_LABEL: Record<string, string> = {
 }
 const actorLabel = (a: string) => ACTOR_LABEL[a] ?? a
 
-/** `Aug 18, 09:41` — a changelog entry is read against its neighbours, so the
+/** `Tue, 08/18, 09:41` — a changelog entry is read against its neighbours, so the
  *  time matters as much as the date. */
 const changeStamp = (iso: string) =>
-  new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
+  `${formatWeekdayMonthDay(iso)}, ${new Date(iso).toLocaleTimeString('en-US', {
+    timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit',
+  })}`
 
 /** One changed value, short enough to sit in a row. */
 function showValue(v: unknown): string {
@@ -1441,7 +1441,7 @@ export function RequestBody({
   const ship = addressLine(request.shipping)
   const bill = addressLine(request.billing)
   const lastUpdated = request.updatedAt && !Number.isNaN(new Date(request.updatedAt).getTime())
-    ? formatDate(request.updatedAt)
+    ? formatWeekdayMonthDay(request.updatedAt)
     : ''
 
   // What the collapsed drawer says it is hiding, so opening it is a decision

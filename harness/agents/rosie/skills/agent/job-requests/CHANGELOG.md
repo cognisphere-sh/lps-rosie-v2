@@ -1,5 +1,17 @@
 # job-requests — changelog
 
+## 5.40.0 — 2026-09-23
+
+- Chris's JR-69 Diff Size/Qty/Variant price correction: after scoped approval to apply an actual different offering and a supported new size/variant selling price or accepted proxy, price the selected line for that new offering. Never carry over the original size/variant price even when listed; leave unresolved new-offering prices unset and preserve accepted terms until an authorized change. Supplier submission alone still updates evidence/notes, not the JR's offering, price, availability or source. Distinguish supplier costs from customer unit prices.
+
+## 5.39.1 — 2026-09-23
+
+- Clarify the v5.39.0 immediate canonical-job handoff applies to the originating channel, including Telegram-origin requests. The app's `thread:jr-<id>` navigation link is included for webchat; Telegram receives the JR identity rather than an unsupported app-internal link. No change to intake writes or approval gates.
+
+## 5.39.0 — 2026-09-23
+
+- Chris's explicit app-first intake feedback (Telegram 217/219, JR-71): return the canonical JR chat link to the original app request conversation immediately after known rows are saved and verified, before optional subjective refinement or pricing research finishes. Record customer-stated alternatives in `note_from_customer` and material unresolved sourcing/quantity choices in `note_internal` rather than serially blocking independent work on them. Critical uncertainties still block affected quote/AR/order output, and supplier publication/contact approvals remain unchanged. No UI, schema, SLA or automatic AR behavior added.
+
 ## 5.38.0 — 2026-09-23
 
 - Chris's explicit feedback on his JR-69 UI edits at 10:51:47: customer-facing item notes should favor the concise verified offered-versus-requested fact, not an unsolicited customer-choice question. A verified clarification of an ambiguous original quantity/unit can merit a brief external note even where supply is available as requested. This changes note wording only; do not infer an offer, acceptance or stock from a short note, and do not copy his manual available-quantity edit into a general rule without clarification.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 import { resolveUser } from '@/lib/session'
+import { jobLoginReturn } from '@/lib/login-return'
 
 // The app-wide gate. Since 2026-08-30 the app owns its own sign-in: a session
 // is the `app_sid` cookie minted by `/api/auth/login` against Supabase Auth,
@@ -61,7 +62,7 @@ export default async function proxy(req: NextRequest) {
     url.pathname = '/login'
     url.search = ''
     // So a shared deep link survives the sign-in it triggers.
-    url.searchParams.set('next', pathname)
+    url.searchParams.set('next', jobLoginReturn(pathname, req.nextUrl.searchParams))
     return NextResponse.redirect(url)
   }
 

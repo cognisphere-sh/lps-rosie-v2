@@ -24,14 +24,24 @@ through the lifecycle hook. Research clearly labelled candidate
 alternatives without selecting them. Verify writes before reporting them.
 Missing details block only actions that depend on those details.
 
-Post the created/updated job and rows, pricing and other findings, with any
-gaps or uncertainty, in the original request conversation via `message-routing`;
-external customer communication stays with `customer-coordination`. Then ask
-concise questions about anything still unclear that affects the quote,
-availability ask or order.
+**As soon as the known item rows are saved and verified, return the canonical
+JR-<id> handoff to the original request conversation on its originating channel
+(webchat or Telegram) via `message-routing`; include
+`[Continue in JR-<id> chat](thread:jr-<id>)` for webchat.** State what was captured and what remains
+unresolved; do not withhold this usable job navigation while researching prices,
+refining subjective preferences or waiting for optional answers. The original
+job thread is already the canonical destination when intake began there.
+Report subsequent verified prices, findings and gaps in the originating chat
+as they become available; external customer communication stays with
+`customer-coordination`. Then ask concise questions about anything still
+unclear that affects the quote, availability ask or order.
 Questions may cover any relevant detail, such as plant/cultivar, size,
 quantity, alternatives, budget, delivery timing/location, supplier or scope;
 these are examples, not a required checklist. Use answers already provided.
+Do not serially gate the job handoff or independent work on optional subjective
+refinement: retain customer-stated options in `note_from_customer`, track
+material open sourcing/quantity decisions in `note_internal`, and ask only
+when a decision is needed for the affected output.
 Wait for needed answers before generating the affected quote or creating/
 sending the affected AR or creating the affected order. On the availability
 path, Chris must also approve the availability send after the quote; creating
@@ -139,10 +149,13 @@ requirement. If the request is clear, proceed without extra questions.
    requested line, preserving the supplied plant name, size and requested amount
    in `demanded_quantity`.
    Save the customer's additional line details in
-   `job_request_items.note_from_customer`: alternatives, color, special requests
-   and other requirements. Keep job-wide details on the job. These notes
-   supply relevant context for a later authorized AR; do not store internal
-   sourcing decisions or customer-facing quote commentary as customer input.
+   `job_request_items.note_from_customer`: alternatives (including all stated
+   plant/size options), color, special requests and other requirements. Keep
+   job-wide details on the job. Track material unresolved sourcing or quantity
+   choices briefly in the applicable `note_internal`, without attributing an
+   unmade decision to the customer or selecting an option. The customer-origin
+   notes supply relevant context for a later authorized AR; do not store
+   internal sourcing decisions or customer-facing quote commentary as customer input.
    Missing size, quantity or price stays NULL and does not prevent creating
    a row with a supplied plant name. If the plant name itself is missing,
    record the unresolved request in job notes and create the other rows;
