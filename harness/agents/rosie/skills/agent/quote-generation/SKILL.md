@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.4.0)
+description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.7.0)
 metadata:
   author: lps
-  version: "3.4.0"
+  version: "3.7.0"
 ---
 
 # Quote generation

@@ -660,7 +660,7 @@ Table-returning RPC columns:
 - `search_plant_photos`: `id`, `storage_bucket`, `storage_path`, `mime_type`, `byte_size`, `image_width`, `image_height`, `sha256`, `supplier_id`, `supplier_name`, `supplier_category`, `supplier_city`, `supplier_state`, `name`, `name_key`, `common_name`, `botanical_name`, `cultivar_variety_trade_name`, `cultivar_keys`, `size`, `size_std`, `height`, `width`, `caliper`, `tags`, `caption`, `notes`, `source`, `captured_at`, `is_active`, `created_at`, `updated_at`, `relevance`.
 - `plant_photo_reclaimable`: `object_name`, `reason`, `age_days`, `byte_size`, `photo_id`, `photo_name`.
 
-### Pending migration 0114: public order links
+### Public order links (migration 0114, applied 2026-09-23)
 
 `orders.public_token uuid UNIQUE` is nullable (private by default). The
 `guard_order_public_link` trigger clears it for closed/inactive orders and rejects

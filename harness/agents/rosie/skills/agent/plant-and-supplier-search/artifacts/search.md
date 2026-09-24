@@ -50,7 +50,13 @@
    If APS has no match, offer to search other
    suppliers and wait for instruction. An explicit all-supplier question
    authorizes that broader search. `job-requests` owns sourcing decisions.
-6. Check positive price, source freshness and explicit stock-location notes.
+6. Treat the APS price list as a non-exhaustive indication of items the
+   supplier carries, not a live availability list. An absent row or price
+   does not mean APS cannot supply the original customer-requested plant/size;
+   a listed row or quantity does not confirm it can. Price evidence must not
+   narrow an approved AR from the original requested plant/size to a listed
+   proxy. `supplier-coordination` owns the actual supplier ask.
+7. Check positive price, source freshness and explicit stock-location notes.
    A supplier's headquarters does not prove where inventory sits. Verify
    farm/region/location evidence in the inventory row/source; distinguish
    head-office location from stock location. Separate locations can be

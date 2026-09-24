@@ -250,6 +250,6 @@ and when; the summaries below are one line each.
   same-supplier order creation. Rehearsal and apply verify unchanged retained
   data across 12 tables and unchanged unrelated functions/privileges.
 
-- `0114_public_orders.sql` — pending deployment. Adds nullable unique order public
+- `0114_public_orders.sql` — applied 2026-09-23 14:40:01 UTC after a rolled-back rehearsal. Adds nullable unique order public
   tokens, cleared by order closure/deactivation. Anonymous access remains in the
   app's read-only token route; database grants are unchanged.

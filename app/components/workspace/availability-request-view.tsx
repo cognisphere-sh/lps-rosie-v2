@@ -51,7 +51,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
             <PartnerDetailHeader name={request.jobName ? redactPartnerRequestRefs(request.jobName) : requestName(request)}
               status={<span className="inline-flex h-8 items-center rounded-full border border-border bg-card px-3.5 text-[13px] text-muted-foreground">{arStatusLabel(request.status)}</span>}
               schedule={<div aria-label="Job schedules" className="flex flex-wrap gap-3">{(request.jobSchedules?.length ? request.jobSchedules : [{ fulfillmentMethod: null, expectedInstallDate: null }]).map((schedule, index) => <div key={index} className="space-y-1">{(request.jobSchedules?.length ?? 0) > 1 && <span className="text-[11px] text-muted-foreground">Job {index + 1}</span>}<PartnerFulfillment method={schedule.fulfillmentMethod} date={schedule.expectedInstallDate} /></div>)}</div>}
-              contacts={request.customer || request.shipping?.address ? [{ customer: request.customer ?? null, address: [request.shipping?.address, request.shipping?.city, request.shipping?.state, request.shipping?.zip].filter(Boolean).join(', ') || null }] : []}
+              contacts={request.shareCustomerDetails && (request.customer || request.shipping?.address) ? [{ customer: request.customer ?? null, address: [request.shipping?.address, request.shipping?.city, request.shipping?.state, request.shipping?.zip].filter(Boolean).join(', ') || null }] : []}
               note={request.noteForSupplier ? redactPartnerRequestRefs(request.noteForSupplier) : null}
             />
 

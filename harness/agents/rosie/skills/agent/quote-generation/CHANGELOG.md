@@ -1,5 +1,13 @@
 # quote-generation — changelog
 
+## 3.7.0 — 2026-09-23
+
+- Chris explicitly designated his JR-69 UI note edits as feedback: favor terse supported facts (`5 G only`, `Only 7 G available; 15 G NA`) rather than automatically adding a customer-choice question. A confirmed clarification of an ambiguous quantity/unit (`140 x 4" correct`) can be worth an external note even if available as requested. Preserve verified supplier evidence, approval boundaries and original-versus-offered meaning.
+
+## 3.6.0 — 2026-09-23
+
+- Chris's JR-69 customer-note feedback: include only approved alternative recommendations for actually unavailable originals, concise actual size/quantity/variant differences or approval questions, or ETA/meaningful supplier details for orderable plants; available-as-requested ordinarily needs no note. Keep unverified cultivar and supplier-directed questions internal, preserving customer-origin notes and useful existing external supplier conditions. Do not turn a pricing-only gap into an availability claim or customer note.
+
 ## 3.4.0
 
 - Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.

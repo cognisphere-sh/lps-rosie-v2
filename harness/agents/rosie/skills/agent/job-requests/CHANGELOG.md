@@ -1,5 +1,45 @@
 # job-requests — changelog
 
+## 5.38.0 — 2026-09-23
+
+- Chris's explicit feedback on his JR-69 UI edits at 10:51:47: customer-facing item notes should favor the concise verified offered-versus-requested fact, not an unsolicited customer-choice question. A verified clarification of an ambiguous original quantity/unit can merit a brief external note even where supply is available as requested. This changes note wording only; do not infer an offer, acceptance or stock from a short note, and do not copy his manual available-quantity edit into a general rule without clarification.
+
+## 5.37.0 — 2026-09-23
+
+- Chris's JR-69 internal-note brevity feedback: keep the factual current supplier, priced item/size and listed versus supplier price, received response and actual line change. `APS generic crossvine 1 G — list $8` suffices; omit `Chris approved provisional proxy`, approval/provenance chronology and unnecessary cultivar caveats. Retain required approval evidence in origin transcripts/handoffs and applicable structured records without conflating a list proxy with supplier confirmation.
+
+## 5.36.0 — 2026-09-23
+
+- Chris's Diff Size/Qty/Variant response workflow: on a safely matched submitted alternative, update the JR's current supplier evidence/brief internal note without automatically changing availability/status/source/offering or accepted pricing; research the exact alternative price and ask Chris whether to use it. If no supported price exists, obtain Chris's specific approval before supplier price outreach. Keep original demand and shared-job scopes separate.
+
+## 5.35.0 — 2026-09-23
+
+- Chris's JR-69 internal-note clarification: omit `AR response pending` and other obvious AR-status boilerplate; add a brief supplier response only after receipt, while retaining relevant current supplier/price and actual line-change facts.
+
+## 5.34.0 — 2026-09-23
+
+- Chris's JR-69 internal-note refinement: do not record rejected decisions or unused substitutions, such as `No 7G substitution`; retain only current supplier/price/response and actual implemented line changes or pricing-basis qualifications.
+
+## 5.33.0 — 2026-09-23
+
+- Relay Chris-accepted proxy seed prices as explicitly unmapped in the AR handoff for the original customer-requested plant/size, distinguishing them from verified exact inventory mappings and actual offering substitutions.
+
+## 5.32.0 — 2026-09-23
+
+- Chris's JR-69 internal-note feedback: retain only minimal current supplier, supplier price and response, plus current actual line-item changes/substitutions on the affected item. Identify catalogue/LPS proxy pricing as such, not a supplier quote or actual substitution. Replace stale facts; action/send/follow-up history belongs in workflow records and transcripts, not job/item notes.
+
+## 5.31.0 — 2026-09-23
+
+- Chris's JR-69 EDD clarification: populate `expected_install_date` from the customer's expected/requested pickup or delivery date, notwithstanding the legacy column name; ask for that date if absent, offer Unknown, and preserve nonblocking NULL where unknown. Do not use supplier actual fulfillment dates or invent a day.
+
+## 5.30.0 — 2026-09-23
+
+- Apply Chris's JR-69 customer-note audience restriction to job/item note writes: customer-facing notes cover approved alternatives for actual unavailability, meaningful actual size/quantity/variant differences, or orderable ETA/supplier details; availability as requested usually needs none. Keep cultivar/proxy caveats and supplier-directed availability questions internal, preserve existing useful external conditions and customer-origin notes, and keep pricing-only gaps out of customer notes.
+
+## 5.29.0 — 2026-09-23
+
+- Chris's JR-69 feedback: when the original plant has no listed price, retain the original plant/size in an approved APS availability ask rather than silently substituting or withholding the ask for lack of a catalogue price. Ask which price to use only when a genuinely very close same-size color/variant has a listed price; retain the price gap otherwise. Different sizes do not inherit that close-variant rule. Proxy pricing does not establish identity/stock or alter AR send and actual-substitution approvals.
+
 ## 5.27.0
 
 - Remove the stored order-item AR pointer. Resolve related ARs through job-item allocations and supplier scope; document transient AR selection and quantity checks across direct and response-based orders.

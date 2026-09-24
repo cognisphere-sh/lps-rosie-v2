@@ -573,8 +573,6 @@ const ANSWER_FIELDS: Record<
     title: string
     /** Whether the answer needs a quantity of its own. */
     qty: boolean
-    /** Whether it takes a unit price — an answer that is a supply offer. */
-    price?: boolean
     /** Wipe a quantity a previous answer left behind — nothing is available. */
     clearQty?: boolean
     /** Which field opens focused — the first thing this answer needs. */
@@ -586,23 +584,17 @@ const ANSWER_FIELDS: Record<
   can_order: {
     title: 'Can Order',
     qty: false,
-    // Ordering it in is a price as much as a date — asking here saves the
-    // supplier a second pass over the Price cell.
-    price: true,
     notesLabel: 'ETA / notes',
     notesHint: 'When can you have it? e.g. ready mid-Sep',
   },
   arriving_soon: {
     title: 'Arriving Soon',
     qty: false,
-    price: true,
     notesLabel: 'Notes',
     notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
   },
   diff_size_qty_sub: {
     title: 'Diff Sz/Qnty/Sub',
-    // What you can supply instead is priced on its own terms.
-    price: true,
     // The answer covers a different size, a short quantity or another plant,
     // so it is the one that still needs a number: what you can actually supply.
     qty: true,
@@ -621,11 +613,9 @@ const ANSWER_FIELDS: Record<
 }
 
 /**
- * Picking a status opens this pop-up for the rest of the answer, so a line is
- * answered whole in one go: Diff Sz/Qnty/Sub takes a quantity, a price and
- * the note; Can Order and Arriving Soon take a price and the note; Unavailable
- * the note alone, with the format hinted. Available asks nothing and never
- * opens this. The inline cells stay for later tweaks.
+ * Collect notes and any supply quantity for a status answer. Unavailable first
+ * asks whether the supplier wants to recommend a substitute; only Yes opens
+ * the notes step. Prices are edited in the line's own Price cell.
  */
 function StatusAnswerDialog({
   item,
@@ -651,9 +641,7 @@ function StatusAnswerDialog({
         ? String(item.demandedQuantity)
         : '',
   )
-  // Whatever we already have on file for this line is the prefill — the
-  // supplier corrects a price far more often than they type a fresh one.
-  const [price, setPrice] = useState(item.unitPrice == null ? '' : String(item.unitPrice))
+  const [askingSubstitute, setAskingSubstitute] = useState(status === 'unavailable')
   const [notes, setNotes] = useState(item.noteFromSupplier ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
   const titleId = useId()
@@ -681,8 +669,6 @@ function StatusAnswerDialog({
     // what an emptied box on a Diff Sz/Qnty/Sub answer means too.
     if (spec.qty) changes.available_quantity = qty.trim()
     else if (spec.clearQty) changes.available_quantity = ''
-    // An emptied price box clears the column, exactly as the Price cell does.
-    if (spec.price) changes.unit_price = price.trim()
     onSave(changes)
   }
 
@@ -739,71 +725,88 @@ function StatusAnswerDialog({
           </span>
         </div>
 
-        {spec.qty && (
-          <label className="flex flex-col gap-0.5">
-            <span className={label}>Quantity you can supply</span>
-            <input
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              inputMode="decimal"
-              placeholder="Qty"
-              autoFocus={spec.focus !== 'notes'}
-              className={cn(field, 'text-right tabular-nums')}
-            />
-          </label>
+        {askingSubstitute ? (
+          <>
+            <p className="text-[13px] text-foreground">Would you like to recommend a substitute?</p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => onSave({ status, available_quantity: '' })}
+                className={cn(
+                  'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
+                  drawerModal && 'max-[899px]:min-h-11',
+                )}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setAskingSubstitute(false)}
+                className={cn(
+                  'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
+                  drawerModal && 'max-[899px]:min-h-11',
+                )}
+              >
+                Yes
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {spec.qty && (
+              <label className="flex flex-col gap-0.5">
+                <span className={label}>Quantity you can supply</span>
+                <input
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="Qty"
+                  autoFocus={spec.focus !== 'notes'}
+                  className={cn(field, 'text-right tabular-nums')}
+                />
+              </label>
+            )}
+
+            <label className="flex flex-col gap-0.5">
+              <span className={label}>{spec.notesLabel}</span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={spec.notesHint}
+                rows={2}
+                autoFocus={spec.focus === 'notes' || !spec.qty}
+                className={cn(
+                  'min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring',
+                  drawerModal && 'max-[899px]:text-base',
+                )}
+              />
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                className={cn(
+                  'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
+                  drawerModal && 'max-[899px]:min-h-11',
+                )}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={save}
+                className={cn(
+                  'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
+                  drawerModal && 'max-[899px]:min-h-11',
+                )}
+              >
+                Save answer
+              </button>
+            </div>
+          </>
         )}
-
-        {spec.price && (
-          <label className="flex flex-col gap-0.5">
-            <span className={label}>Price per unit</span>
-            <input
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              inputMode="decimal"
-              placeholder="$/unit"
-              autoFocus={spec.focus == null && !spec.qty}
-              className={cn(field, 'text-right tabular-nums')}
-            />
-          </label>
-        )}
-
-        <label className="flex flex-col gap-0.5">
-          <span className={label}>{spec.notesLabel}</span>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={spec.notesHint}
-            rows={2}
-            autoFocus={spec.focus === 'notes' || (!spec.qty && !spec.price)}
-            className={cn(
-              'min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring',
-              drawerModal && 'max-[899px]:text-base',
-            )}
-          />
-        </label>
-
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className={cn(
-              'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
-              drawerModal && 'max-[899px]:min-h-11',
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            className={cn(
-              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
-              drawerModal && 'max-[899px]:min-h-11',
-            )}
-          >
-            Save answer
-          </button>
-        </div>
       </div>
     </div>
   )

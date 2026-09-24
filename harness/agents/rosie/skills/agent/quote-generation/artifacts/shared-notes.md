@@ -1,18 +1,35 @@
 ### Customer-facing quote notes
 
-`note_for_customer` on jobs and items holds information meant for the customer
-and included in the quote. It can come from Chris/LPS's sourcing work or
-submitted AR `note_from_supplier`: relevant conditions, care/handling details,
-timing, options or special requests. `job-requests` owns
-[audience and scope](../../job-requests/artifacts/notes.md); split mixed supplier
-notes before saving, keeping internal costs, comparisons and follow-ups in
-`note_internal`. Customer-supplied requirements stay in `note_from_customer`;
-save a separate external note only when useful to communicate back.
+`note_for_customer` on jobs and items holds **only** these customer-useful
+outcomes from Chris/LPS or submitted supplier evidence (Chris, 2026-09-23):
 
-Use concise wording without losing meaning; notes need not be exceptions.
-Omit information already evident in the row/grouping and leave NULL when none
-is needed. Do not treat a supplier suggestion as an approved offering or copy
-raw supplier/customer/internal notes at render time.
+- Unavailable original plant → a recommended alternative, if any, only after
+  the relevant alternative approval. Do not infer unavailability from a missing
+  price-list entry.
+- An actual difference in size, quantity or variant → a short factual
+  description of the difference. Prefer the confirmed offered-versus-requested
+  fact to a speculative or unsolicited choice question; a customer question
+  still requires the relevant communication approval.
+- Supplier can order it → ETA or other relevant supplier details, such as
+  meaningful conditions or handling requirements.
+- Available as requested → usually no note. If the original quantity/unit was
+  ambiguous and has now been verified, a short confirmation such as
+  `140 x 4" correct` can clarify the specific request without repeating stock
+  status or treating a pricing proxy as availability.
+
+`job-requests` owns [audience and scope](../../job-requests/artifacts/notes.md).
+Split mixed supplier notes before saving; preserve useful external supplier
+conditions already present where they fit these outcomes, but keep internal
+costs, comparisons, follow-ups, unverified cultivar/pricing-proxy caveats and
+supplier-directed questions in `note_internal` or the appropriate supplier ask.
+For example, `Plum Delight cultivar not confirmed` and `RED Avail?` are **not**
+customer notes. Customer-supplied requirements stay in `note_from_customer`;
+never delete or relocate them to enforce the external-note rule.
+
+Use concise wording without losing meaning. Omit information already evident
+in the row/grouping and leave NULL when none is needed. Do not treat a supplier
+suggestion as an approved offering or copy raw supplier/customer/internal notes
+at render time.
 
 - No phase names in item notes for customer. Preserve phases in customer/original-demand
   context and group output separately when requested; never merge phases.
@@ -20,16 +37,18 @@ raw supplier/customer/internal notes at render time.
   approved Purple Pixie pricing basis for unspecified dwarf loropetalum is not
   a customer note or cultivar substitution; retain the dwarf demand and resolve
   identity later. Keep the evidence internal.
-- Size/color exceptions can be `5 G instead`, `Yellow instead of Red`, or
-  `5 G $25.00`. Use `Only 5G available`, `Red NA, only Yellow`, or
-  `5G NA, Only 7G` only when actual supplier-confirmed evidence supports each
-  availability claim. Missing price-list entries establish neither stock nor
-  physical unavailability. For pricing-only gaps use neutral `7 G price pending`
-  where useful, never `NA` or `Only ... available`.
+- Approved actual size/color exceptions can be `5 G instead`, `Yellow instead
+  of Red`, or `5 G $25.00` for a different supported requested option. Use
+  `Only 5G available`, `Red NA, only Yellow`, or `5G NA, Only 7G` only when
+  supplier-confirmed evidence supports each availability claim. Missing
+  price-list entries establish neither stock nor physical unavailability;
+  leave a pricing-only gap out of customer notes unless it describes an actual
+  customer-useful size/quantity/variant choice.
 - For two requested sizes, quote the lowest-priced supported requested option
-  and note the other supported size price. If the other size is confirmed
-  unavailable, its brief `NA` note is appropriate; if merely unpriced, use
-  neutral `price pending`. Do not infer availability from pricing evidence.
+  and note the other supported size price as a useful different-size choice.
+  If the other size is confirmed unavailable, its brief `NA` note is
+  appropriate; if merely unpriced, preserve that pricing gap internally and
+  report it to Chris rather than implying supplier unavailability.
 
 - Where the row or nearby label identifies the plant, list size and price only:
   `30 G $395.00; 45 G $595.00`. For just the larger option: `45 G $595.00`.
@@ -38,14 +57,17 @@ raw supplier/customer/internal notes at render time.
 - Shared/customer-facing notes must not start with `Quoted for ...` or restate
   the quoted selection already evident in the row (Chris, 2026-09-11).
   Omit redundant introductions and selection statements. Keep only necessary
-  concise options/questions, e.g. `Does this variety work?` when the row
-  identifies the variety and makes the change clear. If the original-versus-
-  offered distinction is not otherwise visible, retain the minimum meaningful
-  clarification, e.g. `Podocarpus instead of Taxus—OK?`.
+  concise facts/options, e.g. `5 G only` when supplier evidence confirms that
+  size. If the original-versus-offered distinction is not otherwise visible,
+  retain the minimum meaningful clarification, e.g. `Only 7 G available;
+  15 G NA`. A customer-choice question is not a default quote note.
   Do not remove a necessary actual-offering distinction or caveat merely to
   shorten a note; a pricing proxy is not an actual substitution.
-- Retain material qualifications such as unconfirmed availability or excluded
-  tax/delivery; shorten wording, never remove necessary meaning. Do not imply approval/availability from brevity.
+- Preserve material customer-useful supplier conditions (such as ETA or
+  meaningful handling requirements) and necessary actual-offering distinctions;
+  keep unsupported availability/cultivar uncertainty internal rather than
+  publishing an internal caveat as a customer note. Do not imply approval or
+  availability from brevity.
 - Include saved job `note_for_customer` once before the item rows, separated
   from them by one blank line. Keep job-wide conditions there, not repeated
   on every item. Omit this line and separator when the job note is blank.

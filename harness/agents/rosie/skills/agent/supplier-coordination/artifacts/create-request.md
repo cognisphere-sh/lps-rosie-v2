@@ -8,8 +8,14 @@
    when explicitly instructed and never reuse a token revoked by closure.
    Exclude deleted requests (`is_active=false`) from active work.
 2. Include every active job line in the default APS ask, including unlisted
-   plants, unless Chris explicitly selects/excludes items. For a targeted
-   supplier handoff, use the item scope the job thread specified. Snapshot
+   plants, unless Chris explicitly selects/excludes items. Almost always request
+   availability for the **original customer-requested plant and size**, not a
+   catalogue proxy, quoted pricing basis or nearest listed size/variant, unless
+   Chris specifies a different ask. The APS price list is non-exhaustive and
+   merely indicative of items carried; neither a missing catalogue listing
+   nor a listed plant/quantity establishes actual supplier availability or
+   prevents asking APS about the original plant. For a targeted supplier
+   handoff, use the item scope the job thread specified. Snapshot
    requested `name`, `size`, total `demanded_quantity` and every job-item allocation; a
    later job edit must not silently rewrite an ask already sent. A combined
    grower ask can serve multiple jobs, and a job item can span multiple asks.
@@ -75,12 +81,22 @@
    in the supplier ask. Chris's Agave parryi truncata / Artichoke Parry’s Agave /
    generic Agave Parryi example authorizes pricing, not automatic exact AR mapping
    or availability. Verify actual identity/size for the AR independently; if only
-   the pricing equivalence is established, leave mapping and seed price NULL
-   rather than representing the generic listing as an exact requested item.
-   Known differences or unsupported equivalence still require action-specific
-   approval before any alternative ask or supplier-visible alternative hint.
-   The mapping/price supplied to the RPC must come from this supplier's
-   exact plant/size inventory row. **Do not insert empty items and UPDATE
+   the pricing equivalence is established, leave mapping NULL rather than
+   representing the generic listing as an exact requested item. Seed the proxy
+   price only when Chris has accepted it for this AR's scope; otherwise leave
+   the price NULL. Known differences or unsupported equivalence still require
+   action-specific approval before any alternative ask or supplier-visible
+   alternative hint. An exact `mapped_inventory_id` must come from this
+   supplier's verified exact plant/size inventory row. An original plant
+   without that row remains unmapped, not omitted. Its seed `unit_price` may
+   be Chris's accepted proxy price for this AR or another authorized manual
+   APS price; otherwise it remains NULL. Keep the original customer-requested
+   plant/size/cultivar on the AR line with `mapped_inventory_id = NULL` for a
+   proxy. Price acceptance is not acceptance of an alternative offering or
+   confirmation of identity/stock. Keep the price basis internal; supplier-
+   visible notes must not misrepresent a proxy as an exact match. See
+   [manual inputs](manual-inputs.md) for already-open AR corrections.
+   **Do not insert empty items and UPDATE
    prices afterward**: an answer-field update is supplier work and would
    incorrectly move the new request to Processing. Use the inventory UUID
    in the job thread's handoff. A mapping with no price may remain unpriced. A near

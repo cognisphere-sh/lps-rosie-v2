@@ -161,5 +161,5 @@ No public write endpoints exist.
 Admin `PATCH /api/orders/[orderId]` accepts `{ isPublic: boolean }` as a standalone
 operation. Migration `0114_public_orders.sql` adds the nullable unique token and
 revokes it when an order closes or becomes inactive. Reads also reject inactive
-suppliers and orders whose linked jobs are all closed. Apply this migration before
-using the sharing controls.
+suppliers and orders whose linked jobs are all closed. This migration was applied
+on 2026-09-23 at 14:40:01 UTC; the app must also be deployed to expose the controls.

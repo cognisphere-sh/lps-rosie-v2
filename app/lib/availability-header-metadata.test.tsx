@@ -116,8 +116,8 @@ test('supplier header pairs combined fulfillment dates and colored delivery mode
     const schedules = dom.window.document.querySelector('[aria-label="Job schedules"]')!
     assert.equal(schedules.parentElement, header, 'Schedule metadata is part of the title header row')
     assert.equal(schedules.children.length, 2)
-    assert.equal(schedules.children[0].textContent, 'Job 1Pickup09-20')
-    assert.equal(schedules.children[1].textContent, 'Job 2Delivery09-26')
+    assert.equal(schedules.children[0].textContent, 'Job 1PickupSun, 09/20')
+    assert.equal(schedules.children[1].textContent, 'Job 2DeliverySat, 09/26')
     assert.doesNotMatch(schedules.textContent ?? '', /JR-|Courtyard|Pool garden|Private/)
   } finally {
     dom.window.close()
@@ -134,7 +134,7 @@ test('single-job supplier headers keep fulfillment date and mode with the job ti
   try {
     const header = dom.window.document.querySelector('header')!
     assert.equal(header.querySelector('h1')?.textContent, 'Courtyard')
-    assert.match(header.textContent ?? '', /Pickup09-20/)
+    assert.match(header.textContent ?? '', /PickupSun, 09\/20/)
     const schedules = dom.window.document.querySelector('[aria-label="Job schedules"]')!
     assert.equal(schedules.parentElement, header)
     assert.equal(schedules.children.length, 1)
@@ -152,7 +152,7 @@ test('admin schedules identify each source job and render missing dates/methods 
   const dom = new JSDOM(html)
   try {
     const rows = dom.window.document.querySelector('[aria-label="Job schedules"]')!.children
-    assert.equal(rows[0].textContent, 'CourtyardEDD09-20FulfillmentPickup')
+    assert.equal(rows[0].textContent, 'CourtyardEDDSun, 09/20FulfillmentPickup')
     assert.equal(rows[1].textContent, 'JR-22EDD—Fulfillment—')
     const safeHtml = renderToStaticMarkup(<ARJobSchedules schedules={[
       { jobRequestId: 11, jobName: 'Private job', expectedInstallDate: '2026-09-20', fulfillmentMethod: 'pickup' },
@@ -180,3 +180,24 @@ test('deleted requests disappear from admin and supplier reads while retaining t
   assert.equal((await queries.availabilityRequest(42, { forSupplierId: 7 })).status, 'new')
   assert.equal((await queries.listPortalRequests(7)).length, 1)
 })
+
+for (const shared of [false, true]) {
+  test(`AR customer details render directly only when shared (${shared})`, () => {
+    const request = {
+      id: 42, status: 'new', items: [], shareCustomerDetails: shared,
+      customer: { name: 'Shared Customer', company: 'Garden Co', phone: '555-0100', email: 'customer@example.com' },
+      shipping: { address: '12 Garden Lane', city: 'Austin', state: 'TX', zip: '78701' },
+      noteForSupplier: 'Keep shaded',
+    } as unknown as ARDetail
+    const html = renderToStaticMarkup(<AvailabilityRequestView request={request} loading={false} error="" saving={false} onPatch={async () => {}} onSubmit={async () => {}} />)
+    const dom = new JSDOM(html)
+    try {
+      const header = dom.window.document.querySelector('[aria-label="Job details"]')!
+      assert.equal(header.textContent?.includes('Shared Customer'), shared)
+      assert.equal(header.textContent?.includes('12 Garden Lane'), shared)
+      assert.equal(header.querySelector('a[href="mailto:customer@example.com"]') != null, shared)
+      assert.ok(header.textContent?.includes('Keep shaded'))
+      assert.equal(header.querySelector('button[aria-expanded]'), null)
+    } finally { dom.window.close() }
+  })
+}

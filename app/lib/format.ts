@@ -47,3 +47,16 @@ export function formatMonthDay(value: string | null | undefined, separator = '-'
   const parts = monthDayFmt.formatToParts(timestamp)
   return `${parts.find((part) => part.type === 'month')!.value}${separator}${parts.find((part) => part.type === 'day')!.value}`
 }
+
+/** Weekday and MM/DD, preserving calendar dates and using business time for events. */
+export function formatWeekdayMonthDay(value: string | null | undefined): string {
+  const monthDay = formatMonthDay(value, '/')
+  if (!value || !monthDay) return ''
+  const calendarDate = /^\d{4}-\d{2}-\d{2}$/.test(value)
+  const date = new Date(calendarDate ? `${value}T00:00:00Z` : value)
+  const weekday = date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    timeZone: calendarDate ? 'UTC' : 'America/Chicago',
+  })
+  return `${weekday}, ${monthDay}`
+}

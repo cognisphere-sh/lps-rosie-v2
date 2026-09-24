@@ -55,12 +55,27 @@ supplier's plant context is ambiguous, do not guess or write a sourcing entry:
 flag it for Chris's review with the ambiguity and source instead.
 
 The job thread applies [job note audiences](../../job-requests/artifacts/notes.md)
-to the submitted header and line `note_from_supplier`: internal progress and
-follow-ups go in `note_internal`; information intended for the customer goes
-in `note_for_customer`. Split mixed content, preserve customer-origin and unrelated
-notes, and keep uncertain audience/offer applicability internal. Route
-request-wide conditions to the applicable jobs and line details to the linked
-items, respecting each allocation. The job thread also posts a concise internal
+to the submitted header and line `note_from_supplier`: brief current supplier,
+price and actual received response go in `note_internal`; customer-useful
+information goes in `note_for_customer`. Split mixed content, preserve
+customer-origin and unrelated notes, and keep uncertain audience/offer
+applicability internal. Route request-wide conditions to the applicable jobs
+and line details to the linked items, respecting each allocation.
+
+For a submitted `diff_size_qty_sub` line, relay the supplier's *actual* offered
+alternative size/quantity/variant and price evidence without changing the
+customer's original demand. Ask the job thread to follow its
+[Diff Size/Qty/Variant path](../../job-requests/artifacts/supplier-responses.md):
+update only current JR evidence/notes, search for the alternative's supported
+price, then ask Chris whether to use it. If no reliable price exists, the job
+thread must obtain Chris's **specific approval** before this supplier thread
+asks for the alternative price. On approval, verify the current AR/line and
+contact context, ask only for the identified alternative's price through the
+approved supplier channel, and relay the answer to the job thread; neither the
+supplier's different offering nor a price answer authorizes a job-line change.
+Unsubmitted edits do not start this path or authorize outreach.
+
+The job thread also posts a concise internal
 alert to Chris naming the supplier, affected plants and source; it may link
 `[Open AR-<id>](ar:<id>)`. A useful shape is:
 `APS — Live Oak 15 G: 12 available at $105 (portal submission, AR-42).`

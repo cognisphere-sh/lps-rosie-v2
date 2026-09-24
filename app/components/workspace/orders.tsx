@@ -11,7 +11,7 @@ import { AnswerCell } from './availability'
 import { EditableText, EditableTextarea } from './editable'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { arResponseLabel } from '@/lib/availability'
-import { formatMonthDay, money, num } from '@/lib/format'
+import { formatWeekdayMonthDay, money, num } from '@/lib/format'
 import { orderRecordName, isApsSupplier, ORDER_ITEM_STATUSES, ORDER_ITEM_STATUS_LABELS, ORDER_STATUS_META, orderSubtotal, type DirectOrderCandidate, type FulfillmentMethod, type Order, type OrderCandidate, type OrderItem, type OrderStatus } from '@/lib/orders'
 import { cn } from '@/lib/utils'
 import { toneTint } from '@/lib/job-requests'
@@ -48,8 +48,8 @@ function OrderMetadata({ order, showFulfillmentDate = false, onFulfillmentChange
   order: Order; showFulfillmentDate?: boolean; onFulfillmentChange?: (method: FulfillmentMethod | null) => void; busy?: boolean
 }) {
   return <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-    <span className="whitespace-nowrap">Created: <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(order.createdAt) || '—'}</span></span>
-    {showFulfillmentDate && <span>Fulfillment date: <span className="font-semibold tabular-nums text-foreground">{formatMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>}
+    <span className="whitespace-nowrap">Created: <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.createdAt) || '—'}</span></span>
+    {showFulfillmentDate && <span>Fulfillment date: <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>}
     {(order.fulfillmentMethod || onFulfillmentChange) && <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
       <span aria-hidden="true">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'}</span>
       {onFulfillmentChange && <select aria-label={`Pickup or delivery for ${orderRecordName(order)}`} value={order.fulfillmentMethod ?? ''} disabled={busy}
@@ -447,10 +447,9 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
       {error && !confirmOpen && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">{error}</div>}
       <PartnerDetailHeader name={order.jobNames?.join(' · ') || orderRecordName(order)} status={<OrderStatusPill status={order.status} />} schedule={<OrderFulfillment order={order} />}
         contacts={order.customerDetails ?? []} note={order.noteForSupplier}>
-        <ARJobSchedules schedules={order.jobSchedules} />
         <OrderRequestLinks order={order} supplierId={supplierId} />
         {!canEdit && !closed && <p className="m-0 text-[12px] text-muted-foreground">This account has read-only access to this order.</p>}
-        {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Acknowledged: {formatMonthDay(order.confirmationDate)}</p>}
+        {order.confirmationDate && <p className="m-0 text-[11px] text-muted-foreground">Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</p>}
       </PartnerDetailHeader>
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
@@ -490,8 +489,8 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
           <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
           {order.noteFromSupplier && <span title={order.noteFromSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteFromSupplier}</span></span>}
         </span>
-        <span>Fulfillment: <span className="font-semibold text-foreground">{formatMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
-        {order.confirmationDate && <span>Acknowledged: {formatMonthDay(order.confirmationDate)}</span>}
+        <span>Fulfillment: <span className="font-semibold text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
+        {order.confirmationDate && <span>Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</span>}
         <div className="ml-auto"><OrderRequestLinks order={order} /></div>
       </div>
     </header>

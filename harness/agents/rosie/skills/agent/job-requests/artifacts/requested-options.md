@@ -22,8 +22,9 @@ not relabel the requested offering or establish cultivar identity. Record its
 basis internally, not as a shared substitution note. For actual approved
 offering differences (plant, cultivar/variant, size or quantity), keep only the
 necessary short exception in `note_for_customer`; follow `quote-generation` for
-the canonical minimal-word rule, confirmed-evidence-only availability wording,
-and neutral unpriced-option notes. No phase labels, pricing-identity explanations,
+the canonical customer-useful outcome rule and confirmed-evidence-only
+availability wording. Report unpriced options to Chris and track the gaps
+internally; do not add a pricing-only caveat to customer notes. No phase labels, pricing-identity explanations,
 supplier names or price-sheet references belong in notes for customer. Preserve
 phases in customer/original-demand context and separate output grouping. Preserve the original
 demand in `note_from_customer`; do not silently rewrite it. Use actual prices only,

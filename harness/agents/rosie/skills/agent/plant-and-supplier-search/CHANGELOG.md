@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 2.18.0 — 2026-09-23
+
+- Chris's JR-69 clarification: APS's non-exhaustive price list only indicates carried items, not live availability. Neither an absent listing nor a listed quantity proves supplier availability; missing catalogue evidence must not replace or block the original customer plant/size on an approved AR.
+
 ## 2.16.0
 
 - Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.

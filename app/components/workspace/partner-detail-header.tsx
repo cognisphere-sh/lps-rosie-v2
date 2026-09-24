@@ -1,4 +1,4 @@
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
@@ -32,6 +32,6 @@ export function PartnerDetailHeader({ name, status, schedule, contacts = [], not
 export function PartnerFulfillment({ method, date }: { method: string | null; date: string | null }) {
   return <div className="flex flex-wrap items-center gap-2 text-[12px]">
     <span className={cn('rounded-full border px-2.5 py-1 font-medium', method === 'delivery' ? 'border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300' : 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300')}>{method === 'delivery' ? 'Delivery' : method === 'pickup' ? 'Pickup' : 'Mode to be confirmed'}</span>
-    <span className="text-muted-foreground">{formatMonthDay(date) || 'Date to be confirmed'}</span>
+    <span className="text-muted-foreground">{formatWeekdayMonthDay(date) || 'Date to be confirmed'}</span>
   </div>
 }

@@ -55,7 +55,8 @@ fields or change job availability/status from the manual input.
    or accepted price applies; keep useful sourcing progress under [notes](notes.md).
    For real gaps, research 1–2 closest supported APS alternatives, preferring
    the same plant/nearby size, then defensible related plants; report them in
-   chat without selecting them or widening supplier scope.
+   chat without selecting them or widening supplier scope. A different size is
+   not a very close color/variant price proxy merely because it is nearby.
    No price means NULL, never zero. Catalogue stock stays
    catalogue evidence: new item status remains `pending`; pricing alone does
    not change existing availability/status fields.
@@ -64,13 +65,27 @@ fields or change job availability/status from the manual input.
    label or approval for the name difference alone. A genuinely different
    plant/size or unsupported equivalence is a candidate alternative, never a silent change
    to the customer's ask. Report it in chat and record APS gap alternatives
-   under [notes](notes.md). Always obtain Chris's explicit confirmation in the original
-   request chat before quoting an alternative or creating/sending an AR for
-   it; confirmation must cover the intended action. Other suppliers' candidate
-   prices can be recorded internally when useful under [notes](notes.md). An explicitly
-   requested supplier may price the item directly.
+   under [notes](notes.md). If the original requested plant has no listed price,
+   keep its price NULL and, on the ordinary approved availability path, ask APS
+   about the **original plant** rather than silently substituting a priced
+   alternative or blocking that original-plant ask on a missing price. Only ask
+   Chris **which price to use** when a listed, genuinely very close alternative
+   differs in color or variant at the requested size; present the original
+   price gap and the alternative's actual price, and wait for his selection
+   before applying that proxy. A different size or materially different form
+   is not covered by this close-variant price-choice rule. If no such close
+   price exists, do not ask him to choose an alternative price; preserve the
+   gap. A selected proxy price does not change the original plant/size in the
+   supplier ask, establish identity or stock, or authorize an inventory mapping.
+   Always obtain Chris's explicit confirmation in the original request chat
+   before quoting an actual alternative offering or creating/sending an AR for
+   that alternative; confirmation must cover the intended action. Other suppliers'
+   candidate prices can be recorded internally when useful under [notes](notes.md).
+   An explicitly requested supplier may price the item directly.
 4. **When APS has no matching inventory, report the gap in chat and offer to look
-   for other suppliers.** Wait for Chris's instruction before widening.
+   for other suppliers.** Wait for Chris's instruction before widening; absent
+   that instruction, any approved APS availability ask retains the original
+   requested plant and size even if no catalogue price or exact mapping exists.
    On an instructed wider search, verify the exact plant/size, price, source date
    and location; catalogue stock remains unconfirmed. Newly discovered
    suppliers go to Daisy for onboarding before order-side coordination.
@@ -90,8 +105,9 @@ fields or change job availability/status from the manual input.
    scope clarification, route the ask to APS's supplier thread, including
    unlisted items unless Chris limits the scope. Preserve customer-details
    preferences. Include every job/item id and allocated quantity, quote
-   completion and send-approval evidence, exact inventory UUID mappings/prices,
-   separate alternative approvals, and supplier-relevant `note_from_customer` from
+   completion and send-approval evidence, exact inventory UUID mappings/prices
+   or Chris-accepted proxy seed prices (explicitly marked unmapped), separate
+   alternative approvals, and supplier-relevant `note_from_customer` from
    the job and its items for AR header/line `note_for_supplier`. Preserve note scope
    and omit private customer details unless sharing is authorized.
    A request may combine several jobs;
@@ -99,8 +115,10 @@ fields or change job availability/status from the manual input.
    The supplier thread follows `supplier-coordination` and reuses the same
    request on retry.
 7. Relay later supplier/customer changes through their owning threads. Keep
-   sourcing progress current on AR preparation, delivery, authorized ask changes,
-   submission, closure and follow-ups. Unsubmitted supplier edits stay local;
+   current supplier/price/response facts in minimal internal notes when useful;
+   track AR preparation, delivery, ask changes, submission, closure and follow-ups
+   in the structured workflow/transcripts, not a running note history.
+   Unsubmitted supplier edits stay local;
    classify submitted supplier notes by audience under [notes](notes.md).
    A pending send must be labelled as pending.
    Report the priced lines, open requests and unresolved decisions on this

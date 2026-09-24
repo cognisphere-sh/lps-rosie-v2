@@ -7,6 +7,20 @@ Applied to Supabase project `xyeyiqchadfszewztnrf` (lps-rosie) via the Supabase 
 
 > Gap: `0028` and `0029` are applied but were never recorded here.
 
+## `0114_public_orders.sql`
+
+Applied 2026-09-23 14:40:01 UTC via psql after a successful rolled-back live
+rehearsal. Adds the nullable unique order public token and the guard that clears
+it on closure/deactivation and rejects publication without an active supplier.
+
+Both rehearsal and commit verified that all four existing orders retained their
+original data, remained private, and kept unchanged table grants. Temporary-row
+checks passed for publishing, uniqueness, revocation, fresh-token replacement,
+closure, deactivation, and rejection of a missing supplier. A separate connection
+verified the committed column, unique constraint, enabled trigger, and behavior.
+PostgREST schema reload was notified at commit. This operation did not deploy or
+restart the app.
+
 ## `0112_drop_order_item_availability_anchor.sql`
 
 Applied 2026-09-23 13:44:00 UTC via psql after a rolled-back live rehearsal.

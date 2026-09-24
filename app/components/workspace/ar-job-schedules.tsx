@@ -1,5 +1,5 @@
 import type { ARJobSchedule } from '@/lib/availability'
-import { formatMonthDay } from '@/lib/format'
+import { formatWeekdayMonthDay } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
 
 /** A combined request keeps dates paired with each job's fulfillment method. */
@@ -23,7 +23,7 @@ export function ARJobSchedules({ schedules, showJobNames = false, showFulfillmen
           <dl className="m-0 inline-flex min-w-0 flex-wrap gap-x-3 gap-y-1">
             <div className="flex items-baseline gap-1 whitespace-nowrap">
               <dt className="text-muted-foreground">EDD</dt>
-              <dd className="m-0 font-semibold tabular-nums text-foreground">{formatMonthDay(schedule.expectedInstallDate) || '—'}</dd>
+              <dd className="m-0 font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(schedule.expectedInstallDate) || '—'}</dd>
             </div>
             {showFulfillmentMethod && <div className="flex items-baseline gap-1 whitespace-nowrap">
               <dt className="text-muted-foreground">Fulfillment</dt>

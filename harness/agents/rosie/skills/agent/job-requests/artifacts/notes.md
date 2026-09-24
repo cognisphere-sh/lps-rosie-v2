@@ -9,13 +9,16 @@ eligibility rules.
 |---|---|
 | `note_from_customer` | Notes or additional information supplied by the customer: alternatives, color, special requests and other requirements. Preserve original demand/options when the quoted offering changes. |
 | `note_for_customer` | Notes included in the quote and shared with the customer. They may come from Chris/LPS's sourcing work or an AR supplier response. Include only information meant for the customer. |
-| `note_internal` | Internal notes for Chris/LPS to track sourcing progress: findings, pending actions, blockers, supplier comparisons and decisions. |
+| `note_internal` | Brief current facts: supplier, priced plant/size and list or supplier price, actual received response (if any), and implemented line change/substitution. No approval/provenance narration or pending-response boilerplate. |
 
-Keep notes concise and current. Do not duplicate structured fields or copy a
-transcript into them; leave NULL when there is nothing useful to add. Useful
-progress on an existing job can be recorded before an AR is sent. A general
-price/supplier lookup still creates no job, AR or outreach. Report findings
-in Chris's original chat as well as updating relevant job notes.
+Keep notes concise and current, not an action log. Do not duplicate structured
+fields, copy a transcript or list steps taken; replace superseded facts in
+place and leave NULL when there is nothing useful to add. On an existing job,
+record only the current supplier/price/response state and any current actual
+line modification/substitution that matters; workflow records and chat carry
+action history. A general price/supplier lookup still
+creates no job, AR or outreach. Report findings in Chris's original chat as
+well as updating relevant job notes when useful.
 
 ## Write or update
 
@@ -26,19 +29,53 @@ in Chris's original chat as well as updating relevant job notes.
    decisions and supplier replies do not become customer-origin notes. Preserve
    customer conditions, original options and phases. Retain job-wide context
    once on the job rather than repeating it on every item.
-3. Save only the customer-facing part of Chris/LPS findings or submitted AR
-   `note_from_supplier` in `note_for_customer`. Put internal progress, costs,
-   comparisons, follow-ups and decision context in `note_internal`. Split
-   mixed notes by audience; never copy the whole supplier reply into a quote.
+3. Save only the customer-useful outcome in `note_for_customer`: an actually
+   unavailable original plant and approved recommended alternative (if any),
+   a short factual description of an actual size/quantity/variant difference,
+   or ETA/other meaningful supplier details when the plant can be ordered.
+   Prefer the verified offered-versus-requested fact over an unsolicited
+   customer-choice question; ask the customer separately only when authorized.
+   A concise confirmation of a previously ambiguous customer unit/quantity
+   (for example, individual 4-inch plants rather than trays) may be useful
+   even when available as requested. Otherwise availability as requested
+   usually needs no note. Source the outcome from
+   Chris/LPS findings or submitted AR `note_from_supplier`, never from a bare
+   price-list gap. Keep unverified cultivar/proxy caveats and supplier-directed
+   questions such as `Plum Delight cultivar not confirmed` or `RED Avail?`
+   internal or in the supplier ask, not `note_for_customer`. In `note_internal`,
+   retain only material current supplier, price and response information, plus
+   any actual current item-line change/substitution. Identify the actual
+   catalogue plant/size behind a proxy price where useful, without narrating
+   who approved it or calling it an actual substitution. Include a supplier
+   response only after actually received;
+   never add `AR response pending` or similar boilerplate already evident in
+   AR status. Do not append the work performed, requests sent or follow-up log.
+   Split mixed notes by audience; never copy the whole
+   supplier reply into a quote. Preserve unrelated customer-facing supplier
+   details and customer-origin `note_from_customer`; do not blanket-clear notes.
    If intended audience is unclear, keep that detail internal until clarified.
    Use [quote-generation: notes for customer](../../quote-generation/artifacts/shared-notes.md)
    for wording and rendering.
 4. Update the affected facts in place, preserving unrelated customer-facing
-   notes, current choices, pending decisions and constraints. Keep suppliers
-   distinct internally. Retain necessary source/proxy/override evidence and
-   label unconfirmed facts accurately; a catalogue price is not stock evidence.
-   Put job-wide override authority once on the job, explicitly not
-   supplier-confirmed, with any necessary row qualifier.
+   notes and current customer constraints. Keep suppliers distinct internally
+   where relevant. State the current supplier, priced plant/size, list or
+   actual supplier-quoted price, and its brief received response. A catalogue
+   price or LPS proxy is not a supplier quote or stock confirmation. A concise
+   factual basis suffices, e.g. `APS generic crossvine 1 G — list $8`; do not
+   add `Chris approved provisional proxy`, approval chronology, unnecessary
+   identity caveats or source-lookup narration. Retain a short identity/price
+   qualifier only if necessary to avoid a materially false claim, and keep
+   approval evidence in the originating transcript/handoff and applicable
+   structured fields rather than in job/item notes. Add the supplier's
+   response only when actually received; replace superseded response facts
+   rather than tracking their history. Record current actual line changes (offered
+   size/quantity/variant or selected substitute versus original demand) on the
+   affected item only; do not mistake a pricing-only proxy for an actual plant
+   substitution or erase the original customer demand. Do **not** retain
+   rejected decisions or unused substitutions (e.g. `No 7G substitution`) in
+   internal notes: only implemented changes and the current supplier/price/
+   response state belong there. Do not turn internal notes into an approval,
+   sourcing-step or contact chronology; use structured records and transcripts.
 5. Guard note-only writes and verify the saved fields. Note updates do not
    change prices, quantities, offerings, availability, statuses, source selection
    or orders, and do not authorize sends. A real alternative still needs
@@ -68,6 +105,6 @@ authorize customer delivery.
 
 Examples (wording only): customer `Red flowers only; single trunk` can be
 carried into the relevant AR line's `note_for_supplier`. A submitted supplier note
-`Plants need staking. Ask Chris to confirm the pickup slot.` can yield
-`Requires staking` in `note_for_customer` for the applicable offering and
-`APS: confirm pickup slot` in `note_internal`.
+`Plants need staking. Can order for Oct 1.` can yield `Requires staking; ETA
+Oct 1` in `note_for_customer` for the applicable offering and `APS: can order;
+ETA Oct 1` in `note_internal` if the supplier response needs internal tracking.

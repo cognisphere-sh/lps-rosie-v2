@@ -131,10 +131,10 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
 
   await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
   await user.click(view.getByRole('option', { name: 'Can Order' }))
-  assert.equal(view.getByLabelText('Price per unit').getAttribute('value'), '12.5')
+  assert.equal(view.queryByLabelText('Price per unit'), null)
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
-  assert.deepEqual(patches, [[19, { status: 'can_order', note_from_supplier: 'Ready next week', unit_price: '12.5' }]])
+  assert.deepEqual(patches, [[19, { status: 'can_order', note_from_supplier: 'Ready next week' }]])
 })
 
 test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed focus candidates', async () => {
@@ -500,3 +500,51 @@ test('desktop note editors expand with their contents and save multiline notes o
   assert.deepEqual(patches, [[19, { note_from_supplier: 'Ready next week.\nConfirm before pickup.' }]])
   assert.deepEqual(details, [[19, { note_for_supplier: 'Use the south gate.\nCall before unloading.' }]])
 })
+
+for (const portal of [false, true]) {
+  for (const recommend of [false, true]) {
+    test(`unavailable asks about a substitute before notes (portal=${portal}, recommend=${recommend})`, async () => {
+      const user = userEvent.setup({ document })
+      const patches: Array<[number, Record<string, string>]> = []
+      const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
+        editable portal={portal} onPatch={async (id, changes) => { patches.push([id, changes]) }} />)
+      if (portal) {
+        await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
+        await user.click(view.getByRole('option', { name: 'Unavailable' }))
+      } else {
+        await user.selectOptions(view.getByRole('combobox'), 'unavailable')
+      }
+      assert.ok(view.getByText('Would you like to recommend a substitute?'))
+      assert.equal(view.queryByRole('textbox'), null)
+      assert.deepEqual(patches, [])
+      await user.click(view.getByRole('button', { name: recommend ? 'Yes' : 'No' }))
+      if (recommend) {
+        assert.deepEqual(patches, [])
+        const notes = view.getByPlaceholderText('Substitutes welcome — Name, Size @ price $/unit')
+        assert.equal(document.activeElement, notes)
+        await user.clear(notes)
+        await user.type(notes, 'Red Oak, 30 G @ $25/unit')
+        await user.click(view.getByRole('button', { name: 'Save answer' }))
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '', note_from_supplier: 'Red Oak, 30 G @ $25/unit' }]])
+      } else {
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '' }]])
+      }
+      assert.equal(view.queryByText('Would you like to recommend a substitute?'), null)
+      assert.equal(view.queryByRole('textbox'), null)
+    })
+  }
+}
+
+for (const status of ['can_order', 'arriving_soon', 'diff_size_qty_sub']) {
+  test(`${status} collects details without changing the existing price`, async () => {
+    const user = userEvent.setup({ document })
+    const patches: Array<Record<string, string>> = []
+    const view = render(<LineStatusPicker item={item()} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
+    await user.selectOptions(view.getByRole('combobox'), status)
+    assert.equal(view.queryByLabelText('Price per unit'), null)
+    await user.click(view.getByRole('button', { name: 'Save answer' }))
+    assert.equal(patches.length, 1)
+    assert.equal(patches[0].status, status)
+    assert.equal(Object.hasOwn(patches[0], 'unit_price'), false)
+  })
+}

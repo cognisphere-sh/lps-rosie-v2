@@ -1,5 +1,17 @@
 # supplier-coordination — changelog
 
+## 3.28.0 — 2026-09-23
+
+- On an explicitly submitted Diff Size/Qty/Variant supplier line, relay actual alternative details to the job thread for note/evidence update, alternative price research and Chris's price decision. Supplier price follow-up requires specific Chris approval if no reliable price is found; unsubmitted edits or a different offering alone authorize no outreach or JR availability/status/source changes.
+
+## 3.27.0 — 2026-09-23
+
+- Chris's JR-69 accepted-proxy pricing instruction: seed an approved APS AR line with the price of a proxy Chris accepted for that scope, retaining the original customer plant/size/cultivar and NULL inventory mapping unless an exact match is independently verified. Distinguish price acceptance from actual substitution, stock evidence and supplier confirmation; no post-create answer-field price update.
+
+## 3.26.0 — 2026-09-23
+
+- Chris's JR-69 AR clarification: almost always ask availability of the original customer-requested plant and size unless he specifies otherwise, even if APS has no exact catalogue row or price. Its price list is non-exhaustive indicative sourcing evidence, not actual availability; do not substitute a listed proxy, omit an original line or infer stock. Preserve quote/send approval, original alternatives and exact mapping rules.
+
 ## 3.24.0
 
 - Resolve order jobs and related ARs through the job-item mappings with supplier scope; remove instructions to inspect a nullable source AR pointer.

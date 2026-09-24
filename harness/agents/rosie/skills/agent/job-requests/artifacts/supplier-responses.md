@@ -45,6 +45,36 @@ available. Supplier-entered portal answers remain as saved by the supplier;
 Rosie reads and reports them without overwriting them. For supplier messages
 outside the portal, follow `supplier-coordination` before any AR answer write.
 
+### Submitted Diff Size/Qty/Variant
+
+When a safely matched, explicitly submitted supplier line is marked
+`diff_size_qty_sub`, update the existing JR's **current evidence** and brief
+item `note_internal` with the supplier's actual different size, quantity or
+variant and response. Preserve customer-origin demand and the current offered
+line. This is the note/evidence handoff Chris requested by “update the JR,”
+not permission to change job availability/status, available quantity, selected
+source, offering or price. Do not describe a merely proposed alternative as an
+implemented line substitution or offer it in `note_for_customer` before the
+applicable approval.
+
+For an identifiable alternative, first check whether the submitted supplier
+answer itself quotes a positive price clearly for that alternative. If not,
+look up its applicable **APS** price with `plant-and-supplier-search` (or
+Chris's authorized supplier exception), checking exact alternative identity,
+size and positive price. Distinguish an inventory list price from a
+supplier-confirmed quote and neither from actual availability. Present the alternative and supported price to Chris in the
+original request conversation and ask **whether to use that price** for the
+specified job item; wait for his selection before changing any price or
+customer-facing offering. Preserve accepted customer terms. If no reliable
+price is found, tell Chris the gap and ask specifically whether to contact the
+supplier for **that alternative's price**. Only after his approval, hand the
+exact AR, supplier, alternative and original-chat approval evidence to the
+supplier thread for the price question; receiving a different offering is not
+itself outreach authorization. A new supplier price answer is evidence for
+Chris, not automatic acceptance or permission to change the JR line. Keep
+unaffected jobs/lines moving while resolving the affected scope; a shared AR
+line does not broaden any other customer's acceptance.
+
 A supplier chat giving only a quantity does not confirm a seeded price.
 Preserve requested quantities and customer prices; do not infer customer
 acceptance from supplier availability.

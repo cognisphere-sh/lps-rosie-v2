@@ -106,16 +106,19 @@ requirement. If the request is clear, proceed without extra questions.
 
    **Capture EDD during every job ingestion/creation, including quick quotes.**
    Read the supplied message, attachments and ingestion context for the
-   expected install date (displayed as EDD). Save a supported, unambiguous
-   date in `expected_install_date`; use a date already supplied without asking
-   again. Resolve relative dates only when the source date and intended day
-   are clear. Do not substitute the ingestion/creation date, quote deadline
-   or supplier fulfillment date, or invent a day from a vague date range.
+   customer's expected/requested **pickup or delivery date** (displayed as
+   EDD; stored in the legacy-named `expected_install_date` field). Save a
+   supported, unambiguous date in that field; use a date already supplied
+   without asking again, even if described as pickup/delivery rather than
+   installation. Resolve relative dates only when the source date and intended
+   day are clear. Do not substitute the ingestion/creation date, quote deadline
+   or supplier's actual fulfillment date, or invent a day from a vague range.
 
-   If EDD is missing or ambiguous, create/reuse the job and its known rows
-   first, leave `expected_install_date` NULL, then ask in the original request
-   conversation: "What is the expected install date (EDD)? Enter a date, or
-   choose Unknown." Every EDD question, including a webchat questionnaire,
+   If the requested/expected pickup or delivery date is missing or ambiguous,
+   create/reuse the job and its known rows first, leave `expected_install_date`
+   NULL, then ask in the original request conversation: "What is the expected
+   pickup or delivery date (EDD)? Enter a date, or choose Unknown." Every EDD
+   question, including a webchat questionnaire,
    must offer **Unknown** explicitly and allow the user to enter a date.
    Unknown means SQL NULL, not the string "Unknown" or a placeholder date.
    If the user/source already says the date is unknown, accept that without
@@ -126,8 +129,9 @@ requirement. If the request is clear, proceed without extra questions.
    conflicting dates before replacing it.
 
    Save pickup/delivery choice in `fulfillment_method` (`pickup` or `delivery`)
-   and keep an unknown choice NULL. EDD is the customer's planning date,
-   separate from the supplier order's actual confirmation and fulfillment dates.
+   and keep an unknown choice NULL. EDD is the requested/expected pickup or
+   delivery planning date, separate from the supplier order's actual
+   confirmation and fulfillment dates.
    Save additional customer-supplied job-wide requests in
    `job_requests.note_from_customer`, using [note audiences](notes.md).
 
