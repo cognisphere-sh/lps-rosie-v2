@@ -29,24 +29,24 @@ import { cn } from '@/lib/utils'
 
 /** Need · Size · Plant · Status · Avail qty · Price · Line total · Notes. */
 const LINE_COLUMNS =
-  '56px 90px minmax(200px,1.5fr) 150px 90px 100px 100px minmax(200px,1fr)'
+  '56px 90px 220px 150px 90px 100px 100px minmax(200px,1fr)'
 /** Track minima + gaps + row padding/left accent; below this the table scrolls. */
-const GRID_MIN = 1070
+const GRID_MIN = 1090
 
 // A caller may put one column of its own in front of Need — the By-item view
 // uses it for the job a line came from, because there a table holds lines from
 // several requests at once. Everything after it stays exactly as it is here,
 // so the two tables are the same table.
 /** The leading column's track, when one is asked for. */
-const LEAD_COLUMN = 'minmax(210px,1.3fr)'
+const LEAD_COLUMN = '210px'
 /** Its contribution to the scroll threshold: the track minimum plus its gap. */
 const LEAD_MIN = 218
 
 // The portal's request page (2026-08-30 design) draws the same table without
-// the Line total column and without the tone bar/tint per row: Need · Size ·
+// the Line total column: Need · Size ·
 // Plant · Status · Avail qty · Price · Note from supplier over plain hairlines.
 /** The portal design's tracks — the default's, less Line total. */
-const PORTAL_COLUMNS = '56px 90px minmax(220px,1.6fr) 150px 90px 100px minmax(200px,1fr)'
+const PORTAL_COLUMNS = '56px 90px 220px 150px 90px 100px minmax(200px,1fr)'
 const PORTAL_GRID_MIN = 960
 /** Which of the two drawings a table uses. */
 type LineTableDesign = 'default' | 'portal'
@@ -950,6 +950,8 @@ function LineRow({
               minWidth,
               minHeight: 72,
               padding: '14px 16px',
+              borderLeft: `3px solid ${toneDot(tone)}`,
+              background: toneTint(tone),
               // The comp's accent divider under a line that still needs a price.
               ...(editable && item.unitPrice == null ? { borderBottomColor: PORTAL_PURPLE } : {}),
             }
@@ -983,7 +985,7 @@ function LineRow({
             onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`} />
           <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note to supplier…" display={item.noteForSupplier ?? ''}
             onCommit={detail('note_for_supplier')} ariaLabel={`Line ${item.id} note to supplier`} multiline plain />
-        </span> : <span className="block truncate text-[13px] font-semibold text-foreground">{item.name}</span>}
+        </span> : <span className="block whitespace-normal text-[13px] font-semibold text-foreground [overflow-wrap:anywhere]">{item.name}</span>}
         {/* LPS context stays below the plant; supplier details have their own column. */}
         {!editDetails && item.noteForSupplier && (
           <span
@@ -1070,7 +1072,7 @@ export function ARLineTable<T extends ARItem>({
   onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
-  /** `portal`: no Line total column, no tone bars, no subtotal footer. */
+  /** `portal`: no Line total column or subtotal footer. */
   design?: LineTableDesign
   /** Render only the stacked phone cards; false preserves the exact table DOM. */
   mobileCards?: boolean
@@ -1112,9 +1114,9 @@ export function ARLineTable<T extends ARItem>({
                 key={item.id}
                 aria-label={lineName}
                 className="min-w-0 overflow-hidden rounded-xl border border-border bg-card [overflow-wrap:anywhere]"
-                style={portal ? undefined : { borderLeft: `3px solid ${toneDot(tone)}` }}
+                style={{ borderLeft: `3px solid ${toneDot(tone)}`, background: toneTint(tone) }}
               >
-                <div className="min-w-0 border-b border-lps-hair px-3 py-3" style={{ background: portal ? undefined : toneTint(tone) }}>
+                <div className="min-w-0 border-b border-lps-hair px-3 py-3">
                   {lead && <div className="mb-2 min-w-0 text-[12px] text-muted-foreground">{renderLeading(item)}</div>}
                   {editDetails ? <div className="grid min-w-0 grid-cols-2 gap-3">
                     <label className="col-span-2 flex min-w-0 flex-col gap-1">

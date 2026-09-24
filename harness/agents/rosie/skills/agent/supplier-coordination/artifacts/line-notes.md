@@ -12,12 +12,30 @@ before editing. Keep the two voices separate and preserve unmentioned fields.
 
 1. Read `job_requests.note_from_customer` and every allocated
    `job_request_items.note_from_customer` when preparing or correcting an authorized
-   ask. Carry supplier-relevant job context into header `note_for_supplier` and item
-   details into line `note_for_supplier`, together with Chris's applicable instructions.
-   Preserve color, alternatives and special requests within the approved ask;
-   use NULL when there is nothing useful to add. Keep internal sourcing and
-   irrelevant/private customer information out, and preserve existing
-   customer-sharing and alternative-approval rules.
+   ask. Select only information the supplier needs for sourcing: job-wide
+   requirements into header `note_for_supplier`, line-specific requirements
+   into item `note_for_supplier`, together with Chris's applicable instructions.
+   Do not copy a project/section heading or customer name merely to label the
+   request (e.g. `Radia` / `Wilkinson`); include one only if it conveys an actual
+   supplier-relevant requirement and sharing it is authorized. The structured
+   line already displays plant, size, requested quantity and seed price: do not
+   repeat these as `Please price Gilt Edge 15 G` or similar redundant notes.
+   An unresolved price alone remains a NULL seed price, not a reason to add a
+   line note. Trim qualifiers that add no sourcing meaning: write
+   `Atrosanguinea or Shalimar Red cultivar`, not `Atrosanguinea or Shalimar Red
+   cultivar acceptable`; remove accidental stray characters such as a trailing
+   `S`. Keep notes brief, positive and supplier-facing: describe the requested specs
+   and any genuine question for the supplier, not instructions about which sizes
+   or cultivars it may or may not substitute. For example, write `140 individual
+   4-inch pots packed in trays; unit price per pot`, not `not 140 trays`, and
+   omit `do not substitute 7 G` or `do not substitute Purple Pixie`. The supplier
+   may recommend differences; a recommendation is not an approved alternate
+   ask or customer acceptance. Preserve relevant color, alternatives and
+   special requests within the approved ask, but do not turn internal sourcing
+   concerns into a ban on supplier recommendations. Use NULL when there is
+   nothing useful to add. Keep internal sourcing and irrelevant/private
+   customer information out, and preserve existing customer-sharing and
+   alternative-approval rules.
 2. Use the narrowest scope. For shared ARs, keep job/allocation-specific
    requirements attributable without exposing unauthorized customer identity;
    do not apply one job's conditions to all demand. Keep incompatible asks on

@@ -8,7 +8,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
-import { Markdown, MarkdownFirstLine } from '@/components/workspace/chat-kit'
+import { Markdown } from '@/components/workspace/chat-kit'
 import {
   EditableText, EditableTextarea, type EditProps, patchRow,
 } from '@/components/workspace/editable'
@@ -65,7 +65,9 @@ const gridOf = (
   columns: readonly ColumnDef[],
   widthOf: (column: ColumnDef) => number,
 ) =>
-  [selectable ? `${SELECT_COLUMN}px` : null, ...columns.map((column) => `${widthOf(column)}px`), deletable ? `${ACTION_COLUMN}px` : null]
+  [selectable ? `${SELECT_COLUMN}px` : null, ...columns.map((column) => column.key === 'note_internal'
+    ? `minmax(${widthOf(column)}px, 1fr)`
+    : `${widthOf(column)}px`), deletable ? `${ACTION_COLUMN}px` : null]
     .filter(Boolean)
     .join(' ')
 
@@ -427,10 +429,7 @@ function renderInternalNote(text: string) {
   }} />
 }
 
-/**
- * Both notes use a single-line preview; internal notes render their first
- * line as Markdown. Both keep their full original source for editing.
- */
+/** Notes stay in their table cells, including the full internal Markdown preview. */
 function NoteCell({
   kind,
   table,
@@ -443,108 +442,28 @@ function NoteCell({
   kind: 'shared' | 'internal'
   table: string
   id: number
-  /** What the popover is about — "Bloodgood Maple · 15 gal". */
   title: string
-  /** Raw column text — both audiences are one editable field. */
   value: string | null
   onSaved: () => void
   touchTarget: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const pop = useOutsideClose(open, () => setOpen(false))
-
-  const [position, setPosition] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 })
-  useLayoutEffect(() => {
-    if (!open) return
-    const box = pop.current?.getBoundingClientRect()
-    if (!box) return
-    const left = Math.max(8, Math.min(box.right - 340, window.innerWidth - 348))
-    setPosition(window.innerHeight - box.bottom >= 368
-      ? { left, top: box.bottom + 8 }
-      : { left, bottom: window.innerHeight - box.top + 8 })
-    const close = (event: Event) => {
-      if (event.target instanceof Node && pop.current?.contains(event.target)) return
-      setOpen(false)
-    }
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
-    return () => {
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
-    }
-  }, [open, pop])
-
-  const meta = NOTE_KIND[kind]
-  const summary = value?.trim() ?? ''
-
-  // Notes for customer are edited like spreadsheet cells: the control stays in this
-  // column, rather than opening the note popover used for longer sourcing work.
-  if (kind === 'shared') {
-    return (
-      <div className="min-w-0 px-1.5">
-        <EditableTextarea
-          table={table}
-          id={id}
-          column="note_for_customer"
-          value={value}
-          onSaved={onSaved}
-          touchTarget={touchTarget}
-          placeholder=""
-          editLabel={`Edit note for customer for ${title}`}
-          inlineControls
-          compact
-        />
-      </div>
-    )
-  }
-
+  const internal = kind === 'internal'
   return (
-    <div ref={pop} data-pop className="relative min-w-0 px-1.5"
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
-      }}
-    >
-      <button
-        type="button"
-        aria-label={kind === 'internal' ? `Edit internal note for ${title}` : undefined}
-        title={summary || `Add a ${meta.label.toLowerCase()} note`}
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((v) => !v)
-        }}
-        className="flex w-full min-w-0 cursor-pointer flex-col items-start gap-px rounded-md border border-transparent bg-transparent px-1 py-0.5 text-left hover:border-border hover:bg-lps-tint"
-      >
-        {summary ? (
-          <span className="w-full truncate text-[12px] text-foreground">
-            {kind === 'internal' ? <MarkdownFirstLine text={summary} /> : summary.replace(/\s+/g, ' ')}
-          </span>
-        ) : (
-          <span className="text-[12px] text-lps-dim">—</span>
-        )}
-      </button>
-      {open && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={position}
-          className="lps-pop fixed z-[70] flex max-h-[360px] w-[340px] flex-col gap-2 overflow-auto rounded-2xl border border-border bg-popover p-3 shadow-[var(--lps-shadow)]"
-        >
-          <div className="flex items-baseline gap-2">
-            <span className="text-[12.5px] font-bold text-foreground">{meta.label} note</span>
-            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{title}</span>
-          </div>
-          <EditableTextarea
-            table={table}
-            id={id}
-            column="note_internal"
-            value={value}
-            onSaved={onSaved}
-            touchTarget={touchTarget}
-            placeholder="Supplier name, key details and numbers…"
-            renderPreview={renderInternalNote}
-            editLabel={`Edit internal note for ${title}`}
-          />
-        </div>
-      )}
+    <div className="min-w-0 px-1.5">
+      <EditableTextarea
+        table={table}
+        id={id}
+        column={internal ? 'note_internal' : 'note_for_customer'}
+        value={value}
+        onSaved={onSaved}
+        touchTarget={touchTarget}
+        placeholder={internal ? 'Add an internal note…' : ''}
+        renderPreview={internal ? renderInternalNote : undefined}
+        previewClickToEdit={internal}
+        editLabel={internal ? `Edit internal note for ${title}` : `Edit note for customer for ${title}`}
+        inlineControls
+        compact={!internal}
+      />
     </div>
   )
 }

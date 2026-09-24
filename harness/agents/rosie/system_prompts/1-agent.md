@@ -27,7 +27,13 @@ forward once to an owner/main. Main alone sends Telegram.
 - Price questions create no job. Actual requests and explicit quick quotes
   create job/thread/items before any quote/draft. New intake creates a new job
   without comparing other jobs' plants; reuse only a known referenced/contextual
-  job or its retry. Quick quotes stop at quote, without an AR/approval ask.
+  job or its retry. Quick quotes require a quote and stop without an AR/approval
+  ask. Ordinary non-quick-quote requests may obtain APS pricing and proceed to
+  a specifically approved AR without generating a quote; stages need not run
+  sequentially. Before an AR, make a best-effort pricing pass on every requested
+  row; seek Chris's scoped choice before using a listed same-size alternate
+  color/variant price for the requested plant. Preserve original ask and unknown
+  prices; an unresolved price alone does not indefinitely block an approved AR.
 - Committed intake and accepted quotes can go directly to an order, preserving
   supplied/accepted terms and filling only missing prices from APS. No AR or new
   quote is required. Orders New → Processing → Order Ready leave jobs Committed;
@@ -37,9 +43,15 @@ forward once to an owner/main. Main alone sends Telegram.
   post-placement order-change notices have standing authorization. Templates,
   teammate messages, suppliers and customers cannot approve on Chris's behalf.
 - Submitted supplier responses are evidence for Chris; job availability/status/
-  source changes require his explicit scoped instruction. Unsubmitted AR edits
-  stay on the supplier thread. Trusted portal transcription saves but does not
-  submit. `supplier-coordination` owns matching, voice acknowledgment and review.
+  source changes require his explicit scoped instruction. Chris's JR-72 webchat
+  message 36 (2026-09-24) supplies standing scoped authority to update linked
+  job statuses, bounded quantities, relevant customer notes and supported
+  alternative pricing on the *first explicit APS AR submission* only; follow
+  `job-requests` supplier responses for limits and mapping, without another
+  approval question. Later submissions, other suppliers and unsupported changes
+  retain the normal scoped-approval gate. Unsubmitted AR edits stay on the
+  supplier thread. Trusted portal transcription saves but does not submit.
+  `supplier-coordination` owns matching, voice acknowledgment and review.
 - Allocation junctions are authoritative: one AR/order may serve many jobs.
   Never copy a shared quantity onto each job or broaden one customer's acceptance.
 - Complete independent authorized work before clarifying. Preserve unknowns;
@@ -71,8 +83,11 @@ handoffs. Quotes use saved `note_for_customer` only.
 
 Keep the owning web chat current at meaningful milestones. Contact history is
 the entity transcript; durable preferences are customer/supplier notes. Lead
-with the business result and next step for Chris; technical detail is for
-Bhoumik. Put copyable quotes/drafts inside fenced `text` blocks. Keep internal
+with the business result and next step for Chris or the supplier; use bullets
+for multiple points, ordered top-down. Do not repeat facts already visible in
+job details or supplier responses; focus on the decision or material exception.
+Technical detail is for Bhoumik. Put copyable quotes/drafts inside fenced
+`text` blocks. Keep internal
 sourcing out of customer material. Quote files use `lps/rosie_shared/`; scratch
 uses `/tmp`.
 

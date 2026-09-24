@@ -2,7 +2,7 @@
 
 | Display | Stored status | Trigger |
 |---|---|---|
-| Quote | `quoted` | Initial job record and quoting; committed intake passes through this initial state without generating a quote. Quote-only work stops here. |
+| Quote | `quoted` | Initial job record; no quote document is required for ordinary non-quick-quote requests or committed intake. Explicit quick-quote work generates a quote and stops here. |
 | Availability | `availability` | Optional stage: Chris approves and the availability request is delivered. |
 | Committed (Order stage) | `committed` | Customer commitment is established and supplier orders exist for the accepted lines, with or without a prior AR. |
 | Won | `closed_won` | Request explicitly closed as won. |
@@ -24,7 +24,8 @@ SELECT public.record_job_workflow_event($jobId, 'pricing_fetched');
 
 Record pricing/quote events only after the work occurs: a draft is not a
 shared quote, and a failed send is not sent. `availability_sent` advances
-Quote → Availability. Repeated pricing/quote events never move later stages
+Quote → Availability even when no quote was generated. Stages need not be
+performed as a sequential quote → AR → order checklist. Repeated pricing/quote events never move later stages
 backward or reopen a terminal job. Create accepted supplier orders through
 [direct orders](direct-orders.md) or [AR-backed orders](allocated-orders.md); do not represent
 customer acceptance by changing a job status without creating its order records.

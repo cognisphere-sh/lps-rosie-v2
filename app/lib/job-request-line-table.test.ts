@@ -23,7 +23,7 @@ test('shared request line tracks match the exact visible column order', () => {
   )
   assert.match(
     component,
-    /columns\.map\(\(column\) => `\$\{widthOf\(column\)\}px`\)/,
+    /column\.key === 'note_internal'[\s\S]*?`minmax\(\$\{widthOf\(column\)\}px, 1fr\)`[\s\S]*?: `\$\{widthOf\(column\)\}px`/,
   )
   assert.doesNotMatch(component, /Add a note for customer/)
 

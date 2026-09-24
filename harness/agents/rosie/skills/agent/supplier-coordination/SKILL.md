@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Coordinate supplier ARs and orders on the supplier thread. Includes customer-to-AR notes, supplier-to-job/item note handoffs, creation, portal transcription, submitted replies and order changes. Use for order-side supplier work or events. (v3.28.0)
+description: Coordinate supplier ARs and orders on the supplier thread. Includes customer-to-AR notes, supplier-to-job/item note handoffs, creation, portal transcription, submitted replies and order changes. Use for order-side supplier work or events. (v3.33.0)
 metadata:
   author: lps
-  version: "3.28.0"
+  version: "3.33.0"
 ---
 
 # Supplier coordination
@@ -30,9 +30,13 @@ and verify results. Reuse known records on retry; never duplicate shared demand.
 | Notify a saved order change | [order changes](artifacts/order-changes.md) |
 | Record contact or follow up | [records](artifacts/records.md) |
 
-Committed/direct-order work skips AR preparation. Local unsubmitted AR edits
+Ordinary non-quick-quote availability work needs APS pricing and Chris's
+specific AR approval, not a completed quote. Quick quotes stop without an AR;
+committed/direct-order work skips AR preparation. Local unsubmitted AR edits
 stay here; only explicit submission is relayed to job threads/Chris. Supplier
-answers never authorize job availability/source changes. Portal transcription
+answers alone never authorize job availability/source changes; Chris's
+first-APS-submission standing instruction is narrowly scoped under
+[responses](artifacts/responses.md) and the job owner applies supported updates. Portal transcription
 does not submit; voice responses follow acknowledge → save → review/Submit.
 
 Finish with verified record/send results and exact affected allocations for

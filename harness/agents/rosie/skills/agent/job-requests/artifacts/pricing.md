@@ -25,7 +25,7 @@ do not create an AR merely to fill a price gap. This workflow expects supported
 prices on ordered lines; the RPC's nullable price field is not permission to
 silently order an unpriced line. Resolve the affected scope before ordering it.
 
-For ordinary quote/availability work:
+For an ordinary non-quick-quote request, get supplier pricing, then pursue an APS AR if Chris approves that specific scope; quote generation is optional and does not gate AR preparation or publication. If Chris asks for a quote, generate it from supported prices. An explicit quick quote requires the quote and stops without AR or availability approval ask. The job's Quote → Availability → Committed stages describe records, not mandatory sequential tasks.
 
 ### Chris-directed APS manual inputs
 
@@ -48,11 +48,15 @@ fields or change job availability/status from the manual input.
    Use APS's price list for quotes and APS for approved availability requests.
    Chris may explicitly authorize an exception, including combined grower
    sourcing; research or a missing APS match does not imply that authorization.
-2. Search APS inventory for every plant using `plant-and-supplier-search`,
-   or the instructed supplier's inventory. Check actual plant identity,
-   cultivar, size and positive price; retain the inventory UUID and source
-   evidence. Copy the applicable price into `unit_price` only where no supplied
-   or accepted price applies; keep useful sourcing progress under [notes](notes.md).
+2. Before handing an ordinary request to the supplier thread for AR publication,
+   make a best-effort pricing pass over **every in-scope job row**, not just the
+   easiest matches: search APS inventory using `plant-and-supplier-search`, or
+   the instructed supplier's inventory. Check actual plant identity, cultivar,
+   size and positive price; retain the inventory UUID and source evidence.
+   Copy the applicable price into `unit_price` only where no supplied or
+   accepted price applies; keep useful sourcing progress under [notes](notes.md).
+   Re-read the rows after pricing so the AR handoff reflects all saved prices
+   and remaining NULLs, rather than leaving supported rows unpriced.
    For real gaps, research 1–2 closest supported APS alternatives, preferring
    the same plant/nearby size, then defensible related plants; report them in
    chat without selecting them or widening supplier scope. A different size is
@@ -71,12 +75,16 @@ fields or change job availability/status from the manual input.
    alternative or blocking that original-plant ask on a missing price. Only ask
    Chris **which price to use** when a listed, genuinely very close alternative
    differs in color or variant at the requested size; present the original
-   price gap and the alternative's actual price, and wait for his selection
-   before applying that proxy. A different size or materially different form
-   is not covered by this close-variant price-choice rule. If no such close
-   price exists, do not ask him to choose an alternative price; preserve the
-   gap. A selected proxy price does not change the original plant/size in the
-   supplier ask, establish identity or stock, or authorize an inventory mapping.
+   price gap and the alternative's actual price, and wait for his scoped
+   selection before applying that proxy to the row or seeding the AR. A
+   different size or materially different form is not covered by this
+   close-variant price-choice rule. If no such close price exists, do not ask
+   him to choose an alternative price; preserve the gap. An unanswered proxy
+   choice leaves that row's price NULL; finish independent rows and, once the
+   original-plant AR scope and send are approved, the unresolved price alone
+   does not indefinitely hold up publication. A selected proxy price does not
+   change the original plant/size in the supplier ask, establish identity or
+   stock, or authorize an inventory mapping.
    Always obtain Chris's explicit confirmation in the original request chat
    before quoting an actual alternative offering or creating/sending an AR for
    that alternative; confirmation must cover the intended action. Other suppliers'
@@ -90,24 +98,32 @@ fields or change job availability/status from the manual input.
    and location; catalogue stock remains unconfirmed. Newly discovered
    suppliers go to Daisy for onboarding before order-side coordination.
 5. After an actual pricing lookup, including no-match results, record
-   `pricing_fetched`, then generate the APS price-list quote using
-   `quote-generation`. Keep the job at Quote; later stages remain unchanged.
-   Resolve quote-blocking gaps without claiming unsupported prices or stock.
-   **If Chris asked only for a quick quote, stop here.**
+   `pricing_fetched`. For an explicit quick quote or another specifically
+   requested quote, resolve quote-blocking gaps and generate the supported
+   APS price-list quote using `quote-generation`; do not claim stock or invent
+   prices. Keep the job at Quote; later stages remain unchanged. **If Chris
+   asked only for a quick quote, stop here** without an AR or approval ask.
+   For an ordinary non-quick-quote request, do not generate a quote merely to
+   reach availability; retain unresolved price gaps and the original requested
+   plant/size in the supplier ask rather than inventing a seed price.
 6. Re-read the latest intent and acceptance before starting availability work.
-   If the quote is now accepted for direct ordering, continue to [direct orders](direct-orders.md)
-   without an AR or availability-send question. Otherwise, for a request
+   If the request is committed or an existing quote is accepted for direct
+   ordering, continue to [direct orders](direct-orders.md) without a new quote,
+   AR or availability-send question. Otherwise, for an ordinary request
    following the availability path, ask Chris in the original request chat
-   whether to send the availability request to APS. Wait for his approval;
-   quote generation, an ordinary job request and supplier research do not
-   authorize publication. Preserve an explicit approval already given for
-   this exact send, while still producing the quote first. After approval and
-   scope clarification, route the ask to APS's supplier thread, including
-   unlisted items unless Chris limits the scope. Preserve customer-details
-   preferences. Include every job/item id and allocated quantity, quote
-   completion and send-approval evidence, exact inventory UUID mappings/prices
-   or Chris-accepted proxy seed prices (explicitly marked unmapped), separate
-   alternative approvals, and supplier-relevant `note_from_customer` from
+   whether to send the availability request to APS. Wait for his specific
+   approval; pricing, an ordinary job request, supplier research and any
+   optional quote do not authorize publication. Preserve an explicit approval
+   already given for this exact send; do not wait for or manufacture a quote.
+   After the all-row best-effort pricing pass, approval and scope clarification,
+   route the ask to APS's supplier thread, including unlisted items unless
+   Chris limits the scope. Preserve customer-details preferences. Include every
+   job/item id and allocated quantity, the workflow path (quote
+   requested/completed or intentionally skipped) and send-approval evidence,
+   each supported saved price and exact inventory UUID mapping, Chris-accepted
+   proxy seed prices (explicitly marked unmapped), and each unresolved NULL
+   price or pending close-variant price decision. Include separate alternative
+   approvals, and supplier-relevant `note_from_customer` from
    the job and its items for AR header/line `note_for_supplier`. Preserve note scope
    and omit private customer details unless sharing is authorized.
    A request may combine several jobs;
@@ -125,10 +141,11 @@ fields or change job availability/status from the manual input.
    job's chat; send any required approval to the original request thread.
 
 For a submitted supplier `diff_size_qty_sub` response, follow [supplier
-responses](supplier-responses.md) before repricing. Only after Chris approves
-an actual different-size/variant offering for a specified item and selects a
-supported new-offering price or authorized proxy may that item's selected quote
-use the alternative; the original size/variant's price is never the fallback
+responses](supplier-responses.md) before repricing. Chris's standing instruction
+covers a supported proposed alternative on the first explicit APS submission;
+other responses require his scoped approval for the actual different offering
+and supported price or authorized proxy before that item's selected quote uses
+the alternative; the original size/variant's price is never the fallback
 for the newly selected offering, even when it remains listed. Preserve the
 original request and any already accepted customer terms until their scoped
 change is authorized. A missing new-offering price remains unresolved, not an

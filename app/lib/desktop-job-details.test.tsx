@@ -115,11 +115,6 @@ for (const mobile of [false, true]) {
     const view = render(<FocusedJobRecord request={request({ items: [sourcingItem], itemCount: 1, noteInternal: sourcingMarkdown })}
       mobile={mobile} version={0} onSaved={() => {}} />)
     const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')!
-    assert.equal(table.querySelector('strong > u'), null)
-    const preview = within(table).getByRole('button', { name: /Edit internal note for Live Oak/ })
-    assert.equal(preview.title, sourcingMarkdown)
-    assert.ok(preview.querySelector('.truncate'))
-    fireEvent.click(preview)
     assert.deepEqual([...table.querySelectorAll('strong > u')].map((node) => node.textContent), ['Austin Plant Supply', 'Acosta'])
     assert.equal(table.querySelectorAll('hr').length, 0)
     assert.equal(table.querySelector('table'), null)
@@ -128,7 +123,8 @@ for (const mobile of [false, true]) {
     assert.equal(ar.parentElement?.closest('button'), null)
     fireEvent.click(ar)
     assert.deepEqual(opened, [42])
-    assert.ok(table.querySelector('.lps-pop'))
+    assert.equal(table.querySelector('.lps-pop'), null)
+    assert.ok(within(table).getByRole('button', { name: /Edit internal note for Live Oak/ }).classList.contains('sr-only'))
 
     fireEvent.click(view.getByRole('button', { name: 'Job details & notes' }))
     const details = view.container.querySelector<HTMLElement>('[data-compact-job-details]')!
@@ -168,12 +164,10 @@ test('job and item sourcing editors preserve raw Markdown and save it through th
   assert.equal(details.querySelector('strong > u')?.textContent, 'Austin Plant Supply')
   assert.ok(within(details).getByText('$110 · Qty 15 · Follow-up'))
 
-  await user.click(view.getByRole('button', { name: /Edit internal note for Live Oak/ }))
-  const popover = view.container.querySelector<HTMLElement>('.lps-pop')!
-  assert.equal(popover.querySelectorAll('strong > u').length, 2)
-  assert.equal(popover.querySelectorAll('hr').length, 0)
-  await user.click(within(popover).getByRole('button', { name: /Edit internal note for Live Oak/ }))
-  const itemInput = within(popover).getByRole('textbox', { name: /Edit internal note for Live Oak/ }) as HTMLTextAreaElement
+  const table = view.container.querySelector<HTMLElement>('[data-request-line-table]')!
+  await user.click(within(table).getByText('Acosta'))
+  assert.equal(table.querySelector('.lps-pop'), null)
+  const itemInput = within(table).getByRole('textbox', { name: /Edit internal note for Live Oak/ }) as HTMLTextAreaElement
   assert.equal(itemInput.value, sourcingMarkdown)
   await user.clear(itemInput)
   await user.type(itemInput, edited)

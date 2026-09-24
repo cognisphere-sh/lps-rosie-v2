@@ -1,5 +1,13 @@
 # customer-coordination — changelog
 
+## 3.7.0 — 2026-09-24
+
+- Chris's explicit JR-74 webchat feedback (message 20, 04:05:55 CDT): customer drafts for a properly approved proposed alternative show its verified updated customer price, not internal declined-substitution history or old pricing. A supplier proposal does not itself authorize an offer or customer send.
+
+## 3.6.0 — 2026-09-24
+
+- Chris's explicit JR-74 webchat feedback (message 15, 04:02:55 CDT): customer-facing drafts and sends never name or attribute a supplier; communicate only concise actionable alternative facts and relevant conditions, retaining source attribution internally where needed.
+
 ## 3.5.0
 
 - Use singular directional note fields: `note_from_customer`, `note_from_supplier`, `note_internal`, `note_for_customer`, and `note_for_supplier`, according to table and audience. Preserve customer/supplier authorship and restrict external rendering to the appropriate recipient.

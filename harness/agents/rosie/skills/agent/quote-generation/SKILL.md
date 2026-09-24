@@ -1,15 +1,18 @@
 ---
 name: quote-generation
-description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.7.0)
+description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.10.3)
 metadata:
   author: lps
-  version: "3.7.0"
+  version: "3.10.3"
 ---
 
 # Quote generation
 
-1. Follow `job-requests` intake before any quote/partial draft: the job, thread
-   and supplied item rows must exist. A price lookup creates none. Committed
+1. Use this skill only when a quote is requested, including an explicit quick
+   quote or a requested copy. Ordinary non-quick-quote work may get APS pricing
+   and pursue a specifically approved AR without generating a quote. Follow
+   `job-requests` intake before any quote/partial draft: the job, thread and
+   supplied item rows must exist. A price lookup creates none. Committed
    intake or accepted quotes go directly to orders unless a quote copy is asked
    for; never reprice accepted terms.
 2. Save supported offerings and customer prices first. `job-requests` owns
@@ -36,7 +39,8 @@ metadata:
    explicitly requests a different format, use [format rules](artifacts/text-format.md).
 5. Return the draft to the original request chat. Quick-quote work stops here:
    no AR or availability approval ask. Ordinary availability work returns to
-   `job-requests`; an accepted quote can move directly to an order.
+   `job-requests`; an accepted quote can move directly to an order. Neither
+   quote rendering nor delivery is a prerequisite for an ordinary approved AR.
 6. Customer delivery belongs to `customer-coordination`. Send the complete
    draft, recipient, attachments and origin to that owner; `message-routing`
    obtains any required approval. Only verified customer delivery records

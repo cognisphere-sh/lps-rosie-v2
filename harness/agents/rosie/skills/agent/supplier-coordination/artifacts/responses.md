@@ -64,7 +64,15 @@ and line details to the linked items, respecting each allocation.
 
 For a submitted `diff_size_qty_sub` line, relay the supplier's *actual* offered
 alternative size/quantity/variant and price evidence without changing the
-customer's original demand. Ask the job thread to follow its
+customer's original demand. On the verified **first explicit APS submission**,
+identify this standing-authority scope in the handoff so the job thread follows
+its [first-APS-submission path](../../job-requests/artifacts/supplier-responses.md)
+without another approval question for supported linked status, bounded
+quantity, customer-safe note and alternative-offering price updates. Verify it
+is genuinely the first submission rather than relying on a stale
+`submitted_at`; include allocation shares and whether quantity/price applies
+to each item, and flag ambiguous cases for a narrow hold. On later submissions
+or other suppliers, follow the ordinary
 [Diff Size/Qty/Variant path](../../job-requests/artifacts/supplier-responses.md):
 update only current JR evidence/notes, search for the alternative's supported
 price, then ask Chris whether to use it. If no reliable price exists, the job
@@ -75,25 +83,28 @@ approved supplier channel, and relay the answer to the job thread; neither the
 supplier's different offering nor a price answer authorizes a job-line change.
 Unsubmitted edits do not start this path or authorize outreach.
 
-The job thread also posts a concise internal
-alert to Chris naming the supplier, affected plants and source; it may link
-`[Open AR-<id>](ar:<id>)`. A useful shape is:
-`APS — Live Oak 15 G: 12 available at $105 (portal submission, AR-42).`
+The job thread also posts a concise internal alert to Chris with the business
+result and next action, linking `[Open AR-<id>](ar:<id>)` when useful. Do not
+restate response quantities/prices already visible in the AR/job; use top-down
+bullets if multiple independent decisions or exceptions require attention.
 Editing a Completed request returns it to Processing until the supplier
 submits again. These supplier-entered portal changes remain as saved; Rosie
-reports them without overwriting them. A response does **not** authorize Rosie
-to change job/item availability or status, available quantities, selected
-supplier or the customer-facing offering. A customer-facing note must not offer
-an unapproved alternative or turn an unselected supplier's terms into accepted
-customer terms. Surface the response to Chris and update notes by audience
-without duplicating visible prices or AR/order statuses. Replace superseded facts; keep suppliers
-distinct and preserve Chris's current selection without copying the message
-history into the notes. A selected supplier is not inferred from availability,
-price or submission. No automatic customer message or acceptance follows. If
-Chris expressly approves changing a linked job item in response to `can_order`,
-relay the exact job-item scope to its job thread: displayed Can Order is
-schema-valid `need_to_order`, and that same job-item update must set
-`available_quantity` to the approved whole-line demand or explicitly approved
-allocation. A shared supplier total is never copied to every linked job item.
+reports them without overwriting them. Except for Chris's narrowly scoped
+first-APS-submission standing instruction, a response does **not** authorize
+Rosie to change job/item availability or status, available quantities, selected
+supplier or the customer-facing offering. A customer-facing note can describe a
+verified proposed alternative under that first-submission instruction, but
+must not present it as accepted or turn an unselected supplier's terms into
+accepted customer terms. Surface only the material next action to Chris, using
+bullets for multiple points rather than restating job details or the full AR
+response. Replace superseded note facts; keep suppliers distinct and preserve
+Chris's current selection without copying message history. A selected supplier
+is not inferred from availability, price or submission. No automatic customer
+message or acceptance follows. For a verified first APS submission Chris's
+standing instruction supplies this scoped approval; otherwise, if Chris
+expressly approves changing a linked job item in response to `can_order`, relay
+the exact job-item scope to its job thread: displayed Can Order is schema-valid
+`need_to_order`, and that same job-item update must set `available_quantity` to
+the approved whole-line demand or explicitly approved allocation. A shared supplier total is never copied to every linked job item.
 A response can supersede catalogue evidence in notes, but an unmentioned seeded
 price is not newly confirmed by a chat.

@@ -1,5 +1,55 @@
 # job-requests — changelog
 
+## 5.49.2 — 2026-09-24
+
+- Chris's explicit webchat feedback (message 14): removed the job identifier from the newly added customer-note wording example; the example remains scoped to supported supplier-proposed different-size options.
+
+## 5.49.1 — 2026-09-24
+
+- Chris's explicit JR-76 webchat feedback (message 12): for the supported different-size supplier alternatives, customer notes use `5G @ $25, 1G NA` and `7G @ $65, 15G NA` rather than proposal/generic/cultivar caveats. Preserve evidence, price and approval boundaries; do not extend these examples to unsupported stock or pricing.
+
+## 5.49.0 — 2026-09-24
+
+- Chris's explicit JR-75 webchat feedback (message 13, ~04:52 CDT): job-item structured plant/size and price continue to represent the customer-requested offering; supplier-proposed alternatives and their price-list evidence stay in internal sourcing notes. Removed conflicting first-submission instructions that replaced the requested offering.
+- Chris's explicit JR-75 webchat feedback (message 15, 04:52:44 CDT): concrete short note-audience examples. Item 629 `note_from_customer` is only `Wilkinson Project;`; original email tray wording and Chris's individual-pot clarification go compactly into `note_internal`, without repeating structured demand. Examples cover customer, internal and supplier note fields.
+
+## 5.48.0 — 2026-09-24
+
+- Chris's explicit JR-75 webchat feedback (message 11, 04:49:43 CDT): whenever APS proposes a different offering, look up its own APS price-list price and record supported exact/proxy/no-match evidence in the affected item's internal sourcing note, without replacing the requested offering's price or presenting a list price as confirmed stock/quote. Applies to first-submission and ordinary submitted-response handling.
+
+## 5.47.1 — 2026-09-24
+
+- Chris's explicit JR-75 webchat feedback (message 10, 04:48:57 CDT): limit customer notes to his terse corrected wording (`15G only`; `3G only, 5G NA`; `Can order Tuesday`) rather than narrating proposed substitutes, pending identity/price, or exact-date qualification. Keep unresolved proposals internal and preserve evidence/approval boundaries.
+
+## 5.47.0 — 2026-09-24
+
+- Chris's explicit JR-74 webchat feedback (messages 20, 22 and 23, 04:05–04:07 CDT): customer notes omit declined internal substitution decisions. For an approved alternative intended for customer consideration, verify its identity/size and updated customer price; retain approval and send boundaries. Record only customer-useful facts not inferable from structured columns; omit a redundant `unavailable` note when status already conveys it.
+
+## 5.46.0 — 2026-09-24
+
+- Chris's explicit JR-74 webchat feedback (messages 15 and 17, 04:02–04:03 CDT): customer-facing job/item notes never identify or attribute suppliers. Keep only short actionable alternative/ETA facts, e.g. `Can order for Sep 29`, without a redundant requested-date comparison. Internal/supplier records retain material attribution.
+
+## 5.45.1 — 2026-09-24
+
+- Chris's explicit JR-73 webchat feedback (message 12, 02:45:08 CDT): keep `note_from_customer` concise and strictly customer-authored, without inferred pot-versus-tray ambiguity or repeating structured quantities and sizes. Retain a project section only when needed to distinguish lines in a mixed-project job; material unresolved unit interpretation belongs in `note_internal`.
+
+## 5.45.0 — 2026-09-24
+
+- Chris's explicit JR-73 webchat feedback (message 5, 02:39:03 CDT): make a best-effort APS pricing pass across every in-scope row before an ordinary approved AR is published. Present an actual listed same-size different-color/variant proxy for Chris's scoped price choice rather than silently using it. Preserve NULL prices and the original ask when a choice or catalogue price remains unresolved; do not indefinitely block an approved AR on that gap.
+
+## 5.44.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat instruction (message 36, 01:49:21 CDT) authorizes direct, safely matched job-line status, bounded allocation quantity, customer-safe note and supported alternative-offering price updates on the first explicit APS AR submission without another approval question. Guard first-submission evidence, shared demand, accepted terms, alternative identity/price and send boundaries; later submissions retain scoped approval.
+- Chris's JR-72 webchat message 38 (01:51:54 CDT) reiterates minimal internal notes: material supplier/price/response distinctions and risks only; omit structured-field duplication, project labels and chronology; NULL if nothing useful remains.
+
+## 5.43.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (message 23, 01:37:55 CDT): filter AR note handoffs to supplier-needed sourcing details. Do not copy nonessential project headings/customer names, repeat structured line fields, or add a price request just because an AR seed price is NULL; supplier-coordination owns the final supplier-note wording.
+
+## 5.42.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (message 17, 01:32:12 CDT): ordinary non-quick-quote jobs may obtain APS pricing and proceed to a specifically approved AR without generating a quote; job stages are not a required quote → availability → order checklist. Preserve unknown prices and the original supplier ask. Explicit quick quotes still generate a quote then stop without AR; committed intake/accepted quotes still go directly to order without a new quote or AR.
+
 ## 5.41.0 — 2026-09-24
 
 - Prevent per-pot prices on unresolved flat/tray demand; verify approved offering size and price together, reconciling concurrent UI edits. Preserve section headings within an established job rather than prematurely creating extra jobs from ambiguous scope.

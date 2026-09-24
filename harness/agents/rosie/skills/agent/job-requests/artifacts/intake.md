@@ -50,9 +50,9 @@ refinement: retain customer-stated options in `note_from_customer`, track
 material open sourcing/quantity decisions in `note_internal`, and ask only
 when a decision is needed for the affected output.
 Wait for needed answers before generating the affected quote or creating/
-sending the affected AR or creating the affected order. On the availability
-path, Chris must also approve the availability send after the quote; creating
-an APS portal request is itself publication. Committed intake and direct
+sending the affected AR or creating the affected order. On an ordinary non-quick-quote availability path, Chris must approve the
+specific APS availability ask; a generated quote is not a prerequisite.
+Creating an APS portal request is itself publication. Committed intake and direct
 quote-to-order work skip this availability approval ask entirely.
 Continue independent work, including supported record updates, while waiting.
 Apply answers to the existing job/items with guarded writes; do not recreate

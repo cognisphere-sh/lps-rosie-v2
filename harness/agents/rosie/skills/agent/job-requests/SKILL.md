@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Own job intake and naming, pricing, job/item note audiences, AR note handoffs, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.41.0)
+description: Own job intake and naming, pricing, job/item note audiences, AR note handoffs, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.49.2)
 metadata:
   author: lps
-  version: "5.41.0"
+  version: "5.49.2"
 ---
 
 # Job requests
@@ -15,7 +15,7 @@ write. Load only the task references below; do not read the whole directory.
 | Intent | Path |
 |---|---|
 | Pricing/general question | Search and answer; no job, AR or order. |
-| New ordinary request | New job/items → APS quote → approved optional AR → accepted order. |
+| New ordinary request | New job/items → APS pricing → approved AR if availability is requested; skip quote generation unless asked for a quote. Stages need not run sequentially. |
 | Explicit quick quote | New job/items → quote → stop; no AR or availability approval ask. |
 | Committed intake | Job/items → retain supplied prices, APS fills gaps → direct order. |
 | Accepted quote | Its existing job/items and accepted terms → direct order; no new quote/AR. |
@@ -33,7 +33,7 @@ dependent output. APS is supplier 1 unless Chris explicitly authorizes another.
 | Requested size/variant alternatives | [requested options](artifacts/requested-options.md) |
 | Price lines or apply Chris's manual APS inputs | [pricing](artifacts/pricing.md), then `plant-and-supplier-search` |
 | Write/clean job or item customer, external or internal notes; route AR notes | [notes](artifacts/notes.md); `quote-generation` owns shared-note wording |
-| Review submitted supplier evidence / approved job availability | [supplier responses](artifacts/supplier-responses.md) |
+| Review submitted supplier evidence / first-APS-submission standing job update / other approved job availability | [supplier responses](artifacts/supplier-responses.md) |
 | Create accepted order without an AR | [direct orders](artifacts/direct-orders.md) |
 | Create AR-backed order / allocate across jobs | [allocated orders](artifacts/allocated-orders.md) |
 | Change an existing order | [order changes](artifacts/order-changes.md) |

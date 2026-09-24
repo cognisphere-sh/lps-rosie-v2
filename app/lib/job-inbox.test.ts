@@ -291,7 +291,7 @@ test('focused route restores scroll/focus and uses push entry then replace switc
   assert.doesNotMatch(jobs, /\[breakpoint, ordered\.length, selection\.kind\]/)
   assert.match(jobs, /pendingWorkFocus\.current = id/)
   assert.match(jobs, /workRef\.current\?\.focus\(\{ preventScroll: true \}\)/)
-  assert.match(jobs, /if \(action === 'push'\)[\s\S]*router\.push[\s\S]*router\.replace/)
+  assert.match(jobs, /if \(action === 'push'\)[\s\S]*router\.push[\s\S]*history\.replaceState\(null, '', `\/jobs\?jr=\$\{id\}`\)/)
   assert.match(jobs, /newOrigin[\s\S]*LIST_ORIGIN_ID[\s\S]*selection\.id[\s\S]*sessionStorage\.setItem\(LIST_ORIGIN, String\(selection\.id\)\)/)
   assert.match(jobs, /backToList[\s\S]*router\.replace\('\/requests'/)
 })

@@ -50,8 +50,21 @@
    Route unresolved choices to the job thread for clarification before
    creating/sending the affected ask; do not pick an option, combine lines
    or repeat a total quantity across options yourself.
-3. **Resolve mappings, prices and allocations before writing.** Use the atomic
-   creation RPC after quote completion, send approval and scope clarification:
+3. **Resolve mapping evidence, supported seed prices or explicit price gaps,
+   and allocations before writing.** Check the job handoff and current in-scope
+   job rows for a best-effort pricing pass across every row before AR creation:
+   retain supplied/accepted prices; save supported APS prices through the job
+   owner; for a listed same-size color/variant proxy without standing pricing
+   permission, ensure the job owner has presented the actual listed price to
+   Chris in the original request chat for a scoped choice before seeding it.
+   If rows were skipped, return them to the job owner
+   for the pricing pass; a completed pass can still leave explicit NULL gaps
+   or a pending proxy choice. Do not invent a price, silently select a proxy,
+   or indefinitely block an approved original-plant ask solely on unresolved
+   pricing. For an ordinary non-quick-quote request, no quote need be generated.
+   Use the atomic creation RPC only after Chris's scoped send approval and
+   resolution of supplier-ask scope; an unlisted original plant may have a
+   NULL mapped inventory id and NULL price:
 
    ```sql
    SET app.actor TO 'rosie';
@@ -112,12 +125,18 @@
    and item `note_for_supplier` carry additional information LPS/Chris shares with the
    supplier: customer details, variety/cultivar, special requests, constraints
    and other useful instructions from the job/item `note_from_customer` and Chris.
-   Preserve the necessary detail; see
-   [line note ownership](line-notes.md). Examples, only when supported by the ask/evidence: `Needed by Sep 18`,
+   Preserve the necessary detail in brief positive supplier-facing wording;
+   describe requested specs or genuine questions without forbidding the supplier
+   to suggest other sizes/cultivars. See [line note ownership](line-notes.md).
+   Examples, only when supported by the ask/evidence: `Needed by Sep 18`,
    `Single trunk only`, `30 G acceptable`, `Is listed Muskogee suitable?`.
-   Put shared context at request level and plant-specific details on the
-   relevant item. Do not repeat request notes on every line or restate the
-   plant/size/quantity already shown. No generic or repeated boilerplate such
+   Put only sourcing-relevant shared requirements at request level and
+   line-specific requirements on the relevant item. Do not add nonessential
+   project headings/customer names (e.g. Radia/Wilkinson), repeat request
+   notes on every line, or restate plant, size, quantity or seed price already
+   shown by the structured row. An unpriced line needs no `Please price Gilt
+   Edge 15 G` note: leave its seed price NULL and use notes only for a real
+   sourcing detail or question not conveyed by the row. No generic boilerplate such
    as `Please confirm availability`, `Provide any additional information`,
    or `Let us know if you have questions`. Leave `note_for_supplier` NULL/blank when
    there is nothing useful to add. No internal source comparisons and no

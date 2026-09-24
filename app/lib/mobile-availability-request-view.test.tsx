@@ -351,7 +351,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
 })
 
-test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, then 900 renders only the unchanged 1070px table', async () => {
+test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, then 900 renders only the unchanged 1090px table', async () => {
   const many = Array.from({ length: 36 }, (_, index) => line(100 + index, {
     name: `長い Unicode plant ${index} — ${'W'.repeat(50)}`,
     availableQuantity: index === 0 ? 0 : null,
@@ -379,7 +379,7 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
     const mobile = mobileSurface(dialog)
     assert.equal(within(mobile).getAllByRole('article').length, 36)
     assert.equal(mobile.querySelector('[style*="min-width"]'), null)
-    assert.equal(dialog.querySelector('[style*="min-width: 1070px"]'), null)
+    assert.equal(dialog.querySelector('[style*="min-width: 1090px"]'), null)
     const fieldBudget = (width - 24 - 2 - 24 - 12) / 2
     assert.ok(fieldBudget >= 129, `${width}px field budget ${fieldBudget}`)
     assert.match((within(mobile).getByLabelText(/^Line 1, .* plant name/) as HTMLInputElement).value, /長い Unicode plant/)
@@ -395,8 +395,8 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
   await setWidth(900)
   assert.equal(within(dialog).queryByTestId('availability-mobile-lines'), null)
   const desktop = dialog.querySelector<HTMLElement>('.overflow-x-auto')!
-  assert.equal(desktop.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1070px')
-  assert.equal(dialog.querySelectorAll('[style*="min-width: 1070px"]').length > 0, true)
+  assert.equal(desktop.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1090px')
+  assert.equal(dialog.querySelectorAll('[style*="min-width: 1090px"]').length > 0, true)
 })
 
 test('desktop drawer width is draggable, can fill the page through presets, and is remembered', async () => {
@@ -888,7 +888,7 @@ test('drawer publishes authoritative submission dates for first submit and same-
   }
 })
 
-test('portal/profile/default line surfaces keep the task-start non-modal answer behavior and 1070px table opt-out', async () => {
+test('portal/profile/default line surfaces keep the task-start non-modal answer behavior and 1090px table opt-out', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
   const view = render(
@@ -903,7 +903,7 @@ test('portal/profile/default line surfaces keep the task-start non-modal answer 
     </>,
   )
   assert.equal(view.queryByTestId('availability-mobile-lines'), null)
-  assert.equal(view.container.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1070px')
+  assert.equal(view.container.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1090px')
   const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   await user.click(trigger)
   await user.click(view.getByRole('option', { name: 'Can Order' }))

@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 2.7.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (message 17): distinguish an ordinary approved AR with intentionally skipped quote generation from quick-quote-only and direct-order handoffs; preserve original ask, pricing gaps and exact publication approval.
+
 ## 2.6.0 — 2026-09-24
 
 - Add tested literal-text messaging helper; bound handoff/context reads and shared-note edits, assign one writer per scope, and document supported webchat correction behavior.

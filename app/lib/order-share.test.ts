@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom'
 import { orderShareContent } from './order-share'
 import type { Order } from './orders'
 
-test('shared order includes contacts, dates, fulfillment, portal link and escaped table content', () => {
+test('shared order includes contacts, dates, linked jobs and the five-column table with supplier notes under plant names', () => {
   const order: Order = {
     id: 42, recordName: 'JR-3:Order-2', supplierId: 7, supplierName: 'APS', status: 'new', fulfillmentMethod: 'delivery', fulfillmentDate: null,
     noteFromCustomer: 'Private customer header', noteForCustomer: 'Private quote update',
@@ -21,16 +21,29 @@ test('shared order includes contacts, dates, fulfillment, portal link and escape
   const dom = new JSDOM(html)
   const document = dom.window.document
   assert.equal(document.querySelector('img'), null)
-  assert.equal(document.querySelector('a')?.href, 'https://example.com/partner/7/orders/42')
-  assert.equal(document.querySelectorAll('tbody tr').length, 1)
-  for (const expected of ['JR-3:Order-2', 'Jane <Doe>', 'Garden & Co', 'jane@example.com', '555-0100', '123 Garden St', '2026-10-12',
-    'Pickup or delivery: Delivery', 'Installation date: To be confirmed', 'Customer: Not provided', '$20.00', 'Available']) {
+  assert.doesNotMatch(html + text, /Private order|\/partner\//)
+  assert.equal(document.querySelectorAll('table[aria-label="Order items"] tbody tr').length, 1)
+  for (const expected of ['Jane <Doe>', 'Garden & Co', 'jane@example.com', '555-0100', '123 Garden St', '2026-10-12',
+    'Delivery', 'To be confirmed', 'Not provided', '$20.00']) {
     assert.ok(document.body.textContent?.includes(expected), expected)
     assert.ok(text.includes(expected), expected)
   }
+  assert.doesNotMatch(html + text, /JR-3:Order-2|Status|Available|Note for supplier/)
+  assert.equal(document.querySelector('h2 a')?.getAttribute('href'), 'https://example.com/jobs?jr=3')
+  const table = document.querySelector('table[aria-label="Order items"]')!
+  assert.deepEqual([...table.querySelectorAll('thead th')].map((cell) => cell.textContent), ['Quantity', 'Size', 'Plant Name', 'Unit Price', 'Total'])
+  assert.equal(table.querySelectorAll('tbody td').length, 5)
+  assert.equal(table.querySelector('tbody td:nth-child(3) div')?.textContent, 'Handle gently')
+  assert.equal(table.querySelector('tfoot td')?.getAttribute('colspan'), '5')
+  assert.doesNotMatch(table.textContent ?? '', /Keep shaded|Note from supplier/)
+  assert.ok(document.querySelector('th') && document.querySelector('tfoot'))
   order.publicToken = '11111111-1111-4111-8111-111111111111'
   const published = orderShareContent(order, 'https://example.com')
   assert.match(published.text, /Public order: https:\/\/example.com\/public\/orders\/11111111/)
   assert.doesNotMatch(published.html, /\/partner\//)
+  assert.doesNotMatch(published.html, /\/jobs\?jr=/)
+  const privateCopy = orderShareContent(order, 'https://example.com', 'private')
+  assert.doesNotMatch(privateCopy.html, /\/public\/orders\//)
+  assert.doesNotMatch(privateCopy.html + privateCopy.text, /Private order|\/partner\//)
   dom.window.close()
 })

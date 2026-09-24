@@ -1,5 +1,27 @@
 # supplier-coordination — changelog
 
+## 3.33.0 — 2026-09-24
+
+- Chris's explicit JR-73 webchat feedback (message 5, 02:39:03 CDT): before publishing an ordinary approved AR, verify the job owner attempted pricing across all in-scope rows and return skipped rows for that pass. Unresolved prices or unanswered same-size color/variant proxy choices remain NULL; Chris chooses any proxy seed, and an approved original-plant AR is not indefinitely blocked by a genuine price gap.
+
+## 3.32.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat instruction (message 36, 01:49:21 CDT): hand off verified first explicit APS AR submissions with exact linked allocations and standing-authority flag so the job owner can update supported status, notes and alternative pricing without a repeat approval question. Draft edits, resubmissions, other suppliers, ambiguous allocations and outreach remain outside that authority.
+- JR-72 webchat message 40 (01:53:06 CDT): supplier-response alerts lead with the result and next action, use bullets for multiple points and omit AR/job details already visible in the app; deployment prompt applies this to all Chris/supplier messages.
+
+## 3.31.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (messages 26–27, 01:39:23–01:39:32 CDT): trim supplier notes further. Bare cultivar options carry the sourcing meaning (`Atrosanguinea or Shalimar Red cultivar`); omit needless `acceptable` and accidental trailing characters. Live AR correction stays with supplier owner.
+
+## 3.30.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (message 23, 01:37:55 CDT): include only sourcing-required content in AR `note_for_supplier`. Do not repeat structured line plant/size/quantity/seed price (including `Please price Gilt Edge 15 G` for an unpriced line), or include project headings/customer names such as Radia/Wilkinson without a sourcing purpose. Leave redundant header/line notes blank; retain genuine supplier-relevant requirements/questions.
+
+## 3.29.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (message 17): remove quote-completion prerequisite for an ordinary non-quick-quote APS AR. Require supported pricing or explicit gaps, original ask, allocations and Chris's scoped approval before portal publication; quick quotes and committed/direct orders still skip AR.
+- Chris's explicit JR-72 webchat feedback (message 20, 01:34:29 CDT): keep `note_for_supplier` brief and positive, limited to requested specs and supplier-facing questions; do not forbid other size/cultivar recommendations or negate ambiguous quantities. The supplier may recommend a difference without that becoming an approved alternate ask.
+
 ## 3.28.0 — 2026-09-23
 
 - On an explicitly submitted Diff Size/Qty/Variant supplier line, relay actual alternative details to the job thread for note/evidence update, alternative price research and Chris's price decision. Supplier price follow-up requires specific Chris approval if no reliable price is found; unsubmitted edits or a different offering alone authorize no outreach or JR availability/status/source changes.

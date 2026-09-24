@@ -18,8 +18,12 @@ operations, and send a concise correction when needed.
 Each handoff carries:
 
 - Task, actual original request and known constraints; whether this is
-  `quote_only`, already committed intake, or an accepted quote going directly
-  to order. Use `skip_availability: true` for the direct path; these are handoff
+  `quote_only`, ordinary availability work (quote specifically requested or
+  intentionally skipped), already committed intake, or an accepted quote
+  going directly to order. For an ordinary AR handoff carry supported APS
+  pricing, unresolved gaps, the original supplier ask and Chris's exact
+  AR publication approval; quote completion is not required. Use
+  `skip_availability: true` for the direct path; these are handoff
   instructions, not new database columns. Later explicit acceptance supersedes
   an earlier quote-only intent for that scope.
 - Exact customer commitment evidence, accepted lines/quantities, supplied or

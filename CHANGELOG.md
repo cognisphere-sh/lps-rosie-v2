@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-24
+
+- Reorder supplier order detail columns to Qty, Size, Name, Status, Unit price, Line total, and Note from supplier; show the note for supplier directly below the plant name.
+
 ## 2026-09-23
 
 - Restore signed-out `/jobs?jr=<id>` deep links after login by carrying only the validated job id through `next`; discard unrelated query values and reject unsafe redirects. Clarify the All jobs list's Availability/Committed default filters (distinct from the Quote creation stage).

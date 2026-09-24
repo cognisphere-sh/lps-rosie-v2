@@ -206,6 +206,7 @@ export function EditableTextarea({
   placeholder,
   touchTarget = false,
   renderPreview,
+  previewClickToEdit = false,
   editLabel = 'Edit note',
   inlineControls = false,
   compact = false,
@@ -216,6 +217,8 @@ export function EditableTextarea({
   placeholder: string
   /** Formatted read view, kept outside the edit button so links remain usable. */
   renderPreview?: (value: string) => ReactNode
+  /** Let a formatted preview open the editor without a visible edit button. */
+  previewClickToEdit?: boolean
   editLabel?: string
   /** Keep the textarea in its table cell with explicit save/cancel actions. */
   inlineControls?: boolean
@@ -272,7 +275,7 @@ export function EditableTextarea({
         onBlur={inlineControls ? undefined : () => void commit(false)}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if ((inlineControls || e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          if (((inlineControls && compact) || e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault()
             void commit(true)
           } else if (inlineControls && e.key === 'Tab') {
@@ -322,6 +325,7 @@ export function EditableTextarea({
         compact && 'rounded-md px-1.5 py-0.5 text-[11px] italic text-muted-foreground',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         busy && 'opacity-50',
+        previewClickToEdit && renderPreview && current && 'sr-only',
       )}
     >
       {renderPreview && current ? editLabel : current || <span className="text-lps-dim">{placeholder}</span>}
@@ -330,8 +334,14 @@ export function EditableTextarea({
 
   if (!renderPreview || !current) return editButton
   return (
-    <div className="min-w-0 text-[12.5px] text-foreground" onClick={(event) => event.stopPropagation()}>
-      <div className="p-2">{renderPreview(current)}</div>
+    <div className={cn('min-w-0 text-[12.5px] text-foreground', previewClickToEdit && 'rounded-lg focus-within:ring-2 focus-within:ring-ring')} onClick={(event) => event.stopPropagation()}>
+      <div
+        className={cn('p-2', previewClickToEdit && 'cursor-text')}
+        onClick={previewClickToEdit ? (event) => {
+          if ((event.target as HTMLElement).closest('a, button, input, textarea, select')) return
+          trigger.current?.click()
+        } : undefined}
+      >{renderPreview(current)}</div>
       {editButton}
     </div>
   )

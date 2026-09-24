@@ -18,13 +18,15 @@ The channel rules below apply when an availability request is actually needed.
   The [job-name rule](supplier-links.md) separately authorizes naming the affected job in
   order/AR update messages; do not ask again for that name-only disclosure.
   Do not expose customer identity while that decision is pending.
-- **APS is the exclusive current supplier. On the availability path, generate
-  the APS price-list quote first and obtain Chris's approval before creating/publishing its availability
-  request.** The job thread asks after the quote unless Chris explicitly
+- **APS is the exclusive current supplier. For an ordinary non-quick-quote
+  availability request, obtain APS pricing and Chris's specific approval
+  before creating/publishing the AR; a completed quote is not required.**
+  The job thread asks in the original request chat unless Chris explicitly
   approved that exact send already. A quick-quote-only handoff stops at quote:
   do not create an AR or send a follow-up availability approval ask. Require
-  quote-completion and send-approval evidence in the handoff. An APS portal
-  insert is publication, so it is behind this gate too. Preserve remembered
+  workflow path, pricing/gap evidence, scoped send approval and any alternative
+  approval in the handoff, not quote-completion evidence. An APS portal insert
+  is publication, so it is behind this gate too. Preserve remembered
   customer-details sharing choices; private is the default. An explicit Chris
   exception is needed for another supplier, including combined grower asks.
 - **Alternatives require explicit Chris confirmation to request availability

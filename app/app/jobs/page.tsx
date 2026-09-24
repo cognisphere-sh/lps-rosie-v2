@@ -296,7 +296,10 @@ function JobsWorkspace() {
       enteredFromLanding.current = true
       router.push(`/jobs?jr=${id}`, { scroll: false })
     } else {
-      router.replace(`/jobs?jr=${id}`, { scroll: false })
+      // This is a query-only switch within the mounted Jobs page. Update the
+      // URL immediately so rapid rail clicks cannot leave an older router
+      // transition selected. Next syncs useSearchParams from the History API.
+      window.history.replaceState(null, '', `/jobs?jr=${id}`)
     }
   }
   const backToList = () => {

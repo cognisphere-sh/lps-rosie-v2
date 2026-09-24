@@ -136,8 +136,8 @@ Order and AR details share the customer/fulfillment header and count strip. Orde
 headers expose linked job names and customer contact/delivery addresses to the
 owning supplier, while internal job IDs, allocations, and customer-only notes
 remain omitted. AR customer disclosure still follows `share_customer_details`.
-Order rows show Status, Qty, Size, Plant name (with notes for supplier), Notes from
-supplier, and Price. Price edits use the existing inline AR input and the scoped
+Order rows show Qty, Size, Name (with the note for supplier directly below),
+Status, Unit price, Line total, and Note from supplier. Price edits use the existing inline AR input and the scoped
 `update_partner_order_item_price` RPC from migration 0113. Apply that migration
 before deploying the price editor. Generated line totals update automatically.
 New orders use Acknowledge Received; processing orders use Mark as Ready.

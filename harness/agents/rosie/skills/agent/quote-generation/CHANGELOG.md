@@ -1,5 +1,29 @@
 # quote-generation — changelog
 
+## 3.10.3 — 2026-09-24
+
+- Chris's explicit webchat feedback (message 14): removed the job identifier from the newly added customer-note wording example; no change to its evidence and approval boundaries.
+
+## 3.10.2 — 2026-09-24
+
+- Chris's explicit JR-76 webchat feedback (message 12): for the supported supplier-proposed different-size options, use terse customer notes `5G @ $25, 1G NA` and `7G @ $65, 15G NA`, not verbose proposed/generic/cultivar-unconfirmed narration. This is wording guidance, not independent price/availability evidence or send approval.
+
+## 3.10.1 — 2026-09-24
+
+- Chris's explicit JR-75 webchat feedback (message 10, 04:48:57 CDT): customer-note wording is limited to terse supported facts (`15G only`; `3G only, 5G NA`; `Can order Tuesday`), without proposed-substitute narratives, pending identity/price caveats or exact-date qualifications. Unselected proposals stay internal; examples do not establish stock.
+
+## 3.10.0 — 2026-09-24
+
+- Chris's explicit JR-74 webchat feedback (messages 20, 22 and 23): omit declined-substitution history from customer material; show only an approved proposed alternative with verified identity and updated customer price, subject to separate send approval. Prefer supported `Only 5G, 3G NA`; leave a red crossvine customer note blank when the structured status already conveys unavailability. Notes contain only facts not inferable from other columns.
+
+## 3.9.0 — 2026-09-24
+
+- Chris's explicit JR-74 webchat feedback (messages 15 and 17): no supplier names or attribution in customer notes or drafts. Keep supported alternatives and orderable dates as minimal positive actionable facts (`Can order for Sep 29`), not verbose provenance or redundant requested-date comparisons.
+
+## 3.8.0 — 2026-09-24
+
+- Chris's explicit JR-72 webchat feedback (message 17): render quotes when specifically requested, including explicit quick quotes; neither rendering nor quote delivery gates a specifically approved ordinary APS AR. Direct committed orders remain separate.
+
 ## 3.7.0 — 2026-09-23
 
 - Chris explicitly designated his JR-69 UI note edits as feedback: favor terse supported facts (`5 G only`, `Only 7 G available; 15 G NA`) rather than automatically adding a customer-choice question. A confirmed clarification of an ambiguous quantity/unit (`140 x 4" correct`) can be worth an external note even if available as requested. Preserve verified supplier evidence, approval boundaries and original-versus-offered meaning.
