@@ -1,9 +1,9 @@
 ---
 name: message-routing
-description: Route inbound work and preserve approval context. Includes entity lookup, handoff contract, original-chat approval and Gmail routes. Use for routing or cross-thread communication. (v2.5.0)
+description: Route inbound work and preserve approval context. Includes entity lookup, literal-text send helper, bounded handoffs, original-chat approval and Gmail routes. Use for routing or cross-thread communication. (v2.6.0)
 metadata:
   author: lps
-  version: "2.5.0"
+  version: "2.6.0"
 ---
 
 # Message routing

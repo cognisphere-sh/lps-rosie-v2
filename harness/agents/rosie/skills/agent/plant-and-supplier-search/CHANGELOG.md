@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 2.18.1 — 2026-09-24
+
+- Bound candidate search output to 20 rows with deterministic ordering; narrow or page before interpreting a capped result as a missing exact match.
+
 ## 2.18.0 — 2026-09-23
 
 - Chris's JR-69 clarification: APS's non-exhaustive price list only indicates carried items, not live availability. Neither an absent listing nor a listed quantity proves supplier availability; missing catalogue evidence must not replace or block the original customer plant/size on an approved AR.

@@ -1,7 +1,21 @@
 ## 2. Handoff contract
 
-Use `bash scripts/agent-msg/send --to-agent rosie --thread-id <owner>
---subject ... --message ...`. Each handoff carries:
+Write the handoff body with the write tool to `/tmp/<thread>-<task>-handoff.txt`,
+then use the literal-text helper (paths below are relative to the agent root):
+
+```sh
+skills/agent/message-routing/scripts/send-text --via agent --to-agent rosie --thread-id <owner> --text-file /tmp/<thread>-<task>-handoff.txt
+```
+
+The helper passes one literal argument to the existing CLI, preserving currency,
+apostrophes, backticks and newlines without shell evaluation. It inherits trusted
+sender identity, returns the CLI's exit status and never retries. It grants no
+send permission. For an authorized webchat message use `--via webchat` without
+`--to-agent`; add `--portal` only for intended supplier-visible content. The
+webchat CLI has no `edit-message` command: check its help before unfamiliar
+operations, and send a concise correction when needed.
+
+Each handoff carries:
 
 - Task, actual original request and known constraints; whether this is
   `quote_only`, already committed intake, or an accepted quote going directly
@@ -30,3 +44,24 @@ attachment names and the mailbox it lives in. Let the contact thread read
 it with `scripts/gws/email read`; avoid repeated attachment parsing in main.
 Internal agent messages are not customer/supplier content. Quote shell
 arguments safely so currency `$`, backticks and substitutions stay literal.
+
+## Keep ownership and context bounded
+
+Handle small, already-scoped updates in the owning thread. If task threads are
+needed, assign one writer per record/field set and one writer per skill; other
+workers return evidence. The owner posts one consolidated result and records
+workflow milestones once. A correction or stop supersedes the earlier brief:
+report writes already made before starting dependent follow-up work.
+
+Carry exact evidence references and unresolved decisions rather than repeating
+whole transcripts or policy documents. Read the skill index and only linked task
+references; do not load full changelogs for routine execution. For local session
+recall use `scripts/agent/session-reader <session> --no-thinking --search <term>
+--max-chars 1200`, then a bounded `--from-index N --n 6` window around the hit.
+Its `--n` window is applied before search filters, not a limit on matched hits.
+
+Keep task notes in the assigned task file. For shared daily notes/index entries,
+read the exact current target before a narrow edit; after a mismatch, reread that
+section instead of retrying stale whole-file replacements. Do not replace other
+threads' entries. Check existence before reading optional/new notes; missing task
+notes are not a reason to search unrelated threads.

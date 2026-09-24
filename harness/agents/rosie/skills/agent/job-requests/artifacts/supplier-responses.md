@@ -89,6 +89,13 @@ Chris, not automatic acceptance or permission to change the JR line. Keep
 unaffected jobs/lines moving while resolving the affected scope; a shared AR
 line does not broaden any other customer's acceptance.
 
+When approved changes select a new offering, save its size/variant and applicable
+price together in one guarded update (or transaction for related rows). Verify
+saved identity, size, demand, price and generated total as a set before reporting
+completion; a new price beside the old size is not a completed correction. If a
+concurrent UI edit already changed one field, reread and reconcile the remaining
+approved fields without restoring stale values. Do not change unapproved fields.
+
 A supplier chat giving only a quantity does not confirm a seeded price.
 Preserve requested quantities and customer prices; do not infer customer
 acceptance from supplier availability.

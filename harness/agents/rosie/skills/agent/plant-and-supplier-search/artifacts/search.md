@@ -23,9 +23,13 @@
           unit_price, quantity, relevance
    FROM search_inventory('live oak 30 g')
    WHERE supplier_id = 1
-   ORDER BY relevance DESC, unit_price;
+   ORDER BY relevance DESC, unit_price, id
+   LIMIT 20;
    ```
 
+   This is a candidate page, not proof that no exact match exists. If it is
+   full or contains only broad matches, narrow by identity/size or page further
+   before declaring a gap. Return selected evidence rather than every candidate.
    Check the current schema's returned columns; inventory ids are UUIDs.
    Empty search returns nothing. To list rows, query `inventory` with an
    explicit order and limit instead.

@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 5.41.0 — 2026-09-24
+
+- Prevent per-pot prices on unresolved flat/tray demand; verify approved offering size and price together, reconciling concurrent UI edits. Preserve section headings within an established job rather than prematurely creating extra jobs from ambiguous scope.
+
 ## 5.40.0 — 2026-09-23
 
 - Chris's JR-69 Diff Size/Qty/Variant price correction: after scoped approval to apply an actual different offering and a supported new size/variant selling price or accepted proxy, price the selected line for that new offering. Never carry over the original size/variant price even when listed; leave unresolved new-offering prices unset and preserve accepted terms until an authorized change. Supplier submission alone still updates evidence/notes, not the JR's offering, price, availability or source. Distinguish supplier costs from customer unit prices.

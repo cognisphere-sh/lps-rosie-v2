@@ -9,6 +9,13 @@ job thread/context establishes it, or the work is a retry/continuation of the
 same known or reserved job id. Accepted-quote conversion uses that quote's
 identified job; plant similarity is not a job reference.
 
+When a supplied list has multiple project/section headings inside an existing
+job request, preserve those labels on its lines; headings alone do not establish
+separate job requests. Resolve ambiguous job boundaries before reserving extra
+jobs or dispatching separate intake writers. Continue capturing known lines in
+the established job while that question is open. Explicitly separate requests
+still follow the new-job rule above.
+
 You may ask any clarifying question about an order request before generating
 a quote (including a quick quote), creating/sending an availability request,
 or creating the affected order.
@@ -175,6 +182,15 @@ requirement. If the request is clear, proceed without extra questions.
    required. Report prices for unresolved alternatives in chat; add them to
    internal notes when useful for tracking progress under [notes](notes.md). Leave `unit_price` NULL until
    a price applies to the requested line.
+   **Match the demand unit to the price unit.** For “1 flat of 4-inch pots,”
+   retain the flat basis explicitly in size/customer-origin notes; one flat is
+   not one plant. Until pot count or a supported per-flat price is known, keep
+   `unit_price` NULL and record any per-pot list price only as internal evidence.
+   Never save a per-pot price against a flat/tray quantity: the generated total
+   and app quote would be wrong even if a note explains it. Once conversion is
+   confirmed, update quantity, unit representation and applicable price together
+   under guards, preserving the original request. Apply the same rule to bundles
+   and cases. This does not block other supported lines.
    Normalize gallon tokens to `G` (`30 gal or larger` → `30 G or larger`).
    A duplicate-key error on the job means re-read, then add only genuinely
    missing items. Continue independent sourcing with the recorded lines;

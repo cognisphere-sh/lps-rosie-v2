@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 2.6.0 — 2026-09-24
+
+- Add tested literal-text messaging helper; bound handoff/context reads and shared-note edits, assign one writer per scope, and document supported webchat correction behavior.
+
 ## 2.5.0
 
 - Move routing, handoff and approval detail into independently loaded tasks; shorten discovery metadata.

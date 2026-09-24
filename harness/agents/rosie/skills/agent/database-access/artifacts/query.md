@@ -3,6 +3,25 @@
 Use `scripts/agent/supabase/query -c '<SQL>'`, `-f /tmp/query.sql`, or stdin.
 There is no positional SQL argument. `--csv`/`--tsv`/`--unaligned` avoid aligned
 table overhead. `-f` is preferred for multi-statement SQL and repeatable batches.
+For SQL containing currency, apostrophes, backticks, JSON or multiple statements,
+use the write tool to create `/tmp/<thread>-<task>.sql`, then run
+`scripts/agent/supabase/query --csv -f /tmp/<thread>-<task>.sql`.
+Alternatively, pass literal SQL through a **quoted** heredoc:
+
+```sh
+scripts/agent/supabase/query --csv <<'SQL'
+SELECT '$65' AS literal_price;
+SQL
+```
+
+Never embed such SQL in double-quoted `-c` text: Bash expands `$65` before
+psql sees it; SQL single quotes inside shell double quotes do not protect it.
+SQL apostrophes still require SQL escaping (`Chris''s`). A shell expansion
+failure is fixed by changing transport to file/stdin, not retrying escaped
+variants. After a SQL failure in a multi-statement batch, read affected rows
+before retry: earlier statements may have committed. Group dependent writes
+in an explicit transaction, with the owning skill's guards and verification.
+
 The wrapper needs psql and reads credentials from environment; never print/pass
 secrets as command-line arguments or use `SET ROLE`.
 
