@@ -40,29 +40,21 @@ function orderPalette(status: OrderStatus | 'all'): CSSProperties {
     '--order-dark-text': darkText, '--order-dark-bg': darkBackground, '--order-dark-border': darkBorder } as CSSProperties
 }
 
-function OrderStatusPill({ status }: { status: OrderStatus }) {
-  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex h-7 items-center justify-center whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
+function OrderStatusPill({ status, compact = false }: { status: OrderStatus; compact?: boolean }) {
+  return <span data-order-status={status} style={orderPalette(status)} className={cn('inline-flex items-center justify-center whitespace-nowrap rounded-full border', compact ? 'px-2.5 py-0.5 text-[11.5px] font-semibold' : 'h-7 px-3 text-[12.5px] font-medium sm:w-[8.5rem]', orderBorder, orderText, orderTint)}>{ORDER_STATUS_META[status]?.label ?? status}</span>
 }
 
-function OrderMetadata({ order, showFulfillmentDate = false, onFulfillmentChange, busy = false }: {
-  order: Order; showFulfillmentDate?: boolean; onFulfillmentChange?: (method: FulfillmentMethod | null) => void; busy?: boolean
+function OrderMethodPill({ order, onFulfillmentChange, busy = false }: {
+  order: Order; onFulfillmentChange?: (method: FulfillmentMethod | null) => void; busy?: boolean
 }) {
-  return <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-    {(order.jobSchedules ?? []).map((schedule, index) => <span key={schedule.jobRequestId ?? index} className="inline-flex min-w-0 items-center gap-1.5" aria-label="Customer request schedule">
-      {(schedule.jobName || schedule.jobRequestId) && <span className="font-semibold text-foreground">{schedule.jobName || `JR-${schedule.jobRequestId}`}</span>}
-      <span title="Expected delivery date" className="whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(schedule.expectedInstallDate) || '—'}</span>
-    </span>)}
-    <span className="whitespace-nowrap">Created: <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.createdAt) || '—'}</span></span>
-    {showFulfillmentDate && <span>Fulfillment date: <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>}
-    {(order.fulfillmentMethod || onFulfillmentChange) && <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
+  return (order.fulfillmentMethod || onFulfillmentChange) ? <span className={cn('relative inline-flex items-center whitespace-nowrap rounded-full border border-lps-edge bg-card px-2 py-0.5 text-[10.5px] font-semibold text-primary', onFulfillmentChange && 'hover:bg-secondary focus-within:ring-2 focus-within:ring-ring')}>
       <span aria-hidden="true">{order.fulfillmentMethod === 'pickup' ? 'Pickup' : order.fulfillmentMethod === 'delivery' ? 'Delivery' : '—'}</span>
       {onFulfillmentChange && <select aria-label={`Pickup or delivery for ${orderRecordName(order)}`} value={order.fulfillmentMethod ?? ''} disabled={busy}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
         onChange={(event) => onFulfillmentChange(event.target.value as FulfillmentMethod || null)}>
         <option value="">—</option><option value="pickup">Pickup</option><option value="delivery">Delivery</option>
       </select>}
-    </span>}
-  </div>
+    </span> : null
 }
 
 function OrderFulfillment({ order }: { order: Order }) {
@@ -469,30 +461,35 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
         <button type="button" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? 'Collapse' : 'Expand'} order ${orderRecordName(order)}`} onClick={() => setExpanded((value) => !value)} className="flex size-6 flex-none cursor-pointer items-center justify-center self-center rounded-md border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronDown aria-hidden="true" size={14} className={expanded ? '' : '-rotate-90'} /></button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-            <OrderStatusPill status={order.status} />
-            <span className="min-w-0 truncate text-[12.5px] font-semibold text-primary">{orderRecordName(order)}</span>
+            <OrderStatusPill status={order.status} compact />
+            <span className="min-w-0 max-w-full truncate text-[12.5px] font-semibold text-foreground" title={`Created ${formatWeekdayMonthDay(order.createdAt) || '—'}`}>
+              <span className="text-primary">{orderRecordName(order)}</span>{order.jobNames?.length ? ` - ${order.jobNames.join(' · ')}` : ''}
+            </span>
+            <div aria-label="Customer EDD" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              {(order.jobSchedules?.length ? order.jobSchedules : [{ jobRequestId: null, jobName: null, expectedInstallDate: null }]).map((schedule, index) => <div key={schedule.jobRequestId ?? index} className="flex items-center gap-1.5" title="Expected delivery date">
+                {(order.jobSchedules?.length ?? 0) > 1 && <span className="text-[11px] text-muted-foreground">{schedule.jobName || (schedule.jobRequestId ? `JR-${schedule.jobRequestId}` : `Job ${index + 1}`)}</span>}
+                <JobMetadata request={{ id: schedule.jobRequestId ?? index, expectedInstallDate: schedule.expectedInstallDate, fulfillmentMethod: null }} showFulfillment={false} className="grid-cols-[max-content]" />
+              </div>)}
+            </div>
             <div className="ml-auto flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-              <OrderMetadata order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
+              <OrderMethodPill order={order} onFulfillmentChange={fulfillmentChange} busy={busy} />
+              <span aria-hidden="true">:</span>
+              <span>{order.items.length} {order.items.length === 1 ? 'item' : 'items'}</span>
+              <span aria-hidden="true">:</span>
+              <span className="font-semibold tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
+              <CopyOrderMenu order={order} canShare={canEdit} closed={closed} onChanged={onChanged} />
             </div>
           </div>
-        </div>
-        <div className="flex flex-none items-center self-center">
-          <CopyOrderMenu order={order} canShare={canEdit} closed={closed} onChanged={onChanged} />
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold">
           <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
+          <span className="flex min-w-0 items-center border-l border-lps-hair px-2 py-0.5 text-muted-foreground">Fulfillment: <span className="ml-1 whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
           {order.noteFromSupplier && <span title={order.noteFromSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteFromSupplier}</span></span>}
         </span>
-        <span>Fulfillment: <span className="font-semibold text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
         {order.confirmationDate && <span>Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</span>}
         <div className="ml-auto"><OrderRequestLinks order={order} /></div>
-        <div className="ml-auto flex shrink-0 items-baseline gap-2 whitespace-nowrap">
-          <span className="text-[14px] text-muted-foreground">{order.items.length} {order.items.length === 1 ? 'item' : 'items'}</span>
-          <span aria-hidden="true">:</span>
-          <span className="text-[24px] font-semibold leading-tight tabular-nums text-foreground">{money(orderSubtotal(order)) || '—'}</span>
-        </div>
       </div>
     </header>
     {error && !confirmOpen && <p role="alert" className="mx-3.5 mt-2 text-[12px] text-destructive">{error}</p>}

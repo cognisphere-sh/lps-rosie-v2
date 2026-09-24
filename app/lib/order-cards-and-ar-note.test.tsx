@@ -14,14 +14,19 @@ test('admin order cards expand independently and AR notes submit with the respon
   const { render, fireEvent, act, cleanup } = await import('@testing-library/react/pure')
   const { OrderCard } = await import('../components/workspace/orders')
   const { AvailabilityRequestView } = await import('../components/workspace/availability-request-view')
-  const order: Order = { id: 1, recordName: 'JR-42:Order-1', status: 'new', supplierId: 7, supplierName: 'APS', items: [], availabilityRequestIds: [],
+  const order: Order = { id: 1, recordName: 'JR-42:Order-1', jobNames: ['Garden'], status: 'new', supplierId: 7, supplierName: 'APS', items: [], availabilityRequestIds: [],
     fulfillmentDate: null, fulfillmentMethod: 'pickup', confirmationDate: null, createdAt: '2026-09-15T12:00:00Z', noteForSupplier: 'Keep plants shaded', jobSchedules: [{ jobRequestId: 42, jobName: 'Garden', expectedInstallDate: '2026-10-12', fulfillmentMethod: 'pickup' }] }
   try {
     let view = render(<><OrderCard order={order} /><OrderCard order={{ ...order, id: 2, recordName: 'JR-42:Order-2' }} /></>)
     const first = view.getByRole('button', { name: 'Expand order JR-42:Order-1' })
     const panel = document.getElementById(first.getAttribute('aria-controls')!)!
     assert.equal(panel.hidden, true)
-    assert.ok(view.getAllByText(/Created:/).length)
+    const header = view.getByRole('article', { name: 'Order JR-42:Order-1' }).querySelector('header')!
+    assert.equal(header.children.length, 2)
+    assert.match(header.children[0].textContent ?? '', /NewJR-42:Order-1 - GardenEDDMon, 10\/12Pickup:0 items:—Copy order/)
+    assert.match(header.children[1].textContent ?? '', /APSFulfillment: To be confirmed/)
+    assert.equal(header.querySelector('[data-order-status]')?.classList.contains('text-[11.5px]'), true)
+    assert.equal(header.querySelector('[title^="Created"]')?.getAttribute('title'), 'Created Tue, 09/15')
     let clipboard: Record<string, Blob> | undefined
     Object.defineProperty(globalThis, 'ClipboardItem', { configurable: true, value: class {
       constructor(data: Record<string, Blob>) { clipboard = data }
@@ -40,9 +45,8 @@ test('admin order cards expand independently and AR notes submit with the respon
     fireEvent.click(first)
     assert.equal(panel.hidden, false)
     assert.equal(view.queryByText('Customer request:'), null)
-    assert.equal(view.queryByText('EDD'), null)
-    assert.equal(view.getAllByText('Garden').length, 2)
-    assert.equal(view.getAllByTitle('Expected delivery date')[0].textContent, 'Mon, 10/12')
+    assert.equal(view.getAllByText('EDD').length, 2)
+    assert.equal(view.getAllByTitle('Expected delivery date')[0].querySelector('dd span')?.textContent, 'Mon, 10/12')
     assert.equal(view.container.querySelector('article > header')?.children.length, 2)
     assert.equal(view.queryByRole('button', { name: 'By plant' }), null)
     assert.equal(view.queryByText('Share public link'), null)

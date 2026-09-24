@@ -31,6 +31,7 @@ const RESET_TIMEOUT_MS = 20_000
 const PAGE = 50
 const MIN_W = 280
 const STORE = 'lps.chat.v1'
+const JOB_PAGE_CHAT = 'lps.chat.job-page.v1'
 
 const WORKSPACE_PEEK_W = 240
 
@@ -939,10 +940,15 @@ export function AgentChat({
   // first client render agree (same guard the table layout uses).
   useEffect(() => {
     if (focusedIntake || (focusedJob && !isMobile && window.matchMedia('(min-width: 900px)').matches)) {
+      // Shell remounts for each route. Remember that this page owns the open
+      // chat so the next page can close it, whichever conversation was selected.
+      window.sessionStorage.setItem(JOB_PAGE_CHAT, '1')
       setOpen(true)
       hydrated.current = true
       return
     }
+    const leavingJobPage = window.sessionStorage.getItem(JOB_PAGE_CHAT) === '1'
+    window.sessionStorage.removeItem(JOB_PAGE_CHAT)
     try {
       const raw = window.localStorage.getItem(STORE)
       const saved = raw
@@ -953,7 +959,7 @@ export function AgentChat({
             thread?: { agent?: string; id?: string; label?: string }
           })
         : null
-      setOpen(saved?.open ?? window.innerWidth >= 1180)
+      setOpen(leavingJobPage ? false : saved?.open ?? window.innerWidth >= 1180)
       // `useIsMobile()` begins false until its media-query effect runs. Check
       // the real viewport before restoring desktop-only Shell state, or a
       // saved Full width can zero out the mobile workspace during hydration.
@@ -979,10 +985,10 @@ export function AgentChat({
         const wasFull = saved.width >= window.innerWidth - 340
         const restored = wasFull ? fullDesktopChatWidth() : clampDesktopChatWidth(saved.width)
         setWidth(restored)
-        if (desktopViewport && (wasFull || restored >= fullDesktopChatWidth() - 8)) onDesktopFull?.()
+        if (!leavingJobPage && desktopViewport && (wasFull || restored >= fullDesktopChatWidth() - 8)) onDesktopFull?.()
       }
     } catch {
-      setOpen(window.innerWidth >= 1180)
+      setOpen(!leavingJobPage && window.innerWidth >= 1180)
     }
     hydrated.current = true
   }, [])

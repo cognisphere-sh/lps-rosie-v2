@@ -191,6 +191,21 @@ test('stored exact destination hydrates through the same revision-bound lifecycl
   assert.equal(sends[0].body.threadId, 'jr-31')
 })
 
+test('leaving a focused Job closes any selected desktop chat on the next page', async () => {
+  const props = { isMobile: false, mobileOpen: false, appearance: DEFAULT_CHAT_APPEARANCE }
+  const job = render(<AgentChat {...props} focusedJob={{ id: 31, name: 'Courtyard' }} />)
+  act(() => openChat({ agentId: 'daisy', threadId: 'supplier-oak', label: 'Oak Nursery' }))
+  await waitFor(() => assert.ok(job.getByText('Oak Nursery')))
+  job.unmount()
+
+  const nextPage = render(<AgentChat {...props} />)
+  await waitFor(() => assert.equal(nextPage.queryByPlaceholderText('Ask Daisy…'), null))
+  assert.equal(JSON.parse(window.localStorage.getItem('lps.chat.v1')!).open, false)
+
+  act(() => openChat({ agentId: 'daisy', threadId: 'supplier-oak', label: 'Oak Nursery' }))
+  await waitFor(() => assert.ok(nextPage.getByPlaceholderText('Ask Daisy…')))
+})
+
 test('desktop focused action also commits JR-31 before its composer can post', async () => {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)

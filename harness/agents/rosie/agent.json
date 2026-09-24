@@ -4,7 +4,7 @@
   "model": {
     "provider": "openai-codex",
     "id": "gpt-6-sol",
-    "thinkingLevel": "minimal"
+    "thinkingLevel": "medium"
   },
   "threadIdStrategy": {
     "type": "plugin_channel"
