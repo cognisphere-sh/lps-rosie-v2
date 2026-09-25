@@ -1,9 +1,9 @@
 # One supplier destination: Past order/Requests
 
-- Status: routed · current-HEAD Past candidate be11efac static review PENDING; unconditional0104 gate RETRACTED727, runtime/QA unverified; no integration/deploy
+- Status: routed · PAUSED for AR R3 priority under743; Past requirement retained, no Past deployment authority or release
 - Route: nova
 - Raised: 2026-09-22 by Bhoumik (via Nova Telegram handoff to Lily)
-- Updated: 2026-09-24T23:27:15-05:00
+- Updated: 2026-09-25T00:04:46-05:00
 
 ## Problem
 
@@ -39,6 +39,9 @@ The supplier portal has separate Closed Orders and Closed Requests destinations 
 
 ## Current integration authorization and dependencies
 
+- 2026-09-25T00:04:46-05:00 — Parent00:03:56/Nova00:03:38 via affected-owner coordination: Bhoumik743 requests deployment of AR table3 after740 (attributed request; exact wording not supplied). Nova744 scopes **AR R3 only**, not supplier Past/mobile list/full-page709. Other candidate composition, including Past, is **PAUSED for AR priority**. This retains the approved Past requirement; it is not abandonment, integration, deployment or authority to deploy Past. Last Past-specific report remains candidatebe11efac static review pending, not a new review result.
+- Nova reports AR R3 candidate189709a independently staticSAFE only, with tests/build/browser/auth gates unmet; owner already asked secure QA login and bounded-runner approval. No dirty server.sh deployment or safety waiver. AR's existing supplier-line-note display approval is separately owned, not new/copy/edit/Submit/visibility/customer-publication or JR-association authority here. Full AR709 remains excluded. No Lily duplicate capture/audit/tests/builder/operator ask/Telegram; await actual owner gates/release report. Shared743 feedback already captured once as **Deploy AR R3 only after gates**, ID `nova:main:2026-09-25T00:03:38-05:00:ar-r3-deploy-telegram743`.
+
 - 2026-09-24T23:27:15-05:00 — Parent23:26:45/Nova23:24:06 via affected-owner coordination: current-HEAD supplier Past candidate **be11efac** has static review **PENDING**. This is a reported candidate ID, not a presumed Git commit or release. Existing owner reviews actual **PartnerHistoryTabs** on owner-reported current3c4adca, superseding oldR2; approved exact-label/sidebar/tabs/membership scope unchanged. No old patch application.
 - Operator727 explicitly **RETRACTS the unconditional0104 DB gate** after ledger correction. Nova delegated the current3c4adca optional-reader0106 / changed-backfill0108 audit; no stale apply. The former blanket migration-before-app prerequisite is superseded, not an active blocker. Preserve only actual unresolved runtime/migration/QA distinctions while the separate rollout owner reports evidence; no independent Lily audit or DB authority. Reference: `workspace/threads/main/tasks/record-name-rollout/rollout-dependency.md`.
 - Separate mobile-list candidate **ed9186c0** and focused AR drawer1–2 R2 candidate **70ab266d** are owner-reported **static SAFE only**, not assumed commits/releases. RequestLinks/header/docs overlap requires deliberate composition and fresh review; **NOT integrated**. Their findings do not establish Past safety. No integration/deploy despite721; tests/auth/live build remain unverified. Last owner report: live build older thanHEAD, exact deployed source unknown, auth absent/OOM-safe runner unvalidated;723/724 already asked. No duplicate ask.
@@ -68,3 +71,4 @@ The supplier portal has separate Closed Orders and Closed Requests destinations 
 - 2026-09-24T23:09:28-05:00 — Recorded Bhoumik721 integration authorization and Nova722/fresh-preflight delegation through existing-owner coordination. No candidate applied yet; exact Past scope unchanged. Record-name rollout/migration-target dependency and independent QA remain unproven. No duplicate feedback capture/routing/build or Lily code/live action.
 - 2026-09-24T23:12:10-05:00 — Updated to owner-reported current3c4adca/PartnerHistoryTabs alternative superseding oldR2. Actual-current compliance review, not old candidate application. Deployed source unknown/auth absent/OOM-safe runner unvalidated; operator723/724 already asked, migration and release proof absent. No Lily source audit or parallel0115 review.
 - 2026-09-24T23:27:15-05:00 — Recorded727 explicit unconditional0104 gate retraction/ledger correction and separately delegated0106/0108 audit. Past candidatebe11efac static PENDING; mobileed9186c0/drawer70ab266d staticSAFE only. RequestLinks/header/docs overlap requires composition/fresh review, not integrated/deployed. IDs retained as reported candidates, not commits. Runtime/auth/build/QA unverified;0115 already with726/separate owner, no duplicate work.
+- 2026-09-25T00:04:46-05:00 — Recorded743/744 AR-R3-only deployment priority: supplier Past composition PAUSED, requirement retained. No Past release authority or completion inference; latest Past candidate review remains unconfirmed. No duplicate feedback/work or operator ask.
