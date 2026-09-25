@@ -7,6 +7,7 @@ import { RequestBody } from '@/components/workspace/job-request'
 import { DeleteRequestDialog, deleteRequestFromApi, requestDeletionCounts } from '@/components/workspace/request-delete'
 import { useToast } from '@/components/workspace/shell'
 import type { JobRequestRow } from '@/lib/rows'
+import { openAvailabilityRequest } from '@/lib/chat-bus'
 
 /** One selected focused Job. Its secondary tray state belongs to this exact JR. */
 export function FocusedJobRecord({
@@ -52,6 +53,7 @@ export function FocusedJobRecord({
         onSaved={onSaved}
         onNameSaved={onNameSaved}
         showActions
+        onOpenAR={(id) => openAvailabilityRequest(id, 'focused-job')}
         onDelete={(returnFocus) => {
           deleteReturnFocus.current = returnFocus
           setDeleteError('')

@@ -36,14 +36,30 @@ ownership and the sourcing procedure.
 ## Availability sidebar editing
 
 The availability sidebar opened from a Job lets admins edit each line's plant
-name, requested size, requested quantity and note to the supplier, alongside
-the existing answer status, available quantity, price and supplier notes. These
-fields save on blur (or Enter for a single-line input) on desktop and mobile.
+name, requested size, requested quantity and existing merged supplier-audience
+note, alongside answer status, available quantity and price. These fields save
+on blur (or Enter for a single-line input) on desktop and mobile.
 Edits apply to that availability request's snapshot; the original Job line and
 other suppliers' requests keep their own values. Plant names must be nonblank;
 requested quantity can be cleared or set to a positive number. Closed requests
 stay read-only until reopened. Supplier and public views keep requested plant
 details read-only.
+
+Only AR chips in the focused `/jobs?jr=<id>` Job header opt into the sidebar's
+**Need · Avail qty · Size · Plant · Status · Note for supplier · Price · Line total**
+order and 190px rather than 220px Plant track. The existing merged AR-line
+`note_for_supplier` is displayed once immediately after Status here and on
+focused phone cards, with subtotal still under Line total. The label describes
+the supplier audience, not who authored each part of the merged ask/response
+or supplier confirmation; there is no new note field/editor/write, no JR-status
+field mapping and no customer publication. Admin detail edits and supplier
+answer/status dialog retain their existing different save paths. Read-only
+names wrap; editable names have a keyboard/touch **Full name** disclosure without
+changing their single-line editor or saving on disclosure. Phone cards stay
+stacked with one editor per field. All jobs, customer cards, chat AR links,
+other drawer entries, supplier profiles and portal/public tables retain their
+existing drawing; opening from one of these entry points resets the focused
+opt-in. No full-page AR tabs or chat switch is added.
 
 ## Availability request creation feedback
 

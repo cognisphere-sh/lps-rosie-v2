@@ -32,6 +32,9 @@ const LINE_COLUMNS =
   '56px 90px 220px 150px 90px 100px 100px minmax(200px,1fr)'
 /** Track minima + gaps + row padding/left accent; below this the table scrolls. */
 const GRID_MIN = 1090
+/** Focused Job entry only: adjacent quantities and the supplier note after Status. */
+const FOCUSED_COLUMNS = '56px 90px 90px 190px 150px minmax(200px,1fr) 100px 100px'
+const FOCUSED_GRID_MIN = 1060
 
 // A caller may put one column of its own in front of Need — the By-item view
 // uses it for the job a line came from, because there a table holds lines from
@@ -48,8 +51,8 @@ const LEAD_MIN = 218
 /** The portal design's tracks — the default's, less Line total. */
 const PORTAL_COLUMNS = '56px 90px 220px 150px 90px 100px minmax(200px,1fr)'
 const PORTAL_GRID_MIN = 960
-/** Which of the two drawings a table uses. */
-type LineTableDesign = 'default' | 'portal'
+/** Focused Job is opt-in; other admin and portal callers keep their drawing. */
+type LineTableDesign = 'default' | 'portal' | 'focused-job'
 /** The portal drawing's one accent: what still needs a price. */
 const PORTAL_PURPLE = '#8F7CF6'
 
@@ -904,6 +907,17 @@ export function LineStatusPicker({
   )
 }
 
+function FullPlantName({ item }: { item: ARItem }) {
+  return (
+    <details className="min-w-0 text-[12px]">
+      <summary aria-label={`Full plant name for line ${item.id}`} className="min-h-11 cursor-pointer rounded px-1 py-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        Full name
+      </summary>
+      <p className="m-0 whitespace-pre-wrap pb-2 [overflow-wrap:anywhere]">{item.name}</p>
+    </details>
+  )
+}
+
 function LineRow({
   item,
   editable,
@@ -929,6 +943,8 @@ function LineRow({
   drawerModal?: boolean
 }) {
   const portal = design === 'portal'
+  const focused = design === 'focused-job'
+  const PlantTag = focused ? 'div' : 'span'
   const commit = (column: string) => (next: string) => {
     void onPatch?.(item.id, { [column]: next.trim() })
   }
@@ -936,6 +952,30 @@ function LineRow({
   const detail = (column: string) => (next: string) => {
     void onPatchDetails?.(item.id, { [column]: next.trim() })
   }
+  const availableQuantity = (
+    <AnswerCell
+      value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
+      editable={editable}
+      align="right"
+      placeholder={portal ? '—' : 'Qty'}
+      display={num(item.availableQuantity)}
+      onCommit={commit('available_quantity')}
+      plain={portal}
+      ariaLabel={focused ? `Line ${item.id} available quantity` : undefined}
+    />
+  )
+  const supplierNote = (
+    <AnswerCell
+      value={item.noteForSupplier ?? ''}
+      editable={editable}
+      placeholder={portal ? 'Add note…' : 'Substitute, ETA, conditions…'}
+      display={displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''}
+      onCommit={editDetails ? detail('note_for_supplier') : commit('note_for_supplier')}
+      plain={portal}
+      ariaLabel={`Line ${item.id} supplier notes`}
+      multiline
+    />
+  )
   // The admin line table's row treatment: the answer's tone as a left accent
   // bar and a tint over the whole row, so a scanned table reads by colour.
   // An unanswered line is grey — pending is a real state, not an absence.
@@ -973,18 +1013,20 @@ function LineRow({
       ) : <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
         {num(item.demandedQuantity) || '—'}
       </span>}
+      {focused && availableQuantity}
       {editDetails ? (
         <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
           onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} />
       ) : <span className="truncate px-1 text-[12px] text-muted-foreground" title={item.size ?? undefined}>
         {item.size ?? '—'}
       </span>}
-      <span className="min-w-0 px-1" title={item.name}>
-        {editDetails ? <span className="flex flex-col gap-1">
+      <PlantTag className="min-w-0 px-1" title={item.name}>
+        {editDetails ? <PlantTag className="flex flex-col gap-1">
           <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
             onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`} />
-        </span> : <span className="block whitespace-normal text-[13px] font-semibold text-foreground [overflow-wrap:anywhere]">{item.name}</span>}
-      </span>
+          {focused && <FullPlantName item={item} />}
+        </PlantTag> : <span className="block whitespace-normal text-[13px] font-semibold text-foreground [overflow-wrap:anywhere]">{item.name}</span>}
+      </PlantTag>
       <div className="px-1">
         <LineStatusPicker
           item={item}
@@ -994,15 +1036,8 @@ function LineRow({
           drawerModal={drawerModal}
         />
       </div>
-      <AnswerCell
-        value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
-        editable={editable}
-        align="right"
-        placeholder={portal ? '—' : 'Qty'}
-        display={num(item.availableQuantity)}
-        onCommit={commit('available_quantity')}
-        plain={portal}
-      />
+      {!focused && availableQuantity}
+      {focused && supplierNote}
       <AnswerCell
         value={item.unitPrice == null ? '' : String(item.unitPrice)}
         editable={editable}
@@ -1021,16 +1056,7 @@ function LineRow({
           {money(arLineTotal(item)) || <span className="font-normal text-lps-dim">—</span>}
         </span>
       )}
-      <AnswerCell
-        value={item.noteForSupplier ?? ''}
-        editable={editable}
-        placeholder={portal ? 'Add note…' : 'Substitute, ETA, conditions…'}
-        display={displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''}
-        onCommit={editDetails ? detail('note_for_supplier') : commit('note_for_supplier')}
-        plain={portal}
-        ariaLabel={`Line ${item.id} supplier notes`}
-        multiline
-      />
+      {!focused && supplierNote}
     </div>
   )
 }
@@ -1061,7 +1087,7 @@ export function ARLineTable<T extends ARItem>({
   onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
-  /** `portal`: no Line total column or subtotal footer. */
+  /** `portal`: no totals; `focused-job`: adjacent quantities and narrower Plant. */
   design?: LineTableDesign
   /** Render only the stacked phone cards; false preserves the exact table DOM. */
   mobileCards?: boolean
@@ -1077,10 +1103,11 @@ export function ARLineTable<T extends ARItem>({
 }) {
   const subtotal = arSubtotal(items)
   const portal = design === 'portal'
+  const focused = design === 'focused-job'
   const lead = leadingHeader != null && renderLeading != null
-  const base = portal ? PORTAL_COLUMNS : LINE_COLUMNS
+  const base = portal ? PORTAL_COLUMNS : focused ? FOCUSED_COLUMNS : LINE_COLUMNS
   const columns = lead ? `${LEAD_COLUMN} ${base}` : base
-  const minWidth = (portal ? PORTAL_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
+  const minWidth = (portal ? PORTAL_GRID_MIN : focused ? FOCUSED_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
   const mobile = (
     <div className="min-w-0 space-y-3" data-testid="availability-mobile-lines">
           {items.length === 0 && (
@@ -1098,6 +1125,21 @@ export function ARLineTable<T extends ARItem>({
               void onPatchDetails?.(item.id, { [column]: next.trim() })
             }
             const tone = arResponseTone(item.status)
+            const supplierNote = (
+              <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note for supplier</span>
+                <AnswerCell
+                  value={item.noteForSupplier ?? ''}
+                  editable={editable}
+                  placeholder="Substitute, ETA, conditions…"
+                  display={displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''}
+                  onCommit={editDetails ? detail('note_for_supplier') : commit('note_for_supplier')}
+                  ariaLabel={`${lineName} supplier notes`}
+                  multiline
+                  touch
+                />
+              </label>
+            )
             return (
               <article
                 key={item.id}
@@ -1113,6 +1155,7 @@ export function ARLineTable<T extends ARItem>({
                       <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
                         onCommit={detail('name')} ariaLabel={`${lineName} plant name`} touch />
                     </label>
+                    {focused && <div className="col-span-2"><FullPlantName item={item} /></div>}
                     <label className="flex min-w-0 flex-col gap-1">
                       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested size</span>
                       <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
@@ -1146,6 +1189,7 @@ export function ARLineTable<T extends ARItem>({
                       />
                     </span>
                   </label>
+                  {focused && supplierNote}
                   <label className="flex min-w-0 flex-col gap-1">
                     <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
                     <AnswerCell
@@ -1174,19 +1218,7 @@ export function ARLineTable<T extends ARItem>({
                       touch
                     />
                   </label>
-                  <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note for supplier</span>
-                    <AnswerCell
-                      value={item.noteForSupplier ?? ''}
-                      editable={editable}
-                      placeholder="Substitute, ETA, conditions…"
-                      display={displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''}
-                      onCommit={editDetails ? detail('note_for_supplier') : commit('note_for_supplier')}
-                      ariaLabel={`${lineName} supplier notes`}
-                      multiline
-                      touch
-                    />
-                  </label>
+                  {!focused && supplierNote}
                   {!portal && <div className="col-span-2 flex items-center justify-between gap-3 border-t border-lps-hair pt-2 text-[12px]">
                     <span className="font-bold uppercase tracking-[.04em] text-muted-foreground">Line total</span>
                     <span className="font-bold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
@@ -1216,13 +1248,15 @@ export function ARLineTable<T extends ARItem>({
       >
         {lead && <span className="px-1">{leadingHeader}</span>}
         <span className="px-1">Need</span>
+        {focused && <span className="px-1 text-right">Avail qty</span>}
         <span className="px-1">Size</span>
         <span className="px-1">Plant</span>
         <span className="px-1">Status</span>
-        <span className="px-1 text-right">Avail qty</span>
+        {!focused && <span className="px-1 text-right">Avail qty</span>}
+        {focused && <span className="px-1">Note for supplier</span>}
         <span className="px-1 text-right">Price</span>
         {!portal && <span className="px-1 text-right">Line total</span>}
-        <span className="px-1">Note for supplier</span>
+        {!focused && <span className="px-1">Note for supplier</span>
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">
@@ -1249,11 +1283,11 @@ export function ARLineTable<T extends ARItem>({
             className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
             style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
           >
-            {/* The label spans everything up to Line total, so it still sits
-                directly under Price whether or not there is a leading column. */}
+            {/* The label spans everything up to Line total, including the note
+                for focused Job entry; the amount stays under that column. */}
             <span
               className="px-1 text-right text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-              style={{ gridColumn: lead ? '1 / 8' : '1 / 7' }}
+              style={{ gridColumn: focused ? (lead ? '1 / 9' : '1 / 8') : (lead ? '1 / 8' : '1 / 7') }}
             >
               Subtotal
             </span>
