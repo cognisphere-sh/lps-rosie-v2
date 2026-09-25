@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-24 — focused Job AR table
+
+- Opt focused Job header AR chips into the existing drawer’s Need → Avail qty → Size → Plant → Status → Note for supplier → Price → Line total order and a modestly narrower Plant track. Place the existing merged supplier-audience note after Status only in this focused internal table/phone cards, without a new field, editor, permission, write path or customer publication. Preserve complete saved plant names through read-only wrapping or a keyboard/touch Full name disclosure without changing the editor; keep demanded/available quantities, totals, multi-Job scope and other entry-point/portal/profile presentations unchanged. No full-page AR tabs, chat switch or inferred JR status-field mapping.
+
 ## 2026-09-24 — merged sourcing notes
 
 - Merge customer requirements/outcomes into `note_for_customer` and supplier

@@ -79,7 +79,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved }: {
   </div>
 }
 
-export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, showActions = mobile === false }: {
+export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, onOpenAR, showActions = mobile === false }: {
   request: JobRequestRow
   mobile: boolean | null
   expanded: boolean
@@ -87,6 +87,8 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
   onDelete: (returnFocus: HTMLElement | null) => void
   onSaved: () => void
   onNameSaved?: (requestId: number) => void
+  /** Only the focused Job opts into its AR table presentation. */
+  onOpenAR?: (id: number) => void
   showActions?: boolean
 }) {
   const tone = requestStatusTone(request.status)
@@ -140,7 +142,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
             </span>}
           </span>}
           {request.supplierLinks.length > 0 && <RequestLinks
-            request={request} relatedOnly hideCustomerChat className="ml-auto min-w-0 flex-1 justify-end"
+            request={request} onOpenAR={onOpenAR} relatedOnly hideCustomerChat className="ml-auto min-w-0 flex-1 justify-end"
           />}
         </div>
       )}

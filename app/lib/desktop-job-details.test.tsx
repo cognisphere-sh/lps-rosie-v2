@@ -20,7 +20,7 @@ import {
 } from './job-identity.ts'
 import { jobInboxRowAriaLabel, orderJobInbox, type JobInboxRow } from './job-inbox.ts'
 import type { JobRequestRow } from './rows.ts'
-import { onOpenAvailabilityRequest } from './chat-bus.ts'
+import { onOpenAvailabilityRequest, openAvailabilityRequest } from './chat-bus.ts'
 
 let dom: JSDOM
 const originalFetch = globalThis.fetch
@@ -473,9 +473,11 @@ test('focused header exposes summary and customer, AR and supplier routes before
     supplierLinks: [{ supplierId: 8, name: 'Hill Country', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }],
   })
   const chatRoutes: unknown[] = []
-  const ars: number[] = []
+  const ars: unknown[] = []
+  const destinations: unknown[] = []
+  const off = onOpenAvailabilityRequest((id, presentation) => destinations.push([id, presentation]))
   window.addEventListener('lps:open-chat', (event) => chatRoutes.push((event as CustomEvent).detail))
-  window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent<number>).detail))
+  window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent).detail))
   const view = render(<FocusedJobRecord request={linked} mobile={false} version={0} onSaved={() => undefined} />)
   assert.equal(view.getByRole('button', { name: 'Job details & notes' }).getAttribute('aria-expanded'), 'false')
   const header = view.container.querySelector<HTMLElement>('[data-request-card-head]')!
@@ -499,8 +501,12 @@ test('focused header exposes summary and customer, AR and supplier routes before
   await userEvent.setup({ document }).click(ar)
   await userEvent.setup({ document }).click(supplier)
   assert.equal(chatRoutes.length, 2)
-  assert.deepEqual(ars, [81])
+  assert.deepEqual(ars, [{ arId: 81, presentation: 'focused-job' }])
+  openAvailabilityRequest(81)
+  assert.deepEqual(ars, [{ arId: 81, presentation: 'focused-job' }, 81])
+  assert.deepEqual(destinations, [[81, 'focused-job'], [81, 'default']])
   view.unmount()
+  off()
 })
 
 test('shared editable defaults stay compact while focused work explicitly opts into 44px controls', () => {

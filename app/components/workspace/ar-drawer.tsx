@@ -18,6 +18,7 @@ import {
   availabilityRequestStatusChanged,
   availabilityRequestDeleted,
   onOpenAvailabilityRequest,
+  type ARPresentation,
 } from '@/lib/chat-bus'
 import { availabilityRecordName, type ARDetail } from '@/lib/availability'
 import { formatWeekdayMonthDay } from '@/lib/format'
@@ -27,6 +28,7 @@ import { useJobUpdates } from '@/lib/use-job-updates'
 interface DrawerSession {
   id: number
   generation: number
+  presentation: ARPresentation
 }
 
 const DRAWER_WIDTH_STORE = 'lps:availability-request-drawer-width'
@@ -180,7 +182,7 @@ export function AvailabilityRequestDrawer() {
     scheduleOutsideFocus(preferred, closingHost)
   }, [abortOperations, scheduleOutsideFocus, setAr, stopResize])
 
-  useEffect(() => onOpenAvailabilityRequest((id) => {
+  useEffect(() => onOpenAvailabilityRequest((id, presentation) => {
     cancelFocusFrame()
     cancelReturnFocusFrame()
     const prior = sessionRef.current
@@ -189,7 +191,7 @@ export function AvailabilityRequestDrawer() {
       if (!active?.closest('[data-ar-drawer-host]')) returnFocus.current = active
     }
     generation.current += 1
-    const next = { id, generation: generation.current }
+    const next = { id, generation: generation.current, presentation }
     abortOperations()
     sessionRef.current = next
     setSession(next)
@@ -642,6 +644,7 @@ export function AvailabilityRequestDrawer() {
                   </p>
                 )}
                 <ARLineTable
+                  design={session.presentation}
                   items={ar.items}
                   editable={ar.status !== 'closed'}
                   onPatch={patchLine}

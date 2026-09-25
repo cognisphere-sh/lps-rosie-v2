@@ -26,12 +26,20 @@ export function onOpenChat(handler: (detail: OpenChatDetail) => void): () => voi
   return () => window.removeEventListener('lps:open-chat', listener)
 }
 
-export function openAvailabilityRequest(arId: number): void {
-  window.dispatchEvent(new CustomEvent<number>('lps:open-ar', { detail: arId }))
+export type ARPresentation = 'default' | 'focused-job'
+
+export function openAvailabilityRequest(arId: number, presentation: ARPresentation = 'default'): void {
+  // Preserve the numeric event for every existing entry; only focused Job opts in.
+  const detail = presentation === 'default' ? arId : { arId, presentation }
+  window.dispatchEvent(new CustomEvent('lps:open-ar', { detail }))
 }
 
-export function onOpenAvailabilityRequest(handler: (arId: number) => void): () => void {
-  const listener = (e: Event) => handler((e as CustomEvent<number>).detail)
+export function onOpenAvailabilityRequest(handler: (arId: number, presentation: ARPresentation) => void): () => void {
+  const listener = (e: Event) => {
+    const detail = (e as CustomEvent<number | { arId: number; presentation: ARPresentation }>).detail
+    handler(typeof detail === 'number' ? detail : detail.arId,
+      typeof detail !== 'number' && detail.presentation === 'focused-job' ? 'focused-job' : 'default')
+  }
   window.addEventListener('lps:open-ar', listener)
   return () => window.removeEventListener('lps:open-ar', listener)
 }

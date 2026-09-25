@@ -703,6 +703,7 @@ export function RequestLinks({
   focusedMobile = false,
   relatedOnly = false,
   hideCustomerChat = false,
+  onOpenAR = openAvailabilityRequest,
   className,
 }: {
   request: JobRequestRow
@@ -711,6 +712,7 @@ export function RequestLinks({
   /** Route actions only, for the compact desktop details tray. */
   relatedOnly?: boolean
   hideCustomerChat?: boolean
+  onOpenAR?: (id: number) => void
   className?: string
 }) {
   const dateIdPrefix = useId()
@@ -789,7 +791,7 @@ export function RequestLinks({
                   key={ar.id}
                   title={availabilityRequestLinkLabel(ar.id, l.name, ar.status, ar.recordName)}
                   describedBy={`${dateIdPrefix}-ar-${ar.id}-date`}
-                  onOpen={() => openAvailabilityRequest(ar.id)}
+                  onOpen={() => onOpenAR(ar.id)}
                   className={cn(
                     'flex-row justify-center gap-1.5 py-0.5',
                     relatedOnly && 'min-h-8',
