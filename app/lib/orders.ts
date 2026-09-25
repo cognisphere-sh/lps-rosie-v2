@@ -212,6 +212,7 @@ export function parseCreateOrder(value: unknown): CreateOrderInput | CreateDirec
     throw new Error('fulfillmentMethod must be pickup or delivery')
   }
   if ('notes' in body) throw new Error('Use noteForSupplier instead of notes')
+  if ('noteFromCustomer' in body) throw new Error('Use noteForCustomer instead of noteFromCustomer')
   for (const field of ['noteForSupplier', 'noteForCustomer']) {
     if (body[field] != null && (typeof body[field] !== 'string' || (body[field] as string).length > 10000)) {
       throw new Error(`${field} must be text up to 10000 characters`)

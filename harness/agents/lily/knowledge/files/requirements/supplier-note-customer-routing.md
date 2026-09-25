@@ -1,9 +1,9 @@
 # Pass useful supplier plant facts to the customer, not private buying discussion
 
-- Status: staged · Bhoumik notified; selected-source automatic-clear-facts versus review-first option undecided; no routing enabled
+- Status: broader September17 proposal remains staged · later narrow Rosie source authority recorded; generalized automatic-versus-review disposition not established
 - Route: bhoumik
 - Raised: 2026-09-17 by Chris (Telegram657, via Nova)
-- Updated: 2026-09-17T12:55:37-05:00
+- Updated: 2026-09-24 23:22:31 CDT
 
 ## Problem
 
@@ -14,12 +14,19 @@ Chris wants a supplier’s plant-specific answer to reach the customer where it 
 - Chris Telegram657 at12:46:35, exact via Nova12:47:06 and Lily main12:48:49: “if APS sets a status and notes should go to the shared note. Other communication can sit in the sourcing notes. Notes about specific plants need to be passed to the customer. In what case whould that be info that the customer should not see. Pricing updates or changes or conversation is one example”. Feedback: **Supplier plant facts belong with customer**.
 - Nova658 already explained customer-useful plant facts versus internal wholesale costs/margins/negotiation, including the need to disclose material plant issues and customer selling-price changes appropriately. That explanation is not Chris/Bhoumik approval of an automatic publishing rule.
 - Chris Telegram659 at12:50:20, exact via Nova12:50:36/Lily main12:51:13: “In the case this is one AR to one supplier yes. If multiple suppliers I would need to select which one. Likely part of a larger workflow decision tree.” This expressly requires supplier choice where alternatives compete; it is not blanket permission to publish a single-source answer. Feedback: **Select the supplier before sharing**.
-- Existing September11 Bhoumik direction remains governing: supplier responses are factual sourcing input; Rosie surfaces changes to Chris, who decides customer communication. This proposal is a narrow follow-on to `availability-response-change-management`, not a revival of its rejected change/approval engine.
+- Historical September11 baseline used for this proposal: supplier responses are factual sourcing input; Rosie surfaces changes to Chris, who decides customer communication. Later scoped owner guidance now requires authority reconciliation; this dated baseline must not be asserted as a global current prohibition. The original proposal followed `availability-response-change-management`, not its rejected change/approval engine.
 - Chris’s approved simpler note-writing default and JR-61-only cleanup are separate. They do not authorize this supplier-to-Shared workflow or further cleanup. Sources: **Simpler note standard approved/completed within scope** and `business/operations.md`.
 
-## Current boundary — reuse the completed source map
+## Current contract caveat — not a routing decision
 
-Nova’s September17 source-only audit, recorded in `business/operations.md` and the `sourcing-note-disclosure` task, establishes:
+- 2026-09-24 23:15:33 CDT — HEAD `3c4adca`/0115 replaces directional fields with merged customer/supplier audience fields; private internal notes stay separate. The September17 source map below is historical, not the current field contract. Merged supplier text includes requirements and replies, so field identity/submission does not establish authorship or confirmation. Current committed Rosie guidance independently instructs audience-separated handling of submitted actual facts and cites later narrow Chris availability authority; this audit did not adjudicate every cited approval and does not supersede that owner guidance. This specific staged automatic-clear-facts versus review-first proposal is **not resolved by the merge/integration permission alone**. Do not infer broad routing approval, impose Lily's review-first option as an all-cell rule, or revert owner guidance. Source/apply/runtime/policy distinctions and concrete overwrite/legacy-client risks: `workspace/threads/main/tasks/note-audience-contract-audit/source-check-2026-09-24.md`. No new workflow implementation or SOP change authorized here.
+
+- 2026-09-24 23:22:31 CDT — **Owner source authority received, bounded:** Rosie23:21:34, relayed by parent, reports `supplier-coordination/artifacts/responses.md:17–30,52–69` and `job-requests/artifacts/supplier-responses.md:22–37` handle only explicitly submitted scoped facts by audience, preserve original customer-note content, and retain separate outbound customer-communication approval. The latter artifact`:3–6,68–110` cites **Chris JR72 web36, September24 01:49 CDT**, for **narrow first-APS-submission Job-update authority**—not blanket later-response handling or customer-send permission. This is an owner source report, not independently inspected human transcript or verified runtime execution. Under0115, preserving original customer content does not imply reinstating a removed separate origin field.
+- 2026-09-24 23:22:31 CDT — Neither September17 staging nor0115 establishes global routing disablement or blanket approval. The scoped owner report does not resolve the broader automatic-clear-facts versus review-first proposal. No reversion, generalized auto-merge, new approval, Rosie edit or request that Chris repeat context. Review-first remains Lily’s historical option, not mandatory all-cell policy. The September17 map, proposal, criteria and neighboring release/hold statements below are dated context, not instructions to override current owner guidance. Source: feedback **Later supplier routing authority is scoped**; sibling0115 report above. No duplicate audit, implementation or Telegram.
+
+## Historical September17 boundary — completed source map
+
+Nova’s September17 source-only audit, recorded in `business/operations.md` and the `sourcing-note-disclosure` task, established at that time:
 
 - Availability-request line Notes/Nursery notes save and display within that request before submission. A save, or a request already having Submitted status, is not a fresh handoff. Explicit **Submit/Re-submit** alone permits asynchronous relevant-agent handling; the whole-request Supplier note accompanies that event. It does not prove handling or customer delivery completed.
 - Order cards display separate header Supplier note and line Nursery notes; the current Order line-note UI is read-only. Supplier chat remains at its conversation source. None of these automatically becomes customer Shared notes.
@@ -27,7 +34,7 @@ Nova’s September17 source-only audit, recorded in `business/operations.md` and
 
 No fresh source/DB audit, deployed-path test or live-data verification was performed for this requirement. Its criteria describe the proposed behavior, not current functionality.
 
-## What it should do — proposed, pending Bhoumik
+## Historical September17 behavior proposal — reconcile before any further routing
 
 ### First establish the selected source for this plant
 
@@ -98,14 +105,16 @@ Material customer-impacting issues must be surfaced to Chris explicitly for time
 - “Status and notes should go to the shared note” means customer-useful consequences, not every status label or duplicate boilerplate; Bhoumik/Chris may refine this interpretation.
 - Review-first is the smallest safe initial scope because Shared may already publish and can contain authored text. No automatic “clear fact” exception is assumed, even for empty notes.
 
-## One open decision — Bhoumik
+## Current disposition — narrow authority recorded, broader decision not established
 
-For clear customer-useful facts from the selected supplier/offer, should routing be automatic within explicitly authorized limits, or should Rosie first propose the wording for review? **Review-first is an option/recommendation, not an adopted all-cell approval policy.** Do not silently add approval friction beyond existing permissions.
+- 2026-09-24 23:22:31 CDT — Rosie’s source report supplies the later narrow submitted-fact/first-APS authority citation. It does **not** establish resolution of the broader September17 automatic-clear-facts versus review-first question. Keep that broader proposal staged without treating scoped owner handling as disabled, requiring a new blanket approval, or declaring generalized routing shipped. No new Chris question, owner edit, implementation route or audit is requested. Any future broader decision needs its own explicit evidence; outbound customer communication remains separately approved.
 
-Chris’s source-selection requirement is part of the presented scope, not a second unresolved question. Both options must preserve authored Shared text, true source/admin provenance, proper submission/selection boundaries and safeguards for mixed/private/conflicting content and any actual customer-publication effect. No automatic path or broader decision-tree build is authorized; existing permissions remain unchanged. No routing, further audit or implementation handoff proceeds while awaiting Bhoumik.
+Historical Telegram347 question: for clear customer-useful facts from the selected supplier/offer, should routing be automatic within authorized limits, or should Rosie first propose wording for review? Selection, preservation of authored text, true provenance and mixed/private/conflicting-content/publication safeguards were the presented scope. This question was unresolved in Lily’s September17 record; that fact alone does not establish its current disposition. The field merge is not a decision on it either.
 
 ## Handoff log
 
 - 2026-09-17T12:48:49-05:00 — Captured Chris657 and Nova658 interpretation via parent; staged this narrow workflow for Bhoumik. Parent will notify Bhoumik. Used the completed current-source map without repeating its audit. No implementation route, customer publication or skill/data change authorized.
 - 2026-09-17T12:51:13-05:00 — Integrated Chris659’s explicit supplier-choice refinement in this same staged scope: per-row/offer selection before customer facts, no blended responses, sole response not sole source, existing reliable selection reused. Single-source agreement is not blanket publication/overwrite authority. No larger workflow engine or new build authorized.
-- 2026-09-17T12:55:37-05:00 — Parent reports Bhoumik notified through Telegram347. Presented selection, customer-versus-private facts, authored-content preservation and provenance, then **one** undecided question: automatic clear selected-supplier facts versus Rosie’s proposed-wording review-first option. No all-cell review default adopted; existing permissions/approval friction unchanged. Mixed/private/conflicting content and actual publication effects need safeguards under either option. No routing enabled; no further audits/routing until Bhoumik’s decision.
+- 2026-09-17T12:55:37-05:00 — Parent reports Bhoumik notified through Telegram347. Presented selection, customer-versus-private facts, authored-content preservation and provenance, then **one** undecided question: automatic clear selected-supplier facts versus Rosie’s proposed-wording review-first option. No all-cell review default adopted; existing permissions/approval friction unchanged. Mixed/private/conflicting content and actual publication effects need safeguards under either option. No routing enabled by this September17 handoff; further audits/routing were held pending Bhoumik’s decision.
+- 2026-09-24 23:20:11 CDT — Parent supplied the sibling0115 report and requested historical/pending-owner-reconciliation status. Later scoped Rosie source exists; parent has already requested its human authority/current alignment. This record grants no new approval, global disablement or reversion. No duplicate audit, implementation or Telegram.
+- 2026-09-24 23:22:31 CDT — Parent relayed Rosie23:21:34 source-backed authority boundaries, including the narrow Chris JR72 web36 citation and separate customer-send approval. Recorded scoped current owner guidance without generalizing or reverting it. The broader September17 decision remains unestablished by this evidence; no human transcript/runtime recheck or new approval.

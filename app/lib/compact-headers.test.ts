@@ -57,6 +57,8 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
   const focusedJobs = source('app/jobs/page.tsx')
   assert.match(focusedJobs, /hideHeaderOnDesktop/)
   assert.match(focusedJobs, /<JobsTopActions(?:\s|>)/)
+  // Settings uses its own content heading; it has no list toolbar to relocate.
+  assert.match(source('app/settings/page.tsx'), /hideHeaderOnDesktop/)
 
   // The portal's request page joined the compact set with the 2026-08-30
   // redesign: its header card's strip carries the name.
@@ -69,7 +71,6 @@ test('qualifying desktop lists move Shell-owned controls into their existing too
 
   for (const path of [
     'app/agents/page.tsx',
-    'app/settings/page.tsx',
     'app/partner/[id]/closed/page.tsx',
     'app/partner/[id]/orders/page.tsx',
     'app/suppliers/[id]/page.tsx',
@@ -142,7 +143,8 @@ test('header metadata is relocated into existing toolbars or content', () => {
 
   for (const route of routeSources) assert.doesNotMatch(route, /subtitle=/)
   assert.match(source('app/photos/page.tsx'), /Ranked by match.*Newest first/)
-  assert.match(source('app/requests/page.tsx'), /summary=\{`\$\{total\}.*\$\{summary\.items\} line/)
+  // All Jobs keeps per-record totals in the cards instead of repeating a toolbar count.
+  assert.match(source('app/requests/page.tsx'), /summary=""/)
   assert.match(source('app/partner/[id]/page.tsx'), /<RequestBucketControls[\s\S]{0,200}counts=\{counts\}/)
   assert.match(source('app/partner/[id]/closed/page.tsx'), /closed\.length.*request/)
   assert.match(source('app/partner/[id]/requests/[arId]/page.tsx'), /request\.items\.length.*pending/)

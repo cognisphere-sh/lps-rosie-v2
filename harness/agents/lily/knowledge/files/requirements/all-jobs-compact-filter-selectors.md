@@ -1,9 +1,9 @@
 # Open compact mobile Job filters only when needed
 
-- Status: routed · current-owner refresh; not shipped
+- Status: routed · integration authorized; current filter compatibility and auth/safe-runner/live gates pending; not integrated or shipped
 - Route: nova
 - Raised: 2026-09-11 by Chris (via Nova, Telegram 588–589)
-- Updated: 2026-09-18
+- Updated: 2026-09-24
 - Related: `mobile-all-jobs-toolbar` (prior card/toolbar work; mobile Item Status omission remains)
 
 ## Problem
@@ -66,7 +66,8 @@ Status contributes zero deviations at exactly Availability + Committed and one a
 ## Assumptions
 
 - The existing Nova owner remains responsible for this queued visual slice. This is a corrected follow-up to that owner, not a new parallel implementation request.
-- Nova reports the operator baseline clean/committed; preserve that baseline and stop on new overlapping edits. Independent current-candidate technical and visual gates remain required.
+- Nova’s September 24 23:09:27 report establishes clean committed source HEAD `3c4adca`, not filter-candidate compatibility or release readiness. The live build predates HEAD and exact deployed source is unknown; QA auth is absent and the host OOM-safe runner is unvalidated. Operator723/724 already requests those prerequisites. Nova alone owns current-candidate preflight, tests, reconstruction and independent technical/rendered release gates. This older filter slice is eligible only if compatible with current semantics after the current priorities; no old status/default patch or duplicate operator ask.
+- Git commitment does not resolve record-name rollout or migration-target dependencies. Committed migrations/source are not proof of applied migrations, live compliance or deployment. The bounded 0115 notes-contract audit is owned separately; no parallel source audit or old note-policy integration belongs here.
 
 ## Handoff log
 
@@ -74,3 +75,5 @@ Status contributes zero deviations at exactly Availability + Committed and one a
 - 2026-09-11 13:06:17 CDT — Nova accepted and delegated to `compact-job-filter-selectors`: preserve legacy/all-six/unrestricted intent independently of fresh/reset defaults, nested Escape and mobile Item Status behavior. Owner uses an isolated candidate worktree and stops on overlapping operator edits; no live build/deploy before exact technical and visual gates.
 - 2026-09-11 13:38:04 CDT — Nova reports isolated nine-path candidate frozen for independent review: 43/43 focused tests and typecheck pass. Full suite has six CSS/token failures also reproduced on clean `c954d13`; reviewer is distinguishing baseline failures from candidate defects. Release is not green: no integration, commit, deployment or browser/visual QA yet. Original operator files/index remain untouched; status stays routed.
 - 2026-09-18 10:08:47 CDT — Parent superseded the preceding semantic assumptions with the clean committed five-stage/two-default/empty-none contract. Historical visual request remains desired; old candidate must not be applied. Full corrected visual-only brief successfully sent to Nova main for its existing owner, with new independent candidate gates; no duplicate implementation and not shipped.
+- 2026-09-24 23:09:28 CDT — Existing-owner coordination relays Bhoumik Telegram721 at23:05:36, “I have committed. You can integrate.” Nova23:06:24/722 acknowledges protected integration and delegates fresh preflight; no candidate applied yet. Record authorization/preflight only. This older filter candidate requires current-semantic compatibility, behind mobile-list chat removal, focused AR drawer items1–2, supplier Past tabs and signed-out JR deep link. No new builder, audit or integration command by Lily; scope excludes full AR709, unresolved JR-status item3 and unrelated schema/DB/note-routing changes. Capture already exists once as `nova:main:2026-09-24T23:06:24-05:00:integration-authorization-telegram721`.
+- 2026-09-24 23:12:10 CDT — Latest coordination relays Nova23:09:27: clean committed HEAD3c4adca includes0104+0115; signed-out JR fix already committed6c0e95c and current supplier Past implementation supersedes the old candidate. Nova’s existing owners review/reconstruct current priority slices against HEAD, never apply old patches. Filter compatibility still unverified; live source unknown, QA auth absent, OOM-safe runner unvalidated. Operator723/724 already asked; no Lily audit/tests/build or duplicate request. Shared evidence captured as `nova:main:2026-09-24T23:09:27-05:00:current-integration-base`.

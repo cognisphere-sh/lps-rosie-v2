@@ -57,7 +57,7 @@ test('unhandled keys and names that fit leave browser keyboard behavior alone', 
 test('the scrollbar thumb clears 3:1 against its light and dark row surfaces', () => {
   const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
   const root = css.match(/:root\s*\{([^}]*)\}/)?.[1] ?? ''
-  const dark = css.match(/\.dark\s*\{([^}]*)\}/)?.[1] ?? ''
+  const dark = css.match(/\.dark\s*(?:,[^{]+)?\s*\{([^}]*)\}/)?.[1] ?? ''
   const standard = css.match(/\.lps-plant-name-scroll\s*\{([^}]*)\}/)?.[1] ?? ''
   const thumb = css.match(/\.lps-plant-name-scroll::\-webkit-scrollbar-thumb\s*\{([^}]*)\}/)?.[1] ?? ''
 

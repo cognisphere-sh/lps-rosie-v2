@@ -475,6 +475,14 @@ test('order creation routes reject partner sessions and unconfirmed requests bef
   role = 'admin'
   assert.equal((await post({ ...input(), customerConfirmed: false })).status, 400)
   assert.equal((await post({ ...input(), fulfillmentDate: '2026-10-01' })).status, 400)
+  for (const items of [input().items, [{ jobRequestItemId: 11, quantity: 1 }]]) {
+    for (const noteFromCustomer of ['Keep this customer requirement', '', null, 42]) {
+      const response = await post({ ...input(), items, noteFromCustomer, noteForCustomer: 'Current note' })
+      assert.equal(response.status, 400)
+      assert.deepEqual(await response.json(), { error: 'Use noteForCustomer instead of noteFromCustomer' })
+    }
+    assert.equal((await post({ ...input(), items, noteFromCustomer: 'Legacy note only' })).status, 400)
+  }
   assert.equal(writes.length, 0)
   assert.equal((await post(input())).status, 201)
   assert.equal(writes.length, 1)

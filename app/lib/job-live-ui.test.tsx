@@ -250,7 +250,8 @@ test('a reserved job shows its saved record in the standard workspace as Rosie w
   await waitFor(() => assert.ok(view.queryByText('Live oak from Rosie')))
   assert.ok(view.getByRole('button', { name: /edit job name/i }))
   assert.equal(view.queryByText('New job request · JR-19'), null)
-  assert.equal(sessionStorage.getItem('lps.jobs.intake.v1'), null)
+  // The saved row commits before the passive effect clears its intake marker.
+  await waitFor(() => assert.equal(sessionStorage.getItem('lps.jobs.intake.v1'), null))
   assert.equal(params.toString(), 'jr=19')
 })
 

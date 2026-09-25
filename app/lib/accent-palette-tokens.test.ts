@@ -101,7 +101,7 @@ test('actual normal, hover and keyboard-focus states clear text and boundary con
     .split('</button>')
     .filter((segment) => segment.includes('ring-lps-accent-turquoise-border'))
     .map((segment) => segment.slice(segment.lastIndexOf('<button')))
-  assert.equal(turquoiseRingControls.length, 3)
+  assert.equal(turquoiseRingControls.length, 1)
   for (const control of turquoiseRingControls) {
     assert.match(control, /size-11|min-h-11/)
     assert.doesNotMatch(control, /(?:^|\s)(?:hover:|focus-visible:)?opacity-\d+/)
@@ -148,10 +148,10 @@ test('turquoise and light blue retain a meaningful photo-derived hue separation'
 
 test('representative uses identify Rosie and Job references without replacing state palettes', () => {
   assert.match(shell, /JobIdentityLink[\s\S]*?text-lps-accent-light-blue-text[\s\S]*?requestRef\(request\.id\)/)
-  assert.match(requestCard, /data-mobile-request-jr[\s\S]*?text-lps-accent-light-blue-text/)
-  assert.match(requestCard, /data-mobile-request-rosie[\s\S]*?text-lps-accent-turquoise-text/)
-  assert.match(requestCard, /data-mobile-request-rosie[\s\S]*?min-h-11/)
-  assert.equal(requestCard.match(/ring-lps-accent-turquoise-border/g)?.length, 3)
+  assert.match(requestCard, /text-primary.*requestRef\(request.id\)/)
+  assert.match(requestCard, /aria-label=\{`Chat with Rosie about[\s\S]*?text-lps-accent-turquoise-text/)
+  assert.match(requestCard, /aria-label=\{`Chat with Rosie about[\s\S]*?min-h-11/)
+  assert.equal(requestCard.match(/ring-lps-accent-turquoise-border/g)?.length, 1)
 
   assert.match(globals, /:root \{[\s\S]*?--primary: #087F8C;/)
   assert.match(cssBlock('.dark'), /--primary: #42C7C9;/)

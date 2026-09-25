@@ -35,10 +35,11 @@ function trimmedIdentity(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null
 }
 
-function RequestCardOverview({ request, edit, tone }: {
+function RequestCardOverview({ request, edit, tone, onNameSaved }: {
   request: JobRequestRow
   edit: { table: 'job_requests'; id: number; onSaved: () => void }
   tone: ReturnType<typeof requestStatusTone>
+  onNameSaved?: (requestId: number) => void
 }) {
   const customer = trimmedIdentity(request.customer?.company) ?? trimmedIdentity(request.customer?.name) ?? 'Unassigned customer'
   const retail = request.customer?.type === 'Homeowner/Retail'
@@ -53,10 +54,13 @@ function RequestCardOverview({ request, edit, tone }: {
         className="min-w-0 truncate text-[12.5px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="text-primary">{requestRef(request.id)}</span> - {retail ? 'Retail ' : ''}{!fullJobName && <>{customer} - </>}<span className="group-has-[input]/job-name:hidden">{job}</span>
       </Link>
-        <EditableText key={request.id} {...edit} column="name" value={request.name}
-          placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
-          triggerContent={<Pencil size={12} aria-hidden="true" />}
-          className="size-6 w-auto shrink-0 cursor-pointer p-1 opacity-0 group-hover/job-name:opacity-100 group-focus-within/job-name:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" />
+        <span data-job-name-editor={request.id} className="contents">
+          <EditableText key={request.id} {...edit} column="name" value={request.name}
+            onSaved={() => onNameSaved ? onNameSaved(request.id) : edit.onSaved()}
+            placeholder="Add job name" title={`Edit job name for ${requestRef(request.id)}`}
+            triggerContent={<Pencil size={12} aria-hidden="true" />}
+            className="size-6 w-auto shrink-0 cursor-pointer p-1 opacity-0 group-hover/job-name:opacity-100 group-focus-within/job-name:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100" />
+        </span>
       </span>
       <JobMetadata request={request} onDateSaved={edit.onSaved} showFulfillment={false} className="grid-cols-[max-content]" />
       <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -75,13 +79,14 @@ function RequestCardOverview({ request, edit, tone }: {
   </div>
 }
 
-export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, showActions = mobile === false }: {
+export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, showActions = mobile === false }: {
   request: JobRequestRow
   mobile: boolean | null
   expanded: boolean
   onToggle: () => void
   onDelete: (returnFocus: HTMLElement | null) => void
   onSaved: () => void
+  onNameSaved?: (requestId: number) => void
   showActions?: boolean
 }) {
   const tone = requestStatusTone(request.status)
@@ -103,7 +108,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>}
-        <RequestCardOverview request={request} edit={edit} tone={tone} />
+        <RequestCardOverview request={request} edit={edit} tone={tone} onNameSaved={onNameSaved} />
         {showActions && <div className="flex flex-none items-center gap-1 self-center">
           <CopyQuoteMenu request={request} />
           <JobActionsMenu requestId={request.id} onDelete={onDelete} />

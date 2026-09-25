@@ -39,7 +39,7 @@ A workflow change counts — not everything here is software.
 | `app-wide-compact-headers` | Make app headers compact and purposeful | drafted · ready to route refinement | nova |
 | `job-inbox-workspace` | Put active Job Requests in an inbox workspace | routed | nova |
 | `ops-ar-main-workspace` | Open supplier availability work in the main Ops workspace | routed · 2026-09-22T09:16:33-05:00 OPERATOR HOLD Bhoumik709/Nova710: no full-view/tabs/chat-switch implementation until new go-ahead; separate706 drawer items1–2 allowed | nova |
-| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · Bhoumik706 EXECUTION AUTHORIZED; same-owner fresh verification/in progress; reachable focused Ops AR drawer opt-in1–2, item3 unresolved; full-page project separately OPERATOR HOLD709, not completed/released (2026-09-22T09:16:33-05:00) | nova |
+| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · items1–3 APPROVED narrow internal drawer UI706/740; MOVE existing AR note after Status, no publication/data/edit changes; composition/QA/deploy unproven, prior1–2 staticSAFE not full release; full AR709 held (2026-09-24T23:53:30-05:00) | nova |
 | `focused-jobs-rail-collapse` | Collapse the focused Jobs rail when Chris needs the work width | routed | nova |
 | `job-inbox-activity-semantics` | Define trustworthy Job Request inbox activity and unread meaning | staged | bhoumik |
 | `copy-ready-plain-text-quotes` | Make plain-text quotes ready to copy and send | shipped | rosie |
@@ -52,7 +52,7 @@ A workflow change counts — not everything here is software.
 | `plant-search-toolbar-visual-unity` | Make Plant Search controls read as one toolbar | routed | nova |
 | `portal-availability-selector-dark-style` | Keep the Nursery Portal availability selector readable in the dark portal | routed | nova |
 | `portal-request-work-buckets` | Keep wholesale availability requests in clear work buckets | routed | nova |
-| `supplier-past-work-navigation` | Put supplier past Orders and Availability Requests behind exact Past order/Requests | routed · OWNER-REPORTED HOLD current-base overlap/existing operator record-name rollout; UI scope unchanged, no independent naming build (2026-09-22T12:50:45-05:00) | nova |
+| `supplier-past-work-navigation` | Put supplier past Orders and Availability Requests behind exact Past order/Requests | routed · Past candidatebe11efac static PENDING; unconditional0104 gate RETRACTED727, runtime/auth/build/QA unverified, no integration/deploy (2026-09-24T23:27:15-05:00) | nova |
 | `availability-status-model-parity` | Give Job Requests, Requests and Orders honest plant-status models | staged · priority 1 · partial; Request UI mapping blocked | bhoumik |
 | `out-of-network-public-availability-request` | Let an out-of-network supplier answer one live availability request | shipped · core access; optional channel fit clarified Sep 11 | bhoumik |
 | `supplier-access-authentication` | Let nurseries answer one request easily without exposing LPS operations | shipped · core access; optional channel fit clarified Sep 11 | bhoumik |
@@ -64,14 +64,14 @@ A workflow change counts — not everything here is software.
 | `mobile-request-update-response-state` | Optional mobile request-response display | drafted · optional/unapproved; deferred pending existing-path findings | nova |
 | `supplier-category-badge-width` | Keep Supplier Category badges clear of State | routed | nova |
 | `mobile-all-jobs-toolbar` | Make All jobs toolbar and cards compact | routed · current mobile-list chat direction superseded by linked removal scope | nova |
-| `mobile-job-card-chat-controls` | Remove chats from mobile Job list cards, not useful context | routed · same-owner ISOLATED IMPLEMENTATION on HEAD + operator-byte REVIEW overlay only; UNVALIDATED runner HOLD, QA/integration/release blocked (2026-09-22T15:44:06-05:00) | nova |
-| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · current-owner visual refresh; committed five-stage/two-default/none semantics preserved | nova |
+| `mobile-job-card-chat-controls` | Remove chats from mobile Job list cards, not useful context | routed · reported candidate ed9186c0 staticSAFE ONLY; overlap composition/fresh review pending, NOT integrated; tests/auth/live unverified; blanket0104 gate retracted727 (2026-09-24T23:27:15-05:00) | nova |
+| `all-jobs-compact-filter-selectors` | Open compact mobile Job filters only when needed | routed · integration authorized; current filter compatibility/auth/safe-runner/live gates pending, not applied/released | nova |
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
-| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY/centering isolated IN PROGRESS on owner-reported safe f9a2ddb; gates/release pending; broader table/botanical work held | nova |
-| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · isolated work in progress on Nova-reported safe f9a2ddb; fresh review/release pending | nova |
-| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · isolated work in progress on safe committed f9a2ddb; distinct empty-cell scope, not released | nova |
-| `supplier-note-customer-routing` | Pass useful supplier plant facts to the customer, not private buying discussion | staged · Bhoumik notified347; ONE decision automatic clear selected-source facts vs review-first option; no routing/all-cell approval policy (2026-09-17T12:55:37-05:00) | bhoumik |
+| `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY conditional on current3c4adca compatibility; QA auth/runner gates unresolved; no integration/release claim | nova |
+| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · integration authorized; current3c4adca/0115 compatibility review, auth/runner gates; no integration/live proof | nova |
+| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · integration authorized; current3c4adca/0115 compatibility review, auth/runner gates; no integration/live proof | nova |
+| `supplier-note-customer-routing` | Pass useful supplier plant facts to the customer, not private buying discussion | broader Sep17 proposal staged · narrow submitted-fact/first-APS owner authority cited; generalized automatic-vs-review decision not established (2026-09-24 23:22:31 CDT) | bhoumik (broader proposal); rosie (existing scoped guidance, no new assignment) |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
 | `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed | nova |

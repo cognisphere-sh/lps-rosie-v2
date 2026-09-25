@@ -14,6 +14,7 @@ export function FocusedJobRecord({
   mobile,
   version,
   onSaved,
+  onNameSaved,
   onDeleted,
 }: {
   request: JobRequestRow
@@ -49,6 +50,7 @@ export function FocusedJobRecord({
         expanded={expanded}
         onToggle={() => setExpanded((open) => !open)}
         onSaved={onSaved}
+        onNameSaved={onNameSaved}
         showActions
         onDelete={(returnFocus) => {
           deleteReturnFocus.current = returnFocus

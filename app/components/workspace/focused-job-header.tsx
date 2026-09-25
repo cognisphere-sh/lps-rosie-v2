@@ -352,7 +352,7 @@ function FocusedJobChatChooser({
 }
 
 export function focusConnectedJobNameTrigger(root: ParentNode | null, requestId: number): boolean {
-  const target = root?.querySelector<HTMLButtonElement>(`[data-job-name-trigger="${requestId}"]`)
+  const target = root?.querySelector<HTMLButtonElement>(`[data-job-name-trigger="${requestId}"], [data-job-name-editor="${requestId}"] button`)
   if (!target?.isConnected || target.closest('[inert]')) return false
   target.focus({ preventScroll: true })
   return true

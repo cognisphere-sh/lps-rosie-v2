@@ -705,7 +705,8 @@ test('Tab and Shift+Tab dismiss the body-portal menu into the trigger’s docume
   fireEvent.click(trigger)
   menu = view.getByRole('menu', { name: 'Rosie chats for JR-27' })
   fireEvent.keyDown(menu, { key: 'Tab', shiftKey: true })
-  assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-27' }))
+  assert.ok(document.activeElement === view.getByRole('combobox', { name: 'Pickup or delivery' }),
+    'Shift+Tab returns to the fulfillment selector immediately before Rosie')
   assert.equal(view.queryByRole('menu', { name: 'Rosie chats for JR-27' }), null)
 })
 
@@ -753,7 +754,7 @@ test('desktop branch keeps labelled avatar/direct route and uses the structured 
   assert.equal(view.container.querySelector('[data-focused-job-header="mobile"]'), null)
   const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
   assert.ok(identity)
-  assert.equal(identity.textContent, `Long Landscape | ${longName} | Jamie Long`)
+  assert.equal(identity.textContent, longName)
   assert.match(identity.firstElementChild?.className ?? '', /text-ellipsis/)
   assert.match(identity.firstElementChild?.className ?? '', /whitespace-nowrap/)
   assert.equal(view.getByRole('button', { name: 'Edit job name for JR-27' }).textContent, longName)

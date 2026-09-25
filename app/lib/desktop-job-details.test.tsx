@@ -244,7 +244,7 @@ test('full job names keep the customer or company prefix once in headers and inb
     'Jane Smith | Oak Grove')
 })
 
-test('pure balanced geometry and rendered tracks keep exact center with 44px nonoverlapping flanks', () => {
+test('balanced geometry helper and wrapping focused header retain bounded identity and chat controls', () => {
   for (const viewport of [900, 1024, 1440]) {
     const focusedWidth = viewport - 292
     const focused = balancedHeaderGeometry(focusedWidth)
@@ -292,10 +292,11 @@ test('pure balanced geometry and rendered tracks keep exact center with 44px non
     const flanks = header.querySelectorAll<HTMLElement>('[data-balanced-header-flank]')
     assert.equal(flanks.length, 2)
     assert.match(flanks[0].className, /overflow-hidden/)
-    assert.match(flanks[1].className, /overflow-hidden/)
+    assert.match(flanks[1].className, /ml-auto/)
     const chat = view.getByRole('button', { name: 'Chat with Rosie' })
     assert.match(chat.className, /size-11/)
-    assert.equal(view.queryByText(/EPD:|Pickup|Delivery\/Pickup|Install Date/), null)
+    assert.equal(view.queryByText(/EPD:|Delivery\/Pickup|Install Date/), null)
+    assert.equal((view.getByRole('combobox', { name: 'Pickup or delivery' }) as HTMLSelectElement).value, '')
     view.unmount()
   }
 })
@@ -314,7 +315,8 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
   view.unmount()
 
   view = render(<RequestCard request={value} expanded selected={new Set()} version={0} onToggle={() => undefined} onSelect={() => undefined} onDelete={() => undefined} onDeleteItem={() => undefined} onSaved={() => undefined} mobile={false} />)
-  assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent, expected)
+  assert.equal(view.getByRole('link', { name: 'Open JR-34 — Land Water Light — Ox Eye Phase II' }).textContent, 'JR-34 - Land Water Light - Ox Eye Phase II')
+  assert.ok(view.getByRole('button', { name: 'Edit job name for JR-34' }))
   view.unmount()
 
   const inbox: JobInboxRow = {
@@ -326,8 +328,8 @@ test('focused header, expanded desktop card and Active Jobs rail share exact sto
   const aria = jobInboxRowAriaLabel(row, 'Quote')
   view = render(<FocusedJobsRailRow row={row} selected statusLabel="Quote" ariaLabel={aria} onSelect={() => undefined} />)
   assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, value.name)
-  assert.ok(view.getByText('Land Water Light · Dior Goodwin'))
-  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.getAttribute('title'), `JR-34 · ${expected}`)
+  assert.ok(view.getByTitle('Land Water Light'))
+  assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.getAttribute('title'), `JR-34 · ${expected} · Created Tue, 09/01`)
 })
 
 test('rendered missing and invalid identity candidates stay honest in the desktop strip', () => {
@@ -373,11 +375,9 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
       mobile={false}
     />,
   )
-  const head = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
-  const identity = view.container.querySelector<HTMLElement>('[data-desktop-job-identity]')
+  const head = view.container.querySelector<HTMLElement>('[data-request-card-head]')
   assert.ok(head)
-  assert.ok(identity)
-  assert.equal(identity.textContent, 'Urban Landscape Group | Oak Grove Rd. planting | Johnathan')
+  assert.ok(within(head).getByRole('link', { name: 'Open JR-19 — Urban Landscape Group — Oak Grove Rd. planting' }))
   assert.equal(view.queryByText('Request'), null)
   assert.equal(view.queryByText('Billing & payment'), null)
   assert.ok(view.getByText('Total items'))
@@ -400,13 +400,12 @@ test('expanded desktop All Jobs removes Request boxes and keeps totals/table bef
   assert.ok(table.compareDocumentPosition(disclosureRegion) & Node.DOCUMENT_POSITION_FOLLOWING)
   assert.ok(disclosureRegion.compareDocumentPosition(view.getByRole('button', { name: /Change history/ })) & Node.DOCUMENT_POSITION_FOLLOWING)
 
-  const expandedHeader = view.container.querySelector<HTMLElement>('[data-desktop-expanded-request-header]')
+  const expandedHeader = view.container.querySelector<HTMLElement>('[data-request-card-head]')
   assert.ok(expandedHeader)
-  assert.match(expandedHeader.className, /flex-wrap/)
-  assert.equal(expandedHeader.querySelector('[data-job-metadata]')?.parentElement, expandedHeader)
-  assert.match(view.getByRole('button', { name: 'Quote' }).className, /size-11|(?:min-h-11.*min-w-11)/)
-  assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-19' }).className, /size-11/)
-  assert.match(view.getByRole('button', { name: 'Delete JR-19' }).className, /size-11/)
+  assert.ok(expandedHeader.querySelector('[data-job-metadata]'))
+  assert.ok(within(expandedHeader).getByRole('button', { name: 'Quote' }))
+  assert.match(view.getByRole('button', { name: 'Chat with Rosie about JR-19' }).className, /min-h-11/)
+  assert.equal(view.getByRole('button', { name: 'More actions for JR-19' }).getAttribute('aria-haspopup'), 'menu')
 
   disclosure.focus()
   await userEvent.setup({ document }).keyboard('{Enter}')
@@ -477,29 +476,24 @@ test('focused header exposes summary and customer, AR and supplier routes before
   const ars: number[] = []
   window.addEventListener('lps:open-chat', (event) => chatRoutes.push((event as CustomEvent).detail))
   window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent<number>).detail))
-  const toolbar = document.createElement('div')
-  document.body.append(toolbar)
-  const view = render(<FocusedJobRecord actionsTarget={toolbar} request={linked} mobile={false} version={0} onSaved={() => undefined} />)
+  const view = render(<FocusedJobRecord request={linked} mobile={false} version={0} onSaved={() => undefined} />)
   assert.equal(view.getByRole('button', { name: 'Job details & notes' }).getAttribute('aria-expanded'), 'false')
-  const header = view.container.querySelector<HTMLElement>('[data-focused-job-summary]')!
-  const identityHeader = view.container.querySelector<HTMLElement>('[data-focused-job-header]')!
-  assert.ok(toolbar.contains(view.getByRole('button', { name: 'Delete JR-19' })))
-  assert.equal(identityHeader.querySelector('[aria-label="Delete JR-19"]'), null)
-  assert.ok(toolbar.contains(view.getByRole('button', { name: 'Chat with Rosie' })))
-  assert.ok(header.firstElementChild?.matches('[data-demand-summary]'))
+  const header = view.container.querySelector<HTMLElement>('[data-request-card-head]')!
+  const summary = view.container.querySelector<HTMLElement>('[data-demand-summary]')!
+  assert.ok(within(header).getByRole('button', { name: 'More actions for JR-19' }))
+  assert.ok(within(header).getByRole('button', { name: 'Chat with Rosie about JR-19' }))
   assert.equal(view.container.querySelectorAll('[data-demand-summary]').length, 1)
-  assert.ok(within(header).getByText('$1,250.50'))
-  assert.ok(within(header).getByText('3'))
-  assert.ok(within(header).getByText('4'))
+  assert.ok(within(summary).getByText('$1,250.50'))
+  assert.ok(within(summary).getByText('3'))
+  assert.ok(within(summary).getByText('4'))
   for (const label of ['Pending', 'Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Total items']) {
-    assert.ok(within(header).getByText(label))
+    assert.ok(within(summary).getByText(label))
   }
-  const customer = view.getByRole('button', { name: /Open the customer conversation/ })
+  const customer = view.getByRole('button', { name: 'Chat with Johnathan' })
   const ar = view.getByRole('button', { name: /AR-81/ })
   const supplier = view.getByRole('button', { name: /Open the supplier conversation/ })
-  assert.match(customer.className, /min-h-11/)
+  assert.ok(customer.closest('[data-request-customer-pill]'))
   for (const control of [ar, supplier]) assert.match(control.className, /min-h-8/)
-  assert.match(ar.className, /flex-row/)
   for (const control of [customer, ar, supplier]) assert.ok(header.contains(control))
   await userEvent.setup({ document }).click(customer)
   await userEvent.setup({ document }).click(ar)
@@ -507,8 +501,6 @@ test('focused header exposes summary and customer, AR and supplier routes before
   assert.equal(chatRoutes.length, 2)
   assert.deepEqual(ars, [81])
   view.unmount()
-  assert.equal(toolbar.childElementCount, 0)
-  toolbar.remove()
 })
 
 test('shared editable defaults stay compact while focused work explicitly opts into 44px controls', () => {
@@ -640,7 +632,7 @@ test('focused Job name editor trims and PATCHes only name, cancels blank/Escape,
   assert.match(rowsRoute, /value\.trim\(\)\.length > JOB_NAME_MAX_LENGTH/)
 })
 
-test('parent refetch lifecycle remounts both detail and rail before restoring the live Job-name trigger on mobile and desktop', async () => {
+test('parent refetch lifecycle updates both detail and rail before restoring the live Job-name trigger on mobile and desktop', async () => {
   for (const mobile of [true, false]) {
     let savedName = ''
     Object.defineProperty(globalThis, 'fetch', {
@@ -680,19 +672,15 @@ test('parent refetch lifecycle remounts both detail and rail before restoring th
     const textbox = view.getByRole('textbox')
     await user.clear(textbox)
     await user.type(textbox, mobile ? 'Mobile rename' : 'Desktop rename')
-    for (const action of [view.getByRole('button', { name: 'Save' }), view.getByRole('button', { name: 'Cancel' })]) {
-      assert.match(action.className, /min-h-11/)
-    }
-    if (mobile) await user.click(view.getByRole('button', { name: 'Save' }))
-    else fireEvent.keyDown(textbox, { key: 'Enter' })
+    fireEvent.keyDown(textbox, { key: 'Enter' })
     const expected = mobile ? 'Mobile rename' : 'Desktop rename'
     await waitFor(() => assert.equal(view.container.querySelector('[data-focused-job-rail-primary]')?.textContent, expected))
     await waitFor(() => assert.equal(document.activeElement, view.getByRole('button', { name: 'Edit job name for JR-19' })))
-    assert.equal(view.container.querySelector('[data-desktop-job-identity]')?.textContent ?? view.container.querySelector('[data-mobile-job-identity]')?.textContent, `Urban Landscape Group | ${expected} | Johnathan`)
+    assert.ok(view.getByRole('link', { name: `Open JR-19 — Urban Landscape Group — ${expected}` }))
     view.unmount()
   }
   const page = readFileSync(new URL('../app/jobs/page.tsx', import.meta.url), 'utf8')
-  assert.match(page, /pendingNameFocus\.current = id[\s\S]*Promise\.all\(\[loadDetail\(id\), refreshList\(\)\]\)[\s\S]*focusConnectedJobNameTrigger/)
+  assert.match(page, /pendingNameFocus\.current = id[\s\S]*Promise\.all\(\[loadDetail\(id, true\), refreshList\(\)\]\)[\s\S]*focusConnectedJobNameTrigger/)
 })
 
 test('expanded desktop Delete opens the real confirmation and Cancel returns focus', async () => {
@@ -702,9 +690,9 @@ test('expanded desktop Delete opens the real confirmation and Cancel returns foc
     return <><RequestCard request={request()} expanded selected={new Set()} version={0} onToggle={() => undefined} onSelect={() => undefined} onDelete={(target) => { returnFocus.current = target; setOpen(true) }} onDeleteItem={() => undefined} onSaved={() => undefined} mobile={false} />{open && <DeleteRequestDialog request={request()} busy={false} error="" returnFocus={returnFocus} onCancel={() => setOpen(false)} onConfirm={() => undefined} />}</>
   }
   const view = render(<Harness />)
-  const trigger = view.getByRole('button', { name: 'Delete JR-19' })
-  assert.match(trigger.className, /size-11/)
+  const trigger = view.getByRole('button', { name: 'More actions for JR-19' })
   await userEvent.setup({ document }).click(trigger)
+  await userEvent.setup({ document }).click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   assert.ok(view.getByRole('dialog', { name: /Permanently delete JR-19/ }))
   await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Cancel' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -715,9 +703,9 @@ test('focused compact Delete keeps the permanent confirmation, focus return and 
   const user = userEvent.setup({ document })
   let deleted = 0
   const view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { deleted += 1 }} />)
-  let trigger = view.getByRole('button', { name: 'Delete JR-19' })
-  assert.match(trigger.className, /min-h-11/)
+  let trigger = view.getByRole('button', { name: 'More actions for JR-19' })
   await user.click(trigger)
+  await user.click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   let dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
   assert.match(dialog.textContent ?? '', /change history/i)
   assert.match(dialog.textContent ?? '', /Rosie chat and exclusive orders are also permanently deleted/)
@@ -725,7 +713,7 @@ test('focused compact Delete keeps the permanent confirmation, focus return and 
   assert.match(dialog.textContent ?? '', /shared with other jobs are kept/)
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
-  trigger = view.getByRole('button', { name: 'Delete JR-19' })
+  trigger = view.getByRole('button', { name: 'More actions for JR-19' })
   assert.equal(document.activeElement, trigger)
 
   Object.defineProperty(globalThis, 'fetch', {
@@ -738,6 +726,7 @@ test('focused compact Delete keeps the permanent confirmation, focus return and 
     },
   })
   await user.click(trigger)
+  await user.click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   dialog = view.getByRole('dialog', { name: /Permanently delete JR-19/ })
   await user.click(within(dialog).getByRole('button', { name: /Delete permanently/ }))
   await waitFor(() => assert.equal(deleted, 1))
@@ -751,7 +740,8 @@ test('focused Delete rejects network, 403, malformed and duplicate confirms, the
 
   Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: async () => { throw new Error('offline') } })
   let view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
-  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'More actions for JR-19' }))
+  await user.click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   await user.click(view.getByRole('button', { name: 'Delete permanently' }))
   await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /check your connection/))
   assert.equal(navigations, 0)
@@ -759,7 +749,8 @@ test('focused Delete rejects network, 403, malformed and duplicate confirms, the
 
   Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: async () => response(false, 403, { error: 'Forbidden' }) })
   view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
-  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'More actions for JR-19' }))
+  await user.click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   await user.click(view.getByRole('button', { name: 'Delete permanently' }))
   await waitFor(() => assert.equal(view.getByRole('alert').textContent, 'Could not delete JR-19 — Forbidden'))
   assert.equal(navigations, 0)
@@ -767,7 +758,8 @@ test('focused Delete rejects network, 403, malformed and duplicate confirms, the
 
   Object.defineProperty(globalThis, 'fetch', { configurable: true, writable: true, value: async () => response(true, 200, { ok: true, deleted: { items: '2' } }) })
   view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
-  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'More actions for JR-19' }))
+  await user.click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   await user.click(view.getByRole('button', { name: 'Delete permanently' }))
   await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /invalid response/))
   assert.equal(navigations, 0)
@@ -780,7 +772,8 @@ test('focused Delete rejects network, 403, malformed and duplicate confirms, the
     return new Promise((resolve) => { resolveDelete = resolve })
   } })
   view = render(<FocusedJobRecord request={request()} mobile version={0} onSaved={() => undefined} onDeleted={() => { navigations += 1 }} />)
-  await user.click(view.getByRole('button', { name: 'Delete JR-19' }))
+  await user.click(view.getByRole('button', { name: 'More actions for JR-19' }))
+  await user.click(view.getByRole('menuitem', { name: 'Delete JR-19' }))
   const confirm = view.getByRole('button', { name: 'Delete permanently' })
   fireEvent.click(confirm)
   fireEvent.click(confirm)
@@ -826,7 +819,7 @@ test('sidebar cards show identity, status and Created/EDD dates without chat or 
     assert.equal(primary.textContent, base.name)
     assert.equal(primary.title, `${expected} · Created Tue, 09/01`)
     assert.match(primary.className, /truncate/)
-    assert.ok(view.getByText('Land Water Light · Dior Goodwin'))
+    assert.ok(view.getByTitle('Land Water Light'))
     const status = view.container.querySelector<HTMLElement>('[data-job-status="quoted"]')!
     assert.match(status.style.background, /--lps-tone-teal-bg/)
     assert.equal(status.textContent, 'Quote')

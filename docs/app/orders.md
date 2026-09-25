@@ -47,6 +47,11 @@ Migration `0094_partner_order_lifecycle.sql` changes order stages and adds the t
 
 Migration `0115_merged_audience_notes.sql` merges customer-origin and customer-facing notes into `note_for_customer`, and supplier instructions/responses into `note_for_supplier`, on order headers and items. Both desktop and mobile views, print and copy show one supplier note column, with no note beneath the plant name. Customer notes are omitted from supplier payloads. The scoped lifecycle RPC saves the shared supplier note atomically with date and stage; omitted notes remain unchanged, while null or blank clears the whole shared note. Notes are limited to 10,000 characters.
 
+Order creation rejects the obsolete `noteFromCustomer` input with HTTP 400 and
+directs callers to `noteForCustomer`, before either order-creation RPC runs.
+This also applies when both fields are supplied or the obsolete field is blank
+or null, so older clients cannot silently discard a customer note.
+
 Migration `0098_order_confirmation_optional_method.sql` retains the order's fulfillment-method field and validation but allows confirmation and Ready with a null method. A fulfillment date is still required. This separates the supplier's commitment from Chris's pickup/delivery arrangements.
 
 - `GET /api/orders?job=123&jobs=456,789` returns orders for the primary job, candidate lines for all selected jobs, and active job choices. `?supplier=7` lists that supplier's orders for admins.

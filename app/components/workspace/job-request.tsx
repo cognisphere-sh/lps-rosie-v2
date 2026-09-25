@@ -458,6 +458,7 @@ function NoteCell({
         onSaved={onSaved}
         touchTarget={touchTarget}
         placeholder={''}
+        editLabel={`Edit ${internal ? 'internal' : 'shared'} note for ${title}`}
         renderPreview={internal ? renderInternalNote : undefined}
         previewClickToEdit={internal}
         inlineControls
