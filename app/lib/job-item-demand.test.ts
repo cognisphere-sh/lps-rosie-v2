@@ -33,11 +33,11 @@ test('job demand edits write the renamed numeric field and reject obsolete or in
   }
   await assert.rejects(updateCell('job_request_items', 42, 'quantity', '5'), /refusing to write/)
   assert.equal(writes.length, 2)
-  await updateCell('job_request_items', 42, 'note_from_customer', ' Single trunk\nNo substitutions ')
-  await updateCell('job_request_items', 42, 'note_from_customer', '')
+  await updateCell('job_request_items', 42, 'note_for_customer', ' Single trunk\nNo substitutions ')
+  await updateCell('job_request_items', 42, 'note_for_customer', '')
   assert.deepEqual(writes.slice(2), [
-    { table: 'job_request_items', values: { note_from_customer: 'Single trunk\nNo substitutions' }, column: 'id', id: 42 },
-    { table: 'job_request_items', values: { note_from_customer: null }, column: 'id', id: 42 },
+    { table: 'job_request_items', values: { note_for_customer: 'Single trunk\nNo substitutions' }, column: 'id', id: 42 },
+    { table: 'job_request_items', values: { note_for_customer: null }, column: 'id', id: 42 },
   ])
   await updateCell('inventory', 'plant-id', 'quantity', '5')
   assert.deepEqual(writes.at(-1), { table: 'inventory', values: { quantity: 5 }, column: 'id', id: 'plant-id' })

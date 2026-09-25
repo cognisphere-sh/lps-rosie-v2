@@ -6,13 +6,13 @@ import type { Order, OrderItem } from './orders'
 
 const plant = (id: number, name: string, status = 'available'): OrderItem => ({
   id, name, status, size: '5 G', quantity: 3,
-  unitPrice: 20, total: 60, noteForSupplier: null, noteFromSupplier: null,
+  unitPrice: 20, total: 60, noteForSupplier: null,
 })
 function order(id: number, overrides: Partial<Order> = {}): Order {
   return {
     id, supplierId: 7, supplierName: 'APS', status: 'new', fulfillmentDate: null,
     fulfillmentMethod: null, confirmationDate: null, createdAt: '2026-09-15T12:00:00Z',
-    noteForSupplier: null, noteFromSupplier: null, availabilityRequestIds: [42, 43], items: [plant(id * 10, 'Rose', 'need_to_order')], ...overrides,
+    noteForSupplier: null, availabilityRequestIds: [42, 43], items: [plant(id * 10, 'Rose', 'need_to_order')], ...overrides,
   }
 }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -94,15 +94,15 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       fireEvent.change(dialog.getByRole('textbox', { name: 'Note for this order' }), { target: { value: 'Call before delivery' } })
       assert.equal(confirm.disabled, false)
       await act(async () => { fireEvent.click(confirm) })
-      assert.deepEqual(writes, [{ status: 'processing', fulfillmentDate: '2026-09-21', noteFromSupplier: 'Call before delivery' }])
+      assert.deepEqual(writes, [{ status: 'processing', fulfillmentDate: '2026-09-21', noteForSupplier: 'Call before delivery' }])
       assert.equal(current.fulfillmentMethod, null)
       assert.equal(view.queryByRole('dialog'), null)
       assert.ok(view.getByText('Processing', { selector: 'span[data-order-status]' }))
       assert.equal(view.queryByRole('button', { name: 'Acknowledge Received' }), null)
       assert.match(view.getByRole('region', { name: 'Job details' }).textContent ?? '', /Mon, 09\/21/)
-      assert.match(view.getByRole('region', { name: 'Note from supplier' }).textContent ?? '', /Call before delivery/)
+      assert.match(view.getByRole('region', { name: 'Job details' }).textContent ?? '', /Call before delivery/)
       await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Refresh' })) })
-      assert.match(view.getByRole('region', { name: 'Note from supplier' }).textContent ?? '', /Call before delivery/)
+      assert.match(view.getByRole('region', { name: 'Job details' }).textContent ?? '', /Call before delivery/)
       assert.equal(view.getByRole('link', { name: 'AR-42' }).getAttribute('href'), '/partner/7/requests/42')
       assert.equal(view.getByRole('link', { name: 'AR-43' }).getAttribute('href'), '/partner/7/requests/43')
       fireEvent.click(view.getByRole('button', { name: 'Edit fulfillment details' }))
@@ -110,7 +110,7 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.equal(edit.queryByRole('combobox'), null)
       fireEvent.change(edit.getByLabelText('Fulfillment date for O-11'), { target: { value: '2026-09-22' } })
       await act(async () => { fireEvent.click(edit.getByRole('button', { name: 'Save details' })) })
-      assert.deepEqual(writes[1], { fulfillmentDate: '2026-09-22', noteFromSupplier: 'Call before delivery' })
+      assert.deepEqual(writes[1], { fulfillmentDate: '2026-09-22', noteForSupplier: 'Call before delivery' })
       await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Mark as Ready' })) })
       assert.deepEqual(writes[2], { status: 'order_ready' })
       assert.ok(view.getByText('Order Ready', { selector: 'span[data-order-status]' }))
@@ -142,7 +142,7 @@ test('partner order lifecycle and matching request layouts', async (t) => {
     })
 
     await t.test('Chris expands job orders independently without a supplier confirmation control', () => {
-      const view = render(<>{(['new', 'processing', 'order_ready'] as const).map((status, index) => <OrderCard key={status} order={order(index + 1, { status, noteFromSupplier: 'Ready after 10 am', fulfillmentDate: '2026-09-20', fulfillmentMethod: 'pickup' })} canEdit />)}</>)
+      const view = render(<>{(['new', 'processing', 'order_ready'] as const).map((status, index) => <OrderCard key={status} order={order(index + 1, { status, noteForSupplier: 'Ready after 10 am', fulfillmentDate: '2026-09-20', fulfillmentMethod: 'pickup' })} canEdit />)}</>)
       const first = view.getByRole('button', { name: 'Expand order O-1' })
       const panel = document.getElementById(first.getAttribute('aria-controls')!)!
       fireEvent.click(first)
@@ -302,7 +302,7 @@ test('partner order lifecycle and matching request layouts', async (t) => {
     })
 
     await t.test('supplier edits price inline and sees customer details and directional notes', async () => {
-      const current = order(11, { jobNames: ['Courtyard'], customerDetails: [{ jobName: 'Courtyard', customer: { name: 'Sam', company: null, phone: '555-0100', email: 'sam@example.com' }, address: '12 Garden Lane' }], items: [{ ...plant(110, 'Rose'), noteForSupplier: 'Keep shaded', noteFromSupplier: 'Reserved' }] })
+      const current = order(11, { jobNames: ['Courtyard'], customerDetails: [{ jobName: 'Courtyard', customer: { name: 'Sam', company: null, phone: '555-0100', email: 'sam@example.com' }, address: '12 Garden Lane' }], items: [{ ...plant(110, 'Rose'), noteForSupplier: "Keep shaded\n\nReserved" }] })
       const writes: unknown[] = []
       globalThis.fetch = (async (input, init) => {
         assert.equal(String(input), '/api/partner/7/orders/11/items/110')
@@ -313,10 +313,10 @@ test('partner order lifecycle and matching request layouts', async (t) => {
       assert.ok(view.getByRole('heading', { name: 'Courtyard' }))
       assert.ok(view.getByText('12 Garden Lane'))
       assert.ok(view.getByRole('link', { name: 'sam@example.com' }))
-      assert.deepEqual(view.getAllByRole('columnheader').map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Status', 'Unit price', 'Line total', 'Note from supplier'])
-      assert.ok(view.getByRole('cell', { name: /Rose Note for supplier: ?Keep shaded/ }))
+      assert.deepEqual(view.getAllByRole('columnheader').map((cell) => cell.textContent), ['Qty', 'Size', 'Name', 'Status', 'Unit price', 'Line total', 'Note for supplier'])
+      assert.ok(view.getByRole('cell', { name: 'Rose' }))
+      assert.ok(view.getByRole('cell', { name: /Keep shaded Reserved/ }))
       assert.ok(view.getByRole('cell', { name: '$60.00' }))
-      assert.ok(view.getByRole('cell', { name: 'Reserved' }))
       const input = view.getByRole('textbox', { name: 'Price for Rose' })
       fireEvent.change(input, { target: { value: '23.50' } })
       await act(async () => { fireEvent.blur(input) })

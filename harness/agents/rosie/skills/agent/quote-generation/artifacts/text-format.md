@@ -8,7 +8,7 @@ drafts, and to text quotes with a custom format.
 
 When saved job `note_for_customer` is nonblank, render it once as a concise line
 before the items, followed by one blank line. Otherwise start with the first
-item. Never fill that line from customer, sourcing or raw AR supplier notes.
+item. Never fill that line from internal or raw AR supplier notes.
 
 Unless Chris specifies another format, output **one line per item**. Chris's
 latest correction (2026-09-11): use ` x ` between quantity and size, then a

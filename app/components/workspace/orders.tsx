@@ -136,10 +136,8 @@ function OrderItemStatus({ status, onChange }: { status: string; onChange?: (sta
 
 const supplierNoteFields = [
   { key: 'noteForSupplier', label: 'Note for supplier' },
-  { key: 'noteFromSupplier', label: 'Note from supplier' },
 ] as const
 const customerNoteFields = [
-  { key: 'noteFromCustomer', label: 'Note from customer' },
   { key: 'noteForCustomer', label: 'Note for customer' },
 ] as const
 
@@ -147,10 +145,10 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
   const cell = (item: OrderItem, column: string, value: string | number | null | undefined, numeric = false) => onEdit
     ? <EditableText table="order_items" id={item.id} column={column} value={value ?? null} numeric={numeric} className={column === 'name' ? 'whitespace-normal [overflow-wrap:anywhere]' : undefined} align={numeric ? 'right' : 'left'} touchTarget title={`Edit ${column.replaceAll('_', ' ')} for ${item.name}`} render={column === 'unit_price' ? money : numeric ? num : undefined} onCommit={(value) => onEdit(item, column, value)} onSaved={() => {}} />
     : <span>{column === 'unit_price' ? money(value) || '—' : numeric ? num(value) : value || '—'}</span>
-  const noteCell = (item: OrderItem, key: 'noteForSupplier' | 'noteFromSupplier') => onEdit
-    ? <EditableTextarea table="order_items" id={item.id} column={key === 'noteForSupplier' ? 'note_for_supplier' : 'note_from_supplier'} value={item[key]} placeholder="Add note…" editLabel={`${key === 'noteForSupplier' ? 'Note to supplier' : 'Note from supplier'} for ${item.name}`} compact onCommit={(value) => onEdit(item, key === 'noteForSupplier' ? 'note_for_supplier' : 'note_from_supplier', value)} onSaved={() => {}} />
+  const noteCell = (item: OrderItem, key: 'noteForSupplier' | 'noteForCustomer') => onEdit
+    ? <EditableTextarea table="order_items" id={item.id} column={key === 'noteForSupplier' ? 'note_for_supplier' : 'note_for_customer'} value={item[key] ?? null} placeholder="Add note…" editLabel={`${key === 'noteForSupplier' ? 'Note for supplier' : 'Note for customer'} for ${item.name}`} compact onCommit={(value) => onEdit(item, key === 'noteForSupplier' ? 'note_for_supplier' : 'note_for_customer', value)} onSaved={() => {}} />
     : <span className="block whitespace-pre-wrap px-1.5 text-[12px] text-muted-foreground [overflow-wrap:anywhere]">{item[key] || '—'}</span>
-  const noteFields = supplierNoteFields
+  const noteFields = [...supplierNoteFields, ...customerNoteFields]
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
     if (!window.matchMedia) return
@@ -170,24 +168,24 @@ function OrderLines({ lines, supplierId, showOrder = false, onStatusChange, onDe
         <col style={{ width: 64 }} /><col style={{ width: 90 }} /><col style={{ width: 220 }} />
         <col style={{ width: 170 }} /><col style={{ width: 112 }} /><col style={{ width: 112 }} /><col />
       </colgroup>
-      <thead className="bg-secondary/60 text-[10.5px] text-muted-foreground"><tr>{showOrder && <th className="p-2">Order</th>}{['Qty', 'Size', 'Name', 'Status', 'Unit price', 'Line total', 'Note from supplier'].map((label) => <th key={label} className={cn('p-2', ['Qty', 'Unit price', 'Line total'].includes(label) && 'text-right')}>{label}</th>)}</tr></thead>
+      <thead className="bg-secondary/60 text-[10.5px] text-muted-foreground"><tr>{showOrder && <th className="p-2">Order</th>}{['Qty', 'Size', 'Name', 'Status', 'Unit price', 'Line total', 'Note for supplier'].map((label) => <th key={label} className={cn('p-2', ['Qty', 'Unit price', 'Line total'].includes(label) && 'text-right')}>{label}</th>)}</tr></thead>
       <tbody>{lines.map(({ order, item }) => <tr key={`${order.id}:${item.id}`} className="bg-card align-top [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[var(--order-line-accent)]" style={orderLineStyle(item.status)}>
         {showOrder && <td className="p-3">{source(order)}</td>}
         <td className="rounded-l-xl border-y border-l border-border p-3 text-right tabular-nums">{num(item.quantity)}</td><td className="border-y border-border p-3">{item.size || '—'}</td>
-        <td className="border-y border-border p-3 [overflow-wrap:anywhere]"><span className="font-semibold">{item.name}</span>{item.noteForSupplier && <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] text-muted-foreground [overflow-wrap:anywhere]"><span className="font-semibold">Note for supplier: </span>{item.noteForSupplier}</p>}</td>
+        <td className="border-y border-border p-3 [overflow-wrap:anywhere]"><span className="font-semibold">{item.name}</span></td>
         <td className={cn('border-y border-border p-3', itemColors[item.status])}><OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} /></td>
         <td className="border-y border-border p-3"><AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} display={money(item.unitPrice)} editable={!!onPriceChange} placeholder="—" ariaLabel={`Price for ${item.name}`} inputMode="decimal" align="right" plain onCommit={(price) => onPriceChange?.(item, price)} /></td>
         <td className="border-y border-border p-3 text-right tabular-nums">{money(item.total) || '—'}</td>
-        <td className="rounded-r-xl border-y border-r border-border p-3 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.noteFromSupplier || '—'}</td>
+        <td className="rounded-r-xl border-y border-r border-border p-3 whitespace-pre-wrap [overflow-wrap:anywhere]">{item.noteForSupplier || '—'}</td>
       </tr>)}</tbody>
     </table></div>}
     {mobile && lines.map(({ order, item }, index) => <article aria-label={`Line ${index + 1}, ${item.name}`} key={`${order.id}:${item.id}`} className="space-y-3 rounded-xl border border-border bg-card p-3" style={orderLineStyle(item.status)}>
       {showOrder && source(order)}
-      <div><p className="m-0 font-semibold">{item.name}</p>{item.noteForSupplier && <p className="m-0 mt-1 whitespace-pre-wrap text-[12px] text-muted-foreground"><span className="font-semibold">Note for supplier: </span>{item.noteForSupplier}</p>}<p className="m-0 mt-1 text-[12px] text-muted-foreground">Qty {num(item.quantity)} · {item.size || '—'}</p></div>
+      <div><p className="m-0 font-semibold">{item.name}</p><p className="m-0 mt-1 text-[12px] text-muted-foreground">Qty {num(item.quantity)} · {item.size || '—'}</p></div>
       <OrderItemStatus status={item.status} onChange={onStatusChange ? (status) => onStatusChange(item, status) : undefined} />
       <label className="flex items-center justify-between gap-3 text-[12px]">Price<AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} display={money(item.unitPrice)} editable={!!onPriceChange} placeholder="—" ariaLabel={`Price for ${item.name}`} inputMode="decimal" align="right" touch onCommit={(price) => onPriceChange?.(item, price)} /></label>
       <div className="flex items-center justify-between gap-3 text-[12px]"><span>Line total</span><span className="tabular-nums">{money(item.total) || '—'}</span></div>
-      <div className="text-[12px]"><span className="text-muted-foreground">Note from supplier</span><p className="m-0 whitespace-pre-wrap">{item.noteFromSupplier || '—'}</p></div>
+      <div className="text-[12px]"><span className="text-muted-foreground">Note for supplier</span><p className="m-0 whitespace-pre-wrap">{item.noteForSupplier || '—'}</p></div>
     </article>)}
   </div>
   if (mobile) return <div className="min-w-0 space-y-3" data-testid="order-mobile-lines">
@@ -262,12 +260,11 @@ function OrderPrintSheet({ order }: { order: Order }) {
     <p className="text-[12px]">{order.supplierName} · {ORDER_STATUS_META[order.status].label}</p>
     <OrderFulfillment order={order} />
     {order.noteForSupplier && <p className="whitespace-pre-wrap text-[12px]">Note for supplier: {order.noteForSupplier}</p>}
-    {order.noteFromSupplier && <p className="whitespace-pre-wrap text-[12px]">Note from supplier: {order.noteFromSupplier}</p>}
     <p className="text-[11px]">Availability requests: {order.availabilityRequestIds.map((id) => order.availabilityRequestNames?.[id] || `AR-${id}`).join(', ') || '—'}</p>
     <table className="mt-3 w-full border-collapse text-left text-[11px] [&_td]:border [&_td]:border-neutral-400 [&_td]:p-2 [&_th]:border [&_th]:border-neutral-400 [&_th]:p-2">
-      <thead><tr>{['Plant / size', 'Quantity', 'Status', 'Unit price', 'Total', 'Note for supplier', 'Note from supplier'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
-      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td>{item.name}{item.size ? ` · ${item.size}` : ''}</td><td>{num(item.quantity)}</td><td>{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td>{money(item.unitPrice) || '—'}</td><td>{money(item.total) || '—'}</td><td className="whitespace-pre-wrap">{item.noteForSupplier}</td><td className="whitespace-pre-wrap">{item.noteFromSupplier}</td></tr>)}</tbody>
-      <tfoot><tr><td colSpan={7}>{orderRecordName(order)} · Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
+      <thead><tr>{['Plant / size', 'Quantity', 'Status', 'Unit price', 'Total', 'Note for supplier'].map((label) => <th key={label}>{label}</th>)}</tr></thead>
+      <tbody>{order.items.map((item) => <tr key={item.id} style={{ breakInside: 'avoid' }}><td>{item.name}{item.size ? ` · ${item.size}` : ''}</td><td>{num(item.quantity)}</td><td>{ORDER_ITEM_STATUS_LABELS[item.status] ?? item.status}</td><td>{money(item.unitPrice) || '—'}</td><td>{money(item.total) || '—'}</td><td className="whitespace-pre-wrap">{item.noteForSupplier}</td></tr>)}</tbody>
+      <tfoot><tr><td colSpan={6}>{orderRecordName(order)} · Subtotal {money(orderSubtotal(order)) || '—'}</td></tr></tfoot>
     </table>
   </div>, node)
 }
@@ -276,7 +273,7 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const [date, setDate] = useState(order.fulfillmentDate ?? '')
-  const [note, setNote] = useState(order.noteFromSupplier ?? '')
+  const [note, setNote] = useState(order.noteForSupplier ?? '')
   const confirming = order.status === 'new'
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null
@@ -288,7 +285,7 @@ function OrderConfirmation({ order, busy, error, onClose, onSave }: { order: Ord
     <form className="flex flex-col gap-4" onSubmit={async (event) => {
       event.preventDefault()
       if (busy || !date) return
-      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, noteFromSupplier: note })) onClose()
+      if (await onSave({ ...(confirming ? { status: 'processing' } : {}), fulfillmentDate: date, noteForSupplier: note })) onClose()
     }}>
       <h2 id={titleId} className="m-0 text-[17px] font-semibold">{confirming ? 'Acknowledge Received' : 'Fulfillment details'} · {orderRecordName(order)}</h2>
       <div className="space-y-1"><span className="block text-[11px] text-muted-foreground">Customer request</span><ARJobSchedules schedules={order.jobSchedules} showFulfillmentMethod={false} /></div>
@@ -443,7 +440,6 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
       <OrderPrintSheet order={order} />
       <OrderSummary order={order} />
       <OrderLines lines={order.items.map((item) => ({ order, item: stagedStatuses[item.id] ? { ...item, status: stagedStatuses[item.id].status } : item }))} supplierId={supplierId} onStatusChange={editable ? requestItemStatus : undefined} onPriceChange={editable && !busy ? writeItemPrice : undefined} />
-      {order.noteFromSupplier && <section aria-label="Note from supplier" className="space-y-2 rounded-xl border border-border bg-card p-4"><h2 className="m-0 text-[13px] font-semibold">Note for this order</h2><p className="m-0 whitespace-pre-wrap text-[13px] [overflow-wrap:anywhere]">{order.noteFromSupplier}</p></section>}
       {closed && <p className="m-0 text-[12px] text-muted-foreground">This order is closed.</p>}
     </div>
     {editable && <footer aria-label="Order actions" className="flex flex-none flex-wrap items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-4 print:hidden">
@@ -486,7 +482,7 @@ export function OrderCard({ order, supplierId, canEdit = false, canEditFulfillme
         <span className="inline-flex max-w-full items-stretch overflow-hidden rounded-xl border border-lps-edge bg-card text-[10.5px] font-semibold">
           <Link href={`/suppliers/${order.supplierId}`} className="flex min-h-8 min-w-0 items-center px-2 py-0.5 text-foreground hover:text-primary hover:underline">{order.supplierName}</Link>
           <span className="flex min-w-0 items-center border-l border-lps-hair px-2 py-0.5 text-muted-foreground">Fulfillment: <span className="ml-1 whitespace-nowrap font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(order.fulfillmentDate) || 'To be confirmed'}</span></span>
-          {order.noteFromSupplier && <span title={order.noteFromSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteFromSupplier}</span></span>}
+          {order.noteForSupplier && <span title={order.noteForSupplier} className="flex min-w-0 max-w-64 items-center border-l border-lps-hair px-2 py-0.5 font-normal"><span className="truncate">{order.noteForSupplier}</span></span>}
         </span>
         {order.confirmationDate && <span>Acknowledged: {formatWeekdayMonthDay(order.confirmationDate)}</span>}
         <div className="ml-auto"><OrderRequestLinks order={order} /></div>
@@ -521,7 +517,6 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   const [confirmed, setConfirmed] = useState(false)
   const [method, setMethod] = useState<FulfillmentMethod | ''>('')
   const [noteForSupplier, setNoteForSupplier] = useState('')
-  const [noteFromCustomer, setNoteFromCustomer] = useState('')
   const [noteForCustomer, setNoteForCustomer] = useState('')
   const [createdId, setCreatedId] = useState<number | null>(null)
   const revision = useRef(0)
@@ -580,10 +575,10 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
   async function create() {
     setCreating(true); setError(null)
     try {
-      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, noteForSupplier: noteForSupplier || null, noteFromCustomer: noteFromCustomer || null, noteForCustomer: noteForCustomer || null, items: useDirect ? selectedDirectItems : selectedItems }) })
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierId, customerConfirmed: confirmed, fulfillmentMethod: method || null, noteForSupplier: noteForSupplier || null, noteForCustomer: noteForCustomer || null, items: useDirect ? selectedDirectItems : selectedItems }) })
       const body = await res.json() as { id: number; error?: string }
       if (!res.ok) throw new Error(body.error ?? 'Could not create order')
-      setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNoteForSupplier(''); setNoteFromCustomer(''); setNoteForCustomer('')
+      setCreatedId(body.id); setQuantities({}); setConfirmed(false); setOpen(false); setNoteForSupplier(''); setNoteForCustomer('')
       await load(); onChanged?.()
     } catch (error) { setError((error as Error).message) }
     finally { setCreating(false) }
@@ -639,7 +634,6 @@ export function JobOrders({ jobRequestId, onChanged, version = 0 }: { jobRequest
       </div>}
       {invalidQuantity && <p role="alert" className="text-[12px] text-destructive">Enter positive quantities within the job and supplier quantities remaining.</p>}
       <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for supplier<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForSupplier} onChange={(event) => setNoteForSupplier(event.target.value)} /></label>
-      <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note from customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteFromCustomer} onChange={(event) => setNoteFromCustomer(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">Note for customer<textarea className="min-h-16 rounded-md border border-input bg-background p-2 text-[12px]" value={noteForCustomer} onChange={(event) => setNoteForCustomer(event.target.value)} /></label>
       <label className="flex items-start gap-2 text-[12px]"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />Customer has confirmed the selected quantities for every included job.</label>
       <div className="flex justify-end"><button type="submit" className={primary} disabled={creating || loading || !confirmed || !(useDirect ? selectedDirectItems : selectedItems).length || invalidQuantity}>{creating ? 'Creating…' : 'Create new order'}</button></div>

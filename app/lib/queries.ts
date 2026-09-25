@@ -1027,22 +1027,18 @@ const WRITABLE: Record<string, string[]> = {
     'common_name', 'botanical_name', 'cultivar_variety_trade_name',
     'size', 'height', 'width', 'caliper', 'tags', 'caption', 'notes',
   ],
-  // Absent on purpose: `note_from_customer` is the customer's own words and is
-  // evidence, not a field (docs/supabase-schema.md). `customer_id` is absent
-  // too: mapping an anonymous request to a customer is a find-or-create
-  // decision, not a typed correction.
-  // `note_internal` IS writable — it is a free-text working sheet, kept
-  // current by editing it, and the changelog records every before/after.
+  // Customer and internal sourcing notes are editable. Customer mapping remains
+  // a find-or-create decision rather than a typed correction.
   job_requests: [
     'name', 'status', 'note_for_customer', 'note_internal', 'expected_install_date', 'fulfillment_method',
     'billing_address', 'billing_city', 'billing_state', 'billing_zip',
     'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip',
   ],
   // No `total`: generated from demanded_quantity × unit_price, so a write is rejected by
-  // Postgres outright. The customer line note is editable beneath the plant name.
+  // Postgres outright. The merged customer note is edited in its own column.
   job_request_items: [
     'name', 'size', 'demanded_quantity', 'available_quantity', 'unit_price',
-    'status', 'note_from_customer', 'note_for_customer', 'note_internal',
+    'status', 'note_for_customer', 'note_internal',
   ],
   // `notes` is durable facts about the customer, edited in place. There is no
   // contact-log column beside it any more: `communication_notes` was dropped by

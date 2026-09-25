@@ -17,12 +17,12 @@ interface QueryCall {
 
 const request = (id: number, overrides: Row = {}): Row => ({
   id, customer_id: null, name: `Project ${id}`, status: 'quoted', is_active: true,
-  note_from_customer: null, note_internal: null, note_for_customer: null,
+  note_for_customer: null, note_internal: null,
   created_at: '2026-09-01T12:00:00Z', expected_install_date: null, updated_at: null, ...overrides,
 })
 const item = (id: number, jobId: number, overrides: Row = {}): Row => ({
   id, job_request_id: jobId, name: `Plant ${id}`, size: null, is_active: true,
-  note_from_customer: null, note_internal: null, note_for_customer: null, ...overrides,
+  note_for_customer: null, note_internal: null, ...overrides,
 })
 
 /** Executes the actual query module with server-only/database boundaries replaced. */
@@ -79,7 +79,7 @@ test('search corpus includes active job/customer/item fields and preserves saved
   const source = inbox({
     job_requests: [
       request(1, { customer_id: 7, name: 'Courtyard', expected_install_date: '2026-10-03',
-        note_from_customer: 'Job timing', note_internal: 'Job APS', note_for_customer: 'Job offer' }),
+        note_for_customer: "Job timing\n\nJob offer", note_internal: 'Job APS' }),
       request(2, { status: 'committed' }),
       request(3, { status: 'closed_won', name: 'Closed won secret' }),
       request(4, { status: 'closed_lost', name: 'Closed lost secret' }),
@@ -88,7 +88,7 @@ test('search corpus includes active job/customer/item fields and preserves saved
     ],
     customers: [{ id: 7, name: 'Jamie Gardner', company: 'Green Landscaping', is_active: true }],
     job_request_items: [
-      item(1, 1, { name: 'Wax Myrtle', size: '15 G', note_from_customer: 'Item constraint', note_internal: 'Item alternative', note_for_customer: 'Item delivery' }),
+      item(1, 1, { name: 'Wax Myrtle', size: '15 G', note_for_customer: "Item constraint\n\nItem delivery", note_internal: 'Item alternative' }),
       item(2, 1, { is_active: false, name: 'Inactive item secret' }),
       ...[3, 4, 5, 6].map((id) => item(id, id, { name: 'Excluded job item secret' })),
     ],

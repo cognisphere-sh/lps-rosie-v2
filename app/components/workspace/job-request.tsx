@@ -457,10 +457,9 @@ function NoteCell({
         value={value}
         onSaved={onSaved}
         touchTarget={touchTarget}
-        placeholder={internal ? 'Add an internal note…' : ''}
+        placeholder={''}
         renderPreview={internal ? renderInternalNote : undefined}
         previewClickToEdit={internal}
-        editLabel={internal ? `Edit internal note for ${title}` : `Edit note for customer for ${title}`}
         inlineControls
         compact={!internal}
       />
@@ -523,7 +522,7 @@ function ItemRow({
           // Colour lives on the wrapper so blank availability remains distinct from zero.
           case 'available_quantity': return <div key={column.key} className="px-1" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="right" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
           case 'size': return <div key={column.key} className="px-1"><EditableText {...edit} column="size" value={item.size} /></div>
-          case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span><EditableTextarea {...edit} column="note_from_customer" value={item.noteFromCustomer} placeholder="Add note…" editLabel={`Customer note for ${item.name}`} compact /></div>
+          case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
           case 'status': return <div key={column.key} className="px-1.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
           case 'note_for_customer': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
           case 'unit_price': return <div key={column.key} className="px-1"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="right" render={(v) => money(v)} /></div>

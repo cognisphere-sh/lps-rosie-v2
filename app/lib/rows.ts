@@ -187,7 +187,7 @@ export interface PhotoCard {
  * One note on a job request or line item, as the notes popover renders it.
  *
  * The database keeps three note columns rather than a thread table
- * (`note_from_customer` / `note_internal` / `note_for_customer`), so a "thread" here
+ * (`note_for_customer` / `note_internal` / `note_for_customer`), so a "thread" here
  * is those columns split into their timestamped entries — see `noteEntries` in
  * lib/queries.ts. `kind` is what decides who may see it: `internal` never
  * reaches a customer-facing surface.
@@ -226,11 +226,6 @@ export interface JobRequestItem {
   total: number | null
   status: string
   notes: JobNote[]
-  /**
-   * Raw `note_from_customer` — what the customer said about *this line*, shown
-   * under its name. Theirs, so read-only wherever it appears.
-   */
-  noteFromCustomer: string | null
   /** Raw `note_for_customer`, for the editor — `notes` is the parsed view of it. */
   noteForCustomer: string | null
   /** Raw `note_internal` Markdown, preserved for editing and rendered by the UI. */
@@ -267,7 +262,6 @@ export interface JobRequestRow {
   fulfillmentMethod?: 'pickup' | 'delivery' | null
   billing: JobAddress
   shipping: JobAddress
-  noteFromCustomer: string | null
   notes: JobNote[]
   /** Raw `note_for_customer`, for the editor — `notes` is the parsed view of it. */
   noteForCustomer: string | null

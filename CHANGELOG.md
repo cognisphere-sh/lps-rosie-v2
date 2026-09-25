@@ -15,6 +15,18 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-24 — merged sourcing notes
+
+- Merge customer requirements/outcomes into `note_for_customer` and supplier
+  instructions/responses into `note_for_supplier` across job, AR and order
+  headers/items; preserve private job `note_internal`.
+- Render each merged line note once in its note column across tables, mobile,
+  print and order copies. Preserve existing note content and audit data in
+  migration 0115; update query/RPC contracts and Rosie’s versioned skills.
+- Limit Rosie’s customer notes to plant sourcing, excluding spacing, layout and
+  unrelated details; support merged multiline notes in plain-text quotes. Clean
+  JR-77’s header and 26 item notes, retaining substitutes and purchasing units.
+
 ## 2026-09-24
 
 - Reorder supplier order detail columns to Qty, Size, Name, Status, Unit price, Line total, and Note from supplier; show the note for supplier directly below the plant name.

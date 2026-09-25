@@ -633,14 +633,10 @@ export function AvailabilityRequestDrawer() {
                   onChange={(publicToken) => {
                     if (isCurrent(session) && arRef.current) setAr({ ...arRef.current, publicToken })
                   }} />
-                {ar.noteFromSupplier && <div className="rounded-lg border border-border bg-card p-3 text-[12px]">
-                  <div className="font-semibold">Note from supplier</div>
-                  <p className="mt-1 whitespace-pre-wrap">{ar.noteFromSupplier}</p>
-                </div>}
                 {ar.noteForSupplier && (
                   <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] leading-5 text-foreground">
                     <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                      Note to supplier
+                      Note for supplier
                     </span>
                     {ar.noteForSupplier}
                   </p>

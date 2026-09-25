@@ -9,7 +9,7 @@ Preserve the requested name, quantity and allocations unless he explicitly chang
 them. A manual APS seed price can be retained with `mapped_inventory_id = NULL`
 when it is generic, proxy-based or otherwise not an exact inventory identity; never
 map it merely to justify the price. Do not write supplier-answer fields (`status`,
-`available_quantity`, `note_from_supplier`), create a supplier response, infer stock/cultivar or
+`available_quantity`) or invent supplier response content in the shared note, create a supplier response, infer stock/cultivar or
 availability, or send/publish anew because of the correction. Check the header after
 the write: if no supplier answer/submission exists and a field-level edit advanced
 it to Processing, restore the truthful New state with a guarded update; otherwise

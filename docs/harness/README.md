@@ -118,7 +118,7 @@ per-agent config and prompt notes are documented in each agent's file.
 
 ### AR supplier response note (migration 0095)
 
-`availability_requests.note_from_supplier` stores the supplier’s request-wide note,
+`availability_requests.note_for_supplier` stores shared request-wide sourcing requirements and supplier replies,
 separate from LPS instructions and line notes. The new trusted submission RPCs
 validate supplier ownership or the public token and use the existing row-lock
 closure guard. The note and submitted status commit in one transaction. The
@@ -142,3 +142,10 @@ and all four agents are running; webchat is running for Daisy, Nova and Rosie.
 The local and public app login endpoints return HTTP 200. The Daisy and Rosie
 Google Workspace plugins still require Google sign-in through Settings; their
 credential-file secrets were absent before this deployment.
+
+Rosie’s merged note contract (migration 0115): job headers/items retain
+`note_for_customer` plus private `note_internal`; AR headers/items retain one
+`note_for_supplier`; order headers/items retain one note per audience. Skills
+preserve requirements alongside supported responses, exclude spacing and other
+non-sourcing details, and distinguish actual supplier responses from seeded ask
+text. The quote script renders merged multiline notes as concise inline text.

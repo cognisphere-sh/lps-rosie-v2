@@ -23,7 +23,6 @@ const line = (o: Partial<SupplierItemLine> & { id: number }): SupplierItemLine =
   status: null,
   availableQuantity: null,
   unitPrice: null,
-  noteFromSupplier: null,
   noteForSupplier: null,
   arId: 1,
   arStatus: 'new',

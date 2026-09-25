@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.10.3)
+description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.11.0)
 metadata:
   author: lps
-  version: "3.10.3"
+  version: "3.11.0"
 ---
 
 # Quote generation
@@ -23,7 +23,7 @@ metadata:
 3. Read [notes for customer](artifacts/shared-notes.md) when preparing/changing job or
    item `note_for_customer`. They hold customer-facing information from Chris/LPS
    sourcing or submitted supplier responses. `job-requests` owns audience and
-   scope; preserve customer input in `note_from_customer` and internal progress in
+   scope; preserve customer input in `note_for_customer` and internal progress in
    `note_internal`. Each quoted row names one actual offered plant/size; a
    pricing proxy retains requested identity. Render only saved customer-facing notes.
 4. For the default format run [the renderer](artifacts/rendering.md):

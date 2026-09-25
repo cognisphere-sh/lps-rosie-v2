@@ -48,7 +48,7 @@ test('row fields and behavior move with their headers without changing semantics
   assert.match(row, /column="demanded_quantity"[\s\S]*?title="Demand — what the customer asked for"/)
   assert.match(row, /style=\{\{ color: coverColor\(cover\) \}\}[\s\S]*?column="available_quantity"[\s\S]*?title="Avail — how many we can supply\. Blank means not answered yet\."/)
   assert.match(row, /zero when unavailable; otherwise available quantity × unit price, falling back to demand[\s\S]*?quoteLineTotal\(item\)/)
-  assert.match(row, /column="name" value=\{item\.name\}[\s\S]*?item\.noteFromCustomer/)
+  assert.match(row, /column="name" value=\{item\.name\}[\s\S]*?item\.noteForCustomer/)
   assert.match(row, /<StatusPill[\s\S]*?column="status"[\s\S]*?options=\{ITEM_STATUS_OPTIONS\}/)
 })
 

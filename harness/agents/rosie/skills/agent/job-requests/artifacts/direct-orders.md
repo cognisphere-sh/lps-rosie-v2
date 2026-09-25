@@ -26,7 +26,7 @@ No AR, supplier answer or availability override is required.
      $supplierId,
      '[{"job_request_item_id":7,"quantity":10}]'::jsonb,
      $fulfillmentMethod, $fulfillmentDate, $noteForSupplier, true,
-     $noteFromCustomer, $noteForCustomer
+     $noteForCustomer
    );
    ```
 
@@ -38,7 +38,7 @@ No AR, supplier answer or availability override is required.
 4. The transaction creates an Order **New** and its allocations and moves
    represented Quote/Availability jobs to **Committed**. Its order rows link
    through `order_item_job_request_items` and snapshot job-item name, size, price,
-   `note_for_customer` and current item status. Customer-origin line requirements remain on the job item; order items have no `note_from_customer`. Supplier note fields start NULL; pass header LPS instructions through `p_note_for_supplier`. Do not mark job items available, set
+   `note_for_customer` and current item status. The merged customer sourcing note is copied to the order item. Supplier notes start NULL; pass header LPS instructions through `p_note_for_supplier`. Do not mark job items available, set
    `available_quantity`, fabricate supplier answers/submissions or confirmation
    dates, or create even a hidden/support AR to enable the order. An explicit
    separate availability instruction follows [supplier responses](supplier-responses.md) with its own provenance.

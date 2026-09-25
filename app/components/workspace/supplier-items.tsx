@@ -22,7 +22,7 @@
 //   how it is said.
 //
 // Since 2026-08-30 the view is one flat table (Demand · Size · Name · Date ·
-// Status · Avail. Qty · Note from supplier) drawn to the Figma comp, filtered by the
+// Status · Avail. Qty · Note for supplier) drawn to the Figma comp, filtered by the
 // answer-status tabs the home page draws above it.
 
 import { useState } from 'react'
@@ -39,7 +39,7 @@ import { formatWeekdayMonthDay, num } from '@/lib/format'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
 import { cn } from '@/lib/utils'
 
-/** Demand · Size · Name · Date · Status · Avail. Qty · Note from supplier. */
+/** Demand · Size · Name · Date · Status · Avail. Qty · Note for supplier. */
 const COLUMNS = '72px 110px minmax(220px,1.4fr) 96px 160px 90px minmax(200px,1fr)'
 const GRID_MIN = 900
 
@@ -147,11 +147,11 @@ function AnswerCells({
         onCommit={(next) => void onPatch(line.id, { available_quantity: next.trim() })}
       />
       <AnswerCell
-        value={line.noteFromSupplier ?? ''}
+        value={line.noteForSupplier ?? ''}
         editable
         placeholder="Add note…"
-        display={line.noteFromSupplier ?? ''}
-        onCommit={(next) => void onPatch(line.id, { note_from_supplier: next.trim() })}
+        display={line.noteForSupplier ?? ''}
+        onCommit={(next) => void onPatch(line.id, { note_for_supplier: next.trim() })}
         ariaLabel={`Line ${line.id} supplier notes`}
         multiline
       />
@@ -339,7 +339,7 @@ export function SupplierItemGroups({
         <span className="px-1">Date</span>
         <span className="px-1">Status</span>
         <span className="px-1 text-right">Avail. Qty</span>
-        <span className="px-1">Note from supplier</span>
+        <span className="px-1">Note for supplier</span>
       </div>
       <div className="overflow-hidden rounded-xl border border-border" style={{ minWidth: GRID_MIN }}>
         {groups.map((group) => (

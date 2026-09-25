@@ -46,7 +46,7 @@ Questions may cover any relevant detail, such as plant/cultivar, size,
 quantity, alternatives, budget, delivery timing/location, supplier or scope;
 these are examples, not a required checklist. Use answers already provided.
 Do not serially gate the job handoff or independent work on optional subjective
-refinement: retain customer-stated options in `note_from_customer`, track
+refinement: retain customer-stated options in `note_for_customer`, track
 material open sourcing/quantity decisions in `note_internal`, and ask only
 when a decision is needed for the affected output.
 Wait for needed answers before generating the affected quote or creating/
@@ -83,7 +83,7 @@ requirement. If the request is clear, proceed without extra questions.
    then known name/company. Do not infer a person's name from an address.
    A new, identified customer gets its own `rosie_thread_id` through
    `message-routing`. If unidentified, `customer_id` stays NULL and any
-   identity clues go in `note_from_customer`.
+   identity clues go in `note_for_customer`.
 4. Insert the reserved id with `OVERRIDING SYSTEM VALUE`. Explicitly set
    `status = 'quoted'` (displayed **Quote**). Store `job_requests.name` as
    **`Customer/Company Name | Slug`**, with one space on each side of `|`.
@@ -114,10 +114,10 @@ requirement. If the request is clear, proceed without extra questions.
    ```sql
    SET app.actor TO 'rosie';
    INSERT INTO job_requests
-     (id, customer_id, name, status, note_from_customer,
+     (id, customer_id, name, status, note_for_customer,
       expected_install_date, fulfillment_method)
    OVERRIDING SYSTEM VALUE
-   VALUES ($jobId, $customerId, $name, 'quoted', $noteFromCustomer,
+   VALUES ($jobId, $customerId, $name, 'quoted', $noteForCustomer,
            $expectedInstallDate, $fulfillmentMethod);
    ```
 
@@ -150,19 +150,25 @@ requirement. If the request is clear, proceed without extra questions.
    delivery planning date, separate from the supplier order's actual
    confirmation and fulfillment dates.
    Save additional customer-supplied job-wide requests in
-   `job_requests.note_from_customer`, using [note audiences](notes.md).
+   `job_requests.note_for_customer`, using [note audiences](notes.md).
 
 5. Create item rows before asking questions: one per clearly separate
    requested line, preserving the supplied plant name, size and requested amount
-   in `demanded_quantity`.
+   in `demanded_quantity`. When the source supplies both a common and botanical
+   name for the same requested plant, put both in the item's `name` as
+   `Common Name | Botanical name` (one space on either side of `|`), retaining
+   cultivar/variant wording and the source's identity rather than replacing it
+   with a catalogue name. Do not infer a missing common or botanical name from
+   a price proxy; if only one name is supplied, retain that one.
    Save the customer's additional line details in
-   `job_request_items.note_from_customer`: alternatives (including all stated
-   plant/size options), color, special requests and other requirements. Keep
+   `job_request_items.note_for_customer`: alternatives (including all stated
+   plant/size options), color, form, purchasing units and other plant sourcing requirements. Exclude
+   spacing, layout, installation instructions and unrelated additional details. Keep
    job-wide details on the job. Track material unresolved sourcing or quantity
    choices briefly in the applicable `note_internal`, without attributing an
-   unmade decision to the customer or selecting an option. The customer-origin
-   notes supply relevant context for a later authorized AR; do not store
-   internal sourcing decisions or customer-facing quote commentary as customer input.
+   unmade decision to the customer or selecting an option. The merged customer notes also retain supported customer-facing sourcing
+   outcomes and supply relevant context for a later authorized AR. Keep internal
+   decisions and unresolved interpretations in `note_internal`.
    Missing size, quantity or price stays NULL and does not prevent creating
    a row with a supplied plant name. If the plant name itself is missing,
    record the unresolved request in job notes and create the other rows;

@@ -1,0 +1,67 @@
+-- Reviewed JR-77 cleanup after 0115, requested 2026-09-24.
+-- Remove spacing/category labels; preserve sourcing alternatives and flat units.
+-- Exact previous-value guards abort if a note has changed since review.
+BEGIN;
+SET LOCAL lock_timeout='250ms';
+SET LOCAL statement_timeout='2s';
+SET LOCAL transaction_timeout='3s';
+SET LOCAL app.actor='notes-rationalisation';
+DO $$
+BEGIN
+ UPDATE public.job_requests SET note_for_customer=NULL WHERE id=77 AND is_active AND note_for_customer IS NOT DISTINCT FROM 'Planting schedule supplied as an image; spacing is shown on the plan. Customer/project identity, expected pickup or delivery date, and fulfillment method not specified.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_requests 77'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=636 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Ornamental trees & screening shrubs; spacing 3 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 636'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=637 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Ornamental trees & screening shrubs; spacing 15 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 637'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=638 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Accents; spacing 6 ft. Size listed as 15/20 gal; confirm exact size if needed.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 638'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=639 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Accents; spacing 2 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 639'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=640 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Accents; spacing 30 in.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 640'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=641 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Accents; spacing 5 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 641'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=642 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Accents; spacing 4 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 642'; END IF;
+ UPDATE public.job_request_items SET note_for_customer='Sub soft leaf yucca.' WHERE id=643 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Accents; spacing 2 ft. Plan note: Sub soft leaf yucca.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 643'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=644 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 2 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 644'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=645 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 6 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 645'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=646 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 18 in.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 646'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=647 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 3 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 647'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=648 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 4 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 648'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=649 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 4 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 649'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=650 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 19 in.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 650'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=651 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 3 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 651'; END IF;
+ UPDATE public.job_request_items SET note_for_customer='Sub dwarf pittosporum.' WHERE id=652 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 4 ft. Plan note: Sub dwarf pittosporum.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 652'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=653 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 30 in.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 653'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=654 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 3 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 654'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=655 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 2 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 655'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=656 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Shrubs & perennials; spacing 4 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 656'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=657 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Ornamental grasses & sedges; spacing 18 in.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 657'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=658 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Ornamental grasses & sedges; spacing 2 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 658'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=659 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Ornamental grasses & sedges; spacing 4 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 659'; END IF;
+ UPDATE public.job_request_items SET note_for_customer=NULL WHERE id=660 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Vines; spacing 6 ft.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 660'; END IF;
+ UPDATE public.job_request_items SET note_for_customer='1 flat; pot count per flat unknown. Price per flat.' WHERE id=661 AND is_active AND job_request_id=77 AND note_for_customer IS NOT DISTINCT FROM 'Groundcovers; spacing 2 ft. Plan specifies 1 flat; pot count per flat is unknown. Do not price as one pot.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Note changed since review: job_request_items 661'; END IF;
+END $$;
+SELECT count(*) AS remaining_spacing_notes FROM public.job_request_items WHERE job_request_id=77 AND is_active AND note_for_customer ILIKE '%spacing%';
+COMMIT;

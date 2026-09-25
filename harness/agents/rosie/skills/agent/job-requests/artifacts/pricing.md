@@ -59,7 +59,12 @@ fields or change job availability/status from the manual input.
    and remaining NULLs, rather than leaving supported rows unpriced.
    For real gaps, research 1–2 closest supported APS alternatives, preferring
    the same plant/nearby size, then defensible related plants; report them in
-   chat without selecting them or widening supplier scope. A different size is
+   chat without selecting them or widening supplier scope. When the exact
+   requested size is absent, record a genuinely relevant closest listed size
+   or variant, its actual APS list price and any identity/size limitation in the
+   affected item's `note_internal`; omit merely genus-related but materially
+   different species without a sensible sourcing connection. Keep the original
+   requested size/identity and NULL price untouched. A different size is
    not a very close color/variant price proxy merely because it is nearby.
    No price means NULL, never zero. Catalogue stock stays
    catalogue evidence: new item status remains `pending`; pricing alone does
@@ -76,9 +81,17 @@ fields or change job availability/status from the manual input.
    Chris **which price to use** when a listed, genuinely very close alternative
    differs in color or variant at the requested size; present the original
    price gap and the alternative's actual price, and wait for his scoped
-   selection before applying that proxy to the row or seeding the AR. A
-   different size or materially different form is not covered by this
-   close-variant price-choice rule. If no such close price exists, do not ask
+   selection before applying that proxy to the row or seeding the AR. In each
+   proxy-price question, offer a separate `Use this proxy price always` option
+   alongside a one-time use and a decline. Explain that `always` means the
+   selected inventory item's *current* same-size price may be used for this
+   specifically named requested variant in future requests when its exact
+   listing is absent—not a fixed price, botanical alias, substitution, stock
+   confirmation or exact AR mapping. On selection, save the scoped authorization
+   in that selected proxy inventory row's `internal_notes` under
+   `plant-and-supplier-search` before future reuse; preserve existing notes and
+   the approval evidence. A different size or materially different form is not
+   covered by this close-variant price-choice rule. If no such close price exists, do not ask
    him to choose an alternative price; preserve the gap. An unanswered proxy
    choice leaves that row's price NULL; finish independent rows and, once the
    original-plant AR scope and send are approved, the unresolved price alone
@@ -123,7 +136,7 @@ fields or change job availability/status from the manual input.
    each supported saved price and exact inventory UUID mapping, Chris-accepted
    proxy seed prices (explicitly marked unmapped), and each unresolved NULL
    price or pending close-variant price decision. Include separate alternative
-   approvals, and supplier-relevant `note_from_customer` from
+   approvals, and supplier-relevant `note_for_customer` from
    the job and its items for AR header/line `note_for_supplier`. Preserve note scope
    and omit private customer details unless sharing is authorized.
    A request may combine several jobs;
@@ -141,15 +154,15 @@ fields or change job availability/status from the manual input.
    job's chat; send any required approval to the original request thread.
 
 For a submitted supplier `diff_size_qty_sub` response, follow [supplier
-responses](supplier-responses.md) before repricing. Chris's standing instruction
-covers a supported proposed alternative on the first explicit APS submission;
-other responses require his scoped approval for the actual different offering
-and supported price or authorized proxy before that item's selected quote uses
-the alternative; the original size/variant's price is never the fallback
-for the newly selected offering, even when it remains listed. Preserve the
-original request and any already accepted customer terms until their scoped
-change is authorized. A missing new-offering price remains unresolved, not an
-excuse to reuse the old one.
+responses](supplier-responses.md#different-size-jr-display) before repricing.
+Chris's JR-78 display instruction permits one clearly offered size and its
+supported price in an unaccepted JR line **only within an otherwise authorized
+job update**; it does not select the alternative for quote/order, accept it
+for the customer or authorize outreach. Later submissions still need Chris's
+scoped job-update instruction. The old size's price is never a fallback for
+the new offering. Preserve the original request in the customer note when
+display changes, and all accepted terms until their scoped change is approved.
+A missing new-offering price stays unresolved.
 
 The existing Chris-approved cultivar/color pricing convention remains:
 crape myrtles, plumbago and salvias may use APS's generic line at the same

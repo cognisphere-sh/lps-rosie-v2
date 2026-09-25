@@ -1,6 +1,6 @@
 ### Customer-facing quote notes
 
-`note_for_customer` on jobs and items holds **only** these customer-useful
+`note_for_customer` on jobs and items combines customer sourcing requirements with these customer-useful
 outcomes from Chris/LPS or submitted supplier evidence (Chris, 2026-09-23):
 
 - Unavailable original plant → a recommended alternative, if any, only after
@@ -24,8 +24,9 @@ conditions already present where they fit these outcomes, but keep internal
 costs, comparisons, follow-ups, unverified cultivar/pricing-proxy caveats and
 supplier-directed questions in `note_internal` or the appropriate supplier ask.
 For example, `Plum Delight cultivar not confirmed` and `RED Avail?` are **not**
-customer notes. Customer-supplied requirements stay in `note_from_customer`;
-never delete or relocate them to enforce the external-note rule.
+customer notes. Preserve customer sourcing requirements in the same merged
+`note_for_customer` when adding supported outcomes. Exclude spacing, layout,
+installation directions, project labels and other non-sourcing details.
 
 Keep the note LIMITED: Chris's JR-75 corrections (webchat message 10,
 2026-09-24 04:48:57 CDT) replace `7 G proposed instead of requested 15 G;
@@ -48,7 +49,7 @@ quote. Keep attribution in internal/supplier records when needed. Omit
 information inferable from other job/item columns, status or row grouping,
 and leave NULL when none is needed. In particular, do not repeat an unavailable
 status as a standalone customer note. Do not treat a supplier suggestion as an approved offering or copy raw
-supplier/customer/internal notes at render time. Never tell the customer an
+supplier/internal notes at render time. Never tell the customer an
 internal substitution was declined; show a properly approved alternative for
 their consideration with its verified updated customer price, not the original
 offering's price. If the proposed alternative's exact identity or customer
@@ -106,7 +107,7 @@ in `job-requests` and `customer-coordination`.
 - In plain-text quotes, include a brief inline note **only when the item's
   existing shared/customer-facing `note_for_customer` is nonblank** (Chris,
   2026-09-11). Concisely render that note; do not invent or reconstruct an
-  inline note from customer notes, internal notes, raw AR notes or chat.
+  inline note from internal notes, raw AR notes or chat.
   Populate the appropriate external field under `job-requests` before rendering.
   If absent, omit the note and its extra separator. Place the note after the
   plant name and before the unit

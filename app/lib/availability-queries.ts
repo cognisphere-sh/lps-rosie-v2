@@ -27,7 +27,6 @@ interface ARRecord {
   submitted_at: string | null
   created_at: string
   note_for_supplier: string | null
-  note_from_supplier: string | null
 }
 
 interface ARItemRecord {
@@ -39,7 +38,6 @@ interface ARItemRecord {
   status: string | null
   available_quantity: number | null
   unit_price: number | null
-  note_from_supplier: string | null
   note_for_supplier: string | null
 }
 
@@ -48,7 +46,7 @@ interface ARItemRecord {
 // are explicitly mapped by summarize(), including supplier disclosure rules.
 const AR_COLUMNS = '*'
 const AR_ITEM_COLUMNS =
-  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_from_supplier, note_for_supplier'
+  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier'
 
 const toARItem = (r: ARItemRecord): ARItem => ({
   id: r.id,
@@ -58,7 +56,6 @@ const toARItem = (r: ARItemRecord): ARItem => ({
   status: r.status,
   availableQuantity: r.available_quantity == null ? null : Number(r.available_quantity),
   unitPrice: r.unit_price == null ? null : Number(r.unit_price),
-  noteFromSupplier: r.note_from_supplier,
   noteForSupplier: r.note_for_supplier,
 })
 
@@ -157,7 +154,6 @@ async function summarize(records: ARRecord[]): Promise<ARSummary[]> {
     itemCount: counts.get(r.id)?.items ?? 0,
     answeredCount: counts.get(r.id)?.answered ?? 0,
     noteForSupplier: r.note_for_supplier,
-    noteFromSupplier: r.note_from_supplier ?? null,
   }))
 }
 
@@ -563,7 +559,7 @@ export async function supplierAvailabilityEventContext(arId: number, forSupplier
 
 /** Submit atomically with the closure guard, then notify the supplier's thread. */
 export async function submitAvailabilityRequest(arId: number, forSupplierId: number, supplierNote?: string | null) {
-  if (supplierNote !== undefined && supplierNote !== null && (typeof supplierNote !== "string" || supplierNote.length > 10000)) throw new Error("Note from supplier must be text of 10000 characters or fewer")
+  if (supplierNote !== undefined && supplierNote !== null && (typeof supplierNote !== "string" || supplierNote.length > 10000)) throw new Error("Note for supplier must be text of 10000 characters or fewer")
   const { error } = supplierNote === undefined
     ? await supabase.rpc('answer_availability_request', { p_request_id: arId, p_supplier_id: forSupplierId, p_submit: true })
     : await supabase.rpc('submit_availability_request_note', { p_request_id: arId, p_supplier_id: forSupplierId, p_note: supplierNote })

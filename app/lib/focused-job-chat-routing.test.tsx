@@ -94,7 +94,7 @@ function request(id: number, name: string): JobRequestRow {
     id, name, status: 'quoted', customer: null,
     billing: { address: null, city: null, state: null, zip: null },
     shipping: { address: null, city: null, state: null, zip: null },
-    noteFromCustomer: null, notes: [], noteForCustomer: null, noteInternal: null,
+    noteForCustomer: null, notes: [], noteInternal: null,
     itemCount: 0, statusCounts: {}, lineTotal: 0, supplierLinks: [], items: [],
     createdAt: '2026-08-31T00:00:00Z', updatedAt: '2026-08-31T00:00:00Z',
   }

@@ -49,7 +49,7 @@ export function ARPrintSheet({
       <table className="w-full border-collapse text-[10px] text-black" style={{ border: '2px solid #999' }}>
         <thead>
           <tr className="bg-neutral-100 text-left">
-            {['Qty', 'Size', 'Name', 'Status', 'Avail. Qty', 'Price', 'Note from supplier'].map((h) => (
+            {['Qty', 'Size', 'Name', 'Status', 'Avail. Qty', 'Price', 'Note for supplier'].map((h) => (
               <th key={h} className="font-bold" style={cell({ padding: '3px 6px' })}>
                 {h}
               </th>
@@ -63,11 +63,6 @@ export function ARPrintSheet({
               <td style={cell({ width: 44 })}>{item.size ?? ''}</td>
               <td style={cell()}>
                 <span className="block font-bold">{item.name}</span>
-                {item.noteForSupplier && (
-                  <span className="block text-[8.5px] italic leading-tight text-neutral-600">
-                    {displayText(item.noteForSupplier)}
-                  </span>
-                )}
               </td>
               <td style={cell({ width: 176, padding: '3px 6px' })}>
                 {/* Full status labels, including Pending, stay readable on paper. */}
@@ -85,7 +80,7 @@ export function ARPrintSheet({
               </td>
               <td className="text-right tabular-nums" style={cell({ width: 44 })}>{num(item.availableQuantity)}</td>
               <td className="text-right tabular-nums" style={cell({ width: 54 })}>{money(item.unitPrice)}</td>
-              <td style={cell({ width: 96 })}>{item.noteFromSupplier ?? ''}</td>
+              <td style={cell({ width: 96 })}>{displayText(item.noteForSupplier ?? '')}</td>
             </tr>
           ))}
         </tbody>
@@ -101,7 +96,7 @@ export function ARPrintSheet({
         </tfoot>
       </table>
       <p className="mb-0 mt-3 text-[10px] font-bold">Additional Comments</p>
-      <div className="h-14" style={{ border: '1px solid #999' }} />
+      <div className="min-h-14 whitespace-pre-wrap text-[10px]" style={{ border, padding: 6 }}>{displayText(request.noteForSupplier ?? '')}</div>
       <p className="mt-3 flex items-center gap-3 text-[10px] font-bold">
         Submitted by:
         <span className="flex-1" style={{ borderBottom: '1px solid #333' }} />

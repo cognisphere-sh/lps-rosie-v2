@@ -22,7 +22,7 @@ contacts. An ambiguous identity or job/request needs clarification first.
    Use the atomic `answer_availability_request` hook with `app.actor =
    'rosie'`; values in `p_changes` are JSON strings, an empty string clears a
    field, and the only keys are `status`, `available_quantity`, `unit_price`
-   and `note_from_supplier`. Preserve every unmentioned field and mapping; never write an
+   and `note_for_supplier`. Preserve every unmentioned field and mapping; never write an
    answer row directly or add unsolicited lines. Keep Chris/customer context
    in `note_for_supplier`; follow [line note ownership](line-notes.md).
 

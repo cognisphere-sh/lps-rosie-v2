@@ -77,7 +77,6 @@ function request(id: number, status: ARDetail['status']): ARDetail {
       status: status === 'new' ? null : 'available',
       availableQuantity: status === 'new' ? null : 2,
       unitPrice: 10,
-      noteFromSupplier: null,
       noteForSupplier: null,
     }],
   }

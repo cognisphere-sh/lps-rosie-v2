@@ -1,5 +1,21 @@
 # plant-and-supplier-search — changelog
 
+## 2.22.0 — 2026-09-24
+
+- Chris's explicit JR-79 webchat feedback (message 16, 18:19 CDT): search reordered common-name terms (`Southern Magnolia` / `Magnolia Southern`) before treating the price as missing; verify complete plant identity and requested size, and treat a supported match as naming equivalence, not substitution or stock evidence. This extends the existing name-equivalence procedure rather than creating an alias or proxy permission.
+
+## 2.21.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat feedback (message 20, 11:08 CDT): when botanical/common-name supplier pricing fails, research other documented names on the internet and retry the selected supplier's price list under them. Preserve identity/size and evidence boundaries; propose each persistent `plant_aliases` relationship to Chris and have Daisy store it only after he explicitly confirms alias identity, not merely a price proxy.
+
+## 2.20.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat feedback (message 11, 10:47 CDT): document scoped persistent proxy-price permission in the selected proxy inventory item's internal note when he chooses `Use this proxy price always`. Recheck exact match and current same-size positive price on future use; keep cultivar identity, alias, mapping and availability distinct.
+
+## 2.19.0 — 2026-09-24
+
+- Chris's JR-78 webchat message 9 authorizes a reusable same-size APS generic yaupon *pricing proxy* for Pride of Houston when its own size listing is absent. Preserve cultivar identity and live price evidence; do not encode this as a botanical `plant_aliases` equivalence or exact AR mapping.
+
 ## 2.18.1 — 2026-09-24
 
 - Bound candidate search output to 20 rows with deterministic ordering; narrow or page before interpreting a capped result as a missing exact match.

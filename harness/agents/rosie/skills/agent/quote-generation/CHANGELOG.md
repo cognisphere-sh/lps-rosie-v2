@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 3.11.0
+
+- Merge customer requirements/outcomes into `note_for_customer` and supplier instructions/responses into `note_for_supplier` across headers and items. Preserve current sourcing constraints, exclude spacing and unrelated non-sourcing content, and use the new schema/RPC contract.
+
 ## 3.10.3 — 2026-09-24
 
 - Chris's explicit webchat feedback (message 14): removed the job identifier from the newly added customer-note wording example; no change to its evidence and approval boundaries.

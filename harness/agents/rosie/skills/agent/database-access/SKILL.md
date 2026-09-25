@@ -1,9 +1,9 @@
 ---
 name: database-access
-description: Read relevant schema and use guarded SQL/storage CLIs. Includes schema selector, query and upload references. Use before database queries or file storage operations. (v1.1.0)
+description: Read relevant schema and use guarded SQL/storage CLIs. Includes schema selector, query and upload references. Use before database queries or file storage operations. (v1.2.0)
 metadata:
   author: lps
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Database access

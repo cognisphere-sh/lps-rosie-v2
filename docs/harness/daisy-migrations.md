@@ -253,3 +253,11 @@ and when; the summaries below are one line each.
 - `0114_public_orders.sql` — applied 2026-09-23 14:40:01 UTC after a rolled-back rehearsal. Adds nullable unique order public
   tokens, cleared by order closure/deactivation. Anonymous access remains in the
   app's read-only token route; database grants are unchanged.
+
+- `0115_merged_audience_notes.sql` — applied 2026-09-24 15:19:09 UTC after
+  a rolled-back live rehearsal (3 second total transaction limit). Combines customer origin/destination notes
+  and supplier origin/destination notes on jobs, ARs, orders and their items.
+  Preserves distinct text, timestamps, audit history and lifecycle state; removes
+  redundant columns and updates note-dependent RPCs. Shared note-only LPS edits
+  do not impersonate a supplier answer. Disposable SQL tests cover both order
+  creation paths, submitted header notes and supplier lifecycle updates.

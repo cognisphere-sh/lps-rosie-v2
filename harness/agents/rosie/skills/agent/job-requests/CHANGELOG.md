@@ -1,5 +1,29 @@
 # job-requests — changelog
 
+## 5.54.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat message 45 (12:16:31 CDT): for an otherwise authorized submitted APS different-size job update, a single clearly identified, attributable, positively priced unaccepted size offer may be shown in the JR's size/price fields, retaining `alternative_proposed` and original request in a concise customer note. `NA`/`only` require specific supplier evidence. This narrows JR-75's requested-offering display rule; it does not accept substitutes, authorize later-submission job writes or customer sends, replace accepted terms, equate different purchasing units, or reuse the old size's price. Mixed/uncertain sizes, quantity or unsupported customer price stay unresolved; reconcile human edits before a guarded write.
+
+## 5.53.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat messages 33–34 (11:40 CDT): treat Carolina Cherry Laurel 24-inch box as equivalent to its 30 G request without inventing a different-size substitution; do not generalize container equivalence. Use unambiguous submitted APS availability as-is rather than reflexively re-confirming it, and translate supported answers to scoped status/customer-useful notes while preserving original demand, allocations and constraints. First explicit APS submission retains narrow standing write authority; later submissions require Chris's separate scoped instruction, not a blanket reading of “Always do this.”
+
+## 5.52.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat feedback (message 23, 11:14:13 CDT): for a missing exact APS size, keep only a genuinely relevant closest listed size/variant, its list price and identity/size limitation in the corresponding item's internal note. Do not price or substitute the requested offering, imply stock, or include unrelated species.
+
+## 5.51.1 — 2026-09-24
+
+- Chris's explicit JR-78 webchat feedback (message 13, 10:52:38 CDT): internal work and original-to-current size/unit decisions do not belong in customer notes. Preserve only current customer-relevant sourcing requirements there; keep a material flat-to-pot conversion/per-pot pricing basis internally, and omit a past size choice entirely when current structured size suffices.
+
+## 5.51.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat feedback (message 11, 10:47 CDT): when both common and botanical plant names appear in customer input, record the job-item name as `Common Name | Botanical name` without deriving names from price proxies. Proxy-price questions now offer a distinct scoped `Use this proxy price always` choice and record that selection on the chosen inventory item's internal note; one-time choices remain one-time.
+
+## 5.50.0
+
+- Merge customer requirements/outcomes into `note_for_customer` and supplier instructions/responses into `note_for_supplier` across headers and items. Preserve current sourcing constraints, exclude spacing and unrelated non-sourcing content, and use the new schema/RPC contract.
+
 ## 5.49.2 — 2026-09-24
 
 - Chris's explicit webchat feedback (message 14): removed the job identifier from the newly added customer-note wording example; the example remains scoped to supported supplier-proposed different-size options.

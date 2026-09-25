@@ -9,11 +9,11 @@ function request(): JobRequestRow {
     id: 42, name: 'Courtyard', status: 'quoted',
     customer: { id: 3, name: 'Taylor Lee', company: 'Lee Landscape', email: null, phone: null, type: null, rosieThreadId: null },
     billing: { address: null, city: null, state: null, zip: null }, shipping: { address: null, city: null, state: null, zip: null },
-    noteFromCustomer: null, notes: [], noteForCustomer: null, noteInternal: null, itemCount: 2, statusCounts: {}, lineTotal: 390,
+    noteForCustomer: null, notes: [], noteInternal: null, itemCount: 2, statusCounts: {}, lineTotal: 390,
     supplierLinks: [], createdAt: null, updatedAt: null,
     items: [
-      { id: 1, name: 'Live Oak <Specimen>', size: '15 G', quantity: 2, availableQuantity: 1, unitPrice: 120, total: 240, status: 'quoted', notes: [], noteFromCustomer: null, noteForCustomer: '45 G $595.00', noteInternal: null, updatedAt: null },
-      { id: 2, name: 'Yaupon Holly', size: '7 G', quantity: 3, availableQuantity: 2, unitPrice: 50, total: 150, status: 'quoted', notes: [], noteFromCustomer: null, noteForCustomer: null, noteInternal: null, updatedAt: null },
+      { id: 1, name: 'Live Oak <Specimen>', size: '15 G', quantity: 2, availableQuantity: 1, unitPrice: 120, total: 240, status: 'quoted', notes: [], noteForCustomer: '45 G $595.00', noteInternal: null, updatedAt: null },
+      { id: 2, name: 'Yaupon Holly', size: '7 G', quantity: 3, availableQuantity: 2, unitPrice: 50, total: 150, status: 'quoted', notes: [], noteForCustomer: null, noteInternal: null, updatedAt: null },
     ],
   }
 }

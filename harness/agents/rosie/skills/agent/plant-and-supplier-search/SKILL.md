@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant prices and supplier evidence. Includes scoped RPC search, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.18.1)
+description: Find plant prices and supplier evidence. Includes scoped RPC search, web-researched alternate names, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.22.0)
 metadata:
   author: lps
-  version: "2.18.1"
+  version: "2.22.0"
 ---
 
 # Plant and supplier search
@@ -13,7 +13,7 @@ metadata:
 2. Use APS (supplier 1) for job pricing unless Chris explicitly selects another.
    General all-supplier research is allowed when asked, but authorizes no quote,
    AR, order or outreach. Preserve supplied/accepted and explicit manual prices.
-3. For naming ambiguity or proxy pricing, read
+3. For naming ambiguity, missing named-plant prices or proxy pricing, read
    [pricing equivalents](artifacts/pricing-equivalents.md). For requested size
    options use `job-requests` → requested options. Genuine alternatives need
    action-specific quote/AR approval; supported pricing is not availability.

@@ -15,7 +15,6 @@ interface RequestMeta {
   name: string | null
   status: string
   expected_install_date: string | null
-  note_from_customer: string | null
   note_internal: string | null
   note_for_customer: string | null
   created_at: string | null
@@ -27,7 +26,6 @@ interface ItemSearchMeta {
   job_request_id: number
   name: string
   size: string | null
-  note_from_customer: string | null
   note_internal: string | null
   note_for_customer: string | null
 }
@@ -65,7 +63,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
     const limit = Math.min(CHUNK, remaining)
     const { data, error } = await supabase
       .from('job_requests')
-      .select('id, customer_id, name, status, expected_install_date, note_from_customer, note_internal, note_for_customer, created_at, updated_at')
+      .select('id, customer_id, name, status, expected_install_date, note_internal, note_for_customer, created_at, updated_at')
       .eq('is_active', true)
       .in('status', [...ACTIVE_JOB_STATUSES])
       .order('id', { ascending: true })
@@ -104,7 +102,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       for (let from = 0; ; from += ITEM_PAGE_SIZE) {
         const { data, error } = await supabase
           .from('job_request_items')
-          .select('id, job_request_id, name, size, note_from_customer, note_internal, note_for_customer')
+          .select('id, job_request_id, name, size, note_internal, note_for_customer')
           .eq('is_active', true)
           .in('job_request_id', ids)
           .order('id', { ascending: true })
@@ -122,7 +120,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
   const itemText = new Map<number, string[]>()
   for (const item of itemResults.flat()) {
     const parts = itemText.get(item.job_request_id) ?? []
-    parts.push(...[item.name, item.size, item.note_from_customer, item.note_internal, item.note_for_customer]
+    parts.push(...[item.name, item.size, item.note_internal, item.note_for_customer]
       .filter((value): value is string => Boolean(value)))
     itemText.set(item.job_request_id, parts)
   }
@@ -140,7 +138,7 @@ export async function listJobInbox(): Promise<ReturnType<typeof orderJobInbox>> 
       customerType: customer?.type ?? null,
       searchText: [
         `JR-${request.id}`, request.name, customer?.name, customer?.company,
-        request.note_from_customer, request.note_internal, request.note_for_customer,
+        request.note_internal, request.note_for_customer,
         ...(itemText.get(request.id) ?? []),
       ].filter(Boolean).join('\n'),
       createdAt: request.created_at,

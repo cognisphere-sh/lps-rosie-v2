@@ -87,7 +87,7 @@ test('supplier-event seed permits response relays only after explicit submission
   assert.match(seed, /On `availability_updated`, keep the local\/saved, unsubmitted edit on that supplier thread: do not notify any `jr-<id>` or Chris, update job\/item internal or customer-facing notes/)
   assert.match(seed, /This includes edits after a previous submission; an old `submitted_at` does not submit the newer changes/)
   assert.match(seed, /Trusted supplier portal text\/voice answers transcribed into an AR likewise stay unsubmitted until review and explicit submission/)
-  assert.match(seed, /Only on `availability_submitted` \(including explicit re-submission\), relay job-specific submitted answers and header\/line `note_from_supplier` to every affected `jr-<id>`/)
+  assert.match(seed, /Only on `availability_submitted` \(including explicit re-submission\), relay job-specific submitted answers and header\/line `note_for_supplier` to every affected `jr-<id>`/)
   assert.match(seed, /this routing handoff is not a job-thread or Chris notification/)
   assert.match(seed, /a delayed event never reopens or edits a closed or deleted \(`is_active=false`\) request/)
   assert.match(seed, /if newer unsubmitted edits followed a submission, do not relay those edits as submitted answers/)
@@ -208,7 +208,7 @@ test('order confirmations, readiness and fulfillment edits wake Rosie in the ord
     ['status', 'new', 'processing', 'confirmed'],
     ['status', 'processing', 'order_ready', 'marked ready'],
     ['fulfillmentDate', '2026-09-24', '2026-09-25', 'updated'],
-    ['noteFromSupplier', 'Call first', null, 'updated'],
+    ['noteForSupplier', 'Call first', null, 'updated'],
   ]) {
     const orderChanges = [{ field, previous, value }]
     assert.equal((await post(plugin, '/notify', {

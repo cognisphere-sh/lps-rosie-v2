@@ -27,7 +27,7 @@ availability wording. Report unpriced options to Chris and track the gaps
 internally; do not add a pricing-only caveat to customer notes. No phase labels, pricing-identity explanations,
 supplier names or price-sheet references belong in notes for customer. Preserve
 phases in customer/original-demand context and separate output grouping. Preserve the original
-demand in `note_from_customer`; do not silently rewrite it. Use actual prices only,
+demand in `note_for_customer`; do not silently rewrite it. Use actual prices only,
 without internal supplier/cost commentary or availability claims. State the
 chosen quoted option clearly and include every other supported requested-option
 price; no extra demand rows or duplicated quantities. An unrequested option

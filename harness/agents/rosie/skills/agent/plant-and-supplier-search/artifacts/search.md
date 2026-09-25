@@ -43,8 +43,15 @@
    literal substring in plant identity only, not size or notes. It does not
    expand aliases or tolerate spelling/spacing changes. Literal hits have
    equal relevance; sort by the evidence the question needs.
-5. If no exact match appears, try common/botanical names, fewer terms and
-   broader size/cultivar searches within the selected supplier. Label
+5. If no exact match appears, try common/botanical names, reordered name terms
+   (e.g. `Southern Magnolia` ↔ `Magnolia Southern`), fewer terms and broader
+   size/cultivar searches within the selected supplier. Check the full identity
+   fields and requested size on the returned row; word order alone neither
+   proves a cultivar match nor makes the row an alternative. If the requested
+   botanical/common name still yields no supported price, research other names
+   on the internet and search supplier pricing under those names, following
+   [pricing equivalents](pricing-equivalents.md) for evidence and the
+   confirmation gate before recording a `plant_aliases` relationship. Label
    alternatives explicitly. For actual APS job sourcing/quick quotes, return
    evidence for every requested row, including gaps, and research 1–2 closest
    supported APS alternatives where price or exact-match evidence is missing.

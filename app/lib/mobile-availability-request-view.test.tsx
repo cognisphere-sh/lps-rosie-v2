@@ -34,7 +34,6 @@ const line = (id: number, changes: Partial<ARItem> = {}): ARItem => ({
   status: id === 19 ? 'arriving_soon' : null,
   availableQuantity: id === 19 ? 8 : null,
   unitPrice: id === 19 ? 12.5 : null,
-  noteFromSupplier: id === 19 ? 'Four more expected next week — confirmé' : null,
   noteForSupplier: id === 19 ? 'Accept only the named cultivar.' : null,
   ...changes,
 })
@@ -190,7 +189,7 @@ function installStore(initial: ARDetail[]) {
             status: changes.status === '' ? null : changes.status ?? item.status,
             availableQuantity: changes.available_quantity === '' ? null : changes.available_quantity != null ? Number(changes.available_quantity) : item.availableQuantity,
             unitPrice: changes.unit_price === '' ? null : changes.unit_price != null ? Number(changes.unit_price) : item.unitPrice,
-            noteFromSupplier: changes.note_from_supplier ?? item.noteFromSupplier,
+            noteForSupplier: changes.note_for_supplier ?? item.noteForSupplier,
           }),
         }
       }
@@ -239,7 +238,7 @@ test('drawer plant details save on mobile and desktop and survive reopening with
       { label: /plant name/, column: 'name', value: `Live Oak ${width}` },
       { label: /requested size/, column: 'size', value: '15 G' },
       { label: /requested quantity/, column: 'demanded_quantity', value: '24.5' },
-      { label: /note to supplier/, column: 'note_for_supplier', value: `Deliver Friday ${width}` },
+      { label: /supplier notes/, column: 'note_for_supplier', value: `Deliver Friday ${width}` },
     ]
     // Give every field a different value on the second pass too.
     fields[1].value = width === 390 ? '15 G' : '30 G'
@@ -263,7 +262,7 @@ test('drawer plant details save on mobile and desktop and survive reopening with
     assert.deepEqual(saved.items[1], line(20))
     assert.equal(saved.items[0].availableQuantity, 8)
     assert.equal(saved.items[0].unitPrice, 12.5)
-    assert.equal(saved.items[0].noteFromSupplier, line(19).noteFromSupplier)
+    assert.equal(saved.items[0].noteForSupplier, `Deliver Friday ${width}`)
   }
 })
 
@@ -328,7 +327,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await user.type(notes, 'First delivery{Enter}Second delivery')
   assert.equal(document.activeElement, notes)
   await user.tab()
-  assert.deepEqual(patches.at(-1), [19, { note_from_supplier: 'First delivery\nSecond delivery' }])
+  assert.deepEqual(patches.at(-1), [19, { note_for_supplier: 'First delivery\nSecond delivery' }])
 
   const trigger = view.getByRole('button', { name: /Line 2, .* status, Pending/ })
   await user.click(trigger)
@@ -338,7 +337,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await user.type(within(dialog).getByLabelText('ETA / notes'), 'Next Friday')
   await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
   await waitFor(() => assert.equal(document.activeElement, trigger))
-  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', note_from_supplier: 'Next Friday' }])
+  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', note_for_supplier: 'Next Friday' }])
 
   await setWidth(900)
   assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)
@@ -766,10 +765,10 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
 
   await act(async () => patches[0].resolve(json({ ok: true })))
   await waitFor(() => assert.equal(patches.length, 2))
-  const secondChanges = (patches[1].body.changes as Record<string, string>)
+  const secondChanges = (patches[1].body.details as Record<string, string>)
   current = {
     ...current,
-    items: current.items.map((item) => item.id === 19 ? { ...item, noteFromSupplier: secondChanges.note_from_supplier } : item),
+    items: current.items.map((item) => item.id === 19 ? { ...item, noteForSupplier: secondChanges.note_for_supplier } : item),
   }
   await act(async () => patches[1].resolve(json({ ok: true })))
   await waitFor(() => assert.equal((within(mobileSurface(dialog)).getByLabelText(/Line 1, .* notes/) as HTMLTextAreaElement).value, 'second answer'))

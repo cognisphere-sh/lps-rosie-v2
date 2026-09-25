@@ -31,7 +31,7 @@ review and explicit submission; follow `supplier-coordination` for the
 transcription and submission authority boundaries.
 
 Only on `availability_submitted` (including explicit re-submission), relay
-job-specific submitted answers and header/line `note_from_supplier` to every
+job-specific submitted answers and header/line `note_for_supplier` to every
 affected `jr-<id>` for note updates by audience and an internal alert to Chris. Read
 `availability_request_jobs` and `availability_request_item_jobs` to resolve
 all linked jobs/items and allocated quantities; a request or row may combine

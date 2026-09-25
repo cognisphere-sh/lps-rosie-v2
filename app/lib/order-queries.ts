@@ -9,11 +9,11 @@ interface OrderRecord {
   public_token?: string | null
   record_name?: string | null
   id: number; supplier_id: number; status: OrderStatus; fulfillment_method: FulfillmentMethod | null
-  confirmation_date: string | null; fulfillment_date: string | null; note_for_supplier: string | null; note_from_customer: string | null; note_for_customer: string | null; note_from_supplier: string | null; created_at: string
+  confirmation_date: string | null; fulfillment_date: string | null; note_for_supplier: string | null; note_for_customer: string | null; created_at: string
 }
 interface ItemRecord {
   id: number; order_id: number; name: string; size: string | null
-  quantity: number; unit_price: number | null; total: number | null; status: string; note_from_supplier: string | null; note_for_supplier: string | null; note_for_customer: string | null
+  quantity: number; unit_price: number | null; total: number | null; status: string; note_for_supplier: string | null; note_for_customer: string | null
 }
 interface AllocationRecord { order_item_id: number; job_request_item_id: number; quantity: number }
 interface JobItemRecord { id: number; job_request_id: number; demanded_quantity?: number | null }
@@ -22,7 +22,7 @@ interface JobRecord { customer_id?: number | null; shipping_address?: string | n
 // Read optional record_name when present without requiring migration 0104.
 // Public responses below still map only their intended fields.
 const ORDER_COLUMNS = '*'
-const ITEM_COLUMNS = 'id, order_id, name, size, quantity, unit_price, total, status, note_from_supplier, note_for_supplier, note_for_customer'
+const ITEM_COLUMNS = 'id, order_id, name, size, quantity, unit_price, total, status, note_for_supplier, note_for_customer'
 const unique = (ids: number[]) => [...new Set(ids)]
 const asNumber = (value: number | null) => value == null ? null : Number(value)
 
@@ -146,7 +146,7 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
     const list = itemMap.get(item.order_id) ?? []
     list.push({
       id: item.id, name: item.name, size: item.size,
-      quantity: Number(item.quantity), unitPrice: asNumber(item.unit_price), total: asNumber(item.total), status: item.status, noteFromSupplier: item.note_from_supplier ?? null, noteForSupplier: item.note_for_supplier ?? null,
+      quantity: Number(item.quantity), unitPrice: asNumber(item.unit_price), total: asNumber(item.total), status: item.status, noteForSupplier: item.note_for_supplier ?? null,
       ...(!scope.forSupplier ? { noteForCustomer: item.note_for_customer ?? null } : {}),
       ...(!scope.forSupplier ? { allocations: allocationMap.get(item.id) ?? [] } : {}),
     })
@@ -162,8 +162,7 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
       || Boolean(orderJobClosures.get(order.id)?.length && orderJobClosures.get(order.id)!.every(Boolean)),
     status: order.status, fulfillmentMethod: order.fulfillment_method, confirmationDate: order.confirmation_date,
     fulfillmentDate: order.fulfillment_date, noteForSupplier: order.note_for_supplier ?? null,
-    ...(!scope.forSupplier ? { noteFromCustomer: order.note_from_customer ?? null, noteForCustomer: order.note_for_customer ?? null } : {}), createdAt: order.created_at, items: itemMap.get(order.id) ?? [],
-    noteFromSupplier: order.note_from_supplier ?? null,
+    ...(!scope.forSupplier ? { noteForCustomer: order.note_for_customer ?? null } : {}), createdAt: order.created_at, items: itemMap.get(order.id) ?? [],
     ...(!scope.forSupplier ? { shareJobs: [...(orderShareJobs.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, job]) => job) } : {}),
     jobSchedules: [...(orderSchedules.get(order.id) ?? [])].sort(([a], [b]) => a - b).map(([, schedule]) => schedule),
     availabilityRequestNames: Object.fromEntries(relatedRequests.filter((request) => availabilityRequestMap.get(order.id)?.has(request.id) && request.record_name)
@@ -336,7 +335,7 @@ export async function createOrder(input: CreateOrderInput | CreateDirectOrderInp
     const { data, error } = await supabase.rpc('create_direct_order', {
       p_supplier_id: input.supplierId, p_customer_confirmed: input.customerConfirmed,
       p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: null, p_note_for_supplier: input.noteForSupplier,
-      p_note_from_customer: input.noteFromCustomer, p_note_for_customer: input.noteForCustomer,
+      p_note_for_customer: input.noteForCustomer,
       p_items: input.items.map((item) => ({ job_request_item_id: item.jobRequestItemId, quantity: item.quantity })),
     })
     if (error) throw new Error(error.message)
@@ -345,7 +344,7 @@ export async function createOrder(input: CreateOrderInput | CreateDirectOrderInp
   const { data, error } = await supabase.rpc('create_order', {
     p_supplier_id: input.supplierId, p_customer_confirmed: input.customerConfirmed,
     p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: null, p_note_for_supplier: input.noteForSupplier,
-      p_note_from_customer: input.noteFromCustomer, p_note_for_customer: input.noteForCustomer,
+      p_note_for_customer: input.noteForCustomer,
     p_items: input.items.map((item) => ({ availability_request_item_id: item.availabilityRequestItemId,
       allocations: item.allocations.map((allocation) => ({ job_request_item_id: allocation.jobRequestItemId, quantity: allocation.quantity })) })),
   })
@@ -358,7 +357,7 @@ export async function updatePartnerOrder(id: number, supplierId: number, update:
     ...('status' in update ? { status: update.status } : {}),
     ...('fulfillmentMethod' in update ? { fulfillment_method: update.fulfillmentMethod } : {}),
     ...('fulfillmentDate' in update ? { fulfillment_date: update.fulfillmentDate } : {}),
-    ...('noteFromSupplier' in update ? { note_from_supplier: update.noteFromSupplier } : {}),
+    ...('noteForSupplier' in update ? { note_for_supplier: update.noteForSupplier } : {}),
   }
   const { error } = await supabase.rpc('update_partner_order', { p_order_id: id, p_supplier_id: supplierId, p_patch: patch })
   if (error) throw new Error(error.message)

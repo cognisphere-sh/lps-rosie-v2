@@ -1,5 +1,27 @@
 # Migrations applied by Daisy
 
+
+## 0115 — merged audience notes (2026-09-24)
+
+Applied at 15:19:09 UTC after a rolled-back live rehearsal and disposable
+PostgreSQL lifecycle tests. PostgreSQL enforces a 250 ms lock wait, 2 second
+statement limit and 3 second total transaction limit. The apply verified exact
+merged text across 750 job/AR/order rows, all 258 associations, all 1,789 audit
+entries, other row data, function/table permissions and trigger states.
+
+Customer origin/destination notes merge into `note_for_customer`; supplier
+origin/destination notes merge into `note_for_supplier`, across headers/items.
+Distinct nonblank text is retained, exact duplicates collapse, obsolete origin
+columns are dropped. `note_internal` stays private on job headers/items. Order
+creation now takes one customer-note parameter. Supplier answer RPCs advance
+processing explicitly; LPS shared-note-only edits do not.
+
+The reviewed `artifacts/0115_jr77_sourcing_notes_cleanup.sql` then removed
+non-sourcing plan/category/spacing text from JR-77's header and 26 items, with
+exact-value guards and normal change history. Named substitute requests and
+frogfruit flat-unit sourcing requirements remain. A private local recovery
+snapshot was saved before apply at `/tmp/merged-notes-before-apply.jsonl`.
+
 > Historical migration record. For the current schema, read
 > `knowledge/files/SCHEMA.md` (the shared `docs/supabase-schema.md`).
 

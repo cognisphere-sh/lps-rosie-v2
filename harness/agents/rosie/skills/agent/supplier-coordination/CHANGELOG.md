@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 3.35.0 — 2026-09-24
+
+- Chris's explicit JR-78 webchat messages 33–34 (11:40 CDT): relay unambiguous submitted APS availability and the narrow Carolina Cherry Laurel 24-inch-box/30-G equivalence without unnecessary supplier clarification. Preserve exact linked allocations and original customer request; hand off Chris's explicit scoped instruction to the job owner. “Always do this” does not expand first-submission standing write authority to later responses or other jobs/suppliers.
+
+## 3.34.0
+
+- Merge customer requirements/outcomes into `note_for_customer` and supplier instructions/responses into `note_for_supplier` across headers and items. Preserve current sourcing constraints, exclude spacing and unrelated non-sourcing content, and use the new schema/RPC contract.
+
 ## 3.33.0 — 2026-09-24
 
 - Chris's explicit JR-73 webchat feedback (message 5, 02:39:03 CDT): before publishing an ordinary approved AR, verify the job owner attempted pricing across all in-scope rows and return skipped rows for that pass. Unresolved prices or unanswered same-size color/variant proxy choices remain NULL; Chris chooses any proxy seed, and an approved original-plant AR is not indefinitely blocked by a genuine price gap.

@@ -196,7 +196,7 @@ for (const shared of [false, true]) {
       assert.equal(header.textContent?.includes('Shared Customer'), shared)
       assert.equal(header.textContent?.includes('12 Garden Lane'), shared)
       assert.equal(header.querySelector('a[href="mailto:customer@example.com"]') != null, shared)
-      assert.ok(header.textContent?.includes('Keep shaded'))
+      assert.equal((dom.window.document.querySelector('textarea[aria-label="Note for this request"]') as HTMLTextAreaElement).value, 'Keep shaded')
       assert.equal(header.querySelector('button[aria-expanded]'), null)
     } finally { dom.window.close() }
   })

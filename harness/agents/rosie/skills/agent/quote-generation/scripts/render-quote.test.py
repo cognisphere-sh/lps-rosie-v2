@@ -30,9 +30,7 @@ class QuoteTests(unittest.TestCase):
         job = self.job()
         job["note_for_customer"] = "Delivery date to be confirmed"
         for record in (job, *job["items"]):
-            record.update(note_from_customer="CUSTOMER INPUT",
-                          note_internal="INTERNAL FOLLOW-UP",
-                          note_from_supplier="RAW SUPPLIER RESPONSE",
+            record.update(note_internal="INTERNAL FOLLOW-UP",
                           note_for_supplier="SUPPLIER INSTRUCTION")
         self.assertEqual(render(job),
                          "```text\nDelivery date to be confirmed\n\n"
@@ -43,9 +41,8 @@ class QuoteTests(unittest.TestCase):
     def test_blank_note_for_customer_never_fall_back_to_other_note_fields(self):
         job = self.job()
         for record in (job, *job["items"]):
-            record.update(note_from_customer="CUSTOMER INPUT",
-                          note_internal="INTERNAL FOLLOW-UP",
-                          note_from_supplier="RAW SUPPLIER RESPONSE")
+            record.update(note_internal="INTERNAL FOLLOW-UP",
+                          note_for_supplier="SUPPLIER CONTEXT")
             record.pop("note_for_customer", None)
         expected = ("```text\n4 x 15 G Wax myrtle - $105.00 - $420.00\n"
                     "10 x 30 G Mountain laurel - $375.00 - $3,750.00\n\nSubtotal: $4,170.00\n```")
@@ -56,8 +53,16 @@ class QuoteTests(unittest.TestCase):
                     record["note_for_customer"] = blank
                 self.assertEqual(render(job), expected)
 
+    def test_merged_multiline_sourcing_notes_render_all_requirements_and_outcomes(self):
+        job = self.job()
+        job["note_for_customer"] = "Red flowers only\n\nCan order Tuesday"
+        job["items"][0]["note_for_customer"] = "Single trunk\nNo substitutes"
+        output = render(job)
+        self.assertIn("Red flowers only; Can order Tuesday", output)
+        self.assertIn("Single trunk; No substitutes", output)
+
     def test_unsafe_job_notes_never_return_a_quote(self):
-        for value in ("Delivery\nINTERNAL", "```oops", "Delivery\tdate", 42):
+        for value in ("```oops", "Delivery\tdate", 42):
             with self.subTest(value=value):
                 job = self.job()
                 job["note_for_customer"] = value

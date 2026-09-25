@@ -69,9 +69,8 @@ function request(overrides: Partial<JobRequestRow> = {}): JobRequestRow {
     },
     billing: { address: '401 Billing Ave', city: 'Austin', state: 'TX', zip: '78701' },
     shipping: { address: '16202 Oak Grove Rd.', city: 'Buda', state: 'TX', zip: '78610' },
-    noteFromCustomer: 'Use the south entrance.',
+    noteForCustomer: "Use the south entrance.\n\nShare delivery updates.",
     notes: [{ kind: 'customer', stamp: '2026-09-01 09:00', text: 'Use the south entrance.' }],
-    noteForCustomer: 'Share delivery updates.',
     noteInternal: 'Call before loading.',
     itemCount: 0,
     statusCounts: { pending: 0, available: 0, substituted: 0, unavailable: 0 },
@@ -104,8 +103,7 @@ test('collapsed, expanded and mobile job cards show adjacent created/install dat
 const sourcingMarkdown = '**<u>Austin Plant Supply</u>**\n$105 · 15 G · Qty 12 · [AR-42](ar:42) · Pending\n\n**<u>Acosta</u>**\n$98 · Qty 20 · Completed · Selected by Chris'
 const sourcingItem = {
   id: 51, name: 'Live Oak', size: '15 G', quantity: 12, availableQuantity: null,
-  unitPrice: 105, total: 1260, status: 'pending', notes: [], noteFromCustomer: null,
-  noteForCustomer: '**Customer note stays plain**', noteInternal: sourcingMarkdown, updatedAt: null,
+  unitPrice: 105, total: 1260, status: 'pending', notes: [], noteForCustomer: '**Customer note stays plain**', noteInternal: sourcingMarkdown, updatedAt: null,
 }
 
 for (const mobile of [false, true]) {

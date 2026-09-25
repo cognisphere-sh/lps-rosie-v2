@@ -56,7 +56,6 @@ demanded_quantity numeric
 status text
 available_quantity numeric
 unit_price numeric(10,2)
-note_from_supplier text
 is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
@@ -73,11 +72,11 @@ Constraints:
 - `availability_request_items_status_check`: `CHECK (((status IS NULL) OR (status = ANY (ARRAY['available'::text, 'can_order'::text, 'diff_size_qty_sub'::text, 'arriving_soon'::text, 'unavailable'::text]))))`
 - `availability_request_items_unit_price_check`: `CHECK (((unit_price IS NULL) OR (unit_price > (0)::numeric)))`
 
-Line notes: `note_for_supplier` is additional LPS/Chris context for the supplier, including
-relevant job-item `note_from_customer` such as color, alternatives and special requests;
-it appears below the plant name. `note_from_supplier` is the supplier's additional
-line response; once submitted, its internal or customer-facing content feeds
-linked job-item `note_internal` or `note_for_customer` by audience. Job-item relationships live solely in
+Line `note_for_supplier` combines supplier-relevant sourcing requirements and
+actual supplier responses, rendered once in the **Note for supplier** column.
+LPS context edits do not mark the request processing; supplier note answers
+through the answer RPC do. Submitted response facts can populate linked job-item
+`note_internal` or `note_for_customer` by audience. Job-item relationships live solely in
 `availability_request_item_jobs`; its `quantity` remains the per-job share.
 
 ### `availability_request_jobs`
@@ -94,8 +93,8 @@ Constraints:
 
 ### `availability_requests`
 
-Header `note_for_supplier` includes supplier-relevant job-wide `note_from_customer` and LPS
-instructions. Submitted header `note_from_supplier` feeds the applicable jobs'
+Header `note_for_supplier` includes supplier-relevant job-wide `note_for_customer` and LPS
+instructions. Actual supplier facts within submitted header `note_for_supplier` feed the applicable jobs'
 `note_internal` or `note_for_customer` by audience, preserving each job's scope.
 
 ```text
@@ -109,7 +108,6 @@ created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
 public_token uuid
-note_from_supplier text
 ```
 
 Constraints:
@@ -263,15 +261,15 @@ Constraints:
 `demanded_quantity` is the customer-requested amount; NULL means unspecified.
 `available_quantity` records approved supply. Allocation tables retain `quantity`.
 
-Note fields use the same meanings here and on `job_requests`, at line and job scope
-respectively:
+Job and item notes have the same meaning, scoped to the job or line:
 
-- `note_from_customer`: customer-supplied information, such as alternatives, color,
-  special requests and other requirements. Pass relevant details to AR `note_for_supplier`.
-- `note_for_customer`: customer-facing notes included in quotes, from Chris/LPS
-  sourcing or submitted AR supplier responses. Include only information meant
-  for the customer.
-- `note_internal`: internal notes for Chris/LPS to track sourcing progress and supplier updates from ARs and orders.
+- `note_for_customer`: merged customer sourcing requirements and supported
+  customer-facing sourcing outcomes. Rendered once in **Note for customer**;
+  never beneath the plant name. Keep cultivar, color, form, alternatives,
+  purchasing units and availability/ETA; exclude planting spacing, landscape
+  layout, installation instructions and unrelated additional details.
+- `note_internal`: current internal sourcing facts and unresolved choices;
+  never included in customer-facing output.
 
 ```text
 id bigint NOT NULL IDENTITY ALWAYS
@@ -282,7 +280,6 @@ demanded_quantity numeric
 unit_price numeric(10,2)
 total numeric(12,2) GENERATED AS ((demanded_quantity * unit_price))
 status text NOT NULL DEFAULT 'pending'::text
-note_from_customer text
 note_internal text
 note_for_customer text
 is_active boolean NOT NULL DEFAULT true
@@ -300,7 +297,7 @@ Constraints:
 
 ### `job_requests`
 
-The three note fields follow the definitions above, for job-wide information;
+The two note fields follow the definitions above, for job-wide information;
 line-specific information belongs on `job_request_items`.
 
 ```text
@@ -315,7 +312,6 @@ shipping_address text
 shipping_city text
 shipping_state text
 shipping_zip text
-note_from_customer text
 note_internal text
 note_for_customer text
 is_active boolean NOT NULL DEFAULT true
@@ -350,21 +346,19 @@ Constraints:
 
 ### `order_items`
 
-Order headers use four directional fields: `note_from_customer`,
-`note_from_supplier`, `note_for_customer` and `note_for_supplier`. The `from`
-fields preserve the author's information; the `for` fields contain LPS/Chris's
-communication to that audience. Supplier payloads, copy and print include only
-the two supplier fields. Internal progress belongs on the linked job/item's
-`note_internal`.
+Order headers and items use `note_for_customer` and `note_for_supplier`.
+Each combines the audience's sourcing requirements and relevant response facts.
+Supplier payloads, copy and print include only the supplier field, rendered once
+in its note column. Internal progress stays on the linked job/item `note_internal`.
 
-AR-backed order lines snapshot both supplier fields and the allocated job
-items' `note_for_customer` (distinct notes joined with blank lines).
-Order items use `note_from_supplier`, `note_for_supplier` and `note_for_customer`;
-they have no `note_from_customer`. Customer-origin line requirements remain on
-the linked job item. Direct quote orders snapshot its `note_for_customer`; supplier fields
-start NULL. Header customer/LPS notes may be supplied explicitly at creation.
-Existing order-line notes are preserved by source: AR-backed notes become
-`note_from_supplier`, direct-quote notes become `note_for_customer`.
+AR-backed order lines snapshot the merged supplier note and allocated job items'
+merged customer notes (distinct notes joined with blank lines). Direct orders
+snapshot the job item's customer note; their supplier note starts NULL. Header
+notes can be supplied explicitly at creation. Read current notes before changing
+one, preserving relevant requirements and outcomes. Migration 0115 merges old
+origin/destination text, retaining distinct nonblank text and collapsing exact
+duplicates, then removes the redundant origin columns without changing audit
+history, timestamps or lifecycle state.
 
 ```text
 id bigint NOT NULL IDENTITY ALWAYS
@@ -375,7 +369,6 @@ quantity numeric NOT NULL
 unit_price numeric(10,2)
 total numeric(12,2) GENERATED AS ((quantity * unit_price))
 status text NOT NULL DEFAULT 'pending'::text
-note_from_supplier text
 is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
@@ -403,8 +396,6 @@ note_for_supplier text
 is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
-note_from_supplier text
-note_from_customer text
 note_for_customer text
 ```
 
@@ -591,8 +582,8 @@ roles. Table results are listed below.
 | `compose_plant_name(common_name text, botanical_name text, cultivar_variety_trade_name text)` | `text` | public | Compose common, botanical and cultivar parts into the display name. |
 | `confirm_order(p_order_id bigint, p_supplier_id bigint, p_confirmation_date date DEFAULT current_date, p_fulfillment_date date DEFAULT NULL)` | `bigint` | service_role only | Supplier confirmation through the order lifecycle. |
 | `create_availability_request(p_supplier_id bigint, p_items jsonb, p_share_customer_details boolean DEFAULT false, p_public_token uuid DEFAULT NULL)` | `bigint` | service_role only | Create supplier ask snapshots and job/line allocations atomically. |
-| `create_direct_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_from_customer text DEFAULT NULL, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order directly from quoted job lines, without an AR. |
-| `create_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_from_customer text DEFAULT NULL, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order from answered availability lines and allocations. |
+| `create_direct_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order directly from quoted job lines, without an AR. |
+| `create_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order from answered availability lines and allocations. |
 | `delete_job_request(p_job_request_id bigint)` | `jsonb` | service_role only | Hard-delete a job; returns counts of removed related rows. |
 | `delete_job_request_item(p_job_request_id bigint, p_job_request_item_id bigint)` | `jsonb` | service_role only | Hard-delete a job line and exclusively owned AR snapshots; returns counts or null. |
 | `delete_order_item(p_order_id bigint, p_order_item_id bigint)` | `boolean` | service_role only | Hard-delete an open order line; delete the order too if empty; returns success. |
@@ -629,7 +620,7 @@ JSON inputs and behavior:
   `allocations: [{job_request_item_id, quantity}]`. Known allocations must
   total the requested quantity.
 - `answer_availability_request.p_changes`: string-valued `status`,
-  `available_quantity`, `unit_price` and/or `note_from_supplier`; blank clears a field.
+  `available_quantity`, `unit_price` and/or `note_for_supplier`; blank clears a field.
   `p_submit = true` submits the request. Public variants resolve `p_token`
   before applying the same write. Supplier-note RPCs submit and store a note
   of at most 10,000 characters; blank clears it.
@@ -643,7 +634,7 @@ JSON inputs and behavior:
   `job_request_item_id` and positive `quantity`. Both require
   `p_customer_confirmed = true` and cannot exceed remaining job demand.
 - `update_partner_order.p_patch`: `status`, `fulfillment_method`,
-  `fulfillment_date`, `note_from_supplier`. Status advances
+  `fulfillment_date`, `note_for_supplier`. Status advances
   `new` → `processing` → `order_ready`; Processing and Ready require a date.
   `update_partner_order_item.p_status` accepts `pending`, `available`,
   `unavailable`, `diff_size_qty_sub`, `need_to_order`, `arriving_soon`.

@@ -34,7 +34,6 @@ interface RequestRecord {
   shipping_city: string | null
   shipping_state: string | null
   shipping_zip: string | null
-  note_from_customer: string | null
   note_internal: string | null
   note_for_customer: string | null
   created_at: string | null
@@ -51,7 +50,6 @@ interface ItemRecord {
   unit_price: number | null
   total: number | null
   status: string
-  note_from_customer: string | null
   note_internal: string | null
   note_for_customer: string | null
   updated_at: string | null
@@ -93,9 +91,8 @@ function noteEntries(text: string | null, kind: JobNote['kind']): JobNote[] {
   return parseEntries(text).map((e) => ({ kind, ...e }))
 }
 
-function notesOf(r: { note_from_customer: string | null; note_for_customer: string | null }): JobNote[] {
+function notesOf(r: { note_for_customer: string | null }): JobNote[] {
   return [
-    ...noteEntries(r.note_from_customer, 'customer'),
     ...noteEntries(r.note_for_customer, 'shared'),
   ]
 }
@@ -118,7 +115,6 @@ function toItem(r: ItemRecord): JobRequestItem {
     total: r.total == null ? null : Number(r.total),
     status: r.status,
     notes: notesOf(r),
-    noteFromCustomer: r.note_from_customer,
     noteForCustomer: r.note_for_customer,
     noteInternal: r.note_internal,
     updatedAt: r.updated_at,
@@ -126,7 +122,7 @@ function toItem(r: ItemRecord): JobRequestItem {
 }
 
 const REQUEST_COLUMNS =
-  'id, customer_id, name, status, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, note_from_customer, note_internal, note_for_customer, created_at, updated_at'
+  'id, customer_id, name, status, expected_install_date, fulfillment_method, billing_address, billing_city, billing_state, billing_zip, shipping_address, shipping_city, shipping_state, shipping_zip, note_internal, note_for_customer, created_at, updated_at'
 
 /**
  * Take the next job-request id without creating the row.
@@ -176,7 +172,6 @@ function toRow(
     customer,
     billing: addressOf(r.billing_address, r.billing_city, r.billing_state, r.billing_zip),
     shipping: addressOf(r.shipping_address, r.shipping_city, r.shipping_state, r.shipping_zip),
-    noteFromCustomer: r.note_from_customer,
     notes: notesOf(r),
     noteForCustomer: r.note_for_customer,
     noteInternal: r.note_internal,
@@ -199,7 +194,7 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     const { data, error } = await supabase
       .from('job_request_items')
       .select(
-        'id, job_request_id, name, size, demanded_quantity, available_quantity, unit_price, total, status, note_from_customer, note_internal, note_for_customer, updated_at',
+        'id, job_request_id, name, size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)

@@ -1,4 +1,4 @@
-1. Read every linked job, active item list, their `note_from_customer` and this
+1. Read every linked job, active item list, their `note_for_customer` and this
    supplier's existing ARs. Reject
    new work against closed/inactive jobs. Reuse the existing active open
    request for the same sourcing ask; a retry must not create duplicates.
@@ -30,8 +30,8 @@
    quoted-offering `name`/`size` contain only that actual offered plant and one
    actual size; the original demand and any customer-visible substitution note
    stay on the JR. Customer-facing quote notes follow `quote-generation`.
-   Select relevant information from `job_requests.note_from_customer` for the AR
-   header's `note_for_supplier`, and from each `job_request_items.note_from_customer` for
+   Select relevant information from `job_requests.note_for_customer` for the AR
+   header's `note_for_supplier`, and from each `job_request_items.note_for_customer` for
    that AR line's `note_for_supplier`, under [note ownership](line-notes.md). Preserve
    useful color, alternatives and special requests within the approved ask.
    For shared requests, retain each requirement's job/allocation scope and
@@ -120,11 +120,12 @@
    progress notes, and relay the approval question to
    the original request chat; do not leak internal notes into the AR.
    Never replace a supplier-selected mapping with a later search result.
-5. Never seed answer `status`, `available_quantity` or `note_from_supplier`.
+5. Never seed answer `status` or `available_quantity`, or invent supplier response facts.
+   Seed only sourcing requirements in the shared `note_for_supplier`.
    NULL answer status means unanswered even with a prefilled price. Request
    and item `note_for_supplier` carry additional information LPS/Chris shares with the
    supplier: customer details, variety/cultivar, special requests, constraints
-   and other useful instructions from the job/item `note_from_customer` and Chris.
+   and other useful instructions from the job/item `note_for_customer` and Chris.
    Preserve the necessary detail in brief positive supplier-facing wording;
    describe requested specs or genuine questions without forbidding the supplier
    to suggest other sizes/cultivars. See [line note ownership](line-notes.md).

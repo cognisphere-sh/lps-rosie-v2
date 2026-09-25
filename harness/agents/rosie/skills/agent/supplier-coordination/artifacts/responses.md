@@ -1,5 +1,11 @@
 ## 4. AR state and supplier responses
 
+The shared `note_for_supplier` may already contain the original LPS/customer ask.
+Use the actual submitted supplier response and source evidence to identify new
+availability facts; seeded instructions alone never prove stock or acceptance.
+Preserve still-relevant sourcing requirements when revising the shared note.
+
+
 | Display | Stored state | Meaning |
 |---|---|---|
 | New | `new` | Created, no supplier work yet. |
@@ -14,8 +20,8 @@ event to maintain safe current context. Ignore events for deleted requests
 stays on this supplier thread**: do not notify any job thread or Chris, update
 job/item `note_internal` or `note_for_customer`, or treat it as a response. Relay only an explicit
 submission and only its actual saved answers. Include the saved request-wide
-`availability_requests.note_from_supplier` along with each line's
-`availability_request_items.note_from_supplier`; it records
+`availability_requests.note_for_supplier` along with each line's
+`availability_request_items.note_for_supplier`; it records
 supplier conditions for the whole AR and is separate from LPS instructions.
 Relay its applicable context to each linked job without turning it into a
 line-level availability change. A saved price or note is supplier
@@ -38,8 +44,8 @@ supplier; restoring `is_active=true` retains its saved state and sharing setting
 |---|---|
 | `available` | Has the requested plant/size/quantity; its saved `available_quantity` is the AR item's authoritative allocated demand total. |
 | `can_order` | Can source/order; becomes `need_to_order` (Need to Order) on a committed order row. |
-| `arriving_soon` | Arriving; ETA in `note_from_supplier`. |
-| `diff_size_qty_sub` | Alternative plant/size or quantity; details in `note_from_supplier`. |
+| `arriving_soon` | Arriving; ETA in `note_for_supplier`. |
+| `diff_size_qty_sub` | Alternative plant/size or quantity; details in `note_for_supplier`. |
 | `unavailable` | Cannot supply. |
 | NULL | Unanswered. |
 
@@ -55,7 +61,7 @@ supplier's plant context is ambiguous, do not guess or write a sourcing entry:
 flag it for Chris's review with the ambiguity and source instead.
 
 The job thread applies [job note audiences](../../job-requests/artifacts/notes.md)
-to the submitted header and line `note_from_supplier`: brief current supplier,
+to the submitted header and line `note_for_supplier`: brief current supplier,
 price and actual received response go in `note_internal`; customer-useful
 information goes in `note_for_customer`. Split mixed content, preserve
 customer-origin and unrelated notes, and keep uncertain audience/offer
@@ -64,8 +70,16 @@ and line details to the linked items, respecting each allocation.
 
 For a submitted `diff_size_qty_sub` line, relay the supplier's *actual* offered
 alternative size/quantity/variant and price evidence without changing the
-customer's original demand. On the verified **first explicit APS submission**,
-identify this standing-authority scope in the handoff so the job thread follows
+customer's original demand. For an unambiguous `available` answer, do not seek
+an extra APS confirmation merely to repeat the answer; send the actual submitted
+facts and linked allocations to the job owner. Chris confirmed Carolina Cherry
+Laurel 24-inch box as equivalent to 30 G (JR-78 webchat messages 33–34,
+2026-09-24): flag this narrow equivalence in the relevant handoff rather than
+raising an artificial size conflict. Do not generalize it to other plants or
+assume a shared supplier quantity belongs to each linked job.
+
+On the verified **first explicit APS submission**, identify this
+standing-authority scope in the handoff so the job thread follows
 its [first-APS-submission path](../../job-requests/artifacts/supplier-responses.md)
 without another approval question for supported linked status, bounded
 quantity, customer-safe note and alternative-offering price updates. Verify it
@@ -90,10 +104,16 @@ bullets if multiple independent decisions or exceptions require attention.
 Editing a Completed request returns it to Processing until the supplier
 submits again. These supplier-entered portal changes remain as saved; Rosie
 reports them without overwriting them. Except for Chris's narrowly scoped
-first-APS-submission standing instruction, a response does **not** authorize
+first-APS-submission standing instruction or his separate explicit instruction
+for the affected submission and fields, a response does **not** authorize
 Rosie to change job/item availability or status, available quantities, selected
-supplier or the customer-facing offering. A customer-facing note can describe a
-verified proposed alternative under that first-submission instruction, but
+supplier or the customer-facing offering. Chris's JR-78 direction to use the
+APS response as-is for that request and “Always do this” establish a practice
+of not re-asking about clear available answers, not blanket write authority
+for later submissions, other suppliers or unrelated jobs. Relay any explicit
+scoped instruction to the job owner with its source; only the job owner makes
+supported updates after a fresh match and preserving customer constraints.
+A customer-facing note can describe a verified proposed alternative under that first-submission instruction, but
 must not present it as accepted or turn an unselected supplier's terms into
 accepted customer terms. Surface only the material next action to Chris, using
 bullets for multiple points rather than restating job details or the full AR

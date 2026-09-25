@@ -48,8 +48,8 @@ was submitted or a customer was silent.
 
 ## Note ownership
 
-Use `note_from_supplier` for the supplier's own order/header or line response,
-and `note_for_supplier` for Chris/LPS instructions. Customer-origin information
-belongs in the order header's `note_from_customer`; order items have no customer-origin note field. LPS's customer-facing updates belong in `note_for_customer`; never treat either as a supplier response or include them
-in supplier-facing output. Orders have no generic `notes` field. Track internal
-sourcing and supplier follow-up on the linked job/item's `note_internal`.
+Use `note_for_supplier` on order headers and items for shared sourcing instructions
+and actual supplier responses. Preserve existing relevant content when either side
+updates it. Use `note_for_customer` for customer sourcing requirements and safe
+customer-facing sourcing outcomes; it is omitted from supplier payloads. Exclude
+spacing and other non-sourcing details from customer notes.

@@ -15,7 +15,7 @@ function fixture() {
     suppliers: [{ id: 7, name: 'APS', is_lps_partner: true, rosie_thread_id: 'supplier-7' }],
     job_requests: links.map((link) => ({ id: link.job_request_id, name: `Job ${link.job_request_id}` })),
     availability_request_items: [{ id: 51, availability_request_id: 42, name: 'Oak', size: '30 G', demanded_quantity: 10,
-      status: 'can_order', available_quantity: 8, unit_price: 20, note_from_supplier: 'Ready next week', note_for_supplier: 'Single trunk only', is_active: true }],
+      status: 'can_order', available_quantity: 8, unit_price: 20, note_for_supplier: "Ready next week\n\nSingle trunk only", is_active: true }],
     availability_request_item_jobs: [
       { availability_request_item_id: 51, job_request_item_id: 101, quantity: 6 },
       { availability_request_item_id: 51, job_request_item_id: 110501, quantity: 4 },
@@ -76,13 +76,11 @@ test('shared requests appear on every source job, including associations beyond 
     { jobRequestItemId: 101, quantity: 6 }, { jobRequestItemId: 110501, quantity: 4 },
   ])
   assert.equal(detail.items[0].demandedQuantity, 10)
-  assert.equal(detail.items[0].noteForSupplier, 'Single trunk only')
-  assert.equal(detail.items[0].noteFromSupplier, 'Ready next week')
+  assert.equal(detail.items[0].noteForSupplier, 'Ready next week\n\nSingle trunk only')
   assert.equal('jobRequestItemId' in detail.items[0], false)
   const supplierDetail = await queries.availabilityRequest(42, { forSupplierId: 7 })
   assert.equal(supplierDetail.items[0].name, 'Oak')
-  assert.equal(supplierDetail.items[0].noteForSupplier, 'Single trunk only')
-  assert.equal(supplierDetail.items[0].noteFromSupplier, 'Ready next week')
+  assert.equal(supplierDetail.items[0].noteForSupplier, 'Ready next week\n\nSingle trunk only')
   assert.equal('allocations' in supplierDetail.items[0], false)
   assert.equal('jobRequestItemId' in supplierDetail.items[0], false)
 })

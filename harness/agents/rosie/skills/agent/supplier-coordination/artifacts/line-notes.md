@@ -1,17 +1,16 @@
 # Availability notes and job handoffs
 
 Read the request, current lines, linked jobs/items, allocations and source
-before editing. Keep the two voices separate and preserve unmentioned fields.
+before editing. Both LPS requirements and actual supplier replies use the same
+field. Preserve current requirements and response facts when updating it.
 
 | Field | Content and presentation |
 |---|---|
-| `availability_requests.note_for_supplier` | Supplier-useful job-wide customer requirements and Chris/LPS instructions for the request. |
-| `availability_request_items.note_for_supplier` | Additional information LPS/Chris shares with the supplier: relevant customer details, variety/cultivar, special requests, handling/site requirements and other supplier-useful instructions. Rendered below the plant name. |
-| `availability_requests.note_from_supplier` | The supplier's response conditions or additional information for the whole request. |
-| `availability_request_items.note_from_supplier` | Additional details the supplier provides about this AR line for LPS/Chris or the customer: qualifications, alternatives, ETA, conditions or other response details. Rendered in the **Note from supplier** column. |
+| `availability_requests.note_for_supplier` | Shared request-wide sourcing requirements, instructions and actual supplier response conditions. |
+| `availability_request_items.note_for_supplier` | Shared line-specific sourcing requirements and actual supplier response details: cultivar, color, alternatives, purchasing units, availability/ETA or relevant conditions. Rendered once in the **Note for supplier** column, never beneath the plant name. |
 
-1. Read `job_requests.note_from_customer` and every allocated
-   `job_request_items.note_from_customer` when preparing or correcting an authorized
+1. Read `job_requests.note_for_customer` and every allocated
+   `job_request_items.note_for_customer` when preparing or correcting an authorized
    ask. Select only information the supplier needs for sourcing: job-wide
    requirements into header `note_for_supplier`, line-specific requirements
    into item `note_for_supplier`, together with Chris's applicable instructions.
@@ -24,7 +23,8 @@ before editing. Keep the two voices separate and preserve unmentioned fields.
    line note. Trim qualifiers that add no sourcing meaning: write
    `Atrosanguinea or Shalimar Red cultivar`, not `Atrosanguinea or Shalimar Red
    cultivar acceptable`; remove accidental stray characters such as a trailing
-   `S`. Keep notes brief, positive and supplier-facing: describe the requested specs
+   `S`. Exclude planting spacing, layout and installation details unrelated to sourcing.
+   Keep notes brief, positive and supplier-facing: describe the requested specs
    and any genuine question for the supplier, not instructions about which sizes
    or cultivars it may or may not substitute. For example, write `140 individual
    4-inch pots packed in trays; unit price per pot`, not `not 140 trays`, and
@@ -41,12 +41,15 @@ before editing. Keep the two voices separate and preserve unmentioned fields.
    do not apply one job's conditions to all demand. Keep incompatible asks on
    separate lines. Do not repeat header notes on every line or use notes in
    place of structured quantity, price or status.
-3. Write `note_from_supplier` only from the supplier's actual response, under the
-   existing portal-transcription or Chris-authorized write rules. Use the
-   `answer_availability_request` RPC for line notes with the string key `note_from_supplier`;
-   blank clears that field. Never put LPS instructions into a supplier answer
-   or seed invented supplier notes when creating an ask.
-4. Re-read to verify the correct field and exact content. Note ownership does
+3. For LPS context, update the shared `note_for_supplier` without submitting a
+   response. For actual supplier replies, use `answer_availability_request` with
+   the string key `note_for_supplier`; read and retain still-relevant requirements
+   in the replacement text. Blank clears the whole shared note. A note-only LPS
+   edit does not mark the request processing; a supplier answer through the RPC
+   does. Header submission saves the shared request note through
+   `submit_availability_request_note`. Never invent a supplier reply from a seeded
+   instruction or treat existing ask text as evidence of availability.
+4. Re-read to verify the correct field and exact content. A note update does
    not authorize sending, submitting or messaging a customer. Submitted supplier
    notes are relayed with their header/line scope under [responses](responses.md).
    The job thread uses [job note audiences](../../job-requests/artifacts/notes.md)

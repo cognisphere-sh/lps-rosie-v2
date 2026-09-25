@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Coordinate supplier ARs and orders on the supplier thread. Includes customer-to-AR notes, supplier-to-job/item note handoffs, creation, portal transcription, submitted replies and order changes. Use for order-side supplier work or events. (v3.33.0)
+description: Coordinate supplier ARs and orders on the supplier thread. Includes customer-to-AR notes, supplier-to-job/item note handoffs, creation, portal transcription, submitted replies and order changes. Use for order-side supplier work or events. (v3.35.0)
 metadata:
   author: lps
-  version: "3.33.0"
+  version: "3.35.0"
 ---
 
 # Supplier coordination

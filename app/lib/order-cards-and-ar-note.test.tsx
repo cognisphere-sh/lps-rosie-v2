@@ -63,7 +63,7 @@ test('admin order cards expand independently and AR notes submit with the respon
     }) as typeof fetch
     Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: (callback: () => void) => { callback(); return 0 } })
     let refreshed = 0
-    const editableOrder = { ...order, items: [{ id: 12, name: 'Oak', size: '15 gal', quantity: 2, unitPrice: 30, total: 60, status: 'pending', noteForSupplier: null, noteFromSupplier: null, noteForCustomer: null }] }
+    const editableOrder = { ...order, items: [{ id: 12, name: 'Oak', size: '15 gal', quantity: 2, unitPrice: 30, total: 60, status: 'pending', noteForSupplier: null, noteForCustomer: null }] }
     try {
       view = render(<OrderCard order={editableOrder} canEdit onChanged={() => { refreshed++ }} />)
       fireEvent.click(view.getByRole('button', { name: 'Expand order JR-42:Order-1' }))
@@ -78,19 +78,19 @@ test('admin order cards expand independently and AR notes submit with the respon
       fireEvent.change(quantity, { target: { value: '7' } })
       fireEvent.keyDown(quantity, { key: 'Escape' })
       assert.equal(writes.length, 1, 'Escape cancels without writing')
-      fireEvent.click(view.getByRole('button', { name: 'Note to supplier for Oak' }))
-      const plantNote = view.getByRole('textbox', { name: 'Note to supplier for Oak' })
+      fireEvent.click(view.getByRole('button', { name: 'Note for supplier for Oak' }))
+      const plantNote = view.getByRole('textbox', { name: 'Note for supplier for Oak' })
       fireEvent.change(plantNote, { target: { value: 'Single trunk only.\nCall before substituting.' } })
       await act(async () => { fireEvent.blur(plantNote) })
       assert.deepEqual(writes.at(-1), { url: '/api/orders/1/items/12', body: { column: 'note_for_supplier', value: 'Single trunk only.\nCall before substituting.' } })
       view.rerender(<OrderCard order={{ ...editableOrder, status: 'closed_won' }} canEdit />)
       assert.equal(view.queryByTitle('Edit name for Oak'), null, 'Closed orders are read-only')
-      assert.equal(view.queryByRole('button', { name: 'Note to supplier for Oak' }), null)
+      assert.equal(view.queryByRole('button', { name: 'Note for supplier for Oak' }), null)
       view.unmount()
     } finally { globalThis.fetch = originalFetch }
 
     const request = { id: 3, status: 'new', jobName: 'Garden', items: [], answeredCount: 0, createdAt: '2026-09-15T12:00:00Z',
-      noteFromSupplier: 'Morning only', supplierName: 'APS', supplierId: 7, customer: null, shipping: null, noteForSupplier: null } as unknown as ARDetail
+      noteForSupplier: 'Morning only', supplierName: 'APS', supplierId: 7, customer: null, shipping: null } as unknown as ARDetail
     const submissions: string[] = []
     view = render(<AvailabilityRequestView request={request} loading={false} saving={false} error=""
       onPatch={async () => {}} onSubmit={async (note) => { submissions.push(note) }} />)

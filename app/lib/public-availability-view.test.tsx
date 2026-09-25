@@ -23,7 +23,7 @@ test('public request uses the partner summary, print sheet and submit flow, then
     createdAt: '2026-09-10T12:00:00Z', itemCount: 1, answeredCount: 1,
     noteForSupplier: 'Deliver Friday', customer: null, shipping: null,
     items: [{ id: 5, name: 'Live oak', size: '30 G', demandedQuantity: 4,
-      status: 'available', availableQuantity: 4, unitPrice: 12.5, noteFromSupplier: null, noteForSupplier: null }],
+      status: 'available', availableQuantity: 4, unitPrice: 12.5, noteForSupplier: null }],
   }
   globalThis.fetch = async (url, init) => {
     assert.equal(url, '/api/public/availability/token')
@@ -40,20 +40,20 @@ test('public request uses the partner summary, print sheet and submit flow, then
     await waitFor(() => assert.ok(view.getByText('Total Items')))
     assert.ok(view.getByRole('article', { name: 'Line 1, Live oak' }))
     assert.equal(view.container.querySelector('[style*="min-width: 960px"]'), null)
-    assert.ok(view.getByText('Delivery instructions'))
+    await waitFor(() => assert.equal((view.getByRole('textbox', { name: 'Note for this request' }) as HTMLTextAreaElement).value, 'Deliver Friday'))
     assert.ok(view.getAllByText('$50.00').length)
     assert.ok(view.getByRole('button', { name: 'Print' }))
     await waitFor(() => assert.ok(document.querySelector('#ar-print-sheet')))
     fireEvent.click(view.getByRole('button', { name: 'Submit availability' }))
     await waitFor(() => assert.ok(view.getByText('Completed')))
-    assert.deepEqual(writes, [{ submit: true, supplierNote: '' }])
+    assert.deepEqual(writes, [{ submit: true, supplierNote: 'Deliver Friday' }])
     assert.ok(view.getByRole('button', { name: 'Re-Submit availability' }))
     request.status = 'closed'
     fireEvent.focus(window)
     await waitFor(() => assert.ok(view.getByText('This request is closed — the lines are read-only.')))
     assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
     assert.equal(view.container.querySelector('input:not([readonly]), textarea:not([readonly]), select'), null)
-    assert.deepEqual(writes, [{ submit: true, supplierNote: '' }])
+    assert.deepEqual(writes, [{ submit: true, supplierNote: 'Deliver Friday' }])
     revoked = true
     fireEvent.focus(window)
     await waitFor(() => assert.ok(view.getByText('This link is no longer available.')))

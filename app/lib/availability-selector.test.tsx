@@ -51,7 +51,6 @@ const item = (changes: Partial<ARItem> = {}): ARItem => ({
   status: null,
   availableQuantity: null,
   unitPrice: 12.5,
-  noteFromSupplier: null,
   noteForSupplier: null,
   ...changes,
 })
@@ -134,7 +133,7 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
   assert.equal(view.queryByLabelText('Price per unit'), null)
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
-  assert.deepEqual(patches, [[19, { status: 'can_order', note_from_supplier: 'Ready next week' }]])
+  assert.deepEqual(patches, [[19, { status: 'can_order', note_for_supplier: 'Ready next week' }]])
 })
 
 test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed focus candidates', async () => {
@@ -459,46 +458,39 @@ test('admin line picker remains the existing native select', () => {
   )
 })
 
-test('desktop admin and supplier lines wrap the complete supplier and LPS notes', () => {
-  const notes = 'Ready next week after the entire new shipment has been inspected.\nPlease confirm the loading window.'
-  const noteForSupplier = 'Use the delivery entrance at the back of the nursery.\nThe site contact will meet the truck there.'
+test('desktop admin and supplier lines render the merged note once in its column', () => {
+  const noteForSupplier = 'Single trunk only.\nReady next week.'
   for (const design of ['default', 'portal'] as const) {
-    const view = render(<ARLineTable items={[item({ noteFromSupplier: notes, noteForSupplier })]} design={design} editable={false} />)
-    assert.ok(view.getByText('Note from supplier'))
+    const view = render(<ARLineTable items={[item({ noteForSupplier })]} design={design} editable={false} />)
+    assert.ok(view.getByText('Note for supplier'))
     const plantCell = view.getByText(item().name).parentElement!
-    assert.ok(plantCell.contains(view.getByTitle(noteForSupplier, { normalizer: (value) => value })), 'LPS notes belong below the plant name')
-    assert.ok(!plantCell.contains(view.getByTitle(notes, { normalizer: (value) => value })), 'Note from supplier have a separate column')
-    for (const text of [notes, noteForSupplier]) {
-      const display = view.getByTitle(text, { normalizer: (value) => value })
-      assert.equal(display.textContent, text)
-      assert.match(display.className, /whitespace-pre-wrap/)
-      assert.doesNotMatch(display.className, /truncate|line-clamp/)
-    }
+    const note = view.getByTitle(noteForSupplier, { normalizer: (value) => value })
+    assert.equal(plantCell.contains(note), false)
+    assert.equal(note.textContent, noteForSupplier)
+    assert.match(note.className, /whitespace-pre-wrap/)
+    assert.doesNotMatch(note.className, /truncate|line-clamp/)
     view.unmount()
   }
 })
 
-test('desktop note editors expand with their contents and save multiline notes on blur', async () => {
+test('merged note editor preserves multiline contents and routes admin context separately from supplier answers', async () => {
   const user = userEvent.setup({ document })
-  const patches: Array<[number, Record<string, string>]> = []
-  const details: Array<[number, Record<string, string>]> = []
-  const view = render(<ARLineTable items={[item()]} editable
-    onPatch={async (id, changes) => { patches.push([id, changes]) }}
-    onPatchDetails={async (id, changes) => { details.push([id, changes]) }} />)
-  for (const [label, note] of [
-    ['Line 19 supplier notes', 'Ready next week.\nConfirm before pickup.'],
-    ['Line 19 note to supplier', 'Use the south gate.\nCall before unloading.'],
-  ]) {
-    const editor = view.getByRole('textbox', { name: label })
+  for (const admin of [true, false]) {
+    const patches: Array<[number, Record<string, string>]> = []
+    const details: Array<[number, Record<string, string>]> = []
+    const view = render(<ARLineTable items={[item({ noteForSupplier: 'Single trunk only.' })]} editable
+      onPatch={async (id, changes) => { patches.push([id, changes]) }}
+      onPatchDetails={admin ? async (id, changes) => { details.push([id, changes]) } : undefined} />)
+    const editor = view.getByRole('textbox', { name: 'Line 19 supplier notes' })
     assert.equal(editor.tagName, 'TEXTAREA')
-    assert.match(editor.className, /h-auto/)
     assert.match(editor.className, /field-sizing:content/)
-    assert.equal(editor.classList.contains('h-7'), false)
-    await user.type(editor, note)
+    await user.type(editor, '\nReady next week.')
     await user.tab()
+    const expected = [[19, { note_for_supplier: 'Single trunk only.\nReady next week.' }]]
+    assert.deepEqual(admin ? details : patches, expected)
+    assert.deepEqual(admin ? patches : details, [])
+    view.unmount()
   }
-  assert.deepEqual(patches, [[19, { note_from_supplier: 'Ready next week.\nConfirm before pickup.' }]])
-  assert.deepEqual(details, [[19, { note_for_supplier: 'Use the south gate.\nCall before unloading.' }]])
 })
 
 for (const portal of [false, true]) {
@@ -506,7 +498,7 @@ for (const portal of [false, true]) {
     test(`unavailable asks about a substitute before notes (portal=${portal}, recommend=${recommend})`, async () => {
       const user = userEvent.setup({ document })
       const patches: Array<[number, Record<string, string>]> = []
-      const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
+      const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteForSupplier: 'Existing note' })}
         editable portal={portal} onPatch={async (id, changes) => { patches.push([id, changes]) }} />)
       if (portal) {
         await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
@@ -525,7 +517,7 @@ for (const portal of [false, true]) {
         await user.clear(notes)
         await user.type(notes, 'Red Oak, 30 G @ $25/unit')
         await user.click(view.getByRole('button', { name: 'Save answer' }))
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '', note_from_supplier: 'Red Oak, 30 G @ $25/unit' }]])
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '', note_for_supplier: 'Red Oak, 30 G @ $25/unit' }]])
       } else {
         assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '' }]])
       }

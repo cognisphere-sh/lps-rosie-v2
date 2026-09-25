@@ -94,9 +94,7 @@ export interface ARItem {
   status: string | null
   availableQuantity: number | null
   unitPrice: number | null
-  /** Additional supplier-provided details for LPS/Chris or the customer. */
-  noteFromSupplier: string | null
-  /** LPS/Chris context for the supplier: customer details, variety, special requests or other instructions. */
+  /** Shared sourcing requirements and actual supplier response details. */
   noteForSupplier: string | null
 }
 
@@ -137,10 +135,8 @@ export interface ARSummary {
   createdAt: string
   itemCount: number
   answeredCount: number
-  /** LPS's job-level note to the supplier — delivery window, site constraints. Ours, never theirs to edit. */
+  /** Shared request-wide sourcing requirements and actual supplier responses. */
   noteForSupplier: string | null
-  /** Supplier response for the entire request, submitted with its answers. */
-  noteFromSupplier?: string | null
 }
 
 /**

@@ -216,7 +216,7 @@ test('shared AR capacity counts allocated quantities on unselected jobs and dire
 
 test('orders keep customer EDD separate from supplier commitment and deduplicate combined job schedules', async () => {
   const db = database({
-    orders: [{ id: 1, supplier_id: 7, status: 'processing', fulfillment_date: '2026-10-05', note_from_supplier: 'Committed for Monday', note_for_supplier: 'Customer instructions', is_active: true }],
+    orders: [{ id: 1, supplier_id: 7, status: 'processing', fulfillment_date: '2026-10-05', note_for_supplier: "Committed for Monday\n\nCustomer instructions", is_active: true }],
     suppliers: [{ id: 7, name: 'APS' }],
     order_items: [{ id: 10, order_id: 1, quantity: 3, is_active: true }],
     order_item_job_request_items: [
@@ -236,8 +236,7 @@ test('orders keep customer EDD separate from supplier commitment and deduplicate
   assert.equal(partnerOrder.shareJobs, undefined)
   assert.equal(partnerOrder.customerDetails.find((detail: { jobName: string }) => detail.jobName === 'Private Garden').customer.email, 'jane@example.com')
   assert.equal(partnerOrder.fulfillmentDate, '2026-10-05')
-  assert.equal(partnerOrder.noteFromSupplier, 'Committed for Monday')
-  assert.equal(partnerOrder.noteForSupplier, 'Customer instructions')
+  assert.equal(partnerOrder.noteForSupplier, 'Committed for Monday\n\nCustomer instructions')
   assert.deepEqual(partnerOrder.jobSchedules, [
     { expectedInstallDate: '2026-10-03', fulfillmentMethod: 'delivery' },
     { expectedInstallDate: '2026-10-08', fulfillmentMethod: 'pickup' },
@@ -256,10 +255,10 @@ test('partner order updates validate the editable fields and strict dates', () =
   assert.deepEqual(parsePartnerOrderUpdate({ status: 'processing', fulfillmentMethod: 'delivery', fulfillmentDate: '2026-10-02' }),
     { status: 'processing', fulfillmentMethod: 'delivery', fulfillmentDate: '2026-10-02' })
   assert.deepEqual(parsePartnerOrderUpdate({ status: 'order_ready' }), { status: 'order_ready' })
-  assert.deepEqual(parsePartnerOrderUpdate({ noteFromSupplier: '  Ready after noon\nCall on arrival  ' }), { noteFromSupplier: 'Ready after noon\nCall on arrival' })
-  for (const noteFromSupplier of [null, '', '   ']) assert.deepEqual(parsePartnerOrderUpdate({ noteFromSupplier }), { noteFromSupplier: null })
-  assert.equal(parsePartnerOrderUpdate({ noteFromSupplier: 'x'.repeat(10000) }).noteFromSupplier?.length, 10000)
-  for (const noteFromSupplier of [false, 12, [], {}, 'x'.repeat(10001)]) assert.throws(() => parsePartnerOrderUpdate({ noteFromSupplier }), /Note from supplier/)
+  assert.deepEqual(parsePartnerOrderUpdate({ noteForSupplier: '  Ready after noon\nCall on arrival  ' }), { noteForSupplier: 'Ready after noon\nCall on arrival' })
+  for (const noteForSupplier of [null, '', '   ']) assert.deepEqual(parsePartnerOrderUpdate({ noteForSupplier }), { noteForSupplier: null })
+  assert.equal(parsePartnerOrderUpdate({ noteForSupplier: 'x'.repeat(10000) }).noteForSupplier?.length, 10000)
+  for (const noteForSupplier of [false, 12, [], {}, 'x'.repeat(10001)]) assert.throws(() => parsePartnerOrderUpdate({ noteForSupplier }), /Note for supplier/)
   for (const value of [null, [], {}, { status: 'new' }, { status: 'closed_won' }, { status: null },
     { fulfillmentMethod: 'truck' }, { fulfillmentDate: '2026-02-30' }, { confirmationDate: '2026-09-14' }, { notes: 'edit' }]) {
     assert.throws(() => parsePartnerOrderUpdate(value))
@@ -309,16 +308,16 @@ test('supplier and admin portal access permits atomic lifecycle updates within t
     assert.equal((await get('99')).status, 404)
     assert.equal((await patch({ status: 'processing' }, '99')).status, 404)
     assert.equal((await patch({ status: 'processing' }, '43')).status, 409, 'An order linked only to closed jobs cannot be edited')
-    assert.equal((await patch({ noteFromSupplier: 'Edit' }, '44')).status, 409, 'Closed orders cannot be edited')
+    assert.equal((await patch({ noteForSupplier: 'Edit' }, '44')).status, 409, 'Closed orders cannot be edited')
     assert.equal((await patch({ status: 'closed_won' })).status, 400)
     assert.equal((await patch({ fulfillmentDate: '2026-02-30' })).status, 400)
-    assert.equal((await patch({ supplierId: 8, noteFromSupplier: 'Wrong supplier' })).status, 400)
+    assert.equal((await patch({ supplierId: 8, noteForSupplier: 'Wrong supplier' })).status, 400)
     supplierActive = false
-    assert.equal((await patch({ noteFromSupplier: 'Inactive supplier' })).status, 404)
+    assert.equal((await patch({ noteForSupplier: 'Inactive supplier' })).status, 404)
     assert.equal((await get()).status, 404)
     supplierActive = true
     assert.equal(writes.length, previousWrites)
-    const update = { status: 'processing', fulfillmentDate: '2026-09-20', noteFromSupplier: `${role} confirmation` }
+    const update = { status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: `${role} confirmation` }
     assert.equal((await patch(update)).status, 200)
     assert.equal((await patch({ status: 'order_ready' })).status, 200)
     assert.deepEqual(writes.slice(previousWrites), [[42, 7, update], [42, 7, { status: 'order_ready' }]])
@@ -355,7 +354,7 @@ test('Pickup or delivery is never writable through a supplier portal session, wh
     assert.equal((await response.json()).error, 'Pickup or delivery is managed by Chris')
   }
   assert.equal(writes.length, 0, 'A forbidden method field rejects the entire confirmation')
-  const confirmation = { status: 'processing', fulfillmentDate: '2026-09-20', noteFromSupplier: 'Ready by noon' }
+  const confirmation = { status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: 'Ready by noon' }
   assert.equal((await patch(confirmation)).status, 200)
   assert.deepEqual(writes, [[42, 7, confirmation]])
   role = 'admin'
@@ -418,28 +417,28 @@ test('Chris can update orders through the internal API while unscoped partner ac
   assert.equal((await patch({ status: 'processing' })).status, 403)
   assert.equal(reads.length, 0, 'Only admins may resolve an order through the unscoped endpoint')
   role = 'admin'
-  for (const invalidId of ['0', '-1', 'bad', '42x', '1.5']) assert.equal((await patch({ noteFromSupplier: 'Edit' }, invalidId)).status, 400)
+  for (const invalidId of ['0', '-1', 'bad', '42x', '1.5']) assert.equal((await patch({ noteForSupplier: 'Edit' }, invalidId)).status, 400)
   assert.equal(reads.length, 0)
   assert.equal((await patch({ status: 'processing' }, '99')).status, 404)
   assert.equal((await patch({ status: 'processing' }, '43')).status, 409)
-  assert.equal((await patch({ noteFromSupplier: 'Edit' }, '44')).status, 409)
-  const unavailable = await patch({ noteFromSupplier: 'Inactive supplier' }, '46')
+  assert.equal((await patch({ noteForSupplier: 'Edit' }, '44')).status, 409)
+  const unavailable = await patch({ noteForSupplier: 'Inactive supplier' }, '46')
   assert.equal(unavailable.status, 400)
   assert.equal((await unavailable.json()).error, 'Order is unavailable', 'The guarded RPC rejects an inactive supplier')
-  for (const body of [{ status: 'closed_won' }, { fulfillmentDate: '2026-02-30' }, { supplierId: 8, noteFromSupplier: 'Override' }, { notes: 'Procurement snapshot edit' }]) {
+  for (const body of [{ status: 'closed_won' }, { fulfillmentDate: '2026-02-30' }, { supplierId: 8, noteForSupplier: 'Override' }, { notes: 'Procurement snapshot edit' }]) {
     assert.equal((await patch(body)).status, 400)
   }
   assert.equal(writes.length, 0)
-  const update = { status: 'processing', fulfillmentMethod: 'delivery', fulfillmentDate: '2026-09-20', noteFromSupplier: 'Confirmed by Chris' }
+  const update = { status: 'processing', fulfillmentMethod: 'delivery', fulfillmentDate: '2026-09-20', noteForSupplier: 'Confirmed by Chris' }
   assert.equal((await patch(update)).status, 200)
   assert.equal((await patch({ status: 'order_ready' })).status, 200)
-  assert.equal((await patch({ fulfillmentDate: '2026-09-21', noteFromSupplier: null })).status, 200)
+  assert.equal((await patch({ fulfillmentDate: '2026-09-21', noteForSupplier: null })).status, 200)
   assert.equal((await patch({ fulfillmentMethod: null })).status, 200)
-  assert.equal((await patch({ noteFromSupplier: 'Confirmed directly with nonportal supplier' }, '45')).status, 200)
+  assert.equal((await patch({ noteForSupplier: 'Confirmed directly with nonportal supplier' }, '45')).status, 200)
   assert.deepEqual(writes, [
-    [42, 7, update], [42, 7, { status: 'order_ready' }], [42, 7, { fulfillmentDate: '2026-09-21', noteFromSupplier: null }],
+    [42, 7, update], [42, 7, { status: 'order_ready' }], [42, 7, { fulfillmentDate: '2026-09-21', noteForSupplier: null }],
     [42, 7, { fulfillmentMethod: null }],
-    [45, 8, { noteFromSupplier: 'Confirmed directly with nonportal supplier' }],
+    [45, 8, { noteForSupplier: 'Confirmed directly with nonportal supplier' }],
   ], 'The atomic RPC uses the supplier on the fetched order, including suppliers without a portal')
 })
 
@@ -448,15 +447,15 @@ test('partner order updates send one scoped RPC and preserve omitted versus clea
   const { updatePartnerOrder } = load('./order-queries.ts', {
     'server-only': {}, '@/lib/supabase': { supabase: { rpc: async (...args: unknown[]) => { calls.push(args); return { error: null } } } },
   })
-  await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentMethod: 'pickup', fulfillmentDate: '2026-09-20', noteFromSupplier: 'Pickup after noon' })
+  await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentMethod: 'pickup', fulfillmentDate: '2026-09-20', noteForSupplier: 'Pickup after noon' })
   await updatePartnerOrder(42, 7, { fulfillmentDate: null })
-  await updatePartnerOrder(42, 7, { noteFromSupplier: null })
-  await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentDate: '2026-09-20', noteFromSupplier: 'Ready by noon' })
+  await updatePartnerOrder(42, 7, { noteForSupplier: null })
+  await updatePartnerOrder(42, 7, { status: 'processing', fulfillmentDate: '2026-09-20', noteForSupplier: 'Ready by noon' })
   assert.deepEqual(calls, [
-    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_method: 'pickup', fulfillment_date: '2026-09-20', note_from_supplier: 'Pickup after noon' } }],
+    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_method: 'pickup', fulfillment_date: '2026-09-20', note_for_supplier: 'Pickup after noon' } }],
     ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { fulfillment_date: null } }],
-    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { note_from_supplier: null } }],
-    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_date: '2026-09-20', note_from_supplier: 'Ready by noon' } }],
+    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { note_for_supplier: null } }],
+    ['update_partner_order', { p_order_id: 42, p_supplier_id: 7, p_patch: { status: 'processing', fulfillment_date: '2026-09-20', note_for_supplier: 'Ready by noon' } }],
   ])
 })
 
@@ -509,7 +508,7 @@ test('order closure follows every linked job for supplier and admin reads, with 
 })
 
 test('partner header saves notify only after successful changes', async () => {
-  const saved: Record<string, unknown> = { id: 42, supplierId: 7, status: 'new', fulfillmentDate: null, noteFromSupplier: null }
+  const saved: Record<string, unknown> = { id: 42, supplierId: 7, status: 'new', fulfillmentDate: null, noteForSupplier: null }
   const events: any[] = []
   let failWrite = false
   let failContext = false
@@ -538,15 +537,15 @@ test('partner header saves notify only after successful changes', async () => {
   const patch = (body: object) => PATCH(new Request('https://lps.example/api/partner/7/orders/42', {
     method: 'PATCH', body: JSON.stringify(body),
   }), { params: Promise.resolve({ id: '7', orderId: '42' }) })
-  assert.equal((await patch({ status: 'processing', fulfillmentDate: '2026-09-25', noteFromSupplier: 'After noon' })).status, 200)
+  assert.equal((await patch({ status: 'processing', fulfillmentDate: '2026-09-25', noteForSupplier: 'After noon' })).status, 200)
   assert.equal(events.length, 1)
   assert.deepEqual(events[0].orderChanges, [
     { field: 'status', previous: 'new', value: 'processing' },
     { field: 'fulfillmentDate', previous: null, value: '2026-09-25' },
-    { field: 'noteFromSupplier', previous: null, value: 'After noon' },
+    { field: 'noteForSupplier', previous: null, value: 'After noon' },
   ])
   assert.equal(events[0].threadId, 'supplier-aps')
-  assert.equal((await patch({ noteFromSupplier: ' After noon ' })).status, 200)
+  assert.equal((await patch({ noteForSupplier: ' After noon ' })).status, 200)
   assert.equal(events.length, 1)
   failWrite = true
   assert.equal((await patch({ status: 'order_ready' })).status, 400)
@@ -554,7 +553,7 @@ test('partner header saves notify only after successful changes', async () => {
   failWrite = false
   assert.equal((await patch({ status: 'order_ready' })).status, 200)
   assert.equal(events.length, 2)
-  assert.equal((await patch({ noteFromSupplier: null })).status, 200)
+  assert.equal((await patch({ noteForSupplier: null })).status, 200)
   assert.equal(events.length, 3)
   failContext = true
   assert.equal((await patch({ fulfillmentDate: '2026-09-26' })).status, 200)
@@ -563,12 +562,11 @@ test('partner header saves notify only after successful changes', async () => {
 
 
 test('order creation validates and routes each directional header note', async () => {
-  const parsed = parseCreateOrder({ ...input(), noteForSupplier: '  Pickup only ', noteFromCustomer: ' White flowers ', noteForCustomer: ' Ready Friday ' })
+  const parsed = parseCreateOrder({ ...input(), noteForSupplier: '  Pickup only ', noteForCustomer: " White flowers \n\n Ready Friday " })
   assert.equal(parsed.noteForSupplier, 'Pickup only')
-  assert.equal(parsed.noteFromCustomer, 'White flowers')
-  assert.equal(parsed.noteForCustomer, 'Ready Friday')
+  assert.equal(parsed.noteForCustomer, 'White flowers \n\n Ready Friday')
   assert.throws(() => parseCreateOrder({ ...input(), notes: 'Old field' }), /noteForSupplier/)
-  for (const field of ['noteForSupplier', 'noteFromCustomer', 'noteForCustomer']) {
+  for (const field of ['noteForSupplier', 'noteForCustomer']) {
     for (const value of [false, 42, [], {}, 'x'.repeat(10001)]) {
       assert.throws(() => parseCreateOrder({ ...input(), [field]: value }), /must be text/)
     }
@@ -581,17 +579,17 @@ test('order creation validates and routes each directional header note', async (
   await createOrder(parseCreateOrder({ ...input(), items: [{ jobRequestItemId: 11, quantity: 1 }], noteForSupplier: 'Direct supplier note' }))
   assert.deepEqual((calls[0] as any[])[1], {
     p_supplier_id: 7, p_customer_confirmed: true, p_fulfillment_method: 'pickup', p_fulfillment_date: null,
-    p_note_for_supplier: 'Pickup only', p_note_from_customer: 'White flowers', p_note_for_customer: 'Ready Friday',
+    p_note_for_supplier: 'Pickup only', p_note_for_customer: "White flowers \n\n Ready Friday",
     p_items: [{ availability_request_item_id: 101, allocations: [{ job_request_item_id: 11, quantity: 2 }, { job_request_item_id: 21, quantity: 3 }] }],
   })
   assert.equal((calls[1] as any[])[0], 'create_direct_order')
   assert.equal((calls[1] as any[])[1].p_note_for_supplier, 'Direct supplier note')
-  assert.equal((calls[1] as any[])[1].p_note_from_customer, null)
+  assert.equal((calls[1] as any[])[1].p_note_for_customer, null)
 })
 
 test('order supplier payloads omit customer notes on headers and lines', async () => {
-  const noteFields = { note_from_customer: 'Private customer requirement', note_for_customer: 'Private customer update',
-    note_for_supplier: 'Loading instructions', note_from_supplier: 'Supplier response' }
+  const noteFields = { note_for_customer: "Private customer requirement\n\nPrivate customer update",
+    note_for_supplier: "Loading instructions\n\nSupplier response" }
   const db = database({
     orders: [{ id: 1, supplier_id: 7, status: 'new', is_active: true, ...noteFields }],
     suppliers: [{ id: 7, name: 'APS' }],
@@ -601,14 +599,12 @@ test('order supplier payloads omit customer notes on headers and lines', async (
   const { listOrders } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
   const [admin] = await listOrders({ supplierId: 7 })
   const [supplier] = await listOrders({ supplierId: 7, forSupplier: true })
-  assert.equal(admin.noteFromCustomer, noteFields.note_from_customer)
-  assert.equal('noteFromCustomer' in admin.items[0], false)
+  assert.equal(admin.noteForCustomer, noteFields.note_for_customer)
+  assert.equal('noteForCustomer' in admin.items[0], true)
   for (const row of [admin, admin.items[0]]) assert.equal(row.noteForCustomer, noteFields.note_for_customer)
   for (const row of [supplier, supplier.items[0]]) {
-    assert.equal('noteFromCustomer' in row, false)
     assert.equal('noteForCustomer' in row, false)
     assert.equal(row.noteForSupplier, noteFields.note_for_supplier)
-    assert.equal(row.noteFromSupplier, noteFields.note_from_supplier)
     assert.equal('notes' in row, false)
   }
   assert.doesNotMatch(JSON.stringify(supplier), /Private customer/)
@@ -685,7 +681,7 @@ test('admin inline order edits enforce role, order membership, and closure', asy
 test('public orders require a live capability and expose only supplier details', async () => {
   const token = '11111111-1111-4111-8111-111111111111'
   const tables = {
-    orders: [{ id: 1, supplier_id: 7, public_token: token as string | null, is_active: true, status: 'new', note_for_customer: 'private header', note_from_customer: 'private input' }],
+    orders: [{ id: 1, supplier_id: 7, public_token: token as string | null, is_active: true, status: 'new', note_for_customer: "private header\n\nprivate input" }],
     suppliers: [{ id: 7, name: 'APS', is_active: true }],
     order_items: [{ id: 10, order_id: 1, name: 'Oak', quantity: 2, status: 'available', unit_price: 10, total: 20, is_active: true, note_for_customer: 'private line', note_for_supplier: 'Handle gently' }],
     order_item_job_request_items: [{ order_item_id: 10, job_request_item_id: 11, quantity: 2 }],
@@ -699,7 +695,7 @@ test('public orders require a live capability and expose only supplier details',
   const order = await publicOrder(token)
   assert.ok(order)
   assert.equal(order.items[0].noteForSupplier, 'Handle gently')
-  for (const field of ['publicToken', 'noteForCustomer', 'noteFromCustomer', 'shareJobs']) assert.equal(field in order, false)
+  for (const field of ['publicToken', 'noteForCustomer', 'noteForCustomer', 'shareJobs']) assert.equal(field in order, false)
   assert.equal('noteForCustomer' in order.items[0], false)
   assert.equal('allocations' in order.items[0], false)
   assert.equal('jobRequestId' in order.jobSchedules[0], false)
