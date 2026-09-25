@@ -1,9 +1,9 @@
 # Keep useful sourcing context compact and open all prior detail by click
 
-- Status: routed — composition PAUSED for AR R3-only deploy priority; requirement retained, no notes integration/deploy permission or release proof
+- Status: routed — composition PAUSED; AR-only merge awaits operator release, no notes integration/deploy authority or release proof
 - Route: nova
 - Raised: 2026-09-17 by Chris (Telegram634/635/637/639/640/643/644/646, via Nova)
-- Updated: 2026-09-25T00:03:56-05:00
+- Updated: 2026-09-25T01:29:40-05:00
 - Scope: internal operator Request items sourcing disclosure; existing evidence only
 
 ## Problem
@@ -76,6 +76,8 @@ The wide Sourcing Note column spends workspace width on repeated/truncated detai
 
 - 2026-09-25T00:03:56-05:00 — Nova00:03:38 reports R3 candidate `189709a` independently staticSAFE, a reported candidate ID not a presumed commit/release. Tests/build/browser/auth remain UNMET. Operator already asked secure QA login and bounded-runner approval; no dirty `server.sh` deployment or safety waiver. AR item3 is only the existing `note_for_supplier` display under740, not new/copied data, editing/Submit behavior, customer exposure or inferred JR association. None of that grants this notes slice integration/deploy authority; await existing-owner gate/release evidence.
 
+- 2026-09-25T01:29:40-05:00 — Nova01:28:51 reports actual AR drawer1–3 ONLY merged to main `fecd81be6821af7f39b7d3197cbb0dc889de74e6` (parents07445867/e79b0cb; latter independently STATIC reviewed,11 exact candidate blobs; other operator/Lily repairs preserved). Bhoumik749 now owns release after merge; Nova751 already sent SHA/gates. No exact tests/type/build/browser/deployment evidence; hostOOM/unvalidated runner remain. Daisy's read-only target-catalog check confirms AR fields+0115-compatible answer RPC ONLY, not end-to-end/all migrations. AR is MERGED NOT LIVE; this sourcing UI/other composition stays PAUSED without new authority. No mobile/Past/full709/customer-publication change in THIS merge scope—not a claim about older operator changes already on HEAD.
+
 ## Supplier-note clarification, not additional scope
 
 - Chris652 asked where APS-written notes appear. Nova's current source-only mapping, answered to Chris654, places availability-request plant Nursery notes and whole-request Supplier note inside that request, supplier chat in chat, and Order line Nursery notes/header Supplier note on expanded Order cards (line notes currently read-only). Mere line save/old submitted status does not relay Job sourcing; explicit Submit/Re-submit permits asynchronous relevant agent handling. Nothing automatically becomes customer Shared notes. This sourcing icon is internal context/history, NOT an automatic supplier-note inbox. Company association does not prove supplier authorship; AR38's Chris-admin provenance stays explicit. No additional build, relay, storage or live-data assertion follows.
@@ -105,3 +107,4 @@ The wide Sourcing Note column spends workspace width on repeated/truncated detai
 - 2026-09-24T23:11:53-05:00 — Propagated subsequent Nova23:09:27 source/base facts to the same six existing owners; shared new factual handoff helper-captured once as **Current committed base still needs live gates**, ID `nova:main:2026-09-24T23:09:27-05:00:current-integration-base`. Current committed `3c4adca`, existing6c0e95c/Past source and separate0115 review do not establish current live source, migration application, auth/runner safety or release. Operator723/724 already asked; no duplicate ask/audit/build. Await actual preflight/contract/release evidence.
 - 2026-09-24T23:26:45-05:00 — Updated own integration record for retracted blanket0104 gate, separately owned0106/0108 and0115 reviews, reported mobile/drawer static candidates and unresolved composition/Past/runtime gates. Relayed only to affected EXISTING mobile-list, AR and supplier-Past owners; no duplicated shared feedback, audit, tests, builder or operator ask. No candidate integration/release inferred.
 - 2026-09-25T00:03:56-05:00 — Shared743 deployment instruction captured once via helper as **Deploy AR R3 only after gates**, ID `nova:main:2026-09-25T00:03:38-05:00:ar-r3-deploy-telegram743`; attributed request because exact743 wording was not supplied. Relayed to existing AR/mobile-list/Past owners only. Own notes composition now PAUSED for AR-only priority, not dropped/released or newly authorized. StaticSAFE is not unmet tests/build/browser/auth clearance; no duplicate capture/audit/test/operator ask/Telegram.
+- 2026-09-25T01:29:40-05:00 — Shared actual AR-only merge/release-ownership handoff captured once via helper, **AR drawer merged, operator owns release**, ID `nova:main:2026-09-25T01:28:51-05:00:ar-r3-main-merge`; existing AR owner informed to maintain MERGED-NOT-LIVE status. Own requirement retained/PAUSED, no implied deployment or notes-policy authority. Await operator release evidence and explicit resumption; no duplicate audit/tests/ask/Telegram.

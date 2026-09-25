@@ -27,9 +27,9 @@ import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
 
-/** Need · Size · Plant · Status · Avail qty · Price · Line total · Notes. */
+/** Need · Avail qty · Size · Plant · Status · Price · Line total · Notes. */
 const LINE_COLUMNS =
-  '56px 90px 220px 150px 90px 100px 100px minmax(200px,1fr)'
+  '56px 90px 90px 220px 150px 100px 100px minmax(200px,1fr)'
 /** Track minima + gaps + row padding/left accent; below this the table scrolls. */
 const GRID_MIN = 1090
 /** Focused Job entry only: adjacent quantities and the supplier note after Status. */
@@ -46,10 +46,10 @@ const LEAD_COLUMN = '210px'
 const LEAD_MIN = 218
 
 // The portal's request page (2026-08-30 design) draws the same table without
-// the Line total column: Need · Size ·
-// Plant · Status · Avail qty · Price · Note for supplier over plain hairlines.
+// the Line total column: Need · Avail qty · Size ·
+// Plant · Status · Price · Note for supplier over plain hairlines.
 /** The portal design's tracks — the default's, less Line total. */
-const PORTAL_COLUMNS = '56px 90px 220px 150px 90px 100px minmax(200px,1fr)'
+const PORTAL_COLUMNS = '56px 90px 90px 220px 150px 100px minmax(200px,1fr)'
 const PORTAL_GRID_MIN = 960
 /** Focused Job is opt-in; other admin and portal callers keep their drawing. */
 type LineTableDesign = 'default' | 'portal' | 'focused-job'
@@ -1013,7 +1013,7 @@ function LineRow({
       ) : <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
         {num(item.demandedQuantity) || '—'}
       </span>}
-      {focused && availableQuantity}
+      {availableQuantity}
       {editDetails ? (
         <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
           onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} />
@@ -1036,7 +1036,6 @@ function LineRow({
           drawerModal={drawerModal}
         />
       </div>
-      {!focused && availableQuantity}
       {focused && supplierNote}
       <AnswerCell
         value={item.unitPrice == null ? '' : String(item.unitPrice)}
@@ -1248,15 +1247,14 @@ export function ARLineTable<T extends ARItem>({
       >
         {lead && <span className="px-1">{leadingHeader}</span>}
         <span className="px-1">Need</span>
-        {focused && <span className="px-1 text-right">Avail qty</span>}
+        <span className="px-1 text-right">Avail qty</span>
         <span className="px-1">Size</span>
         <span className="px-1">Plant</span>
         <span className="px-1">Status</span>
-        {!focused && <span className="px-1 text-right">Avail qty</span>}
         {focused && <span className="px-1">Note for supplier</span>}
         <span className="px-1 text-right">Price</span>
         {!portal && <span className="px-1 text-right">Line total</span>}
-        {!focused && <span className="px-1">Note for supplier</span>
+        {!focused && <span className="px-1">Note for supplier</span>}
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">

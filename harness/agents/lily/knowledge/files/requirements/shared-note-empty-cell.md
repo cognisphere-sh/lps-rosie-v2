@@ -1,9 +1,9 @@
 # Keep empty Shared note cells quiet but easy to edit
 
-- Status: routed — composition PAUSED for AR R3-only deploy priority; requirement retained, no Shared UI deployment permission or release proof
+- Status: routed — composition PAUSED; AR-only merge awaits operator release, no Shared UI deployment authority or release proof
 - Route: nova
 - Raised: 2026-09-17 by Chris (Telegram648/photo648, via Nova)
-- Updated: 2026-09-25T00:03:56-05:00
+- Updated: 2026-09-25T01:29:40-05:00
 - Related: `sourcing-note-disclosure` — separate internal-note behavior, not applied here
 
 ## Current merged-note contract caveat
@@ -53,6 +53,8 @@ Repeated “Add a shared note…” text clutters the Job table even when there 
 
 - 2026-09-25T00:03:56-05:00 — Nova reports R3 candidate `189709a` independently staticSAFE, not a presumed git commit/release. Tests/build/browser/auth are UNMET; operator already asked secure QA login/bounded-runner approval. No dirty `server.sh` deploy/safety waiver. Existing AR `note_for_supplier` placement under740 does not create/copy/edit note data, change Submit/audience/customer exposure or imply JR association. No integration/release claim for this paused Shared UI slice.
 
+- 2026-09-25T01:29:40-05:00 — AR drawer1–3-only main merge now owner-reported at `fecd81be6821af7f39b7d3197cbb0dc889de74e6`, parents07445867/e79b0cb; latter independently STATIC reviewed,11 exact candidate blobs, other operator/Lily repairs preserved. Bhoumik749 takes release after merge, Nova751 already provided SHA/gates. No exact tests/type/build/browser/deployment, hostOOM/runner still unvalidated. Daisy read-only target-catalog result confirms AR fields/0115-compatible answerRPC only, not end-to-end/all migrations. AR MERGED NOT LIVE; this Shared slice and other composition remain PAUSED. No mobile/Past/full709/customer-publication in THIS merge scope, not a statement that older HEAD changes do not exist.
+
 ## Separate workflow boundary
 
 - 2026-09-17T12:49:16-05:00 — Chris657's proposed supplier-status/plant-note versus private-pricing routing is separately staged for Bhoumik by task `supplier-note-customer-routing`. It does not authorize automatic content copying/classification, change this empty-cell UI scope, or waive its current integration gates. No data/skill/seed change is bundled here.
@@ -72,3 +74,4 @@ Repeated “Add a shared note…” text clutters the Job table even when there 
 - 2026-09-24T23:11:53-05:00 — Current3c4adca/base/source-versus-live/auth/runner facts propagated to existing owners, without duplicate shared feedback/audit/build/ask. Fresh0115 compatibility is separately owned; latest shared capture ID `nova:main:2026-09-24T23:09:27-05:00:current-integration-base`. No candidate integration or live release proved.
 - 2026-09-24T23:26:45-05:00 — Recorded latest conditional integration gates and only relayed to affected existing mobile-list/AR/Past owners. No duplicated feedback/audit/test/build/operator ask, no assumed candidate commit or release identity.
 - 2026-09-25T00:03:56-05:00 — Updated composition to PAUSED under743 AR-R3-only deployment priority, requirement retained. Shared743 helper receipt captured once under `nova:main:2026-09-25T00:03:38-05:00:ar-r3-deploy-telegram743`; no separate duplicate for Shared. Existing AR/mobile/Past owners informed; no extra builder/ask/tests or inferred release.
+- 2026-09-25T01:29:40-05:00 — Shared merge event captured once (ID `nova:main:2026-09-25T01:28:51-05:00:ar-r3-main-merge`) and existing AR owner told MERGED-NOT-LIVE/operator-owned release. Own Shared requirement still PAUSED/retained, no deployment authorization. No duplicate feedback/audit/tests/operator ask or Telegram; await actual release/resumption.

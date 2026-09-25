@@ -88,18 +88,18 @@ function table(root: ParentNode) {
 }
 const labels = (head: HTMLElement) => [...head.children].map(node => node.textContent)
 const focusedHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note for supplier', 'Price', 'Line total']
-const defaultHeaders = ['Need', 'Size', 'Plant', 'Status', 'Avail qty', 'Price', 'Line total', 'Note for supplier']
+const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Line total', 'Note for supplier']
 
 test('focused grid places the existing supplier-audience note after Status with header, row and subtotal aligned', () => {
   for (const design of ['default', 'portal', 'focused-job'] as const) {
     const view = render(<ARLineTable items={[item]} editable={false} design={design} />)
     const { head, row, footer } = table(view.container)
     assert.deepEqual(labels(head), design === 'focused-job' ? focusedHeaders
-      : design === 'portal' ? ['Need', 'Size', 'Plant', 'Status', 'Avail qty', 'Price', 'Note for supplier'] : defaultHeaders)
+      : design === 'portal' ? ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Note for supplier'] : defaultHeaders)
     assert.equal(row.children[0].textContent, '12')
-    assert.equal(row.children[design === 'focused-job' ? 1 : 4].textContent, '8')
-    assert.equal(row.children[design === 'focused-job' ? 2 : 1].textContent, '30 G')
-    assert.ok(row.children[design === 'focused-job' ? 3 : 2].textContent?.includes(fullName))
+    assert.equal(row.children[1].textContent, '8')
+    assert.equal(row.children[2].textContent, '30 G')
+    assert.ok(row.children[3].textContent?.includes(fullName))
     assert.equal(row.children[design === 'focused-job' ? 5 : row.children.length - 1].textContent, supplierNote)
     assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
     if (design === 'focused-job') {

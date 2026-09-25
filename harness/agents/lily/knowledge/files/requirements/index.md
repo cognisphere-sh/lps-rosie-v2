@@ -39,7 +39,7 @@ A workflow change counts — not everything here is software.
 | `app-wide-compact-headers` | Make app headers compact and purposeful | drafted · ready to route refinement | nova |
 | `job-inbox-workspace` | Put active Job Requests in an inbox workspace | routed | nova |
 | `ops-ar-main-workspace` | Open supplier availability work in the main Ops workspace | routed · 2026-09-22T09:16:33-05:00 OPERATOR HOLD Bhoumik709/Nova710: no full-view/tabs/chat-switch implementation until new go-ahead; separate706 drawer items1–2 allowed | nova |
-| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · AR R3-only deploy AUTHORIZED743/await-gates; candidate189709a reported independently staticSAFE, not commit/release; tests/build/browser/auth unmet, not shipped; full AR709 held (2026-09-25T00:04:46-05:00) | nova |
+| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · AR drawer1–3 MERGED-NOT-LIVE fecd81be; Bhoumik749 owns release/informed751; static review only, no exact tests/type/build/browser/deploy; full AR709 held (2026-09-25T01:30:34-05:00) | nova |
 | `focused-jobs-rail-collapse` | Collapse the focused Jobs rail when Chris needs the work width | routed | nova |
 | `job-inbox-activity-semantics` | Define trustworthy Job Request inbox activity and unread meaning | staged | bhoumik |
 | `copy-ready-plain-text-quotes` | Make plain-text quotes ready to copy and send | shipped | rosie |
@@ -69,8 +69,8 @@ A workflow change counts — not everything here is software.
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
 | `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY conditional on current3c4adca compatibility; QA auth/runner gates unresolved; no integration/release claim | nova |
-| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · composition PAUSED for743 AR R3-only deploy priority; requirement retained, no release | nova |
-| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · composition PAUSED for743 AR R3-only deploy priority; requirement retained, no release | nova |
+| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · composition PAUSED; AR-only merge awaits operator release, no notes deployment/release | nova |
+| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · composition PAUSED; AR-only merge awaits operator release, no Shared UI deployment/release | nova |
 | `supplier-note-customer-routing` | Pass useful supplier plant facts to the customer, not private buying discussion | broader Sep17 proposal staged · narrow submitted-fact/first-APS owner authority cited; generalized automatic-vs-review decision not established (2026-09-24 23:22:31 CDT) | bhoumik (broader proposal); rosie (existing scoped guidance, no new assignment) |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
 | `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
