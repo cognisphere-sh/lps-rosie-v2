@@ -91,3 +91,11 @@ test('renaming note columns preserves saved job table layout', async () => {
   }), { order: ['name', 'suppliers', 'note_internal', 'note_for_customer'], hidden: ['note_internal'],
     widths: { note_internal: 250, note_for_customer: 210 } })
 })
+
+test('saved job table layouts place Suppliers left of Internal note', async () => {
+  const { moveStoredRequestSuppliers, normalizeStoredTableConfig } = await import('./table-config')
+  assert.deepEqual(normalizeStoredTableConfig('requestItems', { order: ['name', 'note_internal', 'total'], hidden: [], widths: {} }).order,
+    ['name', 'suppliers', 'note_internal', 'total'])
+  assert.deepEqual(moveStoredRequestSuppliers({ requestItems: { order: ['name', 'suppliers', 'status', 'note_internal'], hidden: [], widths: {} } })
+    .requestItems?.order, ['name', 'status', 'suppliers', 'note_internal'])
+})

@@ -66,7 +66,8 @@ Chris's approval for external communication; follow the applicable approval
 procedure before contacting a supplier or customer.
 
 Surface only the submitted supplier response to Chris. Do not automatically update job/item
-availability, available quantities, status or selected source from this event,
+availability, available quantities, status or selected source
+(`selected_availability_request_item_id`) from this event,
 especially when multiple suppliers are considered. Read supplier-entered AR
 answers as saved; do not rewrite them or infer further availability changes.
 Only Chris's explicit approval permits agent-written availability/job-line

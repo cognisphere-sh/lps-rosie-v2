@@ -18,6 +18,8 @@ here).
 ## 2026-09-28 — job line supplier selection
 
 - Add a **Suppliers** column to Job line tables: one capsule per supplier AR answer (name, price, note), tinted by answer status. Choosing one prominently highlights it and copies its status, price and allocation-capped quantity onto the line, appending its note to `note_for_customer`. Migration 0116 adds `job_request_items.selected_availability_request_item_id` to remember the choice.
+- Move the Suppliers column to just left of Internal note, including a one-time move for saved layouts; `/requests` and `/jobs?jr=<id>` share this one line table and layout.
+- Rosie (`job-requests` v5.56.0, `1.1-supabase` and `plugin-supplier-events` prompts): treat a capsule chosen in the app as Chris's selection and don't revert or re-apply it. Propose cleanup of LPS-only text in the appended customer note. Set the column only when Chris explicitly chooses the supplier, never automatically.
 
 ## 2026-09-24 — focused Job AR table
 

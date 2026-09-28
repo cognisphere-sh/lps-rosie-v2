@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 5.56.0 — 2026-09-28
+
+- New `job_request_items.selected_availability_request_item_id` (migration 0116), shown as the app's Suppliers capsules. Treat a capsule chosen in the app as Chris's explicit selection: the app already copied its mapped status, price, allocation-capped quantity and answered note. Don't revert or re-apply it; propose cleanup of LPS-only text in the appended note. Set the column only with Chris's explicit per-line supplier choice, in the same guarded update. Never set it from the first-APS standing instruction or on your own.
+
 ## 5.55.4 — 2026-09-25
 
 - Chris's explicit JR-82 webchat message 54 (18:03:17 CDT): prohibit the phrase `proxy pricing` in internal notes. State a concise actual generic catalogue pricing basis only if the identity distinction matters.

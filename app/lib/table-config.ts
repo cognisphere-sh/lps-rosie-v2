@@ -21,6 +21,26 @@ const STORAGE_KEY = 'lps.tables.v1'
 const CAL_VISIBLE_MIGRATION_KEY = 'lps.tables.v1.cal-visible'
 export const SUPPLIER_DEFAULT_MIGRATION_KEY = 'lps.tables.v1.suppliers-seven-column-default-v1'
 export const SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY = 'lps.tables.v1.suppliers-category-min-width-v1'
+export const REQUEST_SUPPLIERS_MIGRATION_KEY = 'lps.tables.v1.request-suppliers-before-internal-v1'
+
+/** Put `suppliers` immediately left of `note_internal` (or last), in place. */
+function placeSuppliersBeforeInternalNote(order: string[]) {
+  const at = order.indexOf('suppliers')
+  if (at >= 0) order.splice(at, 1)
+  const internal = order.indexOf('note_internal')
+  order.splice(internal >= 0 ? internal : order.length, 0, 'suppliers')
+}
+
+/** Once: layouts saved while Suppliers first sat beside Plant Name move it left of Internal note. */
+export function moveStoredRequestSuppliers(
+  layouts: Partial<Record<TableId, TableConfig>>,
+): Partial<Record<TableId, TableConfig>> {
+  const items = layouts.requestItems
+  if (!items || !Array.isArray(items.order)) return layouts
+  const order = [...items.order]
+  placeSuppliersBeforeInternalNote(order)
+  return { ...layouts, requestItems: { ...items, order } }
+}
 const MIN_COLUMN_WIDTH = 64
 const SUPPLIER_CATEGORY_MIN_WIDTH = TABLE_COLS.suppliers.find(
   (column) => column.key === 'category',
@@ -68,9 +88,8 @@ export function normalizeStoredTableConfig(table: TableId, stored: unknown): Tab
     const renamed: Record<string, string> = { external_notes: 'note_for_customer', sourcing_notes: 'note_internal' }
     const keyOf = (key: string) => renamed[key] ?? key
     const renamedOrder = order.map(keyOf)
-    // Layouts saved before the Suppliers column place it beside Plant Name, not last.
-    const nameAt = renamedOrder.indexOf('name')
-    if (!renamedOrder.includes('suppliers') && nameAt >= 0) renamedOrder.splice(nameAt + 1, 0, 'suppliers')
+    // Layouts saved before the Suppliers column place it left of Internal note, not last.
+    if (!renamedOrder.includes('suppliers')) placeSuppliersBeforeInternalNote(renamedOrder)
     return { order: renamedOrder, hidden: hidden.map(keyOf),
       widths: Object.fromEntries(Object.entries(widths).map(([key, width]) => [keyOf(key), width])) }
   }
@@ -202,12 +221,13 @@ export function migrateStoredSupplierCategoryWidth(
 
 export function applyStoredLayoutMigrations(
   layouts: Partial<Record<TableId, TableConfig>>,
-  pending: { caliper: boolean; suppliers: boolean; supplierCategoryWidth?: boolean },
+  pending: { caliper: boolean; suppliers: boolean; supplierCategoryWidth?: boolean; requestSuppliers?: boolean },
 ): Partial<Record<TableId, TableConfig>> {
   let next = layouts
   if (pending.caliper) next = showCaliperInStoredPlants(next)
   if (pending.suppliers) next = migrateStoredSupplierDefault(next)
   if (pending.supplierCategoryWidth) next = migrateStoredSupplierCategoryWidth(next)
+  if (pending.requestSuppliers) next = moveStoredRequestSuppliers(next)
   return next
 }
 
@@ -220,12 +240,14 @@ function read(): Partial<Record<TableId, TableConfig>> {
     const migrateCaliper = !window.localStorage.getItem(CAL_VISIBLE_MIGRATION_KEY)
     const migrateSuppliers = !window.localStorage.getItem(SUPPLIER_DEFAULT_MIGRATION_KEY)
     const migrateSupplierCategoryWidth = !window.localStorage.getItem(SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY)
+    const migrateRequestSuppliers = !window.localStorage.getItem(REQUEST_SUPPLIERS_MIGRATION_KEY)
     layouts = applyStoredLayoutMigrations(layouts, {
       caliper: migrateCaliper,
       suppliers: migrateSuppliers,
       supplierCategoryWidth: migrateSupplierCategoryWidth,
+      requestSuppliers: migrateRequestSuppliers,
     })
-    if (migrateCaliper || migrateSuppliers || migrateSupplierCategoryWidth) {
+    if (migrateCaliper || migrateSuppliers || migrateSupplierCategoryWidth || migrateRequestSuppliers) {
       // Write the migrated payload before its markers. If storage fails, the
       // migration remains eligible to retry instead of marking stale data done.
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts))
@@ -234,6 +256,7 @@ function read(): Partial<Record<TableId, TableConfig>> {
       if (migrateSupplierCategoryWidth) {
         window.localStorage.setItem(SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY, '1')
       }
+      if (migrateRequestSuppliers) window.localStorage.setItem(REQUEST_SUPPLIERS_MIGRATION_KEY, '1')
     }
     return layouts
   } catch {

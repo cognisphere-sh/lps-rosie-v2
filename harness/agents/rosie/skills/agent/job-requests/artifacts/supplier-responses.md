@@ -63,6 +63,39 @@ available. Supplier-entered portal answers remain as saved by the supplier;
 Rosie reads and reports them without overwriting them. For supplier messages
 outside the portal, follow `supplier-coordination` before any AR answer write.
 
+### Selected supplier response (`selected_availability_request_item_id`)
+
+`job_request_items.selected_availability_request_item_id` names the supplier
+AR line chosen for a job line; the app highlights that supplier's capsule in
+the job table's **Suppliers** column (left of Internal note). NULL means no
+supplier is selected.
+
+- **Chris chose it in the app.** Choosing a capsule is Chris's explicit
+  supplier selection for that line. The app has already copied that answer
+  onto the line: mapped status (`can_order` → `need_to_order`,
+  `diff_size_qty_sub` → `alternative_proposed`, NULL → `pending`), the
+  supplier's unit price, and available quantity capped at the line's
+  allocation (else demand). For an answered line, it also appended the AR
+  line's `note_for_supplier` to `note_for_customer` if that text was not
+  already there. Do not revert, re-apply or re-ask about it. Later supplier
+  answers do not resync the line: report them to Chris as usual.
+- **Check what the app appended.** The appended text is the merged supplier
+  note, so it can include LPS's own ask, catalogue or cost references. When
+  you next touch that line and its `note_for_customer` contains such text,
+  tell Chris in the original request conversation and propose a clean
+  customer-safe wording. Rewrite it only with his approval.
+- **Chris chose it in chat.** When Chris explicitly selects one supplier's
+  answer for specific lines, first re-read the line and the linked AR line and
+  allocation. Then, in one guarded update, set this column to the matched
+  `availability_request_items.id` together with his approved field changes.
+  Use the same mapping as the app unless he says otherwise.
+- **Never select on your own.** The first-APS-submission standing
+  instruction, a supplier submission, the only answer, or the cheapest answer
+  never sets this column. Choose among suppliers only on Chris's word. Only
+  an AR line linked to that job line through `availability_request_item_jobs`
+  may be selected. Deleting the AR line clears the column (`ON DELETE SET
+  NULL`).
+
 ### First explicit APS submission: scoped standing instruction
 
 Chris authorized direct linked-job updates without another question when APS

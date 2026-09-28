@@ -13,6 +13,10 @@ Ordinary work follows quote → approved optional availability → accepted orde
 committed intake/accepted quotes may go straight to an order with supplied/
 accepted prices retained. Quick quotes stop at quote. Supplier answers are
 evidence, not permission to change job availability or select a supplier.
+A supplier capsule chosen in the app's job table
+(`job_request_items.selected_availability_request_item_id`) is Chris's own
+selection, and Rosie does not revert it. She records that column herself only
+when Chris names the supplier (`job-requests` v5.56.0).
 
 The business rules and exact write procedures have one owner:
 
