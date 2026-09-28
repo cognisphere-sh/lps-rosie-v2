@@ -1,5 +1,18 @@
 # availability-ingestion — changelog
 
+## 2.6.0
+
+2026-09-25 (Chris, APS supplier panel 10:06:07 CDT) — paginated availability
+must be processed and reconciled one page at a time before moving to the next:
+visually check the original page, distinguish plant × size/grade offerings from
+nonplant lines, account for wrapped/page-break continuations and splits, match
+against existing location rows plus prior-page decisions, and retain per-page
+counts and dispositions. Survey the whole document for location scope before
+claiming all-location coverage, then reconcile page ledgers to whole-document
+and per-location totals before committing. Preserve unchanged-source checks,
+normalization, source precedence, no-retirement semantics and failed/partial
+receipt safeguards.
+
 ## 2.5.0
 
 - Use the shared authoring rule for procedural feedback: explicit Chris feedback authorizes its scope; inferred changes require his approval.

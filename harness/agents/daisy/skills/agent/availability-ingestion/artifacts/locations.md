@@ -33,7 +33,11 @@ this **before parsing** — it decides where every row goes.
 
 2. **Where does the file say a location?** Look in the sheet header, a tab or
    page per farm, a "Ship from" / "Grown at" / "Farm" column, a section heading,
-   the branch in the sender's signature, or the email body. Take the **most
+   the branch in the sender's signature, or the email body. For paginated
+   sources, survey all pages for scope before assigning any page; a later page
+   may reveal a farm heading or limit what appeared company-wide on page one.
+   Keep tentative page assignments separate from confirmed ones until the
+   whole-document location evidence is reconciled. Take the **most
    specific** statement that covers a given row — a per-row column beats a
    section heading, a section heading beats the file header:
 
@@ -49,7 +53,10 @@ this **before parsing** — it decides where every row goes.
    - **One location for the whole file** → every offering maps to that location,
      and to no other.
    - **No location named anywhere → every active location of that company gets
-     its own copy of every offering.** Everde with five active locations means the
+     its own copy of every offering.** This applies only when the *complete*
+     source and body name no location at all; a named farm on a different page
+     defeats this premise. Do not report both "all locations" and page-specific
+     farms as coverage for the same offering. Everde with five active locations means the
      same 900 offerings written five times, 4,500 rows, each with its own
      `supplier_id`, its own `inventory_sources` row ([provenance](provenance.md)) and its own upsert pass
      ([writes](writes.md)). That is what a company-wide availability list means: any of their

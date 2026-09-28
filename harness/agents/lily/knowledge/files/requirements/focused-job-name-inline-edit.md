@@ -3,7 +3,11 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-09-02 by Chris (via Nova handoff; Telegram message 542 / photo 542)
-- Updated: 2026-09-02
+- Updated: 2026-09-25 12:09:06 CDT
+
+## Current contract caveat
+
+2026-09-25 12:05:28 — The atomic Job/Site-only interpretation below is historical, not verified against current naming policy. Rosie intake §4 and app identity source now support full Company | Slug Job names; Rosie's September25 12:09:06 bounded lookup found later case-specific named-site composites, but no exact general storage/fallback approval behind changelog5.26.0. General policy remains unresolved, not proven SOP drift. Preserve historical approval and existing data/editor behavior while reconciling; no new UI rewrite, composite parsing, rename or backfill is authorized. See `job-request-display-identity` current caveat and `workspace/threads/main/tasks/job-name-policy-reconciliation/notes.md`.
 
 ## Problem
 

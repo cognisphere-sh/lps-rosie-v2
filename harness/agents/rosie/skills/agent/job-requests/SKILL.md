@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Own job intake and naming, pricing, job/item note audiences, AR note handoffs, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.54.0)
+description: Own job intake and naming, pricing, job/item note audiences, AR note handoffs, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.55.4)
 metadata:
   author: lps
-  version: "5.54.0"
+  version: "5.55.4"
 ---
 
 # Job requests

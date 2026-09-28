@@ -1,5 +1,12 @@
 # Migrations applied by Daisy
 
+## 0116 — job line selected supplier response (2026-09-28)
+
+Applied via the Supabase MCP. Adds nullable
+`job_request_items.selected_availability_request_item_id` (FK → AR items,
+ON DELETE SET NULL) backing the Job line table's supplier capsules. Additive
+only; no existing rows change.
+
 
 ## 0115 — merged audience notes (2026-09-24)
 

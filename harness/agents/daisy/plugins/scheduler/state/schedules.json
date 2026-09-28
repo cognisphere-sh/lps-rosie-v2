@@ -1,1 +1,143 @@
-{"schedules":[{"name":"daisy-daily-9am-checkin","cron":"0 9 * * *","text":"Daily 9 AM check-in: review the prior calendar day workspace/daily_notes and necessary thread context. Prepare a concise business summary of completed work, blockers/pending approvals, and next steps, then report it to main via agent messaging for delivery to Chris and Bhoumik.","threadId":"daily-9am-checkin"},{"name":"daily-supplier-availability-onboarding-3am","cron":"0 3 * * *","text":"Run the approved daily supplier availability onboarding cohort under the daily-supplier-availability-onboarding skill. It remains paused until main explicitly clears the Chris-required Type/tag migration and review.","threadId":"daily-supplier-availability-onboarding","paused":true},{"name":"june-backfill-five-days","cron":"0 1 * * *","text":"Run the daily June backwards ingestion backlog. Read workspace/threads/backfill/files/june-backlog-plan.md first, then process the next listed block (up to five June dates) under its exact-farm later-date policy. Keep same suppliers serialized and label every reviewed email. Update the plan after a completed block. After the final June 1 block, pause/remove this schedule and message main asking whether to continue farther back.","threadId":"daily-june-historical-backfill","paused":true},{"name":"andersen-week36-apply-20260831","cron":"0 0 31 8 *","text":"Apply Andersen Farms Week 36 staged future-dated availability now that it is effective. Source id will be in supplier thread notes: Gmail 1a03ed281b7c7d91, storage path suppliers/andersen-farms/rate-cards/Availability_Week_36_Aug_31st_Sept_7th.01.pdf, effective 2026-08-31. Follow availability-ingestion: parse the preserved PDF, map Homestead supplier 25 only, match/update/insert and full QA; then label Gmail Daisy/Catalogued and post final web-panel row-count summary.","threadId":"supplier-andersen-farms","onetime":true,"paused":true},{"name":"brantley-aug31-effective-ingest","cron":"5 0 31 8 *","text":"The Brantley Nurseries Aug. 31, 2026 availability list is now effective. Resume the held current-drop ingest for Gmail MessageId 1a0499d825d54009: parse /tmp/brantley-2026-08-31-parsed.json, match plan /tmp/brantley-aug31-match-plan.json, and follow availability-ingestion through provenance, writes, QA, Gmail labelling, and web-panel summary.","threadId":"supplier-brantley-nurseries","onetime":true,"paused":true},{"name":"brantley-sep07-effective-ingest","cron":"5 0 7 9 *","text":"The Brantley Nurseries Sep. 7, 2026 availability list is now effective. Resume held Gmail MessageId 1a06def2e98e227c: ingest /tmp/brantley-2026-09-07-parsed.json using /tmp/brantley-sep07-match-plan.json; then catalogue supported Dianella image002.jpg via plant-photo-catalogue, QA, Gmail label, and web-panel summary.","threadId":"supplier-brantley-nurseries","onetime":true,"paused":true},{"name":"andersen-week38-apply-20260914","cron":"0 0 14 9 *","text":"Apply staged Andersen Farms Week 38 availability effective today: Gmail 1a08c1a8a45cfd83, source file suppliers/andersen-farms/rate-cards/Availability_Week_38_Sept_14_21st.pdf. Follow availability-ingestion parse/match/write/QA then label Gmail and post panel summary.","threadId":"supplier-andersen-farms","onetime":true,"paused":true},{"name":"conroe-sep13-effective-ingest","cron":"5 0 13 9 *","text":"Ingest deferred future-effective Conroe availability now (effective September 13–18, 2026). Supplier 123, Gmail message/thread 1a090c94c8387f37, received September 11 09:03:28 CDT. Follow availability-ingestion; reload live sources first and skip if already processed or superseded. Source file plugins/gws/inbox/1a090c94c8387f37/CGH Availability for Week September 13 to September 18, 2026.xlsx, stored object suppliers/conroe-greenhouses/rate-cards/cgh-availability-week-september-13-to-september-18-2026.xlsx, SHA256 626d50e7fe2c258ece5c1e46b30b72070808daf4891d77928d028e4af43a3ef4. Arrival already posted; 0 sources/inventory/aliases written at receipt. Read task notes workspace/threads/supplier-conroe-greenhouses/tasks/sep-13-ingest/notes.md. Complete parsing/candidate review/QA and label Catalogued only after successful ingest. No supplier outreach.","threadId":"supplier-conroe-greenhouses","onetime":true,"paused":true},{"name":"brantley-sep14-effective-ingest","cron":"5 0 14 9 *","text":"The Brantley Nurseries Sep. 14, 2026 availability list is now effective. Resume held Gmail MessageId 1a0934cf7aa6d865: ingest /tmp/brantley-2026-09-14-parsed.json using corrected entries /tmp/brantley-sep14-match-entries.json and plan /tmp/brantley-sep14-match-plan.json; then QA, Gmail label, and web-panel summary.","threadId":"supplier-brantley-nurseries","onetime":true,"paused":true},{"name":"andersen-week39-apply-20260921","cron":"0 0 21 9 *","text":"Apply staged Andersen Farms Week 39 now effective 2026-09-21, unless superseded. Follow availability-ingestion and read-email. Gmail 1a0abfa6d21a9e51 received 2026-09-16T15:48:28-05:00; source/storage and hold evidence in workspace/threads/supplier-andersen-farms/tasks/week39-intake/notes.md. PDF suppliers/andersen-farms/rate-cards/Availability_Week_39_Sept_21_28th.02.pdf; SHA256 48a5ef8101f0f3dd45d82192841342ed9c0cd44ca45f653214e6ae06afc971d9. Printed WK39 Sep21-28 2026, Homestead 25 only; 1404 not covered. Both .01/.02 links are identical. Reload DB, reuse staged source, independently reconcile full body offerings including body-only 6-inch Dieff Crocodile/Black Gold and 12-inch Yucca Cane, 8-inch Calathea Peacock against assorted PDF. Do not infer botanical/cultivar or invent sizes/quantities. Body states 6-inch and 10-inch Ponytail Palms can ship to Canada; review claim without treating shipment eligibility alone as a separate offer. Match/write/QA, then replace Daisy/Escalated with Daisy/Catalogued and post final panel summary. No supplier email.","threadId":"supplier-andersen-farms","onetime":true,"paused":true},{"name":"conroe-sep20-effective-ingest","cron":"5 0 20 9 *","text":"Ingest deferred Conroe availability now, effective September 20–25, 2026. Supplier 123; Gmail message/thread 1a0b54f64999383e received 2026-09-18 11:16:40 CDT. Follow availability-ingestion and read-email; reload live sources and check whether already processed or superseded before writes. File plugins/gws/inbox/1a0b54f64999383e/1-CGH_Availability_for_Week_September_20_to_September_25__2026.xlsx; lps object suppliers/conroe-greenhouses/rate-cards/cgh-availability-week-september-20-to-september-25-2026.xlsx; SHA256 ea770325bf26638e329a1cb4337176b47da8f9b5fd87248ac0b1c73035714e69. Email and workbook explicitly state week September20–25. Receipt arrival already posted on supplier panel; no source/inventory/alias writes yet. Task evidence workspace/threads/supplier-conroe-greenhouses/tasks/sep-20-intake/notes.md. Parse when effective, review candidates and QA; create provenance using preserved object, do not upload duplicate. Replace Daisy/Escalated with Daisy/Catalogued only on successful completion. Post final summary on supplier panel; no outreach.","threadId":"supplier-conroe-greenhouses","onetime":true,"paused":true},{"name":"dudley-availability-20260921-1a0b59b427dc65a9","cron":"5 0 21 9 *","text":"Process deferred R.A. Dudley availability Gmail 1a0b59b427dc65a9 received 2026-09-18T12:40:10-05:00. Avail.xls Catalog header explicitly states Availability for 09/21/2026; now effective. Follow availability-ingestion; refresh supplier 10 DB/source state and check newer source before writes. Full files in plugins/gws/inbox/1a0b59b427dc65a9/: 3-Avail.xls, 1-9.21.26.png (three-subject plant flyer: Podocarpus Emerald Flame #3 tripod, Fothergilla Mt. Airy #3, Iris Silverband #2), 2-e4NgYUYkWjzBHXnZ.png (logo). Inventory/source/alias/photo writes all deferred, Gmail terminal status pending; arrival already posted. Notes workspace/threads/supplier-r-a-dudley-nurseries/tasks/intake-sep18/notes.md. Complete ingestion/QA, photo catalogue and Gmail status on supplier thread; no routine main notification.","threadId":"supplier-r-a-dudley-nurseries","onetime":true,"paused":true},{"name":"brantley-sep21-effective-ingest","cron":"5 0 21 9 *","text":"Resume Brantley Sep21 held Gmail 1a0b9244ab396db3. Follow availability-ingestion. Ready guarded SQL and QA evidence: workspace/threads/supplier-brantley-nurseries/tasks/sep21-intake/. Reload database, recheck recency and two insert candidates, review SQL then apply no earlier than Sep21. Planned106 PDF offers:104 updates/2 new. Current Ilex3G graphic offer already ingested at6.25 source47eaf7da-f87b-4a03-a91b-cb372d2f8f41 and photoea857f49-9cbd-4e18-877a-61e998b8c721; do not repeat those. BFI44 already complete45 updates source78d58b59-08b1-4804-b9ca-c79a54b18896. After successful QA, close shared Gmail and post supplier-panel outcome. Leave existing malformed 3TP duplicate untouched.","threadId":"supplier-brantley-nurseries","onetime":true,"paused":true},{"name":"tom-dodd-sep21-future-liners-oct01","cron":"0 7 1 10 *","text":"Review deferred future liner lots from Gmail 1a0c3d8d808c0fe8, source0f307204-ca8b-45c0-8dd7-1faaae49cb15, file suppliers/tom-dodd-nurseries-inc/rate-cards/2026-09-21-liner.xlsx. 129 lots deferred, earliest Oct1. Reload live sources first: do not overwrite newer lists with these older lots. Follow availability-ingestion source precedence; process only now-effective eligible lots if not superseded, then schedule next relevant future review. Evidence workspace/threads/supplier-tom-dodd-nurseries-inc/files/2026-09-21/; source printed dates in DB notes. No supplier outreach.","threadId":"supplier-tom-dodd-nurseries-inc","onetime":true},{"name":"andersen-week40-apply-20260928","cron":"0 0 28 9 *","text":"Andersen Farms Week40 effective today (Sep28, 2026). Apply staged Gmail 1a0d3663c5c5faae, source 772a09e2-3be9-4e15-8d43-40d70974a245, object suppliers/andersen-farms/rate-cards/Availability_Week_40_Sept_28th_Oct_5th.pdf, SHA256 fd036314c909be4e32f428055991f89a80e8113b7e3d2be8d4c0b74156110fc1. Reload current supplier25/1404 notes and sources; check superseding Week40 revision before writing, reconcile full email body and PDF, ingest only mapped Homestead25 rows, full QA; update Gmail Daisy/Escalated to Catalogued only after success. Task notes: workspace/threads/supplier-andersen-farms/tasks/week40-intake/notes.md.","threadId":"supplier-andersen-farms","onetime":true}]}
+{
+  "schedules": [
+    {
+      "name": "daisy-daily-9am-checkin",
+      "cron": "0 9 * * *",
+      "text": "Daily 9 AM check-in: review the prior calendar day workspace/daily_notes and necessary thread context. Prepare a concise business summary of completed work, blockers/pending approvals, and next steps, then report it to main via agent messaging for delivery to Chris and Bhoumik.",
+      "threadId": "daily-9am-checkin"
+    },
+    {
+      "name": "daily-supplier-availability-onboarding-3am",
+      "cron": "0 3 * * *",
+      "text": "Run the approved daily supplier availability onboarding cohort under the daily-supplier-availability-onboarding skill. It remains paused until main explicitly clears the Chris-required Type/tag migration and review.",
+      "threadId": "daily-supplier-availability-onboarding",
+      "paused": true
+    },
+    {
+      "name": "june-backfill-five-days",
+      "cron": "0 1 * * *",
+      "text": "Run the daily June backwards ingestion backlog. Read workspace/threads/backfill/files/june-backlog-plan.md first, then process the next listed block (up to five June dates) under its exact-farm later-date policy. Keep same suppliers serialized and label every reviewed email. Update the plan after a completed block. After the final June 1 block, pause/remove this schedule and message main asking whether to continue farther back.",
+      "threadId": "daily-june-historical-backfill",
+      "paused": true
+    },
+    {
+      "name": "andersen-week36-apply-20260831",
+      "cron": "0 0 31 8 *",
+      "text": "Apply Andersen Farms Week 36 staged future-dated availability now that it is effective. Source id will be in supplier thread notes: Gmail 1a03ed281b7c7d91, storage path suppliers/andersen-farms/rate-cards/Availability_Week_36_Aug_31st_Sept_7th.01.pdf, effective 2026-08-31. Follow availability-ingestion: parse the preserved PDF, map Homestead supplier 25 only, match/update/insert and full QA; then label Gmail Daisy/Catalogued and post final web-panel row-count summary.",
+      "threadId": "supplier-andersen-farms",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "brantley-aug31-effective-ingest",
+      "cron": "5 0 31 8 *",
+      "text": "The Brantley Nurseries Aug. 31, 2026 availability list is now effective. Resume the held current-drop ingest for Gmail MessageId 1a0499d825d54009: parse /tmp/brantley-2026-08-31-parsed.json, match plan /tmp/brantley-aug31-match-plan.json, and follow availability-ingestion through provenance, writes, QA, Gmail labelling, and web-panel summary.",
+      "threadId": "supplier-brantley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "brantley-sep07-effective-ingest",
+      "cron": "5 0 7 9 *",
+      "text": "The Brantley Nurseries Sep. 7, 2026 availability list is now effective. Resume held Gmail MessageId 1a06def2e98e227c: ingest /tmp/brantley-2026-09-07-parsed.json using /tmp/brantley-sep07-match-plan.json; then catalogue supported Dianella image002.jpg via plant-photo-catalogue, QA, Gmail label, and web-panel summary.",
+      "threadId": "supplier-brantley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "andersen-week38-apply-20260914",
+      "cron": "0 0 14 9 *",
+      "text": "Apply staged Andersen Farms Week 38 availability effective today: Gmail 1a08c1a8a45cfd83, source file suppliers/andersen-farms/rate-cards/Availability_Week_38_Sept_14_21st.pdf. Follow availability-ingestion parse/match/write/QA then label Gmail and post panel summary.",
+      "threadId": "supplier-andersen-farms",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "conroe-sep13-effective-ingest",
+      "cron": "5 0 13 9 *",
+      "text": "Ingest deferred future-effective Conroe availability now (effective September 13–18, 2026). Supplier 123, Gmail message/thread 1a090c94c8387f37, received September 11 09:03:28 CDT. Follow availability-ingestion; reload live sources first and skip if already processed or superseded. Source file plugins/gws/inbox/1a090c94c8387f37/CGH Availability for Week September 13 to September 18, 2026.xlsx, stored object suppliers/conroe-greenhouses/rate-cards/cgh-availability-week-september-13-to-september-18-2026.xlsx, SHA256 626d50e7fe2c258ece5c1e46b30b72070808daf4891d77928d028e4af43a3ef4. Arrival already posted; 0 sources/inventory/aliases written at receipt. Read task notes workspace/threads/supplier-conroe-greenhouses/tasks/sep-13-ingest/notes.md. Complete parsing/candidate review/QA and label Catalogued only after successful ingest. No supplier outreach.",
+      "threadId": "supplier-conroe-greenhouses",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "brantley-sep14-effective-ingest",
+      "cron": "5 0 14 9 *",
+      "text": "The Brantley Nurseries Sep. 14, 2026 availability list is now effective. Resume held Gmail MessageId 1a0934cf7aa6d865: ingest /tmp/brantley-2026-09-14-parsed.json using corrected entries /tmp/brantley-sep14-match-entries.json and plan /tmp/brantley-sep14-match-plan.json; then QA, Gmail label, and web-panel summary.",
+      "threadId": "supplier-brantley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "andersen-week39-apply-20260921",
+      "cron": "0 0 21 9 *",
+      "text": "Apply staged Andersen Farms Week 39 now effective 2026-09-21, unless superseded. Follow availability-ingestion and read-email. Gmail 1a0abfa6d21a9e51 received 2026-09-16T15:48:28-05:00; source/storage and hold evidence in workspace/threads/supplier-andersen-farms/tasks/week39-intake/notes.md. PDF suppliers/andersen-farms/rate-cards/Availability_Week_39_Sept_21_28th.02.pdf; SHA256 48a5ef8101f0f3dd45d82192841342ed9c0cd44ca45f653214e6ae06afc971d9. Printed WK39 Sep21-28 2026, Homestead 25 only; 1404 not covered. Both .01/.02 links are identical. Reload DB, reuse staged source, independently reconcile full body offerings including body-only 6-inch Dieff Crocodile/Black Gold and 12-inch Yucca Cane, 8-inch Calathea Peacock against assorted PDF. Do not infer botanical/cultivar or invent sizes/quantities. Body states 6-inch and 10-inch Ponytail Palms can ship to Canada; review claim without treating shipment eligibility alone as a separate offer. Match/write/QA, then replace Daisy/Escalated with Daisy/Catalogued and post final panel summary. No supplier email.",
+      "threadId": "supplier-andersen-farms",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "conroe-sep20-effective-ingest",
+      "cron": "5 0 20 9 *",
+      "text": "Ingest deferred Conroe availability now, effective September 20–25, 2026. Supplier 123; Gmail message/thread 1a0b54f64999383e received 2026-09-18 11:16:40 CDT. Follow availability-ingestion and read-email; reload live sources and check whether already processed or superseded before writes. File plugins/gws/inbox/1a0b54f64999383e/1-CGH_Availability_for_Week_September_20_to_September_25__2026.xlsx; lps object suppliers/conroe-greenhouses/rate-cards/cgh-availability-week-september-20-to-september-25-2026.xlsx; SHA256 ea770325bf26638e329a1cb4337176b47da8f9b5fd87248ac0b1c73035714e69. Email and workbook explicitly state week September20–25. Receipt arrival already posted on supplier panel; no source/inventory/alias writes yet. Task evidence workspace/threads/supplier-conroe-greenhouses/tasks/sep-20-intake/notes.md. Parse when effective, review candidates and QA; create provenance using preserved object, do not upload duplicate. Replace Daisy/Escalated with Daisy/Catalogued only on successful completion. Post final summary on supplier panel; no outreach.",
+      "threadId": "supplier-conroe-greenhouses",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "dudley-availability-20260921-1a0b59b427dc65a9",
+      "cron": "5 0 21 9 *",
+      "text": "Process deferred R.A. Dudley availability Gmail 1a0b59b427dc65a9 received 2026-09-18T12:40:10-05:00. Avail.xls Catalog header explicitly states Availability for 09/21/2026; now effective. Follow availability-ingestion; refresh supplier 10 DB/source state and check newer source before writes. Full files in plugins/gws/inbox/1a0b59b427dc65a9/: 3-Avail.xls, 1-9.21.26.png (three-subject plant flyer: Podocarpus Emerald Flame #3 tripod, Fothergilla Mt. Airy #3, Iris Silverband #2), 2-e4NgYUYkWjzBHXnZ.png (logo). Inventory/source/alias/photo writes all deferred, Gmail terminal status pending; arrival already posted. Notes workspace/threads/supplier-r-a-dudley-nurseries/tasks/intake-sep18/notes.md. Complete ingestion/QA, photo catalogue and Gmail status on supplier thread; no routine main notification.",
+      "threadId": "supplier-r-a-dudley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "brantley-sep21-effective-ingest",
+      "cron": "5 0 21 9 *",
+      "text": "Resume Brantley Sep21 held Gmail 1a0b9244ab396db3. Follow availability-ingestion. Ready guarded SQL and QA evidence: workspace/threads/supplier-brantley-nurseries/tasks/sep21-intake/. Reload database, recheck recency and two insert candidates, review SQL then apply no earlier than Sep21. Planned106 PDF offers:104 updates/2 new. Current Ilex3G graphic offer already ingested at6.25 source47eaf7da-f87b-4a03-a91b-cb372d2f8f41 and photoea857f49-9cbd-4e18-877a-61e998b8c721; do not repeat those. BFI44 already complete45 updates source78d58b59-08b1-4804-b9ca-c79a54b18896. After successful QA, close shared Gmail and post supplier-panel outcome. Leave existing malformed 3TP duplicate untouched.",
+      "threadId": "supplier-brantley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "tom-dodd-sep21-future-liners-oct01",
+      "cron": "0 7 1 10 *",
+      "text": "Review deferred future liner lots from Gmail 1a0c3d8d808c0fe8, source0f307204-ca8b-45c0-8dd7-1faaae49cb15, file suppliers/tom-dodd-nurseries-inc/rate-cards/2026-09-21-liner.xlsx. 129 lots deferred, earliest Oct1. Reload live sources first: do not overwrite newer lists with these older lots. Follow availability-ingestion source precedence; process only now-effective eligible lots if not superseded, then schedule next relevant future review. Evidence workspace/threads/supplier-tom-dodd-nurseries-inc/files/2026-09-21/; source printed dates in DB notes. No supplier outreach.",
+      "threadId": "supplier-tom-dodd-nurseries-inc",
+      "onetime": true
+    },
+    {
+      "name": "andersen-week40-apply-20260928",
+      "cron": "0 0 28 9 *",
+      "text": "Andersen Farms Week40 effective today (Sep28, 2026). Apply staged Gmail 1a0d3663c5c5faae, source 772a09e2-3be9-4e15-8d43-40d70974a245, object suppliers/andersen-farms/rate-cards/Availability_Week_40_Sept_28th_Oct_5th.pdf, SHA256 fd036314c909be4e32f428055991f89a80e8113b7e3d2be8d4c0b74156110fc1. Reload current supplier25/1404 notes and sources; check superseding Week40 revision before writing, reconcile full email body and PDF, ingest only mapped Homestead25 rows, full QA; update Gmail Daisy/Escalated to Catalogued only after success. Task notes: workspace/threads/supplier-andersen-farms/tasks/week40-intake/notes.md.",
+      "threadId": "supplier-andersen-farms",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "conroe-sep27-effective-ingest",
+      "cron": "5 0 27 9 *",
+      "text": "Ingest deferred Conroe availability now, effective September 27–October 2, 2026. Supplier 123; Gmail message/thread 1a0d93c187729554 received 2026-09-25 10:41:44 CDT, from cgh2@conroegreenhouses.com. Follow latest availability-ingestion (including pagewise reconciliation) and read-email; reload live source state and check whether already processed/superseded before writes. Source plugins/gws/inbox/1a0d93c187729554/1-CGH_Availability_for_Week_September_27_to_October_2__2026.xlsx; preserved lps object suppliers/conroe-greenhouses/rate-cards/cgh-availability-week-september-27-to-october-2-2026.xlsx; SHA256 70a2356bf074c5954c47104ffb2bfca0c60802fda19e417412cf7011df58263e. Email and workbook explicitly state September 27–October 2. Arrival posted; zero source/inventory/alias writes at receipt. See workspace/threads/supplier-conroe-greenhouses/tasks/sep-27-intake/notes.md. Parse/QA when effective; create provenance referencing preserved object. Do not reupload duplicate. Apply Daisy/Catalogued only on successful completion; post final supplier-panel summary. No supplier outreach.",
+      "threadId": "supplier-conroe-greenhouses",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "brantley-sep28-effective-ingest",
+      "cron": "5 0 28 9 *",
+      "text": "Resume Brantley Sep28 held PDF from Gmail 1a0d9c51fe594ac2. Follow availability-ingestion v2.6.0, including per-page ledger. Ready files workspace/threads/supplier-brantley-nurseries/tasks/sep28-intake/{notes.md,ledger.tsv,ready.json,apply-on-sep28.sql,receipt-context.txt}. Reload DB and source, check already applied and recency/insert candidate, inspect guarded SQL, apply >= Sep28 with full QA. Planned 102 offers:101 updates1 new; p1 37,p2 41,p3 23,p4 1. Independent current Ginger3G sale $7.45 source81997cea-f59d-4748-92b8-632523765d64, photo42c3cf44-3906-48ef-b30d-4bc3e3cf294b, and Brad/Bobby contacts already completed; do not repeat. After successful PDF QA, panel result and Gmail Daisy/Catalogued closure. Stale extra Jasmine3TP row remains untouched.",
+      "threadId": "supplier-brantley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "dudley-availability-20260928-1a0d9d3a4b657903",
+      "cron": "5 0 28 9 *",
+      "text": "Process deferred R.A. Dudley availability Gmail 1a0d9d3a4b657903 received 2026-09-25T13:27:59-05:00. Avail.xls Catalog header explicitly states Availability for 09/28/2026; now effective. Follow availability-ingestion, database-access, read-email, plant-photo-catalogue and supplier-communications; refresh supplier 10 DB/source and check newer source before writes. Full files in plugins/gws/inbox/1a0d9d3a4b657903/: 3-Avail.xls (lps object suppliers/r-a-dudley-nurseries/rate-cards/avail-2026-09-28-1a0d9d3a4b657903.xls; SHA256 178b5fefff7e3c8b3210925039f7b93d5a64fdd60ca4b365a6454007f1dd90b4), 1-9.28.26.png (three-subject plant flyer: Cyperus Miniature Umbrella Plant #3, Loropetalum Cerise Charm #3, Rose Popcorn Drift #3), 2-e4NgYUYkWjzBHXnZ.png (logo). Inventory/source/alias/photo writes deferred, Gmail terminal status pending; broadcast arrival posted. Notes workspace/threads/supplier-r-a-dudley-nurseries/tasks/intake-sep25/notes.md. Complete ingestion/QA, photo catalogue and Gmail status on supplier thread; no routine main notification.",
+      "threadId": "supplier-r-a-dudley-nurseries",
+      "onetime": true,
+      "paused": true
+    }
+  ]
+}

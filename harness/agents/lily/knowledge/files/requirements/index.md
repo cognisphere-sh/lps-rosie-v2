@@ -39,7 +39,7 @@ A workflow change counts — not everything here is software.
 | `app-wide-compact-headers` | Make app headers compact and purposeful | drafted · ready to route refinement | nova |
 | `job-inbox-workspace` | Put active Job Requests in an inbox workspace | routed | nova |
 | `ops-ar-main-workspace` | Open supplier availability work in the main Ops workspace | routed · 2026-09-22T09:16:33-05:00 OPERATOR HOLD Bhoumik709/Nova710: no full-view/tabs/chat-switch implementation until new go-ahead; separate706 drawer items1–2 allowed | nova |
-| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · AR drawer1–3 MERGED-NOT-LIVE fecd81be; Bhoumik749 owns release/informed751; static review only, no exact tests/type/build/browser/deploy; full AR709 held (2026-09-25T01:30:34-05:00) | nova |
+| `ar-table-presentation` | Reorder the AR table and keep status context together | routed · deployment REPORTED759, exact provenance/acceptance unverified; current468 default+portal quantity-order broadening conflicts with approved focused-only scope,761 pending; no expanded approval/full release claim (2026-09-25T08:29:33-05:00) | nova |
 | `focused-jobs-rail-collapse` | Collapse the focused Jobs rail when Chris needs the work width | routed | nova |
 | `job-inbox-activity-semantics` | Define trustworthy Job Request inbox activity and unread meaning | staged | bhoumik |
 | `copy-ready-plain-text-quotes` | Make plain-text quotes ready to copy and send | shipped | rosie |
@@ -69,17 +69,18 @@ A workflow change counts — not everything here is software.
 | `mobile-focused-job-header` | Make the focused mobile Job header scannable | routed · top-line placement refined separately | nova |
 | `focused-job-header-layout` | Mock up a two-row focused mobile Job header | drafted · private R3 delivered; awaiting Chris feedback; app implementation held | nova |
 | `focused-jr-table-layout` | Make the focused Job plant table tighter and easier to scan | routed · QNTY conditional on current3c4adca compatibility; QA auth/runner gates unresolved; no integration/release claim | nova |
-| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · composition PAUSED; AR-only merge awaits operator release, no notes deployment/release | nova |
-| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · composition PAUSED; AR-only merge awaits operator release, no Shared UI deployment/release | nova |
+| `sourcing-note-disclosure` | Keep useful sourcing context compact and open all prior detail by click | routed · PAUSED/UNMERGED;759 deployment report does not cover this notes UI or resume pipeline | nova |
+| `shared-note-empty-cell` | Keep empty Shared note cells quiet but easy to edit | routed · PAUSED/UNMERGED;759 deployment report does not cover this Shared UI or resume pipeline | nova |
 | `supplier-note-customer-routing` | Pass useful supplier plant facts to the customer, not private buying discussion | broader Sep17 proposal staged · narrow submitted-fact/first-APS owner authority cited; generalized automatic-vs-review decision not established (2026-09-24 23:22:31 CDT) | bhoumik (broader proposal); rosie (existing scoped guidance, no new assignment) |
 | `focused-job-details-tray` | Keep focused Job details in one compact tray | routed · serialized behind mobile AR deployment | nova |
-| `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · display composition separated | nova |
-| `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed | nova |
+| `focused-job-name-inline-edit` | Let Chris edit a focused Job name safely | routed · historical atomic contract; current naming provenance under review | nova |
+| `job-request-display-identity` | Show one exact Request identity from the stored company, job, and contact | routed · historical scope retained; forward naming decision awaiting B/Chris359 | nova |
 | `job-request-install-date-fulfillment` | Keep fulfillment and private handling notes simple for now | staged · notes-first; future mobile date/mode capacity requested | bhoumik |
 | `focused-job-chat-routing` | Keep a focused Job chat on the current request | shipped | nova |
 | `mobile-conversation-navigation` | Make separate conversations easier to navigate on mobile | drafted · low priority; held for Bhoumik discussion, no build authorized | nova |
 | `urgent-pricing-update-workflow` | Make urgent pricing updates reach the right Job without delay | staged | bhoumik |
-| `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged · audit reviewed; broad workflow proposal held | bhoumik |
+| `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged · broad proposal held; Sep25 alias-aware AR-prefill applicability decision separate | bhoumik |
+| `approved-pricing-reference-reuse` | Reuse an approved price basis without asking again | supported existing path · owner guidance complete; ordinary-use observation only, no build proposed | rosie (existing lookup guidance) |
 | `visual-ui-qa-gate` | Gate UI releases on real visual review | shipped | nova |
 | `plant-search-match-before-geography` | Find the exact plant and size before narrowing by geography | drafted | daisy |
 | `plant-search-result-location-clarity` | Show where each Plant Search match is located | routed | nova |

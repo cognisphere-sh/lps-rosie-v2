@@ -1,5 +1,37 @@
 # plant-and-supplier-search — changelog
 
+## 2.28.1 — 2026-09-25
+
+- Corrected Chris's JR-82 message 54 Texas Sedge pricing rule to **1 G only**: recheck current exact and APS generic Sedge 1 G listing (inventory `60960bc6-c56f-40c8-8b70-4727572b2cb6` / PDF `7d950004-0940-4582-a44d-9cbf9ebb1c2a`), not 4-inch or other sizes. Internal notes may state `Texas Sedge 1 G priced from APS Sedge 1 G`, never `proxy pricing`; no identity or stock assertion.
+
+## 2.28.0 — 2026-09-25
+
+- Chris's explicit JR-82 webchat message 54 (18:03:17 CDT) identifies APS generic Sedge 1 G $6.50 as the Texas sedge price and requests future reuse without asking again. Added same-size current generic Sedge pricing rule when the exact listing is absent; no botanical alias, permanent price, stock or exact AR mapping is inferred. Inventory/alias maintenance remains Daisy's domain.
+
+## 2.27.0 — 2026-09-25
+
+- Chris's JR-82 webchat message 40 (17:07:39 CDT) permits generic Texas Sage pricing at other sizes only when current positive APS Green Cloud **and** Compact listings share that exact size and identical price. Check both complete size lists on each use; absent or unequal sizes remain unsupported by this proxy. Preserve generic identity, accepted terms and exact generic listings; no alias, stock, substitution, AR mapping or inventory-row change follows from price parity.
+
+## 2.26.0 — 2026-09-25
+
+- Chris's explicit JR-82 webchat message 38 (17:05:34 CDT): remember his $21 manual pricing guidance for generic 3 G Texas Sage. Keep generic Texas Sage distinct from Green Cloud and Compact despite the matching $21 prices; do not infer cultivar synonymy, an exact APS generic listing, permanent supplier price, live stock or AR mapping. Supplied/accepted terms take precedence.
+
+## 2.25.0 — 2026-09-25
+
+- Chris's explicit JR-82 webchat message 31 (16:53:05 CDT): Lantana price is color-agnostic within the same size and form, but trailing and regular/upright forms are distinct. Clarified that an unqualified generic APS `Lantana` listing alone does not establish a requested form or species price; preserve requested identity and ask for specific price direction when no same-form evidence exists. JR-79's Gold Rush 3 G proxy is not a blanket form permission.
+
+## 2.24.0 — 2026-09-25
+
+- Chris explicitly approved in JR-82 webchat message 17 (16:47:36 CDT): when APS lacks the requested size, find the nearest listed smaller and larger same-plant sizes with positive prices and include both in the reply. Pass both through the job handoff to the original Chris-facing chat rather than reducing the gap to a generic unpriced count. If one direction has no supported listing, say so. These are unrequested options, not automatic substitutions, price proxies or stock confirmation.
+
+## 2.23.0 — 2026-09-25
+
+- Chris's explicit JR-82 webchat messages 3–4 approve current same-size/form APS generic Prosopis Mesquite pricing for Chilean or Honey Mesquite on future requests. Retain requested identity, prefer supplied/accepted terms, recheck current positive APS price, and do not treat this as botanical alias, fixed-dollar price, stock proof, substitute acceptance or exact AR mapping.
+
+## 2.22.1 — 2026-09-25
+
+- Chris's explicit Telegram feedback (message 235): standalone price-only answers no longer need routine “availability unconfirmed” boilerplate. Report price/source and material identity or size qualifications; retain stock caveats when asked or needed to avoid a misleading offer/commitment. Inventory listings still do not prove stock or authorize sourcing commitments.
+
 ## 2.22.0 — 2026-09-24
 
 - Chris's explicit JR-79 webchat feedback (message 16, 18:19 CDT): search reordered common-name terms (`Southern Magnolia` / `Magnolia Southern`) before treating the price as missing; verify complete plant identity and requested size, and treat a supported match as naming equivalence, not substitution or stock evidence. This extends the existing name-equivalence procedure rather than creating an alias or proxy permission.

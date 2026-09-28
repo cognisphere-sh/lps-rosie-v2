@@ -88,6 +88,6 @@ test('renaming note columns preserves saved job table layout', async () => {
   assert.deepEqual(normalizeStoredTableConfig('requestItems', {
     order: ['name', 'sourcing_notes', 'external_notes'], hidden: ['sourcing_notes'],
     widths: { sourcing_notes: 250, external_notes: 210 },
-  }), { order: ['name', 'note_internal', 'note_for_customer'], hidden: ['note_internal'],
+  }), { order: ['name', 'suppliers', 'note_internal', 'note_for_customer'], hidden: ['note_internal'],
     widths: { note_internal: 250, note_for_customer: 210 } })
 })

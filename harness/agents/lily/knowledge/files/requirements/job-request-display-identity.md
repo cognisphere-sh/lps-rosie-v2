@@ -3,7 +3,13 @@
 - Status: routed
 - Route: nova
 - Raised: 2026-09-02 by Chris (via Rosie handoff)
-- Updated: 2026-09-22T12:50:45-05:00
+- Updated: 2026-09-25 12:11:54 CDT
+
+## Current policy-provenance caveat
+
+2026-09-25 12:11:54 — **AWAITING DECISION:** parent reports Telegram359 successfully asked Bhoumik/Chris one forward decision: use current Company | short site/request description for new Jobs, including request description without a site, versus older site-only/blank storage plus separate company display. Existing Jobs stay unchanged. This is not new approval, rollback or implementation authority; no further question and no current owner/app change until answer.
+
+2026-09-25 12:05:28 — Historical approval below is preserved, not a verified current storage contract. Rosie reports JR82 created with a full Company | request-description name under current intake §4. Changelog5.26.0 attributes stored `Customer/Company Name | Slug` to Chris but lacks a date/message citation; Rosie's September25 12:09:06 bounded lookup did not locate that exact general approval. It found case-specific Chris composites on JR34/JR36 September2 and main webchat38 September21 (`Urban Landscape Group | 404 Inwood`); these do not specify a general stored-name policy or plant-description fallback. Implementation commit4f22287 September23 is not approval. This leaves policy genuinely unresolved rather than proving SOP drift. Current `app/lib/job-identity.ts` and `docs/app/README.md` already preserve recognized full names without adding separate company/contact, unlike this older atomic-only assumption. Source presence does not establish human approval or live behavior; August31 recall alone does not establish drift. Pending provenance, this requirement does not authorize restoring atomic storage, parsing/backfilling names, renaming JR82 or changing the frontend. AR/Order record names and company-only customer intake remain separate. Bounded evidence: `workspace/threads/main/tasks/job-name-policy-reconciliation/notes.md`.
 
 ## Focused mobile presentation exception
 

@@ -231,6 +231,24 @@ export interface JobRequestItem {
   /** Raw `note_internal` Markdown, preserved for editing and rendered by the UI. */
   noteInternal: string | null
   updatedAt: string | null
+  /** Every active supplier AR answer linked to this line, newest AR first. */
+  supplierResponses?: SupplierResponse[]
+  /** `selected_availability_request_item_id` — the response chosen for this line. */
+  selectedResponseId?: number | null
+}
+
+/** One supplier's AR line answer, as a job line's supplier capsule shows it. */
+export interface SupplierResponse {
+  /** `availability_request_items.id`. */
+  arItemId: number
+  arId: number
+  supplierName: string
+  /** The supplier's answer; null = not answered yet. */
+  status: string | null
+  unitPrice: number | null
+  availableQuantity: number | null
+  /** The AR line's merged `note_for_supplier`. */
+  note: string | null
 }
 
 /** Per-status line counts behind a request's KPI pills. */

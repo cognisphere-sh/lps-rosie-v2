@@ -53,11 +53,18 @@
    [pricing equivalents](pricing-equivalents.md) for evidence and the
    confirmation gate before recording a `plant_aliases` relationship. Label
    alternatives explicitly. For actual APS job sourcing/quick quotes, return
-   evidence for every requested row, including gaps, and research 1–2 closest
-   supported APS alternatives where price or exact-match evidence is missing.
-   Prefer the same plant in a nearby size, then defensible related cultivars/
-   plants; verify identity and size rather than trusting relevance rank. Return
-   fewer or none when evidence is insufficient; never invent options/prices.
+   evidence for every requested row, including gaps. When APS lacks the
+   requested size, check the same plant's listed sizes in both directions and
+   identify the nearest smaller **and** nearest larger size with positive
+   prices, if each exists. Search by the supported common and botanical names;
+   a relevance-limited candidate page is not a complete size list. Carry both
+   directional sizes and prices through the job handoff and Chris-facing reply,
+   even though neither is an approved replacement for the requested size.
+   When a direction has no supported listing, say so rather than inventing an
+   option. For other price/identity gaps, research 1–2 closest supported APS
+   alternatives, preferring the same plant and then defensible related
+   cultivars/plants. Verify identity and size rather than trusting relevance
+   rank; return fewer or none when evidence is insufficient.
    If APS has no match, offer to search other
    suppliers and wait for instruction. An explicit all-supplier question
    authorizes that broader search. `job-requests` owns sourcing decisions.

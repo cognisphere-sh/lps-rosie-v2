@@ -3,7 +3,7 @@
 - Status: staged · audit reviewed; broad workflow proposal held
 - Route: bhoumik
 - Raised: 2026-09-09 by Chris (via Rosie escalation)
-- Updated: 2026-09-11
+- Updated: 2026-09-25
 
 ## Problem
 
@@ -27,6 +27,22 @@ Do not add a general pricing record, automatic source-review workflow, freshness
 
 If Bhoumik approves follow-up, keep it limited to the demonstrated issues: equivalent sizes should compare consistently in automatic prefill; a different plant/selection must not silently supply an exact price; and grade/form evidence must remain available when deciding whether two catalogue offerings are the same. Relevant owners would make their own approved changes. This audit authorizes none.
 
+## September 25 — aliases, not duplicate offerings (separate scope)
+
+Bhoumik explicitly said, via Rosie Telegram245/Daisy: “in such cases, add other plant names as Alias. Do not create a new entry. Also when searching for plant prices, also use aliases as well.” This concerns the Leopard/Giant Leopard and Carolina Cherry Laurel pricing references; it does not approve treating a pricing proxy as botanical equivalence or stock evidence.
+
+A fresh bounded source check confirms alias storage, alias-aware agent lookup and ordinary unquoted Plant Search **already exist**. Reuse existing canonical offerings for supported same-plant aliases, with the original requested name and applicable supplier/source/size/grade context. Missing or unsafe case relationships are not evidence that the search mechanism fails. Daisy’s APS owner already owns reconciliation of ten reported synthetic price-reference rows and correction history; its retirement/temporary-retention decision is pending Bhoumik1285. Lily does not duplicate that work.
+
+The one specific coverage difference is the app’s automatic supplier-request price prefill: it deliberately uses literal-name lookup and does not consult aliases. **Bhoumik’s bounded decision:** does the alias-aware expectation extend to this automatic path, or only to agent/Plant Search work already supported? Any extension is money/workflow work staged for Bhoumik, not a Nova implementation handoff. No new taxonomy, alias-storage feature or broad price-proxy system is proposed.
+
+Minimal checkable outcomes: supported genuine aliases reach existing supplier offerings without creating another apparent offer; requested identity stays intact; price evidence includes applicable source/size/grade; ambiguous identity or competing bases stay unresolved rather than becoming an automatic cheapest-price substitution. A Compact/standard, species/cultivar or Giant distinction cannot be silently erased by a pricing permission, and no alias/price implies stock or exact supplier mapping.
+
+This does **not** authorize the earlier size/partial-identity/grade proposals, a broad workflow, operational data writes by Lily, or any UI build. Current evidence and ownership: `workspace/threads/main/tasks/pricing-controls-audit/alias-capability-2026-09-25.md` (source-only; no live queries/tests).
+
+## Separate approved pricing-reference outcome
+
+2026-09-25 19:06:17 CDT — Chris’s later Texas Sedge1G recurring-price instruction is recorded separately in `approved-pricing-reference-reuse.md`. It is permission to use an existing APS generic1G price basis without repeat questions, not a genuine alias, another inventory offering or approval of a structured model. Existing durable supplier notes and Rosie guidance already support the agent path; no new agent-retrieval failure was established. This does not reopen or approve the earlier alias/AR-prefill/size/grade scope here.
+
 ## Acceptance criteria for any approved narrow follow-up
 
 - Equivalent stated container sizes do not lose an otherwise valid automatic price solely because one includes a space or alternate unit spelling.
@@ -48,7 +64,8 @@ If Bhoumik approves follow-up, keep it limited to the demonstrated issues: equiv
 
 ## Open questions
 
-- **Bhoumik:** Retire the broad proposal, or authorize only the narrow verified helper/procedure fixes? No implementation has been routed.
+- **Bhoumik:** Retire the broad proposal, or authorize only the earlier narrow verified helper/procedure fixes? No implementation has been routed.
+- **Bhoumik, separate September25 scope:** Should existing automatic supplier-request price prefill honor supported genuine aliases, or does the instruction concern agent/Plant Search only? Existing APS data reconciliation/1285 decision stays with Daisy; no duplicate decision request sent.
 - **Technical verification:** Historical search deployment is evidenced, but this audit did not execute the current live RPC or capture its current definition. Partial-drop retained-price lineage and numbered-cultivar key collisions remain bounded questions, not approved expansions.
 
 ## Handoff log
@@ -57,3 +74,4 @@ If Bhoumik approves follow-up, keep it limited to the demonstrated issues: equiv
 - 2026-09-10 — Interim revisions repeated contradictory source interpretations and overstated reconciliation assurance. Those claims are superseded by the September 11 direct-image inspection and worker retraction.
 - 2026-09-11 04:56:26 CDT — Read-only current-code/procedure audit completed. Most safeguards covered; no RPC defect reproduced; scoped helper/procedure issues documented separately from the incident. Broad proposal held for Bhoumik’s disposition. No code/skill/DB/config changes, implementation routing or external messages by the audit.
 - 2026-09-11 09:09:54 CDT — Daisy reports authorized PDF-precedence correction committed. Lily directly verifies the supplied PDF hash and rendered page; source-owner correction is complete on that reported scope. No broad workflow or helper implementation authorized by this event, and no new live availability claim.
+- 2026-09-25 10:55:44 CDT — Captured explicit aliases-not-duplicates direction and re-read relevant current skills/schema/RPC/app helper contracts. Existing alias support confirmed in source; automatic AR prefill remains literal-only. Added a separate bounded applicability decision, retained earlier proposals unapproved, coordinated only with existing Daisy owner; no new implementation routing or live queries/tests.

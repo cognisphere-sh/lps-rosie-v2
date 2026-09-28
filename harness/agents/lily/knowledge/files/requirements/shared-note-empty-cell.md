@@ -1,9 +1,9 @@
 # Keep empty Shared note cells quiet but easy to edit
 
-- Status: routed — composition PAUSED; AR-only merge awaits operator release, no Shared UI deployment authority or release proof
+- Status: routed — PAUSED/UNMERGED pipeline; latest operator deployment report does not authorize or verify this Shared UI
 - Route: nova
 - Raised: 2026-09-17 by Chris (Telegram648/photo648, via Nova)
-- Updated: 2026-09-25T01:29:40-05:00
+- Updated: 2026-09-25T08:28:37-05:00
 - Related: `sourcing-note-disclosure` — separate internal-note behavior, not applied here
 
 ## Current merged-note contract caveat
@@ -55,6 +55,9 @@ Repeated “Add a shared note…” text clutters the Job table even when there 
 
 - 2026-09-25T01:29:40-05:00 — AR drawer1–3-only main merge now owner-reported at `fecd81be6821af7f39b7d3197cbb0dc889de74e6`, parents07445867/e79b0cb; latter independently STATIC reviewed,11 exact candidate blobs, other operator/Lily repairs preserved. Bhoumik749 takes release after merge, Nova751 already provided SHA/gates. No exact tests/type/build/browser/deployment, hostOOM/runner still unvalidated. Daisy read-only target-catalog result confirms AR fields/0115-compatible answerRPC only, not end-to-end/all migrations. AR MERGED NOT LIVE; this Shared slice and other composition remain PAUSED. No mobile/Past/full709/customer-publication in THIS merge scope, not a statement that older HEAD changes do not exist.
 
+- 2026-09-25T08:28:37-05:00 — Bhoumik759 reports latestcommit deployed; Nova read-only audit reports clean468065b parentfecd81b/service health/disk BUILD_ID prefixwqKYW3J8… and compatible chronology, but no live inputSHA marker/exact tests/build provenance. Signed-out JR71 query-retention probe specifically fixed, not authenticated Job/edit/timing proof. Current default+supplier-portal AR quantity order also changed (Need→Availqty→Size); tests amended for broad behavior NOT RUN. Only quantity-order broadening established, not all3/note-visibility changes; Nova761 already asks intent/docs because nonfocused unchanged was approved. This does not change this Shared UI approval or establish full AR release verification.
+- Shared-empty/sourcing-history/QNTY/compact-filters/mobile-list/pending Past exact-name-tabs-count-guard pipeline is still reported UNMERGED, with no resumption/build/deploy authority. QA auth absent/safe helper refuses live login. No duplicate audits/credentials/asks or new customer-routing/full709 authority; existing scoped JR72 authority remains. Earlier operator functionality on HEAD is not denied by this unmerged-pipeline statement.
+
 ## Separate workflow boundary
 
 - 2026-09-17T12:49:16-05:00 — Chris657's proposed supplier-status/plant-note versus private-pricing routing is separately staged for Bhoumik by task `supplier-note-customer-routing`. It does not authorize automatic content copying/classification, change this empty-cell UI scope, or waive its current integration gates. No data/skill/seed change is bundled here.
@@ -75,3 +78,4 @@ Repeated “Add a shared note…” text clutters the Job table even when there 
 - 2026-09-24T23:26:45-05:00 — Recorded latest conditional integration gates and only relayed to affected existing mobile-list/AR/Past owners. No duplicated feedback/audit/test/build/operator ask, no assumed candidate commit or release identity.
 - 2026-09-25T00:03:56-05:00 — Updated composition to PAUSED under743 AR-R3-only deployment priority, requirement retained. Shared743 helper receipt captured once under `nova:main:2026-09-25T00:03:38-05:00:ar-r3-deploy-telegram743`; no separate duplicate for Shared. Existing AR/mobile/Past owners informed; no extra builder/ask/tests or inferred release.
 - 2026-09-25T01:29:40-05:00 — Shared merge event captured once (ID `nova:main:2026-09-25T01:28:51-05:00:ar-r3-main-merge`) and existing AR owner told MERGED-NOT-LIVE/operator-owned release. Own Shared requirement still PAUSED/retained, no deployment authorization. No duplicate feedback/audit/tests/operator ask or Telegram; await actual release/resumption.
+- 2026-09-25T08:28:37-05:00 — Referenced once-captured759/source-variance event ID `nova:main:2026-09-25T08:27:17-05:00:deployment-report-current-scope`; existing AR/deep-link owners informed of their different evidence boundaries. Own status PAUSED/UNMERGED, no Shared note-visibility or deployment inference, no extra audit/ask.

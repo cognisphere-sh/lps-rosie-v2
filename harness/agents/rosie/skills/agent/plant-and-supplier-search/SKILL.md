@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant prices and supplier evidence. Includes scoped RPC search, web-researched alternate names, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.22.0)
+description: Find plant prices and supplier evidence. Includes scoped RPC search, web-researched alternate names, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.28.1)
 metadata:
   author: lps
-  version: "2.22.0"
+  version: "2.28.1"
 ---
 
 # Plant and supplier search

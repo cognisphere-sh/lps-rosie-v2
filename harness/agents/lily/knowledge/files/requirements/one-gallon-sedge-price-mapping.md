@@ -41,6 +41,10 @@ Maintain an APS price-sheet entry for **Berkeley Sedge, 1 gallon** at APS’s es
 - “1 gallon” and “1 G” refer to the existing 1 G size convention.
 - APS’s existing 1 G Sedge price is the approved price to place on the Berkeley Sedge, 1 gallon APS entry.
 
+## Later distinct case
+
+2026-09-25 19:06:17 CDT — Texas Sedge | Carex texensis1G now has a separate approved APS generic Sedge1G pricing reference, recorded in `approved-pricing-reference-reuse.md`. It does not expand this historical Berkeley Sedge case. Bhoumik’s rejection of synthetic duplicate price-only rows means this file’s earlier line-item wording must not be treated as permission to create such rows for Texas Sedge or other plants. This record remains staged; no independent completion, cancellation or new implementation is asserted.
+
 ## Open questions
 
 - None for this scoped correction. If similar persistent cross-name price-sheet corrections continue after this entry, Chris and Bhoumik can review whether a broader governed workflow is justified.

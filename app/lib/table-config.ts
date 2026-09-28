@@ -67,7 +67,11 @@ export function normalizeStoredTableConfig(table: TableId, stored: unknown): Tab
   if (table === 'requestItems') {
     const renamed: Record<string, string> = { external_notes: 'note_for_customer', sourcing_notes: 'note_internal' }
     const keyOf = (key: string) => renamed[key] ?? key
-    return { order: order.map(keyOf), hidden: hidden.map(keyOf),
+    const renamedOrder = order.map(keyOf)
+    // Layouts saved before the Suppliers column place it beside Plant Name, not last.
+    const nameAt = renamedOrder.indexOf('name')
+    if (!renamedOrder.includes('suppliers') && nameAt >= 0) renamedOrder.splice(nameAt + 1, 0, 'suppliers')
+    return { order: renamedOrder, hidden: hidden.map(keyOf),
       widths: Object.fromEntries(Object.entries(widths).map(([key, width]) => [keyOf(key), width])) }
   }
   return { order, hidden, widths }

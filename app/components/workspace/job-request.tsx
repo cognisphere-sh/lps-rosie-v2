@@ -20,6 +20,8 @@ import { useOutsideClose } from '@/components/workspace/table-parts'
 import {
   availabilityRecordName,
   availabilityRequestLinkLabel,
+  arResponseLabel,
+  arResponseTone,
   isInProgressARStatus,
   isSubmittedARStatus,
 } from '@/lib/availability'
@@ -43,7 +45,7 @@ import { JobOrders } from '@/components/workspace/orders'
 import { type ColumnDef } from '@/lib/columns'
 import { quoteLineTotal } from '@/lib/job-request-html-quote'
 import { useTableConfig } from '@/lib/table-config'
-import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
+import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow, SupplierResponse } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
 /**
@@ -468,7 +470,103 @@ function NoteCell({
   )
 }
 
+/**
+ * The supplier-selection cell: one capsule per supplier AR answer for this
+ * line — supplier, price, note — tinted by the answer. Choosing one copies its
+ * status, price and quantity onto the line and appends its note for the
+ * customer; the chosen capsule is ringed so it cannot be missed.
+ */
+function SupplierCapsules({
+  requestId,
+  item,
+  onSaved,
+}: {
+  requestId: number
+  item: JobRequestItem
+  onSaved: () => void
+}) {
+  const toast = useToast()
+  const [busy, setBusy] = useState<number | null>(null)
+  const responses = item.supplierResponses ?? []
+  const selectedId = item.selectedResponseId ?? null
+
+  const choose = async (response: SupplierResponse) => {
+    if (response.arItemId === selectedId || busy != null) return
+    setBusy(response.arItemId)
+    try {
+      const res = await fetch(`/api/requests/${requestId}/items/${item.id}/supplier-selection`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ arItemId: response.arItemId }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not select supplier')
+      onSaved()
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (!responses.length) return <div tabIndex={0} className="px-1.5 text-[11px] text-lps-dim">No supplier answers</div>
+
+  return (
+    <div role="radiogroup" aria-label={`Supplier for ${item.name}`} className="flex min-w-0 flex-wrap gap-1.5 px-1.5 py-1">
+      {responses.map((response) => {
+        const selected = response.arItemId === selectedId
+        const tone = arResponseTone(response.status)
+        const note = response.note?.trim()
+        const label = [
+          response.supplierName,
+          arResponseLabel(response.status),
+          money(response.unitPrice) || 'No price',
+          note,
+        ].filter(Boolean).join(' · ')
+        return (
+          <button
+            key={response.arItemId}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={`${selected ? 'Selected: ' : 'Select '}${label} (AR-${response.arId})`}
+            title={label}
+            disabled={busy != null}
+            onClick={(e) => { e.stopPropagation(); void choose(response) }}
+            data-supplier-capsule={selected ? 'selected' : ''}
+            className={cn(
+              'inline-flex min-h-8 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-xl border text-left text-[10.5px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              selected
+                ? 'border-2 border-foreground shadow-md ring-2 ring-primary ring-offset-2 ring-offset-card'
+                : 'border-lps-edge hover:brightness-95',
+              !selected && selectedId != null && 'opacity-60 hover:opacity-100',
+              busy === response.arItemId && 'animate-pulse',
+            )}
+            style={toneStyle(tone)}
+          >
+            <span className="flex min-w-0 items-center gap-1 px-2 py-0.5">
+              {selected
+                ? <CheckIcon size={12} className="flex-none" />
+                : <span aria-hidden="true" className="size-1.5 flex-none rounded-full" style={{ background: toneDot(tone) }} />}
+              <span className="max-w-[9rem] truncate">{response.supplierName}</span>
+            </span>
+            <span className="flex flex-none items-center border-l border-current/20 px-1.5 tabular-nums">
+              {money(response.unitPrice) || '—'}
+            </span>
+            {note && (
+              <span className="flex min-w-0 items-center border-l border-current/20 px-1.5 font-normal">
+                <span className="max-w-[10rem] truncate">{note}</span>
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function ItemRow({
+  requestId,
   item,
   columns,
   widthOf,
@@ -478,6 +576,7 @@ function ItemRow({
   onSaved,
   touchTarget,
 }: {
+  requestId: number
   item: JobRequestItem
   columns: readonly ColumnDef[]
   widthOf: (column: ColumnDef) => number
@@ -524,6 +623,7 @@ function ItemRow({
           case 'available_quantity': return <div key={column.key} className="px-1" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="right" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
           case 'size': return <div key={column.key} className="px-1"><EditableText {...edit} column="size" value={item.size} /></div>
           case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
+          case 'suppliers': return <SupplierCapsules key={column.key} requestId={requestId} item={item} onSaved={onSaved} />
           case 'status': return <div key={column.key} className="px-1.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
           case 'note_for_customer': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
           case 'unit_price': return <div key={column.key} className="px-1"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="right" render={(v) => money(v)} /></div>
@@ -1504,6 +1604,7 @@ export function RequestBody({
             request.items.map((item) => (
               <ItemRow
                 key={item.id}
+                requestId={request.id}
                 item={item}
                 columns={lineColumns}
                 widthOf={lineTable.widthOf}

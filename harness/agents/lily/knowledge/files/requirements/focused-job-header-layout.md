@@ -3,7 +3,11 @@
 - Status: drafted · private R3 mockup delivered; awaiting Chris feedback; app implementation held
 - Route: nova
 - Raised: 2026-09-11 by Chris (via Nova; Telegram photo600/message601; revised photo607/message607)
-- Updated: 2026-09-13 19:30:33 CDT
+- Updated: 2026-09-25 12:09:06 CDT
+
+## Current identity-contract caveat
+
+2026-09-25 12:05:28 — Private R3 and Chris's historical visual directions below are unchanged; implementation remains held. Current Rosie intake/app identity source now support stored full Company | Slug names, so the older atomic Job/editor assumption needs provenance reconciliation before any eventual implementation. Rosie's September25 12:09:06 bounded lookup found later case-specific named-site composites but no exact general storage/fallback approval; current source alone is not approval, and no parsing, data correction or frontend workaround is authorized. See `job-request-display-identity` and `workspace/threads/main/tasks/job-name-policy-reconciliation/notes.md`.
 
 ## Problem
 

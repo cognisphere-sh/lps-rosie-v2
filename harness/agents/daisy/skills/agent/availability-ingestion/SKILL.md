@@ -1,9 +1,9 @@
 ---
 name: availability-ingestion
-description: Ingest supplier availability with provenance and QA. Includes source checks, location/name/size normalization, matching and task references. Use for drops, backfills, manual intake or inventory repairs. (v2.5.0)
+description: Ingest supplier availability with provenance and QA. Includes source checks, pagewise reconciliation, location/name/size normalization, matching and task references. Use for drops, backfills, manual intake or inventory repairs. (v2.6.0)
 metadata:
   author: lps
-  version: "2.5.0"
+  version: "2.6.0"
 ---
 
 # Availability ingestion
@@ -27,15 +27,20 @@ repairs load only the affected field rules, writes and QA.
    Fingerprint the complete effective source, including body amendments and
    attachments. Skip expensive parsing only after a matching successful receipt
    for the same location scope and rules. A changed body is a changed source.
-4. **Acquire/parse:** [acquisition](artifacts/acquisition.md). One logical
-   plant × size offering. Always apply [names](artifacts/names.md),
+4. **Acquire/parse:** [acquisition](artifacts/acquisition.md). For paginated
+   sources, work one page at a time: verify each page against its original,
+   classify every line, and reconcile its logical plant × size/grade offerings
+   with existing rows before proceeding to the next. Finish with a whole-source
+   aggregate; never infer all-location coverage from an uninspected page.
+   Always apply [names](artifacts/names.md),
    [values, dimensions and notes](artifacts/values-notes.md),
    [sizes](artifacts/sizes.md) and [size buckets](artifacts/size-buckets.md).
    Read [aliases](artifacts/aliases.md) only if inserting/reviewing aliases.
    Never write derived names/keys or manufacture identity from outside knowledge.
 5. **Persist:** [provenance](artifacts/provenance.md), [writes](artifacts/writes.md).
-   Use `scripts/match-candidates` once per farm; review candidates before deciding
-   update versus insert. New stated values replace older ones; omitted fields
+   Use `scripts/match-candidates` on each farm's page batch (or the entire farm
+   for an unpaginated source); review candidates before deciding update versus
+   insert. New stated values replace older ones; omitted fields
    stay unchanged. Ingestion retires nothing.
 6. **Verify before commit:** [QA](artifacts/qa.md). Compare with original source,
    reconcile counts per location and inspect all risky rows. Roll back material

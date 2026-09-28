@@ -1,5 +1,32 @@
 ## 1. Acquire and convert the source
 
+**Paginated sources — one page at a time.** First enumerate the complete
+source's pages (and any separate attachments/sheets), inspect headers, footers,
+location statements and email amendments across the *whole* source for scope;
+this is not permission to parse all offerings in one pass. For each page in
+order, compare the approved extraction with the original rendered page, then
+build a page ledger of logical plant × size/grade offerings. Account explicitly
+for headings, footnotes, totals, terms and other nonplant lines (not inventory).
+Join wrapped descriptions and page-break continuations to their originating
+plant; if the next page is needed to finish a line, inspect just that boundary
+before closing the current page, count the offering **once** on its originating
+page, and don't treat the continuation as a second plant. Split genuinely
+separate size/grade offerings on a printed line and note the split; do not
+silently collapse grades into one row or manufacture an offering from a heading.
+For each page record its original page number, raw plant lines, logical offerings,
+nonplant/excluded lines, splits, continuations, uncertain rows and location
+assignment evidence. Normalize, match against the correct location's existing
+rows and resolve update/insert/reactivation/park decisions for **every** offering
+on that page before starting the next; [writes](writes.md) specifies the matching
+checks. Check repeated entries across pages against the current page ledger and
+prior pages rather than blindly creating duplicates. Do not interpret absence
+from a page or the new source as a retirement or as proof of an older row's
+current availability. Keep page decisions staged for whole-source QA and commit
+under [qa](qa.md). Finally sum page ledgers by location, reconcile the aggregate
+against every page/section and the complete source (including any exclusions),
+and only then attest successful coverage. Unresolved material ambiguity is
+parked with evidence, not guessed.
+
 - **Text-based PDFs:** use `scripts/agent/markitdown <file>` as the primary extractor and inspect its Markdown tables/continuation lines before parsing. Do not default to `pdftotext` or write an ad hoc custom PDF parser merely because fixed-width text looks usable. If MarkItDown leaves wrapped/ambiguous rows, preserve the extracted evidence and resolve it with visual row-level review rather than a heuristic that can silently cross or drop cells.
 - **Scanned/image-only PDFs:** `pdftotext` cannot OCR pixels unless the file already contains a hidden text layer. Render with `pdftoppm -png`, then use image reading/OCR/vision with page- and row-level visual checks. `pdftotext -layout` may be used only as a diagnostic/fallback when an actual text layer exists, not as the primary parser for scans.
 - **Other attachments:** use `scripts/agent/markitdown <file>` for xlsx/docx and supported office formats. Avoid one-off custom parsers when the standard converter preserves the source structure; if conversion remains ambiguous, retain raw evidence and flag the affected rows instead of guessing.

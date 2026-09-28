@@ -11,8 +11,10 @@ import type {
   JobRequestItem,
   JobRequestRow,
   StatusCounts,
+  SupplierResponse,
 } from '@/lib/rows'
 import { supabase } from '@/lib/supabase'
+import { supplierSelectionChanges } from '@/lib/supplier-selection'
 
 export const JOB_REQUEST_PAGE_SIZE = 25
 
@@ -53,6 +55,7 @@ interface ItemRecord {
   note_internal: string | null
   note_for_customer: string | null
   updated_at: string | null
+  selected_availability_request_item_id: number | null
 }
 
 interface CustomerRecord {
@@ -118,6 +121,7 @@ function toItem(r: ItemRecord): JobRequestItem {
     noteForCustomer: r.note_for_customer,
     noteInternal: r.note_internal,
     updatedAt: r.updated_at,
+    selectedResponseId: r.selected_availability_request_item_id,
   }
 }
 
@@ -155,6 +159,7 @@ function toRow(
   customer: JobRequestRow['customer'],
   visible: ItemRecord[],
   supplierLinks: JobRequestRow['supplierLinks'] = [],
+  responses: Map<number, SupplierResponse[]> = new Map(),
 ): JobRequestRow {
   const statusCounts: StatusCounts = {}
   let lineTotal = 0
@@ -179,7 +184,7 @@ function toRow(
     statusCounts,
     lineTotal,
     supplierLinks,
-    items: visible.map(toItem),
+    items: visible.map((it) => ({ ...toItem(it), supplierResponses: responses.get(it.id) ?? [] })),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -194,7 +199,7 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     const { data, error } = await supabase
       .from('job_request_items')
       .select(
-        'id, job_request_id, name, size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at',
+        'id, job_request_id, name, size, demanded_quantity, available_quantity, unit_price, total, status, note_internal, note_for_customer, updated_at, selected_availability_request_item_id',
       )
       .in('job_request_id', ids)
       .eq('is_active', true)
@@ -210,6 +215,83 @@ async function itemsByRequest(ids: number[]): Promise<Map<number, ItemRecord[]>>
     if (rows.length < CHUNK) break
   }
   return map
+}
+
+interface ResponseRecord extends SupplierResponse {
+  jobItemId: number
+  allocation: number | null
+}
+
+/** Active supplier AR answers linked to the given job lines, newest AR first. */
+async function responseRecords(jobItemIds: number[]): Promise<ResponseRecord[]> {
+  const out: ResponseRecord[] = []
+  // Keep each IN filter small enough for PostgREST URLs.
+  for (let start = 0; start < jobItemIds.length; start += 100) {
+    const { data, error } = await supabase
+      .from('availability_request_item_jobs')
+      .select('job_request_item_id, quantity, availability_request_items!inner(id, status, available_quantity, unit_price, note_for_supplier, is_active, availability_requests!inner(id, is_active, suppliers!inner(name)))')
+      .in('job_request_item_id', jobItemIds.slice(start, start + 100))
+      .eq('availability_request_items.is_active', true)
+      .eq('availability_request_items.availability_requests.is_active', true)
+    if (error) throw new Error(`availability_request_item_jobs: ${error.message}`)
+    for (const row of (data ?? []) as unknown as {
+      job_request_item_id: number
+      quantity: number | null
+      availability_request_items: {
+        id: number
+        status: string | null
+        available_quantity: number | null
+        unit_price: number | null
+        note_for_supplier: string | null
+        availability_requests: { id: number; suppliers: { name: string } }
+      }
+    }[]) {
+      const line = row.availability_request_items
+      out.push({
+        jobItemId: row.job_request_item_id,
+        allocation: row.quantity == null ? null : Number(row.quantity),
+        arItemId: line.id,
+        arId: line.availability_requests.id,
+        supplierName: line.availability_requests.suppliers.name,
+        status: line.status,
+        unitPrice: line.unit_price == null ? null : Number(line.unit_price),
+        availableQuantity: line.available_quantity == null ? null : Number(line.available_quantity),
+        note: line.note_for_supplier,
+      })
+    }
+  }
+  return out.sort((a, b) => b.arId - a.arId || a.arItemId - b.arItemId)
+}
+
+async function supplierResponsesByItem(jobItemIds: number[]): Promise<Map<number, SupplierResponse[]>> {
+  const map = new Map<number, SupplierResponse[]>()
+  for (const { jobItemId, allocation, ...response } of await responseRecords(jobItemIds)) {
+    void allocation // server-side only: it caps the copied quantity
+    map.set(jobItemId, [...(map.get(jobItemId) ?? []), response])
+  }
+  return map
+}
+
+/**
+ * Choose one supplier's AR answer for a job line: copy its status, price and
+ * quantity onto the line, append its note, and remember the choice. The AR
+ * line must be linked to this job line, which must belong to this job.
+ */
+export async function selectSupplierResponse(requestId: number, itemId: number, arItemId: number): Promise<boolean> {
+  const { data: item, error } = await supabase.from('job_request_items')
+    .select('demanded_quantity, note_for_customer')
+    .eq('id', itemId).eq('job_request_id', requestId).eq('is_active', true).maybeSingle()
+  if (error) throw new Error(`job_request_items: ${error.message}`)
+  if (!item) return false
+  const response = (await responseRecords([itemId])).find((r) => r.arItemId === arItemId)
+  if (!response) return false
+  const changes = supplierSelectionChanges({
+    demandedQuantity: item.demanded_quantity == null ? null : Number(item.demanded_quantity),
+    noteForCustomer: item.note_for_customer,
+  }, response)
+  const { error: updateError } = await supabase.from('job_request_items').update(changes).eq('id', itemId)
+  if (updateError) throw new Error(`job_request_items update: ${updateError.message}`)
+  return true
 }
 
 /** Request ids owning at least one active item matching the item-level filters. */
@@ -335,6 +417,7 @@ export async function listJobRequests(
     supplierLinksByRequest(records.map((r) => r.id)),
   ])
 
+  const responseMap = await supplierResponsesByItem([...itemMap.values()].flat().map((it) => it.id))
   const requests: JobRequestRow[] = records.map((r) => {
     const all = itemMap.get(r.id) ?? []
 
@@ -345,7 +428,7 @@ export async function listJobRequests(
     const visible = all.filter((item) => visibleRequestItem(item, filters, q, itemIdSet))
 
     const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
-    return toRow(r, all, customer, visible, linkMap[r.id] ?? [])
+    return toRow(r, all, customer, visible, linkMap[r.id] ?? [], responseMap)
   })
 
   // Scan only ids and amount fields for the footer, across every result page.
@@ -408,7 +491,8 @@ export async function jobRequest(id: number): Promise<JobRequestRow | null> {
   ])
   const all = itemMap.get(r.id) ?? []
   const customer = r.customer_id == null ? null : customerMap.get(r.customer_id) ?? null
-  return toRow(r, all, customer, all, linkMap[r.id] ?? [])
+  const responseMap = await supplierResponsesByItem(all.map((it) => it.id))
+  return toRow(r, all, customer, all, linkMap[r.id] ?? [], responseMap)
 }
 
 async function customersById(ids: number[]): Promise<Map<number, JobRequestRow['customer']>> {

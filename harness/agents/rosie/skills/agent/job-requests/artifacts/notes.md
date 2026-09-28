@@ -107,12 +107,20 @@ well as updating relevant job notes when useful.
    **merely** because an alternative was proposed or has a list price. Chris's
    JR-78 different-size JR display instruction permits the narrowly supported
    and otherwise authorized exception in [supplier responses](supplier-responses.md#different-size-jr-display);
-   preserve the original ask in the customer note if using that exception. For a missing exact requested size, keep the closest
-   genuinely plausible APS size/variant and its actual list price in this
-   item's internal note, explicitly qualifying a size or identity mismatch;
-   omit unrelated species even if the catalogue name is similar. The listing
-   does not establish a price for the requested row, acceptance or stock
-   (Chris, JR-78 message 23, 2026-09-24). Keep unresolved alternative identity/size/pricing internal. A confirmed,
+   preserve the original ask in the customer note if using that exception.
+   For a missing exact requested size, make this item's internal note as
+   terse as possible: `3 G not listed; American Beauty Berry 5 G @ $23.`
+   If relevant APS listings bracket the requested size, give the
+   nearest smaller and nearest larger, each with its actual list price, in
+   the same terse format; otherwise give only the nearest supported side.
+   Omit labels such as `Closest Listed:`; the listed identity and size suffice.
+   For missing-price notes generally, state only the useful actual listed
+   plant, size and price; omit repetitive tentative-match warnings, mismatch
+   explanations and other sourcing prose. Do not include unrelated species
+   or infer a requested-row price, stock or acceptance from a listing
+   (Chris, JR-78 message 23, 2026-09-24; JR-77
+   feedback, 2026-09-25).
+   Keep unresolved alternative identity/size/pricing internal. A confirmed,
    priced single-size proposal can be displayed factually under the
    [different-size JR display rule](supplier-responses.md#different-size-jr-display)
    without claiming acceptance or authorizing customer delivery. Include a supplier
@@ -136,7 +144,10 @@ well as updating relevant job notes when useful.
    identity caveats or source-lookup narration. Retain a short identity/price
    qualifier only if necessary to avoid a materially false claim, and keep
    approval evidence in the originating transcript/handoff and applicable
-   structured fields rather than in job/item notes. Add the supplier's
+   structured fields rather than in job/item notes. Chris's JR-82 webchat
+   message 54 (2026-09-25 18:03:17 CDT) specifically disallows the words
+   `proxy pricing` in internal notes; identify the actual generic catalogue
+   pricing basis instead, only when the distinction matters. Add the supplier's
    response only when actually received; replace superseded response facts
    rather than tracking their history. Record current actual line changes (offered
    size/quantity/variant or selected substitute versus original demand) on the

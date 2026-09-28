@@ -63,6 +63,11 @@ send the same record back to the requesting thread. It covers:
   for the whole file, or "no location named → all N of the company's". Say which
   of the company's locations you did **not** write to, and which tabs or
   sections you skipped as non-locations ([locations](locations.md)).
+- **Pagewise QA** (paginated sources): pages reviewed, per-page logical offering
+  counts and exclusions/splits/continuations, matched versus inserted versus
+  parked decisions, and the reconciled whole-document and per-location totals.
+  State what was missing/uncertain rather than presenting a partial ingest as
+  complete; ensure location coverage claims agree with the source's full scope.
 - **Result**, **per location** when the drop covered several, never as one total:
   supplier_id, source ids + `file_path`s created, **rows updated**, **rows
   inserted**, rows reactivated, ambiguous multi-matches skipped, alias pairs

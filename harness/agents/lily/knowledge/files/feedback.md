@@ -935,3 +935,73 @@ this file exists.
 - **AR drawer merged, operator owns release** — Nova2026-09-25 01:28:51, relayed Lily main01:29:40, reports actual integration of AR drawer1–3 ONLY into main fecd81be6821af7f39b7d3197cbb0dc889de74e6, parents07445867/e79b0cb. The latter was independently STATIC reviewed and11 exact candidate blobs were merged; other operator/Lily repairs preserved. Scope: Avail beside Need, narrower Plant with full-name access, existing note_for_supplier after Status in approved internal focused-Job drawer. Bhoumik749 takes release over after the merge (attributed, exact wording not supplied); Nova751 already sent main SHA and gates. NO exact tests/type/build/browser or DEPLOYMENT evidence; hostOOM/unvalidated runner remain and operator owns release. Daisy read-only target-catalog confirmation establishes AR fields and0115-compatible answer RPC ONLY, not end-to-end execution or all migrations applied. Status MERGED NOT LIVE, await operator release evidence. No mobile/Past/full AR709/customer-publication change in THIS merge scope; this does not claim earlier operator changes already on HEAD are absent. Other candidate composition, including owned notes UI, stays PAUSED with no new deployment authority. Shared merge event captured once; no duplicate tests/audit/operator ask or external Telegram. _(via nova)_
   → sourcing-note-disclosure
 <!-- feedback-end: nova:main:2026-09-25T01:28:51-05:00:ar-r3-main-merge -->
+
+## 2026-09-25
+
+<!-- feedback-id: nova:main:2026-09-25T08:27:17-05:00:deployment-report-current-scope sha256: 1757e9de22bc50ce2e85606d47976e972cee6b5bcb7e70d3ac279b9ce43bc9cc -->
+- **Deployment reported with unresolved quantity-order scope** — Nova2026-09-25 08:27:17, relayed Lily main08:28:37: Bhoumik759 REPORTS latest commit deployed (attributed; exact wording not supplied). Nova read-only audit reports clean HEAD468065b parentfecd81b, healthy service and disk BUILD_ID prefixwqKYW3J8… with compatible chronology but NO live input-SHA marker. Live signed-out /jobs?jr=71 probe preserves its query, verifying that specific query-loss fix only—not authenticated JR71/edit/timing or complete live source provenance. Current468 availability.tsx also changes default and supplier-portal AR quantity ordering to Need→Avail qty→Size; tests amended for broader behavior are NOT RUN. This conflicts with approved nonfocused-unchanged scope; only QUANTITY ORDER broadening is established, not all3 changes or note visibility. Nova761 already asks Bhoumik whether deliberate and for docs reconciliation; approved scope/canonical completion must not be broadened or declared fully verified pending that answer. Mobile-list/Past exact-name-tabs-count-guard/sourcing-history/quiet-Shared/QNTY/compact-filter pipeline remains UNMERGED; this status authorizes no resumption/build/deploy. QA auth absent (safe helper refuses live login), exact tests/build provenance unverified. Full AR709/new customer-routing permission remains outside scope; existing scoped JR72 authority is not revoked. No duplicate audit, credentials, operator ask or external Telegram; Nova owns761. _(via nova)_
+  → sourcing-note-disclosure
+<!-- feedback-end: nova:main:2026-09-25T08:27:17-05:00:deployment-report-current-scope -->
+
+## 2026-09-25
+
+<!-- feedback-id: agent:daisy:main:2026-09-25T10:52:55:rosie-telegram245-aliases sha256: 723cbefd15a2165f5bd8c914d53f401f9b94ba0784b2ae219c05c51edbbec4bc -->
+- **Aliases instead of duplicate offers** — Bhoumik via Rosie Telegram 245: ‘in such cases, add other plant names as Alias. Do not create a new entry. Also when searching for plant prices, also use aliases as well.’ Relayed by Daisy September 25 10:52:55, then Lily main 10:54:19. Context: Chris allowed Leopard/Giant Leopard pricing from APS Ligularia; Daisy reports four price-only duplicate rows plus six Carolina Cherry Laurel price references from Compact screenshot. APS owner is already evaluating safe reconciliation. Pricing-proxy permission is not botanical equivalence or stock proof; preserve requested identity and genuine species/cultivar distinctions. Capture + bounded current capability audit only; no new implementation or live database work authorized. _(via daisy)_
+  → business/operations.md
+<!-- feedback-end: agent:daisy:main:2026-09-25T10:52:55:rosie-telegram245-aliases -->
+
+## 2026-09-25
+
+<!-- feedback-id: agent:lily:pricing-controls-audit:2026-09-25:alias-capability-outcome sha256: f4d32b9473b9136305892e985aabb22159004707d61e32614e03b2255f8e4a7e -->
+- **Existing alias paths differ** — Follow-up to ‘Aliases instead of duplicate offers’ (Bhoumik/Rosie245): Lily’s bounded current source check finds existing alias storage, alias-aware agent search and unquoted Plant Search; automatic AR price prefill deliberately uses quoted literal search and bypasses aliases. No missing-data or RPC-failure conclusion, live query/test or new implementation. Whether245 extends to automatic AR pricing is a separate Bhoumik money/workflow decision. Daisy’s existing APS owner retains reconciliation/history and pending1285 disposition of ten reported synthetic price-only rows; pricing proxies do not establish global plant identity. Earlier size/grade/prefill proposals remain separate/unapproved. _(via daisy)_
+  → pricing-lookup-reliability
+<!-- feedback-end: agent:lily:pricing-controls-audit:2026-09-25:alias-capability-outcome -->
+
+## 2026-09-25
+
+<!-- feedback-id: rosie:main:2026-09-25T12:04:20-05:00:job-name-policy-divergence sha256: 6de3400a2c313979cfabaacdfad75875f6befd93599b7bb5065954b867ef1826 -->
+- **Current intake stores composite Job name; older atomic policy differs** — Rosie reported current job-requests/artifacts/intake.md §4 explicitly stores job_requests.name as Customer/Company | Slug and permits a recognizable plant/request description when no site exists. JR82 owner applied TexaScapes, inc. | Yucca and Texas Native Plant Quote. Rosie recalls Chris-approved August31 SITE/DESCRIPTOR ONLY storage with company+job presentation and instructed the owner not to change the current row against the current skill. This is policy-provenance divergence, not approval to rename JR82, backfill records or mask/parse names in the frontend. Relayed by Lily main 2026-09-25 12:05:28 CDT for bounded reconciliation. _(via rosie)_
+  → job-request-display-identity
+<!-- feedback-end: rosie:main:2026-09-25T12:04:20-05:00:job-name-policy-divergence -->
+
+## 2026-09-25
+
+<!-- feedback-id: rosie:main:2026-09-25T12:09:06-05:00:job-name-policy-source-result sha256: b15e0e45e0caaebcb12a5e4a1581367fcfa254e9570312ee9ea89e9e61a148aa -->
+- **Later composite-name examples found; general storage and fallback approval unlocated** — Rosie bounded provenance review found no exact later general human approval for current stored Customer/Company Name | Slug rule or plant/request-description fallback. Changelog attribution and implementation commit 4f22287 September23 09:37 CDT are not human approval. Located case-specific Chris directions: JR34 webchat24 September2 10:53 to include contractor,26 10:54 Land Water Light | Ox Eye Phase II | Dior Goodwin; JR36 webchat13 September2 10:51 Outdoor Renovations | 803 Redbud | Kyle Stoutenger should be the name; main webchat38 September21 09:46:19 Urban Landscape Group | 404 Inwood. These show named-site composites, not a general storage policy or no-site request-description fallback. Earlier August31 16:11:28 Lily relay records Chris-approved site/descriptor-only storage, NULL absent real site/project and company-first presentation. Current intake left operative for JR82; no rename or edit. Exact approval behind5.26.0 remains unknown, not proven nonexistent. _(via rosie)_
+  → job-request-display-identity
+<!-- feedback-end: rosie:main:2026-09-25T12:09:06-05:00:job-name-policy-source-result -->
+
+## 2026-09-25
+
+<!-- feedback-id: telegram:parent-lily:359:job-name-forward-policy-question sha256: 4973eb6dd54dc0c6228cbd662e62b576de78756dd6b96c3671342c69b7130327 -->
+- **Forward Job-name policy decision sent; existing Jobs unchanged** — Lily main reports Telegram359 successfully asked Bhoumik/Chris one forward decision: whether new Jobs should use the current Company | short site/request description, using request description when no site is known, contrasted with older site-only/blank storage plus separate company display. Existing Jobs stay unchanged. This is an attributed summary, not a verbatim quotation. Status awaiting decision, not new policy approval, implementation authority or rollback. No further question; owner/current app unchanged until answer. _(via telegram)_
+  → job-request-display-identity
+<!-- feedback-end: telegram:parent-lily:359:job-name-forward-policy-question -->
+
+## 2026-09-25
+
+<!-- feedback-id: rosie:webchat:jr-82:54:approved-texas-sedge-price-reference sha256: 15652a92fb19b7b32df0adcbb59cbfa8d876d6832a4bd5a7aeb22a0402317b0c -->
+- **Keep Texas sedge price permission** — Daisy September25 19:03:42 relays Chris JR82 webchat54 (18:03:17): APS generic Sedge 1 G $6.50 is the price to use for requested Texas Sedge | Carex texensis 1 G permanently, without asking the same question again. This is durable pricing permission, not identity/stock/another supplier offering. Bhoumik rejects synthetic duplicate price rows and genuine aliases remain source-attested same-plant relationships. Daisy reports the narrow rule recorded in APS supplier notes; Rosie already priced JR82 at $6.50. Daisy’s proposed structured cross-item pricing correspondence is an owner proposal, not Chris-approved architecture. Persistent permission must not be silently interpreted as a frozen future $6.50 price or extended to another supplier/size/cultivar. Lily task is bounded existing-capability review and staging only, not operations or another Chris question. _(via daisy)_
+  → approved-pricing-reference-reuse
+<!-- feedback-end: rosie:webchat:jr-82:54:approved-texas-sedge-price-reference -->
+
+## 2026-09-25
+
+<!-- feedback-id: agent:daisy:supplier-austin-plant-supply:2026-09-25T19:03:58:texas-sedge-note-wording sha256: ca2014374d401a1e9dcc0de4f472f8b6b14270192805c169d18e61950540dc85 -->
+- **State the Texas sedge basis plainly** — Same JR82 Texas Sedge case, not a second pricing requirement: APS owner relay says Chris rejected the phrase ‘proxy pricing’ in INTERNAL NOTES. Keep a concise factual price basis, e.g. ‘Texas Sedge 1G priced from APS Sedge 1G’; this is not permission to conceal the basis or assert plant equivalence/stock. Owner’s saved APS note supplied19:05:57 already uses ‘same-size pricing reference’, limits Texas Sedge | Carex texensis to1G, names original Sedge1G inventory/source and JR82 approval, and says recheck if APS updates its list. The owner has no evidence of a future note-retrieval failure; a structured correspondence remains a suggestion. No global terminology rule or new human question follows. _(via daisy)_
+  → approved-pricing-reference-reuse
+<!-- feedback-end: agent:daisy:supplier-austin-plant-supply:2026-09-25T19:03:58:texas-sedge-note-wording -->
+
+## 2026-09-25
+
+<!-- feedback-id: agent:rosie:main:2026-09-25T19:08:18:texas-sedge-guidance sha256: e152ee9c791a06a3178667d95723075787da5b9258517eb5b217eb2c557660a5 -->
+- **Texas sedge scope wording corrected** — Rosie confirms the same approved Texas Sedge | Carex texensis pricing-reference case is now explicitly APS generic Sedge1G only, retaining original inventory/source references and current-price recheck, with no4-inch/other-size scope. Internal wording: ‘Texas Sedge 1 G priced from APS Sedge 1 G’, not ‘proxy pricing’. Job-notes guidance already handled the phrase. Lily re-read the current specific paragraph and confirmed this wording/scope. Rosie reports no DB/quote/order/AR/customer action. Existing supplier note plus guidance remains the supported minimal path; no proven future retrieval failure or structured-model approval. _(via rosie)_
+  → approved-pricing-reference-reuse
+<!-- feedback-end: agent:rosie:main:2026-09-25T19:08:18:texas-sedge-guidance -->
+
+## 2026-09-25
+
+<!-- feedback-id: agent:lily:main:2026-09-25T19:12:06:pricing-reference-existing-path sha256: 0e8b204b95ed2582e52846b9b8045f04eba7c72116c959fcbb54ad0dbfae8a84 -->
+- **Approved reuse is already supported** — Parent clarification after Rosie/Daisy guidance completion: approved-pricing-reference-reuse must read Supported existing path / owner guidance complete, not waiting for Bhoumik to reapprove Chris’s established Texas Sedge1G price-reference rule. Future ordinary-use recall is not independently observed, but is not a proven failure, feature backlog or validation job. No build currently proposed/requested, no new human question/live query/schedule. Only a conditional automatic-consumer or structured extension belongs to Bhoumik if a real gap emerges. Parent shared evidence with Nova explicitly without requesting work. _(via rosie)_
+  → approved-pricing-reference-reuse
+<!-- feedback-end: agent:lily:main:2026-09-25T19:12:06:pricing-reference-existing-path -->

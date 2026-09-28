@@ -286,12 +286,18 @@ is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 available_quantity numeric
+selected_availability_request_item_id bigint
 ```
+
+`selected_availability_request_item_id` (migration 0116) is the supplier AR
+line answer chosen for this job line; NULL means none. Choosing one copies its
+status, price, capped quantity and note once — no later resync.
 
 Constraints:
 - `job_request_items_available_quantity_check`: `CHECK (((available_quantity IS NULL) OR (available_quantity >= (0)::numeric)))`
 - `job_request_items_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE CASCADE`
 - `job_request_items_pkey`: `PRIMARY KEY (id)`
+- `job_request_items_selected_availability_request_item_id_fkey`: `FOREIGN KEY (selected_availability_request_item_id) REFERENCES availability_request_items(id) ON DELETE SET NULL`
 - `job_request_items_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
 - `job_request_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'unavailable'::text, 'alternative_proposed'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))`
 

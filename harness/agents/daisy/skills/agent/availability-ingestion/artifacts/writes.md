@@ -15,12 +15,21 @@ skills/agent/availability-ingestion/scripts/match-candidates \
   --supplier <supplier_id> --entries /tmp/<thread>-parsed.json
 ```
 
+For paginated sources, feed one verified page's entries for one location at a
+time, before moving to the next page; preserve the source page/line in your
+ledger. Reconcile each entry with the existing rows and any decisions staged
+from earlier pages so repeated offerings cannot produce duplicate inserts or
+contradictory updates. Do not commit per-page transactions as a substitute for
+whole-document QA; stage decisions and apply them in a transaction after the
+entire source/location scope is confirmed whenever possible.
+
 Feed it your parsed offerings as a JSON array — the **three name parts** from [normalization](normalization.md)
 (`common_name`, `botanical_name`, `cultivar`), plus `size`, `unit_price`,
 `quantity`, `height`, `width`, `caliper` when you have them, so the output puts
-your entry and its candidates side by side. For a multi-location drop run it
-**once per `supplier_id`** in the [locations](locations.md) mapping, with only that location's
-entries. `--help` documents the rest; the defaults are the ones to use.
+your entry and its candidates side by side. For a multi-location drop run it separately for each `supplier_id` in the
+[locations](locations.md) mapping, with only that location's entries (one
+page/location batch at a time when paginated). `--help` documents the rest; the
+defaults are the ones to use.
 
 For each entry it returns up to five of that supplier's **active** rows plus the
 single best **retired** one, ranked by trigram similarity on the plant identity
@@ -125,8 +134,10 @@ tells you an item is discontinued, record that in `notes` and raise it under
 **A brand-new supplier's first ingest** finds nothing to match, so it is all
 inserts.
 
-**Multi-location: run steps 1–4 once per `supplier_id`** in the [locations](locations.md) mapping,
-each with its own source id. The parsed values are the same; the `supplier_id`,
+**Multi-location: run steps 1–4 separately per `supplier_id`** in the [locations](locations.md) mapping,
+each with its own source id. For paginated material, reconcile one page/location
+batch at a time, then apply all verified decisions under the whole-source QA gate.
+The parsed values are the same; the `supplier_id`,
 the `source_id` and the row each one matches are not — a location is refreshed
 only by its own rows, and a location this drop didn't cover keeps everything it
 had. Record the per-location counts separately in your report; one total hides a

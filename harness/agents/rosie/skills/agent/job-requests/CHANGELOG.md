@@ -1,5 +1,25 @@
 # job-requests — changelog
 
+## 5.55.4 — 2026-09-25
+
+- Chris's explicit JR-82 webchat message 54 (18:03:17 CDT): prohibit the phrase `proxy pricing` in internal notes. State a concise actual generic catalogue pricing basis only if the identity distinction matters.
+
+## 5.55.3 — 2026-09-25
+
+- Chris's explicit JR-77 feedback (11:03 CDT): omit `Closest Listed:` from terse unpriced-item notes. Revised example to `3 G not listed; American Beauty Berry 5 G @ $23.` Keep supported listed plant/size/price and both nearest sides when relevant.
+
+## 5.55.2 — 2026-09-25
+
+- Chris's explicit JR-77 clarification (11:00 CDT): missing-price internal notes stay super brief; state only useful actual listed plant, size and price without repetitive tentative-match warnings, mismatch explanations or sourcing prose. A listing still does not establish the requested size's price, stock or acceptance.
+
+## 5.55.1 — 2026-09-25
+
+- Chris's JR-77 clarification: missing-size internal notes must use the fewest words possible, e.g. `3 G not listed; Closest Listed: American Beauty Berry 5 G @ $23.` When relevant listings bracket the request, retain both nearest sides and their individual list prices in the same terse style; no stock or requested-size pricing inference.
+
+## 5.55.0 — 2026-09-25
+
+- Chris's explicit JR-77 feedback (2026-09-25): when a requested size is not listed, record the closest relevant listed APS size and actual list price in the affected item's internal note; if relevant listings bracket the request, record both the nearest smaller and nearest larger size and each price. Preserve size/identity qualifications; do not imply the requested size's price, availability, acceptance or substitution.
+
 ## 5.54.0 — 2026-09-24
 
 - Chris's explicit JR-78 webchat message 45 (12:16:31 CDT): for an otherwise authorized submitted APS different-size job update, a single clearly identified, attributable, positively priced unaccepted size offer may be shown in the JR's size/price fields, retaining `alternative_proposed` and original request in a concise customer note. `NA`/`only` require specific supplier evidence. This narrows JR-75's requested-offering display rule; it does not accept substitutes, authorize later-submission job writes or customer sends, replace accepted terms, equate different purchasing units, or reuse the old size's price. Mixed/uncertain sizes, quantity or unsupported customer price stay unresolved; reconcile human edits before a guarded write.

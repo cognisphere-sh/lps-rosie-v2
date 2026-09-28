@@ -29,3 +29,19 @@ description: Telegram group chat `-1004330045748` is Nova's communication group
   group to reach both of them. The instruction to use it lives in `1-agent.md`
   (§Telegram communication); what is recorded here is who is in the group and
   who asked for it.
+
+-----$-----$-----$-----
+
+name: texas-sedge-jr82-pricing-reference
+lastUpdated: 2026-09-25 19:12:06
+description: For JR-82, Chris approved Austin Plant Supply's generic Sedge 1G
+  $6.50 as a supplier- and size-specific pricing reference for Texas Sedge |
+  Carex texensis 1G, not a botanical alias or evidence of offered stock. JR-82
+  already uses $6.50 and the supplier's notes retain the decision. Daisy and
+  Lily reported this on 2026-09-25. Lily's approved pricing-reference reuse
+  assessment found saved APS notes plus Rosie's existing 1G reuse guidance
+  sufficient, with source and recheck on list updates; no demonstrated future
+  retrieval failure warrants new schema, UI or matching. Stable correspondence
+  does not freeze future prices; AR automatic prefill would be a separate
+  money/workflow decision for Bhoumik. Chris explicitly rejected the phrase
+  “proxy pricing” in internal notes but wanted the provenance retained.

@@ -279,6 +279,8 @@ export const REQUEST_ITEM_COLS: ColumnDef[] = [
   { key: 'available_quantity', label: 'Avail', width: 66, minWidth: 56, align: 'right' },
   { key: 'size', label: 'Size', width: 72, minWidth: 64 },
   { key: 'name', label: 'Plant Name', width: 220, minWidth: 150 },
+  // One capsule per supplier AR answer; choosing one copies it onto the line.
+  { key: 'suppliers', label: 'Suppliers', width: 300, minWidth: 180 },
   { key: 'status', label: 'Status', width: 124, minWidth: 104 },
   // Kept beside Status by default because both describe what the customer sees.
   { key: 'note_for_customer', label: 'Note for customer', width: 180, minWidth: 120 },
