@@ -70,7 +70,7 @@ beforeEach(() => {
   globalThis.fetch = async (input, init) => {
     const path = String(input)
     assert.match(path, /^\/api\/availability-requests\/\d+$/)
-    if (init?.method && init.method !== 'GET') writes.push(path)
+    if (init?.method && init.method !== 'GET') writes.push(`${path} ${init.body}`)
     return Response.json({ request: ar(Number(path.split('/').at(-1))) })
   }
 })
@@ -87,91 +87,26 @@ function table(root: ParentNode) {
   return { head, row: head.nextElementSibling as HTMLElement, footer: head.parentElement!.lastElementChild as HTMLElement }
 }
 const labels = (head: HTMLElement) => [...head.children].map(node => node.textContent)
-const focusedHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note for supplier', 'Price', 'Line total']
+const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Note for supplier']
 const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Line total', 'Note for supplier']
 
-test('focused grid places the existing supplier-audience note after Status with header, row and subtotal aligned', () => {
-  for (const design of ['default', 'portal', 'focused-job'] as const) {
-    const view = render(<ARLineTable items={[item]} editable={false} design={design} />)
-    const { head, row, footer } = table(view.container)
-    assert.deepEqual(labels(head), design === 'focused-job' ? focusedHeaders
-      : design === 'portal' ? ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Note for supplier'] : defaultHeaders)
-    assert.equal(row.children[0].textContent, '12')
-    assert.equal(row.children[1].textContent, '8')
-    assert.equal(row.children[2].textContent, '30 G')
-    assert.ok(row.children[3].textContent?.includes(fullName))
-    assert.equal(row.children[design === 'focused-job' ? 5 : row.children.length - 1].textContent, supplierNote)
-    assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
-    if (design === 'focused-job') {
-      assert.match(head.style.gridTemplateColumns, /56px 90px 90px 190px 150px/)
-      assert.equal(head.style.minWidth, '1060px')
-    } else assert.equal(head.style.minWidth, design === 'portal' ? '960px' : '1090px')
-    if (design !== 'portal') {
-      assert.equal(row.children[design === 'focused-job' ? 7 : 6].textContent, '$100.00')
-      assert.equal(footer.style.gridTemplateColumns, head.style.gridTemplateColumns)
-      assert.equal((footer.firstElementChild as HTMLElement).style.gridColumn, design === 'focused-job' ? '1 / 8' : '1 / 7')
-      assert.equal(footer.lastElementChild?.textContent, '$100.00')
-    } else assert.equal(view.queryByText('Subtotal'), null)
-    view.unmount()
-  }
-  assert.deepEqual(writes, [])
-})
-
-test('optional leading Job column retains focused supplier-note and final-total alignment', () => {
-  const view = render(<ARLineTable items={[item]} editable={false} design="focused-job"
-    leadingHeader="Job" renderLeading={() => <span>Courtyard and Other Job</span>} />)
-  const head = [...view.container.querySelectorAll<HTMLElement>('[style]')]
-    .find(node => node.style.gridTemplateColumns && node.textContent?.startsWith('JobNeed'))!
-  assert.ok(head)
-  const row = head.nextElementSibling as HTMLElement
-  const footer = head.parentElement!.lastElementChild as HTMLElement
-  assert.deepEqual(labels(head), ['Job', ...focusedHeaders])
-  assert.equal(row.children.length, head.children.length)
-  assert.equal(row.children[6].textContent, supplierNote)
-  assert.equal(row.children[8].textContent, '$100.00')
-  assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
-  assert.equal(footer.style.gridTemplateColumns, head.style.gridTemplateColumns)
-  assert.equal((footer.firstElementChild as HTMLElement).style.gridColumn, '1 / 9')
-  assert.equal(footer.lastElementChild?.textContent, '$100.00')
-  assert.deepEqual(writes, [])
-})
-
-test('focused full-name disclosure never writes or duplicates the name editor; requested quantity stays distinct', async () => {
-  const details: unknown[] = []
-  const changes: unknown[] = []
-  const view = render(<ARLineTable items={[item]} editable design="focused-job"
-    onPatch={async (...args) => { changes.push(args) }} onPatchDetails={async (...args) => { details.push(args) }} />)
-  const editor = view.getByRole('textbox', { name: 'Line 19 plant name' }) as HTMLInputElement
-  assert.equal(editor.value, fullName)
-  editor.focus()
-  await userEvent.setup({ document }).tab()
-  const summary = view.getByLabelText('Full plant name for line 19')
-  assert.equal(document.activeElement, summary)
-  assert.match(summary.className, /min-h-11/)
-  fireEvent.click(summary)
-  assert.equal(summary.parentElement?.hasAttribute('open'), true)
-  assert.equal(summary.nextElementSibling?.textContent, fullName)
-  assert.equal(view.getAllByRole('textbox', { name: /plant name/ }).length, 1)
-  assert.equal((view.getByRole('textbox', { name: 'Line 19 requested quantity' }) as HTMLInputElement).value, '12')
-  assert.equal((view.getByRole('textbox', { name: 'Line 19 available quantity' }) as HTMLInputElement).value, '8')
-  assert.equal((view.getByRole('textbox', { name: 'Line 19 supplier notes' }) as HTMLTextAreaElement).value, supplierNote)
-  assert.equal(view.getAllByRole('textbox', { name: 'Line 19 supplier notes' }).length, 1)
-  assert.deepEqual(details, [])
-  assert.deepEqual(changes, [])
-})
-
-test('focused Job header chip opts in; ordinary numeric and ordinary Job header restore default even for same AR', async () => {
+test('focused Job header chip opens the portal drawing and summary strip; ordinary opens restore default even for same AR', async () => {
   const events: unknown[] = []
   const off = onOpenAvailabilityRequest((id, presentation) => events.push([id, presentation]))
   const view = render(<><FocusedJobRecord request={job} mobile={false} version={0} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
   fireEvent.click(view.getByRole('button', { name: /AR-84/ }))
   await view.findByRole('dialog', { name: 'Availability request AR-84' })
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), focusedHeaders))
-  assert.equal(view.getByText('Whole-request shared note').textContent?.includes('Whole-request shared note'), true)
+  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
+  const { head, row } = table(document.body)
+  assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
+  assert.equal(head.style.minWidth, '960px')
+  assert.ok(within(document.body).getByText('Total Items'))
+  assert.equal(within(document.body).queryByText('Line total'), null)
   assert.ok(view.getByText('Other Job', { exact: false }))
   assert.deepEqual(events, [[84, 'focused-job']])
   act(() => openAvailabilityRequest(84))
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
+  assert.equal(within(document.body).queryByText('Total Items'), null)
   fireEvent.click(view.getByRole('button', { name: 'Close availability request AR-84' }))
   view.unmount()
   const ordinary = render(<><RequestCardHeader request={job} mobile={false} expanded onToggle={() => {}}
@@ -203,97 +138,78 @@ test('a custom AR record name stays visible while the focused chip routes by sto
   assert.ok(chip.textContent?.includes(savedName))
   fireEvent.click(chip)
   await view.findByRole('dialog', { name: `Availability request ${savedName}` })
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), focusedHeaders))
+  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
   assert.deepEqual(events, [[84, 'focused-job']])
-  assert.ok(view.getByRole('button', { name: `Close availability request ${savedName}` }))
   act(() => openAvailabilityRequest(84))
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
-  assert.ok(view.getByRole('dialog', { name: `Availability request ${savedName}` }))
   assert.deepEqual(events, [[84, 'focused-job'], [84, 'default']])
   assert.deepEqual(writes, [])
   off()
 })
 
-test('focused read-only/phone/empty presentations preserve source note and no write on navigation', async () => {
-  const phone = render(<ARLineTable items={[item]} editable design="focused-job" mobileCards
-    onPatchDetails={async () => { throw new Error('unexpected write') }} />)
-  assert.equal(phone.container.querySelectorAll('article').length, 1)
-  assert.equal(phone.getAllByRole('textbox', { name: /plant name/ }).length, 1)
-  const full = phone.getByLabelText('Full plant name for line 19')
-  fireEvent.click(full)
-  assert.equal(full.nextElementSibling?.textContent, fullName)
-  assert.ok(phone.getByRole('textbox', { name: /supplier notes/ }))
-  const card = phone.container.querySelector('article')!
-  const statusLabel = within(card).getByText('Status').closest('label')!
-  const noteLabel = within(card).getByText('Note for supplier').closest('label')!
-  assert.equal(statusLabel.nextElementSibling, noteLabel)
-  assert.equal(within(card).getAllByText('Note for supplier').length, 1)
-  phone.unmount()
-  const empty = render(<ARLineTable items={[]} editable={false} design="focused-job" />)
-  assert.ok(empty.getByText('No lines on this request.'))
-  assert.equal(empty.queryByText('Subtotal'), null)
-  empty.rerender(<ARLineTable items={[item]} editable={false} design="focused-job" mobileCards />)
-  assert.equal(empty.queryAllByRole('textbox').length, 0)
-  assert.ok(empty.getByText(fullName).classList.contains('break-words'))
-  assert.equal(empty.getByText(supplierNote).textContent, supplierNote)
-  const readonlyCard = empty.container.querySelector('article')!
-  assert.equal(within(readonlyCard).getByText('Status').closest('label')?.nextElementSibling,
-    within(readonlyCard).getByText('Note for supplier').closest('label'))
-  const ordinaryPhone = render(<ARLineTable items={[item]} editable={false} design="default" mobileCards />)
-  const ordinaryCard = ordinaryPhone.container.querySelector('article')!
-  assert.equal(within(ordinaryCard).getByText('Status').closest('label')?.nextElementSibling?.textContent?.includes('Available qty'), true)
-  assert.equal(within(ordinaryCard).getAllByText('Note for supplier').length, 1)
+test('focused drawer edits name, size, need, price and note inline through the admin routes', async () => {
+  const keys: Record<string, keyof ARItem> = {
+    name: 'name', size: 'size', demanded_quantity: 'demandedQuantity',
+    unit_price: 'unitPrice', note_for_supplier: 'noteForSupplier',
+  }
+  let saved: ARItem = { ...item }
+  globalThis.fetch = async (input, init) => {
+    if (init?.method === 'PATCH') {
+      writes.push(`${input} ${init.body}`)
+      const { details, changes } = JSON.parse(String(init.body)) as Record<string, Record<string, string>>
+      for (const [column, value] of Object.entries({ ...details, ...changes })) {
+        saved = { ...saved, [keys[column]]: typeof item[keys[column]] === 'number' ? Number(value) : value }
+      }
+    }
+    return Response.json({ request: { ...ar(84), items: [saved] } })
+  }
+  render(<AvailabilityRequestDrawer />)
+  act(() => openAvailabilityRequest(84, 'focused-job'))
+  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
+  const user = userEvent.setup({ document })
+  const edit = async (name: string, value: string) => {
+    const field = within(table(document.body).row).getByRole('textbox', { name })
+    await user.clear(field)
+    await user.type(field, value)
+    await user.tab()
+    await waitFor(() => assert.ok(writes.some(write => write.includes(value))))
+  }
+  await edit('Line 19 plant name', 'Quercus alba')
+  await edit('Line 19 requested size', '45 G')
+  await edit('Line 19 requested quantity', '14')
+  await edit('Line 19 price per unit', '13.25')
+  await edit('Line 19 supplier notes', 'Tagged and held')
+  assert.deepEqual(writes.map(write => JSON.parse(write.slice(write.indexOf(' ') + 1))), [
+    { itemId: 19, details: { name: 'Quercus alba' } },
+    { itemId: 19, details: { size: '45 G' } },
+    { itemId: 19, details: { demanded_quantity: '14' } },
+    { itemId: 19, changes: { unit_price: '13.25' } },
+    { itemId: 19, details: { note_for_supplier: 'Tagged and held' } },
+  ])
+})
+
+test('the portal status menu opens inside the drawer host, where the modal leaves it interactive', async () => {
+  render(<AvailabilityRequestDrawer />)
+  act(() => openAvailabilityRequest(84, 'focused-job'))
+  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
+  fireEvent.click(within(table(document.body).row).getByRole('button', { name: /^Line status/ }))
+  const listbox = await within(document.body).findByRole('listbox', { name: 'Line status' })
+  assert.ok(listbox.closest('[data-ar-drawer-host]'))
+  assert.equal(listbox.closest('[inert]'), null)
   assert.deepEqual(writes, [])
 })
 
-test('closed focused AR stays read-only with merged supplier note and total visible', async () => {
+test('closed focused AR stays read-only in the portal drawing', async () => {
   globalThis.fetch = async () => Response.json({ request: ar(84, 'closed') })
   const view = render(<AvailabilityRequestDrawer />)
   act(() => openAvailabilityRequest(84, 'focused-job'))
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), focusedHeaders))
-  const { row, footer } = table(document.body)
+  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
+  const { row } = table(document.body)
   assert.equal(within(row).queryAllByRole('textbox').length, 0)
   assert.ok(row.textContent?.includes(fullName))
   assert.ok(row.textContent?.includes(supplierNote))
-  assert.equal(footer.lastElementChild?.textContent, '$100.00')
+  assert.ok(within(document.body).getByText('$100.00'))
   assert.equal(view.queryByRole('button', { name: 'Submit request' }), null)
-  assert.deepEqual(writes, [])
-})
-
-test('a multi-Job AR keeps each line supplier note after Status only in focused drawing and subtotal under Line total', async () => {
-  const other: ARItem = {
-    ...item, id: 20, name: 'Acer rubrum', demandedQuantity: 3, availableQuantity: 2,
-    allocations: [{ jobRequestItemId: 29, quantity: 3 }], unitPrice: 20,
-    noteForSupplier: 'Second line: LPS ask and supplier reply share the existing field',
-  }
-  globalThis.fetch = async input => {
-    assert.equal(String(input), '/api/availability-requests/84')
-    return Response.json({ request: { ...ar(84), itemCount: 2, answeredCount: 2, items: [item, other] } })
-  }
-  const view = render(<AvailabilityRequestDrawer />)
-  act(() => openAvailabilityRequest(84, 'focused-job'))
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), focusedHeaders))
-  const { head, row, footer } = table(document.body)
-  const otherRow = row.nextElementSibling as HTMLElement
-  for (const [line, expectedNote, expectedTotal] of [
-    [row, supplierNote, '$100.00'],
-    [otherRow, other.noteForSupplier, '$40.00'],
-  ] as const) {
-    assert.equal(line.style.gridTemplateColumns, head.style.gridTemplateColumns)
-    assert.equal(line.children.length, head.children.length)
-    assert.equal(line.children[5].textContent, expectedNote)
-    assert.equal(line.children[7].textContent, expectedTotal)
-  }
-  assert.equal((footer.firstElementChild as HTMLElement).style.gridColumn, '1 / 8')
-  assert.equal(footer.lastElementChild?.textContent, '$140.00')
-  assert.ok(view.getByText('Other Job', { exact: false }))
-  act(() => openAvailabilityRequest(84))
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
-  const ordinary = table(document.body)
-  assert.equal(ordinary.row.children[7].textContent, supplierNote)
-  assert.equal((ordinary.row.nextElementSibling as HTMLElement).children[7].textContent, other.noteForSupplier)
-  assert.equal((ordinary.footer.firstElementChild as HTMLElement).style.gridColumn, '1 / 7')
-  assert.equal(ordinary.footer.lastElementChild?.textContent, '$140.00')
   assert.deepEqual(writes, [])
 })
 
@@ -310,4 +226,39 @@ test('late focused AR load cannot relabel or repaint subsequent ordinary AR', as
   assert.equal(within(document.body).queryByText('Stale supplier'), null)
   assert.deepEqual(labels(table(document.body).head), defaultHeaders)
   assert.deepEqual(writes, [])
+})
+
+test('an editable cell shows its full text as a hover tooltip only when clipped', async () => {
+  render(<AvailabilityRequestDrawer />)
+  act(() => openAvailabilityRequest(84, 'focused-job'))
+  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
+  const name = within(table(document.body).row).getByRole('textbox', { name: 'Line 19 plant name' })
+  const size = within(table(document.body).row).getByRole('textbox', { name: 'Line 19 requested size' })
+  Object.defineProperties(name, { scrollWidth: { value: 400 }, clientWidth: { value: 180 } })
+  fireEvent.mouseEnter(name)
+  fireEvent.mouseEnter(size)
+  assert.equal(name.title, fullName)
+  assert.equal(size.title, '')
+  assert.deepEqual(writes, [])
+})
+
+test('portal drawing wraps Plant and Size instead of clipping, saves them on Enter, and clamps only Notes', async () => {
+  const saved: unknown[] = []
+  const view = render(<ARLineTable items={[item]} editable design="portal"
+    onPatch={async () => {}} onPatchDetails={async (...args) => { saved.push(args) }} />)
+  const name = view.getByRole('textbox', { name: 'Line 19 plant name' }) as HTMLTextAreaElement
+  const size = view.getByRole('textbox', { name: 'Line 19 requested size' })
+  const note = view.getByRole('textbox', { name: 'Line 19 supplier notes' })
+  for (const field of [name, size]) {
+    assert.equal(field.tagName, 'TEXTAREA')
+    assert.match(field.className, /whitespace-pre-wrap/)
+    assert.doesNotMatch(field.className, /whitespace-nowrap/)
+  }
+  assert.match(note.className, /whitespace-nowrap/)
+  assert.match(note.className, /focus:whitespace-pre-wrap/)
+  const user = userEvent.setup({ document })
+  await user.clear(name)
+  await user.type(name, 'Quercus alba{Enter}')
+  assert.equal(name.value, 'Quercus alba')
+  assert.deepEqual(saved, [[19, { name: 'Quercus alba' }]])
 })

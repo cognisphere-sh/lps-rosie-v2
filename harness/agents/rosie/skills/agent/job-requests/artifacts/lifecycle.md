@@ -1,50 +1,56 @@
-## 6. Job lifecycle and orders
+# Job stages and closing
 
-| Display | Stored status | Trigger |
+| Shown as | Stored `status` | When |
 |---|---|---|
-| Quote | `quoted` | Initial job record; no quote document is required for ordinary non-quick-quote requests or committed intake. Explicit quick-quote work generates a quote and stops here. |
-| Availability | `availability` | Optional stage: Chris approves and the availability request is delivered. |
-| Committed (Order stage) | `committed` | Customer commitment is established and supplier orders exist for the accepted lines, with or without a prior AR. |
-| Won | `closed_won` | Request explicitly closed as won. |
-| Lost | `closed_lost` | Request explicitly closed as lost. |
+| Quote | `quoted` | New job. A quote document is not required. |
+| Availability | `availability` | An AR was actually delivered to the supplier (`availability_sent`). Optional stage. |
+| Committed | `committed` | The customer committed and the supplier order exists. Set by order creation, never by hand. |
+| Won | `closed_won` | Chris closes it as won. |
+| Lost | `closed_lost` | Chris closes it as lost. |
 
-`archived` is legacy, not a new workflow stage. Active/`sourcing` and job
-`confirmed` are retired. Customer acceptance is **Committed**. Supplier
-confirmation changes the **Order** from **New** to **Processing** while the
-**Job Request remains Committed**. Neither event closes the job. Do not infer a lost sale
-from silence. Never assign `confirmed` to a job or use the compatibility
-`supplier_confirmed` job event to advance its stage; use [order confirmation](allocated-orders.md).
-Historical customer-confirmed jobs migrate to Committed without invented order
-records; inspect their evidence before preparing any outstanding supplier order.
+- Don't make a quote just because the status says Quote.
+- Stages don't have to run in order. Ordinary work can skip the quote and go
+  to an AR; committed work skips both.
+- `archived` is legacy. `sourcing`, `active` and job `confirmed` are retired.
+  Never set `confirmed` or use the `supplier_confirmed` job event.
+- Old customer-confirmed jobs moved to Committed without orders. Check their
+  evidence before preparing any missing order.
+
+## Workflow events
 
 ```sql
 SET app.actor TO 'rosie';
-SELECT public.record_job_workflow_event($jobId, 'pricing_fetched');
+SELECT public.record_job_workflow_event($jobId, '<event>');
 ```
 
-Record pricing/quote events only after the work occurs: a draft is not a
-shared quote, and a failed send is not sent. `availability_sent` advances
-Quote → Availability even when no quote was generated. Stages need not be
-performed as a sequential quote → AR → order checklist. Repeated pricing/quote events never move later stages
-backward or reopen a terminal job. Create accepted supplier orders through
-[direct orders](direct-orders.md) or [AR-backed orders](allocated-orders.md); do not represent
-customer acceptance by changing a job status without creating its order records.
-Explicit lookup completion is still recorded when no price is saved.
+| Event | Record when |
+|---|---|
+| `pricing_fetched` | A price lookup was done (even with no match). |
+| `quote_shared` | The customer actually received the quote. A draft doesn't count. |
+| `availability_sent` | The AR was actually delivered (portal publish or email sent). Moves Quote → Availability. |
 
-Close with a fresh read and the explicit won/lost outcome. Use
-`close_order(orderId, 'closed_won' | 'closed_lost')` for an order. A job may
-be closed directly when the quote/request is lost before an order exists.
-Closing the last order closes a job automatically only when all active demand
-is known and fully allocated to terminal orders. Partial or unknown demand
-stays open for Chris's explicit closure decision. A closed order's Won/Lost
-outcome cannot be reclassified through `close_order`.
-Do not close a shared AR or another customer's order because only one linked
-job ended; database hooks preserve work for its other open jobs. Closed ARs
-cannot be edited; reopening a job leaves those ARs closed until explicitly
-reopened. Do not reuse public links revoked by closure. AR deletion uses only
-`is_active=false` and preserves the saved AR status, submission date and token.
-Inactive ARs are excluded from work and supplier access; job reopening never
-restores them. Whole-job deletion retires exclusive ARs while retaining their
-supplier snapshots; shared ARs remain for other linked jobs.
-Quote, Availability and Committed are the open job stages, separate
-from an AR's New/Processing/Completed/Closed state.
+Events never move a job backward or reopen a closed job.
+
+## Closing
+
+- Only on Chris's explicit won/lost word. Silence is not a lost sale.
+- Order: `close_order(orderId, 'closed_won' | 'closed_lost')`. A closed
+  order's outcome can't be changed.
+- A job can be closed directly if it was lost before any order. Closing the
+  last order closes the job automatically only when all demand is known and
+  fully ordered; otherwise ask Chris.
+- Don't close a shared AR or another customer's order because one job ended.
+- Closed ARs can't be edited. Reopening a job doesn't reopen its ARs; reopen
+  an AR only when told, and never reuse a public link revoked by closing.
+
+## Deleting
+
+- Deleting an AR = `is_active = false` only. Keep its status, submission date
+  and token. Inactive ARs are ignored and hidden from the supplier; reopening
+  the job doesn't bring them back.
+- Restore an AR (`is_active = true`) only when told, after checking its jobs
+  and supplier; it keeps its saved state. `hidden` is not a status.
+- A public link needed again after reopening gets a fresh token through
+  normal publishing, never a revoked one.
+- Deleting a whole job retires its own ARs; shared ARs stay for other jobs.
+- Deleting or deactivating anything needs Chris's explicit word.

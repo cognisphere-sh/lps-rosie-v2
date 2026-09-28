@@ -104,5 +104,32 @@ class QuoteTests(unittest.TestCase):
             render(job)
 
 
+    def test_no_totals_for_bids_and_quantity_one_quotes(self):
+        self.assertEqual(render(self.job(), totals=False),
+                         "```text\n4 x 15 G Wax myrtle - $105.00\n"
+                         "10 x 30 G Mountain laurel - 45 G $595.00 - $375.00\n```")
+
+    def test_status_list_marks_and_common_names(self):
+        job = {"job_id": 42, "items": [
+            {"id": 1, "name": "Wax Myrtle | Morella cerifera", "size": "15 G", "demanded_quantity": 2,
+             "unit_price": "105.00", "status": "available", "note_for_customer": None},
+            {"id": 2, "name": "Culinary Sage | Salvia officinalis", "size": "1 G", "demanded_quantity": None,
+             "unit_price": "7.00", "status": "unavailable", "note_for_customer": None},
+            {"id": 3, "name": "Nolina", "size": "15 G", "demanded_quantity": 3, "unit_price": "175.00",
+             "status": "alternative_proposed", "note_for_customer": "15G only"}]}
+        self.assertEqual(render(job, status=True),
+                         "```text\n2 x 15 G Wax Myrtle - ✅ - $105.00 - $210.00\n"
+                         "? x 1 G Culinary Sage - ❌ - $7.00\n"
+                         "3 x 15 G Nolina - Diff Sz/Qty/Sub - 15G only - $175.00 - $525.00\n\n"
+                         "Subtotal: $735.00\n```")
+        self.assertIn("Wax Myrtle | Morella cerifera", render(job, status=True, full_names=True))
+
+    def test_default_quote_still_rejects_unpriced_lines(self):
+        job = self.job()
+        job["items"][0]["unit_price"] = None
+        with self.assertRaises(ValueError):
+            render(job)
+
+
 if __name__ == "__main__":
     unittest.main()

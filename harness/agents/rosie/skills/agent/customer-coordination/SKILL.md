@@ -1,86 +1,72 @@
 ---
 name: customer-coordination
-description: Handle customer contact on its dedicated thread. Covers inbound commitments, approved drafts, delivery and transcript records. Use for customer messages, acceptance or order updates. (v3.7.0)
+description: Handle customer contact on the customer's own thread. Includes recording inbound messages, relaying requests and acceptance to job threads, sending approved quotes and drafts by email, and customer records. Use for customer messages, quote delivery or customer acceptance. (v4.0.0)
 metadata:
   author: lps
-  version: "3.7.0"
+  version: "4.0.0"
 ---
 
 # Customer coordination
 
-Run on `customers.rosie_thread_id`, one thread per customer across all their
-jobs. All inbound customer messages land here, including messages that name
-a particular job. `message-routing` resolves/mints the thread id. Read the
-schema and customer's preferences before acting; use `job-requests`' guarded
-write discipline for customer fields.
+Work on the customer's thread (`customers.rosie_thread_id`), one per
+customer across all their jobs. Every customer message lands here, even one
+that names a job. `message-routing` finds or creates the thread. Job threads
+own job records; supplier threads own supplier contact.
 
-## Inbound communication
+## Inbound
 
-1. Read the actual message and record external email/relayed text in full on
-   this thread's internal web chat, with sender, subject and known message
-   link. A message already present in the transcript needs no duplicate.
-2. Identify the relevant job(s). Relay every job update to its `jr-<id>`:
-   a new request, scope change, delivery date, question, acceptance or concern.
-   Ambiguous identity/job references need clarification, not a guessed write.
-   A new order follows `job-requests` intake, including a request that is
-   already committed. Relay the original message/attachments, supplied prices,
-   exact accepted scope and any instruction to skip availability. The job
-   thread creates/reuses the job and items before ordering. A pricing question
-   does not create a job.
-3. Put durable customer preferences/contact corrections in `customers.notes`
-   or their structured fields. The transcript is the communication log;
-   there is no `customers.communication_notes` column.
-4. Explicit customer acceptance is relayed with its exact scope/evidence so
-   the job thread creates supplier Orders **New** and makes their jobs
-   **Committed** for the accepted quantities. Already committed intake and
-   accepted quotes may go directly to an order: preserve supplied/accepted
-   pricing, fill only missing prices from APS, and require no new quote or AR.
-   Do not ask the customer to accept again when the commitment is already clear.
-   Supplier confirmation moves Orders to **Processing**, then **Order Ready**,
-   while the Job remains Committed; jobs have no Confirmed stage.
-   One job may have several orders and one order may serve several jobs;
-   acceptance applies only to this customer's stated scope and quantities.
-   Relay supplied expected install dates and pickup/delivery choices for the
-   job's structured fields; keep the supplier's actual fulfillment date separate.
-   Won/Lost require an explicit closure instruction; acceptance does not close
-   or reopen a job. Resolve partial acceptance or offer changes before
-   committing the affected quantities.
+1. Read the whole message. Post outside emails or relayed texts in full in
+   this thread's web chat (sender, subject, link). Skip if already there.
+2. Relay every job matter to its `jr-<id>`: new request, change, date,
+   question, acceptance, concern. Unclear which job → ask; don't guess.
+   - New request (even one already committed): relay the message,
+     attachments, supplied prices and exact scope; the job thread creates the
+     job (`job-requests` → intake). A price question creates no job.
+   - **Acceptance**: relay the exact lines and quantities accepted and the
+     evidence. The job thread creates the order (New) and the job becomes
+     Committed. Accepted quotes and committed requests go straight to an
+     order: keep their prices, fill only missing prices from APS, no new
+     quote or AR. Don't ask the customer to accept again when it's clear.
+     Resolve partial acceptance or changed terms first. Acceptance covers
+     only this customer's scope.
+   - Relay dates (EDD) and pickup/delivery choices for the job fields. The
+     supplier's fulfillment date is separate.
+3. Lasting preferences and contact fixes go in `customers.notes` or the
+   customer's fields (guarded writes). The chat transcript is the contact
+   log.
 
-## Outbound communication
+Order and job stages: see `job-requests` → lifecycle. Won/Lost only on
+Chris's explicit word.
 
-1. Receive the job thread's customer-safe draft or prepare a requested
-   non-job draft here. Apply customer preferences. Use only requested/
-   approved offerings, customer prices, relevant delivery details and
-   `note_for_customer`. Never name or attribute a supplier in any customer
-   communication or draft; state only concise actionable alternative facts or
-   relevant conditions. Internal and supplier records may retain attribution.
-   For an approved supplier-proposed alternative, show its verified updated
-   customer price for consideration, not a declined internal substitution
-   decision or the original offering's price. If identity or price is unresolved,
-   hold only the affected draft; a supplier proposal by itself does not approve
-   an offer or send. No internal sourcing rows, supplier comparisons or agent
-   messages. `quote-generation` owns quote formatting.
-2. Use `message-routing` for any required approval in **the original request chat**, retaining the draft, recipient, subject and attachments/links.
-   Do not require approval on the job thread merely because the draft
-   concerns a job. If already explicitly approved, do not ask again.
-3. Send exactly the approved content from
-   `chris@localplantsupply.com`, as Christopher Runyon, on this customer
-   thread. Use `gws gmail +send` for new mail and `+reply --message-id ...`
-   for an existing Gmail conversation. A substantive correction to approved
-   content returns for review; never silently change the offering or recipient.
-4. Verify the send; on an uncertain result, search Sent before retrying.
-   Authentication/configuration failures are reported to the active Chris
-   interaction, with the prepared draft available. Do not claim delivery or
-   substitute another mailbox without authorization.
-5. Route the Gmail conversation back here using `route-email`, keeping
-   `router-all` last. Quote the complete sent content and metadata in this
-   thread's internal web chat; credit Chris if he sent it himself.
-6. Relay actual delivery to the job thread. A shared quote records
-   `quote_shared` there and its public link in customer-visible notes. This
-   keeps initial jobs at Quote without moving Availability/Committed backwards.
-   An internal draft has not been shared with the customer.
+## Outbound (needs Chris's approval unless he already approved this exact send)
 
-Post meaningful milestones in this thread so the whole customer history is
-readable. Store only open follow-ups in thread notes. When Chris writes
-here, coordinate with him here while the job thread continues to own job
-records and supplier threads continue to own supplier communication.
+1. Start from the job thread's customer-safe draft, or write a non-job draft
+   here. Use only approved offerings, customer prices, delivery details and
+   `note_for_customer`. Quote formatting: `quote-generation`.
+   - Never name or hint at the supplier. No internal notes, costs,
+     comparisons or agent messages.
+   - An approved supplier-proposed alternative shows its own customer price.
+     Never mention declined substitutions. If its name or price is unknown,
+     hold that part of the draft.
+2. Get approval with `message-routing` in **Chris's original chat**, showing
+   recipient, subject, full text and attachments/links. Don't ask again if he
+   already approved this exact content.
+3. Send exactly what was approved, from `chris@localplantsupply.com` as
+   Christopher Runyon, on this thread: `gws gmail +send` for new mail,
+   `gws gmail +reply --message-id ...` in an existing conversation. A real
+   change to the content or recipient needs a new approval.
+4. Check the result. If unsure, search Sent before retrying. Sign-in or
+   config failure: tell Chris in his chat, keep the draft ready, never use
+   another mailbox or claim it was sent.
+5. Add a Gmail route to this thread with `route-email` (`router-all` stays
+   last). Post the full sent content and metadata here; if Chris sent it
+   himself, say so.
+6. Tell the job thread it was delivered. A delivered quote records
+   `quote_shared`; post its shared link in the job's chat (not in a note, so
+   it doesn't print on the next quote).
+   A draft is not delivered.
+
+Post meaningful milestones here so the customer history reads well; keep
+only open follow-ups in thread notes. When Chris writes in this thread, work
+with him here; job and supplier
+threads keep their own records.

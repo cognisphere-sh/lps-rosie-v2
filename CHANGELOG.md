@@ -15,6 +15,19 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-28 — Rosie instruction rewrite and helpers
+
+- Rewrote Rosie's deployment prompt and all eight skills in plain language, one owner per rule; instruction text 209K → ~91K characters. `1.1-supabase.md` merged into `database-access`; all note rules now in `job-requests/artifacts/notes.md`; Chris's plant price rules moved from memory and skills into `knowledge/files/price-rules.md`.
+- Resolved contradictions in favour of Chris's latest explicit instructions (every APS submission updates job lines; diff-size answers take the offered size and its own price; missing quantity = 1 + "How many?"; per-pot pricing; aliases via Daisy; no "proxy" wording; no-totals bids). Fixed stale `orders.notes` (renamed in 0111) and `record_name` (0104 not live) references. Full list: `docs/harness/rosie-audit-2026-09-28.md`.
+- New tested helpers: `job-snapshot`, `ar-snapshot`, `set-note`, `aps-price`, `quote-job`, `daily-note`, `index-add`; `render-quote` gains `--no-totals` and `--status` (✅/❌).
+- supplier-events prompt simplified in its seed (the previous edit was only in the agent copy and would have been reverted on restart).
+- `scripts/check-agent-instructions.py` accepts dated changelog headings (`## 6.0.0 — 2026-09-28`).
+
+## 2026-09-28 — focused Job AR sidebar uses the portal table
+
+- The `/jobs?jr=<id>` AR sidebar now draws the same table as the supplier portal's request page (answer summary strip, portal columns and styling) while keeping admin inline edits of plant name, size, requested quantity, available quantity, status, price and supplier note. Replaces the 2026-09-24 focused-Job drawing (and its Full name disclosure). The portal status listbox now mounts inside the drawer's modal host so it stays clickable there.
+- Portal table (sidebar and supplier portal): wider Size and flexible Plant columns; Plant and Size wrap instead of clipping (Enter still saves). Notes is the only truncated column: one line until focused. Any clipped edit cell, and the Line total, show their full text on hover.
+
 ## 2026-09-28 — job line supplier selection
 
 - Add a **Suppliers** column to Job line tables: one capsule per supplier AR answer (name, price, note), tinted by answer status. Choosing one prominently highlights it and copies its status, price and allocation-capped quantity onto the line, appending its note to `note_for_customer`. Migration 0116 adds `job_request_items.selected_availability_request_item_id` to remember the choice.

@@ -45,21 +45,21 @@ requested quantity can be cleared or set to a positive number. Closed requests
 stay read-only until reopened. Supplier and public views keep requested plant
 details read-only.
 
-Only AR chips in the focused `/jobs?jr=<id>` Job header opt into the sidebar's
-**Need · Avail qty · Size · Plant · Status · Note for supplier · Price · Line total**
-order and 190px rather than 220px Plant track. The existing merged AR-line
-`note_for_supplier` is displayed once immediately after Status here and on
-focused phone cards, with subtotal still under Line total. The label describes
-the supplier audience, not who authored each part of the merged ask/response
-or supplier confirmation; there is no new note field/editor/write, no JR-status
-field mapping and no customer publication. Admin detail edits and supplier
-answer/status dialog retain their existing different save paths. Read-only
-names wrap; editable names have a keyboard/touch **Full name** disclosure without
-changing their single-line editor or saving on disclosure. Phone cards stay
-stacked with one editor per field. All jobs, customer cards, chat AR links,
-other drawer entries, supplier profiles and portal/public tables retain their
-existing drawing; opening from one of these entry points resets the focused
-opt-in. No full-page AR tabs or chat switch is added.
+Only AR chips in the focused `/jobs?jr=<id>` Job header open the sidebar in the
+supplier portal's drawing (`ARLineTable` `design="portal"`, the same table as
+`/partner/:id/requests/:arId`): the answer-count **SummaryStrip** with subtotal,
+then **Need · Avail qty · Size · Plant · Status · Price · Note for supplier** over
+plain hairlines, tone-tinted rows, the portal's status listbox and the purple
+needs-a-price accent, with no Line total column or subtotal footer. On top of
+that drawing the admin keeps inline edits: plant name, size and requested
+quantity (admin detail route), available quantity, status and price (answer
+route) and the line's `note_for_supplier`, all borderless until hovered or
+focused and saved on blur/Enter. Plant and Size wrap rather than clip; Notes is
+the only truncated column (one line until focused). A clipped editor shows its
+full text as a hover tooltip. The status listbox mounts inside the drawer's
+modal host so the modal isolation doesn't make it inert. All jobs, customer
+cards, chat AR links, other drawer entries and supplier profiles keep the
+default drawing; any ordinary open, even of the same AR, resets to it.
 
 ## Availability request creation feedback
 

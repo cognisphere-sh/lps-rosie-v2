@@ -1,55 +1,43 @@
-## 6. Supplier orders and confirmation
+# Supplier side of orders
 
-### Orders without an availability request
+The job thread creates orders (`job-requests` → [orders](../../job-requests/artifacts/orders.md)).
+This thread tells the supplier and handles their replies.
 
-Follow `job-requests` → **Direct orders: committed intake and quote-to-order**.
-Already committed requests and accepted quotes can use `create_direct_order`
-without any AR. The job thread preserves supplied/accepted prices and fills
-only missing prices from APS, then creates the order and relays its id, exact
-allocations, commitment/pricing evidence and `skip_availability: true` here.
-No new quote or separate availability-send approval is needed. This replaces
-the obsolete internal/admin support-AR workaround and hidden-AR blocker.
+## New order handed over
 
-Read the resulting order before coordinating it. Resolve its jobs through
-`order_item_job_request_items`. Order items have no direct AR-item pointer;
-related ARs come through the job-item mappings and must match the order supplier.
-Do not create, publish, answer or submit an AR to supply missing source evidence,
-or mark job items available to enable ordering. Customer commitment and catalogue
-pricing do not establish supplier availability or confirmation. A separately
-authorized job availability override retains its own provenance under `job-requests`.
-The committed request authorizes the order's appearance in the supplier Orders
-tab; separate email/customer sends still follow their approval rules.
+Read the order and its lines, and find its jobs through
+`order_item_job_request_items`. One order can serve several jobs and one job
+can have several orders. The order already shows in the supplier's portal
+Orders tab; that is all the committed request authorizes. A separate email or
+customer message needs its own approval. Never create, answer or submit an AR
+to back up an order.
 
-Use `job-requests` for customer-accepted order creation and quantity allocation.
-Orders are separate from ARs and appear in the supplier portal's **Orders** tab.
-One order can contain rows from several requests and jobs; one job can have
-several supplier orders. Read `order_items` and
-`order_item_job_request_items` before matching supplier messages or relaying
-updates. Preserve the supplier scope and every customer's allocated quantities.
+## Supplier confirms or updates an order
 
-Customer acceptance creates **New** orders and makes linked jobs **Committed**.
-Orders progress **New → Processing → Order Ready**. An availability response or
-submission is not supplier confirmation of an order. When the supplier
-explicitly confirms the identified order, use
-`confirm_order(orderId, supplierId, confirmationDate, fulfillmentDate)` to
-record the actual `confirmation_date` and agreed pickup/delivery date. Do not
-infer these dates from the job's expected install date. Ambiguous scope or
-partial confirmation must be resolved before confirming the full order.
-The supplier portal records its own confirmation directly; re-read it rather
-than submitting a duplicate action. Supplier confirmation moves the **Order
-to Processing** and leaves each linked **Job Request Committed**. Use
-`update_partner_order` for the subsequent Order Ready transition. Job requests
-have no Confirmed stage. Relay the actual order status/date to every linked
-job and follow `job-requests` for its separate lifecycle; maintain useful
-sourcing progress under [job-requests: notes](../../job-requests/artifacts/notes.md)
-without redundant order-status summaries.
-Use `close_order` only for an explicit Won/Lost outcome, never because an AR
-was submitted or a customer was silent.
+`order_updated` / `order_status_updated` / `order_status_saved` events land
+here. Re-read the order and lines. Portal confirmations are already saved; do
+not record them again. For a confirmation given in chat or email, record it
+with `confirm_order(...)` ([job-side orders](../../job-requests/artifacts/orders.md#supplier-confirms)) once the scope
+is clear. Relay the actual status and dates to every linked job. Pickup vs
+delivery is Chris's choice; a supplier event doesn't change it. Never infer
+customer acceptance from a supplier event.
 
-## Note ownership
+## Tell the supplier about an order change
 
-Use `note_for_supplier` on order headers and items for shared sourcing instructions
-and actual supplier responses. Preserve existing relevant content when either side
-updates it. Use `note_for_customer` for customer sourcing requirements and safe
-customer-facing sourcing outcomes; it is omitted from supplier payloads. Exclude
-spacing and other non-sourcing details from customer notes.
+Standing permission: every verified change to a placed order gets a short
+factual message to the supplier, no draft approval needed.
+
+1. Re-read the order, changed fields and allocations. Check this thread's
+   history: if this exact change was already sent, don't send it again.
+2. The job thread adds the dated line to `orders.note_for_supplier`. For a change the
+   supplier made, relay the before/after to the job thread.
+3. Send one message covering all fields changed in this update: job name,
+   what changed (old → new where useful), current pickup/delivery plan if
+   affected, and the order link. For a change the supplier made, just
+   acknowledge it; it isn't a new confirmation.
+4. Partner: `webchat-cli send --portal --text ...` on this thread. Otherwise:
+   the supplier's known email ([email](email.md)). Only these reach the
+   supplier; an internal message or the order showing in the portal does not.
+5. Confirm it was sent and tell the job thread. If it failed or there's no
+   contact, keep it pending and report the blocker. After an unclear send,
+   check history before resending.

@@ -1,201 +1,111 @@
-# Job and item notes
+# Notes: what goes where
 
-Use two fields on `job_requests` and `job_request_items`: `note_for_customer`
-and `note_internal`. Put job-wide facts on the job and line details on the item.
-Orders and order items also use `note_for_customer` for customer-facing sourcing
-requirements and outcomes, and `note_for_supplier` for supplier context/responses.
-AR headers and items share a single `note_for_supplier` field.
+This is the only place that defines note content. Other skills link here.
 
-| Field | Purpose |
+## The three note fields
+
+| Field | Where | Who reads it | What goes in it |
+|---|---|---|---|
+| `note_for_customer` | jobs, job items, orders, order items | Customer (quotes, app column) | The customer's sourcing requirements, plus short outcomes the customer needs. |
+| `note_internal` | jobs, job items | Chris and LPS only | Current supplier, price and response facts; actual line changes; open questions that block the next step. |
+| `note_for_supplier` | AR header and lines, orders, order items | Supplier and LPS | LPS's sourcing asks, and the supplier's replies. One shared field for both. |
+
+Placed orders also get a short dated change line at the end of
+`orders.note_for_supplier` (see [orders](orders.md)). That is the only note
+that keeps history.
+
+## Rules for every note
+
+- **Fewest words possible.** Chris reads them. Assume he understands; no
+  warnings, caveats or explanations.
+- **Current state only.** Replace old facts. Never keep a log of actions,
+  approvals, questions asked or decisions rejected.
+- **Don't repeat columns.** Plant, size, quantity, price and status are
+  already shown.
+- **Sourcing facts only:** cultivar, color, form, acceptable alternatives,
+  purchase units, ETA. Leave out spacing, layout, installation, project or
+  phase names, and (in customer and supplier notes) customer names.
+- **Scope:** job-wide facts go on the job; line facts go on the item.
+- Empty is fine. Use NULL when there is nothing useful to say.
+- Keep existing text that is still true (the customer's own words, other
+  suppliers' facts). Edit with a guarded update (see `database-access`).
+
+## `note_for_customer`
+
+Keep the customer's own requirements (alternatives they allow, color, form,
+units). Plan or list remarks like `Sub soft leaf yucca` go in word for word;
+don't turn them into questions. Add an outcome only when it comes from Chris
+or a **submitted** supplier answer, never from a missing price-list entry:
+
+| Situation | Note | Example |
+|---|---|---|
+| Available as requested | Nothing | — |
+| Available, but the unit was unclear before | Confirm the unit | `140 x 4" correct` |
+| Different size / quantity / variant offered | Few words, offered size first, or ask if it works | `15G only` · `3G only, 1G NA` · `Only blue available` · `3G only — OK?` |
+| Can order | ETA only | `Can order Tuesday` · `Can order for Sep 29` |
+| Unavailable | Nothing, or an alternative Chris approved offering | `Dwarf pittosporum 3G available` |
+| Customer gave two sizes | The other size and its price | `45 G $595.00` |
+| Quantity not given | Ask | `How many?` |
+| Detail the customer must give | Short question | `Height?` · `Variety?` |
+
+- Write "NA" or "only" only when the supplier actually said so.
+- For a supplier-proposed alternative, give its size/name and its **own**
+  price. If that price is unknown, keep the proposal in `note_internal`.
+- Notes Chris writes himself stay as he wrote them.
+- Never write: the supplier's name, costs or internal prices, "proxy",
+  "cultivar not confirmed", questions meant for the supplier (`RED Avail?`), declined
+  substitutions, `Quoted for ...`, `Originally 15 G or 20 G ...`, price-sheet
+  references, JR/AR numbers, or "not available for the Sep 24 pickup" when
+  "Can order ..." already says it.
+- The app copies a supplier's answer note into `note_for_customer` when Chris
+  picks a supplier capsule. If that text contains LPS asks, costs or supplier
+  names, propose clean wording to Chris; change it only after he agrees.
+
+## `note_internal`
+
+Only what Chris needs to decide the next step:
+
+| Situation | Example |
 |---|---|
-| `note_for_customer` | Concise sourcing requirements supplied by the customer, together with customer-useful sourcing outcomes from Chris/LPS or submitted supplier evidence. Preserve original sourcing constraints/options when adding outcomes. Shown once in the **Note for customer** column, never beneath the plant name. |
-| `note_internal` | Brief current supplier/price/received-response facts, actual line changes and material unresolved sourcing or quantity choices. Never shared externally. |
+| Price came from another listing | `APS generic Crossvine 1 G $8` · `Texas Sedge 1 G priced from APS Sedge 1 G` |
+| Requested size not listed (give nearest smaller **and** larger, if both exist) | `3 G not listed; American Beauty Berry 5 G @ $23` · `7 G not listed; Nolina 5 G @ $23, 15 G @ $175` |
+| Supplier answer received | `APS: 7 G only @ $65` |
+| Line changed from the customer's ask | `Req 15 G or 20 G; using 15 G` · `1 flat = 18 x 4" pots` · `Was Pride of Houston Yaupon 30 G` |
+| APS proposed another plant/size | Its APS list price: `APS list 7 G Elaeagnus $65`, or `No APS price for 7 G` |
+| Open point for Chris | `Flat count?` · `Twistleaf or Softleaf?` |
 
-Capture only information needed to source plants: meaningful cultivar, color,
-form, acceptable alternatives, purchasing units and actionable availability/ETA.
-Do not capture planting spacing, landscape layout, installation instructions,
-project labels or unrelated additional details in customer notes. Do not repeat
-plant, size, quantity, price or status already clear from structured columns.
-Chris's JR-78 webchat message 13 (2026-09-24 10:52:38 CDT) clarified that
-internal work and original-to-current decision history belong in `note_internal`,
-not `note_for_customer`. For example, remove `Originally 15 G or 20 G; 15 G only
-for this request` from the customer note when structured size already reads
-`15 G`; a past option needs no internal note either unless it remains material.
-For a flat resolved to individual pots, retain a concise conversion and per-pot
-pricing basis internally when needed to prevent a purchasing-unit error; do not
-put `Originally 1 flat ... 18 pots per flat for this request` in the customer
-note. Genuine current customer sourcing constraints/preferences still belong in
-`note_for_customer`. Keep unrelated context in its source message; source
-transcripts retain original wording. Never add supplier identity, internal prices or deliberation to a
-customer-facing note. Use NULL if there is no sourcing information to add.
+Never write: "proxy pricing", "Chris approved ...", "AR response pending",
+rejected options (`No 7G substitution`), step-by-step history, or
+tentative-match warnings.
 
-Keep notes concise and current, not an action log. Chris reiterated minimal
-internal wording (JR-72 webchat message 38, 2026-09-24 01:51:54 CDT): retain
-only material supplier/price/response facts and unresolved risks; omit status,
-quantity and price already conveyed adequately by structured fields, project
-labels, chronology and needless qualifications. Leave `note_internal` NULL if
-nothing remains. Do not copy a transcript or list steps taken; replace
-superseded facts in place. On an existing job,
-record only the current supplier/price/response state, current actual line
-modification/substitution and still-material unresolved sourcing/quantity
-choices; workflow records and chat carry
-action history. A general price/supplier lookup still
-creates no job, AR or outreach. Report findings in Chris's original chat as
-well as updating relevant job notes when useful.
+## `note_for_supplier` (AR and order asks)
 
-## Write or update
+When building an approved AR, copy only what the supplier needs from the
+job's and items' `note_for_customer`, plus Chris's instructions:
 
-1. Follow [write discipline](writes.md): read current notes, recent changes,
-   source evidence and Chris's latest decisions. Choose the field by origin
-   and audience, and the row by scope.
-2. Read the existing merged `note_for_customer` before editing. Preserve current
-   customer sourcing constraints and supported customer-facing outcomes together.
-   Keep original demand/options clear when an offering changes, without attributing
-   an internal interpretation or unresolved proposal to the customer. Retain job-wide
-   context once on the job. Remove spacing, layout, installation directions and
-   other information unrelated to plant sourcing from the note being revised.
-3. Add the shortest supported customer-useful outcome. Examples: `15G only`,
-   `3G only, 5G NA`, `Can order Tuesday`, or `5G @ $25, 1G NA` when the
-   customer price and availability evidence support every claim. These are wording
-   examples, not evidence, selected substitutes or authorization to send.
-   Save only the concise, actionable customer-useful outcome in
-   `note_for_customer`: an actually unavailable original plant and approved
-   recommended alternative (if any), a short factual description of an actual
-   size/quantity/variant difference, or ETA/other meaningful supplier details
-   when the plant can be ordered. Add only facts that cannot already be inferred
-   from other job/item columns: a status of unavailable needs no separate
-   `unavailable` note, but a distinct offered size or order date may. For an
-   orderable date, state the positive
-   actionable fact (`Can order for Sep 29`), not a redundant comparison to the
-   requested pickup date. Never include a supplier's name or attribution in
-   customer-facing notes, even when the supplier supplied the alternative;
-   keep source identity in internal/supplier records when material. Do not
-   disclose that an internal substitution was declined or narrate selection
-   history. For a supplier-proposed alternative intended for customer
-   consideration, state its verified identity/size and supported updated
-   customer price, not the old offering's price. If identity or customer price
-   is unresolved, keep the proposal internal until resolved for the affected
-   customer draft; do not imply a final offering or customer acceptance.
-   Follow the applicable alternative/price selection and customer-send approval
-   boundaries; a supplier proposal alone authorizes neither an offer nor a send.
-   Prefer the verified offered-versus-requested fact over an unsolicited
-   customer-choice question; ask the customer separately only when authorized.
-   A concise confirmation of a previously ambiguous customer unit/quantity
-   (for example, individual 4-inch plants rather than trays) may be useful
-   even when available as requested. Otherwise availability as requested
-   usually needs no note; do not fill a customer note with a redundant
-   “available” claim or repeat a clear APS answer as a clarification question.
-   For Carolina Cherry Laurel only, Chris confirmed 24-inch box and 30 G as
-   equivalent (JR-78 webchat messages 33–34, 2026-09-24); retain the customer's
-   requested size wording and note the box description only when customer-useful,
-   not as an unapproved different-size offering. This does not establish a
-   general container equivalence for other plants. Source the outcome from
-   Chris/LPS findings or actual supplier responses in submitted AR `note_for_supplier`, never from a bare
-   price-list gap. Keep unverified cultivar/proxy caveats and supplier-directed
-   questions such as `Plum Delight cultivar not confirmed` or `RED Avail?`
-   internal or in the supplier ask, not `note_for_customer`. In `note_internal`,
-   retain only material current supplier, price and response information, actual
-   current item-line changes/substitutions, and unresolved sourcing or quantity
-   choices that affect the next decision. Resolve or remove the choice when
-   decided; do not leave a running deliberation. Identify the actual
-   catalogue plant/size behind a proxy price where useful, without narrating
-   who approved it or calling it an actual substitution. For an APS-proposed
-   alternative, retain its own price-list lookup result in the affected item's
-   sourcing note: exact listed plant/size and list price, a qualified proxy
-   with its actual catalogue identity, or a concise no-exact-price finding.
-   Do not overwrite the requested offering's structured plant/size or price
-   **merely** because an alternative was proposed or has a list price. Chris's
-   JR-78 different-size JR display instruction permits the narrowly supported
-   and otherwise authorized exception in [supplier responses](supplier-responses.md#different-size-jr-display);
-   preserve the original ask in the customer note if using that exception.
-   For a missing exact requested size, make this item's internal note as
-   terse as possible: `3 G not listed; American Beauty Berry 5 G @ $23.`
-   If relevant APS listings bracket the requested size, give the
-   nearest smaller and nearest larger, each with its actual list price, in
-   the same terse format; otherwise give only the nearest supported side.
-   Omit labels such as `Closest Listed:`; the listed identity and size suffice.
-   For missing-price notes generally, state only the useful actual listed
-   plant, size and price; omit repetitive tentative-match warnings, mismatch
-   explanations and other sourcing prose. Do not include unrelated species
-   or infer a requested-row price, stock or acceptance from a listing
-   (Chris, JR-78 message 23, 2026-09-24; JR-77
-   feedback, 2026-09-25).
-   Keep unresolved alternative identity/size/pricing internal. A confirmed,
-   priced single-size proposal can be displayed factually under the
-   [different-size JR display rule](supplier-responses.md#different-size-jr-display)
-   without claiming acceptance or authorizing customer delivery. Include a supplier
-   response only after actually received;
-   never add `AR response pending` or similar boilerplate already evident in
-   AR status. Do not append the work performed, requests sent or follow-up log.
-   Split mixed notes by audience; never copy the whole
-   supplier reply into a quote. Preserve unrelated customer-facing supplier
-   details and customer-origin `note_for_customer`; do not blanket-clear notes.
-   If intended audience is unclear, keep that detail internal until clarified.
-   Use [quote-generation: notes for customer](../../quote-generation/artifacts/shared-notes.md)
-   for wording and rendering.
-4. Update the affected facts in place, preserving unrelated customer-facing
-   notes and current customer constraints. Keep suppliers distinct internally
-   where relevant. Mention current supplier, priced plant/size, list-versus-
-   supplier-quoted price or brief received response only where the distinction
-   is material and not already obvious from structured fields. A catalogue
-   price or LPS proxy is not a supplier quote or stock confirmation. A concise
-   factual basis suffices, e.g. `APS generic crossvine 1 G — list $8`; do not
-   add `Chris approved provisional proxy`, approval chronology, unnecessary
-   identity caveats or source-lookup narration. Retain a short identity/price
-   qualifier only if necessary to avoid a materially false claim, and keep
-   approval evidence in the originating transcript/handoff and applicable
-   structured fields rather than in job/item notes. Chris's JR-82 webchat
-   message 54 (2026-09-25 18:03:17 CDT) specifically disallows the words
-   `proxy pricing` in internal notes; identify the actual generic catalogue
-   pricing basis instead, only when the distinction matters. Add the supplier's
-   response only when actually received; replace superseded response facts
-   rather than tracking their history. Record current actual line changes (offered
-   size/quantity/variant or selected substitute versus original demand) on the
-   affected item only; do not mistake a pricing-only proxy for an actual plant
-   substitution or erase the original customer demand. Do **not** retain
-   rejected decisions or unused substitutions (e.g. `No 7G substitution`) in
-   internal notes: retain implemented changes, current supplier/price/response
-   state and any still-material unresolved sourcing or quantity choice. Do not
-   turn internal notes into an approval,
-   sourcing-step or contact chronology; use structured records and transcripts.
-5. Guard note-only writes and verify the saved fields. Note updates alone do
-   not change prices, quantities, offerings, availability, statuses, source
-   selection or orders, and do not authorize sends. The separate
-   [first-APS-submission standing instruction](supplier-responses.md) permits
-   supported scoped job-line status updates and factual customer-safe
-   proposed-alternative notes; the [different-size JR display rule](supplier-responses.md#different-size-jr-display)
-   governs any offered-size/price display change. Neither is approval to
-   publish a quote, send a customer message, issue an alternative AR, select
-   an order source or change accepted terms. Outside that exception,
-   a real alternative still needs Chris's action-specific quote/AR approval
-   before it is offered or requested; quote approval is separate from AR approval.
+- Header: request-wide needs (`Needed by Sep 18`, `Pickup Sep 24`).
+- Line: that line's specs (`Single trunk only`, `Atrosanguinea or Shalimar
+  Red cultivar`, `140 individual 4-inch pots packed in trays; unit price per
+  pot`, `30 G acceptable`, `Is listed Muskogee suitable?`).
+- Say what is wanted, in positive words. Don't forbid suggestions
+  (not `do not substitute 7 G`). The supplier may suggest other options.
+- Don't add: `Please price ...` (a blank seed price already asks), `Please
+  confirm availability`, `Let us know if you have questions`, project
+  headings, or customer names unless customer sharing is on.
+- Don't repeat plant, size, quantity or price. Don't repeat the header on
+  every line. On a shared AR, keep each job's needs on its own line.
+- Mention an alternative plant or size only after Chris approved asking about
+  it. A price taken from another listing is not an exact match; don't present
+  it as one.
 
-## AR handoffs
+## Supplier answers → job notes
 
-When preparing an authorized AR, read both the job's and each item's
-`note_for_customer`. Pass supplier-relevant job context into
-`availability_requests.note_for_supplier` and line details into
-`availability_request_items.note_for_supplier`. Pass only requirements needed
-for sourcing, such as meaningful color, alternatives, handling or special
-requests within the approved ask; do not forward project headings/customer
-names that add no sourcing value. Structured AR rows already show plant, size,
-requested quantity and seed price: do not repeat them in supplier notes or add
-`Please price Gilt Edge 15 G` just because the seed price is NULL. Keep internal
-sourcing context and irrelevant/private customer information out. Shared ARs
-must preserve which job/allocation a requirement applies to; never apply one
-customer's conditions to every linked job. Follow
-[supplier-coordination: line notes](../../supplier-coordination/artifacts/line-notes.md).
+When a supplier **submits** an AR (not a saved draft), read the header and
+line `note_for_supplier`. Skip LPS's own ask already in that field. Split
+the supplier's words by reader: customer-useful outcomes go to
+`note_for_customer` (table above), supplier/price facts go to
+`note_internal`. Header facts go to every linked job; line facts to the linked
+items only. If you're unsure who should see a fact, keep it internal.
 
-For a safely matched, explicitly submitted AR response, identify the actual
-supplier-provided facts within its shared header and line `note_for_supplier` to populate the corresponding job/item `note_internal`
-or `note_for_customer` by audience. Request-wide conditions go on the applicable
-jobs; line-specific details go on the linked items. Apply only relevant scope,
-and retain shared totals as shared totals. Unsubmitted edits stay on the
-supplier thread. Follow [supplier responses](supplier-responses.md); recording
-a customer-facing detail does not select a supplier, accept a substitution or
-authorize customer delivery.
-
-Examples (wording only): customer `Red flowers only; single trunk` can be
-carried into the relevant AR line's `note_for_supplier`. A submitted supplier note
-`Can order for Oct 1.` can yield `Can order Oct 1` in `note_for_customer` for the applicable offering and `APS: can order;
-ETA Oct 1` in `note_internal` if the supplier response needs internal tracking.
+Example: supplier line note `Can order for Oct 1.` → item
+`note_for_customer` `Can order Oct 1`.

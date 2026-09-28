@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Render a quote straight from a job's saved rows (read-only): loads the job
+note and active lines, then runs render-quote. No approvals, writes or sends.
+
+Examples:
+  quote-job 82                         # standard quote, all active lines
+  quote-job 82 --no-totals             # per-unit bid / quantity-one quote
+  quote-job 78 --status                # ✅ / ❌ availability list
+  quote-job 59 --status --only available,alternative_proposed
+  quote-job 82 --items 748,754         # only these lines
+Unpriced lines stop a normal quote with an error naming them; use --items to
+quote the priced scope and tell Chris what was left out.
+"""
+import argparse
+from decimal import Decimal
+import json
+from pathlib import Path
+import runpy
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "database-access/scripts"))
+from _db import json_value  # noqa: E402
+
+render = runpy.run_path(str(Path(__file__).with_name("render-quote")))["render"]
+
+SQL = """
+SELECT json_build_object(
+ 'job_id', jr.id,
+ 'note_for_customer', jr.note_for_customer,
+ 'items', (SELECT json_agg(i ORDER BY i.id) FROM (
+    SELECT id, job_request_id, name, size, demanded_quantity, unit_price::text AS unit_price,
+           status, note_for_customer
+    FROM job_request_items
+    WHERE job_request_id = jr.id AND is_active {filter}) i)
+) AS j
+FROM job_requests jr WHERE jr.id = {job};
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("job", type=int)
+    parser.add_argument("--items", help="comma-separated job line ids")
+    parser.add_argument("--only", help="comma-separated statuses to include, e.g. available,alternative_proposed")
+    parser.add_argument("--no-totals", action="store_true")
+    parser.add_argument("--status", action="store_true")
+    parser.add_argument("--full-names", action="store_true")
+    args = parser.parse_args()
+    try:
+        filters = []
+        if args.items:
+            ids = [int(x) for x in args.items.split(",")]
+            if any(i <= 0 for i in ids):
+                raise ValueError("item ids must be positive")
+            filters.append("AND id IN (" + ",".join(map(str, ids)) + ")")
+        if args.only:
+            statuses = [s.strip() for s in args.only.split(",") if s.strip()]
+            if not all(s.replace("_", "").isalpha() for s in statuses):
+                raise ValueError("--only takes status names")
+            filters.append("AND coalesce(status, 'pending') IN (" + ",".join(f"'{s}'" for s in statuses) + ")")
+        if args.job <= 0:
+            raise ValueError("job id must be positive")
+        data = json_value(SQL.format(job=args.job, filter=" ".join(filters)))
+        if not data:
+            raise ValueError("no such job")
+        if not data.get("items"):
+            raise ValueError("no matching active lines")
+        missing = [str(i["id"]) for i in data["items"]
+                   if i["unit_price"] is None or i["demanded_quantity"] is None]
+        if missing and not args.status:
+            raise ValueError("unpriced or no-quantity lines: " + ",".join(missing)
+                             + " (fix them, or pass --items with the priced scope)")
+        data = json.loads(json.dumps(data), parse_float=Decimal)
+        print(render(data, totals=not args.no_totals, status=args.status, full_names=args.full_names))
+    except (RuntimeError, ValueError) as error:
+        print(json.dumps({"error": str(error)}), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

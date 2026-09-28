@@ -1,45 +1,48 @@
 ---
 name: supplier-coordination
-description: Coordinate supplier ARs and orders on the supplier thread. Includes customer-to-AR notes, supplier-to-job/item note handoffs, creation, portal transcription, submitted replies and order changes. Use for order-side supplier work or events. (v3.35.0)
+description: Work with suppliers on their own thread. Includes creating and publishing ARs, Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v4.0.0)
 metadata:
   author: lps
-  version: "3.35.0"
+  version: "4.0.0"
 ---
 
 # Supplier coordination
 
-Run on `suppliers.rosie_thread_id` (shared by company locations). Job threads
-own job/items; this thread owns ARs and supplier correspondence. Use
-`database-access` for the relevant schema and `message-routing` for origin and
-approval evidence. Research alone authorizes no outreach.
-
-Read only the selected task. Before any supplier-facing Order/AR update,
-also read [job names and portal links](artifacts/supplier-links.md). Before
-writing, reload records and allocations, guard changes, set `app.actor = 'rosie'`
-and verify results. Reuse known records on retry; never duplicate shared demand.
+Work on the supplier's thread (`suppliers.rosie_thread_id`, shared by all
+its locations). The job threads own job lines; this thread owns ARs and all
+supplier messages, even ones that name a job.
 
 | Task | Read |
 |---|---|
-| Create/publish an approved AR | [channels and approval](artifacts/channels.md), [create request](artifacts/create-request.md) |
-| Carry customer notes into ARs or route supplier notes back to jobs/items | [note ownership and handoffs](artifacts/line-notes.md) |
-| Correct Chris-directed APS ask fields | [manual inputs](artifacts/manual-inputs.md) |
-| Send approved non-partner HTML email | [email](artifacts/email.md) |
-| Handle availability event/submission | [responses](artifacts/responses.md) |
-| Transcribe trusted portal text/voice | [transcription](artifacts/transcription.md) |
-| Direct-order handoff or supplier confirmation | [orders](artifacts/orders.md) |
-| Notify a saved order change | [order changes](artifacts/order-changes.md) |
-| Record contact or follow up | [records](artifacts/records.md) |
+| Create or publish an approved AR; Chris changes an open AR | [availability requests](artifacts/availability-requests.md) |
+| AR saved/submitted events; relay answers; type a portal answer for the supplier | [responses](artifacts/responses.md) |
+| Order handed over, supplier confirms, tell supplier about an order change | [orders](artifacts/orders.md) |
+| Email a non-partner supplier; follow-ups; contact records | [email](artifacts/email.md) |
+| AR note wording | `job-requests` → [notes](../job-requests/artifacts/notes.md) |
 
-Ordinary non-quick-quote availability work needs APS pricing and Chris's
-specific AR approval, not a completed quote. Quick quotes stop without an AR;
-committed/direct-order work skips AR preparation. Local unsubmitted AR edits
-stay here; only explicit submission is relayed to job threads/Chris. Supplier
-answers alone never authorize job availability/source changes; Chris's
-first-APS-submission standing instruction is narrowly scoped under
-[responses](artifacts/responses.md) and the job owner applies supported updates. Portal transcription
-does not submit; voice responses follow acknowledge → save → review/Submit.
+## Every message to a supplier
 
-Finish with verified record/send results and exact affected allocations for
-each owner. `job-requests` owns job/item note audiences and assigned record names;
-contact history stays in this supplier's transcript. Internal messages never
-use `--portal`.
+- Name the **job** (current `job_requests.name`, via the AR/order
+  allocations), never JR/AR/order numbers. For shared records, say which
+  change belongs to which job. Missing name → ask the job thread first.
+  Naming the job is always allowed; other customer details follow the
+  supplier's sharing setting.
+- Include a direct link to the record, using the configured app origin:
+  order `/partner/<supplierId>/orders/<orderId>`, AR
+  `/partner/<supplierId>/requests/<arId>`, non-partner AR
+  `/public/availability/<token>`. Never the portal home, an admin page or an
+  invented token.
+- Shape: `<Job name>: <brief update>. View order: <URL>` (or `View
+  availability request: <URL>`). Plain text: the full URL; HTML email: a link.
+- No automatic email acknowledgements without email approval.
+- Only `--portal` messages (and approved email) reach the supplier. Never put
+  internal notes or approval requests in a `--portal` message.
+- Routine clarifications on an open AR are fine. Anything about LPS prices,
+  terms or new business needs Chris's approval (`message-routing`).
+
+## Every task
+
+Re-read the records and allocations before writing. Guarded writes with
+`SET app.actor TO 'rosie'`. Reuse existing records on retry; never duplicate
+shared demand. Finish by telling each affected job thread the verified
+result and its exact allocations.

@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Look up a plant's price in one call. Read-only. Prints:
+  1. matching rows from knowledge/files/price-rules.md (Chris's standing rules),
+  2. plant aliases for the name,
+  3. every listed size and price of the best-matching plants from the
+     supplier's price list (default APS, supplier 1), marking the EXACT size,
+     or the nearest SMALLER and LARGER size when the exact one is missing.
+
+Search uses search_inventory (typo-tolerant, expands aliases). Check the
+identity columns yourself: the top hit is not proof of the right cultivar.
+
+Examples:
+  aps-price "texas sage" --size "3 G"
+  aps-price "Carex texensis" --size 1g
+  aps-price '"Italian Cypress"'          # exact substring search
+"""
+import argparse
+from pathlib import Path
+import re
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "database-access/scripts"))
+from _db import AGENT_ROOT, cell, json_value, lit, money  # noqa: E402
+
+RULES = AGENT_ROOT / "knowledge/files/price-rules.md"
+STOP = {"gal", "gallon", "gallons", "plant", "plants", "with", "size", "tree", "shrub"}
+
+SQL = """
+WITH hits AS (
+  SELECT id, relevance FROM search_inventory({term})
+  WHERE supplier_id = {supplier} AND is_active
+  ORDER BY relevance DESC, unit_price NULLS LAST LIMIT 40),
+plants AS (
+  SELECT i.name_key, max(h.relevance) AS rel
+  FROM hits h JOIN inventory i ON i.id = h.id
+  GROUP BY i.name_key ORDER BY rel DESC LIMIT {plants})
+SELECT json_build_object(
+ 'rows', (SELECT json_agg(r ORDER BY r.rel DESC, r.name_key, r.unit_price) FROM (
+    SELECT p.rel, i.name_key, i.id, i.name, i.common_name, i.botanical_name,
+           i.cultivar_variety_trade_name AS cultivar, i.size, i.size_std,
+           i.unit_price, i.internal_notes, src.created_at::date AS listed
+    FROM plants p JOIN inventory i ON i.name_key = p.name_key
+    LEFT JOIN inventory_sources src ON src.id = i.source_id
+    WHERE i.supplier_id = {supplier} AND i.is_active) r),
+ 'aliases', (SELECT json_agg(a) FROM (
+    SELECT name, other_name FROM plant_aliases
+    WHERE is_active AND (name_key = normalize_plant_key({bare})
+       OR other_name_key = normalize_plant_key({bare}))
+    LIMIT 10) a),
+ 'size', normalize_size({size})
+) AS j;
+"""
+
+
+def gallons(size):
+    """Rough gallon-equivalent, only to order sizes. None if unknown."""
+    if not size:
+        return None
+    s = size.strip().lower()
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*(?:g|gal|gallons?)\.?$', s)
+    if m:
+        return float(m[1])
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*(?:"|in|inch|-inch)\s*(?:pot)?$', s)
+    if m:
+        return float(m[1]) / 16  # 4" pot ≈ 0.25
+    m = re.match(r'^(\d+)\s*(?:"|in|inch|-inch)\s*box$', s)
+    if m:
+        return 30 * (float(m[1]) / 24) ** 3  # 24" box ≈ 30 G
+    return None
+
+
+def rule_lines(term):
+    """Rule-table rows sharing words with the term, best match first."""
+    if not RULES.exists():
+        return []
+    words = [w for w in re.findall(r"[a-z]{3,}", term.lower()) if w not in STOP]
+    scored = []
+    for line in RULES.read_text().splitlines():
+        if not line.startswith("|") or line.startswith("|---"):
+            continue
+        hits = sum(1 for w in words if re.search(r"\b" + re.escape(w), line.lower()))
+        if hits:
+            scored.append((-hits, len(scored), line.strip()))
+    return [line for _, _, line in sorted(scored)[:6]]
+
+
+def kind(size):
+    """Container kind, so a box is never an EXACT match for a gallon size."""
+    s = (size or "").lower()
+    return "box" if "box" in s else "pot" if re.search(r'"|\bin\b|inch|pot', s) else "gal"
+
+
+def mark(rows, wanted):
+    """Label each row EXACT / SMALLER / LARGER relative to the wanted size."""
+    target = gallons(wanted) if wanted else None
+    labels = {}
+    if wanted is None or target is None:
+        return labels
+    exact = [r for r in rows if (r["size_std"] or r["size"] or "").replace(" ", "").lower() == wanted.replace(" ", "").lower()
+             or (kind(r["size_std"] or r["size"]) == kind(wanted) and gallons(r["size_std"] or r["size"]) == target)]
+    for r in exact:
+        labels[r["id"]] = "EXACT"
+    if exact:
+        return labels
+    priced = [r for r in rows if r["unit_price"] and gallons(r["size_std"] or r["size"]) is not None]
+    smaller = [r for r in priced if gallons(r["size_std"] or r["size"]) < target]
+    larger = [r for r in priced if gallons(r["size_std"] or r["size"]) > target]
+    if smaller:
+        best = max(gallons(r["size_std"] or r["size"]) for r in smaller)
+        for r in smaller:
+            if gallons(r["size_std"] or r["size"]) == best:
+                labels[r["id"]] = "◀ nearest smaller"
+    if larger:
+        best = min(gallons(r["size_std"] or r["size"]) for r in larger)
+        for r in larger:
+            if gallons(r["size_std"] or r["size"]) == best:
+                labels[r["id"]] = "▶ nearest larger"
+    return labels
+
+
+def render(term, size, data, supplier=1):
+    out = [f'Price lookup "{term}"' + (f" size {size}" if size else "")]
+    rules = rule_lines(term) if supplier == 1 else []
+    out.append("Price rules (knowledge/files/price-rules.md, APS only):" + ("" if rules else " none match"))
+    out += [f"  {line}" for line in rules]
+    aliases = data.get("aliases") or []
+    out.append("Aliases: " + ("; ".join(f"{a['name']} = {a['other_name']}" for a in aliases) if aliases else "none"))
+    rows = data.get("rows") or []
+    if not rows:
+        out.append("Listings: none found. Try other common/botanical names, fewer words, or web-researched names.")
+        return "\n".join(out)
+    wanted = data.get("size") or size
+    groups = {}
+    for r in rows:
+        groups.setdefault(r["name_key"], []).append(r)
+    for key, members in groups.items():
+        members.sort(key=lambda r: (gallons(r["size_std"] or r["size"]) is None, gallons(r["size_std"] or r["size"]) or 0, r["unit_price"] or 0))
+        head = members[0]
+        ident = " | ".join(x for x in (head["common_name"], head["botanical_name"], head["cultivar"]) if x) or head["name"]
+        labels = mark(members, wanted)
+        out.append(f"{head['name']}  [{ident}]")
+        for r in members[:10]:
+            label = labels.get(r["id"], "")
+            note = f" | internal: {cell(r['internal_notes'], 90)}" if r["internal_notes"] else ""
+            out.append(f"  {cell(r['size'])} {money(r['unit_price'])} {label} | id {r['id']} | listed {cell(r['listed'])}{note}")
+        if len(members) > 10:
+            out.append(f"  … {len(members) - 10} more sizes")
+        if wanted and not labels:
+            out.append(f"  (sizes of this plant not comparable to {wanted})")
+    out.append("A listing is price evidence only, not stock.")
+    return "\n".join(out)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("term", help="plant name; wrap in straight double quotes for an exact substring")
+    parser.add_argument("--size", help='requested size, e.g. "3 G", 4in, "24 in box"')
+    parser.add_argument("--supplier", type=int, default=1, help="supplier id (default 1 = APS)")
+    parser.add_argument("--plants", type=int, default=4, help="how many distinct plants to show (default 4)")
+    args = parser.parse_args()
+    if not args.term.strip() or args.supplier <= 0 or not 0 < args.plants <= 10:
+        parser.error("term required; supplier positive; --plants 1..10")
+    bare = args.term.strip().strip('"')
+    sql = SQL.format(term=lit(args.term.strip()), bare=lit(bare), supplier=args.supplier,
+                     plants=args.plants, size=lit(args.size))
+    try:
+        print(render(args.term, args.size, json_value(sql) or {}, args.supplier))
+    except (RuntimeError, ValueError) as error:
+        print(f"aps-price: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

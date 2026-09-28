@@ -1,5 +1,9 @@
 # customer-coordination — changelog
 
+## 4.0.0 — 2026-09-28
+
+- Rewrite in plain language; job-requests customer-updates merged in. No rule changes.
+
 ## 3.7.0 — 2026-09-24
 
 - Chris's explicit JR-74 webchat feedback (message 20, 04:05:55 CDT): customer drafts for a properly approved proposed alternative show its verified updated customer price, not internal declined-substitution history or old pricing. A supplier proposal does not itself authorize an offer or customer send.

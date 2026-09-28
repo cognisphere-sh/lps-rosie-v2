@@ -35,7 +35,7 @@ def check():
             if len(description[1]) > 400 or f"(v{version[1]})" not in description[1]:
                 errors.append(f"{path}: long description or mismatched version")
             changelog = path.with_name("CHANGELOG.md")
-            if not changelog.exists() or not re.search(r"^## " + re.escape(version[1]) + r"$", changelog.read_text(), re.M):
+            if not changelog.exists() or not re.search(r"^## " + re.escape(version[1]) + r"(?: — \d{4}-\d{2}-\d{2})?$", changelog.read_text(), re.M):
                 errors.append(f"{path}: missing current changelog")
             if len(text) > 6500:
                 errors.append(f"{path}: entry point exceeds 6500 characters; split task detail")

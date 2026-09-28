@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 3.0.0 — 2026-09-28
+
+- Rewrite. New `scripts/aps-price` helper (rules + aliases + all sizes with EXACT / nearest smaller / nearest larger in one call). Plant-specific price rules moved to `knowledge/files/price-rules.md`. Same-plant names become aliases via Daisy (Bhoumik 2026-09-25, Chris JR-78/JR-82) instead of refusing aliases. pricing-equivalents and report merged into search.md and SKILL.md.
+
 ## 2.28.1 — 2026-09-25
 
 - Corrected Chris's JR-82 message 54 Texas Sedge pricing rule to **1 G only**: recheck current exact and APS generic Sedge 1 G listing (inventory `60960bc6-c56f-40c8-8b70-4727572b2cb6` / PDF `7d950004-0940-4582-a44d-9cbf9ebb1c2a`), not 4-inch or other sizes. Internal notes may state `Texas Sedge 1 G priced from APS Sedge 1 G`, never `proxy pricing`; no identity or stock assertion.

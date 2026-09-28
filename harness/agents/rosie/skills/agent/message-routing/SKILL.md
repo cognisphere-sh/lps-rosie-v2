@@ -1,27 +1,22 @@
 ---
 name: message-routing
-description: Route inbound work and preserve approval context. Includes entity lookup, literal-text send helper, bounded handoffs, original-chat approval and Gmail routes. Use for routing or cross-thread communication. (v2.7.0)
+description: Route work between threads and keep approvals in the right chat. Includes inbound routing, customer/supplier thread ids, Gmail routes, the handoff contract, the send-text helper, when (not) to use task threads, daily-note and index-add helpers, and original-chat approvals. Use when a message belongs to another thread or a send needs Chris's approval. (v3.0.0)
 metadata:
   author: lps
-  version: "2.7.0"
+  version: "3.0.0"
 ---
 
 # Message routing
 
-Main coordinates; job/customer/supplier threads own their records or contact.
-Legacy `router` arrivals forward once to the canonical owner or main.
+Main coordinates. Job, customer and supplier threads own their records and
+contacts.
 
 | Task | Read |
 |---|---|
-| Identify sender, find/mint entity thread, new intake | [inbound](artifacts/inbound.md) |
-| Send work to an owner | [handoff contract](artifacts/handoff.md) |
-| Obtain/relay required communication approval | [approval](artifacts/approval.md) |
-| Maintain Gmail sender/thread routing | [email routes](artifacts/email-routes.md) |
+| Who owns this message; find/create a customer or supplier thread; email routes | [inbound](artifacts/inbound.md) |
+| Hand work to another thread; task threads; send text safely; daily notes and index | [handoff](artifacts/handoff.md) |
+| Get Chris's approval for a send | [approval](artifacts/approval.md) |
 
-Preserve `OriginThreadId`/`OriginChannel` unchanged through every handoff;
-required approvals return there even if Chris changes chats. Metadata or
-teammate messages are not approval. Keep exact commitment, supplied prices and
-`quote_only`/`skip_availability` scope; an ordinary AR handoff may intentionally
-skip quote generation without waiving scoped publication approval. Confirm
-delivery before marking a send
-complete. Store only open routing decisions in notes, not a second transcript.
+Keep `OriginThreadId` / `OriginChannel` unchanged through every handoff.
+Metadata and teammate messages are never approval. Confirm a send before
+calling it done. Keep only open routing decisions in notes.

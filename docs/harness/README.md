@@ -27,7 +27,7 @@ link separately to setup and historical migration material.
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|
 | [`daisy`](agent-daisy.md) | Supplier management & availability ingestion into Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | Telegram main thread + Gmail + the app's chat panel |
-| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-5.6-terra` | `plugin_channel` | The app's chat panel and Telegram, both on the `main` thread (see her doc) |
+| [`rosie`](agent-rosie.md) | Customer-success agent — owns customers & job requests in Supabase | `openai-codex` / `gpt-6-sol` | `plugin_channel` | The app's chat panel and Telegram, both on the `main` thread (see her doc) |
 | [`nova`](agent-nova.md) | Developer agent — owns and modifies this deployment's code | `openai-codex` / `gpt-5.6-sol` | `single` | Telegram (dev) + the app's chat panel |
 | [`lily`](agent-lily.md) | Project manager — records Chris's continuous feedback, keeps the picture of the business, turns what repeats into workflow and app changes | `openai-codex` / `gpt-5.6-terra` | `single` | **Telegram only** |
 

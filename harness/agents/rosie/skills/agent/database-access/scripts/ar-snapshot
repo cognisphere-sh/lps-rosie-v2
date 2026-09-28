@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Print one availability request (AR) compactly: header, linked jobs, and
+every line with its answer and job allocations. Read-only.
+
+Example: ar-snapshot 45
+"""
+import argparse
+import sys
+
+from _db import cell, json_value, money
+
+SQL = """
+SELECT json_build_object(
+ 'ar', (SELECT row_to_json(a) FROM (
+    SELECT ar.id, ar.supplier_id, s.name AS supplier, s.is_lps_partner AS partner,
+           ar.status, ar.is_active, ar.submitted_at, ar.share_customer_details AS share,
+           ar.public_token IS NOT NULL AS public, ar.note_for_supplier
+    FROM availability_requests ar JOIN suppliers s ON s.id = ar.supplier_id
+    WHERE ar.id = {ar}) a),
+ 'jobs', (SELECT json_agg(j ORDER BY j.id) FROM (
+    SELECT jr.id, jr.name, jr.status FROM availability_request_jobs arj
+    JOIN job_requests jr ON jr.id = arj.job_request_id
+    WHERE arj.availability_request_id = {ar}) j),
+ 'lines', (SELECT json_agg(l ORDER BY l.id) FROM (
+    SELECT ari.id, ari.name, ari.size, ari.demanded_quantity AS qty, ari.status,
+           ari.available_quantity AS avail, ari.unit_price, ari.mapped_inventory_id AS mapped,
+           ari.is_active, ari.note_for_supplier,
+           (SELECT string_agg(i.job_request_id || '/' || arij.job_request_item_id || ' x' || coalesce(arij.quantity::text, '∅'), '; ')
+              FROM availability_request_item_jobs arij
+              JOIN job_request_items i ON i.id = arij.job_request_item_id
+              WHERE arij.availability_request_item_id = ari.id) AS allocations
+    FROM availability_request_items ari
+    WHERE ari.availability_request_id = {ar}) l)
+) AS j;
+"""
+
+
+def render(data):
+    ar = data.get("ar")
+    if not ar:
+        return "No AR with that id."
+    out = [f"AR-{ar['id']} | {ar['supplier']} (supplier {ar['supplier_id']}, "
+           f"{'partner portal' if ar['partner'] else 'non-partner'}) | {ar['status']}"
+           + ("" if ar["is_active"] else " | DELETED")
+           + f" | submitted {cell(ar['submitted_at'])} | share details {ar['share']}"
+           + (" | public link" if ar["public"] else ""),
+           f"  header note: {cell(ar['note_for_supplier'])}",
+           "JOBS " + ", ".join(f"JR-{j['id']} {j['name']} ({j['status']})" for j in data.get("jobs") or []) ]
+    out.append("LINES  id | qty x size name | answer | avail | price | mapped | job/item x alloc | note")
+    for l in data.get("lines") or []:
+        out.append(f"  {l['id']}{'' if l['is_active'] else ' (inactive)'} | {cell(l['qty'])} x {cell(l['size'])} "
+                   f"{cell(l['name'])} | {cell(l['status'])} | {cell(l['avail'])} | {money(l['unit_price'])} | "
+                   f"{'yes' if l['mapped'] else '∅'} | {cell(l['allocations'])} | {cell(l['note_for_supplier'], 100)}")
+    return "\n".join(out)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("ar", type=int, help="availability_requests.id")
+    args = parser.parse_args()
+    if args.ar <= 0:
+        parser.error("AR id must be positive")
+    try:
+        print(render(json_value(SQL.format(ar=args.ar)) or {}))
+    except (RuntimeError, ValueError) as error:
+        print(f"ar-snapshot: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

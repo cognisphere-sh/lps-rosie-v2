@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 4.0.0 — 2026-09-28
+
+- Rewrite. New `scripts/quote-job` renders straight from saved rows. render-quote gains `--no-totals` (Chris JR-65, JR-79 bids) and `--status` ✅/❌ availability list with common names (Chris Telegram 2026-09-24). Customer-note rules moved to job-requests notes; rendering and text-format merged into format.md.
+
 ## 3.11.0
 
 - Merge customer requirements/outcomes into `note_for_customer` and supplier instructions/responses into `note_for_supplier` across headers and items. Preserve current sourcing constraints, exclude spacing and unrelated non-sourcing content, and use the new schema/RPC contract.

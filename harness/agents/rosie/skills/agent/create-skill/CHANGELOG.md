@@ -1,5 +1,9 @@
 # create-skill — changelog
 
+## 2.0.0 — 2026-09-28
+
+- Rewrite as the feedback loop: where each kind of feedback goes (price-rules, skill, prompt, memory, job-only), newest explicit instruction wins and old text is removed, don't narrow Chris's words, apply in-thread without a task thread, batch edits, write a helper after the third repeat.
+
 ## 1.5.0
 
 - Apply Chris's explicit feedback to the relevant owned SOP, deployment prompt or skill; require his approval for inferred changes and preserve harness base prompts.

@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Guarded write of one note field. Sets app.actor = 'rosie'. Text comes from
+files, so $, quotes and newlines stay literal (write the file with the write
+tool first).
+
+Modes (pick one):
+  --new-file F --expect-file OLD   replace; only if the field still equals OLD
+  --new-file F --expect-null       replace; only if the field is still empty
+  --clear --expect-file OLD        set NULL; only if the field still equals OLD
+  --append-file F                  add F as a new last line (read + guard inside)
+
+Exit 0 = saved (prints the new value), 3 = field changed meanwhile (prints the
+current value; re-read and reconcile, don't retry blindly), 2 = error.
+
+Example: set-note --table job_request_items --id 912 --field note_internal \\
+           --new-file /tmp/n.txt --expect-null
+"""
+import argparse
+from pathlib import Path
+import sys
+import uuid
+
+from _db import cell, json_value, lit
+
+ALLOWED = {
+    "job_requests": {"note_internal", "note_for_customer"},
+    "job_request_items": {"note_internal", "note_for_customer"},
+    "availability_requests": {"note_for_supplier"},
+    "availability_request_items": {"note_for_supplier"},
+    "orders": {"note_for_supplier", "note_for_customer"},
+    "order_items": {"note_for_supplier", "note_for_customer"},
+    "inventory": {"internal_notes"},
+}
+
+
+def record_id(table, value):
+    if table == "inventory":
+        return lit(str(uuid.UUID(value)))  # validates the UUID
+    number = int(value)
+    if number <= 0:
+        raise ValueError("id must be positive")
+    return str(number)
+
+
+def read_text(path):
+    text = Path(path).read_text(encoding="utf-8").rstrip("\n")
+    if "\0" in text:
+        raise ValueError(f"{path} contains NUL bytes")
+    return text
+
+
+def build_sql(table, rid, field, new_value, guard_value, guard_null):
+    # Trailing newlines are ignored on both sides, so a file saved by the write
+    # tool still matches the stored text.
+    guard = (f"{field} IS NULL" if guard_null else
+             f"rtrim({field}, E'\\n') IS NOT DISTINCT FROM rtrim({lit(guard_value)}, E'\\n')")
+    return (f"SET app.actor TO 'rosie';\n"
+            f"WITH u AS (UPDATE {table} SET {field} = {lit(new_value)} "
+            f"WHERE id = {rid} AND {guard} RETURNING {field} AS value)\n"
+            f"SELECT json_build_object('updated', (SELECT count(*) FROM u), "
+            f"'value', coalesce((SELECT value FROM u), (SELECT {field} FROM {table} WHERE id = {rid})), "
+            f"'exists', EXISTS (SELECT 1 FROM {table} WHERE id = {rid})) AS j;")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--table", required=True, choices=sorted(ALLOWED))
+    parser.add_argument("--id", required=True)
+    parser.add_argument("--field", required=True)
+    new = parser.add_mutually_exclusive_group(required=True)
+    new.add_argument("--new-file")
+    new.add_argument("--clear", action="store_true")
+    new.add_argument("--append-file")
+    guard = parser.add_mutually_exclusive_group()
+    guard.add_argument("--expect-file")
+    guard.add_argument("--expect-null", action="store_true")
+    args = parser.parse_args()
+    if args.field not in ALLOWED[args.table]:
+        parser.error(f"{args.table} allows only: {', '.join(sorted(ALLOWED[args.table]))}")
+    if args.append_file and (args.expect_file or args.expect_null):
+        parser.error("--append-file guards itself; don't pass --expect-*")
+    if not args.append_file and not (args.expect_file or args.expect_null):
+        parser.error("replace/clear needs --expect-file or --expect-null")
+    try:
+        rid = record_id(args.table, args.id)
+        if args.append_file:
+            addition = read_text(args.append_file)
+            current = json_value(f"SELECT json_build_object('v', {args.field}) AS j FROM {args.table} WHERE id = {rid};")
+            if current is None:
+                raise ValueError("record not found")
+            old = current["v"]
+            if old and old.rstrip("\n").endswith(addition):
+                print(f"unchanged (line already present):\n{old}")
+                return 0
+            new_value, guard_value, guard_null = (f"{old}\n{addition}" if old else addition), old, old is None
+        else:
+            new_value = None if args.clear else read_text(args.new_file)
+            guard_value = read_text(args.expect_file) if args.expect_file else None
+            guard_null = args.expect_null
+        result = json_value(build_sql(args.table, rid, args.field, new_value, guard_value, guard_null))
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"set-note: {error}", file=sys.stderr)
+        return 2
+    if not result or not result["exists"]:
+        print("set-note: record not found", file=sys.stderr)
+        return 2
+    if result["updated"] != 1:
+        print(f"NOT SAVED: {args.field} changed meanwhile. Current value:\n{cell(result['value'])}")
+        return 3
+    saved = None if args.clear else result["value"]
+    print(f"saved {args.table}.{args.field} id {args.id}:\n{saved if saved is not None else '∅'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

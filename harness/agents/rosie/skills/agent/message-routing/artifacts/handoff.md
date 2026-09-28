@@ -1,71 +1,66 @@
-## 2. Handoff contract
+# Handing work to another thread
 
-Write the handoff body with the write tool to `/tmp/<thread>-<task>-handoff.txt`,
-then use the literal-text helper (paths below are relative to the agent root):
+## When to hand off at all
+
+Do the work yourself in the thread that owns it. Hand off only when:
+
+- the owner is a different thread (a job matter arriving on main, a supplier
+  matter arriving on a job thread), or
+- the work is a big one-shot read (a long PDF, a large image list, broad web
+  research) that would bloat this thread. Then use one task thread, give it
+  the whole job, and let it finish and report once.
+
+Don't open a task thread for a price lookup, a line edit, a note fix or a
+"remember this". Don't keep a task thread alive as a go-between for an
+ongoing chat; relay rounds cost more than the work. One writer per record
+and per skill file at a time.
+
+## Sending text safely
+
+Write the message with the write tool to `/tmp/<thread>-<task>.txt`, then:
 
 ```sh
-skills/agent/message-routing/scripts/send-text --via agent --to-agent rosie --thread-id <owner> --text-file /tmp/<thread>-<task>-handoff.txt
+skills/agent/message-routing/scripts/send-text --via agent --to-agent rosie --thread-id <owner> --text-file /tmp/<thread>-<task>.txt
 ```
 
-The helper passes one literal argument to the existing CLI, preserving currency,
-apostrophes, backticks and newlines without shell evaluation. It inherits trusted
-sender identity, returns the CLI's exit status and never retries. It grants no
-send permission. For an authorized webchat message use `--via webchat` without
-`--to-agent`; add `--portal` only for intended supplier-visible content. The
-webchat CLI has no `edit-message` command: check its help before unfamiliar
-operations, and send a concise correction when needed.
+It passes the text as one literal argument (keeps `$`, quotes, backticks,
+newlines), never retries, and grants no permission. For a web chat message
+use `--via webchat --thread-id <thread>`; add `--portal` only for text meant
+for the supplier. The webchat CLI has no edit command; send a short
+correction instead.
 
-Each handoff carries:
+## What a handoff carries
 
-- Task, actual original request and known constraints; whether this is
-  `quote_only`, ordinary availability work (quote specifically requested or
-  intentionally skipped), already committed intake, or an accepted quote
-  going directly to order. For an ordinary AR handoff carry supported APS
-  pricing, unresolved gaps, the original supplier ask and Chris's exact
-  AR publication approval; quote completion is not required. Use
-  `skip_availability: true` for the direct path; these are handoff
-  instructions, not new database columns. Later explicit acceptance supersedes
-  an earlier quote-only intent for that scope.
-- Exact customer commitment evidence, accepted lines/quantities, supplied or
-  previously accepted prices and their message/attachment source. Preserve
-  which prices remain missing for APS lookup; do not lose these details or
-  turn a quote draft/supplier reply into acceptance during a relay.
-- Job/customer/supplier/AR/item ids when known; inventory UUIDs and mapped
-  row/price evidence for sourcing.
-- `OriginThreadId` and `OriginChannel` from the originating human interaction,
-  unchanged across all relays. **Approvals return to this original chat
-  even if Chris has since switched chats.** Metadata identifies the
-  interaction; it is not itself approval.
-- Return/owner thread; draft recipient, channel, full content and approval
-  evidence when sending approved communication. For Order/AR supplier updates,
-  carry the affected job name(s) and verified direct supplier-portal record
-  link(s), following `supplier-coordination`; preserve them in the sent message.
-  Keep JR/AR/order ids in internal handoff metadata and URL targets only;
-  supplier-visible references and link labels use the job name without numbers.
+- The task and the original request (or where to read it), with constraints.
+- The path: `quote_only` (quick quote), ordinary availability work (quote
+  asked or skipped), committed intake, or accepted quote (`skip_availability:
+  true`). These are handoff words, not database fields. A later acceptance
+  replaces `quote_only` for that scope.
+- For an AR: supported prices, remaining gaps, the original ask and Chris's
+  exact publish approval.
+- Commitment evidence: accepted lines, quantities, supplied prices and where
+  they came from. A quote draft or supplier reply is never acceptance.
+- Known ids: job, customer, supplier, AR, lines; inventory ids and price
+  evidence.
+- `OriginThreadId` / `OriginChannel`, unchanged. Approvals go back there.
+- For a send: recipient, channel, full text, approval evidence. For supplier
+  AR/order messages: the job name(s) and portal link(s); ids stay out of the
+  visible text.
+- For email: MessageId, Gmail thread id, sender, subject, time, attachment
+  names, mailbox. The contact thread reads it with `scripts/gws/email read`.
+- Point to workspace files instead of pasting long content.
 
-For email, include MessageId, GmailThreadId, sender, subject, received time,
-attachment names and the mailbox it lives in. Let the contact thread read
-it with `scripts/gws/email read`; avoid repeated attachment parsing in main.
-Internal agent messages are not customer/supplier content. Quote shell
-arguments safely so currency `$`, backticks and substitutions stay literal.
+## Context and notes
 
-## Keep ownership and context bounded
-
-Handle small, already-scoped updates in the owning thread. If task threads are
-needed, assign one writer per record/field set and one writer per skill; other
-workers return evidence. The owner posts one consolidated result and records
-workflow milestones once. A correction or stop supersedes the earlier brief:
-report writes already made before starting dependent follow-up work.
-
-Carry exact evidence references and unresolved decisions rather than repeating
-whole transcripts or policy documents. Read the skill index and only linked task
-references; do not load full changelogs for routine execution. For local session
-recall use `scripts/agent/session-reader <session> --no-thinking --search <term>
---max-chars 1200`, then a bounded `--from-index N --n 6` window around the hit.
-Its `--n` window is applied before search filters, not a limit on matched hits.
-
-Keep task notes in the assigned task file. For shared daily notes/index entries,
-read the exact current target before a narrow edit; after a mismatch, reread that
-section instead of retrying stale whole-file replacements. Do not replace other
-threads' entries. Check existence before reading optional/new notes; missing task
-notes are not a reason to search unrelated threads.
+- Recall with `scripts/agent/session-reader <session> --no-thinking --search
+  <term> --max-chars 1200`, then a small window (`--from-index N --n 6`). Don't
+  read whole transcripts or changelogs. (`--n` counts records before the
+  search filter.)
+- A new task thread's notes file doesn't exist yet: create it, don't try to
+  read it.
+- Daily note: `skills/agent/message-routing/scripts/daily-note --thread
+  <ThreadId> --text '...'` (keeps one paragraph per thread per day).
+- Workspace index: `skills/agent/message-routing/scripts/index-add <path>
+  '<summary>'`. Grep `workspace/index.md` for a thread; don't read it whole.
+- A correction or "stop" replaces the earlier brief; report what was already
+  written before doing more.

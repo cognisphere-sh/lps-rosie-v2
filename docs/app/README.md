@@ -237,33 +237,28 @@ horizontal edges plus the top Close row and bottom completion footer, and one
 independently scrolling body between them. Each line is a wrapping card with a
 44px status target, separately labelled 44px available-quantity/price/notes
 inputs, line total and subtotal. At 900px the cards unmount and the horizontal
-table renders (1,090px default minimum; 1,060px for the focused-Job opt-in below). The summary names request state, supplier and
+table renders (1,090px default minimum; 960px for the focused-Job portal drawing below). The summary names request state, supplier and
 Job, then separately labels stored **Sent** and optional **Submitted**; it renders
 no Last updated, actor, provenance or inferred change/freshness.
 
-Only AR chips in the **focused `/jobs?jr=<id>` Job header** opt into
-`ARLineTable`'s `focused-job` drawing: **Need · Avail qty · Size · Plant · Status ·
-Note for supplier · Price · Line total**. Its Plant track is modestly narrower
-(190px instead of 220px). Requested demand remains `demanded_quantity`, separate
-from the supplier's `available_quantity`. Bhoumik approved placing the
-**existing** merged AR-line `note_for_supplier` immediately after Status, in the
-focused internal drawer and phone cards only; totals still align under Line
-total. This is the supplier-audience ask/response field, not authorship or
-supplier confirmation. Its contents, single editor, admin-detail versus
-supplier-answer write paths and access rules are unchanged. Saved read-only
-plant names already wrap; editable names keep one single-line blur/Enter-save
-editor plus a native **Full name** disclosure with a 44px keyboard/touch target
-(desktop and phone). Disclosure shows the full saved name without saving. Each
-opening owns its drawing alongside the drawer's AR id and generation; any
-ordinary open, even the same AR, resets to the default. Customer/other Job
-cards, chat links, supplier profile and portal/public table retain their prior
-drawings. The focused-header regression verifies exact routes and default reset;
-the customer-chat control's 44px physical target remains a required real-browser
-bounding-box/interaction check, not a JSDOM class-token verdict. This change
-does **not** introduce main-page AR tabs, a chat switch, a new note field, or
-a JR-status-modal field mapping. The approved after-Status display uses the
-existing AR supplier-audience note for item 3, without inferring that a linked
-JR status picker wrote it, or distributing it to customers.
+Only AR chips in the **focused `/jobs?jr=<id>` Job header** open the drawer in
+the supplier portal's drawing — the same `SummaryStrip` and
+`ARLineTable design="portal"` as `/partner/:id/requests/:arId`: **Need · Avail
+qty · Size · Plant · Status · Price · Note for supplier**, no Line total or
+subtotal footer (the strip carries the subtotal). The admin's inline edits stay:
+name, size and requested quantity through `onPatchDetails`, available quantity,
+status and price through `onPatch`, and the line note — rendered as the
+portal's borderless cells. The portal tracks are
+`64px 80px 110px minmax(240px,2fr) 150px 90px minmax(160px,1fr)`: Plant and
+Size wrap (`AnswerCell wrap`, a one-row auto-growing textarea that still saves
+on Enter), and only Notes truncates (`AnswerCell clamp`: one line until
+focused). `AnswerCell` sets an editor's `title` to its full text on hover only
+when the text is clipped. The portal status listbox is portalled into the
+`[data-ar-drawer-host]` rather than `document.body`, which the modal stack
+makes inert. Each opening owns its drawing alongside the drawer's AR id and
+generation; any ordinary open, even the same AR, resets to the default.
+Customer/other Job cards, chat links and the supplier profile keep the default
+drawing.
 
 The drawer is portalled into its own body host through
 `components/workspace/body-modal-portal.tsx`. All instances register with one

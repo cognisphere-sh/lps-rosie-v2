@@ -47,7 +47,20 @@ def money(value):
     return f"${value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
 
 
-def render(data):
+STATUS_MARK = {"available": "✅", "unavailable": "❌", "need_to_order": "Can order",
+               "alternative_proposed": "Diff Sz/Qty/Sub", "arriving_soon": "Arriving soon",
+               "pending": "Pending"}
+
+
+def display_name(name, full_names):
+    """Customer lists show the common name; `Common | Botanical` keeps part 1."""
+    return name if full_names else name.split(" | ")[0].strip()
+
+
+def render(data, totals=True, status=False, full_names=False):
+    """Default: `Qty x Size Plant - note - $Unit - $Line` + Subtotal.
+    totals=False: no line totals or subtotal (bids, quantity-one quotes).
+    status=True: availability list with ✅/❌ marks; unpriced lines allowed."""
     if not isinstance(data, dict):
         raise ValueError("input must be a job object")
     positive_id(data.get("job_id"), "job_id")
@@ -69,40 +82,55 @@ def render(data):
             positive_id(item["job_request_id"], f"{prefix}.job_request_id")
         if item.get("job_request_id", data["job_id"]) != data["job_id"]:
             raise ValueError(f"{prefix} belongs to another job")
-        name = text_field(item.get("name"), f"{prefix}.name")
+        name = display_name(text_field(item.get("name"), f"{prefix}.name"), full_names)
         size = text_field(item.get("size"), f"{prefix}.size")
         size = re.sub(r"\b(\d+(?:\.\d+)?)\s*(?:gallons?|gal(?:s|\.)?|g)(?![A-Za-z])", r"\1 G", size, flags=re.I)
         # The agent resolves requested alternatives before rendering an offering.
         if re.search(r"\bor\b|\d\s*G\s*/", size, re.I):
             raise ValueError(f"{prefix}.size still contains alternative offerings")
-        quantity = number(item.get("demanded_quantity"), f"{prefix}.demanded_quantity")
-        price = number(item.get("unit_price"), f"{prefix}.unit_price")
-        if price != price.quantize(Decimal("0.01")):
-            raise ValueError(f"{prefix}.unit_price must use at most two decimal places")
+        if status and item.get("demanded_quantity") is None:
+            quantity = None  # status lists show unknown quantities as "?"
+        else:
+            quantity = number(item.get("demanded_quantity"), f"{prefix}.demanded_quantity")
+        if status and item.get("unit_price") is None:
+            price = None
+        else:
+            price = number(item.get("unit_price"), f"{prefix}.unit_price")
+            if price != price.quantize(Decimal("0.01")):
+                raise ValueError(f"{prefix}.unit_price must use at most two decimal places")
         note = sourcing_note(item.get("note_for_customer"), f"{prefix}.note_for_customer")
-        total = (quantity * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        subtotal += total
-        qty = format(quantity, "f")
+        qty = "?" if quantity is None else format(quantity, "f")
         if "." in qty:
             qty = qty.rstrip("0").rstrip(".")
         fields = [f"{qty} x {size} {name}"]
+        if status:
+            fields.append(STATUS_MARK.get(item.get("status") or "pending", str(item.get("status"))))
         if note:
             fields.append(note)
-        fields.extend([money(price), money(total)])
+        if price is not None:
+            fields.append(money(price))
+            if totals and quantity is not None:
+                total =(quantity * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                subtotal += total
+                fields.append(money(total))
         lines.append(" - ".join(fields))
     quote = "\n".join(lines)
     if job_note:
         quote = job_note + "\n\n" + quote
-    return "```text\n" + quote + f"\n\nSubtotal: {money(subtotal)}\n```"
+    footer = f"\n\nSubtotal: {money(subtotal)}" if totals else ""
+    return "```text\n" + quote + footer + "\n```"
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True, type=Path, help="JSON object: job_id, optional job note_for_customer, items (id, name, size, demanded_quantity, unit_price, note_for_customer)")
+    parser.add_argument("--input", required=True, type=Path, help="JSON object: job_id, optional job note_for_customer, items (id, name, size, demanded_quantity, unit_price, note_for_customer, status)")
+    parser.add_argument("--no-totals", action="store_true", help="no line totals or subtotal (bids, quantity-one quotes)")
+    parser.add_argument("--status", action="store_true", help="availability list: ✅ available, ❌ unavailable")
+    parser.add_argument("--full-names", action="store_true", help="keep `Common | Botanical` instead of the common name")
     args = parser.parse_args()
     try:
         data = json.loads(args.input.read_text(), parse_float=Decimal)
-        result = render(data)
+        result = render(data, totals=not args.no_totals, status=args.status, full_names=args.full_names)
     except (OSError, ValueError, InvalidOperation) as error:
         print(json.dumps({"error": str(error)}), file=sys.stderr)
         return 2

@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 4.0.0 — 2026-09-28
+
+- Rewrite in plain language. Artifacts merged to availability-requests (channels, create-request, manual-inputs), responses (transcription), orders (order-changes), email (records); supplier-links moved into SKILL.md. AR note wording now lives only in job-requests notes. Order change log uses `orders.note_for_supplier`.
+
 ## 3.35.0 — 2026-09-24
 
 - Chris's explicit JR-78 webchat messages 33–34 (11:40 CDT): relay unambiguous submitted APS availability and the narrow Carolina Cherry Laurel 24-inch-box/30-G equivalence without unnecessary supplier clarification. Preserve exact linked allocations and original customer request; hand off Chris's explicit scoped instruction to the job owner. “Always do this” does not expand first-submission standing write authority to later responses or other jobs/suppliers.

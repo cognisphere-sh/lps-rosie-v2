@@ -1,47 +1,46 @@
 ---
 name: job-requests
-description: Own job intake and naming, pricing, job/item note audiences, AR note handoffs, allocations and order lifecycle. Includes task-specific write procedures. Use for new/quick quotes, committed orders, job updates or closure; lookups create no job. (v5.56.0)
+description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, applying supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v6.0.0)
 metadata:
   author: lps
-  version: "5.56.0"
+  version: "6.0.0"
 ---
 
 # Job requests
 
-Run on `jr-<id>`; contact threads own correspondence. Read the relevant schema
-with `database-access`, then [write discipline](artifacts/writes.md) before any
-write. Load only the task references below; do not read the whole directory.
-
-| Intent | Path |
-|---|---|
-| Pricing/general question | Search and answer; no job, AR or order. |
-| New ordinary request | New job/items → APS pricing → approved AR if availability is requested; skip quote generation unless asked for a quote. Stages need not run sequentially. |
-| Explicit quick quote | New job/items → quote → stop; no AR or availability approval ask. |
-| Committed intake | Job/items → retain supplied prices, APS fills gaps → direct order. |
-| Accepted quote | Its existing job/items and accepted terms → direct order; no new quote/AR. |
-
-New intake never searches other jobs by matching plants. Reuse only an explicit
-job reference, established context or the same known/reserved id on retry.
-Commitment must identify the accepted scope; a supplier reply is not acceptance.
-Later acceptance supersedes `quote_only` for that scope. Perform independent
-intake and supported updates before clarification; unresolved facts block only
-dependent output. APS is supplier 1 unless Chris explicitly authorizes another.
+Work in the job's own thread, `jr-<id>`. Customer and supplier threads own
+their correspondence. Read only the reference you need:
 
 | Task | Read |
 |---|---|
-| Create job/items, job naming, customer matching, EDD/Unknown, fulfillment | [intake](artifacts/intake.md) |
-| Requested size/variant alternatives | [requested options](artifacts/requested-options.md) |
-| Price lines or apply Chris's manual APS inputs | [pricing](artifacts/pricing.md), then `plant-and-supplier-search` |
-| Write/clean job or item customer, external or internal notes; route AR notes | [notes](artifacts/notes.md); `quote-generation` owns shared-note wording |
-| Review submitted supplier evidence / first-APS-submission standing job update / other approved job availability / Chris's selected supplier response | [supplier responses](artifacts/supplier-responses.md) |
-| Create accepted order without an AR | [direct orders](artifacts/direct-orders.md) |
-| Create AR-backed order / allocate across jobs | [allocated orders](artifacts/allocated-orders.md) |
-| Change an existing order | [order changes](artifacts/order-changes.md) |
-| Advance or close job/order | [lifecycle](artifacts/lifecycle.md) |
-| Read assigned AR/order names | [record names](artifacts/record-names.md) |
-| Quote delivery/customer acceptance relay | [customer updates](artifacts/customer-updates.md) |
+| New request, quick quote, committed intake, job name, customer, EDD, lines | [intake](artifacts/intake.md) |
+| Price lines, Chris's manual prices, several requested sizes, gaps | [pricing](artifacts/pricing.md) |
+| Write any note (customer, internal, supplier) | [notes](artifacts/notes.md) |
+| A supplier submitted an AR; Chris picks a supplier | [supplier responses](artifacts/supplier-responses.md) |
+| Create, confirm or change an order | [orders](artifacts/orders.md) |
+| Stages, workflow events, closing, deleting | [lifecycle](artifacts/lifecycle.md) |
+| Send a quote or update to the customer | `customer-coordination` |
+| Publish an AR | `supplier-coordination` |
 
-Before reporting completion, verify the saved rows, allocations and intended
-stage. Inspect existing records before retrying an uncertain create/send.
-Use `message-routing` to return findings and required approvals to the original
-request chat; preserve scoped acceptance, prices and approval evidence.
+## The usual flows
+
+| Request | Steps |
+|---|---|
+| Price question | Answer. No job. |
+| New request | Job + lines → price every row → post link and gaps → AR if Chris approves the scope. A quote only if asked. |
+| Quick quote | Job + lines → price → quote → stop. No AR. |
+| Committed order | Job + lines (keep given prices, fill gaps from APS) → direct order. No quote, no AR. |
+| Accepted quote | Existing job and accepted terms → direct order. |
+
+Stages don't have to run in order. Later acceptance of a quick quote turns
+that scope into an order.
+
+## Every task
+
+1. Snapshot the job first: `skills/agent/database-access/scripts/job-snapshot
+   <jobId>` (job, lines, recent changes, linked ARs and orders).
+2. Do the work. Every write uses the guarded pattern in `database-access`
+   and `SET app.actor TO 'rosie'`.
+3. Verify the saved rows, then report the result in the origin chat
+   (`message-routing` if you're not in it). Check existing records before
+   retrying anything that may have half-worked.

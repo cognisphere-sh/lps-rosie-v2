@@ -1,52 +1,52 @@
-# Guarded SQL
+# Running SQL
 
-Use `scripts/agent/supabase/query -c '<SQL>'`, `-f /tmp/query.sql`, or stdin.
-There is no positional SQL argument. `--csv`/`--tsv`/`--unaligned` avoid aligned
-table overhead. `-f` is preferred for multi-statement SQL and repeatable batches.
-For SQL containing currency, apostrophes, backticks, JSON or multiple statements,
-use the write tool to create `/tmp/<thread>-<task>.sql`, then run
-`scripts/agent/supabase/query --csv -f /tmp/<thread>-<task>.sql`.
-Alternatively, pass literal SQL through a **quoted** heredoc:
+Prefer the helpers in `skills/agent/database-access/scripts/` (they build
+safe SQL for you). Paths here are relative to the agent root. For
+anything else use the guarded wrapper:
 
 ```sh
+scripts/agent/supabase/query --csv -f /tmp/<thread>-<task>.sql
 scripts/agent/supabase/query --csv <<'SQL'
-SELECT '$65' AS literal_price;
+SELECT id, name FROM job_requests WHERE id = 83;
 SQL
 ```
 
-Never embed such SQL in double-quoted `-c` text: Bash expands `$65` before
-psql sees it; SQL single quotes inside shell double quotes do not protect it.
-SQL apostrophes still require SQL escaping (`Chris''s`). A shell expansion
-failure is fixed by changing transport to file/stdin, not retrying escaped
-variants. After a SQL failure in a multi-statement batch, read affected rows
-before retry: earlier statements may have committed. Group dependent writes
-in an explicit transaction, with the owning skill's guards and verification.
+- SQL comes from `-c '<sql>'`, `-f <file>` or stdin. No positional argument.
+  `--csv`/`--tsv`/`--unaligned` keep output small.
+- **Never put SQL in double quotes in bash.** Bash turns `$65` into `5` and
+  fails with "unbound variable". Use a file (write tool) or a quoted
+  heredoc (`<<'SQL'`). SQL apostrophes still need doubling (`Chris''s`), or
+  use `$q$Chris's$q$`.
+- Allowed: SELECT, INSERT, UPDATE, WITH, SET, SHOW, VALUES, EXPLAIN,
+  transactions, CREATE FUNCTION. Blocked anywhere in the text: DELETE, DROP,
+  ALTER, TRUNCATE, DO (so no `ON CONFLICT DO NOTHING`; use `WHERE NOT
+  EXISTS`), COPY, LOCK, EXECUTE, CALL and similar. Don't try to get around the
+  guard; ask the owner for schema or destructive work.
+- Pass typed NULLs to functions when needed: `NULL::text`, `NULL::date`.
+- Select named columns with a LIMIT. Avoid `SELECT *` and `to_jsonb(row)` on
+  jobs, audits and transcripts.
+- If one statement in a batch fails, earlier ones may already be saved: read
+  the rows before retrying. Put dependent writes in one `BEGIN ... COMMIT`.
+- After an unclear write, check what was saved before trying again.
+- Credentials come from the environment. Never print or pass secrets, never
+  `SET ROLE`.
 
-The wrapper needs psql and reads credentials from environment; never print/pass
-secrets as command-line arguments or use `SET ROLE`.
+## Column not found?
 
-Normal work uses SELECT/INSERT/UPDATE, CTEs and transactions. The installed
-guard also admits EXPLAIN/VALUES/SET/SHOW and function/procedure creation;
-permission to execute syntax is not business authorization. DELETE, DDL such
-as DROP/ALTER/TRUNCATE and unsupported statements are blocked. Do not bypass
-the guard; request required schema/destructive work from the owner.
-
-Read current rows before updating. Use narrow predicates and previous-value
-guards (`field IS NOT DISTINCT FROM old_value`); a zero-row update needs reload
-and reconciliation. Prefer existing lifecycle RPCs. Never write generated
-totals, identity keys, thread refs or trigger-owned audit fields/timestamps.
-Write actual newlines with a parameter/file or `E'...\n...'`, not plain `'\n'`.
-Inspect committed records before retrying an uncertain mutation.
-
-For a stale table reference:
+Run `skills/agent/database-access/scripts/schema <table>` (exact names from `--list`; e.g. there is no
+`jobs` topic, `record_name` only if migration 0104 is live, no
+`thread_messages.content`). If the schema doc is wrong, check the catalog:
 
 ```sql
-SELECT column_name, data_type, is_nullable, column_default
-FROM information_schema.columns
-WHERE table_schema = 'public' AND table_name = '<table>'
-ORDER BY ordinal_position;
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = '<table>' ORDER BY ordinal_position;
 ```
 
-Correct the shared schema through its symlink using verified evidence. Don't infer access control
-from visible policies or CLI availability. Never call `search_inventory` with
-empty input; list inventory with explicit ordering and a limit instead.
+and fix `knowledge/files/SCHEMA.md` in place (it is a shared symlink; never
+copy it).
+
+## Transcript reads
+
+Chat history is in `threads` (`agent`, `thread_id`) and `thread_messages`
+(`seq`, `role`, `sender_name`, `portal`, `text`, `files`, `created_at`). Read a
+bounded window by thread and `seq`, not whole transcripts.

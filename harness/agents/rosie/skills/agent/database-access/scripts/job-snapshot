@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Print one job compactly: job row, active lines, recent changes, linked ARs
+and orders. Read-only. One database round trip.
+
+Example: job-snapshot 83 --item 912 --changes 10
+"""
+import argparse
+import sys
+
+from _db import cell, json_value, money
+
+SQL = """
+SELECT json_build_object(
+ 'job', (SELECT row_to_json(j) FROM (
+    SELECT jr.id, jr.name, jr.status, jr.is_active, jr.customer_id,
+           coalesce(c.company, c.name) AS customer, jr.expected_install_date AS edd,
+           jr.fulfillment_method AS method, jr.note_for_customer, jr.note_internal
+    FROM job_requests jr LEFT JOIN customers c ON c.id = jr.customer_id
+    WHERE jr.id = {job}) j),
+ 'items', (SELECT json_agg(i ORDER BY i.id) FROM (
+    SELECT id, name, size, demanded_quantity AS qty, unit_price, total, status,
+           available_quantity AS avail, selected_availability_request_item_id AS sel,
+           note_for_customer, note_internal
+    FROM job_request_items
+    WHERE job_request_id = {job} AND is_active {item_filter}) i),
+ 'changes', (SELECT json_agg(x) FROM (
+    SELECT to_char(created_at AT TIME ZONE 'America/Chicago', 'MM-DD HH24:MI') AS at,
+           actor, action, item_id,
+           (SELECT string_agg(k, ',' ORDER BY k) FROM jsonb_object_keys(
+              CASE WHEN jsonb_typeof(changes) = 'object' THEN changes ELSE '{{}}'::jsonb END) k) AS fields
+    FROM job_request_changelog
+    WHERE job_request_id = {job} {change_filter}
+    ORDER BY created_at DESC, id DESC LIMIT {changes}) x),
+ 'ar_lines', (SELECT json_agg(a ORDER BY a.ar, a.ari) FROM (
+    SELECT ari.availability_request_id AS ar, ar.status AS ar_status, ar.supplier_id,
+           ar.submitted_at IS NOT NULL AS submitted, ari.id AS ari,
+           arij.job_request_item_id AS item, arij.quantity AS alloc,
+           ari.demanded_quantity AS ar_total, ari.name, ari.size, ari.status,
+           ari.available_quantity AS avail, ari.unit_price, ari.note_for_supplier
+    FROM availability_request_item_jobs arij
+    JOIN availability_request_items ari ON ari.id = arij.availability_request_item_id
+    JOIN availability_requests ar ON ar.id = ari.availability_request_id
+    JOIN job_request_items i ON i.id = arij.job_request_item_id
+    WHERE i.job_request_id = {job} AND ari.is_active AND ar.is_active {ar_item_filter}) a),
+ 'order_lines', (SELECT json_agg(o ORDER BY o.order_id, o.order_item) FROM (
+    SELECT o.id AS order_id, o.status AS order_status, o.supplier_id,
+           o.fulfillment_method AS method, o.fulfillment_date AS date,
+           oi.id AS order_item, oij.job_request_item_id AS item, oij.quantity AS alloc,
+           oi.name, oi.size, oi.unit_price, oi.status
+    FROM order_item_job_request_items oij
+    JOIN order_items oi ON oi.id = oij.order_item_id
+    JOIN orders o ON o.id = oi.order_id
+    JOIN job_request_items i ON i.id = oij.job_request_item_id
+    WHERE i.job_request_id = {job} AND oi.is_active AND o.is_active {order_item_filter}) o)
+) AS j;
+"""
+
+
+def build_sql(job, item=None, changes=5):
+    item_filter = f"AND id = {item}" if item else ""
+    return SQL.format(job=job, changes=changes, item_filter=item_filter,
+                      change_filter=f"AND item_id = {item}" if item else "",
+                      ar_item_filter=f"AND i.id = {item}" if item else "",
+                      order_item_filter=f"AND i.id = {item}" if item else "")
+
+
+def render(data):
+    job = data.get("job")
+    if not job:
+        return "No job with that id."
+    out = [f"JOB {job['id']} | {cell(job['name'])} | {job['status']}"
+           + ("" if job["is_active"] else " | INACTIVE")
+           + f" | customer {cell(job['customer_id'])} {cell(job['customer'])}"
+           + f" | EDD {cell(job['edd'])} | {cell(job['method'])}",
+           f"  for customer: {cell(job['note_for_customer'])}",
+           f"  internal: {cell(job['note_internal'])}"]
+    items = data.get("items") or []
+    priced = [i for i in items if i["unit_price"] is not None]
+    total = sum(float(i["total"] or 0) for i in items)
+    out.append(f"LINES {len(items)} active, {len(priced)} priced, total {money(total)}")
+    out.append("  id | qty x size name | price | status | avail | sel | for customer | internal")
+    for i in items:
+        out.append(f"  {i['id']} | {cell(i['qty'])} x {cell(i['size'])} {cell(i['name'])} | "
+                   f"{money(i['unit_price'])} | {cell(i['status'])} | {cell(i['avail'])} | "
+                   f"{cell(i['sel'])} | {cell(i['note_for_customer'], 80)} | {cell(i['note_internal'], 80)}")
+    out.append("RECENT CHANGES (newest first)")
+    for c in data.get("changes") or []:
+        out.append(f"  {c['at']} {cell(c['actor'])} {c['action']} item {cell(c['item_id'])}: {cell(c['fields'])}")
+    ar_lines = data.get("ar_lines") or []
+    out.append(f"AR LINES {len(ar_lines)}" + ("" if ar_lines else " (none)"))
+    for a in ar_lines:
+        out.append(f"  AR-{a['ar']} {a['ar_status']}{' submitted' if a['submitted'] else ''} "
+                   f"line {a['ari']} → item {a['item']} alloc {cell(a['alloc'])}/{cell(a['ar_total'])} | "
+                   f"{cell(a['size'])} {cell(a['name'])} | answer {cell(a['status'])} "
+                   f"avail {cell(a['avail'])} {money(a['unit_price'])} | {cell(a['note_for_supplier'], 80)}")
+    order_lines = data.get("order_lines") or []
+    out.append(f"ORDER LINES {len(order_lines)}" + ("" if order_lines else " (none)"))
+    for o in order_lines:
+        out.append(f"  Order {o['order_id']} {o['order_status']} {cell(o['method'])} {cell(o['date'])} "
+                   f"line {o['order_item']} → item {o['item']} qty {cell(o['alloc'])} | "
+                   f"{cell(o['size'])} {cell(o['name'])} {money(o['unit_price'])} {cell(o['status'])}")
+    return "\n".join(out)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("job", type=int, help="job_requests.id")
+    parser.add_argument("--item", type=int, help="show only this job line")
+    parser.add_argument("--changes", type=int, default=5, help="recent changelog rows (default 5)")
+    args = parser.parse_args()
+    if args.job <= 0 or (args.item is not None and args.item <= 0) or not 0 < args.changes <= 100:
+        parser.error("ids must be positive; --changes 1..100")
+    try:
+        print(render(json_value(build_sql(args.job, args.item, args.changes)) or {}))
+    except (RuntimeError, ValueError) as error:
+        print(f"job-snapshot: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

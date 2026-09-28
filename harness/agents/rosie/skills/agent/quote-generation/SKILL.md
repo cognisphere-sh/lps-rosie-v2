@@ -1,48 +1,30 @@
 ---
 name: quote-generation
-description: Render customer-safe quotes with decimal calculations. Includes text renderer and job/item notes for the customer from LPS or supplier responses. Use for quick quotes, quote copies and customer delivery drafts. (v3.11.0)
+description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, the standard format, the no-totals bid format, the ✅/❌ availability list and partial quotes. Use when Chris asks for a quote, quick quote, bid, availability list or a quote copy. (v4.0.0)
 metadata:
   author: lps
-  version: "3.11.0"
+  version: "4.0.0"
 ---
 
 # Quote generation
 
-1. Use this skill only when a quote is requested, including an explicit quick
-   quote or a requested copy. Ordinary non-quick-quote work may get APS pricing
-   and pursue a specifically approved AR without generating a quote. Follow
-   `job-requests` intake before any quote/partial draft: the job, thread and
-   supplied item rows must exist. A price lookup creates none. Committed
-   intake or accepted quotes go directly to orders unless a quote copy is asked
-   for; never reprice accepted terms.
-2. Save supported offerings and customer prices first. `job-requests` owns
-   pricing precedence, manual APS inputs and requested-option selection;
-   `plant-and-supplier-search` owns evidence and approved pricing proxies.
-   Resolve material uncertainty before the affected quote. Alternatives need
-   Chris's action-specific quote approval, including internal drafts.
-3. Read [notes for customer](artifacts/shared-notes.md) when preparing/changing job or
-   item `note_for_customer`. They hold customer-facing information from Chris/LPS
-   sourcing or submitted supplier responses. `job-requests` owns audience and
-   scope; preserve customer input in `note_for_customer` and internal progress in
-   `note_internal`. Each quoted row names one actual offered plant/size; a
-   pricing proxy retains requested identity. Render only saved customer-facing notes.
-4. For the default format run [the renderer](artifacts/rendering.md):
+Only when a quote is asked for. Ordinary requests can go to an AR without a
+quote.
 
-   ```sh
-   skills/agent/quote-generation/scripts/render-quote --input /tmp/quote.json
-   ```
+1. The job and all its lines must already be saved (`job-requests` →
+   intake). A price question needs no quote and no job.
+2. Prices and notes come from the saved lines (`job-requests` → pricing and
+   notes). A plant or size the customer didn't ask for can be quoted only
+   after Chris approves quoting that alternative. Never reprice accepted
+   terms.
+3. Render with `skills/agent/quote-generation/scripts/quote-job <jobId>`
+   and the right [format](artifacts/format.md) variant. It reads the saved
+   rows and does the math. It doesn't approve or send anything.
+4. Post the block in the origin chat. Quick quote: stop here, no AR offer.
+5. Sending it to the customer is `customer-coordination` (needs Chris's
+   approval). Record `quote_shared` only after the customer actually got it.
+   Quote files for sharing go in storage under `lps/rosie_shared/YYYY-MM-DD/`
+   (`database-access` → storage); scratch files go in `/tmp`.
 
-   It validates persisted IDs and required values, computes decimal totals and
-   emits the copyable block. It performs no database reads, approvals or sends.
-   Supply current verified rows; a local ID is not proof of persistence. Fix
-   rejected values from evidence. Do not silently drop unpriced lines. If Chris
-   explicitly requests a different format, use [format rules](artifacts/text-format.md).
-5. Return the draft to the original request chat. Quick-quote work stops here:
-   no AR or availability approval ask. Ordinary availability work returns to
-   `job-requests`; an accepted quote can move directly to an order. Neither
-   quote rendering nor delivery is a prerequisite for an ordinary approved AR.
-6. Customer delivery belongs to `customer-coordination`. Send the complete
-   draft, recipient, attachments and origin to that owner; `message-routing`
-   obtains any required approval. Only verified customer delivery records
-   `quote_shared` and the shared link; drafts and failed sends do not. Pricing
-   never establishes stock, supplier confirmation or customer commitment.
+A quote says nothing about stock, supplier confirmation or customer
+commitment.

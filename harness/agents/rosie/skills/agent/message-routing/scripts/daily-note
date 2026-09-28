@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Add to today's daily note (workspace/daily_notes/YYYY-MM-DD.md, Chicago
+time) without reading or editing the file by hand. Keeps one paragraph per
+thread per day: extends this thread's paragraph if it exists, else starts
+one. Creates the file if missing. Locked, so parallel threads are safe.
+
+Example: daily-note --thread jr-83 --text 'Loaded 26 lines, 18 priced ($4,210); AR-47 approved and published.'
+         daily-note --thread jr-83 --text-file /tmp/jr-83-daily.txt
+"""
+import argparse
+from datetime import datetime
+import fcntl
+from pathlib import Path
+import re
+import sys
+from zoneinfo import ZoneInfo
+
+NOTES = Path(__file__).resolve().parents[4] / "workspace/daily_notes"
+
+
+def add(thread, text, now):
+    text = " ".join(text.split())
+    if not text or not thread.strip():
+        raise ValueError("thread and text are required")
+    NOTES.mkdir(parents=True, exist_ok=True)
+    path = NOTES / f"{now:%Y-%m-%d}.md"
+    stamp = f"{now:%Y-%m-%d %H:%M:%S}"
+    with open(path, "a+", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        handle.seek(0)
+        lines = handle.read().rstrip("\n").split("\n")
+        prefix = f"{thread} — "
+        # Older entries were written as "YYYY-MM-DD HH:MM:SS [thread] ...".
+        older = re.compile(r"^(?:\d{4}-\d\d-\d\d \d\d:\d\d:\d\d )?\[" + re.escape(thread) + r"\]")
+        for index, line in enumerate(lines):
+            if line.startswith(prefix) or older.match(line):
+                lines[index] = line.rstrip() + f" {now:%H:%M:%S}: {text}"
+                break
+        else:
+            if any(line.strip() for line in lines):
+                lines.append("")
+            else:
+                lines = []
+            lines.append(f"{prefix}{stamp}: {text}")
+        handle.seek(0)
+        handle.truncate()
+        handle.write("\n".join(lines) + "\n")
+    return path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--thread", required=True, help="this ThreadId")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--text")
+    source.add_argument("--text-file", type=Path)
+    args = parser.parse_args()
+    try:
+        text = args.text if args.text is not None else args.text_file.read_text(encoding="utf-8")
+        path = add(args.thread, text, datetime.now(ZoneInfo("America/Chicago")))
+    except (OSError, ValueError) as error:
+        print(f"daily-note: {error}", file=sys.stderr)
+        return 2
+    print(f"added to {path.name}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

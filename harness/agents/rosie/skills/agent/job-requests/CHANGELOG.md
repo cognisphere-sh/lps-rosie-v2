@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 6.0.0 — 2026-09-28
+
+- Rewrite in plain language; same rules, one owner each. Artifacts merged to intake, pricing, notes, supplier-responses, orders, lifecycle (requested-options, writes, direct/allocated orders, order-changes, record-names, customer-updates folded in). notes.md now owns all three note fields (customer/internal/supplier) with Chris's examples. Resolved contradictions in favour of Chris's latest explicit words: every APS submission updates job lines (JR-72 + JR-78 "Always do this"), different-size answers show the offered size and its own price, missing quantity = 1 + `How many?`, per-pot pricing for flats, plan "Sub" remarks kept verbatim, short customer questions allowed, line changes go in internal notes. Order change log now appends to `orders.note_for_supplier` (`orders.notes` was renamed by migration 0111). Snapshot helper `job-snapshot` added to every task.
+
 ## 5.56.0 — 2026-09-28
 
 - New `job_request_items.selected_availability_request_item_id` (migration 0116), shown as the app's Suppliers capsules. Treat a capsule chosen in the app as Chris's explicit selection: the app already copied its mapped status, price, allocation-capped quantity and answered note. Don't revert or re-apply it; propose cleanup of LPS-only text in the appended note. Set the column only with Chris's explicit per-line supplier choice, in the same guarded update. Never set it from the first-APS standing instruction or on your own.

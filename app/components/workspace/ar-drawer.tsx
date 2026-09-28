@@ -8,6 +8,7 @@ import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
 import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import { SizePill } from '@/components/workspace/chat-kit'
+import { SummaryStrip } from '@/components/workspace/partner-summary-strip'
 import {
   BodyModalPortal,
   firstModalFocusTarget,
@@ -20,7 +21,7 @@ import {
   onOpenAvailabilityRequest,
   type ARPresentation,
 } from '@/lib/chat-bus'
-import { availabilityRecordName, type ARDetail } from '@/lib/availability'
+import { arSubtotal, availabilityRecordName, type ARDetail } from '@/lib/availability'
 import { formatWeekdayMonthDay } from '@/lib/format'
 import { requestRef } from '@/lib/job-requests'
 import { useJobUpdates } from '@/lib/use-job-updates'
@@ -643,8 +644,14 @@ export function AvailabilityRequestDrawer() {
                     {ar.noteForSupplier}
                   </p>
                 )}
+                {/* The focused Job page draws the supplier portal's table —
+                    its answer strip carries the subtotal the drawing drops —
+                    with the admin's inline edits on top. */}
+                {session.presentation === 'focused-job' && (
+                  <SummaryStrip items={ar.items} subtotal={arSubtotal(ar.items)} />
+                )}
                 <ARLineTable
-                  design={session.presentation}
+                  design={session.presentation === 'focused-job' ? 'portal' : 'default'}
                   items={ar.items}
                   editable={ar.status !== 'closed'}
                   onPatch={patchLine}

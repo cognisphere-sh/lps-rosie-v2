@@ -22,10 +22,18 @@ comparisons, not measured production token/cost savings.
 
 ## Ownership and upgrades
 
+Rosie's 2026-09-28 rewrite (plain language, merged references, helpers,
+contradictions resolved) cut her deployment-owned instruction text from about
+209K to 91K characters; see [the audit](rosie-audit-2026-09-28.md). Her
+standing plant price rules live in `knowledge/files/price-rules.md` (data,
+edited without a skill version bump).
+
 Do not simplify or split harness-provided `0-*` prompts. All three agents retain
 their original `0-base_prompt.md` and `0.1-agent-directory.md` byte-for-byte.
 The installed harness package, `docs/base-harness/` and plugin-owned prompts and
-skills are also outside this refactor. Runtime instructions remain in the
+skills are also outside this refactor. Exception: user-space plugins in
+`harness/plugins/` are deployment forks; edit their `seed/` files (the agent
+copies are reseeded on start), e.g. the supplier-events prompt. Runtime instructions remain in the
 harness base; do not create duplicate skills for them.
 
 Optimize deployment-owned `1-*` prompts and `skills/agent/` procedures. Their
@@ -54,7 +62,12 @@ Paths below are relative to each agent directory. Each helper has `--help`.
 
 | Agent | Helper | Behavior |
 |---|---|---|
-| Rosie | `skills/agent/quote-generation/scripts/render-quote` | Validates supplied saved-row input and emits a copyable decimal quote. No query/write/send. |
+| Rosie | `skills/agent/quote-generation/scripts/render-quote` | Validates supplied rows and emits a copyable decimal quote (`--no-totals`, `--status` ✅/❌). No query/write/send. |
+| Rosie | `skills/agent/quote-generation/scripts/quote-job` | Reads a job's saved rows and runs render-quote. Read-only. |
+| Rosie | `skills/agent/database-access/scripts/job-snapshot`, `ar-snapshot` | One-read compact views of a job or an AR with allocations. Read-only. |
+| Rosie | `skills/agent/database-access/scripts/set-note` | Guarded note write from files; exit 3 when the field changed meanwhile. |
+| Rosie | `skills/agent/plant-and-supplier-search/scripts/aps-price` | Price rules, aliases and every listed size with nearest smaller/larger. Read-only. |
+| Rosie | `skills/agent/message-routing/scripts/send-text`, `daily-note`, `index-add` | Literal-text sends; locked daily-note and workspace-index updates. |
 | Rosie, Daisy | `skills/agent/database-access/scripts/schema` | Prints selected tables/RPCs directly from the shared schema; no second schema copy. |
 | Daisy | `skills/agent/availability-ingestion/scripts/source-check` | Read-only fingerprint check; explicit verified-success receipt writes are locked and atomic. |
 | Lily | `skills/agent/feedback-loop/scripts/capture-feedback` | Locked append-only capture with stable source IDs; identical retry is a no-op, conflicting retry fails. |
@@ -71,10 +84,13 @@ From the repository root:
 python3 scripts/check-agent-instructions.py
 python3 harness/agents/rosie/skills/agent/quote-generation/scripts/render-quote.test.py
 python3 harness/agents/rosie/skills/agent/database-access/scripts/schema.test.py
+python3 harness/agents/rosie/skills/agent/database-access/scripts/helpers.test.py
+python3 harness/agents/rosie/skills/agent/message-routing/scripts/send-text.test.py
 python3 harness/agents/daisy/skills/agent/availability-ingestion/scripts/source-check.test.py
 python3 harness/agents/lily/skills/agent/feedback-loop/scripts/capture-feedback.test.py
 ```
 
+Changelog version headings may carry a date (`## 6.0.0 — 2026-09-28`).
 The checker covers local links, stale section references, versions/changelogs,
 helper syntax/executable modes and drift between schema helper copies. Its
 limits are 6,500 characters per skill entry, 400 per discovery description and

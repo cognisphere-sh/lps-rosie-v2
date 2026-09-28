@@ -6,25 +6,27 @@ User-space plugin at `harness/plugins/supplier-events/`; enabled on
 partner portals and public request links included.
 
 An event is a pointer, not the state: everything it is about lives in the
-database (`availability_requests`, `availability_request_items`), so the
-notification carries identifiers only. What rosie does with one is her
-`supplier-coordination` skill. Saved, unsubmitted edits (`availability_updated`)
-stay on the supplier thread: no JR-thread or Chris notification and no JR
-sourcing-note update. This includes edits after a prior submission, and trusted
-supplier portal text/voice answers transcribed into the AR pending supplier
-review and explicit submission. An old `submitted_at` is not evidence that newer
-edits were submitted; transcription/submission authority stays in the skill.
+database, so the notification carries identifiers only. The agent prompt
+(`seed/system_prompts/plugin-supplier-events.md`, reseeded into Rosie's
+`system_prompts/` on start — edit the seed, not the copy) is a table of what
+to do per event type; the procedures are Rosie's `supplier-coordination`
+(responses, orders) and `job-requests` (supplier responses) skills.
 
-Only explicit submission or re-submission (`availability_submitted`) triggers
-the response relay. The supplier thread loads `availability_request_jobs` and
-`availability_request_item_jobs`, then relays job-specific submitted answers to
-every affected job thread for qualifying sourcing-note updates and an internal
-alert to Chris. Requests and request rows may span several jobs; keep allocated
-quantities distinct from the combined supplier answer. The job thread follows
-`job-requests` section 3: replace the affected supplier's current snapshot and
-maintain one overall row outcome. Repeated notifications must not accumulate
-an event history in JR internal notes; the database changelog and contact
-transcript retain that history.
+- `availability_updated` (saved, not submitted — including edits after an
+  earlier submission and portal answers Rosie typed in for the supplier)
+  stays on the supplier thread: no job thread, no Chris, no job notes.
+- `availability_submitted` (submit or re-submit) is relayed to every linked
+  job through `availability_request_jobs` / `availability_request_item_jobs`.
+  Under Chris's standing instruction the job threads update their lines
+  directly (status, allocation-bounded quantity, offered size with its own
+  price, short customer note) and alert Chris. Shared totals are never copied
+  to each job, and the chosen supplier
+  (`selected_availability_request_item_id`) is never set from an event.
+
+Cost note: every `availability_updated` wakes the supplier thread (about 52
+times and $7 in the week to 2026-09-28). Sending it with `isSilent: true` in
+`index.ts` would deliver it as context without a turn; not done yet (needs a
+harness restart to verify).
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`
 

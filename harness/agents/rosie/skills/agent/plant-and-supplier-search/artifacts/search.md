@@ -1,86 +1,63 @@
-## Search and verify
+# Finding a price
 
-1. For job sourcing or a quick quote, use Austin Plant Supply
-   (`supplier_id = 1`), the exclusive current supplier, and its price list.
-   Only Chris's explicit exception authorizes sourcing from another supplier.
-   A general "which growers list this?" question can research all suppliers;
-   that research does not authorize a quote from them, an AR or an order.
-   For already committed requests and accepted quotes, preserve supplied or
-   accepted prices and use APS only to fill missing line prices; do not replace
-   an agreed offering or price with a catalogue match. While APS is exclusive,
-   preserve an explicit Chris-directed manual APS price, size or supplier-useful
-   note for its stated quote/AR scope; catalogue research may corroborate it but
-   does not overwrite it. It is APS pricing/ask evidence only, never a supplier
-   response, stock/cultivar confirmation or authorization to map a proxy. No AR or new quote is
-   required for direct ordering. `job-requests` owns path selection and Chris
-   approval when availability publication is needed. Quick-quote-only requests
-   stop after the quote.
-2. Prefer `search_inventory(search, fuzzy_ratio)` and `search_suppliers`.
-   Apply supplier scope and sorting outside the RPC:
+## 1. Run the helper
 
-   ```sql
-   SELECT id, supplier_id, supplier_name, name, size, size_std,
-          unit_price, quantity, relevance
-   FROM search_inventory('live oak 30 g')
-   WHERE supplier_id = 1
-   ORDER BY relevance DESC, unit_price, id
-   LIMIT 20;
-   ```
+```sh
+skills/agent/plant-and-supplier-search/scripts/aps-price "<plant name>" --size "<size>"
+```
 
-   This is a candidate page, not proof that no exact match exists. If it is
-   full or contains only broad matches, narrow by identity/size or page further
-   before declaring a gap. Return selected evidence rather than every candidate.
-   Check the current schema's returned columns; inventory ids are UUIDs.
-   Empty search returns nothing. To list rows, query `inventory` with an
-   explicit order and limit instead.
-3. Validate identity and size on every proposed match. Broad search is
-   typo-tolerant and expands plant aliases; relevance ranks rows matching
-   some query terms, so the top result is not proof of an exact cultivar.
-   Read `common_name`, `botanical_name`, `cultivar_variety_trade_name` and
-   size. `inventory.name` composes those identity parts.
-4. When literal text really matters, wrap the entire search in straight
-   double quotes, e.g. `"Italian Cypress"`. This searches a case-insensitive
-   literal substring in plant identity only, not size or notes. It does not
-   expand aliases or tolerate spelling/spacing changes. Literal hits have
-   equal relevance; sort by the evidence the question needs.
-5. If no exact match appears, try common/botanical names, reordered name terms
-   (e.g. `Southern Magnolia` ↔ `Magnolia Southern`), fewer terms and broader
-   size/cultivar searches within the selected supplier. Check the full identity
-   fields and requested size on the returned row; word order alone neither
-   proves a cultivar match nor makes the row an alternative. If the requested
-   botanical/common name still yields no supported price, research other names
-   on the internet and search supplier pricing under those names, following
-   [pricing equivalents](pricing-equivalents.md) for evidence and the
-   confirmation gate before recording a `plant_aliases` relationship. Label
-   alternatives explicitly. For actual APS job sourcing/quick quotes, return
-   evidence for every requested row, including gaps. When APS lacks the
-   requested size, check the same plant's listed sizes in both directions and
-   identify the nearest smaller **and** nearest larger size with positive
-   prices, if each exists. Search by the supported common and botanical names;
-   a relevance-limited candidate page is not a complete size list. Carry both
-   directional sizes and prices through the job handoff and Chris-facing reply,
-   even though neither is an approved replacement for the requested size.
-   When a direction has no supported listing, say so rather than inventing an
-   option. For other price/identity gaps, research 1–2 closest supported APS
-   alternatives, preferring the same plant and then defensible related
-   cultivars/plants. Verify identity and size rather than trusting relevance
-   rank; return fewer or none when evidence is insufficient.
-   If APS has no match, offer to search other
-   suppliers and wait for instruction. An explicit all-supplier question
-   authorizes that broader search. `job-requests` owns sourcing decisions.
-6. Treat the APS price list as a non-exhaustive indication of items the
-   supplier carries, not a live availability list. An absent row or price
-   does not mean APS cannot supply the original customer-requested plant/size;
-   a listed row or quantity does not confirm it can. Price evidence must not
-   narrow an approved AR from the original requested plant/size to a listed
-   proxy. `supplier-coordination` owns the actual supplier ask.
-7. Check positive price, source freshness and explicit stock-location notes.
-   A supplier's headquarters does not prove where inventory sits. Verify
-   farm/region/location evidence in the inventory row/source; distinguish
-   head-office location from stock location. Separate locations can be
-   supplier rows sharing a `head_branch_id`.
+It shows, in one call: matching price rules, aliases, and every listed size
+and price of the best-matching plants, with the EXACT size or the nearest
+smaller and larger ones marked. Default supplier is APS (1); `--supplier N`
+for another.
 
-For custom identity queries compare normalized keys (`name_key`,
-`common_name_key`, `botanical_name_key`, `cultivar_keys`) or
-`normalize_plant_key()`, never raw text equality. A bad alias expansion goes
-to Daisy rather than being silently treated as a match.
+For a whole job, run it once per unpriced line (skip lines already priced).
+Keep one answer per plant per job, so repeat lookups agree.
+
+## 2. Check the match
+
+The search forgives typos and expands aliases, so the top row can be the
+wrong cultivar. Compare common name, botanical name, cultivar and size. Word
+order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
+
+| What you found | Do |
+|---|---|
+| Same plant, requested size | Use its price. |
+| Same plant under another name (synonym, trade name, word order) | Use its price; no question. Note the listed name in `note_internal` only if it isn't obvious. |
+| A rule in `knowledge/files/price-rules.md` covers it | Use it; no question. |
+| Same plant, same size, only another color/variant listed | Ask Chris once ([pricing](../../job-requests/artifacts/pricing.md)). |
+| Same plant, other sizes only | Report nearest smaller and larger; don't price the line from them. |
+| Different species or form | Not a match. It's an alternative; report it, don't use it. |
+
+## 3. Nothing found?
+
+1. Search again: common name, botanical name, fewer words, other word order.
+   Exact substring: wrap in straight quotes, `aps-price '"Italian Cypress"'`
+   (no alias expansion, no typo tolerance).
+2. Look up other names on the web: `scripts/agent/ddgs text -q "<plant>
+   other names" -m 5`. Use a name only if a real source (URL) says it's the
+   same plant; a similar look or shared genus is not enough. Search APS again
+   with it.
+3. Found by another name → use the price, and ask Chris in one line: "Add
+   `<other name>` as an alias of `<requested name>`?" On yes, ask Daisy to add
+   the pair to `plant_aliases` (never a new inventory row).
+4. Still nothing → price stays NULL. Give 1–2 closest listed options (same
+   plant nearby size first, then close relatives) in the reply, and offer to
+   search other suppliers. Search them only after Chris says so.
+
+## 4. Suppliers other than APS
+
+Only when Chris asks ("which growers list this?") or allows it for a job.
+Check plant, size, positive price, list date and where the stock is (a
+supplier's head office isn't its stock location; branches share a
+`head_branch_id`). A new supplier goes to Daisy for onboarding before any
+order work. Listed quantities are the list's numbers, not a reservation.
+
+## Data problems
+
+A wrong alias, wrong listing or bad price row goes to Daisy with the evidence.
+Don't edit inventory yourself, except adding a "use always" line to
+`internal_notes` (see `price-rules.md`). For custom identity queries compare
+the normalized keys (`name_key`, `common_name_key`, `botanical_name_key`,
+`cultivar_keys`, `normalize_plant_key()`), not raw text. Never call
+`search_inventory('')`; list rows from `inventory` with an order and a limit.

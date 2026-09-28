@@ -1,5 +1,9 @@
 # message-routing — changelog
 
+## 3.0.0 — 2026-09-28
+
+- Rewrite. Handoff now says when not to use task threads (last week ~45% of cost was parent/task relays). New `daily-note` and `index-add` helpers (stale-edit errors and whole-file reads). email-routes merged into inbound.
+
 ## 2.7.0 — 2026-09-24
 
 - Chris's explicit JR-72 webchat feedback (message 17): distinguish an ordinary approved AR with intentionally skipped quote generation from quick-quote-only and direct-order handoffs; preserve original ask, pricing gaps and exact publication approval.

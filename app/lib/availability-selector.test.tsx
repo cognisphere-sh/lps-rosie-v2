@@ -467,8 +467,12 @@ test('desktop admin and supplier lines render the merged note once in its column
     const note = view.getByTitle(noteForSupplier, { normalizer: (value) => value })
     assert.equal(plantCell.contains(note), false)
     assert.equal(note.textContent, noteForSupplier)
-    assert.match(note.className, /whitespace-pre-wrap/)
-    assert.doesNotMatch(note.className, /truncate|line-clamp/)
+    // The portal drawing clamps Notes to one line; the full text is its tooltip.
+    if (design === 'portal') assert.match(note.className, /truncate/)
+    else {
+      assert.match(note.className, /whitespace-pre-wrap/)
+      assert.doesNotMatch(note.className, /truncate|line-clamp/)
+    }
     view.unmount()
   }
 })

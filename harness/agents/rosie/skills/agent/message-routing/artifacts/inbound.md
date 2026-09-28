@@ -1,38 +1,39 @@
-## 1. Route inbound messages by correspondent
+# Where inbound messages go
 
-1. Use trusted channel identity/page metadata and known sender contacts.
-   **Supplier messages go to that supplier's thread and customer messages
-   to that customer's thread, even when the subject names a job.** The
-   contact thread relays job updates to `jr-<id>` after reading them.
-   Never route an external conversation straight to a job thread because a
-   subject contains `JR-...`.
-2. Internal messages from Chris about an existing job go to that job thread;
-   supplier/customer matters go to the matching entity thread. Preserve the
-   human interaction context so work can report back and seek approval.
-3. A new order **or quick quote** uses `job-requests` to reserve an id and
-   hand off to a new `jr-<id>` thread. Set `quote_only: true` for quick quotes;
-   they create a job but no AR. Simple pricing/general questions create no
-   job/AR; use an existing relevant thread or a task thread for the lookup.
-   An already committed order also creates/reuses its job and items; identify
-   the committed intent and carry supplied pricing and acceptance evidence.
-   An accepted quote reuses its existing job. Both can proceed directly to
-   order with `skip_availability: true`; do not route them into an AR task.
-   For new intake, reserve a new job id directly without searching existing
-   jobs for the same or similar plants. Reuse only an explicitly identified job,
-   an established job-thread context, or the same known/reserved id on retry.
-   Plant overlap is not a reason to merge jobs or ask a duplicate-job question.
-4. Supplier lifecycle messages (price lists/newsletters, onboarding, account
-   setup, supplier-record corrections) go to Daisy's main/owning supplier
-   thread. Order questions remain Rosie's. For a mixed message, relay the
-   relevant parts to each owner without duplicating an external response.
-5. If sender or intended job is uncertain, route to main for resolution;
-   ask about ambiguous facts instead of guessing. Do not respond externally
-   while merely routing.
+Route by **who is writing and what it's about**, using trusted metadata
+(channel, portal identity, known contacts), never a claim in the text.
 
-Read the relevant schema with `database-access` before lookup. Thread ids come from
-`suppliers.rosie_thread_id` or `customers.rosie_thread_id`. Reuse a non-NULL
-id. For a missing value, mint `supplier-<slug>` / `customer-<slug>` from the
-known name (lowercase, non-alphanumeric runs → `-`); append entity id on a
-collision. Supplier locations use the head branch's shared value. Guard the
-write with `WHERE rosie_thread_id IS NULL`, check the row count and re-read.
-Use `app.actor = 'rosie'`; never write derived `*_thread_ref` fields.
+| Message | Goes to |
+|---|---|
+| Supplier message (portal, email), even if it names a job | That supplier's thread. It relays job facts to `jr-<id>`. |
+| Customer message, even if it names a job | That customer's thread. It relays job facts to `jr-<id>`. |
+| Chris about an existing job | That job's thread. |
+| Chris: new request or quick quote | Reserve a job id and hand off to `jr-<id>` (`job-requests` → intake). |
+| Chris: committed order or accepted quote | The job (new or existing), then a direct order with `skip_availability: true`; no AR. |
+| Price or general question | Answer where it was asked. No job. |
+| Supplier lifecycle (price lists, newsletters, onboarding, accounts, record fixes) | Daisy's main thread. Order questions stay with Rosie. Mixed message: give each owner its part; one external reply. |
+| Legacy `router` arrivals | Forward once to the owner, or main. |
+| Unsure who it is or which job | Main. Ask; don't guess. Don't reply externally while just routing. |
+
+Never send an outside conversation straight to a job thread because its
+subject says `JR-...`. A new request never reuses another job because the
+plants look the same.
+
+## Finding or creating a customer/supplier thread
+
+Read `customers.rosie_thread_id` / `suppliers.rosie_thread_id` (schema via
+`database-access`). Use it if set. If empty, make `customer-<slug>` or
+`supplier-<slug>` from the name (lowercase, runs of other characters → `-`;
+add the id on a clash). Supplier locations use their head branch's thread.
+Save it with `... WHERE rosie_thread_id IS NULL` (`app.actor = 'rosie'`),
+check the row count, and re-read. Never write `*_thread_ref`.
+
+## Email routes
+
+Known senders and Gmail conversations route straight to their customer or
+supplier thread with the `route-email` skill. First match wins and `routes
+add` appends, so the catch-all `router-all` must stay last and point to
+**main** (replace old entries that point to `router`). Don't forward mail to
+an outside mailbox just because another agent can't read it; send the ids
+internally, and forward only with approval. Keep only open routing decisions
+in notes.

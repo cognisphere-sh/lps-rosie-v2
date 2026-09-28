@@ -8,6 +8,9 @@ long-term documents. Files live in `files/`; one line each below.
 ## Files
 
 - `files/SCHEMA.md` — the database schema (symlink to the repo's
-  `docs/supabase-schema.md`, shared with every agent and the app). Read before
-  any query; fix it in place when you find a discrepancy.
-- Text quote procedures live in `../skills/agent/quote-generation/`.
+  `docs/supabase-schema.md`, shared with every agent and the app). Read only
+  the part you need with `skills/agent/database-access/scripts/schema
+  <table>`; fix it in place when you find a discrepancy.
+- `files/price-rules.md` — Chris's standing plant price rules and same-plant
+  names. Check before asking Chris about any price.
+- Quote formats live in `../skills/agent/quote-generation/`.

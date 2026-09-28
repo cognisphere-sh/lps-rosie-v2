@@ -2,7 +2,7 @@
 
 ## Configuration and plugins
 
-`agent.json` uses `openai-codex` / `gpt-5.6-terra`, high thinking,
+`agent.json` uses `openai-codex` / `gpt-6-sol`, medium thinking,
 `plugin_channel` thread strategy, ten concurrent slots, three attempts and
 subprocess runtime. Supabase schema keys are `SUPABASE_PROJECT_ID`,
 `SUPABASE_SECRET_KEY`, `SUPABASE_DB_PASSWORD` and `SUPABASE_URL`; the first

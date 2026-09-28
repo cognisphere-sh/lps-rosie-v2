@@ -1,23 +1,27 @@
 ---
 name: plant-and-supplier-search
-description: Find plant prices and supplier evidence. Includes scoped RPC search, web-researched alternate names, identity/proxy rules and reporting. Use for lookups, quote sourcing or missing order prices. (v2.28.1)
+description: Find plant prices and supplier listings. Includes the aps-price helper (all sizes, nearest smaller/larger, rules, aliases), name matching, web research for other plant names, aliases, other-supplier search and how to report prices to Chris. Use for price questions, pricing job lines or finding suppliers. (v3.0.0)
 metadata:
   author: lps
-  version: "2.28.1"
+  version: "3.0.0"
 ---
 
 # Plant and supplier search
 
-1. Read the needed schema through `database-access` and [search](artifacts/search.md).
-   Daisy owns inventory/alias/supplier corrections; report problems to her.
-2. Use APS (supplier 1) for job pricing unless Chris explicitly selects another.
-   General all-supplier research is allowed when asked, but authorizes no quote,
-   AR, order or outreach. Preserve supplied/accepted and explicit manual prices.
-3. For naming ambiguity, missing named-plant prices or proxy pricing, read
-   [pricing equivalents](artifacts/pricing-equivalents.md). For requested size
-   options use `job-requests` → requested options. Genuine alternatives need
-   action-specific quote/AR approval; supported pricing is not availability.
-4. Return [evidence](artifacts/report.md) in the original chat. Keep queries
-   scoped with explicit columns/limits; widen only when the evidence needs it.
-   Research does not create a job. `job-requests` owns writes and can retain
-   useful progress in an existing job's or item's internal notes.
+1. Follow [search](artifacts/search.md): run `aps-price`, check the match,
+   apply `knowledge/files/price-rules.md`.
+2. Price from APS (supplier 1) unless Chris names another supplier. Prices
+   Chris gave or the customer accepted always win.
+3. Research alone creates no job, AR, order or message.
+
+## Reporting a price to Chris
+
+- Lead with the answer: `Giant Hesperaloe 15 G — $125`.
+- Requested size not listed: say so and give the nearest smaller and larger
+  listed sizes with prices, on that line: `7 G not listed; 5 G $39.95, 15 G
+  $165`. If one side doesn't exist, say which.
+- Don't add "availability not confirmed" or similar to price answers. Mention
+  stock only if Chris asks about stock.
+- Mention an identity or size difference only when it changes the answer.
+- In a job, the job thread saves prices and the notes
+  (`job-requests` → pricing). Keep SQL and tool names out of the reply.

@@ -32,9 +32,6 @@ const LINE_COLUMNS =
   '56px 90px 90px 220px 150px 100px 100px minmax(200px,1fr)'
 /** Track minima + gaps + row padding/left accent; below this the table scrolls. */
 const GRID_MIN = 1090
-/** Focused Job entry only: adjacent quantities and the supplier note after Status. */
-const FOCUSED_COLUMNS = '56px 90px 90px 190px 150px minmax(200px,1fr) 100px 100px'
-const FOCUSED_GRID_MIN = 1060
 
 // A caller may put one column of its own in front of Need — the By-item view
 // uses it for the job a line came from, because there a table holds lines from
@@ -48,11 +45,13 @@ const LEAD_MIN = 218
 // The portal's request page (2026-08-30 design) draws the same table without
 // the Line total column: Need · Avail qty · Size ·
 // Plant · Status · Price · Note for supplier over plain hairlines.
-/** The portal design's tracks — the default's, less Line total. */
-const PORTAL_COLUMNS = '56px 90px 90px 220px 150px 100px minmax(200px,1fr)'
+/** The portal design's tracks — the default's, less Line total. Plant and
+ *  Size get the room (they wrap rather than clip); Notes is the one column
+ *  that truncates, to one line with its full text on hover. */
+const PORTAL_COLUMNS = '64px 80px 110px minmax(240px,2fr) 150px 90px minmax(160px,1fr)'
 const PORTAL_GRID_MIN = 960
-/** Focused Job is opt-in; other admin and portal callers keep their drawing. */
-type LineTableDesign = 'default' | 'portal' | 'focused-job'
+/** The focused `/jobs` drawer opts into the portal drawing; other admin callers keep the default. */
+type LineTableDesign = 'default' | 'portal'
 /** The portal drawing's one accent: what still needs a price. */
 const PORTAL_PURPLE = '#8F7CF6'
 
@@ -164,11 +163,14 @@ function PortalResponseSelect({
   onChange,
   ariaLabel = 'Line status',
   touch = false,
+  drawerModal = false,
 }: {
   value: string | null
   onChange: (next: string) => void
   ariaLabel?: string
   touch?: boolean
+  /** Mount the menu inside the drawer's modal host, which is not made inert. */
+  drawerModal?: boolean
 }) {
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -411,7 +413,7 @@ function PortalResponseSelect({
             )
           })}
         </div>,
-        document.body,
+        (drawerModal && trigger.current?.closest<HTMLElement>('[data-ar-drawer-host]')) || document.body,
       )}
     </>
   )
@@ -428,6 +430,7 @@ function ResponseSelect({
   portal = false,
   ariaLabel = 'Line status',
   touch = false,
+  drawerModal = false,
 }: {
   value: string | null
   disabled: boolean
@@ -435,9 +438,10 @@ function ResponseSelect({
   portal?: boolean
   ariaLabel?: string
   touch?: boolean
+  drawerModal?: boolean
 }) {
   const tone = arResponseTone(value)
-  if (portal && !disabled) return <PortalResponseSelect value={value} onChange={onChange} ariaLabel={ariaLabel} touch={touch} />
+  if (portal && !disabled) return <PortalResponseSelect value={value} onChange={onChange} ariaLabel={ariaLabel} touch={touch} drawerModal={drawerModal} />
   return (
     <span
       className={cn(
@@ -486,6 +490,9 @@ export function AnswerCell({
   touch = false,
   inputMode,
   multiline = false,
+  wrap = false,
+  clamp = false,
+  className,
 }: {
   value: string
   editable: boolean
@@ -503,6 +510,12 @@ export function AnswerCell({
   touch?: boolean
   inputMode?: 'decimal' | 'numeric'
   multiline?: boolean
+  /** A one-line value that wraps onto more lines instead of clipping; Enter still saves. */
+  wrap?: boolean
+  /** `multiline` only: show one line, clipped, until focused. */
+  clamp?: boolean
+  /** Extra classes for the editable control. */
+  className?: string
 }) {
   const [draft, setDraft] = useState(value)
   // The cell is uncontrolled while it is being typed in, but the committed
@@ -520,7 +533,7 @@ export function AnswerCell({
         className={cn(
           'min-w-0 px-1 tabular-nums',
           touch ? 'text-[14px]' : 'text-[12.5px]',
-          touch || multiline ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
+          clamp ? 'truncate' : touch || multiline || wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
           align === 'right' && 'text-right',
           display ? 'text-foreground' : 'text-lps-dim',
         )}
@@ -530,32 +543,43 @@ export function AnswerCell({
       </span>
     )
   }
-  const Control = multiline ? 'textarea' : 'input'
+  const Control = multiline || wrap ? 'textarea' : 'input'
   return (
     <Control
       value={draft}
       aria-label={ariaLabel}
       placeholder={placeholder}
       inputMode={inputMode}
-      rows={multiline ? 3 : undefined}
+      rows={clamp || wrap ? 1 : multiline ? 3 : undefined}
       onChange={(e) => setDraft(e.target.value)}
+      // A clipped input shows its full text on hover; one that fits shows none.
+      onMouseEnter={(e) => {
+        const el = e.currentTarget
+        el.title = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight ? draft : ''
+      }}
       onBlur={() => {
         if (draft.trim() !== value.trim()) onCommit(draft)
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && !multiline) e.currentTarget.blur()
+        if (e.key === 'Enter' && !multiline) {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
       }}
       className={cn(
         touch
           ? 'min-h-11 w-full min-w-0 rounded-lg px-3 py-2 text-base outline-none placeholder:text-lps-dim'
           : 'h-7 w-full min-w-0 rounded-md px-1.5 text-[12.5px] outline-none placeholder:text-lps-dim',
-        multiline && 'h-auto resize-y whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
-        multiline && !touch && 'min-h-7 py-1',
+        multiline && !clamp && 'h-auto resize-y whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
+        wrap && 'h-auto resize-none whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]',
+        clamp && 'resize-none overflow-hidden text-ellipsis whitespace-nowrap focus:h-auto focus:resize-y focus:whitespace-pre-wrap focus:[field-sizing:content] focus:[overflow-wrap:anywhere]',
+        (multiline || wrap) && !touch && 'min-h-7 py-1',
         plain
           ? 'border bg-transparent text-muted-foreground focus-visible:text-foreground'
           : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
         plain && !attention && 'border-transparent hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
         align === 'right' && 'text-right tabular-nums',
+        className,
       )}
       style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
     />
@@ -875,6 +899,7 @@ export function LineStatusPicker({
       portal={portal}
       ariaLabel={ariaLabel}
       touch={touch}
+      drawerModal={drawerModal}
       onChange={(next) => {
         if (!next) void onPatch?.(item.id, { status: '' })
         else if (next === 'available') {
@@ -907,17 +932,6 @@ export function LineStatusPicker({
   )
 }
 
-function FullPlantName({ item }: { item: ARItem }) {
-  return (
-    <details className="min-w-0 text-[12px]">
-      <summary aria-label={`Full plant name for line ${item.id}`} className="min-h-11 cursor-pointer rounded px-1 py-3 font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        Full name
-      </summary>
-      <p className="m-0 whitespace-pre-wrap pb-2 [overflow-wrap:anywhere]">{item.name}</p>
-    </details>
-  )
-}
-
 function LineRow({
   item,
   editable,
@@ -943,8 +957,6 @@ function LineRow({
   drawerModal?: boolean
 }) {
   const portal = design === 'portal'
-  const focused = design === 'focused-job'
-  const PlantTag = focused ? 'div' : 'span'
   const commit = (column: string) => (next: string) => {
     void onPatch?.(item.id, { [column]: next.trim() })
   }
@@ -961,7 +973,7 @@ function LineRow({
       display={num(item.availableQuantity)}
       onCommit={commit('available_quantity')}
       plain={portal}
-      ariaLabel={focused ? `Line ${item.id} available quantity` : undefined}
+      ariaLabel={`Line ${item.id} available quantity`}
     />
   )
   const supplierNote = (
@@ -974,6 +986,7 @@ function LineRow({
       plain={portal}
       ariaLabel={`Line ${item.id} supplier notes`}
       multiline
+      clamp={portal}
     />
   )
   // The admin line table's row treatment: the answer's tone as a left accent
@@ -1009,24 +1022,25 @@ function LineRow({
       {editDetails ? (
         <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable
           placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
-          ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal" />
+          ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal"
+          plain={portal} className={portal ? 'font-semibold text-foreground' : undefined} />
       ) : <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
         {num(item.demandedQuantity) || '—'}
       </span>}
       {availableQuantity}
       {editDetails ? (
         <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
-          onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} />
-      ) : <span className="truncate px-1 text-[12px] text-muted-foreground" title={item.size ?? undefined}>
+          onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} plain={portal} wrap={portal} />
+      ) : <span className={cn('px-1 text-[12px] text-muted-foreground', portal ? '[overflow-wrap:anywhere]' : 'truncate')} title={item.size ?? undefined}>
         {item.size ?? '—'}
       </span>}
-      <PlantTag className="min-w-0 px-1" title={item.name}>
-        {editDetails ? <PlantTag className="flex flex-col gap-1">
+      <span className="min-w-0 px-1" title={item.name}>
+        {editDetails ? <span className="flex flex-col gap-1">
           <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
-            onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`} />
-          {focused && <FullPlantName item={item} />}
-        </PlantTag> : <span className="block whitespace-normal text-[13px] font-semibold text-foreground [overflow-wrap:anywhere]">{item.name}</span>}
-      </PlantTag>
+            onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`}
+            plain={portal} wrap={portal} className={portal ? 'text-[13px] font-semibold text-foreground' : undefined} />
+        </span> : <span className="block whitespace-normal text-[13px] font-semibold text-foreground [overflow-wrap:anywhere]">{item.name}</span>}
+      </span>
       <div className="px-1">
         <LineStatusPicker
           item={item}
@@ -1036,7 +1050,6 @@ function LineRow({
           drawerModal={drawerModal}
         />
       </div>
-      {focused && supplierNote}
       <AnswerCell
         value={item.unitPrice == null ? '' : String(item.unitPrice)}
         editable={editable}
@@ -1046,16 +1059,17 @@ function LineRow({
         onCommit={commit('unit_price')}
         plain={portal}
         attention={portal && item.unitPrice == null}
+        ariaLabel={`Line ${item.id} price per unit`}
       />
       {/* Quantity × price, never typed — an em dash until the answer carries
           both, so a half-answered line doesn't read as costing nothing. The
           portal drawing leaves it to the subtotal strip. */}
       {!portal && (
-        <span className="truncate px-1 text-right text-[12.5px] font-semibold tabular-nums text-foreground">
+        <span className="truncate px-1 text-right text-[12.5px] font-semibold tabular-nums text-foreground" title={money(arLineTotal(item)) || undefined}>
           {money(arLineTotal(item)) || <span className="font-normal text-lps-dim">—</span>}
         </span>
       )}
-      {!focused && supplierNote}
+      {supplierNote}
     </div>
   )
 }
@@ -1086,7 +1100,7 @@ export function ARLineTable<T extends ARItem>({
   onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
-  /** `portal`: no totals; `focused-job`: adjacent quantities and narrower Plant. */
+  /** `portal`: no Line total column or subtotal footer. */
   design?: LineTableDesign
   /** Render only the stacked phone cards; false preserves the exact table DOM. */
   mobileCards?: boolean
@@ -1102,11 +1116,10 @@ export function ARLineTable<T extends ARItem>({
 }) {
   const subtotal = arSubtotal(items)
   const portal = design === 'portal'
-  const focused = design === 'focused-job'
   const lead = leadingHeader != null && renderLeading != null
-  const base = portal ? PORTAL_COLUMNS : focused ? FOCUSED_COLUMNS : LINE_COLUMNS
+  const base = portal ? PORTAL_COLUMNS : LINE_COLUMNS
   const columns = lead ? `${LEAD_COLUMN} ${base}` : base
-  const minWidth = (portal ? PORTAL_GRID_MIN : focused ? FOCUSED_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
+  const minWidth = (portal ? PORTAL_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
   const mobile = (
     <div className="min-w-0 space-y-3" data-testid="availability-mobile-lines">
           {items.length === 0 && (
@@ -1154,7 +1167,6 @@ export function ARLineTable<T extends ARItem>({
                       <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
                         onCommit={detail('name')} ariaLabel={`${lineName} plant name`} touch />
                     </label>
-                    {focused && <div className="col-span-2"><FullPlantName item={item} /></div>}
                     <label className="flex min-w-0 flex-col gap-1">
                       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Requested size</span>
                       <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
@@ -1188,7 +1200,6 @@ export function ARLineTable<T extends ARItem>({
                       />
                     </span>
                   </label>
-                  {focused && supplierNote}
                   <label className="flex min-w-0 flex-col gap-1">
                     <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Available qty</span>
                     <AnswerCell
@@ -1217,7 +1228,7 @@ export function ARLineTable<T extends ARItem>({
                       touch
                     />
                   </label>
-                  {!focused && supplierNote}
+                  {supplierNote}
                   {!portal && <div className="col-span-2 flex items-center justify-between gap-3 border-t border-lps-hair pt-2 text-[12px]">
                     <span className="font-bold uppercase tracking-[.04em] text-muted-foreground">Line total</span>
                     <span className="font-bold tabular-nums text-foreground">{money(arLineTotal(item)) || '—'}</span>
@@ -1251,10 +1262,9 @@ export function ARLineTable<T extends ARItem>({
         <span className="px-1">Size</span>
         <span className="px-1">Plant</span>
         <span className="px-1">Status</span>
-        {focused && <span className="px-1">Note for supplier</span>}
         <span className="px-1 text-right">Price</span>
         {!portal && <span className="px-1 text-right">Line total</span>}
-        {!focused && <span className="px-1">Note for supplier</span>}
+        <span className="px-1">Note for supplier</span>
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">
@@ -1281,11 +1291,11 @@ export function ARLineTable<T extends ARItem>({
             className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
             style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
           >
-            {/* The label spans everything up to Line total, including the note
-                for focused Job entry; the amount stays under that column. */}
+            {/* The label spans everything up to Line total, so it still sits
+                directly under Price whether or not there is a leading column. */}
             <span
               className="px-1 text-right text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-              style={{ gridColumn: focused ? (lead ? '1 / 9' : '1 / 8') : (lead ? '1 / 8' : '1 / 7') }}
+              style={{ gridColumn: lead ? '1 / 8' : '1 / 7' }}
             >
               Subtotal
             </span>

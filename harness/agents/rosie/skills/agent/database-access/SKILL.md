@@ -1,37 +1,31 @@
 ---
 name: database-access
-description: Read relevant schema and use guarded SQL/storage CLIs. Includes schema selector, query and upload references. Use before database queries or file storage operations. (v1.2.0)
+description: Read and write the LPS database safely. Includes read-only helpers (job-snapshot, ar-snapshot), the guarded note writer (set-note), the schema selector, the data-model map, SQL rules and file storage. Use before any database query, write or upload. (v2.0.0)
 metadata:
   author: lps
-  version: "1.2.0"
+  version: "2.0.0"
 ---
 
 # Database access
 
-1. Read just the required current schema from the shared symlink:
+Paths are relative to the agent root. Use a helper first; it is one call
+instead of several hand-written queries.
 
-   ```sh
-   skills/agent/database-access/scripts/schema --list
-   skills/agent/database-access/scripts/schema inventory suppliers rpc:search_inventory
-   ```
+| Need | Command |
+|---|---|
+| Everything about a job: row, lines, recent changes, AR lines, order lines | `skills/agent/database-access/scripts/job-snapshot <jobId> [--item <id>] [--changes N]` |
+| One AR: header, linked jobs, lines, answers, allocations | `skills/agent/database-access/scripts/ar-snapshot <arId>` |
+| Change a note safely (guarded; text from a file) | `skills/agent/database-access/scripts/set-note --table T --id N --field F ...` (see `--help`) |
+| A plant's price and all its listed sizes | `skills/agent/plant-and-supplier-search/scripts/aps-price "<name>" --size "3 G"` |
+| Render a quote from saved rows | `skills/agent/quote-generation/scripts/quote-job <jobId>` |
+| Table or function details | `skills/agent/database-access/scripts/schema <table> rpc:<function>` (`--list` for names) |
 
-   The selector prints source text without copying it. Unknown topics fail.
-   Use exact table/topic names from `--list`; do not guess aliases such as
-   `jobs`, old column names, or RPC signatures from session history. For thread
-   evidence select `threads` and `thread_messages` before querying them.
-   Reread affected topics after schema changes, not before every identical query.
-2. Read [SQL usage](artifacts/query.md) on first use or command errors. Choose
-   explicit columns and limits; batch related reads. Use `--csv` for processing
-   and return only counts, exceptions and selected records to the model.
-   Read recent transcript rows by known thread/id and a bounded sequence or
-   time window; expand only for missing evidence. Avoid `to_jsonb(row)`/`SELECT *`
-   for jobs, audits or transcripts when a few fields answer the question.
-   Use SQL files or quoted stdin for literal text/currency; see the query example.
-3. Business writes require the owning task skill, current rows and guarded
-   updates. Never write generated/derived columns, audit rows or bypass guards.
-   Rosie sets `app.actor = 'rosie'` in every write invocation.
-4. For uploads or signed links read [storage](artifacts/storage.md).
-5. Verify row counts/saved values or upload status before reporting success.
-   For schema discrepancies inspect the catalog and correct the verified
-   reference through its shared symlink (the existing schema-maintenance
-   exception to shared-doc ownership). Never replace it or keep a private copy.
+- Don't read `knowledge/files/SCHEMA.md` whole; use `schema`.
+- Read the [data model](artifacts/data-model.md) once per task if you're
+  unsure how tables link, and for the write rules.
+- Read [SQL rules](artifacts/query.md) before writing your own SQL or after a
+  query error.
+- Uploads and signed links: [storage](artifacts/storage.md).
+- Business rules and approvals live in the task skills (`job-requests`,
+  `supplier-coordination`). Being able to run a statement is not permission.
+- Verify row counts and saved values before reporting success.
