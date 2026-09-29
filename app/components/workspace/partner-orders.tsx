@@ -24,7 +24,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const revision = useRef(0)
   const loadController = useRef<AbortController | null>(null)
-  const [statuses, setStatuses] = useState<OrderFilter[]>(['new', 'processing', 'order_ready'])
+  const [statuses, setStatuses] = useState<OrderFilter[]>(['new', 'processing'])
   const [view, setView] = useState<OrderView>('order')
 
   const loadOrders = useCallback(async () => {
@@ -45,7 +45,7 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
   }, [supplierId])
 
   useEffect(() => {
-    setOrders([]); setSupplierName(null); setLoading(true); setError(null); setStatuses(['new', 'processing', 'order_ready']); setView('order')
+    setOrders([]); setSupplierName(null); setLoading(true); setError(null); setStatuses(['new', 'processing']); setView('order')
     void loadOrders()
     const refresh = () => { if (document.visibilityState === 'visible') void loadOrders() }
     const timer = window.setInterval(refresh, 30000)

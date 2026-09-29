@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, applying supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v6.0.0)
+description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, applying supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v6.1.0)
 metadata:
   author: lps
-  version: "6.0.0"
+  version: "6.1.0"
 ---
 
 # Job requests

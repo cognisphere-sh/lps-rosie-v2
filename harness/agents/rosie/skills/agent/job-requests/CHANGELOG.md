@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 6.1.0 — 2026-09-28
+
+- Chris's JR-85 feedback (11:09 CDT): omit internal price-list notes when APS matches the exact requested plant and size, including equivalent common/botanical names; keep concise price basis only for a different variant or plant. Removed redundant JR-85 notes.
+
 ## 6.0.0 — 2026-09-28
 
 - Rewrite in plain language; same rules, one owner each. Artifacts merged to intake, pricing, notes, supplier-responses, orders, lifecycle (requested-options, writes, direct/allocated orders, order-changes, record-names, customer-updates folded in). notes.md now owns all three note fields (customer/internal/supplier) with Chris's examples. Resolved contradictions in favour of Chris's latest explicit words: every APS submission updates job lines (JR-72 + JR-78 "Always do this"), different-size answers show the offered size and its own price, missing quantity = 1 + `How many?`, per-pot pricing for flats, plan "Sub" remarks kept verbatim, short customer questions allowed, line changes go in internal notes. Order change log now appends to `orders.note_for_supplier` (`orders.notes` was renamed by migration 0111). Snapshot helper `job-snapshot` added to every task.

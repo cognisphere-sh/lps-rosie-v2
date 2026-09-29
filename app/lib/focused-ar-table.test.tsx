@@ -87,8 +87,8 @@ function table(root: ParentNode) {
   return { head, row: head.nextElementSibling as HTMLElement, footer: head.parentElement!.lastElementChild as HTMLElement }
 }
 const labels = (head: HTMLElement) => [...head.children].map(node => node.textContent)
-const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Note for supplier']
-const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Price', 'Line total', 'Note for supplier']
+const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
+const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
 
 test('focused Job header chip opens the portal drawing and summary strip; ordinary opens restore default even for same AR', async () => {
   const events: unknown[] = []
@@ -99,7 +99,9 @@ test('focused Job header chip opens the portal drawing and summary strip; ordina
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
   const { head, row } = table(document.body)
   assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
-  assert.equal(head.style.minWidth, '960px')
+  await waitFor(() => assert.ok(parseInt(table(document.body).head.style.minWidth, 10) > 916))
+  assert.equal(row.children[5].getAttribute('aria-label'), 'Line 19 supplier notes')
+  assert.equal(row.children[6].getAttribute('aria-label'), 'Line 19 price per unit')
   assert.ok(within(document.body).getByText('Total Items'))
   assert.equal(within(document.body).queryByText('Line total'), null)
   assert.ok(view.getByText('Other Job', { exact: false }))
@@ -166,6 +168,7 @@ test('focused drawer edits name, size, need, price and note inline through the a
   render(<AvailabilityRequestDrawer />)
   act(() => openAvailabilityRequest(84, 'focused-job'))
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
+  await waitFor(() => assert.ok(parseInt(table(document.body).head.style.minWidth, 10) > 916))
   const user = userEvent.setup({ document })
   const edit = async (name: string, value: string) => {
     const field = within(table(document.body).row).getByRole('textbox', { name })
@@ -242,18 +245,17 @@ test('an editable cell shows its full text as a hover tooltip only when clipped'
   assert.deepEqual(writes, [])
 })
 
-test('portal drawing wraps Plant and Size instead of clipping, saves them on Enter, and clamps only Notes', async () => {
+test('portal drawing clips Plant, wraps Size, saves them on Enter, and clamps Notes', async () => {
   const saved: unknown[] = []
   const view = render(<ARLineTable items={[item]} editable design="portal"
     onPatch={async () => {}} onPatchDetails={async (...args) => { saved.push(args) }} />)
-  const name = view.getByRole('textbox', { name: 'Line 19 plant name' }) as HTMLTextAreaElement
+  const name = view.getByRole('textbox', { name: 'Line 19 plant name' }) as HTMLInputElement
   const size = view.getByRole('textbox', { name: 'Line 19 requested size' })
   const note = view.getByRole('textbox', { name: 'Line 19 supplier notes' })
-  for (const field of [name, size]) {
-    assert.equal(field.tagName, 'TEXTAREA')
-    assert.match(field.className, /whitespace-pre-wrap/)
-    assert.doesNotMatch(field.className, /whitespace-nowrap/)
-  }
+  assert.equal(name.tagName, 'INPUT')
+  assert.match(name.className, /truncate/)
+  assert.equal(size.tagName, 'TEXTAREA')
+  assert.match(size.className, /whitespace-pre-wrap/)
   assert.match(note.className, /whitespace-nowrap/)
   assert.match(note.className, /focus:whitespace-pre-wrap/)
   const user = userEvent.setup({ document })
@@ -261,4 +263,34 @@ test('portal drawing wraps Plant and Size instead of clipping, saves them on Ent
   await user.type(name, 'Quercus alba{Enter}')
   assert.equal(name.value, 'Quercus alba')
   assert.deepEqual(saved, [[19, { name: 'Quercus alba' }]])
+})
+
+test('AR columns fit the full plant name and retain a dragged, resized layout', async () => {
+  const first = render(<ARLineTable items={[item]} editable={false} design="portal" />)
+  await waitFor(() => assert.ok(parseInt(table(first.container).head.style.gridTemplateColumns.split(' ')[3], 10) > 200))
+  const initialPlantWidth = parseInt(table(first.container).head.style.gridTemplateColumns.split(' ')[3], 10)
+  const data = new Map<string, string>()
+  const dataTransfer = {
+    setData: (type: string, value: string) => data.set(type, value),
+    getData: (type: string) => data.get(type) ?? '',
+    effectAllowed: 'move', dropEffect: 'move',
+  }
+  fireEvent.dragStart(first.getByText('Unit price'), { dataTransfer })
+  fireEvent.drop(first.getByText('Note').parentElement!, { dataTransfer })
+  assert.deepEqual(labels(table(first.container).head), ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note'])
+  assert.equal(table(first.container).row.children[5].getAttribute('title'), '$12.50')
+  assert.equal(table(first.container).row.children[6].getAttribute('title'), supplierNote)
+
+  fireEvent.mouseDown(first.getByRole('separator', { name: 'Resize Plant' }), { clientX: 100 })
+  fireEvent.mouseMove(document, { clientX: 150 })
+  fireEvent.mouseUp(document)
+  await waitFor(() => assert.equal(
+    parseInt(table(first.container).head.style.gridTemplateColumns.split(' ')[3], 10), initialPlantWidth + 50,
+  ))
+  first.unmount()
+
+  const second = render(<ARLineTable items={[item]} editable={false} design="portal" />)
+  await waitFor(() => assert.deepEqual(labels(table(second.container).head),
+    ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note']))
+  assert.equal(parseInt(table(second.container).head.style.gridTemplateColumns.split(' ')[3], 10), initialPlantWidth + 50)
 })

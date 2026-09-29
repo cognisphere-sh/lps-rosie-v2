@@ -5,7 +5,7 @@
 // the answers are read). Nothing here knows which side it is on beyond the
 // `editable` prop on the line table.
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import {
@@ -26,34 +26,103 @@ import { ChevronDown } from '@/components/workspace/icons'
 import { money, num } from '@/lib/format'
 import { toneDot, toneStyle, toneTint, type Tone } from '@/lib/job-requests'
 import { cn } from '@/lib/utils'
+import { reorder } from '@/lib/table-config'
 
-/** Need · Avail qty · Size · Plant · Status · Price · Line total · Notes. */
-const LINE_COLUMNS =
-  '56px 90px 90px 220px 150px 100px 100px minmax(200px,1fr)'
-/** Track minima + gaps + row padding/left accent; below this the table scrolls. */
-const GRID_MIN = 1090
+const AR_COLUMN_KEYS = ['need', 'avail', 'size', 'plant', 'status', 'note', 'unit_price'] as const
+type ARColumnKey = (typeof AR_COLUMN_KEYS)[number]
+const AR_COLUMN_LABELS: Record<ARColumnKey, string> = {
+  need: 'Need', avail: 'Avail qty', size: 'Size', plant: 'Plant',
+  status: 'Status', note: 'Note', unit_price: 'Unit price',
+}
+const AR_COLUMN_MIN: Record<ARColumnKey, number> = {
+  need: 56, avail: 68, size: 72, plant: 88, status: 110, note: 160, unit_price: 90,
+}
+const AR_LAYOUT_KEY = 'lps.ar.columns.v1'
+type ARLayout = { order: ARColumnKey[]; widths: Partial<Record<ARColumnKey, number>> }
+const defaultARLayout = (): ARLayout => ({ order: [...AR_COLUMN_KEYS], widths: {} })
+
+function readARLayout(): ARLayout {
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(AR_LAYOUT_KEY) ?? 'null')
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return defaultARLayout()
+    const candidate = saved as Partial<ARLayout>
+    const order = Array.isArray(candidate.order)
+      ? candidate.order.filter((key): key is ARColumnKey => AR_COLUMN_KEYS.includes(key as ARColumnKey))
+      : []
+    const widths = Object.fromEntries(Object.entries(candidate.widths ?? {}).filter(([key, width]) =>
+      AR_COLUMN_KEYS.includes(key as ARColumnKey) && typeof width === 'number' && Number.isFinite(width),
+    )) as ARLayout['widths']
+    return { order: [...new Set(order), ...AR_COLUMN_KEYS.filter((key) => !order.includes(key))], widths }
+  } catch { return defaultARLayout() }
+}
+
+/** Measure the rendered plant text, including wide Unicode characters. */
+function measurePlantWidth(items: ARItem[]): number {
+  const probe = document.createElement('span')
+  probe.className = 'text-[13px] font-semibold'
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;pointer-events:none'
+  document.body.append(probe)
+  let width = 88
+  for (const item of items) {
+    probe.textContent = item.name
+    const measured = probe.getBoundingClientRect().width
+    // JSDOM has no text layout; the estimate also covers the first server render.
+    const estimate = [...item.name].reduce((sum, char) => sum + (char.charCodeAt(0) > 255 ? 14 : /[MW]/.test(char) ? 11 : 7.5), 0)
+    width = Math.max(width, Math.ceil((measured || estimate) + 24))
+  }
+  probe.remove()
+  return width
+}
 
 // A caller may put one column of its own in front of Need — the By-item view
 // uses it for the job a line came from, because there a table holds lines from
 // several requests at once. Everything after it stays exactly as it is here,
 // so the two tables are the same table.
-/** The leading column's track, when one is asked for. */
 const LEAD_COLUMN = '210px'
-/** Its contribution to the scroll threshold: the track minimum plus its gap. */
-const LEAD_MIN = 218
-
-// The portal's request page (2026-08-30 design) draws the same table without
-// the Line total column: Need · Avail qty · Size ·
-// Plant · Status · Price · Note for supplier over plain hairlines.
-/** The portal design's tracks — the default's, less Line total. Plant and
- *  Size get the room (they wrap rather than clip); Notes is the one column
- *  that truncates, to one line with its full text on hover. */
-const PORTAL_COLUMNS = '64px 80px 110px minmax(240px,2fr) 150px 90px minmax(160px,1fr)'
-const PORTAL_GRID_MIN = 960
 /** The focused `/jobs` drawer opts into the portal drawing; other admin callers keep the default. */
 type LineTableDesign = 'default' | 'portal'
 /** The portal drawing's one accent: what still needs a price. */
 const PORTAL_PURPLE = '#8F7CF6'
+
+function ARColumnHeader({ column, width, onMove, onResize }: {
+  column: ARColumnKey
+  width: number
+  onMove: (from: ARColumnKey, to: ARColumnKey) => void
+  onResize: (column: ARColumnKey, width: number) => void
+}) {
+  const label = AR_COLUMN_LABELS[column]
+  const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const startX = event.clientX
+    const startWidth = event.currentTarget.parentElement?.getBoundingClientRect().width || width
+    const move = (next: MouseEvent) => onResize(column, startWidth + next.clientX - startX)
+    const stop = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', stop)
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', stop)
+  }
+  return (
+    <div className={cn('relative min-w-0 px-1', ['need', 'avail'].includes(column) && 'text-center', column === 'unit_price' && 'text-right')}
+      onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
+      onDrop={(event) => {
+        event.preventDefault()
+        const from = event.dataTransfer.getData('text/plain') as ARColumnKey
+        if (AR_COLUMN_KEYS.includes(from) && from !== column) onMove(from, column)
+      }}
+    >
+      <span draggable onDragStart={(event) => {
+        event.dataTransfer.setData('text/plain', column)
+        event.dataTransfer.effectAllowed = 'move'
+      }} title={`${label} — drag to reorder`} className="block cursor-grab truncate active:cursor-grabbing">{label}</span>
+      <div role="separator" aria-label={`Resize ${label}`} aria-orientation="vertical"
+        onMouseDown={startResize}
+        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-lps-edge" />
+    </div>
+  )
+}
 
 
 /**
@@ -366,14 +435,15 @@ function PortalResponseSelect({
         }}
         onKeyDown={onTriggerKeyDown}
         className={cn(
-          'inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          'inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
           touch ? 'min-h-11 w-full justify-between text-[14px]' : 'min-h-8 text-[12px]',
         )}
         style={value ? { color: toneDot(tone) } : undefined}
+        title={arResponseLabel(value)}
       >
         {!value && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
-        <span>{arResponseLabel(value)}</span>
-        <ChevronDown aria-hidden="true" className="size-3 opacity-70" />
+        <span className="min-w-0 truncate">{arResponseLabel(value)}</span>
+        <ChevronDown aria-hidden="true" className="size-3 shrink-0 opacity-70" />
       </button>
       {open && typeof document !== 'undefined' && createPortal(
         <div
@@ -445,21 +515,22 @@ function ResponseSelect({
   return (
     <span
       className={cn(
-        'relative inline-flex items-center gap-1.5',
+        'relative inline-flex max-w-full min-w-0 items-center gap-1.5',
         portal
           ? 'min-h-8 rounded-full border border-border bg-secondary/60 px-3 text-[12px] font-medium text-muted-foreground'
           : cn('rounded-full px-2.5 py-1 text-[11px] font-bold', touch && 'min-h-11'),
         !disabled && 'cursor-pointer',
       )}
       style={portal ? (value ? { color: toneDot(tone) } : undefined) : toneStyle(tone)}
+      title={portal ? arResponseLabel(value) : undefined}
     >
       {portal ? (
         !value && <span className="text-[10px] tracking-[.1em] text-lps-dim">···</span>
       ) : (
         <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
       )}
-      {arResponseLabel(value)}
-      {portal && <ChevronDown className="size-3 opacity-70" />}
+      <span className={portal ? 'min-w-0 truncate' : undefined}>{arResponseLabel(value)}</span>
+      {portal && <ChevronDown className="size-3 shrink-0 opacity-70" />}
       {!disabled && (
         <select
           aria-label={ariaLabel}
@@ -496,7 +567,7 @@ export function AnswerCell({
 }: {
   value: string
   editable: boolean
-  align?: 'left' | 'right'
+  align?: 'left' | 'center' | 'right'
   placeholder: string
   /** How the committed value reads when not editable (money, thousands). */
   display: string
@@ -535,6 +606,7 @@ export function AnswerCell({
           touch ? 'text-[14px]' : 'text-[12.5px]',
           clamp ? 'truncate' : touch || multiline || wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'truncate',
           align === 'right' && 'text-right',
+          align === 'center' && 'text-center',
           display ? 'text-foreground' : 'text-lps-dim',
         )}
         title={display || undefined}
@@ -579,6 +651,7 @@ export function AnswerCell({
           : 'border border-input bg-background focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/50',
         plain && !attention && 'border-transparent hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
         align === 'right' && 'text-right tabular-nums',
+        align === 'center' && 'text-center tabular-nums',
         className,
       )}
       style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
@@ -939,6 +1012,7 @@ function LineRow({
   onPatchDetails,
   displayText = (text) => text,
   columns,
+  order,
   minWidth,
   leading,
   design = 'default',
@@ -950,6 +1024,7 @@ function LineRow({
   onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   displayText?: (text: string) => string
   columns: string
+  order: ARColumnKey[]
   minWidth: number
   /** Rendered as the row's first cell when the table has a leading column. */
   leading?: ReactNode
@@ -968,7 +1043,7 @@ function LineRow({
     <AnswerCell
       value={item.availableQuantity == null ? '' : String(item.availableQuantity)}
       editable={editable}
-      align="right"
+      align="center"
       placeholder={portal ? '—' : 'Qty'}
       display={num(item.availableQuantity)}
       onCommit={commit('available_quantity')}
@@ -993,6 +1068,38 @@ function LineRow({
   // bar and a tint over the whole row, so a scanned table reads by colour.
   // An unanswered line is grey — pending is a real state, not an absence.
   const tone = arResponseTone(item.status)
+  const cells: Record<ARColumnKey, ReactNode> = {
+    need: editDetails ? (
+      <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable align="center"
+        placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
+        ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal"
+        plain={portal} className={portal ? 'font-semibold text-foreground' : undefined} />
+    ) : <span className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground">
+      {num(item.demandedQuantity) || '—'}
+    </span>,
+    avail: availableQuantity,
+    size: editDetails ? (
+      <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
+        onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} plain={portal} wrap={portal} />
+    ) : <span className={cn('px-1 text-[12px] text-muted-foreground', portal ? '[overflow-wrap:anywhere]' : 'truncate')} title={item.size ?? undefined}>
+      {item.size ?? '—'}
+    </span>,
+    plant: <span className="min-w-0 px-1" title={item.name}>
+      {editDetails ? <span className="flex flex-col gap-1">
+        <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
+          onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`}
+          plain={portal} className={portal ? 'truncate text-[13px] font-semibold text-foreground' : undefined} />
+      </span> : <span className={cn('block text-[13px] font-semibold text-foreground', portal ? 'truncate' : 'whitespace-normal [overflow-wrap:anywhere]')}>{item.name}</span>}
+    </span>,
+    status: <div className="px-1">
+      <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} drawerModal={drawerModal} />
+    </div>,
+    note: supplierNote,
+    unit_price: <AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} editable={editable}
+      align="right" placeholder={portal ? '-' : '$/unit'} display={money(item.unitPrice)}
+      onCommit={commit('unit_price')} plain={portal} attention={portal && item.unitPrice == null}
+      ariaLabel={`Line ${item.id} price per unit`} />,
+  }
   return (
     <div
       className="grid items-center gap-x-2 border-b border-lps-hair last:border-b-0"
@@ -1019,57 +1126,7 @@ function LineRow({
       }
     >
       {leading}
-      {editDetails ? (
-        <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable
-          placeholder="Qty" display={num(item.demandedQuantity)} onCommit={detail('demanded_quantity')}
-          ariaLabel={`Line ${item.id} requested quantity`} inputMode="decimal"
-          plain={portal} className={portal ? 'font-semibold text-foreground' : undefined} />
-      ) : <span className="px-1 text-[12.5px] font-semibold tabular-nums text-foreground">
-        {num(item.demandedQuantity) || '—'}
-      </span>}
-      {availableQuantity}
-      {editDetails ? (
-        <AnswerCell value={item.size ?? ''} editable placeholder="Size" display={item.size ?? ''}
-          onCommit={detail('size')} ariaLabel={`Line ${item.id} requested size`} plain={portal} wrap={portal} />
-      ) : <span className={cn('px-1 text-[12px] text-muted-foreground', portal ? '[overflow-wrap:anywhere]' : 'truncate')} title={item.size ?? undefined}>
-        {item.size ?? '—'}
-      </span>}
-      <span className="min-w-0 px-1" title={item.name}>
-        {editDetails ? <span className="flex flex-col gap-1">
-          <AnswerCell value={item.name} editable placeholder="Plant name" display={item.name}
-            onCommit={detail('name')} ariaLabel={`Line ${item.id} plant name`}
-            plain={portal} wrap={portal} className={portal ? 'text-[13px] font-semibold text-foreground' : undefined} />
-        </span> : <span className="block whitespace-normal text-[13px] font-semibold text-foreground [overflow-wrap:anywhere]">{item.name}</span>}
-      </span>
-      <div className="px-1">
-        <LineStatusPicker
-          item={item}
-          editable={editable}
-          onPatch={onPatch}
-          portal={portal}
-          drawerModal={drawerModal}
-        />
-      </div>
-      <AnswerCell
-        value={item.unitPrice == null ? '' : String(item.unitPrice)}
-        editable={editable}
-        align="right"
-        placeholder={portal ? '-' : '$/unit'}
-        display={money(item.unitPrice)}
-        onCommit={commit('unit_price')}
-        plain={portal}
-        attention={portal && item.unitPrice == null}
-        ariaLabel={`Line ${item.id} price per unit`}
-      />
-      {/* Quantity × price, never typed — an em dash until the answer carries
-          both, so a half-answered line doesn't read as costing nothing. The
-          portal drawing leaves it to the subtotal strip. */}
-      {!portal && (
-        <span className="truncate px-1 text-right text-[12.5px] font-semibold tabular-nums text-foreground" title={money(arLineTotal(item)) || undefined}>
-          {money(arLineTotal(item)) || <span className="font-normal text-lps-dim">—</span>}
-        </span>
-      )}
-      {supplierNote}
+      {order.map((key) => <Fragment key={key}>{cells[key]}</Fragment>)}
     </div>
   )
 }
@@ -1100,7 +1157,7 @@ export function ARLineTable<T extends ARItem>({
   onPatchDetails?: (itemId: number, changes: Record<string, string>) => Promise<void>
   /** Portal-only transform for LPS notes; admin callers leave it unset. */
   displayText?: (text: string) => string
-  /** `portal`: no Line total column or subtotal footer. */
+  /** `portal`: compact columns and no subtotal footer. */
   design?: LineTableDesign
   /** Render only the stacked phone cards; false preserves the exact table DOM. */
   mobileCards?: boolean
@@ -1117,9 +1174,29 @@ export function ARLineTable<T extends ARItem>({
   const subtotal = arSubtotal(items)
   const portal = design === 'portal'
   const lead = leadingHeader != null && renderLeading != null
-  const base = portal ? PORTAL_COLUMNS : LINE_COLUMNS
+  const [layout, setLayout] = useState<ARLayout>(defaultARLayout)
+  const [layoutLoaded, setLayoutLoaded] = useState(false)
+  const [plantWidth, setPlantWidth] = useState(88)
+  useEffect(() => { setLayout(readARLayout()); setLayoutLoaded(true) }, [])
+  useEffect(() => {
+    if (!layoutLoaded) return
+    try { window.localStorage.setItem(AR_LAYOUT_KEY, JSON.stringify(layout)) } catch { /* Private mode. */ }
+  }, [layout, layoutLoaded])
+  useEffect(() => { setPlantWidth(measurePlantWidth(items)) }, [items])
+
+  const defaultWidths: Record<ARColumnKey, number> = portal
+    ? { need: 56, avail: 68, size: 82, plant: plantWidth, status: 140, note: 200, unit_price: 90 }
+    : { need: 56, avail: 90, size: 90, plant: plantWidth, status: 150, note: 200, unit_price: 100 }
+  const widthOf = (key: ARColumnKey) => Math.max(AR_COLUMN_MIN[key], layout.widths[key] ?? defaultWidths[key])
+  const base = layout.order.map((key) => key === 'note' && layout.widths.note == null
+    ? 'minmax(200px,1fr)' : `${widthOf(key)}px`).join(' ')
   const columns = lead ? `${LEAD_COLUMN} ${base}` : base
-  const minWidth = (portal ? PORTAL_GRID_MIN : GRID_MIN) + (lead ? LEAD_MIN : 0)
+  const minWidth = layout.order.reduce((sum, key) => sum + widthOf(key), 0)
+    + (layout.order.length - 1) * 8 + (portal ? 32 : 24) + (lead ? 218 : 0)
+  const moveColumn = (from: ARColumnKey, to: ARColumnKey) =>
+    setLayout((current) => ({ ...current, order: reorder(current.order, from, to) as ARColumnKey[] }))
+  const resizeColumn = (key: ARColumnKey, width: number) =>
+    setLayout((current) => ({ ...current, widths: { ...current.widths, [key]: Math.max(AR_COLUMN_MIN[key], Math.round(width)) } }))
   const mobile = (
     <div className="min-w-0 space-y-3" data-testid="availability-mobile-lines">
           {items.length === 0 && (
@@ -1257,14 +1334,8 @@ export function ARLineTable<T extends ARItem>({
         style={{ gridTemplateColumns: columns, minWidth, padding: portal ? '16px 16px 14px' : '8px 12px' }}
       >
         {lead && <span className="px-1">{leadingHeader}</span>}
-        <span className="px-1">Need</span>
-        <span className="px-1 text-right">Avail qty</span>
-        <span className="px-1">Size</span>
-        <span className="px-1">Plant</span>
-        <span className="px-1">Status</span>
-        <span className="px-1 text-right">Price</span>
-        {!portal && <span className="px-1 text-right">Line total</span>}
-        <span className="px-1">Note for supplier</span>
+        {layout.order.map((key) => <ARColumnHeader key={key} column={key} width={widthOf(key)}
+          onMove={moveColumn} onResize={resizeColumn} />)}
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">
@@ -1280,6 +1351,7 @@ export function ARLineTable<T extends ARItem>({
           onPatchDetails={onPatchDetails}
           displayText={displayText}
           columns={columns}
+          order={layout.order}
           minWidth={minWidth}
           leading={lead ? renderLeading(item) : undefined}
           design={design}
@@ -1287,21 +1359,10 @@ export function ARLineTable<T extends ARItem>({
         />
       ))}
         {items.length > 0 && !portal && (
-          <div
-            className="grid items-center gap-x-2 border-t border-border bg-lps-headrow"
-            style={{ gridTemplateColumns: columns, minWidth, padding: '8px 12px' }}
-          >
-            {/* The label spans everything up to Line total, so it still sits
-                directly under Price whether or not there is a leading column. */}
-            <span
-              className="px-1 text-right text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
-              style={{ gridColumn: lead ? '1 / 8' : '1 / 7' }}
-            >
-              Subtotal
-            </span>
-            <span className="px-1 text-right text-[13px] font-bold tabular-nums text-foreground">
-              {money(subtotal) || '—'}
-            </span>
+          <div className="flex items-center justify-end gap-3 border-t border-border bg-lps-headrow px-3 py-2"
+            style={{ minWidth }}>
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground">Subtotal</span>
+            <span className="text-[13px] font-bold tabular-nums text-foreground">{money(subtotal) || '—'}</span>
           </div>
         )}
     </div>

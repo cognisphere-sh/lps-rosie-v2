@@ -24,6 +24,7 @@ How to use a rule:
 | Texas Sage (generic), other sizes | The APS Green Cloud and Compact Texas Sage price for that size | Only when **both** list that exact size at the **same** price. Use an exact generic Texas Sage listing first if one exists. Green Cloud is not the same plant as generic Texas Sage. | JR-82 2026-09-25 |
 | Lantana, any color | APS Lantana of the same size and form (trailing vs upright/regular) | Color never changes the price. If APS lists only a plain `Lantana` at that size (no form), use it and note `Lantana 1 G price` internally (Chris did this for Texas lantana 1 G at $7). | JR-65 2026-09-21; JR-82 2026-09-25 |
 | Gold Rush Lantana 3 G | APS generic Lantana 3 G | Same size only. | JR-79 2026-09-24 ("use always") |
+| Whirling Butterflies Gaura | APS generic Gaura, same size (1 G $7.95 on 2026-09-28) | Same size only. | JR-85 2026-09-28 ("yes, always") |
 | Rose, any color (e.g. White Drift Rose) | Same-size APS listing of the same rose series (e.g. Rose Drift 3 G) | Same size and series. Ask if two listings give different prices. | JR-61 2026-09-17 |
 | Chilean Mesquite, Honey Mesquite | APS generic `Prosopis Mesquite`, same size/box | Same size or box only. | JR-82 2026-09-25 |
 | Pride of Houston Yaupon | APS generic Yaupon Holly, same size | Same size only. Chris asked for a plant alias too: ask Daisy to add it if search still misses it. | JR-78 2026-09-24 |

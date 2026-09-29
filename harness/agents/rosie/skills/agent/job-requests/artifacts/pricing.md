@@ -14,7 +14,8 @@ job. Use `plant-and-supplier-search` to find prices.
 3. The exact APS listing (same plant, cultivar, size).
 4. A rule in `knowledge/files/price-rules.md`.
 5. A listing with a different name for the same plant (name order, synonym,
-   alias). Use it directly; no question needed.
+   alias). Use it directly; no question or internal note needed when the
+   requested plant and size match exactly.
 
 Nothing fits → leave `unit_price` NULL (never 0) and report the gap.
 A submitted supplier price for the line beats a list price; never replace a

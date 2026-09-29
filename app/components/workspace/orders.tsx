@@ -29,12 +29,11 @@ const orderPalettes = {
   order_ready: ['#126B36', '#EAF8EF', '#25864B', '#79D99B', '#12301F', '#36A463'],
   closed_won: ['#126B36', '#EAF8EF', '#25864B', '#79D99B', '#12301F', '#36A463'],
   closed_lost: ['#A42B32', '#FFF0F1', '#B83D46', '#FFB2B9', '#3D1C22', '#E16A76'],
-  all: ['#1E3B28', '#EDF4EE', '#486251', '#E8E8E8', '#253029', '#9EAEA2'],
 }
 const orderBorder = 'border-[var(--order-border)] dark:border-[var(--order-dark-border)]'
 const orderText = 'text-[var(--order-text)] dark:text-[var(--order-dark-text)]'
 const orderTint = 'bg-[var(--order-bg)] dark:bg-[var(--order-dark-bg)]'
-function orderPalette(status: OrderStatus | 'all'): CSSProperties {
+function orderPalette(status: OrderStatus): CSSProperties {
   const [text, background, border, darkText, darkBackground, darkBorder] = orderPalettes[status]
   return { '--order-text': text, '--order-bg': background, '--order-border': border,
     '--order-dark-text': darkText, '--order-dark-bg': darkBackground, '--order-dark-border': darkBorder } as CSSProperties
@@ -91,13 +90,13 @@ export type OrderFilter = (typeof ORDER_BUCKETS)[number]
 
 export function OrderStatusFilters({ orders, selected, onChange }: { orders: Order[]; selected: readonly OrderFilter[]; onChange: (value: OrderFilter[]) => void }) {
   return <div role="group" aria-label="Order work buckets" className="flex gap-2 overflow-x-auto">
-    {(['all', ...ORDER_BUCKETS] as const).map((status) => {
-      const label = status === 'all' ? 'All' : status === 'order_ready' ? 'Ready' : ORDER_STATUS_META[status].label
-      const count = status === 'all' ? orders.length : orders.filter((order) => order.status === status).length
-      const active = status === 'all' ? ORDER_BUCKETS.every((bucket) => selected.includes(bucket)) : selected.length === 1 && selected.includes(status)
+    {ORDER_BUCKETS.map((status) => {
+      const label = status === 'order_ready' ? 'Ready' : ORDER_STATUS_META[status].label
+      const count = orders.filter((order) => order.status === status).length
+      const active = selected.includes(status)
       return <button key={status} type="button" data-order-bucket={status} aria-pressed={active}
-        aria-label={status === 'all' ? `Select all order buckets, ${count} open orders` : `${label}: ${count} orders, ${active ? 'selected' : 'not selected'}`}
-        onClick={() => onChange(status === 'all' ? [...ORDER_BUCKETS] : [status])}
+        aria-label={`${label}: ${count} orders, ${active ? 'selected' : 'not selected'}`}
+        onClick={() => onChange(active ? selected.filter((value) => value !== status) : [...selected, status])}
         style={orderPalette(status)}
         className={cn('flex w-[9rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2', orderBorder, orderText,
           active ? orderTint : 'bg-transparent hover:bg-[var(--order-bg)] dark:hover:bg-[var(--order-dark-bg)]')}>

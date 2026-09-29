@@ -20,8 +20,12 @@ that keeps history.
   warnings, caveats or explanations.
 - **Current state only.** Replace old facts. Never keep a log of actions,
   approvals, questions asked or decisions rejected.
-- **Don't repeat columns.** Plant, size, quantity, price and status are
-  already shown.
+- **Don't repeat columns or exact-match price-list evidence.** Plant, size,
+  quantity, price and status are already shown. When APS lists the requested
+  plant and size under another common or botanical name, no internal note is
+  needed: `Rosemary Prostrata Trailing` for creeping rosemary 3 G is an exact
+  match. Keep a short price-basis note when pricing a different cultivar or
+  variant from a generic listing.
 - **Sourcing facts only:** cultivar, color, form, acceptable alternatives,
   purchase units, ETA. Leave out spacing, layout, installation, project or
   phase names, and (in customer and supplier notes) customer names.
@@ -67,7 +71,7 @@ Only what Chris needs to decide the next step:
 
 | Situation | Example |
 |---|---|
-| Price came from another listing | `APS generic Crossvine 1 G $8` · `Texas Sedge 1 G priced from APS Sedge 1 G` |
+| Price came from a different plant, variant or size | `Whirling Butterflies Gaura priced from APS generic Gaura` · `Texas Sedge 1 G priced from APS Sedge 1 G` |
 | Requested size not listed (give nearest smaller **and** larger, if both exist) | `3 G not listed; American Beauty Berry 5 G @ $23` · `7 G not listed; Nolina 5 G @ $23, 15 G @ $175` |
 | Supplier answer received | `APS: 7 G only @ $65` |
 | Line changed from the customer's ask | `Req 15 G or 20 G; using 15 G` · `1 flat = 18 x 4" pots` · `Was Pride of Houston Yaupon 30 G` |

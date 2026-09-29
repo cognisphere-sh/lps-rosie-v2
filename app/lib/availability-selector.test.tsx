@@ -462,7 +462,7 @@ test('desktop admin and supplier lines render the merged note once in its column
   const noteForSupplier = 'Single trunk only.\nReady next week.'
   for (const design of ['default', 'portal'] as const) {
     const view = render(<ARLineTable items={[item({ noteForSupplier })]} design={design} editable={false} />)
-    assert.ok(view.getByText('Note for supplier'))
+    assert.ok(view.getByText('Note'))
     const plantCell = view.getByText(item().name).parentElement!
     const note = view.getByTitle(noteForSupplier, { normalizer: (value) => value })
     assert.equal(plantCell.contains(note), false)

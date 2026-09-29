@@ -12,7 +12,6 @@ import {
   REQUEST_BUCKETS,
   RequestBucketControls,
   RequestBucketList,
-  SELECT_ALL_PALETTE,
   requestBucketCounts,
   type RequestBucketId,
   type SemanticPalette,
@@ -139,21 +138,26 @@ test('open and closed request cards use job-card EDD pills without creation date
   assert.equal(view.getByLabelText('Job schedules').textContent, 'EDD—')
 })
 
-test('All is the default and each status selects only its own requests', async () => {
+test('New + Processing is the default and each bucket toggles independently', async () => {
   const user = userEvent.setup({ document })
   const view = render(<BucketHarness requests={mixed} />)
   const group = within(view.getByRole('group', { name: 'Request work buckets' }))
+  assert.equal(group.queryByRole('button', { name: /select all/i }), null)
+  assert.equal(group.getAllByRole('button').length, 3)
+  assert.equal(view.getAllByRole('link').length, 3)
+  assert.ok(group.getByRole('button', { name: 'New: 2 requests, selected' }))
+  assert.ok(group.getByRole('button', { name: 'Processing: 1 requests, selected' }))
+  assert.ok(group.getByRole('button', { name: 'Completed: 2 requests, not selected' }))
+
+  await user.click(group.getByRole('button', { name: 'Completed: 2 requests, not selected' }))
   assert.equal(view.getAllByRole('link').length, 5)
-  assert.equal(group.getByRole('button', { name: 'Select all request buckets, 5 open requests' }).getAttribute('aria-pressed'), 'true')
-  for (const [label, count] of [['New', 2], ['Processing', 1], ['Completed', 2]] as const) {
-    await user.click(group.getByRole('button', { name: `${label}: ${count} requests, not selected` }))
-    assert.equal(view.getAllByRole('link').length, count)
-    assert.ok(view.getAllByRole('link').every((link) => link.getAttribute('aria-label')?.startsWith(label)))
-    await user.click(group.getByRole('button', { name: `${label}: ${count} requests, selected` }))
-    assert.equal(view.getAllByRole('link').length, count)
-  }
-  await user.click(group.getByRole('button', { name: 'Select all request buckets, 5 open requests' }))
-  assert.equal(view.getAllByRole('link').length, 5)
+  await user.click(group.getByRole('button', { name: 'New: 2 requests, selected' }))
+  assert.equal(view.getAllByRole('link').length, 3)
+  assert.ok(view.getAllByRole('link').every((link) => !link.getAttribute('aria-label')?.startsWith('New')))
+  await user.click(group.getByRole('button', { name: 'Processing: 1 requests, selected' }))
+  await user.click(group.getByRole('button', { name: 'Completed: 2 requests, selected' }))
+  assert.equal(view.queryAllByRole('link').length, 0)
+  assert.match(view.getByRole('status').textContent ?? '', /No request buckets selected/)
 })
 
 function relativeLuminance(hex: string) {
@@ -181,7 +185,7 @@ test('every rendered light/dark semantic text, check and border pair passes cont
   const globals = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
   assert.match(globals, /:root \{[\s\S]*?--card: #FFFFFF;/)
   assert.match(globals, /\.dark(?:,\s*[^{}]+)?\s*\{[^{}]*--card: #1A1A1A;/)
-  const selected: RequestBucketId[] = ['new', 'processing', 'submitted']
+  const selected: RequestBucketId[] = []
   const view = render(
     <>
       <RequestBucketControls counts={requestBucketCounts(mixed)} selected={selected} onChange={() => {}} />
@@ -191,7 +195,6 @@ test('every rendered light/dark semantic text, check and border pair passes cont
     </>,
   )
 
-  assertAccessiblePalette('Select all', SELECT_ALL_PALETTE)
   for (const bucket of REQUEST_BUCKETS) {
     assertAccessiblePalette(bucket.label, bucket.palette)
     const control = view.container.querySelector<HTMLElement>(`[data-request-bucket="${bucket.id}"]`)!
@@ -235,19 +238,18 @@ test('empty states distinguish no open work, no selection, hidden results and a 
   assert.match(view.getByRole('status').textContent ?? '', /no active request work/i)
 })
 
-test('All retains submitted requests and single-status filters follow reopened requests', async () => {
+test('the default hides submitted requests until Completed is selected, and filters follow reopened requests', async () => {
   const user = userEvent.setup({ document })
   const view = render(<BucketHarness requests={[request(8, 'processing')]} />)
   assert.ok(view.getByRole('link', { name: 'Processing request: Job 8' }))
 
   view.rerender(<BucketHarness requests={[request(8, 'submitted')]} />)
-  assert.ok(view.getByRole('link', { name: 'Completed request: Job 8' }))
+  assert.equal(view.queryByRole('link'), null)
   assert.ok(view.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
 
   await user.click(view.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
   assert.ok(view.getByRole('link', { name: 'Completed request: Job 8' }))
 
   view.rerender(<BucketHarness requests={[request(8, 'new')]} />)
-  await user.click(view.getByRole('button', { name: 'New: 1 requests, not selected' }))
   assert.ok(view.getByRole('link', { name: 'New request: Job 8' }))
 })

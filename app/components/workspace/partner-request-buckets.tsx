@@ -43,13 +43,8 @@ export const REQUEST_BUCKETS = [
   },
 ] as const satisfies readonly { id: string; label: string; palette: SemanticPalette }[]
 
-export const SELECT_ALL_PALETTE: SemanticPalette = {
-  light: { foreground: '#1E3B28', background: '#EDF4EE', border: '#486251', normal: '#FFFFFF' },
-  dark: { foreground: '#E8E8E8', background: '#253029', border: '#9EAEA2', normal: '#1A1A1A' },
-}
-
 export type RequestBucketId = (typeof REQUEST_BUCKETS)[number]['id']
-export const DEFAULT_REQUEST_BUCKETS: readonly RequestBucketId[] = ['new', 'processing', 'submitted']
+export const DEFAULT_REQUEST_BUCKETS: readonly RequestBucketId[] = ['new', 'processing']
 
 function paletteVariables(palette: SemanticPalette): CSSProperties {
   return {
@@ -88,41 +83,17 @@ export function RequestBucketControls({
   selected: readonly RequestBucketId[]
   onChange: (next: RequestBucketId[]) => void
 }) {
-  const allSelected = REQUEST_BUCKETS.every((bucket) => selected.includes(bucket.id))
-  const total = counts.new + counts.processing + counts.submitted
-
   return (
     <div role="group" aria-label="Request work buckets" className="flex gap-2 overflow-x-auto">
-      <button
-        type="button"
-        onClick={() => onChange(REQUEST_BUCKETS.map((bucket) => bucket.id))}
-        aria-pressed={allSelected}
-        aria-label={`Select all request buckets, ${total} open requests`}
-        className={cn(
-          'flex w-[8rem] min-w-[6.5rem] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2',
-          paletteClasses,
-          allSelected
-            ? selectedPaletteClasses
-            : 'bg-transparent hover:bg-[var(--bucket-light-background)] dark:hover:bg-[var(--bucket-dark-background)]',
-        )}
-        style={paletteVariables(SELECT_ALL_PALETTE)}
-      >
-        <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium">
-          {allSelected && <Check aria-hidden="true" className="size-3.5" />}
-          All
-        </span>
-        <span className="text-[18px] font-semibold tabular-nums leading-tight">{total}</span>
-      </button>
-
       {REQUEST_BUCKETS.map((bucket) => {
-        const isSelected = !allSelected && selected.includes(bucket.id)
+        const isSelected = selected.includes(bucket.id)
         return (
           <button
             key={bucket.id}
             type="button"
             data-request-bucket={bucket.id}
             onClick={() => onChange(
-              [bucket.id],
+              isSelected ? selected.filter((id) => id !== bucket.id) : [...selected, bucket.id],
             )}
             aria-pressed={isSelected}
             aria-label={`${bucket.label}: ${counts[bucket.id]} requests, ${isSelected ? 'selected' : 'not selected'}`}

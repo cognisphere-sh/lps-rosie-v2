@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-28 — partner portal filters are multi-select without All
+
+- Supplier portal Availability Requests (`/partner/:id`) and Orders (`/partner/:id/orders`): removed the **All** filter button. New, Processing and Completed/Ready now toggle independently (orders' buckets were single-choice before); a fresh visit selects New + Processing.
+
 ## 2026-09-28 — Rosie instruction rewrite and helpers
 
 - Rewrote Rosie's deployment prompt and all eight skills in plain language, one owner per rule; instruction text 209K → ~91K characters. `1.1-supabase.md` merged into `database-access`; all note rules now in `job-requests/artifacts/notes.md`; Chris's plant price rules moved from memory and skills into `knowledge/files/price-rules.md`.

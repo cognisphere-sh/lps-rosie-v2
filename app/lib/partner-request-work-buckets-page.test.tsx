@@ -214,10 +214,11 @@ test('actual PartnerHomePage uses exact auth-scoped read, global counts, default
   await view.findByRole('link', { name: 'New request: Job 1' })
   const buckets = view.getByRole('group', { name: 'Request work buckets' })
 
-  assert.ok(within(buckets).getByRole('button', { name: 'New: 1 requests, not selected' }))
-  assert.ok(within(buckets).getByRole('button', { name: 'Processing: 1 requests, not selected' }))
+  assert.ok(within(buckets).getByRole('button', { name: 'New: 1 requests, selected' }))
+  assert.ok(within(buckets).getByRole('button', { name: 'Processing: 1 requests, selected' }))
   assert.ok(within(buckets).getByRole('button', { name: 'Completed: 1 requests, not selected' }))
-  assert.equal(view.getAllByRole('link', { name: /request: Job/ }).length, 3)
+  assert.equal(within(buckets).getAllByRole('button').length, 3)
+  assert.equal(view.getAllByRole('link', { name: /request: Job/ }).length, 2)
   assert.equal(view.queryByRole('link', { name: /Job 4/ }), null)
   assert.ok(view.getByRole('button', { name: /Notifications/ }))
 
@@ -229,7 +230,7 @@ test('actual PartnerHomePage uses exact auth-scoped read, global counts, default
   assert.equal(api.calls.some((call) => /closed|status|filter/.test(call.url)), false)
 })
 
-test('actual page controls remain reachable at 320/390/480/desktop and support keyboard, touch, Select all and fresh remount defaults', async () => {
+test('actual page controls remain reachable at 320/390/480/desktop and support keyboard, touch, multi-select and fresh remount defaults', async () => {
   installFetch(() => json(payload([request(1, 'new'), request(2, 'processing'), request(3, 'submitted')])))
   const user = userEvent.setup({ document })
   const view = renderPage()
@@ -249,13 +250,13 @@ test('actual page controls remain reachable at 320/390/480/desktop and support k
   act(() => completed.focus())
   await user.keyboard(' ')
   assert.ok(view.getByRole('link', { name: 'Completed request: Job 3' }))
-  const processing = within(group).getByRole('button', { name: 'Processing: 1 requests, not selected' })
+  assert.equal(view.getAllByRole('link', { name: /request: Job/ }).length, 3)
+  const processing = within(group).getByRole('button', { name: 'Processing: 1 requests, selected' })
   fireEvent.touchStart(processing)
   fireEvent.touchEnd(processing)
   fireEvent.click(processing)
-  assert.ok(view.getByRole('link', { name: 'Processing request: Job 2' }))
-  const selectAll = within(group).getByRole('button', { name: 'Select all request buckets, 3 open requests' })
-  act(() => selectAll.focus())
+  assert.equal(view.queryByRole('link', { name: 'Processing request: Job 2' }), null)
+  act(() => processing.focus())
   await user.keyboard('{Enter}')
   assert.equal(view.getAllByRole('link', { name: /request: Job/ }).length, 3)
 
@@ -263,7 +264,7 @@ test('actual page controls remain reachable at 320/390/480/desktop and support k
   const fresh = renderPage()
   await fresh.findByRole('link', { name: 'New request: Job 1' })
   assert.ok(fresh.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
-  assert.ok(fresh.getByRole('link', { name: 'Completed request: Job 3' }))
+  assert.equal(fresh.queryByRole('link', { name: 'Completed request: Job 3' }), null)
 })
 
 test('actual fetched snapshots distinguish hidden selections, no selection and a genuinely empty active queue', async () => {
@@ -273,16 +274,16 @@ test('actual fetched snapshots distinguish hidden selections, no selection and a
   const view = renderPage()
   await view.findByRole('link', { name: 'Processing request: Job 2' })
 
-  await user.click(view.getByRole('button', { name: 'Completed: 0 requests, not selected' }))
+  await user.click(view.getByRole('button', { name: 'Processing: 1 requests, selected' }))
   assert.match(view.getByRole('status').textContent ?? '', /Nothing in the selected buckets/)
-  await user.click(view.getByRole('button', { name: 'New: 0 requests, not selected' }))
-  assert.match(view.getByRole('status').textContent ?? '', /Nothing in the selected buckets/)
+  await user.click(view.getByRole('button', { name: 'New: 0 requests, selected' }))
+  assert.match(view.getByRole('status').textContent ?? '', /No request buckets selected/)
 
   view.unmount()
   snapshot = [request(3, 'submitted')]
   const completedOnly = renderPage()
   await completedOnly.findByRole('button', { name: 'Completed: 1 requests, not selected' })
-  assert.ok(completedOnly.getByRole('link', { name: 'Completed request: Job 3' }))
+  assert.match(completedOnly.getByRole('status').textContent ?? '', /No New or Processing requests/)
 })
 
 test('actual back-return after Submit/Re-Submit resets defaults and a reopened New request returns to active work', async () => {
@@ -297,16 +298,16 @@ test('actual back-return after Submit/Re-Submit resets defaults and a reopened N
   snapshot = [request(8, 'submitted')]
   const afterSubmit = renderPage()
   await afterSubmit.findByRole('button', { name: 'Completed: 1 requests, not selected' })
-  assert.ok(afterSubmit.getByRole('link', { name: 'Completed request: Job 8' }))
+  assert.equal(afterSubmit.queryByRole('link', { name: 'Completed request: Job 8' }), null)
   await userEvent.setup({ document }).click(afterSubmit.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
   assert.ok(afterSubmit.getByRole('link', { name: 'Completed request: Job 8' }))
 
   // Re-Submit remains the same stored status, but another return is still a
-  // fresh visit and therefore selects All again.
+  // fresh visit and therefore selects New + Processing again.
   afterSubmit.unmount()
   const afterResubmit = renderPage()
   await afterResubmit.findByRole('button', { name: 'Completed: 1 requests, not selected' })
-  assert.ok(afterResubmit.getByRole('link', { name: 'Completed request: Job 8' }))
+  assert.equal(afterResubmit.queryByRole('link', { name: 'Completed request: Job 8' }), null)
 
   // The existing database line-add trigger reopens to `new`; no new client
   // status or write path is involved.
@@ -349,14 +350,13 @@ test('actual page refresh is latest-wins across reverse Submit/Re-Submit and reo
     refreshA.resolve(json(payload([request(99, 'new')])))
     await new Promise((resolve) => setTimeout(resolve, 0))
   })
-  assert.ok(view.getByRole('link', { name: 'Completed request: Job 8' }))
+  assert.equal(view.queryByRole('link', { name: 'Completed request: Job 8' }), null)
   assert.ok(view.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(view.queryByRole('link', { name: /Job 99/ }), null)
 
   await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Completed: 1 requests, not selected' }))
   assert.ok(view.getByRole('link', { name: 'Completed request: Job 8' }))
-  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Select all request buckets, 1 open requests' }))
   api.setChatId(4)
   api.emitReply()
   await view.findByRole('link', { name: 'New request: Job 8' })
