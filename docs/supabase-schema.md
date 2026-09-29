@@ -613,7 +613,8 @@ JSON inputs and behavior:
 
 - `search_inventory`: empty input returns no rows. Outer straight double quotes
   select literal, case-insensitive name substring matching; unquoted input
-  searches name, size and notes with alias expansion and relevance ranking.
+  searches name, size and notes with alias expansion and relevance ranking,
+  and returns only rows scoring at least half the best row (0118).
   `search_plant_photos` uses unquoted search over name, size, caption, tags and
   notes. `search_suppliers` also matches linked contacts; `sort_column`
   accepts `name`, `category`, `primary_contact_name`,

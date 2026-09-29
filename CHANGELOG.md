@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-29 — plant search returns what was asked for
+
+- `search_inventory` audit and fixes (migration `0118`). A size typed after an alias-backed name (`salvia greggii 1 g`) no longer swallows the number and matches 69% of the catalogue — 46,761 rows in 3.3 s becomes 102 in 0.12 s. Typo matches are now ranked instead of scored 0; aliases count only as whole phrases (the `White Salvia` alias no longer ranks a *White Flame* salvia first for `salvia greggii`); name matches outrank notes-only mentions; results below half the best row's score are dropped, so counts and facets describe real matches. Quoted searches use a new trigram index (~340 ms → 3 ms). Recall on sampled rows is unchanged. Daisy's `plant-and-supplier-search` 2.0.1 describes the new behaviour.
+
 ## 2026-09-29 — Daisy instruction rewrite and ingest helpers
 
 - Audited Daisy's last week (158 threads, $218) and all human feedback since July; rewrote her deployment prompt, knowledge index and all skills in plain language. Skill text 180K → 96K characters; ingestion references 20 → 8 files. `1.1-supabase.md` merged into `database-access`; ingestion photo rules moved to `plant-photo-catalogue`; new `daily-summary` skill (the 9 AM schedule now points to it).

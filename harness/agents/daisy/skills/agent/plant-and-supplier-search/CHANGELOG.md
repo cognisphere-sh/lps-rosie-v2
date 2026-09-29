@@ -1,5 +1,12 @@
 # plant-and-supplier-search — changelog
 
+## 2.0.1 — 2026-09-29
+
+Migration 0118: unquoted search now returns only rows scoring at least half
+the best row (size-only and notes-only matches drop out), matches word starts
+rather than any substring, and weights notes below the name. Search notes
+updated to match.
+
 ## 2.0.0 — 2026-09-29
 
 Plain-language rewrite (Daisy audit); `lookup.md` and `matching.md` merged into

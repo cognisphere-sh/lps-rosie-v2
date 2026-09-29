@@ -207,6 +207,16 @@ and when; the summaries below are one line each.
   split identity fields only; size and notes cannot qualify. It bypasses aliases,
   normalization, token partials and fuzzy matching; unquoted discovery and the
   RPC signature/projection are unchanged.
+- `0118_search_inventory_precision.sql` — approved and applied 2026-09-29
+  after a search audit. Unquoted `search_inventory`: a span with a number is
+  never alias-expanded (it swallowed the size in `salvia greggii 1 g`, leaving
+  a stray `g` that matched 69% of rows); retrieval and scoring share one hit
+  list with graded per-word credit (whole word, typo, word start, notes at
+  0.4); aliases and sizes count only as whole phrases; rows below half the best
+  score are dropped. Quoted mode gains a trigram-indexed prefilter
+  (`inventory_identity_trgm_idx`, partial on `is_active`), same results.
+  Signature, projection and grants unchanged. Rollback: re-run 0081's function
+  (live body matched it byte for byte before apply) and drop the index.
 
 - `0064_supplier_daisy_thread_id.sql` — applied 2026-08-23. Adds
   `suppliers.daisy_thread_id` — the company's one dedicated daisy thread

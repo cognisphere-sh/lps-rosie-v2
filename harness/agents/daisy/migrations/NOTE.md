@@ -1,5 +1,17 @@
 # Migrations applied by Daisy
 
+## 0118 — search_inventory precision (2026-09-29)
+
+Applied via the Supabase MCP after testing the body as a session-temporary
+function against live data. Before/after on the audit's queries: `salvia
+greggii 1 g` 46,761 rows / 3.3 s → 102 / 0.12 s; `yaupon holly 3g` 46,768 /
+3.2 s → 168 / 0.2 s; quoted searches ~340 ms → 2–4 ms with identical row sets.
+Slowest measured unquoted query afterwards: `red oak 15 g`, 0.46 s. Self-recall
+on 50 sampled rows, searched by their own names within their own supplier's
+top 10, matched the old function exactly (common 47/50, common + size 50/50,
+botanical 27/31; every miss a tie among 14–48 same-name rows). Live body md5
+equals the file's; grants unchanged. Adds one 5.8 MB GIN index.
+
 ## 0116 — job line selected supplier response (2026-09-28)
 
 Applied via the Supabase MCP. Adds nullable

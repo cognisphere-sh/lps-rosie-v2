@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plants and suppliers in the database and answer Chris. Includes search_inventory / search_suppliers use, quoted exact search, how ranking and aliases work, widening a search, stock location vs head office, substitutes and the answer format. Use for any "who has…", "do we have…", price or supplier lookup. (v2.0.0)
+description: Find plants and suppliers in the database and answer Chris. Includes search_inventory / search_suppliers use, quoted exact search, how ranking and aliases work, widening a search, stock location vs head office, substitutes and the answer format. Use for any "who has…", "do we have…", price or supplier lookup. (v2.0.1)
 metadata:
   author: lps
-  version: "2.0.0"
+  version: "2.0.1"
 ---
 
 # Plant and supplier search
@@ -24,12 +24,16 @@ Suppliers: `search_suppliers(...)`. Never call either with an empty term; to
 list rows, select from the table with `ORDER BY` and `LIMIT`.
 
 - **Unquoted:** searches names, size and notes; forgives typos; matches word
-  parts (`ycamor` finds sycamore); expands aliases (`Live Oak Boardwalk` →
-  `(live oak OR quercus virginiana) boardwalk`).
-- **Ranked, not filtered.** Every row matching any word comes back. Read the
-  top rows and `relevance`; the row count is not "how many we have" (`Crape
-  Myrtle Muskogee` returns ~755 rows, ~178 match both words). A typed size
-  ranks, it doesn't filter: filter `size_std` yourself.
+  starts (`lindh` finds lindheimeri) and long words inside others (`myrtle`
+  finds Crapemyrtle); expands aliases (`Live Oak Boardwalk` →
+  `(live oak OR quercus virginiana) boardwalk`). A word found only in the
+  notes counts for less than one in the name.
+- **Ranked, and trimmed to the good matches.** Only rows scoring at least half
+  the best row come back, so a row matching just the size or just a note is
+  dropped. Still read the top rows and `relevance`; the count is not "how many
+  we have". A typed size ranks, it doesn't filter (`salvia greggii 1 g` keeps
+  the 3 G greggii below the 1 G ones): filter `size_std` yourself. If a row
+  you expect is missing, search its other name or fewer words.
 - **A cultivar nobody carries** returns the plain species below it. Check the
   returned `cultivar_variety_trade_name` before saying a supplier has it, and
   say which part matched ("they list the species, not 'Muskogee'").

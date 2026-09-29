@@ -1064,15 +1064,20 @@ supplier's original size text remains unchanged.
 Unquoted `search_inventory` matches **names, size and notes** and ranks by
 **IDF-weighted term coverage**: the query is split into groups (longest span
 first, so `live oak` is one concept), each group is weighted by how rare it is
-in the catalogue, and a row's `relevance` is the sum over the groups it matched.
-Rare terms therefore dominate — searching `Crape Myrtle Muskogee` puts the
-Muskogee rows on top (10.38) above rows matching only the rare word (5.82) and
-the 567 generic crape myrtles (4.55).
+in the catalogue, and a row's `relevance` is the sum over the groups it matched,
+each scaled by how well it matched (migration 0118): a whole word in the name or
+size counts 1.0, a typo up to 0.6 by closeness, a word start (three letters or
+more) or a long word inside another (`myrtle` in `Crapemyrtle`) 0.45, and a
+whole word found only in the notes 0.4. Rare terms therefore dominate, and a
+name match outranks a notes mention.
 
 Matching is **typo tolerant** (`Mexican Sycamoer` finds the same top row as the
-correct spelling) and **partial at both ends** (`sycamor` *and* `ycamor` find
-`sycamore`). Query terms are **expanded through aliases** before any of this, so
-`Paperbark Maple` and `Acer griseum` return the same 66 rows.
+correct spelling) and **partial** (`sycamor` finds `sycamore`; a mid-word match
+needs five letters, so `ash` no longer finds `Washington`). Word breaks are
+forgiven for typed words of six letters or more (`feathergrass` finds "Mexican
+Feather Grass"). Query terms are **expanded through aliases** before any of
+this, so `Paperbark Maple` and `Acer griseum` return the same rows; an alias
+counts only as its whole phrase.
 
 **A size typed into the query ranks rather than filters.** `15g Live Oak` puts
 15 G live oaks on top and keeps every other size below them; all of `15g`,
@@ -1080,9 +1085,11 @@ correct spelling) and **partial at both ends** (`sycamor` *and* `ycamor` find
 does nothing for this — there is no longer a size chip, no `parseSizeQuery`, and
 no client-side size test. Filtering by size is still the Size multiselect's job.
 
-Retrieval is OR across groups, so result sets are long and the tail is weakly
-matched — that is deliberate, and why ranking rather than a filter decides what
-you see first. The app pages 300 at a time in relevance order, and orders
+Retrieval is OR across groups, then trimmed: only rows scoring at least **half
+the best row's relevance** come back, so a row matching just the size (`1 g`),
+just a note, or just a word start when whole words matched elsewhere drops out.
+`salvia greggii 1 g` returns ~100 rows, not 46,761. The count and the facets
+therefore describe real matches. The app pages 300 at a time in relevance order, and orders
 explicitly on the returned `relevance` column rather than relying on the
 function's own `ORDER BY` surviving PostgREST's outer query.
 
