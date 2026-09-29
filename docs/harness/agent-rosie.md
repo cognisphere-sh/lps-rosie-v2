@@ -17,12 +17,30 @@ Chris made the request.
   reads (last week ~45% of cost was relaying between parent and task
   threads).
 - APS (supplier 1) is the only supplier unless Chris names another. The price
-  list gives prices, not stock; ARs always ask for the original plant/size.
-- Chris's standing instruction: every explicit APS AR submission updates the
-  linked job lines directly (status, allocation quantity, offered size with
-  its own price, short customer note). Saved drafts stay on the supplier
-  thread. Only Chris picks a supplier
-  (`job_request_items.selected_availability_request_item_id`).
+  list is indicative only, so every job line gets **candidates**
+  (`candidates` table): the original ask (price 0 = not found), plus listed
+  alternatives. Each candidate has a `description` for Chris (`5 G Shumard
+  Oak`) and a customer-facing `note_for_customer` (`5 G NA, 3 G only`); the
+  original request is `is_original`. ARs ask for the original plant/size, one
+  AR per job and supplier. ARs start as drafts; Rosie sends
+  (`send_availability_request`) only with Chris's yes, or leaves the draft
+  for him to send from the app.
+- Candidate status (derived, not stored): No price → Pending (priced, not on
+  a sent AR) → AR sent → the supplier's answer.
+- Notes by audience: the customer's requirements go in `note_internal` (and a
+  candidate's `note_for_supplier` when asking); `note_for_customer` is only
+  information for the customer and on a line follows the selected candidate.
+- Rosie never asks which substitute to use, but does ask when in doubt about
+  the customer, delivery vs pickup, dates or a demanded row.
+- Rosie selects the exact-match candidate, or one that Chris's direction or a
+  standing selection rule (`price-rules.md`; several requested sizes →
+  cheapest priced) picks (`select_candidate` →
+  `job_request_items.selected_candidate_id`). Otherwise Chris drags one onto
+  the line, onto an AR, or into the bin in the app.
+- On an AR submission the database copies answers of selected candidates onto
+  their open job lines; Rosie alerts Chris and reports unselected answers.
+  Saved drafts stay on the supplier thread. `note_internal` holds no supplier
+  or price facts.
 - The approval table ("What needs Chris's yes") is in
   `system_prompts/1-agent.md`.
 
@@ -48,7 +66,7 @@ note fields is defined only in `job-requests/artifacts/notes.md`.
 | Helper | Does |
 |---|---|
 | `database-access/scripts/job-snapshot <job>` | Job, lines, recent changes, AR lines, order lines in one read. |
-| `database-access/scripts/ar-snapshot <ar>` | AR header, linked jobs, lines, answers, allocations. |
+| `database-access/scripts/ar-snapshot <ar>` | AR header, its job, lines (candidates), answers. |
 | `database-access/scripts/set-note` | Guarded note write from files (exit 3 if changed meanwhile). |
 | `plant-and-supplier-search/scripts/aps-price "<plant>" --size "3 G"` | Price rules, aliases, all listed sizes with EXACT / nearest smaller / larger. |
 | `quote-generation/scripts/quote-job <job> [--no-totals] [--status]` | Quote from saved rows. |

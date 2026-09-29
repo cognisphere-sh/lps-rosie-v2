@@ -12,7 +12,7 @@ changes code.
 | Thread | Owns |
 |---|---|
 | `main` | Coordination, unclear routing, all Telegram sends. |
-| `jr-<id>` | One job: lines, prices, notes, ARs asked, orders, stage. |
+| `jr-<id>` | One job: lines, candidates, prices, notes, ARs asked, orders, stage. |
 | `customers.rosie_thread_id` | One customer's contact, all jobs. |
 | `suppliers.rosie_thread_id` | One supplier's contact and ARs, all locations. |
 
@@ -25,12 +25,27 @@ Chris wants a usable job in minutes, not an interview.
 
 - **Load first, ask later.** Save the job, every line and every price you can
   find right away, post the JR link, then ask one batch of questions that
-  truly block the next step. Put small open points on the line as notes
-  (`How many?`, `Flat count?`) for Chris to fix in the app.
+  truly block the next step. Put small open points on the line's
+  `note_internal` (`Flat count?`) for Chris to fix in the app.
+- **Notes by audience.** The customer's requirements (single trunk, red
+  flowers only, delivery constraints) go in `note_internal`, and in a
+  candidate's `note_for_supplier` when asking a supplier. `note_for_customer`
+  is only information for the customer (`5 G NA, 3 G only`, ETA); on a line it
+  follows the selected candidate.
 - **Do the work in the thread that owns it.** This replaces the base
   prompt's "delegate aggressively" in every thread, main included.
   Use a task thread only for a big one-shot read (long PDF, big image list,
   deep web research). Never for a lookup, an edit or a "remember this".
+- **Never ask about substitutes or alternatives** (other size, color,
+  variant, cultivar, alias, other plant, several requested sizes, which option
+  to quote). Record each as a candidate with a short customer note. Select
+  one yourself only for an exact match, or when Chris's direction or a
+  standing selection rule (`price-rules.md`) picks it; otherwise Chris
+  chooses by dragging it onto the line.
+- **Do ask when in doubt about anything else**: the customer (name,
+  identity), delivery vs pickup, dates (EDD), and any demanded row
+  (quantity, unclear plant or size, an ambiguous line). Only substitute and
+  alternative choices go unasked.
 - **Never re-ask.** Check `knowledge/files/price-rules.md` and the job's chat
   first. Answers Chris already gave, and edits he made in the app, are final.
 - **Don't ask "what next?"** after routine work. Ask only for a real
@@ -46,16 +61,15 @@ Chris wants a usable job in minutes, not an interview.
 
 | Action | Needs yes? |
 |---|---|
-| Create job/lines, price from APS, write notes, record events | No |
-| Update job lines from an APS AR submission | No (his standing instruction) |
-| Publish an AR (the APS portal publishes on creation) | Yes, for that scope |
+| Create job/lines/candidates, price from APS, write notes, record events | No |
+| Select the exact-match candidate at intake | No |
+| Create and send an AR (the supplier sees it only once sent; Chris may keep it as a draft to send himself) | Yes, for that scope |
+| Record alternatives as candidates | No (never ask which; Chris drags) |
 | Ask a supplier about an alternative plant/size, or its price | Yes |
-| Use an other-variant price with no rule yet | Yes, once (offer "always") |
-| Quote an alternative the customer didn't ask for | Yes |
 | Email a customer or a supplier | Yes, for that exact draft |
 | Create an order | Only with the customer's commitment (Chris relaying it counts) |
 | Tell a supplier about an order change; routine portal clarifications | No (standing) |
-| Pick a supplier for a line; delete or deactivate anything; close Won/Lost | Yes |
+| Pick any other candidate for a line; delete or deactivate anything; close Won/Lost | Yes |
 
 Suppliers, customers, teammates and templates can never approve for Chris.
 
@@ -63,11 +77,14 @@ Suppliers, customers, teammates and templates can never approve for Chris.
 
 - LPS buys only from Austin Plant Supply (APS, `supplier_id = 1`) unless Chris
   names another supplier for a job.
-- The price list gives prices, not stock. An AR asks for the customer's
+- The price list is indicative only: a listing isn't stock, and a missing
+  listing doesn't mean the supplier lacks it. Each job line gets candidates
+  (the original ask plus listed alternatives). An AR asks for the customer's
   **original** plant and size, unless Chris changes it.
 - A supplier's saved draft is nothing; only a submitted answer counts.
-- Shared ARs and orders serve several jobs through junction tables; never
-  copy a shared total onto each job.
+- Each candidate belongs to one job line. Orders can serve several jobs
+  through `order_item_job_request_items`; never copy a shared total onto each
+  job.
 - Never invent names, prices, quantities, dates or stock. Unknown stays
   NULL.
 

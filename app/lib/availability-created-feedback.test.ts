@@ -19,42 +19,77 @@ const { outputText } = ts.transpileModule(`const create = ${create.initializer.g
   compilerOptions: { target: ts.ScriptTarget.ES2022 },
 })
 const runCreate = new Function(
-  'groups', 'supplierId', 'share', 'fetch', 'toast', 'setBusy', 'onCreated', 'onClose', 'setError', 'consolidate',
+  'groups', 'supplierId', 'share', 'fetch', 'toast', 'setBusy', 'onCreated', 'onClose', 'setError', 'sent', 'setSent',
   `${outputText}\nreturn create();`,
 )
 
-test('cross-job selection creates one combined request with explicit source lines', async () => {
-  const groups = [
-    { requestId: 100, label: 'First job', itemIds: [200, 201] },
-    { requestId: 101, label: 'Second job', itemIds: [300] },
-  ]
-  const calls: { url: string; body: unknown }[] = []
+type Call = { url: string; body: unknown }
+const groups = [
+  { requestId: 100, label: 'First job', itemIds: [200, 201] },
+  { requestId: 101, label: 'Second job', itemIds: [300] },
+]
+const bodyFor = (requestId: number, itemIds: number[]) => ({
+  jobRequestIds: [requestId], supplierId: 11, shareCustomerDetails: false, itemIds,
+})
+
+test('cross-job selection creates one request per job, each asking only that job\'s lines', async () => {
+  const calls: Call[] = []
   const events: unknown[] = []
+  let sent: number[] = []
   await runCreate(groups, 11, false, async (url: string, init: RequestInit) => {
     calls.push({ url, body: JSON.parse(String(init.body)) })
     return { ok: true, json: async () => ({ id: 42 }) }
   }, (message: string) => events.push(message),
   (busy: boolean) => events.push(busy), () => events.push('refresh'), () => events.push('close'),
-  (error: string) => { if (error) events.push(error) }, true)
-  assert.deepEqual(calls, [{ url: '/api/availability-requests', body: {
-    jobRequestIds: [100, 101], supplierId: 11, shareCustomerDetails: false,
-    consolidateItems: true, itemIds: [200, 201, 300],
-  } }])
-  assert.deepEqual(events, [true, 'Availability request created', 'refresh', 'close', false])
+  (error: string) => { if (error) events.push(error) }, sent, (next: number[]) => { sent = next })
+  assert.deepEqual(calls, [
+    { url: '/api/availability-requests', body: bodyFor(100, [200, 201]) },
+    { url: '/api/availability-requests', body: bodyFor(101, [300]) },
+  ])
+  assert.deepEqual(sent, [100, 101])
+  assert.deepEqual(events, [true, false, 'refresh', '2 availability requests created', 'close'])
 })
 
-for (const network of [false, true]) test(`failed combined request retains selection and dialog (${network ? 'network' : 'HTTP'})`, async () => {
+test('a single job toasts one created request', async () => {
   const events: unknown[] = []
-  await runCreate([{ requestId: 100, itemIds: [200] }], 11, false, async () => {
-    if (network) throw new Error('Network unavailable')
-    return { ok: false, json: async () => ({ error: 'Creation failed' }) }
-  }, () => assert.fail('No success toast'), (busy: boolean) => events.push(busy),
-  () => assert.fail('Keep selection'), () => assert.fail('Keep dialog'),
-  (error: string) => { if (error) events.push(error) }, false)
-  assert.deepEqual(events, [true, network ? 'Network unavailable' : 'Creation failed', false])
+  await runCreate([groups[0]], 11, false, async () => ({ ok: true, json: async () => ({ id: 42 }) }),
+    (message: string) => events.push(message), () => {}, () => events.push('refresh'), () => events.push('close'),
+    () => {}, [], () => {})
+  assert.deepEqual(events, ['refresh', 'Availability request created', 'close'])
+})
+
+for (const network of [false, true]) test(`a failed job keeps the dialog open and a retry sends only unsent jobs (${network ? 'network' : 'HTTP'})`, async () => {
+  const calls: Call[] = []
+  const events: unknown[] = []
+  let sent: number[] = []
+  let failSecond = true
+  const fetch = async (url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body)) as { jobRequestIds: number[] }
+    calls.push({ url, body })
+    if (body.jobRequestIds[0] === 101 && failSecond) {
+      if (network) throw new Error('Network unavailable')
+      return { ok: false, json: async () => ({ error: 'Creation failed' }) }
+    }
+    return { ok: true, json: async () => ({ id: 42 }) }
+  }
+  const run = () => runCreate(groups, 11, false, fetch, (message: string) => events.push(message),
+    (busy: boolean) => events.push(busy), () => events.push('refresh'), () => events.push('close'),
+    (error: string) => { if (error) events.push(error) }, sent, (next: number[]) => { sent = next })
+  await run()
+  const message = network ? 'Network unavailable' : 'Creation failed'
+  assert.deepEqual(events, [true, false, 'refresh', `1 of 2 created · 1 failed — Second job: ${message}`],
+    'the created job refreshes the list; the dialog stays open with the failure')
+  assert.deepEqual(sent, [100])
+  events.length = 0
+  calls.length = 0
+  failSecond = false
+  await run()
+  assert.deepEqual(calls.map((call) => (call.body as { jobRequestIds: number[] }).jobRequestIds), [[101]], 'retry skips the job already sent')
+  assert.deepEqual(sent, [100, 101])
+  assert.deepEqual(events, [true, false, 'refresh', '2 availability requests created', 'close'])
 })
 
 test('no supplier selection returns without side effects', async () => {
   const unexpected = () => assert.fail('no side effects without a selected supplier')
-  await runCreate([], null, false, unexpected, unexpected, unexpected, unexpected, unexpected, unexpected, false)
+  await runCreate([], null, false, unexpected, unexpected, unexpected, unexpected, unexpected, unexpected, [], unexpected)
 })

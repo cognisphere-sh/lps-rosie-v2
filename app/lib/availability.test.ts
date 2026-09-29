@@ -24,6 +24,7 @@ const line = (o: Partial<SupplierItemLine> & { id: number }): SupplierItemLine =
   availableQuantity: null,
   unitPrice: null,
   noteForSupplier: null,
+  noteFromSupplier: null,
   arId: 1,
   arStatus: 'new',
   arCreatedAt: '2026-08-01T00:00:00Z',
@@ -167,7 +168,7 @@ test('confirmed submission stamps update on first submit and resubmit without ch
 })
 
 test('AR status vocabulary is independent of deletion', () => {
-  assert.deepEqual(AR_STATUSES, ['new', 'processing', 'submitted', 'closed'])
+  assert.deepEqual(AR_STATUSES, ['draft', 'new', 'processing', 'submitted', 'closed'])
 })
 
 test('deletion removes the AR from every mounted supplier link while preserving other requests', () => {

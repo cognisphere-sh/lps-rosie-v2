@@ -4,18 +4,19 @@
 
 | Shown as | Stored | Meaning |
 |---|---|---|
-| New | `new` | Created; supplier hasn't touched it. |
+| Draft | `draft` | Being prepared by LPS; the supplier can't see or answer it. Send makes it New. |
+| New | `new` | Sent; supplier hasn't touched it. |
 | Processing | `processing` | Supplier saved some answers, not submitted. |
 | Completed | `submitted` | Supplier pressed Submit. Editing again returns it to Processing until re-submitted. |
 | Closed | `closed` | Job/AR closed; nobody can edit. |
 
 | Line answer `status` | Meaning |
 |---|---|
-| `available` | Has the requested plant, size and quantity. Its `available_quantity` = the line's total allocated demand. |
+| `available` | Has the requested plant, size and quantity. Its `available_quantity` = the candidate's `demanded_quantity`. |
 | `can_order` | Can get it. Becomes `need_to_order` on an order line. |
 | `arriving_soon` | Coming; ETA in the note. |
-| `diff_size_qty_sub` | Offers another size, quantity or plant; details in the note. |
-| `unavailable` | Can't supply. |
+| `diff_size_qty_sub` | Offers another size, quantity or plant. The supplier may change the candidate's size and price; details in `note_from_supplier`. |
+| `unavailable` | Can't supply. Quantity and price are set to 0. |
 | NULL | Not answered. A seeded price alone is not an answer. |
 
 ## Events
@@ -26,33 +27,34 @@ false`).
 - `availability_updated` (a saved edit): **stays on this supplier thread.**
   Don't tell Chris or any job, and don't touch job notes. This includes edits
   after an earlier submission; the old `submitted_at` doesn't cover them.
-- `availability_submitted` (Submit or re-Submit): relay to every linked job.
+- `availability_submitted` (Submit or re-Submit): relay to the AR's job
+  (`availability_requests.job_request_id`).
 
 ## Relay a submission
 
-1. Match the AR and every line to its job lines through
-   `availability_request_jobs` and `availability_request_item_jobs`. If a
-   line can't be matched safely, don't guess: flag it to Chris with the
-   reason.
-2. Send each linked `jr-<id>` the facts for its lines: AR id and state, job
-   line id, requested plant/size, this job's allocation and the shared total,
-   APS's answer (status, quantity, price, mapping), the header and line
-   `note_for_supplier`, and "portal submission" as the source. For
-   `diff_size_qty_sub`, give the exact offer. Mention narrow equivalences from
-   `price-rules.md` (e.g. Carolina Cherry Laurel 24" box = 30 G) so the job
-   thread doesn't raise a false size conflict.
-3. The job thread applies it
-   ([supplier responses](../../job-requests/artifacts/supplier-responses.md))
-   and alerts Chris. Don't ask APS to re-confirm a clear answer.
+1. Match each line (candidate) to its job line through the candidate's
+   `job_request_item_id` (`ar-snapshot`). A line with no job line (its job was
+   deleted) is history only.
+2. Send the job's `jr-<id>` the facts for its candidates: AR id and state,
+   candidate and job line ids, whether the candidate is selected, the plant
+   and size asked, the answer (status, quantity, size, price, mapping), the
+   header `note_for_supplier`, the candidate's `note_for_supplier` (LPS ask)
+   and `note_from_supplier` (reply), and "portal submission" as the source.
+   For `diff_size_qty_sub`, give the exact offer. Mention narrow equivalences
+   from `price-rules.md` (e.g. Carolina Cherry Laurel 24" box = 30 G).
+3. Selected candidates are already copied onto their job lines by the
+   database. The job thread alerts Chris
+   ([supplier responses](../../job-requests/artifacts/supplier-responses.md)).
+   Don't ask APS to re-confirm a clear answer.
 4. Supplier-entered answers stay as the supplier saved them. Never rewrite
    them.
 
 ## Supplier answers in portal chat (transcription)
 
 A trusted supplier's **portal** message (text, image or voice) that clearly
-answers an open AR line lets you type that answer into the AR for them.
+answers an open AR line (candidate) lets you type that answer into the AR for them.
 
-1. Identify the AR from trusted metadata and read it with its linked jobs.
+1. Identify the AR from trusted metadata and read it with its job.
    Several possible ARs → ask which one. Closed AR → don't edit; record the
    message and tell the job thread.
 2. Take only what the message says. A photo without quantity or price gives
@@ -63,18 +65,19 @@ answers an open AR line lets you type that answer into the AR for them.
    ```sql
    SET app.actor TO 'rosie';
    SELECT public.answer_availability_request(
-     $arId, $supplierId, $arItemId,
-     '{"status":"available","available_quantity":"<allocated total>","unit_price":"12.00"}'::jsonb,
+     $arId, $supplierId, $candidateId,
+     '{"status":"available","available_quantity":"<demanded quantity>","unit_price":"12.00"}'::jsonb,
      false
    );
    ```
 
    Values are strings; `""` clears a field; keys are only `status`,
-   `available_quantity`, `unit_price`, `note_for_supplier`. For `available`,
-   the quantity is the line's current allocated total; if allocations are
-   missing, don't mark it available, ask. Partial quantity or an alternative
-   uses the matching non-available status. Keep existing LPS text when
-   writing `note_for_supplier`.
+   `available_quantity`, `unit_price`, `size`, `note_from_supplier`
+   (`unavailable` zeroes quantity and price). For `available`, the quantity is
+   the candidate's `demanded_quantity`; if that is empty, don't mark it
+   available, ask. Partial quantity or an alternative uses the matching
+   non-available status. The supplier's words go in `note_from_supplier`;
+   LPS's ask stays in `note_for_supplier`.
 4. Verify, then reply `--portal`: "Please review and tap **Submit**." Never
    say it was submitted. If the match was unsafe, ask the supplier which line
    they mean instead of writing.

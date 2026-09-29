@@ -14,30 +14,83 @@ a slow fallback poll recover missed changes. The publication setup is
 ## Job workflow
 
 New jobs start at Quote and use APS pricing. Quick quotes stop there. Chris
-approves the next availability request and any supplier-response changes to job
-lines. Customer confirmation creates an order at Committed. Supplier confirmation
+approves the next availability request. Customer confirmation creates an order at Committed. Supplier confirmation
 advances the Order to Confirmed; the Job Request stays Committed. Closing Won or Lost closes shared availability requests
 only when all associated jobs are closed. Reopening a linked job restores the
-request's previous stage. Database hooks cover app and agent writes. Sourcing
-notes render Markdown entries with bold, underlined supplier names, concise
-keywords and numbers, one current entry per supplier and one overall row summary.
-Each supplier entry identifies the offered size/name/variant, price, latest AR
-status and relevant alternative. The row summary records the selected supplier
-and price, or the pending decision. Updates replace superseded details; notes
-do not accumulate an event history. Item notes, their
-popover and job-level notes use the same rendering; editing preserves the raw
-Markdown. AR and thread links open their existing workspace views. Notes use
-no tables, full statements or divider lines. Supplier responses are surfaced
-to Chris without automatic availability updates; supplier selection requires
-an explicit decision. Simple pricing questions do not create jobs. A quick quote creates a Job
+request's previous stage. Database hooks cover app and agent writes.
+**Note for customer** is information for the customer (it follows the
+selected candidate); the customer's own additional requests go in the
+**Internal note**, which never holds supplier, listing, price or answer facts —
+those live on the line's candidates (below). Item notes, their
+popover and job-level notes use the same Markdown rendering; editing preserves the raw
+Markdown. AR and thread links open their existing workspace views. Simple pricing questions do not create jobs. A quick quote creates a Job
 Request and its thread but no Availability Request. See [Rosie](../harness/agent-rosie.md) for thread
 ownership and the sourcing procedure.
+
+## Candidates
+
+Price lists are indicative, not stock: a listed plant may be gone and an
+unlisted one may be available. So each job line has **candidates**
+(`candidates` table, migration 0119) — supplier, plant name, size, price,
+note for/from supplier and answer. At intake Rosie always adds the original
+request (price 0 = no price found) plus listed alternatives. She selects an
+exact match herself, or the candidate Chris's direction or a standing
+selection rule picks (several requested sizes → the cheapest priced); anything
+else waits for Chris. She never asks about substitutes.
+
+The line table is its own scroll area (up to 75% of the screen height): its
+header row and the leading Demand, Avail, Size and Plant Name columns stay
+frozen while it scrolls. Headers and values are centred except Plant Name
+(left). Default widths are narrow so values sit close together; every column
+resizes by dragging the divider at its header's right edge.
+
+- **Candidates** column: a pill per candidate, grouped by supplier (supplier
+  names are shown on hover only, for now). A pill shows only its
+  **description** (what the candidate is, e.g. `5 G Shumard Oak`;
+  `candidates.description`, else size and name) and its price or **No
+  price**. Its colour is
+  its status: **No price** (unanswered, no price found) is dotted grey;
+  **Pending** (priced, on no AR or only an unsent draft) is grey; **AR sent**
+  (unanswered) is the AR's New amber; an answer takes its answer colour. Hovering shows the rest: supplier, plant name and size, price,
+  status and AR, the customer note (e.g. `5 G NA, 3 G only`), notes for/from
+  the supplier, original request. The Selected column shows the same pill.
+- **Selected** column: drop a pill here to select it, replacing any current
+  selection. The selected candidate shows only here (not in Candidates). The
+  line takes the candidate's size, price (0 stays blank), available quantity
+  (capped at demand), status and customer note. Editing the line's **Note for
+  customer** while a candidate is selected writes it back to that candidate.
+  When the candidate's AR is submitted, the supplier's reply replaces the
+  candidate's note, and the selected line is re-applied (open Quote/Availability
+  jobs, and only candidates answered since the previous submission).
+- While a pill is dragged a **Bin** appears in its line's Candidates cell;
+  dropping deletes the candidate (soft), removes it from its AR, and unselects
+  it without changing the line.
+- **Availability requests** strip above the table: a tablet per open AR of the
+  job — supplier, AR reference and status, coloured by status. Drop a pill of
+  the same supplier on a tablet to add it to that AR. New ARs are **Drafts**
+  (migration 0120): the supplier sees nothing until **Send** on the tablet;
+  non-Partner suppliers then get a public link, which still has to be
+  delivered. **Create AR** opens a dialog: supplier (APS by default), quick
+  picks — **All candidates**, **Selected candidates**, **Original demand**
+  (the line's original-request candidate for that supplier, created where
+  missing and priced from the catalogue, 0 when not found) — per-line
+  checkboxes, and whether to share customer details. It creates a draft tablet.
+- Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
+  `{ action: 'select' }` or `{ action: 'add', arId }`, and `DELETE` for the bin;
+  `POST /api/requests/:id/availability-requests` (Create AR draft) and
+  `POST /api/availability-requests/:id/send`. Drag and drop is native HTML5,
+  so it needs a mouse or trackpad.
+
+The All Jobs **Send availability request** dialog asks each chosen line's
+original request (as above) and sends right away. Lines from several jobs
+become one request per job; if some fail, retrying skips the jobs already
+sent.
 
 ## Availability sidebar editing
 
 The availability sidebar opened from a Job lets admins edit each line's plant
-name, requested size, requested quantity and existing merged supplier-audience
-note, alongside answer status, available quantity and price. These fields save
+name, requested size, requested quantity and **note for supplier** (LPS's ask),
+alongside answer status, available quantity, price and the **supplier reply**. These fields save
 on blur (or Enter for a single-line input) on desktop and mobile.
 Edits apply to that availability request's snapshot; the original Job line and
 other suppliers' requests keep their own values. Plant names must be nonblank;
@@ -53,7 +106,7 @@ plain hairlines, tone-tinted rows, the portal's status listbox and the purple
 needs-a-price accent, with no Line total column or subtotal footer. On top of
 that drawing the admin keeps inline edits: plant name, size and requested
 quantity (admin detail route), available quantity, status and price (answer
-route) and the line's `note_for_supplier`, all borderless until hovered or
+route), the line's `note_for_supplier` and its `note_from_supplier` reply, all borderless until hovered or
 focused and saved on blur/Enter. Plant and Size wrap rather than clip; Notes is
 the only truncated column (one line until focused). A clipped editor shows its
 full text as a hover tooltip. The status listbox mounts inside the drawer's
@@ -101,8 +154,7 @@ date for every other status, even when an older submission timestamp exists.
 New and processing requests carry a yellow dot; submitted requests carry a
 green dot. Closed and unknown stages have no dot. A missing timestamp displays
 `—`. AR drawer and supplier/public headers
-show Created on and the linked jobs' EDD/Fulfillment pairs inline in the header;
-combined requests keep those pairs separate. See
+show Created on and the job's EDD/Fulfillment pair inline in the header. See
 [Availability header metadata](availability-header-metadata.md).
 
 A resolved expanded **desktop** card instead uses the focused-Job hierarchy. Its wrapping header keeps JR plus Sales status left, inline Created on / EDD / Fulfillment metadata, and one flexible, single-line ellipsizing `customers.company | job_requests.name | customers.name` identity. These are raw values separated by ` | `—never literal Company, Contractor, Job or Contact prefixes. Genuinely missing company, Job or contact components and their adjacent separators are omitted; shipping, dates, JR, billing and notes never fill a missing identity component. In the focused Job header, the Job/Site component alone is the inline control and edits only `job_requests.name`; a missing value exposes **Add Job name**, never company, contact or the combined identity as trigger text. The separate display identity remains exact stored nonblank `Company | Job/Site | Contact` values with missing segments and separators omitted. Enter or the visible 44px **Save** control trims and saves a nonblank changed value of at most 160 characters; the 44px **Cancel** control, Escape, blank input and unchanged input cancel without PATCH. The same 160-character bound is enforced by `/api/rows`. Success refetches both focused detail and the Active Jobs rail before parent-owned focus returns to the connected live edit trigger; failure stays in the editor, uses the established error toast and retains input focus. A switched or unmounted JR aborts/ignores stale completion.

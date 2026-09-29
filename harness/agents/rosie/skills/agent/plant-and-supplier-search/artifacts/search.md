@@ -22,12 +22,12 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
 
 | What you found | Do |
 |---|---|
-| Same plant, requested size | Use its price. |
-| Same plant under another name (synonym, trade name, word order) | Use its price; no question. Note the listed name in `note_internal` only if it isn't obvious. |
+| Same plant, requested size | Use its price (exact match: select that candidate, [intake](../../job-requests/artifacts/intake.md)). |
+| Same plant under another name (synonym, trade name, word order) | Use its price; no question. Still an exact match. |
 | A rule in `knowledge/files/price-rules.md` covers it | Use it; no question. |
-| Same plant, same size, only another color/variant listed | Ask Chris once ([pricing](../../job-requests/artifacts/pricing.md)). |
-| Same plant, other sizes only | Report nearest smaller and larger; don't price the line from them. |
-| Different species or form | Not a match. It's an alternative; report it, don't use it. |
+| Same plant, same size, only another color/variant listed | Add it as a candidate; don't ask ([pricing](../../job-requests/artifacts/pricing.md)). |
+| Same plant, other sizes only | Make the nearest smaller and larger their own candidates; don't price the original ask from them. |
+| Different species or form | Not a match. Add it as a candidate only if it's a sensible substitute; don't ask. |
 
 ## 3. Nothing found?
 
@@ -38,12 +38,13 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
    other names" -m 5`. Use a name only if a real source (URL) says it's the
    same plant; a similar look or shared genus is not enough. Search APS again
    with it.
-3. Found by another name → use the price, and ask Chris in one line: "Add
-   `<other name>` as an alias of `<requested name>`?" On yes, ask Daisy to add
-   the pair to `plant_aliases` (never a new inventory row).
-4. Still nothing → price stays NULL. Give 1–2 closest listed options (same
-   plant nearby size first, then close relatives) in the reply, and offer to
-   search other suppliers. Search them only after Chris says so.
+3. Found by another name → add that listing as a candidate (description:
+   its size and listed name); don't ask. If Chris says the names are the same plant, ask
+   Daisy to add the pair to `plant_aliases` (never a new inventory row).
+4. Still nothing → the original-ask candidate keeps price 0 (price not
+   found). Give 1–2 closest listed options (same plant nearby size first, then
+   close relatives) in the reply, and offer to search other suppliers. Search
+   them only after Chris says so.
 
 ## 4. Suppliers other than APS
 

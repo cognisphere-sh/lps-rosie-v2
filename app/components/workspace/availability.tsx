@@ -19,6 +19,7 @@ import {
   arStatusLabel,
   arStatusTone,
   arSubtotal,
+  isUnpriced,
   type ARItem,
 } from '@/lib/availability'
 import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@/components/workspace/body-modal-portal'
@@ -150,14 +151,15 @@ export function ARStatusPill({
     >
       <span className="size-1.5 rounded-full" style={{ background: toneDot(arStatusTone(status)) }} />
       {arStatusLabel(status)}
-      {onChange && (
+      {/* A draft leaves only through Send on the job card, never this picker. */}
+      {onChange && status !== 'draft' && (
         <select
           aria-label="Request status"
           value={status}
           onChange={(e) => onChange(e.target.value)}
           className="absolute inset-0 cursor-pointer opacity-0"
         >
-          {AR_STATUSES.map((s) => (
+          {AR_STATUSES.filter((s) => s !== 'draft').map((s) => (
             <option key={s} value={s}>{arStatusLabel(s)}</option>
           ))}
         </select>
@@ -664,8 +666,8 @@ export function AnswerCell({
  *
  * `available` is deliberately absent: it needs nothing asked, so picking it
  * writes straight through with the demand as the available quantity (see
- * `LineRow`). Price is not collected here at all — it arrives prefilled from
- * our own catalogue and is corrected in the table's own Price cell.
+ * `LineRow`). Only Diff Sz/Qnty/Sub collects a size and price — what is
+ * offered instead; otherwise price is corrected in the table's own Price cell.
  */
 const ANSWER_FIELDS: Record<
   string,
@@ -673,8 +675,10 @@ const ANSWER_FIELDS: Record<
     title: string
     /** Whether the answer needs a quantity of its own. */
     qty: boolean
-    /** Wipe a quantity a previous answer left behind — nothing is available. */
-    clearQty?: boolean
+    /** Nothing is available: quantity and price both go to 0. */
+    zero?: boolean
+    /** Collect the size and price actually offered. */
+    offer?: boolean
     /** Which field opens focused — the first thing this answer needs. */
     focus?: 'qty' | 'notes'
     notesLabel: string
@@ -698,6 +702,7 @@ const ANSWER_FIELDS: Record<
     // The answer covers a different size, a short quantity or another plant,
     // so it is the one that still needs a number: what you can actually supply.
     qty: true,
+    offer: true,
     // Naming what you have comes first; the quantity follows it.
     focus: 'notes',
     notesLabel: 'What instead',
@@ -706,16 +711,17 @@ const ANSWER_FIELDS: Record<
   unavailable: {
     title: 'Unavailable',
     qty: false,
-    clearQty: true,
+    zero: true,
     notesLabel: 'Notes (optional)',
     notesHint: 'Substitutes welcome — Name, Size @ price $/unit',
   },
 }
 
 /**
- * Collect notes and any supply quantity for a status answer. Unavailable first
- * asks whether the supplier wants to recommend a substitute; only Yes opens
- * the notes step. Prices are edited in the line's own Price cell.
+ * Collect notes and any supply quantity (and, for Diff Sz/Qnty/Sub, the size
+ * and price offered) for a status answer. Unavailable sets quantity and price
+ * to 0, first asking whether the supplier wants to recommend a substitute;
+ * only Yes opens the notes step.
  */
 function StatusAnswerDialog({
   item,
@@ -741,8 +747,10 @@ function StatusAnswerDialog({
         ? String(item.demandedQuantity)
         : '',
   )
+  const [size, setSize] = useState(item.size ?? '')
+  const [price, setPrice] = useState(item.unitPrice ? String(item.unitPrice) : '')
   const [askingSubstitute, setAskingSubstitute] = useState(status === 'unavailable')
-  const [notes, setNotes] = useState(item.noteForSupplier ?? '')
+  const [notes, setNotes] = useState(item.noteFromSupplier ?? '')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
   const titleId = useId()
   const dialog = useRef<HTMLDivElement>(null)
@@ -764,11 +772,11 @@ function StatusAnswerDialog({
   }, [])
 
   const save = () => {
-    const changes: Record<string, string> = { status, note_for_supplier: notes.trim() }
-    // An empty quantity clears the column, which is what `clearQty` wants and
-    // what an emptied box on a Diff Sz/Qnty/Sub answer means too.
+    const changes: Record<string, string> = { status, note_from_supplier: notes.trim() }
+    // An emptied box on a Diff Sz/Qnty/Sub answer clears that column.
     if (spec.qty) changes.available_quantity = qty.trim()
-    else if (spec.clearQty) changes.available_quantity = ''
+    if (spec.offer) Object.assign(changes, { size: size.trim(), unit_price: price.trim() })
+    if (spec.zero) Object.assign(changes, { available_quantity: '0', unit_price: '0' })
     onSave(changes)
   }
 
@@ -831,7 +839,7 @@ function StatusAnswerDialog({
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => onSave({ status, available_quantity: '' })}
+                onClick={() => onSave({ status, available_quantity: '0', unit_price: '0' })}
                 className={cn(
                   'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
                   drawerModal && 'max-[899px]:min-h-11',
@@ -854,6 +862,24 @@ function StatusAnswerDialog({
           </>
         ) : (
           <>
+            {spec.offer && (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-0.5">
+                  <span className={label}>Size you have</span>
+                  <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="e.g. 5 G" className={field} />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className={label}>Price $/unit</span>
+                  <input
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="$/unit"
+                    className={cn(field, 'text-right tabular-nums')}
+                  />
+                </label>
+              </div>
+            )}
             {spec.qty && (
               <label className="flex flex-col gap-0.5">
                 <span className={label}>Quantity you can supply</span>
@@ -1051,23 +1077,35 @@ function LineRow({
       ariaLabel={`Line ${item.id} available quantity`}
     />
   )
+  // Two notes: LPS's ask (admins edit it; suppliers read it) and the
+  // supplier's reply (suppliers write it; admins may record one for them).
+  const askNote = displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''
   const supplierNote = (
-    <AnswerCell
-      value={item.noteForSupplier ?? ''}
-      editable={editable}
-      placeholder={portal ? 'Add note…' : 'Substitute, ETA, conditions…'}
-      display={displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''}
-      onCommit={editDetails ? detail('note_for_supplier') : commit('note_for_supplier')}
-      plain={portal}
-      ariaLabel={`Line ${item.id} supplier notes`}
-      multiline
-      clamp={portal}
-    />
+    <div className="flex min-w-0 flex-col gap-0.5">
+      {editDetails ? (
+        <AnswerCell value={item.noteForSupplier ?? ''} editable placeholder="Note for supplier…" display={askNote}
+          onCommit={detail('note_for_supplier')} plain={portal} ariaLabel={`Line ${item.id} note for supplier`} multiline />
+      ) : askNote && (
+        <span className="whitespace-pre-wrap px-1 text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]" title={askNote}>{askNote}</span>
+      )}
+      <AnswerCell
+        value={item.noteFromSupplier ?? ''}
+        editable={editable}
+        placeholder={portal ? 'Add note…' : 'Supplier reply: substitute, ETA…'}
+        display={item.noteFromSupplier ?? ''}
+        onCommit={commit('note_from_supplier')}
+        plain={portal}
+        ariaLabel={`Line ${item.id} supplier reply`}
+        multiline
+        clamp={portal}
+      />
+    </div>
   )
   // The admin line table's row treatment: the answer's tone as a left accent
   // bar and a tint over the whole row, so a scanned table reads by colour.
   // An unanswered line is grey — pending is a real state, not an absence.
   const tone = arResponseTone(item.status)
+  const unpriced = isUnpriced(item)
   const cells: Record<ARColumnKey, ReactNode> = {
     need: editDetails ? (
       <AnswerCell value={item.demandedQuantity == null ? '' : String(item.demandedQuantity)} editable align="center"
@@ -1095,9 +1133,9 @@ function LineRow({
       <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} drawerModal={drawerModal} />
     </div>,
     note: supplierNote,
-    unit_price: <AnswerCell value={item.unitPrice == null ? '' : String(item.unitPrice)} editable={editable}
-      align="right" placeholder={portal ? '-' : '$/unit'} display={money(item.unitPrice)}
-      onCommit={commit('unit_price')} plain={portal} attention={portal && item.unitPrice == null}
+    unit_price: <AnswerCell value={unpriced ? '' : String(item.unitPrice)} editable={editable}
+      align="right" placeholder={portal ? '-' : '$/unit'} display={unpriced ? '' : money(item.unitPrice)}
+      onCommit={commit('unit_price')} plain={portal} attention={portal && unpriced}
       ariaLabel={`Line ${item.id} price per unit`} />,
   }
   return (
@@ -1113,7 +1151,7 @@ function LineRow({
               borderLeft: `3px solid ${toneDot(tone)}`,
               background: toneTint(tone),
               // The comp's accent divider under a line that still needs a price.
-              ...(editable && item.unitPrice == null ? { borderBottomColor: PORTAL_PURPLE } : {}),
+              ...(editable && unpriced ? { borderBottomColor: PORTAL_PURPLE } : {}),
             }
           : {
               gridTemplateColumns: columns,
@@ -1214,20 +1252,38 @@ export function ARLineTable<T extends ARItem>({
               void onPatchDetails?.(item.id, { [column]: next.trim() })
             }
             const tone = arResponseTone(item.status)
+            const askNote = displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''
             const supplierNote = (
-              <label className="col-span-2 flex min-w-0 flex-col gap-1">
-                <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note for supplier</span>
-                <AnswerCell
-                  value={item.noteForSupplier ?? ''}
-                  editable={editable}
-                  placeholder="Substitute, ETA, conditions…"
-                  display={displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''}
-                  onCommit={editDetails ? detail('note_for_supplier') : commit('note_for_supplier')}
-                  ariaLabel={`${lineName} supplier notes`}
-                  multiline
-                  touch
-                />
-              </label>
+              <>
+                {(editDetails || askNote) && (
+                  <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Note for supplier</span>
+                    <AnswerCell
+                      value={item.noteForSupplier ?? ''}
+                      editable={editDetails}
+                      placeholder="Substitute, ETA, conditions…"
+                      display={askNote}
+                      onCommit={detail('note_for_supplier')}
+                      ariaLabel={`${lineName} note for supplier`}
+                      multiline
+                      touch
+                    />
+                  </label>
+                )}
+                <label className="col-span-2 flex min-w-0 flex-col gap-1">
+                  <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier reply</span>
+                  <AnswerCell
+                    value={item.noteFromSupplier ?? ''}
+                    editable={editable}
+                    placeholder="Substitute, ETA, conditions…"
+                    display={item.noteFromSupplier ?? ''}
+                    onCommit={commit('note_from_supplier')}
+                    ariaLabel={`${lineName} supplier reply`}
+                    multiline
+                    touch
+                  />
+                </label>
+              </>
             )
             return (
               <article
@@ -1294,11 +1350,11 @@ export function ARLineTable<T extends ARItem>({
                   <label className="flex min-w-0 flex-col gap-1">
                     <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Price</span>
                     <AnswerCell
-                      value={item.unitPrice == null ? '' : String(item.unitPrice)}
+                      value={isUnpriced(item) ? '' : String(item.unitPrice)}
                       editable={editable}
                       align="right"
                       placeholder="$/unit"
-                      display={money(item.unitPrice)}
+                      display={isUnpriced(item) ? '' : money(item.unitPrice)}
                       onCommit={commit('unit_price')}
                       ariaLabel={`${lineName} price per unit`}
                       inputMode="decimal"

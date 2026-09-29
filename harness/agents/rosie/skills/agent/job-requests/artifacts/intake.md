@@ -67,8 +67,9 @@ VALUES ($jobId, $customerId, $name, 'quoted', $noteForCustomer,
   your question batch with an **Unknown** option and room to type a date. Don't overwrite a known EDD
   with a blank; ask if two dates conflict.
 - **Fulfillment**: `pickup`, `delivery` or NULL.
-- Job-wide customer requirements go in the job's `note_for_customer`
-  ([notes](notes.md)).
+- Job-wide customer requirements (delivery constraints, `Must be full`) go
+  in the job's `note_internal`. The job's `note_for_customer` is only for
+  information to the customer ([notes](notes.md)).
 
 ## 4. Create one line per requested plant
 
@@ -78,36 +79,88 @@ Insert rows into `job_request_items` right away, before any question.
 |---|---|
 | `name` | The customer's plant name, cultivar and variant as written. If both common and botanical names are given: `Common Name \| Botanical name`. Don't add a name from a price listing. |
 | `size` | As requested; gallons as `G` (`30 gal or larger` → `30 G or larger`). Unknown → NULL. |
-| `demanded_quantity` | Requested amount. **Not given → 1**, with `How many?` in `note_for_customer`. |
-| `unit_price` | Set during [pricing](pricing.md). Unknown → NULL, never 0. |
-| `note_for_customer` | The customer's line requirements: alternatives they allow, color, form, units. |
-| `note_internal` | Price basis, line changes, open points for Chris ([notes](notes.md)). |
+| `demanded_quantity` | Requested amount. **Not given → 1**, and ask `How many?` in your question batch. |
+| `unit_price` | Comes from the selected candidate ([pricing](pricing.md)). Unknown → NULL, never 0 (a candidate's 0 stays blank on the line). |
+| `note_for_customer` | Leave empty: it follows the selected candidate. Only information for the customer. |
+| `note_internal` | The customer's line requirements (alternatives they allow, color, form, units: `Single trunk`, `Red flowers only`) and open points for Chris; never supplier or price facts ([notes](notes.md)). |
 
 - **Options in one line** (`20 live oaks, 15 G or 30 G`): one row, size
-  `15 G or 30 G`, quantity 20. [Pricing](pricing.md) picks the size.
-- **Separate plants vs alternatives unclear** (`oaks and/or elms, 20`): make
-  the rows you can, then ask. Never copy one total onto several options.
+  `15 G or 30 G`, quantity 20, and a candidate per option. Chris picks.
+- **Plants that may be alternatives** (`oaks and/or elms, 20`): one row for
+  the first plant, a candidate per option (description `Elm`, note `Elm
+  instead`). Don't ask which; Chris
+  picks. Never copy one total onto several options.
 - **Pots in flats or trays**: price per pot, never a per-pot price on a flat
   quantity. Size is the pot (`4 in`). Quantity is the number of pots. The
   pots per flat vary (Chris has said 18 and 24 on different jobs), so use the
-  count given; if none, quantity 1 and `How many?`. Same idea for bundles and
+  count given; if none, quantity 1 and ask `How many?`. Same idea for bundles and
   cases.
 - **Missing plant name**: skip the row and note it on the job.
 - **Duplicate-key error**: re-read, then add only the missing rows.
 - Never write `total` (generated), `updated_at`, thread references or
   changelog rows.
 
-## 5. Hand back, then price, then ask
+## 5. Create each line's candidates
+
+The price list is indicative only: a listing isn't stock, and a missing
+listing doesn't mean APS lacks the plant. So every line gets **candidates**:
+the options Chris can ask a supplier about or pick. Supplier is APS
+(`supplier_id = 1`) unless Chris names another for this job.
+
+| Candidate | Values |
+|---|---|
+| The original ask (always, even when not listed) | `is_original = true` (one per line). The line's `name` and `size`; `unit_price` from [pricing](pricing.md), **0 = price not found** (never NULL); `mapped_inventory_id` = the exact listing or NULL; no `note_for_customer`. |
+| Each listed alternative: nearest smaller and larger size, another variant or color | `is_original = false`. The listing's name and size, its own list price and inventory id; `note_for_customer` says how it differs, for the customer: `5 G NA, 3 G only` · `Only blue`. |
+
+Every candidate also gets a **`description`** (required): what it *is*, for
+Chris: size, plant, variant. `5 G Shumard Oak` · `3 G Salvia greggii 'Furman's
+Red'` · `1 G Gaura`. Don't mix the two: `description` names the plant,
+`note_for_customer` is what the customer reads.
+
+```sql
+SET app.actor TO 'rosie';
+INSERT INTO candidates
+  (supplier_id, job_request_item_id, is_original, description, name, size,
+   unit_price, mapped_inventory_id, note_for_customer)
+VALUES (1, $itemId, $isOriginal, '5 G Shumard Oak', $name, $size,
+        $price, $inventoryId, $note)
+RETURNING id;
+```
+
+- **Exact match** (same plant, same size, priced by an exact listing, the same
+  plant under another name, a price rule, or a price Chris gave): select it
+  right away with `SELECT public.select_candidate($itemId, $candidateId);`.
+  Selecting copies the candidate's size, price, status and
+  `note_for_customer` onto the line (the original ask has none). The
+  customer's requirements stay in `note_internal`, untouched.
+- **Anything else** (other size, variant, color or plant): select one only
+  when Chris's direction for this job or a standing selection rule
+  (`knowledge/files/price-rules.md`, e.g. several requested sizes → cheapest
+  priced) picks it. Otherwise it waits for Chris to drag one onto the line;
+  don't select it yourself, even when it is the only one.
+- Never write a candidate's `status`, `available_quantity`,
+  `note_from_supplier` or `availability_request_id`: they come from the AR.
+  Its shown status is derived: **No price** (unanswered, price 0 or empty) →
+  **Pending** (priced, not on an AR or only on an unsent draft) → **AR sent**
+  (on a sent AR, unanswered) → the answer (Available, Unavailable, Diff
+  Sz/Qnty/Sub, Can Order, Arriving Soon; Unavailable with price 0 is still
+  Unavailable).
+- Retry: re-read the line's candidates (`job-snapshot`) and add only the
+  missing ones.
+
+## 6. Hand back, then price, then ask
 
 1. As soon as the rows are saved, post in the **origin chat** (webchat or
    Telegram): what was captured and the link `[Continue in JR-<id>
    chat](thread:jr-<id>)`.
-2. [Price every row](pricing.md).
-3. Post the result: priced lines, gaps (with nearest listed sizes), and
-   **one** batch of questions that block a quote, AR or order. Put
-   everything else on the line as a short note, so Chris can fix it in the
-   app: questions for the customer in `note_for_customer` (`How many?`),
-   points for Chris in `note_internal` (`Flat count?`).
+2. [Price every row](pricing.md) and create its candidates (step 5).
+3. Post the result: priced lines, gaps (with the candidates found), and
+   **one** batch of questions. **Do ask when in doubt** about the customer
+   (name, identity), delivery vs pickup, dates (EDD), or any demanded row
+   (quantity, unclear plant or size, an ambiguous line). **Never ask** which
+   substitute or alternative to use: those are candidates. Small points for
+   Chris go on the line's `note_internal` (`Flat count?`) so he can fix them
+   in the app.
 4. Apply answers to the existing rows with guarded updates. Never recreate
    the job or duplicate rows.
 

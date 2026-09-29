@@ -5,7 +5,7 @@
 // same order details, line table and history under each of their requests —
 // nothing here knows which page it is drawn on.
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { MessagesSquare } from 'lucide-react'
 
 import { Markdown } from '@/components/workspace/chat-kit'
@@ -22,6 +22,8 @@ import {
   availabilityRequestLinkLabel,
   arResponseLabel,
   arResponseTone,
+  arStatusLabel,
+  arStatusTone,
   isInProgressARStatus,
   isSubmittedARStatus,
 } from '@/lib/availability'
@@ -29,6 +31,7 @@ import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { customerThreadId } from '@/lib/customers'
 import { formatWeekdayMonthDay, money, num } from '@/lib/format'
+import { isApsSupplier } from '@/lib/orders'
 import {
   ITEM_STATUS_OPTIONS,
   coverColor,
@@ -45,7 +48,7 @@ import { JobOrders } from '@/components/workspace/orders'
 import { type ColumnDef } from '@/lib/columns'
 import { quoteLineTotal } from '@/lib/job-request-html-quote'
 import { useTableConfig } from '@/lib/table-config'
-import type { JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow, SupplierResponse } from '@/lib/rows'
+import type { Candidate, JobAddress, JobChange, JobNote, JobRequestItem, JobRequestRow } from '@/lib/rows'
 import { cn } from '@/lib/utils'
 
 /**
@@ -73,6 +76,25 @@ const gridOf = (
     .filter(Boolean)
     .join(' ')
 
+/** Leading columns that stay put while the line table scrolls sideways. */
+const FROZEN_COLUMNS = new Set(['quantity', 'available_quantity', 'size', 'name'])
+
+/**
+ * Left offsets for the frozen columns: the leading run of FROZEN_COLUMNS in
+ * the current order, after the select column. A frozen column moved further
+ * right simply scrolls.
+ */
+function frozenOffsets(columns: readonly ColumnDef[], widthOf: (column: ColumnDef) => number, selectable: boolean) {
+  const offsets = new Map<string, number>()
+  let left = selectable ? SELECT_COLUMN : 0
+  for (const column of columns) {
+    if (!FROZEN_COLUMNS.has(column.key)) break
+    offsets.set(column.key, left)
+    left += widthOf(column)
+  }
+  return offsets
+}
+
 /** Navigate the visible cells in row order, letting blur save the old editor. */
 function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
   if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) return
@@ -83,7 +105,7 @@ function navigateLineCells(event: KeyboardEvent<HTMLDivElement>) {
   for (let next = index + step; next >= 0 && next < cells.length; next += step) {
     const cell = cells[next]
     const target = cell.matches('[tabindex="0"]') ? cell
-      : cell.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)')
+      : cell.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')
     if (!target) continue
     event.preventDefault()
     target.focus()
@@ -451,8 +473,9 @@ function NoteCell({
 }) {
   const internal = kind === 'internal'
   return (
-    <div className="min-w-0 px-1.5">
+    <div className="min-w-0 px-0.5">
       <EditableTextarea
+        center
         table={table}
         id={id}
         column={internal ? 'note_internal' : 'note_for_customer'}
@@ -470,37 +493,165 @@ function NoteCell({
   )
 }
 
+/** Drag payload type for a job line's candidate pill: JSON `{ id, itemId, supplierId }`. */
+const CANDIDATE_DRAG = 'application/x-lps-candidate'
+/** A second type naming the supplier, readable during dragover (data is not). */
+const supplierDragType = (supplierId: number) => `application/x-lps-supplier-${supplierId}`
+
+type CandidateDragPayload = { id: number; itemId: number; supplierId: number }
+
+const draggedCandidate = (e: DragEvent): CandidateDragPayload | null => {
+  try {
+    const value = JSON.parse(e.dataTransfer.getData(CANDIDATE_DRAG)) as CandidateDragPayload
+    return Number.isInteger(value?.id) ? value : null
+  } catch { return null }
+}
+const carriesCandidate = (e: DragEvent, supplierId?: number) => e.dataTransfer.types.includes(CANDIDATE_DRAG)
+  && (supplierId == null || e.dataTransfer.types.includes(supplierDragType(supplierId)))
+
+/** What the candidate is: its description, else size and name. */
+const candidateDescription = (candidate: Candidate) =>
+  candidate.description?.trim() || [candidate.size, candidate.name].filter(Boolean).join(' ')
+
+/** Not yet in front of the supplier: on no AR, or only on an unsent draft. */
+const candidatePending = (candidate: Candidate) => candidate.arId == null || candidate.arStatus === 'draft'
+
 /**
- * The supplier-selection cell: one capsule per supplier AR answer for this
- * line — supplier, price, note — tinted by the answer. Choosing one copies its
- * status, price and quantity onto the line and appends its note for the
- * customer; the chosen capsule is ringed so it cannot be missed.
+ * No price = unanswered with no price found; Pending = priced but not sent
+ * yet; AR sent = asked and unanswered; else the supplier's answer.
  */
-function SupplierCapsules({
-  requestId,
-  item,
-  onSaved,
+const candidateStatus = (candidate: Candidate) =>
+  candidate.status == null && !candidate.unitPrice ? 'No price'
+    : candidatePending(candidate) ? 'Pending'
+      : candidate.status == null ? 'AR sent' : arResponseLabel(candidate.status)
+
+/** Grey (dotted for No price) until sent, the AR's New amber once sent, then the answer's tone. */
+const candidateTone = (candidate: Candidate): Tone =>
+  candidate.status != null ? arResponseTone(candidate.status)
+    : candidate.unitPrice && !candidatePending(candidate) ? 'amber' : 'grey'
+
+/** Everything the pill leaves out, for its hover card. */
+function candidateDetails(candidate: Candidate) {
+  const price = candidate.unitPrice ? money(candidate.unitPrice) : 'No price'
+  return [
+    candidateDescription(candidate),
+    `${candidate.supplierName} · ${[candidate.size, candidate.name].filter(Boolean).join(' ')}`,
+    `Price: ${price}`,
+    `Status: ${candidateStatus(candidate)}${candidate.arId != null ? ` (AR-${candidate.arId})` : ''}`,
+    candidate.noteForCustomer?.trim() && `Note for customer: ${candidate.noteForCustomer.trim()}`,
+    candidate.noteFromSupplier?.trim() && `Supplier reply: ${candidate.noteFromSupplier.trim()}`,
+    candidate.noteForSupplier?.trim() && `Our ask: ${candidate.noteForSupplier.trim()}`,
+    candidate.isOriginal && 'Original request',
+  ].filter(Boolean).join('\n')
+}
+
+/**
+ * One candidate as a draggable pill: description and price. Its colour is its
+ * status (`candidateTone`; No price is dotted grey); hover shows the rest —
+ * supplier, notes, AR.
+ */
+function CandidatePill({
+  candidate,
+  itemId,
+  busy,
+  onDragState,
 }: {
-  requestId: number
-  item: JobRequestItem
-  onSaved: () => void
+  candidate: Candidate
+  itemId: number
+  busy: boolean
+  onDragState: (id: number | null) => void
 }) {
+  const tone = candidateTone(candidate)
+  const details = candidateDetails(candidate)
+  return (
+    <span
+      draggable
+      tabIndex={0}
+      role="listitem"
+      aria-label={`Candidate: ${details.replace(/\n/g, ' · ')}`}
+      title={`${details}\n\nDrag to Selected, onto an AR, or to the bin.`}
+      data-candidate={candidate.id}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CANDIDATE_DRAG, JSON.stringify({ id: candidate.id, itemId, supplierId: candidate.supplierId }))
+        e.dataTransfer.setData(supplierDragType(candidate.supplierId), '')
+        e.dataTransfer.effectAllowed = 'move'
+        onDragState(candidate.id)
+      }}
+      onDragEnd={() => onDragState(null)}
+      className={cn(
+        'inline-flex min-h-7 min-w-0 max-w-full cursor-grab flex-wrap items-stretch overflow-hidden rounded-xl border text-left text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing',
+        'border-lps-edge',
+        candidateStatus(candidate) === 'No price' && 'border-2 border-dotted',
+        busy && 'animate-pulse',
+      )}
+      style={toneStyle(tone)}
+    >
+      <span className="flex min-w-0 items-center gap-1 px-2 py-0.5 font-semibold">
+        <span className="[overflow-wrap:anywhere]">{candidateDescription(candidate) || '—'}</span>
+      </span>
+      <span className="flex flex-none items-center border-l border-current/20 px-1.5 font-semibold tabular-nums">
+        {candidate.unitPrice ? money(candidate.unitPrice) : 'No price'}
+      </span>
+    </span>
+  )
+}
+
+/** A drop zone for candidate pills (optionally one supplier's); highlighted while a pill hovers over it. */
+function CandidateDrop({
+  accepts,
+  onDrop,
+  supplierId,
+  label,
+  className,
+  style,
+  children,
+}: {
+  accepts: (payload: CandidateDragPayload) => boolean
+  onDrop: (payload: CandidateDragPayload) => void
+  supplierId?: number
+  label: string
+  className?: string
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  const [over, setOver] = useState(false)
+  return (
+    <div
+      aria-label={label}
+      onDragOver={(e) => {
+        if (!carriesCandidate(e, supplierId)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        setOver(false)
+        const payload = draggedCandidate(e)
+        if (payload == null || !accepts(payload)) return
+        e.preventDefault()
+        onDrop(payload)
+      }}
+      className={cn(className, over && 'ring-2 ring-primary')}
+      style={style}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** Posts one candidate action and refreshes; shared by the line cells and the AR strip. */
+function useCandidateActions(requestId: number, onSaved: () => void) {
   const toast = useToast()
   const [busy, setBusy] = useState<number | null>(null)
-  const responses = item.supplierResponses ?? []
-  const selectedId = item.selectedResponseId ?? null
-
-  const choose = async (response: SupplierResponse) => {
-    if (response.arItemId === selectedId || busy != null) return
-    setBusy(response.arItemId)
+  const run = async (itemId: number, candidateId: number, init: RequestInit, done?: () => void) => {
+    if (busy != null) return
+    setBusy(candidateId)
     try {
-      const res = await fetch(`/api/requests/${requestId}/items/${item.id}/supplier-selection`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ arItemId: response.arItemId }),
-      })
+      const res = await fetch(`/api/requests/${requestId}/items/${itemId}/candidates/${candidateId}`, init)
       const body = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(body.error ?? 'Could not select supplier')
+      if (!res.ok) throw new Error(body.error ?? 'Could not update the candidate')
+      done?.()
       onSaved()
     } catch (e) {
       toast((e as Error).message)
@@ -508,59 +659,277 @@ function SupplierCapsules({
       setBusy(null)
     }
   }
+  const post = (body: object) => ({
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+  return {
+    busy,
+    select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' })),
+    add: (itemId: number, id: number, arId: number) =>
+      run(itemId, id, post({ action: 'add', arId }), () => toast(`Added to AR-${arId}`)),
+    remove: (itemId: number, id: number) => run(itemId, id, { method: 'DELETE' }),
+  }
+}
 
-  if (!responses.length) return <div tabIndex={0} className="px-1.5 text-[11px] text-lps-dim">No supplier answers</div>
+type CandidateActions = ReturnType<typeof useCandidateActions>
+
+/** The Selected cell: drop a candidate here to copy it onto the line, replacing the current one. */
+function SelectedCandidateCell({
+  item,
+  actions,
+  onDragState,
+}: {
+  item: JobRequestItem
+  actions: CandidateActions
+  onDragState: (id: number | null) => void
+}) {
+  const candidates = item.candidates ?? []
+  const selected = candidates.find((candidate) => candidate.id === item.selectedCandidateId)
+  return (
+    <CandidateDrop
+      label={`Selected candidate for ${item.name}`}
+      accepts={(payload) => payload.itemId === item.id}
+      onDrop={(payload) => { if (payload.id !== item.selectedCandidateId) void actions.select(item.id, payload.id) }}
+      className="mx-1 flex min-h-8 min-w-0 items-center justify-center rounded-xl"
+    >
+      {selected
+        ? <CandidatePill candidate={selected} itemId={item.id} busy={actions.busy === selected.id} onDragState={onDragState} />
+        : <span tabIndex={0} className="w-full rounded-xl border border-dashed border-lps-edge px-2 py-1 text-center text-[10.5px] text-lps-dim">Drop a candidate</span>}
+    </CandidateDrop>
+  )
+}
+
+/**
+ * The Candidates cell: a pill per candidate, grouped by supplier (names are on
+ * hover only). The selected one lives in the Selected cell instead. A bin
+ * appears while one of this line's pills is dragged.
+ */
+function CandidatesCell({
+  item,
+  actions,
+  dragging,
+  onDragState,
+}: {
+  item: JobRequestItem
+  actions: CandidateActions
+  dragging: number | null
+  onDragState: (id: number | null) => void
+}) {
+  const candidates = item.candidates ?? []
+  const shown = candidates.filter((c) => c.id !== item.selectedCandidateId)
+    .sort((a, b) => a.supplierId - b.supplierId || a.id - b.id)
+
+  if (!shown.length && dragging == null) {
+    return <div tabIndex={0} className="px-1.5 text-center text-[11px] text-lps-dim">{candidates.length ? 'No other candidates' : 'No candidates'}</div>
+  }
 
   return (
-    <div role="radiogroup" aria-label={`Supplier for ${item.name}`} className="flex min-w-0 flex-wrap gap-1.5 px-1.5 py-1">
-      {responses.map((response) => {
-        const selected = response.arItemId === selectedId
-        const tone = arResponseTone(response.status)
-        const note = response.note?.trim()
-        const label = [
-          response.supplierName,
-          arResponseLabel(response.status),
-          money(response.unitPrice) || 'No price',
-          note,
-        ].filter(Boolean).join(' · ')
+    <div className="flex min-w-0 flex-col gap-1.5 px-1.5 py-1">
+      <div role="list" aria-label={`Candidates for ${item.name}`} className="flex min-w-0 flex-wrap justify-center gap-1">
+        {shown.map((candidate) => (
+          <CandidatePill
+            key={candidate.id}
+            candidate={candidate}
+            itemId={item.id}
+            busy={actions.busy === candidate.id}
+            onDragState={onDragState}
+          />
+        ))}
+      </div>
+      {dragging != null && candidates.some((candidate) => candidate.id === dragging) && (
+        <CandidateDrop
+          label={`Delete candidate from ${item.name}`}
+          accepts={(payload) => payload.itemId === item.id}
+          onDrop={(payload) => void actions.remove(item.id, payload.id)}
+          className="flex items-center gap-1 self-end rounded-lg border border-dashed border-destructive/60 px-2 py-0.5 text-[10.5px] font-semibold text-destructive"
+        >
+          <TrashIcon size={12} /> Bin
+        </CandidateDrop>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The job's availability requests as tablets above the line table: supplier,
+ * AR and status (colour). Drop a candidate of the same supplier on one to add
+ * it; a Draft has a **Send** button — only then does the supplier see it.
+ * **Create AR** starts a new draft.
+ */
+function JobARStrip({ request, onSaved }: { request: JobRequestRow; onSaved: () => void }) {
+  const toast = useToast()
+  const actions = useCandidateActions(request.id, onSaved)
+  const [creating, setCreating] = useState(false)
+  const [sending, setSending] = useState<number | null>(null)
+  const tablets = request.supplierLinks.flatMap((link) => link.availabilityRequests
+    .filter((ar) => ar.status !== 'closed').map((ar) => ({ link, ar })))
+
+  const send = async (arId: number) => {
+    setSending(arId)
+    try {
+      const res = await fetch(`/api/availability-requests/${arId}/send`, { method: 'POST' })
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not send the request')
+      toast(`AR-${arId} sent to the supplier`)
+      onSaved()
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setSending(null)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-border bg-lps-tint px-3 py-2" data-job-ar-strip>
+      <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Availability requests</span>
+      {tablets.map(({ link, ar }) => {
+        const name = availabilityRecordName(ar)
         return (
-          <button
-            key={response.arItemId}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={`${selected ? 'Selected: ' : 'Select '}${label} (AR-${response.arId})`}
-            title={label}
-            disabled={busy != null}
-            onClick={(e) => { e.stopPropagation(); void choose(response) }}
-            data-supplier-capsule={selected ? 'selected' : ''}
-            className={cn(
-              'inline-flex min-h-8 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-xl border text-left text-[10.5px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              selected
-                ? 'border-2 border-foreground shadow-md ring-2 ring-primary ring-offset-2 ring-offset-card'
-                : 'border-lps-edge hover:brightness-95',
-              !selected && selectedId != null && 'opacity-60 hover:opacity-100',
-              busy === response.arItemId && 'animate-pulse',
-            )}
-            style={toneStyle(tone)}
+          <CandidateDrop
+            key={ar.id}
+            supplierId={link.supplierId}
+            label={`Add a ${link.name} candidate to ${name}`}
+            accepts={(payload) => payload.supplierId === link.supplierId}
+            onDrop={(payload) => void actions.add(payload.itemId, payload.id, ar.id)}
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-xl border border-lps-edge px-2 py-0.5 text-[11.5px]"
+            style={toneStyle(arStatusTone(ar.status))}
           >
-            <span className="flex min-w-0 items-center gap-1 px-2 py-0.5">
-              {selected
-                ? <CheckIcon size={12} className="flex-none" />
-                : <span aria-hidden="true" className="size-1.5 flex-none rounded-full" style={{ background: toneDot(tone) }} />}
-              <span className="max-w-[9rem] truncate">{response.supplierName}</span>
-            </span>
-            <span className="flex flex-none items-center border-l border-current/20 px-1.5 tabular-nums">
-              {money(response.unitPrice) || '—'}
-            </span>
-            {note && (
-              <span className="flex min-w-0 items-center border-l border-current/20 px-1.5 font-normal">
-                <span className="max-w-[10rem] truncate">{note}</span>
-              </span>
+            <button type="button" onClick={() => openAvailabilityRequest(ar.id)}
+              title={`Open ${name} (${link.name})`}
+              className="cursor-pointer border-none bg-transparent p-0 font-bold text-current hover:underline">
+              {link.shortName || link.name} · {name}
+            </button>
+            <span>{arStatusLabel(ar.status)}</span>
+            {ar.status === 'draft' && (
+              <button type="button" disabled={sending != null} onClick={() => void send(ar.id)}
+                className="cursor-pointer rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold text-primary-foreground disabled:opacity-60">
+                Send
+              </button>
             )}
-          </button>
+          </CandidateDrop>
         )
       })}
+      <button type="button" onClick={() => setCreating(true)}
+        className="min-h-8 rounded-md border border-border bg-card px-3 text-[12px] font-semibold hover:bg-muted">
+        Create AR
+      </button>
+      {creating && <CreateARDialog request={request} onClose={() => setCreating(false)} onCreated={onSaved} />}
+    </div>
+  )
+}
+
+/**
+ * Create AR: pick a supplier, choose which of the job's candidates it asks —
+ * quick picks for all of them, the lines' selected ones, or the original
+ * demand (created for this supplier where missing) — and whether the supplier
+ * sees the customer. It creates a draft tablet; nothing is sent yet.
+ */
+function CreateARDialog({ request, onClose, onCreated }: { request: JobRequestRow; onClose: () => void; onCreated: () => void }) {
+  const toast = useToast()
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([])
+  const [supplierId, setSupplierId] = useState<number | null>(null)
+  const [picked, setPicked] = useState<Set<number>>(new Set())
+  const [originals, setOriginals] = useState<Set<number>>(new Set())
+  const [share, setShare] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch('/api/availability-requests/suppliers')
+      if (!res.ok) return
+      const body = (await res.json()) as { suppliers: { id: number; name: string }[] }
+      setSuppliers(body.suppliers)
+      setSupplierId((current) => current ?? body.suppliers.find((s) => isApsSupplier(s.name))?.id ?? null)
+    })().catch(() => {})
+  }, [])
+
+  // This supplier's candidates per line; asked ones can't be asked again.
+  const lines = request.items.map((item) => {
+    const mine = (item.candidates ?? []).filter((c) => c.supplierId === supplierId)
+    return { item, unasked: mine.filter((c) => c.arId == null), hasOriginal: mine.some((c) => c.isOriginal) }
+  })
+  const choose = (ids: number[], originalItems: number[] = []) => { setPicked(new Set(ids)); setOriginals(new Set(originalItems)) }
+  const toggle = (set: Set<number>, id: number) => { const next = new Set(set); if (next.has(id)) next.delete(id); else next.add(id); return next }
+
+  const create = async () => {
+    if (supplierId == null) return
+    setBusy(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/requests/${request.id}/availability-requests`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ supplierId, candidateIds: [...picked], originalItemIds: [...originals], shareCustomerDetails: share }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { id?: number; error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not create the request')
+      toast(`Draft AR-${body.id} created — drag candidates onto it, then Send`)
+      onCreated()
+      onClose()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const quick = 'min-h-8 rounded-full border border-border bg-card px-3 text-[12px] font-semibold hover:bg-muted'
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Create availability request" onClick={(e) => e.stopPropagation()}
+        className="flex max-h-full w-full max-w-[520px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]">
+        <span className="text-[14px] font-bold text-foreground">Create availability request</span>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">Supplier</span>
+          <select value={supplierId ?? ''} onChange={(e) => { setSupplierId(e.target.value ? Number(e.target.value) : null); choose([]) }}
+            className="h-9 cursor-pointer rounded-md border border-input bg-background px-2 text-[13px] outline-none">
+            <option value="">Choose a supplier…</option>
+            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+        {supplierId != null && <>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" className={quick} onClick={() => choose(lines.flatMap((l) => l.unasked.map((c) => c.id)))}>All candidates</button>
+            <button type="button" className={quick} onClick={() => choose(lines.flatMap((l) =>
+              l.unasked.filter((c) => c.id === l.item.selectedCandidateId).map((c) => c.id)))}>Selected candidates</button>
+            <button type="button" className={quick} onClick={() => choose(
+              lines.flatMap((l) => l.unasked.filter((c) => c.isOriginal).map((c) => c.id)),
+              lines.filter((l) => !l.hasOriginal).map((l) => l.item.id))}>Original demand</button>
+          </div>
+          <div className="flex flex-col gap-2 rounded-lg border border-lps-hair bg-lps-bubble p-2.5">
+            {lines.map(({ item, unasked, hasOriginal }) => (
+              <div key={item.id} className="flex flex-col gap-0.5">
+                <span className="text-[12px] font-semibold text-foreground">{[num(item.quantity), item.size, item.name].filter(Boolean).join(' · ')}</span>
+                {unasked.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 pl-2 text-[12px]">
+                    <input type="checkbox" checked={picked.has(c.id)} onChange={() => setPicked((set) => toggle(set, c.id))} />
+                    {candidateDescription(c)} · {c.unitPrice ? money(c.unitPrice) : 'No price'}{c.isOriginal ? ' · original' : ''}
+                  </label>
+                ))}
+                {!hasOriginal && (
+                  <label className="flex items-center gap-2 pl-2 text-[12px] italic">
+                    <input type="checkbox" checked={originals.has(item.id)} onChange={() => setOriginals((set) => toggle(set, item.id))} />
+                    Original request (new candidate)
+                  </label>
+                )}
+                {!unasked.length && hasOriginal && <span className="pl-2 text-[11.5px] text-lps-dim">Nothing left to ask</span>}
+              </div>
+            ))}
+          </div>
+        </>}
+        <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+          <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} className="size-4 accent-[var(--primary)]" />
+          Share customer details with the supplier
+        </label>
+        {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground">Cancel</button>
+          <button type="button" disabled={busy || supplierId == null || (!picked.size && !originals.size)} onClick={() => void create()}
+            className="cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-60">
+            Create draft
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -590,6 +959,8 @@ function ItemRow({
 }) {
   const pill = itemPill(item.status, item.quantity, item.availableQuantity)
   const cover = coverOf(item.quantity, item.availableQuantity)
+  const candidateActions = useCandidateActions(requestId, onSaved)
+  const [dragging, setDragging] = useState<number | null>(null)
   const edit = { table: 'job_request_items', id: item.id, onSaved, touchTarget }
   const title = [item.name, item.size].filter(Boolean).join(' · ')
 
@@ -598,6 +969,27 @@ function ItemRow({
   // `available` is waiting on somebody by definition, so it painted almost the
   // whole table one colour and hid the statuses underneath it.
   const background = selected ? 'var(--lps-tone-green-bg)' : toneTint(pill.tone)
+  // Frozen cells need an opaque copy of the (translucent) row tint.
+  const frozen = frozenOffsets(columns, widthOf, !!onSelect)
+  const lastFrozen = [...frozen.keys()].at(-1)
+  const frozenStyle = (left: number) => ({ left, background: `linear-gradient(${background}, ${background}), var(--card)` })
+  const lineCell = (key: string) => {
+    switch (key) {
+      case 'quantity': return <div key={key} className="px-0.5"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="center" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
+      // Colour lives on the wrapper so blank availability remains distinct from zero.
+      case 'available_quantity': return <div key={key} className="px-0.5" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="center" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
+      case 'size': return <div key={key} className="px-0.5"><EditableText {...edit} column="size" value={item.size} align="center" /></div>
+      case 'name': return <div key={key} className="flex min-w-0 flex-col gap-px px-0.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
+      case 'selected': return <SelectedCandidateCell key={key} item={item} actions={candidateActions} onDragState={setDragging} />
+      case 'candidates': return <CandidatesCell key={key} item={item} actions={candidateActions} dragging={dragging} onDragState={setDragging} />
+      case 'status': return <div key={key} className="flex justify-center px-0.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
+      case 'note_for_customer': return <NoteCell key={key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
+      case 'unit_price': return <div key={key} className="px-0.5"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="center" render={(v) => money(v)} /></div>
+      case 'total': return <div key={key} className="px-1 text-center text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
+      case 'note_internal': return <NoteCell key={key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
+      default: return null
+    }
+  }
 
   return (
     <div
@@ -606,32 +998,27 @@ function ItemRow({
       style={{
         gridTemplateColumns: gridOf(!!onSelect, !!onDelete, columns, widthOf),
         minHeight: '48px',
-        padding: '4px 0',
         borderLeft: `3px solid ${toneDot(pill.tone)}`,
         background,
       }}
     >
       {onSelect && (
-        <div className="flex justify-center">
+        <div className={cn('flex items-center justify-center self-stretch', frozen.size && 'sticky z-[1]')}
+          style={frozen.size ? frozenStyle(0) : undefined}>
           <Check state={selected} onChange={onSelect} label={`Select ${item.name}`} />
         </div>
       )}
       {columns.map((column) => {
-        switch (column.key) {
-          case 'quantity': return <div key={column.key} className="px-1"><EditableText {...edit} column="demanded_quantity" value={item.quantity} numeric align="right" render={(v) => num(v)} title="Demand — what the customer asked for" /></div>
-          // Colour lives on the wrapper so blank availability remains distinct from zero.
-          case 'available_quantity': return <div key={column.key} className="px-1" style={{ color: coverColor(cover) }}><EditableText {...edit} column="available_quantity" value={item.availableQuantity} numeric align="right" render={(v) => num(v)} title="Avail — how many we can supply. Blank means not answered yet." /></div>
-          case 'size': return <div key={column.key} className="px-1"><EditableText {...edit} column="size" value={item.size} /></div>
-          case 'name': return <div key={column.key} className="flex min-w-0 flex-col gap-px px-1.5"><span className="flex min-w-0 items-center gap-1.5"><EditableText {...edit} column="name" value={item.name} /></span></div>
-          case 'suppliers': return <SupplierCapsules key={column.key} requestId={requestId} item={item} onSaved={onSaved} />
-          case 'status': return <div key={column.key} className="px-1.5"><StatusPill {...edit} column="status" value={item.status} label={pill.label} tone={pill.tone} options={ITEM_STATUS_OPTIONS} /></div>
-          case 'note_for_customer': return <NoteCell key={column.key} kind="shared" table="job_request_items" id={item.id} title={title} value={item.noteForCustomer} onSaved={onSaved} touchTarget={touchTarget} />
-          case 'unit_price': return <div key={column.key} className="px-1"><EditableText {...edit} column="unit_price" value={item.unitPrice} numeric align="right" render={(v) => money(v)} /></div>
-          case 'total': return <div key={column.key} className="px-2.5 text-right text-[12.5px] font-semibold tabular-nums text-foreground" tabIndex={0} title="Total — zero when unavailable; otherwise available quantity × unit price, falling back to demand">{money(quoteLineTotal(item)) || '—'}</div>
-          case 'note_internal': return <NoteCell key={column.key} kind="internal" table="job_request_items" id={item.id} title={title} value={item.noteInternal} onSaved={onSaved} touchTarget={touchTarget} />
-          default: return null
-        }
+        const cell = lineCell(column.key)
+        const left = frozen.get(column.key)
+        return left == null ? cell : (
+          <div key={column.key} style={frozenStyle(left)}
+            className={cn('sticky z-[1] grid min-w-0 items-center self-stretch py-1', column.key === lastFrozen && 'border-r border-lps-hair')}>
+            {cell}
+          </div>
+        )
       })}
+
       {onDelete && (
         <div className="flex justify-center px-1">
           <button
@@ -656,11 +1043,16 @@ function LineColumnHeader({
   width,
   onMove,
   onResize,
+  stickyLeft,
+  lastFrozen = false,
 }: {
   column: ColumnDef
   width: number
   onMove: (from: string, to: string) => void
   onResize: (width: number) => void
+  /** Set for a frozen column: its left offset. */
+  stickyLeft?: number
+  lastFrozen?: boolean
 }) {
   const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -678,7 +1070,9 @@ function LineColumnHeader({
 
   return (
     <div
-      className="relative min-w-0 px-2 py-1.5"
+      className={cn('relative min-w-0 px-1 py-1.5', stickyLeft != null && 'sticky z-[3] self-stretch bg-lps-headrow',
+        lastFrozen && 'border-r border-lps-hair')}
+      style={stickyLeft != null ? { left: stickyLeft } : undefined}
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
       onDrop={(event) => {
         event.preventDefault()
@@ -693,7 +1087,7 @@ function LineColumnHeader({
           event.dataTransfer.effectAllowed = 'move'
         }}
         title={`${column.label} — drag to reorder`}
-        className="block cursor-grab truncate active:cursor-grabbing"
+        className={cn('block cursor-grab truncate active:cursor-grabbing', column.key === 'name' ? 'text-left' : 'text-center')}
       >
         {column.label}
       </span>
@@ -701,9 +1095,13 @@ function LineColumnHeader({
         role="separator"
         aria-label={`Resize ${column.label}`}
         aria-orientation="vertical"
+        title={`Drag to resize ${column.label}`}
         onMouseDown={startResize}
-        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-lps-edge"
-      />
+        className="group absolute -right-1.5 top-0 z-10 flex h-full w-3 cursor-col-resize select-none justify-center"
+      >
+        {/* Always-visible divider; it thickens on hover so the handle is findable. */}
+        <span className="h-full w-px bg-lps-edge group-hover:w-0.5 group-hover:bg-primary" />
+      </div>
     </div>
   )
 }
@@ -724,7 +1122,7 @@ function SupplierPill({
   focusedMobile = false,
 }: {
   name: string
-  children: React.ReactNode
+  children: ReactNode
   focusedMobile?: boolean
 }) {
   return (
@@ -762,7 +1160,7 @@ function LinkSegment({
   describedBy?: string
   onOpen: () => void
   className?: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <button
@@ -1085,7 +1483,7 @@ function RequestOverview({ request }: { request: JobRequestRow }) {
 }
 
 /** One titled block in the details drawer's note row. */
-function NoteBlock({ label, children }: { label: string; children: React.ReactNode }) {
+function NoteBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-lps-hair bg-card p-3">
       <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-muted-foreground">
@@ -1097,7 +1495,7 @@ function NoteBlock({ label, children }: { label: string; children: React.ReactNo
 }
 
 /** A compact desktop signature column: separation without another boxed panel. */
-function SignatureBlock({ label, children }: { label: string; children: React.ReactNode }) {
+function SignatureBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="flex min-w-0 flex-col gap-1 border-l border-lps-hair pl-3 first:border-l-0 first:pl-0">
       <h3 className="m-0 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
@@ -1455,6 +1853,7 @@ export function RequestBody({
   const lineTable = useTableConfig('requestItems')
   const lineColumns = lineTable.visible
   const lineGrid = gridOf(!!onSelect, !!onDeleteItem, lineColumns, lineTable.widthOf)
+  const lineFrozen = frozenOffsets(lineColumns, lineTable.widthOf, !!onSelect)
   const lineMinWidth = lineColumns.reduce((sum, column) => sum + lineTable.widthOf(column), 0)
     + (onSelect ? SELECT_COLUMN : 0) + (onDeleteItem ? ACTION_COLUMN : 0)
   useEffect(() => setTab('items'), [request.id])
@@ -1569,24 +1968,26 @@ export function RequestBody({
         </div>
       )}
 
+      {onDeleteItem && <JobARStrip request={request} onSaved={onSaved} />}
       {/* The line table scrolls sideways rather than crushing resized columns. */}
       {onDeleteItem && <div className="flex justify-end border-t border-border bg-lps-tint px-3 py-2">
         <button type="button" onClick={() => void addItem()} className="min-h-9 rounded-md border border-border bg-card px-3 text-[12px] font-semibold hover:bg-muted">
           New row
         </button>
       </div>}
-      <div data-request-line-table onKeyDown={navigateLineCells} className="overflow-x-auto border-t border-border">
+      {/* Its own scroll area, so the header and the first columns can stay frozen. */}
+      <div data-request-line-table onKeyDown={navigateLineCells} className="max-h-[75vh] overflow-auto border-t border-border">
         <div
           style={{ minWidth: lineMinWidth }}
         >
           {/* Column header, repeated per card so it survives a collapsed neighbour. */}
           <div
-            className="grid items-center border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
+            className="sticky top-0 z-[2] grid items-center border-b border-border bg-lps-headrow text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground"
             style={{ gridTemplateColumns: lineGrid }}
           >
             {/* Deliberately unlabelled: the column selects lines, and a
                 header control here would only mean "all of them". */}
-            {onSelect && <div />}
+            {onSelect && <div className={cn('self-stretch', lineFrozen.size && 'sticky left-0 z-[3] bg-lps-headrow')} />}
             {lineColumns.map((column) => (
               <LineColumnHeader
                 key={column.key}
@@ -1594,6 +1995,8 @@ export function RequestBody({
                 width={lineTable.widthOf(column)}
                 onMove={lineTable.moveColumn}
                 onResize={(width) => lineTable.resizeColumn(column.key, width)}
+                stickyLeft={lineFrozen.get(column.key)}
+                lastFrozen={column.key === [...lineFrozen.keys()].at(-1)}
               />
             ))}
             {/* Unlabelled for the same reason the select column is: the header

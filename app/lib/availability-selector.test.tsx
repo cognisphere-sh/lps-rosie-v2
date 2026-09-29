@@ -52,6 +52,7 @@ const item = (changes: Partial<ARItem> = {}): ARItem => ({
   availableQuantity: null,
   unitPrice: 12.5,
   noteForSupplier: null,
+  noteFromSupplier: null,
   ...changes,
 })
 
@@ -133,7 +134,7 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
   assert.equal(view.queryByLabelText('Price per unit'), null)
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
-  assert.deepEqual(patches, [[19, { status: 'can_order', note_for_supplier: 'Ready next week' }]])
+  assert.deepEqual(patches, [[19, { status: 'can_order', note_from_supplier: 'Ready next week' }]])
 })
 
 test('Tab and Shift+Tab skip disabled, ancestor-hidden/inert controls and failed focus candidates', async () => {
@@ -458,26 +459,30 @@ test('admin line picker remains the existing native select', () => {
   )
 })
 
-test('desktop admin and supplier lines render the merged note once in its column', () => {
-  const noteForSupplier = 'Single trunk only.\nReady next week.'
+test('desktop admin and supplier lines render the ask and the reply once in the note column', () => {
+  const noteForSupplier = 'Single trunk only.\nNo substitutes.'
+  const noteFromSupplier = 'Ready next week.\nCall ahead.'
   for (const design of ['default', 'portal'] as const) {
-    const view = render(<ARLineTable items={[item({ noteForSupplier })]} design={design} editable={false} />)
+    const view = render(<ARLineTable items={[item({ noteForSupplier, noteFromSupplier })]} design={design} editable={false} />)
     assert.ok(view.getByText('Note'))
     const plantCell = view.getByText(item().name).parentElement!
-    const note = view.getByTitle(noteForSupplier, { normalizer: (value) => value })
-    assert.equal(plantCell.contains(note), false)
-    assert.equal(note.textContent, noteForSupplier)
-    // The portal drawing clamps Notes to one line; the full text is its tooltip.
-    if (design === 'portal') assert.match(note.className, /truncate/)
+    const ask = view.getByTitle(noteForSupplier, { normalizer: (value) => value })
+    const reply = view.getByTitle(noteFromSupplier, { normalizer: (value) => value })
+    assert.equal(plantCell.contains(ask) || plantCell.contains(reply), false)
+    assert.equal(ask.textContent, noteForSupplier)
+    assert.equal(reply.textContent, noteFromSupplier)
+    // LPS's ask is always shown whole; the portal clamps the reply to one line.
+    assert.match(ask.className, /whitespace-pre-wrap/)
+    if (design === 'portal') assert.match(reply.className, /truncate/)
     else {
-      assert.match(note.className, /whitespace-pre-wrap/)
-      assert.doesNotMatch(note.className, /truncate|line-clamp/)
+      assert.match(reply.className, /whitespace-pre-wrap/)
+      assert.doesNotMatch(reply.className, /truncate|line-clamp/)
     }
     view.unmount()
   }
 })
 
-test('merged note editor preserves multiline contents and routes admin context separately from supplier answers', async () => {
+test('admins edit the ask through details; supplier replies go through answers', async () => {
   const user = userEvent.setup({ document })
   for (const admin of [true, false]) {
     const patches: Array<[number, Record<string, string>]> = []
@@ -485,14 +490,24 @@ test('merged note editor preserves multiline contents and routes admin context s
     const view = render(<ARLineTable items={[item({ noteForSupplier: 'Single trunk only.' })]} editable
       onPatch={async (id, changes) => { patches.push([id, changes]) }}
       onPatchDetails={admin ? async (id, changes) => { details.push([id, changes]) } : undefined} />)
-    const editor = view.getByRole('textbox', { name: 'Line 19 supplier notes' })
-    assert.equal(editor.tagName, 'TEXTAREA')
-    assert.match(editor.className, /field-sizing:content/)
-    await user.type(editor, '\nReady next week.')
+    const ask = view.queryByRole('textbox', { name: 'Line 19 note for supplier' })
+    if (admin) {
+      assert.ok(ask)
+      assert.equal(ask.tagName, 'TEXTAREA')
+      await user.type(ask, '\nNo substitutes.')
+      await user.tab()
+      assert.deepEqual(details, [[19, { note_for_supplier: 'Single trunk only.\nNo substitutes.' }]])
+    } else {
+      assert.equal(ask, null, 'Suppliers read the ask; they cannot edit it')
+      assert.ok(view.getByTitle('Single trunk only.'))
+    }
+    const reply = view.getByRole('textbox', { name: 'Line 19 supplier reply' })
+    assert.equal(reply.tagName, 'TEXTAREA')
+    assert.match(reply.className, /field-sizing:content/)
+    await user.type(reply, 'Ready\nnext week.')
     await user.tab()
-    const expected = [[19, { note_for_supplier: 'Single trunk only.\nReady next week.' }]]
-    assert.deepEqual(admin ? details : patches, expected)
-    assert.deepEqual(admin ? patches : details, [])
+    assert.deepEqual(patches, [[19, { note_from_supplier: 'Ready\nnext week.' }]])
+    if (!admin) assert.deepEqual(details, [])
     view.unmount()
   }
 })
@@ -502,7 +517,7 @@ for (const portal of [false, true]) {
     test(`unavailable asks about a substitute before notes (portal=${portal}, recommend=${recommend})`, async () => {
       const user = userEvent.setup({ document })
       const patches: Array<[number, Record<string, string>]> = []
-      const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteForSupplier: 'Existing note' })}
+      const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
         editable portal={portal} onPatch={async (id, changes) => { patches.push([id, changes]) }} />)
       if (portal) {
         await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
@@ -521,9 +536,10 @@ for (const portal of [false, true]) {
         await user.clear(notes)
         await user.type(notes, 'Red Oak, 30 G @ $25/unit')
         await user.click(view.getByRole('button', { name: 'Save answer' }))
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '', note_for_supplier: 'Red Oak, 30 G @ $25/unit' }]])
+        // Unavailable always zeroes quantity and price.
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', unit_price: '0', note_from_supplier: 'Red Oak, 30 G @ $25/unit' }]])
       } else {
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '' }]])
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', unit_price: '0' }]])
       }
       assert.equal(view.queryByText('Would you like to recommend a substitute?'), null)
       assert.equal(view.queryByRole('textbox'), null)
@@ -531,13 +547,33 @@ for (const portal of [false, true]) {
   }
 }
 
-for (const status of ['can_order', 'arriving_soon', 'diff_size_qty_sub']) {
+test('diff_size_qty_sub collects the size and price offered, prefilled from the line', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<Record<string, string>> = []
+  const view = render(<LineStatusPicker item={item()} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
+  await user.selectOptions(view.getByRole('combobox'), 'diff_size_qty_sub')
+  const size = view.getByLabelText('Size you have') as HTMLInputElement
+  const price = view.getByLabelText('Price $/unit') as HTMLInputElement
+  assert.equal(size.value, '30 G')
+  assert.equal(price.value, '12.5')
+  await user.clear(size)
+  await user.type(size, '45 G')
+  await user.clear(price)
+  await user.type(price, '40')
+  await user.type(view.getByLabelText('What instead'), 'Only 45 G')
+  await user.click(view.getByRole('button', { name: 'Save answer' }))
+  assert.deepEqual(patches, [{
+    status: 'diff_size_qty_sub', note_from_supplier: 'Only 45 G', available_quantity: '12', size: '45 G', unit_price: '40',
+  }])
+})
+
+for (const status of ['can_order', 'arriving_soon']) {
   test(`${status} collects details without changing the existing price`, async () => {
     const user = userEvent.setup({ document })
     const patches: Array<Record<string, string>> = []
     const view = render(<LineStatusPicker item={item()} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
     await user.selectOptions(view.getByRole('combobox'), status)
-    assert.equal(view.queryByLabelText('Price per unit'), null)
+    assert.equal(view.queryByLabelText('Price $/unit'), null)
     await user.click(view.getByRole('button', { name: 'Save answer' }))
     assert.equal(patches.length, 1)
     assert.equal(patches[0].status, status)

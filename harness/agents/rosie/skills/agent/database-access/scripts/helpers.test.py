@@ -61,7 +61,7 @@ JOB = {"job": {"id": 83, "name": "Praetorian Build | Plan", "status": "quoted", 
                   "note_for_customer": "How many?", "note_internal": "line1\nline2"}],
        "changes": [{"at": "09-28 05:20", "actor": "chris", "action": "update", "item_id": 900,
                     "fields": "unit_price"}],
-       "ar_lines": None, "order_lines": None}
+       "candidates": None, "order_lines": None}
 
 
 class HelperTests(unittest.TestCase):
@@ -77,7 +77,7 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("LINES 2 active, 1 priced, total $210.00", result.stdout)
         self.assertIn("line1 / line2", result.stdout)
-        self.assertIn("AR LINES 0 (none)", result.stdout)
+        self.assertIn("CANDIDATES 0 (none)", result.stdout)
         sql = self.db.sql()
         self.assertIn("job_request_id = 83", sql)
         self.assertIn("LIMIT 3", sql)

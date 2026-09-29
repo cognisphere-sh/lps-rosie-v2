@@ -1,85 +1,77 @@
-# Apply supplier answers to job lines
+# Supplier answers on job lines
 
-The supplier thread relays a **submitted** AR to each linked `jr-<id>`
+The supplier thread relays a **submitted** AR to its job's `jr-<id>`
 (`supplier-coordination`). A saved draft never reaches the job.
 
-## APS submissions: update the job, don't ask
+## What the database already did
 
-Chris's standing instruction (JR-72, 2026-09-24): "On submission of AR by
-APS, directly update Job with AR statuses. Add relevant notes for customer,
-also update the pricing in case of substitute ... Do not ask questions about
-that." Repeated in JR-78 ("just use APS AR response as-is to update the
-status and add customer notes. Always do this.").
+On each submission, every **selected** candidate on that AR that changed
+since the previous submission is copied onto its job line, for jobs in Quote
+or Availability:
 
-So for every explicit APS submission, update each linked job line yourself:
-
-| APS answer | Job line update |
+| Candidate answer | Job line |
 |---|---|
-| `available` | `status = 'available'`; `available_quantity` = this line's allocation from `availability_request_item_jobs` (never more than its demand). |
-| `can_order` | `status = 'need_to_order'` and `available_quantity` = the allocation, in the same update. ETA → `note_for_customer` (`Can order Tuesday`). |
-| `diff_size_qty_sub` | `status = 'alternative_proposed'`. If APS offers one clear size **and it has a price**: set `size` to it and `unit_price` to that size's own price, keep the original in `note_internal` (`Was 1 G`), and note for the customer `3G only, 1G NA` (only what APS said). No price → see below. |
-| `unavailable` | `status = 'unavailable'`. No customer note. If APS recommends an alternative, put it in `note_internal` and ask Chris whether to offer it. |
-| `arriving_soon`, blank or unclear | Notes only. |
+| `available` | `available`; quantity = the answer, capped at the demand |
+| `can_order` | `need_to_order` (Can Order) |
+| `diff_size_qty_sub` | `alternative_proposed`, with the supplier's size and price |
+| `arriving_soon` | `arriving_soon` |
+| `unavailable` | `unavailable`; quantity and price 0 |
+| blank | `pending` |
 
-Then post one short alert in the origin chat: what changed and anything
-Chris must decide. Link `[Open AR-<id>](ar:<id>)`. Don't repeat what the
-job table already shows.
+Size, price and quantity always follow the candidate. The supplier's reply
+(`note_from_supplier`), if any, replaces the candidate's `note_for_customer`
+and so the line's. The customer's requirements live in `note_internal` and
+are never touched.
+This replaces Chris's JR-72/JR-78 standing instruction to update APS lines by
+hand: don't redo, undo or add to it.
 
-Limits (all still apply):
+## What you do
 
-- Update the line only if it matches the AR line exactly (plant, size or a
-  rule in `price-rules.md`, e.g. Carolina Cherry Laurel 24" box = 30 G).
-- Don't overwrite fields Chris edited in the app after the AR was sent
-  (check the item's recent changelog). Tell him about the conflict instead.
-- Don't touch lines that are accepted or on an order, or whose chosen
-  supplier (`selected_availability_request_item_id`) is a different AR line.
-- Don't apply the same submission twice (repeated event or retry): compare
-  with the line's current values and recent changes first.
-- The supplier note also holds LPS's own ask (`30 G acceptable`, `Needed by
-  Sep 18`). Only the supplier's new words are an answer.
-- A shared AR total belongs to all its jobs. Use each job's allocation;
-  never copy the total to every job. If APS's number doesn't fit the
-  allocations, leave quantity/status and report the gap.
-- Never change `demanded_quantity` because APS offered a different amount.
-- Never set `selected_availability_request_item_id` (see below).
+1. Re-read the job (`job-snapshot`).
+2. Post one short alert in the origin chat: the lines that changed, and
+   answers on candidates that are **not** selected (`APS offers 7 G at $65 for
+   Elaeagnus`) that Chris may want to drag in. Link `[Open AR-<id>](ar:<id>)`.
+   Don't repeat what the job table shows.
+3. A request-wide reply in the AR header: see
+   [notes](notes.md#supplier-answers--job-notes).
+4. A copied reply that contains costs, supplier names or LPS asks: propose
+   clean wording to Chris; change it only after he agrees.
+
+Limits:
+
+- Never copy an answer onto a job line yourself, and never select a
+  candidate because of an answer, even the only or cheapest one.
+- Committed or closed jobs aren't updated by the database: report the answer.
+- Never change `demanded_quantity` because the supplier offered a different
+  amount.
 - Nothing goes to the customer. Notes are not a send.
-- Other suppliers' answers: report to Chris and wait for his word before
-  changing the job.
 
 ## Different size, variant or quantity
 
-- Never reuse the old size's price for the new size, even if the old price
-  was listed.
-- APS gave a price for the new size → use it if it is clearly a per-unit
-  selling price (not a cost or a total). Otherwise use the APS list price of
-  the offered plant and size, and note it internally (`APS list 7 G Elaeagnus
-  $65`). A price Chris gave for that offer beats both. Different species or a
-  4-inch price is not a 1 G price.
-- No price found → keep the requested size and price unchanged, note
-  `APS offers 7 G; no price` internally, and ask Chris: "Ask APS for the 7 G price?" Only after his yes,
-  hand the question to the supplier thread. APS's reply is evidence; apply it
-  under the table above.
-- Several sizes offered, or the offer is unclear → keep the requested size
-  and price, note the offer internally, and ask Chris.
-- A quantity-only difference doesn't change the unit price.
+The supplier can change a candidate's size and price in the portal, so a
+selected candidate carries them to the line. An offer only in the reply text
+(another plant, or a size with no price) → add a candidate for it (the
+offered name and size, a `description` like `7 G Elaeagnus`, its own price
+if the supplier gave one, else 0; `note_for_customer` like `7 G only`), mention it in your alert, and let Chris
+drag it. Don't ask whether to use it. Never reuse the old size's price. Ask the supplier for a missing price only
+after Chris's yes. A quantity-only difference doesn't change the unit price.
 
-## Chris picks a supplier (`selected_availability_request_item_id`)
+## Chris picks a candidate (`selected_candidate_id`)
 
-This column says which supplier AR line was chosen for a job line. The app
-shows it as the highlighted capsule in the job table's Suppliers column.
+The app shows the selected candidate in the job table's Selected column.
 
-- **Chris chose it in the app**: that is his decision. The app already copied
-  the answer's status, price, capped quantity and note to the line. Don't
-  undo or redo it. Later answers don't resync the line; report them. Check
-  the copied note text ([notes](notes.md)).
-- **Chris chose it in chat**: re-read the line, the AR line and the
-  allocation. In one guarded update set this column to that
-  `availability_request_items.id` plus the fields he approved (same mapping
-  as the app unless he says otherwise).
-- **Never on your own.** A submission, the only answer or the cheapest answer
-  never sets it. Only AR lines linked to the job line through
-  `availability_request_item_jobs` can be selected. Deleting the AR line
-  clears it.
+- **In the app** (dragged onto Selected): his decision; the app already ran
+  `select_candidate`. Don't undo or redo it.
+- **In chat**: `SELECT public.select_candidate($itemId, $candidateId);` for
+  the candidate he named (it must belong to that line), then verify.
+- **On your own**: only the exact match at intake
+  ([intake](intake.md#5-create-each-lines-candidates)), or the candidate
+  Chris's direction or a standing selection rule (`price-rules.md`) picks.
+  Never from a supplier answer.
+- **Removing a candidate** (app bin, or Chris's word in chat):
+  `SELECT public.delete_candidate($candidateId);`. It is a soft delete: the
+  candidate leaves the supplier's AR and is unselected; the line keeps its
+  values.
 
 ## Answers from outside the portal
 

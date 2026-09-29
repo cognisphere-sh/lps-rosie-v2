@@ -1,5 +1,34 @@
 # Migrations applied by Daisy
 
+## 0120 — candidate descriptions and draft ARs (2026-09-29)
+
+Applied via the Supabase MCP after disposable PostgreSQL tests
+(`tests/0120_candidate_description_and_draft_ars.*`) and a rolled-back live
+rehearsal. Adds `candidates.description` and `is_original`, the `draft` AR
+status and `send_availability_request`; new ARs start as drafts and suppliers
+see them only after Send. Verified after apply: all 429 candidates described
+(size + name), 414 marked original (every asked candidate, plus the first
+unasked one on lines never asked; every candidate line has one), no existing AR
+changed status (10 submitted, 15 closed, 2 processing, 2 new), status check
+includes `draft`, send RPC is service_role only, progress trigger fires on
+insert or status change.
+
+## 0119 — job line candidates (2026-09-29)
+
+Applied via the Supabase MCP after disposable PostgreSQL tests
+(`tests/0119_job_line_candidates.*`) and two rolled-back live rehearsals.
+`availability_request_items` → `candidates` (own `supplier_id`,
+`job_request_item_id`, `note_from_supplier`, `note_for_customer`,
+`answered_at`; `availability_request_id` nullable; price may be 0);
+`availability_request_item_jobs` and `availability_request_jobs` dropped for
+`candidates.job_request_item_id` and `availability_requests.job_request_id`
+(one AR per job); `selected_availability_request_item_id` →
+`selected_candidate_id`. Verified after apply: 388 candidates, 0 without a
+supplier, 239 linked to job lines, 98 answered notes moved to
+`note_from_supplier`, 17 selections kept, 17 of 29 ARs linked to a job (12
+belong to deleted jobs), no function references the old names, grants
+service_role only, `candidates` in the realtime publication.
+
 ## 0118 — search_inventory precision (2026-09-29)
 
 Applied via the Supabase MCP after testing the body as a session-temporary
@@ -11,6 +40,12 @@ on 50 sampled rows, searched by their own names within their own supplier's
 top 10, matched the old function exactly (common 47/50, common + size 50/50,
 botanical 27/31; every miss a tie among 14–48 same-name rows). Live body md5
 equals the file's; grants unchanged. Adds one 5.8 MB GIN index.
+
+## 0117 — supplier short name (2026-09-29)
+
+Applied via the Supabase MCP. Adds nullable `suppliers.short_name` and sets
+Austin Plant Supply (id 1) → `APS`, Local Plant Supply (id 1415) → `LPS`.
+Additive only.
 
 ## 0116 — job line selected supplier response (2026-09-28)
 

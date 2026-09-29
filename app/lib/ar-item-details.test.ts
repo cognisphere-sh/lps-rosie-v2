@@ -26,7 +26,7 @@ function setup() {
         }
         return query
       }
-      assert.equal(table, 'availability_request_items')
+      assert.equal(table, 'candidates')
       const filters: Record<string, unknown> = {}
       let values: Record<string, unknown>
       const query = {

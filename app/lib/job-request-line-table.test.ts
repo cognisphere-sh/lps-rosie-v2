@@ -63,7 +63,10 @@ test('one horizontally scrolling RequestBody layout serves every consumer at saf
     const gridMinimum: number = contentMinimum + (selectable ? 36 : 0) + (deletable ? 34 : 0)
     assert.equal(gridMinimum, contentMinimum + (selectable ? 36 : 0) + (deletable ? 34 : 0))
   }
-  assert.match(component, /className="overflow-x-auto border-t border-border"/)
+  // One scroller in both directions, so the header and the first four columns can stay frozen.
+  assert.match(component, /className="max-h-\[75vh\] overflow-auto border-t border-border"/)
+  assert.match(component, /const FROZEN_COLUMNS = new Set\(\['quantity', 'available_quantity', 'size', 'name'\]\)/)
+  assert.match(component, /sticky top-0 z-\[2\] grid/)
   assert.match(component, /style=\{\{ minWidth: lineMinWidth \}\}/)
 
   for (const path of ['components/workspace/focused-job-record.tsx', 'components/workspace/request-list-card.tsx', 'app/customers/[id]/page.tsx']) {
@@ -88,14 +91,18 @@ test('renaming note columns preserves saved job table layout', async () => {
   assert.deepEqual(normalizeStoredTableConfig('requestItems', {
     order: ['name', 'sourcing_notes', 'external_notes'], hidden: ['sourcing_notes'],
     widths: { sourcing_notes: 250, external_notes: 210 },
-  }), { order: ['name', 'suppliers', 'note_internal', 'note_for_customer'], hidden: ['note_internal'],
+  }), { order: ['name', 'selected', 'candidates', 'note_internal', 'note_for_customer'], hidden: ['note_internal'],
     widths: { note_internal: 250, note_for_customer: 210 } })
 })
 
-test('saved job table layouts place Suppliers left of Internal note', async () => {
+test('saved job table layouts place Selected and Candidates left of Internal note', async () => {
   const { moveStoredRequestSuppliers, normalizeStoredTableConfig } = await import('./table-config')
   assert.deepEqual(normalizeStoredTableConfig('requestItems', { order: ['name', 'note_internal', 'total'], hidden: [], widths: {} }).order,
-    ['name', 'suppliers', 'note_internal', 'total'])
-  assert.deepEqual(moveStoredRequestSuppliers({ requestItems: { order: ['name', 'suppliers', 'status', 'note_internal'], hidden: [], widths: {} } })
-    .requestItems?.order, ['name', 'status', 'suppliers', 'note_internal'])
+    ['name', 'selected', 'candidates', 'note_internal', 'total'])
+  // The old Suppliers column becomes Candidates where it was, with Selected just before it.
+  assert.deepEqual(normalizeStoredTableConfig('requestItems', {
+    order: ['suppliers', 'name', 'note_internal'], hidden: ['suppliers'], widths: { suppliers: 250 },
+  }), { order: ['selected', 'candidates', 'name', 'note_internal'], hidden: ['candidates'], widths: { candidates: 250 } })
+  assert.deepEqual(moveStoredRequestSuppliers({ requestItems: { order: ['name', 'selected', 'candidates', 'status', 'note_internal'], hidden: [], widths: {} } })
+    .requestItems?.order, ['name', 'status', 'selected', 'candidates', 'note_internal'])
 })

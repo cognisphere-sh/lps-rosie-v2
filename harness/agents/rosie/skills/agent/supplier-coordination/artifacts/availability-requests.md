@@ -1,12 +1,16 @@
 # Availability requests (ARs)
 
-An AR asks a supplier whether they can supply specific lines. It is not an
-order.
+An AR asks a supplier whether they can supply specific **candidates** (the
+options created for each job line at intake). An asked candidate is that AR's
+line. It is not an order.
 
 ## Before creating
 
-- **Approval**: creating an APS portal AR publishes it, so it needs Chris's
-  yes for that scope (asked in the origin chat by the job thread). A quote is
+- **Approval**: an AR starts as a **Draft** the supplier can't see; Send
+  (`send_availability_request`) publishes it. Create and send only with
+  Chris's yes for that scope (asked in the origin chat by the job thread). If
+  he wants to review it, create it and leave it as a draft: he sends it with
+  the app's Send button. A quote is
   not needed first. Quick quotes and committed/direct orders get no AR unless
   Chris asks for one.
 - **Pricing pass done**: the job thread has tried to price every row. Rows it
@@ -24,63 +28,79 @@ order.
 
 ## What to ask for
 
-- **Every active job line**, including plants not on the price list, unless
-  Chris picks lines.
+- **The original-ask candidate of every active job line**, including plants
+  not on the price list, unless Chris picks candidates.
 - **The original plant and size the customer asked for**, not the listing
   used for pricing and not the nearest listed size. The price list only shows
-  what APS usually carries; it doesn't prove stock either way.
-- Customer allowed options (`15 G or 30 G`): ask for the quoted size, and put
-  the other option in the line note (`30 G acceptable`).
-- An alternative plant or size is asked about only after Chris approved
-  asking about that alternative (quote approval isn't enough).
-- Unclear whether lines are separate plants or alternatives → send back to
-  the job thread to resolve first. Never pick an option or repeat a total
-  across options.
-- Combine lines from several jobs only within Chris's approved scope. Keep
-  each job's share and each job's special needs on its own line.
+  what APS usually carries; it doesn't prove stock either way. A missing
+  original-ask candidate → have the job thread add it first.
+- Customer allowed options (`15 G or 30 G`): ask for the selected option's
+  candidate (else the first), and put the other in its `note_for_supplier`
+  (`30 G acceptable`).
+- An alternative candidate is asked about only after Chris approved asking
+  about that alternative (quote approval isn't enough).
+- Chris dragging a candidate onto an AR in the app is his own action: the app
+  runs `request_candidate_availability`, which adds it to this supplier's
+  Draft/New/Processing AR for the job or creates a draft; he sends it with
+  Send. A sent non-partner AR's public link still has to be emailed
+  ([email](email.md)) with his approval.
+- Options are candidates on one line, never separate lines; don't ask the
+  job thread to resolve them. Never pick an option or repeat a total across
+  options.
+- **One AR per job.** Never combine several jobs in one AR; each job gets its
+  own AR per supplier.
 
 ## Line values
 
+The candidate already holds them (set at intake); check before asking.
+
 | Field | Value |
 |---|---|
-| `name`, `size`, `demanded_quantity` | Snapshot of the requested line (demand = sum of allocations). Later job edits don't rewrite a sent AR. |
+| `name`, `size` | The candidate's. Later job edits don't rewrite a sent AR. |
+| `demanded_quantity` | Filled from the job line's demand when the candidate is added, if empty. |
 | `mapped_inventory_id` | The exact APS inventory row for this plant **and** size, else NULL. A generic, near-size or priced-from-another-listing row is NULL. Never replace a mapping the supplier chose. |
-| `unit_price` (seed) | The job line's saved price: exact list price, a price-rules price, a price Chris gave or accepted. Else NULL. |
-| `note_for_supplier` | See [notes](../../job-requests/artifacts/notes.md#note_for_supplier-ar-and-order-asks). |
-| `allocations` | One entry per job line with its positive quantity. Unknown → NULL, and the line total NULL too. |
+| `unit_price` (seed) | The candidate's price: exact list price, a price-rules price, a price Chris gave or accepted. 0 = price not found. |
+| `note_for_supplier` | LPS's ask, including the customer requirements from the line's and job's `note_internal` that matter to the supplier (`Single trunk`); see [notes](../../job-requests/artifacts/notes.md#note_for_supplier-ar-and-order-asks). |
 
-Never seed answer fields (`status`, `available_quantity`). Don't create empty
-lines and fill prices later: that is a supplier answer and moves the AR to
-Processing.
+Never seed answer fields (`status`, `available_quantity`,
+`note_from_supplier`). Don't fill prices after asking: that is a supplier
+answer and moves the AR to Processing.
 
 ## Create
 
-1. Read every linked job and its active lines, their notes, and this
-   supplier's open ARs. Reuse an open AR for the same ask (no duplicates on
-   retry). No new work on closed or inactive jobs.
-2. Create in one call:
+1. Read the job, its active lines and candidates (`job-snapshot`),
+   and this supplier's open ARs. Reuse an open AR for the same ask (no
+   duplicates on retry). No new work on closed or inactive jobs.
+2. Save each candidate's `note_for_supplier` (`set-note --table candidates`),
+   then create in one call:
 
    ```sql
    SET app.actor TO 'rosie';
    SELECT public.create_availability_request(
-     $supplierId,
-     '[{"name":"Live Oak","size":"15 G","demanded_quantity":20,"mapped_inventory_id":null,"unit_price":null,"note_for_supplier":null,"allocations":[{"job_request_item_id":7,"quantity":12},{"job_request_item_id":9,"quantity":8}]}]'::jsonb,
+     $supplierId, ARRAY[$candidateId1, $candidateId2]::bigint[],
      $shareDetails, $publicToken
    );
    ```
 
-   `$publicToken`: NULL for a private (portal) AR; a new UUID for a public
-   one. The call creates the header, lines and both junction tables. (The
-   app's `POST /api/availability-requests` does the same.)
-3. Save the header `note_for_supplier` with a guarded update (the RPC takes
-   line notes only). Verify header and line notes.
-4. Public link: `<configured app origin>/public/availability/<token>`.
-   Never invent the host. A link is not a sent email.
-5. Once actually delivered (portal publish, or email sent), record
-   `availability_sent` for each linked job (moves Quote → Availability;
-   [lifecycle](../../job-requests/artifacts/lifecycle.md#workflow-events)).
+   Every candidate must be this supplier's, active, not yet asked and on an
+   open line of **one** job (the AR stores that job). It starts as `draft`.
+   Pass `$publicToken` NULL: Send gives non-partners a public link. To add
+   candidates to an open or draft AR instead:
+   `SELECT public.add_candidates_to_availability_request($arId,
+   ARRAY[...]::bigint[]);`.
+3. Save the header `note_for_supplier` with a guarded update. Verify header
+   and line notes.
+4. Send it (unless Chris keeps it as a draft):
+   `SELECT public.send_availability_request($arId);` → status `new`; the
+   supplier sees it now. Public link (non-partners, created at send):
+   `<configured app origin>/public/availability/<token>`. Never invent the
+   host. A link is not a sent email.
+5. Sending a partner (portal) AR records `availability_sent` for its job
+   (moves Quote → Availability). For a public-link AR, record it once the
+   email is actually sent
+   ([lifecycle](../../job-requests/artifacts/lifecycle.md#workflow-events)).
    A portal AR is not permission to also email.
-6. Tell every linked job thread: AR id, lines, allocations, mappings and
+6. Tell the job thread: AR id, candidates asked, mappings and
    delivery result, with `[Open AR-<id>](ar:<id>)`. Call a pending send
    pending.
 
@@ -90,10 +110,10 @@ Processing.
   agree the scope with the job thread first and keep the job in sync.
 - <a id="chris-changes-an-open-ar"></a>**Chris changes an open AR**: while APS
   is the only supplier, a price, size or note Chris gives for a job is also
-  the APS AR input. On his scope: re-read the AR, lines, allocations and
-  answers. For unanswered lines of an open APS AR, update only the LPS-side
-  fields (`size`, seed `unit_price`, `note_for_supplier`, exact mapping if
-  one exists) with a guarded update. Keep name, quantity and allocations
+  the APS AR input. On his scope: re-read the AR, its candidates and
+  answers. For unanswered candidates of an open APS AR, update only the
+  LPS-side fields (`size`, seed `unit_price`, `note_for_supplier`, exact
+  mapping if one exists) with a guarded update. Keep name and quantity
   unless he changes them. Don't write answer fields or send anything new. If
   the edit moved an unanswered AR to Processing, set it back to New
   (guarded). This applies to APS only.

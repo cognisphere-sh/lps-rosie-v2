@@ -72,10 +72,11 @@ function AvailabilityRequestDialog({
   const [loaded, setLoaded] = useState(false)
   const [supplierId, setSupplierId] = useState<number | null>(null)
   const [share, setShare] = useState(false)
-  const [consolidate, setConsolidate] = useState(false)
   const [quoteReady, setQuoteReady] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // One AR per job: jobs already sent are skipped when a partial failure is retried.
+  const [sent, setSent] = useState<number[]>([])
 
   useEffect(() => {
     void (async () => {
@@ -94,22 +95,32 @@ function AvailabilityRequestDialog({
     if (supplierId == null) return
     setBusy(true)
     setError('')
-    try {
-      const res = await fetch('/api/availability-requests', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          jobRequestIds: groups.map((group) => group.requestId), supplierId,
-          shareCustomerDetails: share, consolidateItems: consolidate,
-          itemIds: groups.flatMap((group) => group.itemIds),
-        }),
-      })
-      const body = await res.json() as { error?: string }
-      if (!res.ok) throw new Error(body.error ?? 'Could not create availability request')
-      toast('Availability request created')
-      onCreated()
-      onClose()
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
+    const done = [...sent]
+    const failures: string[] = []
+    for (const group of groups.filter((g) => !sent.includes(g.requestId))) {
+      try {
+        const res = await fetch('/api/availability-requests', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            jobRequestIds: [group.requestId], supplierId,
+            shareCustomerDetails: share,
+            itemIds: group.itemIds,
+          }),
+        })
+        const body = await res.json() as { error?: string }
+        if (!res.ok) throw new Error(body.error ?? 'Could not create availability request')
+        done.push(group.requestId)
+      } catch (e) { failures.push(`${group.label}: ${(e as Error).message}`) }
+    }
+    setSent(done)
+    setBusy(false)
+    if (done.length > sent.length) onCreated()
+    if (failures.length) {
+      setError(`${done.length} of ${groups.length} created · ${failures.length} failed — ${failures.join('; ')}`)
+      return
+    }
+    toast(groups.length === 1 ? 'Availability request created' : `${groups.length} availability requests created`)
+    onClose()
   }
 
   return (
@@ -131,7 +142,7 @@ function AvailabilityRequestDialog({
           ))}
           {groups.length > 1 && (
             <span className="text-[11px] text-muted-foreground">
-              One combined availability request will be created.
+              One availability request per job will be created.
             </span>
           )}
         </div>
@@ -166,10 +177,6 @@ function AvailabilityRequestDialog({
           <input type="checkbox" checked={quoteReady} onChange={(event) => setQuoteReady(event.target.checked)} />
           Quote prepared; Chris approved sending availability
         </label>
-        {groups.length > 1 && <label className="flex items-center gap-2 text-[12.5px]">
-          <input type="checkbox" checked={consolidate} onChange={(event) => setConsolidate(event.target.checked)} />
-          Combine identical plant lines across jobs
-        </label>}
         {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
         <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
           <input

@@ -22,7 +22,7 @@ const item: ARItem = {
   id: 19,
   allocations: [{ jobRequestItemId: 27, quantity: 7 }, { jobRequestItemId: 28, quantity: 5 }],
   name: fullName, size: '30 G', demandedQuantity: 12, availableQuantity: 8,
-  status: 'arriving_soon', unitPrice: 12.5, noteForSupplier: supplierNote,
+  status: 'arriving_soon', unitPrice: 12.5, noteForSupplier: supplierNote, noteFromSupplier: 'Held until Friday',
 }
 const ar = (id = 84, status = 'processing'): ARDetail => ({
   id, recordName: `AR-${id}`, jobRequestId: 31, jobRequestIds: [31, 32],
@@ -100,7 +100,9 @@ test('focused Job header chip opens the portal drawing and summary strip; ordina
   const { head, row } = table(document.body)
   assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
   await waitFor(() => assert.ok(parseInt(table(document.body).head.style.minWidth, 10) > 916))
-  assert.equal(row.children[5].getAttribute('aria-label'), 'Line 19 supplier notes')
+  // The note column holds LPS's ask (admin-editable here) above the supplier's reply.
+  assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 note for supplier' }))
+  assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 supplier reply' }))
   assert.equal(row.children[6].getAttribute('aria-label'), 'Line 19 price per unit')
   assert.ok(within(document.body).getByText('Total Items'))
   assert.equal(within(document.body).queryByText('Line total'), null)
@@ -152,7 +154,7 @@ test('a custom AR record name stays visible while the focused chip routes by sto
 test('focused drawer edits name, size, need, price and note inline through the admin routes', async () => {
   const keys: Record<string, keyof ARItem> = {
     name: 'name', size: 'size', demanded_quantity: 'demandedQuantity',
-    unit_price: 'unitPrice', note_for_supplier: 'noteForSupplier',
+    unit_price: 'unitPrice', note_for_supplier: 'noteForSupplier', note_from_supplier: 'noteFromSupplier',
   }
   let saved: ARItem = { ...item }
   globalThis.fetch = async (input, init) => {
@@ -181,13 +183,15 @@ test('focused drawer edits name, size, need, price and note inline through the a
   await edit('Line 19 requested size', '45 G')
   await edit('Line 19 requested quantity', '14')
   await edit('Line 19 price per unit', '13.25')
-  await edit('Line 19 supplier notes', 'Tagged and held')
+  await edit('Line 19 note for supplier', 'Tagged and held')
+  await edit('Line 19 supplier reply', 'Ready Monday')
   assert.deepEqual(writes.map(write => JSON.parse(write.slice(write.indexOf(' ') + 1))), [
     { itemId: 19, details: { name: 'Quercus alba' } },
     { itemId: 19, details: { size: '45 G' } },
     { itemId: 19, details: { demanded_quantity: '14' } },
     { itemId: 19, changes: { unit_price: '13.25' } },
     { itemId: 19, details: { note_for_supplier: 'Tagged and held' } },
+    { itemId: 19, changes: { note_from_supplier: 'Ready Monday' } },
   ])
 })
 
@@ -251,7 +255,7 @@ test('portal drawing clips Plant, wraps Size, saves them on Enter, and clamps No
     onPatch={async () => {}} onPatchDetails={async (...args) => { saved.push(args) }} />)
   const name = view.getByRole('textbox', { name: 'Line 19 plant name' }) as HTMLInputElement
   const size = view.getByRole('textbox', { name: 'Line 19 requested size' })
-  const note = view.getByRole('textbox', { name: 'Line 19 supplier notes' })
+  const note = view.getByRole('textbox', { name: 'Line 19 supplier reply' })
   assert.equal(name.tagName, 'INPUT')
   assert.match(name.className, /truncate/)
   assert.equal(size.tagName, 'TEXTAREA')
@@ -279,7 +283,7 @@ test('AR columns fit the full plant name and retain a dragged, resized layout', 
   fireEvent.drop(first.getByText('Note').parentElement!, { dataTransfer })
   assert.deepEqual(labels(table(first.container).head), ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note'])
   assert.equal(table(first.container).row.children[5].getAttribute('title'), '$12.50')
-  assert.equal(table(first.container).row.children[6].getAttribute('title'), supplierNote)
+  assert.equal(table(first.container).row.children[6].querySelector('[title]')?.getAttribute('title'), supplierNote)
 
   fireEvent.mouseDown(first.getByRole('separator', { name: 'Resize Plant' }), { clientX: 100 })
   fireEvent.mouseMove(document, { clientX: 150 })

@@ -9,21 +9,21 @@ is routing, not a message to Chris or a job).
 
 | `EventType` | Meaning | What to do |
 |---|---|---|
-| `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to every linked job (`supplier-coordination` → responses). The job threads update their lines under Chris's standing APS instruction (`job-requests` → supplier responses) and alert Chris. |
+| `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to the AR's job (`supplier-coordination` → responses). The database already copied answers of **selected** candidates onto their job lines; the job threads alert Chris and report answers on other candidates (`job-requests` → supplier responses). |
 | `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or supplier notes. | Re-read the order; acknowledge and relay to linked jobs (`supplier-coordination` → orders). |
 | `order_status_updated` / `order_status_saved` | One or several order-line statuses saved. | Re-read the order and line(s); follow up on this thread. |
 
 Rules for every event:
 
 - Ignore events for deleted (`is_active = false`) or closed records; a late
-  event never reopens or edits them.
+  event never reopens or edits them. Draft ARs are invisible to suppliers and
+  produce no events.
 - If newer saved edits followed a submission, relay only what was submitted.
-- Linked jobs come from `availability_request_jobs` and
-  `availability_request_item_jobs` (or `order_item_job_request_items`), not
-  from `JobRequestId`, which is only a hint. A shared total is not each job's
-  amount.
-- Never set `selected_availability_request_item_id` (the chosen supplier)
-  from an event; only Chris picks a supplier.
+- An AR belongs to one job (`availability_requests.job_request_id`); an
+  order's jobs come from `order_item_job_request_items`. `JobRequestId` is
+  only a hint.
+- Never set `selected_candidate_id` (the chosen candidate) from an event;
+  only Chris picks a non-exact candidate.
 - An event is not Chris's approval to contact anyone, is not customer
   acceptance, and doesn't change pickup/delivery (Chris owns that). An AR
   submission doesn't confirm an order. Orders go New → Processing → Order

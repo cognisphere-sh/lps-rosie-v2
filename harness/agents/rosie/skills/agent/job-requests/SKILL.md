@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, applying supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v6.1.0)
+description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v7.0.0)
 metadata:
   author: lps
-  version: "6.1.0"
+  version: "7.0.0"
 ---
 
 # Job requests
@@ -13,23 +13,23 @@ their correspondence. Read only the reference you need:
 
 | Task | Read |
 |---|---|
-| New request, quick quote, committed intake, job name, customer, EDD, lines | [intake](artifacts/intake.md) |
+| New request, quick quote, committed intake, job name, customer, EDD, lines, candidates | [intake](artifacts/intake.md) |
 | Price lines, Chris's manual prices, several requested sizes, gaps | [pricing](artifacts/pricing.md) |
 | Write any note (customer, internal, supplier) | [notes](artifacts/notes.md) |
-| A supplier submitted an AR; Chris picks a supplier | [supplier responses](artifacts/supplier-responses.md) |
+| A supplier submitted an AR; Chris picks or removes a candidate | [supplier responses](artifacts/supplier-responses.md) |
 | Create, confirm or change an order | [orders](artifacts/orders.md) |
 | Stages, workflow events, closing, deleting | [lifecycle](artifacts/lifecycle.md) |
 | Send a quote or update to the customer | `customer-coordination` |
-| Publish an AR | `supplier-coordination` |
+| Create or send an AR | `supplier-coordination` |
 
 ## The usual flows
 
 | Request | Steps |
 |---|---|
 | Price question | Answer. No job. |
-| New request | Job + lines → price every row → post link and gaps → AR if Chris approves the scope. A quote only if asked. |
+| New request | Job + lines → candidates and prices for every row → post link and gaps → AR if Chris approves the scope. A quote only if asked. |
 | Quick quote | Job + lines → price → quote → stop. No AR. |
-| Committed order | Job + lines (keep given prices, fill gaps from APS) → direct order. No quote, no AR. |
+| Committed order | Job + lines + candidates (keep given prices, fill gaps from APS) → direct order. No quote, no AR. |
 | Accepted quote | Existing job and accepted terms → direct order. |
 
 Stages don't have to run in order. Later acceptance of a quick quote turns

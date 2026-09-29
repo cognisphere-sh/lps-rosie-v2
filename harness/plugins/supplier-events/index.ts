@@ -14,7 +14,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * - `order_status_updated` / `order_status_saved` — order-line status changes.
  *
  * Everything the event is *about* lives in the database
- * (availability_requests, availability_request_items), so the notification
+ * (availability_requests, candidates), so the notification
  * carries identifiers only.
  *
  * Threads: **one supplier = one thread** — the app passes the supplier's

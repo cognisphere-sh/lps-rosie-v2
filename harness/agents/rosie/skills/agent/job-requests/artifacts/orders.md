@@ -7,11 +7,9 @@ and one customer's yes never commits another customer's job.
 
 ## How ARs, orders and jobs link
 
-Many-to-many, always through junction tables:
-
-- AR ↔ jobs: `availability_request_jobs`; AR line ↔ job lines:
-  `availability_request_item_jobs.quantity` (each job's share). The AR line's
-  total ask is `availability_request_items.demanded_quantity`.
+- Candidate → job line: `candidates.job_request_item_id` (one line each). An
+  asked candidate is its AR's line; its `demanded_quantity` is the ask. One AR
+  per job: `availability_requests.job_request_id`.
 - Order line ↔ job lines: `order_item_job_request_items.quantity`. Order lines
   have no AR pointer; related ARs are found through the job lines, same
   supplier only.
@@ -38,13 +36,14 @@ SELECT public.create_direct_order(
 );
 ```
 
-**AR-backed order** (use when suitable answered AR lines exist):
+**AR-backed order** (use when a suitable answered candidate exists; the
+allocation must be the candidate's own job line):
 
 ```sql
 SET app.actor TO 'rosie';
 SELECT public.create_order(
   $supplierId,
-  '[{"availability_request_item_id":42,"allocations":[{"job_request_item_id":7,"quantity":10}]}]'::jsonb,
+  '[{"candidate_id":42,"allocations":[{"job_request_item_id":7,"quantity":10}]}]'::jsonb,
   $fulfillmentMethod, $fulfillmentDate, $noteForSupplier, true
 );
 ```
@@ -61,9 +60,9 @@ SELECT public.create_order(
   ARs stay as they are.
 - If `create_direct_order` is missing, report that gap; don't work around it.
 - Capacity: every active order (any supplier, direct or AR-backed) uses up
-  the job line's remaining demand; lost or inactive orders don't. The AR line
-  id passed to `create_order` only validates and copies that answer; it isn't
-  stored.
+  the job line's remaining demand; lost or inactive orders don't. The
+  candidate id passed to `create_order` only validates and copies that answer
+  (name, size, price, status, LPS ask and supplier reply); it isn't stored.
 
 **After**: verify the order, its lines, prices, quantities, allocations and
 the job stage. After an unclear result, check for an existing order before

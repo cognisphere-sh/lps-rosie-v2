@@ -10,21 +10,40 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
 - `job_request_items`: its lines. `demanded_quantity` = what the customer
   wants (NULL = unknown). `total` is generated from demand × `unit_price`;
   never write it. The old `quantity` column is retired.
-- `available_quantity` on a job line is set by Chris, or by you only under
-  Chris's standing APS-submission instruction (`job-requests` → supplier
-  responses). Otherwise put supplier quantities in `note_internal`.
-- `selected_availability_request_item_id` = the supplier AR line chosen for
-  this job line (app "Suppliers" capsule). Only Chris chooses it.
+- `selected_candidate_id` = the candidate chosen for this line (app
+  "Selected" column). `select_candidate(item, candidate)` sets it and copies
+  the candidate's size, price, capped quantity, status and
+  `note_for_customer` onto the line. Editing a selected line's
+  `note_for_customer` writes it back to the candidate. You select only the
+  exact match at intake; Chris picks the rest.
+- `available_quantity`, `size`, `unit_price`, `status` of a selected line
+  come from its candidate. Supplier facts never go in `note_internal`.
 - `job_request_changelog`: audit trail (`actor`, `action`, `item_id`,
   `changes`). Written by triggers only.
 
-## ARs and orders
+## Candidates, ARs and orders
 
-- `availability_requests` (header) and `availability_request_items` (lines).
-  A line's `demanded_quantity` is the total asked of the supplier.
-- Links to jobs only through `availability_request_jobs` (AR ↔ job) and
-  `availability_request_item_jobs` (AR line ↔ job line, with each job's
-  `quantity`). There is no job id on the AR tables.
+- `candidates`: the supplier/plant/size options for one job line
+  (`job_request_item_id`, `supplier_id`, `name`, `size`, `unit_price`; 0 =
+  price not found, which stays blank on a selecting line). `description`
+  (required) = what it is, for Chris (`5 G Shumard Oak`); `is_original` marks
+  the line's original request as asked.
+  `availability_request_id` is set once it is asked on an
+  AR; then it is that AR's line, and the supplier answers `status`,
+  `available_quantity`, `unit_price`, `size`, `note_from_supplier`. Shown
+  status is derived: No price (unanswered, price 0/NULL) → Pending (priced;
+  no AR or only an unsent draft) → AR sent (sent AR, `status` NULL) → the
+  answer (an Unavailable answer stays Unavailable at price 0).
+  `demanded_quantity` is what the AR asks for. Deleting = `delete_candidate`
+  (soft; also unselects).
+- `availability_requests` (header): **one AR per job**
+  (`availability_requests.job_request_id`); an AR holds only that job's
+  candidates. Status: `draft` (LPS only; the supplier can't see it) →
+  `send_availability_request` → `new` → `processing` → `submitted` →
+  `closed`. Submitting an AR turns each
+  reply answered since the last submission into that candidate's
+  `note_for_customer`, then re-applies selected candidates to open job lines
+  (Quote/Availability).
 - `orders` and `order_items`; `order_item_job_request_items` links order lines
   to job lines with each job's `quantity`. Related ARs are found through the
   job lines, same supplier only.
@@ -33,9 +52,12 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
 
 ## Notes
 
-`note_for_customer` (jobs, job lines, orders, order lines),
-`note_internal` (jobs, job lines), `note_for_supplier` (AR header/lines,
-orders, order lines; LPS asks and supplier replies share it). Content rules:
+`note_for_customer` (jobs, job lines, candidates, orders, order lines; only
+information for the customer — a line's follows its selected candidate),
+`note_internal` (jobs, job lines; the customer's requirements and open
+points, never supplier or price facts), `note_for_supplier` (AR header,
+candidates, orders, order lines; on candidates only LPS's ask),
+`note_from_supplier` (candidates: the supplier's reply). Content rules:
 `job-requests` → notes. There is no `orders.notes` column.
 
 ## Catalogue

@@ -147,11 +147,11 @@ function AnswerCells({
         onCommit={(next) => void onPatch(line.id, { available_quantity: next.trim() })}
       />
       <AnswerCell
-        value={line.noteForSupplier ?? ''}
+        value={line.noteFromSupplier ?? ''}
         editable
         placeholder="Add note…"
-        display={line.noteForSupplier ?? ''}
-        onCommit={(next) => void onPatch(line.id, { note_for_supplier: next.trim() })}
+        display={line.noteFromSupplier ?? ''}
+        onCommit={(next) => void onPatch(line.id, { note_from_supplier: next.trim() })}
         ariaLabel={`Line ${line.id} supplier notes`}
         multiline
       />

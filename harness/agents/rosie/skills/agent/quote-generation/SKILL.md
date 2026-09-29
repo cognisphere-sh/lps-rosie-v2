@@ -1,9 +1,9 @@
 ---
 name: quote-generation
-description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, the standard format, the no-totals bid format, the ✅/❌ availability list and partial quotes. Use when Chris asks for a quote, quick quote, bid, availability list or a quote copy. (v4.0.0)
+description: Produce a copy-ready text quote from a job's saved lines. Includes the quote-job helper, the standard format, the no-totals bid format, the ✅/❌ availability list and partial quotes. Use when Chris asks for a quote, quick quote, bid, availability list or a quote copy. (v4.1.0)
 metadata:
   author: lps
-  version: "4.0.0"
+  version: "4.1.0"
 ---
 
 # Quote generation
@@ -14,8 +14,9 @@ quote.
 1. The job and all its lines must already be saved (`job-requests` →
    intake). A price question needs no quote and no job.
 2. Prices and notes come from the saved lines (`job-requests` → pricing and
-   notes). A plant or size the customer didn't ask for can be quoted only
-   after Chris approves quoting that alternative. Never reprice accepted
+   notes). A plant or size the customer didn't ask for is quoted only when
+   that candidate is selected (by Chris, or by his standing selection rule);
+   don't ask. Never reprice accepted
    terms.
 3. Render with `skills/agent/quote-generation/scripts/quote-job <jobId>`
    and the right [format](artifacts/format.md) variant. It reads the saved

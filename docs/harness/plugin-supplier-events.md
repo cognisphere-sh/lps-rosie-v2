@@ -16,13 +16,12 @@ to do per event type; the procedures are Rosie's `supplier-coordination`
   earlier submission and portal answers Rosie typed in for the supplier) is
   accepted and answered `200 { ok: true, delivered: false }`, but **never
   delivered**: a save does not wake Rosie.
-- `availability_submitted` (submit or re-submit) is relayed to every linked
-  job through `availability_request_jobs` / `availability_request_item_jobs`.
-  Under Chris's standing instruction the job threads update their lines
-  directly (status, allocation-bounded quantity, offered size with its own
-  price, short customer note) and alert Chris. Shared totals are never copied
-  to each job, and the chosen supplier
-  (`selected_availability_request_item_id`) is never set from an event.
+- `availability_submitted` (submit or re-submit) is relayed to the AR's one
+  job (`availability_requests.job_request_id`). Draft ARs (migration 0120)
+  are invisible to suppliers and never produce events. The database has already copied selected candidates'
+  answers onto their open job lines (migration 0119); the job threads alert
+  Chris and report answers on unselected candidates. The chosen candidate
+  (`selected_candidate_id`) is never set from an event.
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`
 
@@ -40,8 +39,8 @@ sends `availability_updated`; the plugin drops it before delivery, so only
 Body: `{ type, supplierId, supplierName, availabilityRequestId, jobRequestId,
 threadId }`. Supplier id/name and availability-request id are required; the
 job id and thread id may be null. `jobRequestId` is a legacy compatibility
-hint; the agent resolves all current linked jobs from the database instead of
-assuming a single owner. Invalid identifiers or an unknown `type`
+hint; the agent resolves the AR's job (`availability_requests.job_request_id`)
+or an order's jobs from the database. Invalid identifiers or an unknown `type`
 return 400.
 
 ## Order changes
@@ -87,7 +86,8 @@ All PascalCase, documented for the agent in the seeded prompt fragment:
 `EventType`, `SupplierId`, `SupplierName`, `AvailabilityRequestId`,
 `JobRequestId`.
 
-The prompt requires Chris approval before response-driven job-line changes.
+Job lines change on a submission only through the database's selected-candidate
+re-apply; Rosie never hand-copies answers or selects a candidate from an event.
 An availability submission is not supplier order confirmation: accepted
 orders become Committed through `create_order`, and explicit supplier
 confirmation makes the Order Processing while linked Job Requests remain

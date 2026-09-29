@@ -23,12 +23,14 @@ export const SUPPLIER_DEFAULT_MIGRATION_KEY = 'lps.tables.v1.suppliers-seven-col
 export const SUPPLIER_CATEGORY_WIDTH_MIGRATION_KEY = 'lps.tables.v1.suppliers-category-min-width-v1'
 export const REQUEST_SUPPLIERS_MIGRATION_KEY = 'lps.tables.v1.request-suppliers-before-internal-v1'
 
-/** Put `suppliers` immediately left of `note_internal` (or last), in place. */
-function placeSuppliersBeforeInternalNote(order: string[]) {
-  const at = order.indexOf('suppliers')
-  if (at >= 0) order.splice(at, 1)
+/** Put `selected` then `candidates` immediately left of `note_internal` (or last), in place. */
+function placeCandidatesBeforeInternalNote(order: string[]) {
+  for (const key of ['selected', 'candidates']) {
+    const at = order.indexOf(key)
+    if (at >= 0) order.splice(at, 1)
+  }
   const internal = order.indexOf('note_internal')
-  order.splice(internal >= 0 ? internal : order.length, 0, 'suppliers')
+  order.splice(internal >= 0 ? internal : order.length, 0, 'selected', 'candidates')
 }
 
 /** Once: layouts saved while Suppliers first sat beside Plant Name move it left of Internal note. */
@@ -38,7 +40,7 @@ export function moveStoredRequestSuppliers(
   const items = layouts.requestItems
   if (!items || !Array.isArray(items.order)) return layouts
   const order = [...items.order]
-  placeSuppliersBeforeInternalNote(order)
+  placeCandidatesBeforeInternalNote(order)
   return { ...layouts, requestItems: { ...items, order } }
 }
 const MIN_COLUMN_WIDTH = 64
@@ -83,13 +85,19 @@ export function normalizeStoredTableConfig(table: TableId, stored: unknown): Tab
         ),
       )
     : {}
-  // Keep saved column positions, visibility and widths across the note rename.
+  // Keep saved column positions, visibility and widths across the note and candidates renames.
   if (table === 'requestItems') {
-    const renamed: Record<string, string> = { external_notes: 'note_for_customer', sourcing_notes: 'note_internal' }
+    const renamed: Record<string, string> = {
+      external_notes: 'note_for_customer', sourcing_notes: 'note_internal', suppliers: 'candidates',
+    }
     const keyOf = (key: string) => renamed[key] ?? key
     const renamedOrder = order.map(keyOf)
-    // Layouts saved before the Suppliers column place it left of Internal note, not last.
-    if (!renamedOrder.includes('suppliers')) placeSuppliersBeforeInternalNote(renamedOrder)
+    // Layouts saved before Selected/Candidates existed place them left of Internal note, not last.
+    if (!renamedOrder.includes('selected')) {
+      const at = renamedOrder.indexOf('candidates')
+      if (at >= 0) renamedOrder.splice(at, 0, 'selected')
+      else placeCandidatesBeforeInternalNote(renamedOrder)
+    }
     return { order: renamedOrder, hidden: hidden.map(keyOf),
       widths: Object.fromEntries(Object.entries(widths).map(([key, width]) => [keyOf(key), width])) }
   }

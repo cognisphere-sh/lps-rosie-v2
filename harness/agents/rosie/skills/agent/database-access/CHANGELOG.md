@@ -1,5 +1,12 @@
 # database-access — changelog
 
+## 2.1.0 — 2026-09-29
+
+Migration 0119 (candidates): `job-snapshot` lists each line's candidates (supplier short name, derived status Pending / AR sent / answer, price 0 shown as "price not found", customer/ask/reply notes) and the selected candidate; `ar-snapshot` reads lines from `candidates` with their job line and selection; `set-note` writes `candidates.note_for_supplier`/`note_for_customer` instead of `availability_request_items`. data-model.md describes candidates, `select_candidate`/`delete_candidate` and the submit re-apply; supplier facts no longer go in `note_internal`. One AR per job: `ar-snapshot` reads the job from `availability_requests.job_request_id` (`availability_request_jobs` dropped).
+Migration 0120: snapshots show each candidate's `description` and original flag, and AR `draft` status; data-model.md lists `description`, `is_original` and the draft → new AR flow.
+Derived candidate status in `job-snapshot`: No price (unanswered, price 0/NULL) → Pending (priced; no AR or only an unsent draft) → AR sent → the answer.
+data-model.md: `note_internal` holds the customer's requirements; `note_for_customer` is only customer information.
+
 ## 2.0.1 — 2026-09-29
 
 `scripts/schema` suggests close topic names for an unknown one (`sources` →

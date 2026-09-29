@@ -231,24 +231,38 @@ export interface JobRequestItem {
   /** Raw `note_internal` Markdown, preserved for editing and rendered by the UI. */
   noteInternal: string | null
   updatedAt: string | null
-  /** Every active supplier AR answer linked to this line, newest AR first. */
-  supplierResponses?: SupplierResponse[]
-  /** `selected_availability_request_item_id` — the response chosen for this line. */
-  selectedResponseId?: number | null
+  /** Active candidates for this line, grouped by the UI per supplier. */
+  candidates?: Candidate[]
+  /** `selected_candidate_id` — the candidate whose values fill this line. */
+  selectedCandidateId?: number | null
 }
 
-/** One supplier's AR line answer, as a job line's supplier capsule shows it. */
-export interface SupplierResponse {
-  /** `availability_request_items.id`. */
-  arItemId: number
-  arId: number
+/** One supplier/plant/size option for a job line (`candidates`). */
+export interface Candidate {
+  id: number
+  supplierId: number
   supplierName: string
-  /** The supplier's answer; null = not answered yet. */
-  status: string | null
+  /** `suppliers.short_name`, when set (APS, LPS). */
+  supplierShortName: string | null
+  name: string
+  size: string | null
+  /** What the candidate is, for Chris (size, plant, variant); falls back to size + name. */
+  description: string | null
+  /** The line's original request as the customer asked it. */
+  isOriginal: boolean
+  /** Null or 0 on an unanswered candidate = no price found. */
   unitPrice: number | null
   availableQuantity: number | null
-  /** The AR line's merged `note_for_supplier`. */
-  note: string | null
+  /** The supplier's answer; null = not answered (or not asked). */
+  status: string | null
+  /** The AR this candidate was asked on; null = not asked yet. */
+  arId: number | null
+  /** That AR's status; a `draft` has not reached the supplier yet. */
+  arStatus: string | null
+  noteForSupplier: string | null
+  noteFromSupplier: string | null
+  /** The line's customer note for this candidate ("3 G NA, only 5 G", or the supplier's reply once submitted); kept in step with the selecting line. */
+  noteForCustomer: string | null
 }
 
 /** Per-status line counts behind a request's KPI pills. */

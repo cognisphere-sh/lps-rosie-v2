@@ -275,18 +275,22 @@ export const CUSTOMER_HIDDEN = ['address', 'zip', 'notes', 'created_at']
 
 /** The editable line grid inside an expanded job request. */
 export const REQUEST_ITEM_COLS: ColumnDef[] = [
-  { key: 'quantity', label: 'Demand', width: 66, minWidth: 56, align: 'right' },
-  { key: 'available_quantity', label: 'Avail', width: 66, minWidth: 56, align: 'right' },
-  { key: 'size', label: 'Size', width: 72, minWidth: 64 },
-  { key: 'name', label: 'Plant Name', width: 220, minWidth: 150 },
-  { key: 'status', label: 'Status', width: 124, minWidth: 104 },
+  // Narrow defaults keep centred values close together; every column resizes.
+  // Demand, Avail, Size and Plant Name stay frozen while the table scrolls sideways.
+  { key: 'quantity', label: 'Demand', width: 56, minWidth: 48 },
+  { key: 'available_quantity', label: 'Avail', width: 56, minWidth: 48 },
+  { key: 'size', label: 'Size', width: 56, minWidth: 48 },
+  { key: 'name', label: 'Plant Name', width: 170, minWidth: 110 },
+  { key: 'status', label: 'Status', width: 104, minWidth: 96 },
   // Kept beside Status by default because both describe what the customer sees.
-  { key: 'note_for_customer', label: 'Note for customer', width: 180, minWidth: 120 },
-  { key: 'unit_price', label: 'Unit price', width: 86, minWidth: 72, align: 'right' },
-  { key: 'total', label: 'Total', width: 92, minWidth: 76, align: 'right' },
-  // One capsule per supplier AR answer; choosing one copies it onto the line.
-  { key: 'suppliers', label: 'Suppliers', width: 300, minWidth: 180 },
-  { key: 'note_internal', label: 'Internal note', width: 180, minWidth: 120 },
+  { key: 'note_for_customer', label: 'Note for customer', width: 160, minWidth: 100 },
+  { key: 'unit_price', label: 'Unit price', width: 76, minWidth: 64 },
+  { key: 'total', label: 'Total', width: 80, minWidth: 64 },
+  // Drop a candidate here to copy its size, price, quantity, status and note onto the line.
+  { key: 'selected', label: 'Selected', width: 150, minWidth: 110 },
+  // A pill per candidate; drag to Selected, onto an AR tablet, or to the bin.
+  { key: 'candidates', label: 'Candidates', width: 300, minWidth: 180 },
+  { key: 'note_internal', label: 'Internal note', width: 170, minWidth: 110 },
 ]
 
 export type TableId = 'suppliers' | 'plantMaster' | 'plants' | 'customers' | 'requestItems'

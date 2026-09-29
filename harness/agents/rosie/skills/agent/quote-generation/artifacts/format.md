@@ -20,8 +20,10 @@ Subtotal: $4,370.00
 - First line: the job's `note_for_customer`, then a blank line. Skip both if
   the job note is empty.
 - One line per item: `Qty x Size Plant - note - $Unit - $Line total`. The
-  note is the item's saved `note_for_customer`; leave the field out (with its
-  dash) when empty. Never build a note from internal notes, AR notes or chat.
+  note is the item's saved `note_for_customer` (customer information only);
+  leave the field out (with its dash) when empty. Never build a note from
+  internal notes (they hold the customer's own requirements), AR notes or
+  chat.
 - Blank line, then `Subtotal: $X` as the last line.
 - `G` for gallons; ` x ` between quantity and size; ` - ` between fields; `$`
   with two decimals and thousands commas. Keep non-gallon sizes as written

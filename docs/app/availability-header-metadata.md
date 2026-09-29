@@ -17,12 +17,9 @@ wrap on desktop in request lists, line tables, By item and By status views.
 Desktop note editors are multiline and size to their contents so longer notes
 use the available row space.
 
-Combined availability requests retain a separate EDD/pickup-or-delivery pair
-for every linked job. The admin drawer labels these schedules with the job name
-or JR reference. Supplier and public schedule payloads omit job identifiers and
-names, and their headers use Job 1, Job 2, etc. Existing customer and shipping
-disclosure rules still apply; combining jobs never discloses a single job's
-customer or shipping details as though they applied to the whole request.
+Each availability request belongs to one job (migration 0119), so its header
+shows that job's EDD/pickup-or-delivery pair; existing customer and shipping
+disclosure rules apply.
 
 Job-card availability links receive both creation and submission timestamps.
 Each caption is a bare MM-DD: the submission date for current submitted requests

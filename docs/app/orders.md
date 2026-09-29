@@ -11,11 +11,11 @@ Admin order cards use the job request card's compact two-row header. The first r
 Order items store their own snapshots and use `order_item_job_request_items`
 for job allocations. Migration `0112_drop_order_item_availability_anchor.sql`
 removes their direct AR-item pointer. Related ARs are derived through
-`availability_request_item_jobs` and matched to `orders.supplier_id`; they do
+the job lines' asked `candidates` and matched to `orders.supplier_id`; they do
 not identify a historical source selection. The optional AR selection in the
 creation request remains a transient input for validating/copying the response.
 Supplier/AR limits count quantities already allocated to that supplier for the
-linked job items, including direct orders and unselected jobs on a shared AR.
+linked job line, including direct orders.
 Customer demand counts active order allocations across all suppliers. Never
 count the entire quantity of a combined order row once per job. Supplier order
 creation is serialized so these checks also cover concurrent direct orders.
@@ -41,7 +41,7 @@ cards open their detail page; Chris’s job order cards expose actions directly.
 
 ## Data and API
 
-Migration `0092_job_orders_workflow.sql` creates `orders`, `order_items`, and `order_item_job_request_items`. The last table allocates ordered quantities to customer job items. Orders carry no single job foreign key. Availability uses independent `availability_request_jobs` and `availability_request_item_jobs` associations, allowing combined grower requests and shared availability lines.
+Migration `0092_job_orders_workflow.sql` creates `orders`, `order_items`, and `order_item_job_request_items`. The last table allocates ordered quantities to customer job items. Orders carry no single job foreign key. Availability is simpler since migration 0119: each AR belongs to one job (`availability_requests.job_request_id`) and each candidate to one job line.
 
 Migration `0094_partner_order_lifecycle.sql` changes order stages and adds the transactional `update_partner_order` function. It maps existing Committed orders to New and Confirmed orders to Processing, preserving confirmation dates, line states, quantities and allocations. Job Request stages remain unchanged. The legacy service-only confirmation RPC obeys the same forward-transition and fulfillment requirements. Historical closure accounting recognizes all three active order stages.
 

@@ -5,7 +5,7 @@
 import type { Tone } from '@/lib/job-requests'
 
 /** `availability_requests.status` — the CHECK vocabulary, in lifecycle order. */
-export const AR_STATUSES = ['new', 'processing', 'submitted', 'closed'] as const
+export const AR_STATUSES = ['draft', 'new', 'processing', 'submitted', 'closed'] as const
 export type ARStatus = (typeof AR_STATUSES)[number]
 
 // The portal's three working states, plus admin closure. Deletion uses is_active. `new` is
@@ -13,6 +13,8 @@ export type ARStatus = (typeof AR_STATUSES)[number]
 // (migration 0075's trigger), so the ask goes back to the top of their New tab;
 // `processing` is any answer they have made since; `submitted` is the button.
 export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
+  // LPS only: built on the job card, invisible to the supplier until Send.
+  draft: { label: 'Draft', tone: 'grey' },
   new: { label: 'New', tone: 'amber' },
   processing: { label: 'Processing', tone: 'teal' },
   submitted: { label: 'Completed', tone: 'green' },
@@ -42,7 +44,7 @@ export function availabilityRequestLinkLabel(
 }
 
 /**
- * `availability_request_items.status` — the supplier's answer, in the order the
+ * `candidates.status` — the supplier's answer, in the order the
  * portal's picker offers it. NULL is a real state (not answered yet) and
  * renders as "Pending". Selecting Pending saves NULL without clearing the
  * quantities, prices or notes; it is not a supplier answer.
@@ -94,9 +96,15 @@ export interface ARItem {
   status: string | null
   availableQuantity: number | null
   unitPrice: number | null
-  /** Shared sourcing requirements and actual supplier response details. */
+  /** LPS's ask to the supplier about this line. */
   noteForSupplier: string | null
+  /** The supplier's reply about this line. */
+  noteFromSupplier: string | null
 }
+
+/** No price to show: blank, or 0 on an unanswered line ("price not found"; 0 after Unavailable is an answer). */
+export const isUnpriced = (item: Pick<ARItem, 'unitPrice' | 'status'>) =>
+  item.unitPrice == null || (item.unitPrice === 0 && item.status == null)
 
 /**
  * What a line comes to — the supplier's quantity × their price. Null until
@@ -122,7 +130,7 @@ export interface ARSummary {
   /** Sharing capability for admins and authorized partners. Omitted from public payloads. */
   publicToken?: string | null
   id: number
-  /** First linked job for navigation; derived from availability_request_jobs. */
+  /** The request's job (`availability_requests.job_request_id`), for navigation. */
   jobRequestId: number | null
   jobRequestIds?: number[]
   /** `job_requests.name`, null = unnamed (render the JR ref). */
@@ -171,6 +179,8 @@ export interface ARJobSchedule {
 export interface SupplierLink {
   supplierId: number
   name: string
+  /** `suppliers.short_name` (APS, LPS), when set. */
+  shortName?: string | null
   lpsPartner: boolean
   /** Every availability request this job has with them, newest first. */
   availabilityRequests: { id: number; recordName?: string | null; status: string; createdAt?: string | null; submittedAt?: string | null }[]
@@ -236,7 +246,7 @@ export interface SupplierItemLine extends ARItem {
    * decide it.
    */
   arCustomer: string | null
-  /** `availability_request_items.mapped_inventory_id` (migration 0077). */
+  /** `candidates.mapped_inventory_id` (migration 0077). */
   mappedInventoryId: string | null
   /** The mapped catalogue row's own identity — null when nothing is mapped. */
   mappedName: string | null

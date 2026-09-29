@@ -153,6 +153,7 @@ function request(id: number, status: ARDetail['status']): ARDetail {
       availableQuantity: status === 'new' ? null : 2,
       unitPrice: 10,
       noteForSupplier: null,
+      noteFromSupplier: null,
     }],
   }
 }

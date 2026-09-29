@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Work with suppliers on their own thread. Includes creating and publishing ARs, Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v4.0.0)
+description: Work with suppliers on their own thread. Includes creating and publishing ARs, Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.0.0)
 metadata:
   author: lps
-  version: "4.0.0"
+  version: "5.0.0"
 ---
 
 # Supplier coordination
@@ -42,7 +42,7 @@ supplier messages, even ones that name a job.
 
 ## Every task
 
-Re-read the records and allocations before writing. Guarded writes with
+Re-read the records, candidates and allocations before writing. Guarded writes with
 `SET app.actor TO 'rosie'`. Reuse existing records on retry; never duplicate
 shared demand. Finish by telling each affected job thread the verified
 result and its exact allocations.

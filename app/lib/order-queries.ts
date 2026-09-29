@@ -70,22 +70,20 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
   const supplierNames = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]))
   const links = items.length ? await all<AllocationRecord>(supabase.from('order_item_job_request_items')
     .select('order_item_id, job_request_item_id, quantity').in('order_item_id', items.map((item) => item.id)).order('order_item_id').order('job_request_item_id')) : []
-  const arLinks = links.length ? await all<{ availability_request_item_id: number; job_request_item_id: number }>(supabase.from('availability_request_item_jobs')
-    .select('availability_request_item_id, job_request_item_id').in('job_request_item_id', unique(links.map((link) => link.job_request_item_id)))
-    .order('availability_request_item_id').order('job_request_item_id')) : []
-  const relatedItems = arLinks.length ? await all<{ id: number; availability_request_id: number }>(supabase.from('availability_request_items')
-    .select('id, availability_request_id').in('id', unique(arLinks.map((link) => link.availability_request_item_id))).eq('is_active', true).order('id')) : []
+  // Candidates asked on an AR, for the ordered job lines.
+  const relatedItems = links.length ? await all<{ id: number; availability_request_id: number; job_request_item_id: number }>(supabase.from('candidates')
+    .select('id, availability_request_id, job_request_item_id').in('job_request_item_id', unique(links.map((link) => link.job_request_item_id)))
+    .not('availability_request_id', 'is', null).eq('is_active', true).order('id')) : []
   const relatedRequests = relatedItems.length ? await all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests')
     .select('*').in('id', unique(relatedItems.map((item) => item.availability_request_id)))
     .in('supplier_id', unique(records.map((order) => order.supplier_id))).eq('is_active', true).order('id')) : []
   const relatedRequestMap = new Map(relatedRequests.map((request) => [request.id, request.supplier_id]))
-  const relatedItemMap = new Map(relatedItems.map((item) => [item.id, item.availability_request_id]))
   const orderSupplierMap = new Map(records.map((order) => [order.id, order.supplier_id]))
   const orderForItem = new Map(items.map((item) => [item.id, item.order_id]))
   const requestsByJobItem = new Map<number, Set<number>>()
-  for (const link of arLinks) {
-    const requestId = relatedItemMap.get(link.availability_request_item_id)
-    if (requestId == null || !relatedRequestMap.has(requestId)) continue
+  for (const link of relatedItems) {
+    const requestId = link.availability_request_id
+    if (!relatedRequestMap.has(requestId)) continue
     const requestIds = requestsByJobItem.get(link.job_request_item_id) ?? new Set<number>()
     requestIds.add(requestId)
     requestsByJobItem.set(link.job_request_item_id, requestIds)
@@ -258,19 +256,16 @@ export async function directOrderCandidates(jobIds: number[]): Promise<DirectOrd
 export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[]> {
   const jobItems = await jobItemsForJobs(unique(jobIds))
   if (!jobItems.length) return []
-  const links = await all<{ availability_request_item_id: number; job_request_item_id: number; quantity: number | null }>(supabase.from('availability_request_item_jobs')
-    .select('availability_request_item_id, job_request_item_id, quantity').in('job_request_item_id', jobItems.map((item) => item.id)).order('availability_request_item_id').order('job_request_item_id'))
-  if (!links.length) return []
-  const arItemIds = unique(links.map((link) => link.availability_request_item_id))
-  const items = await all<{ id: number; availability_request_id: number; name: string; size: string | null; status: string | null; demanded_quantity: number | null; available_quantity: number | null; unit_price: number | null }>(supabase.from('availability_request_items')
-    .select('id, availability_request_id, name, size, status, demanded_quantity, available_quantity, unit_price').in('id', arItemIds).eq('is_active', true).order('id'))
+  // Each asked candidate belongs to one job line; its demand is that line's share.
+  const items = await all<{ id: number; availability_request_id: number; job_request_item_id: number; name: string; size: string | null; status: string | null; demanded_quantity: number | null; available_quantity: number | null; unit_price: number | null }>(supabase.from('candidates')
+    .select('id, availability_request_id, job_request_item_id, name, size, status, demanded_quantity, available_quantity, unit_price')
+    .in('job_request_item_id', jobItems.map((item) => item.id)).not('availability_request_id', 'is', null).eq('is_active', true).order('id'))
   if (!items.length) return []
-  const [requests, jobs, allLinks] = await Promise.all([
+  const links = items.map((item) => ({ availability_request_item_id: item.id, job_request_item_id: item.job_request_item_id, quantity: item.demanded_quantity }))
+  const allLinks = links
+  const [requests, jobs] = await Promise.all([
     all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests').select('*').in('id', unique(items.map((item) => item.availability_request_id))).eq('is_active', true).neq('status', 'closed').order('id')),
     all<JobRecord>(supabase.from('job_requests').select('id, name').in('id', unique(jobIds)).eq('is_active', true).not('status', 'in', '(closed_won,closed_lost,archived)').order('id')),
-    all<(typeof links)[number]>(supabase.from('availability_request_item_jobs')
-      .select('availability_request_item_id, job_request_item_id, quantity').in('availability_request_item_id', items.map((item) => item.id))
-      .order('availability_request_item_id').order('job_request_item_id')),
   ])
   if (!requests.length) return []
   const suppliers = await all<{ id: number; name: string }>(supabase.from('suppliers').select('id, name').in('id', unique(requests.map((request) => request.supplier_id))).eq('is_active', true).order('id'))
@@ -345,7 +340,7 @@ export async function createOrder(input: CreateOrderInput | CreateDirectOrderInp
     p_supplier_id: input.supplierId, p_customer_confirmed: input.customerConfirmed,
     p_fulfillment_method: input.fulfillmentMethod, p_fulfillment_date: null, p_note_for_supplier: input.noteForSupplier,
       p_note_for_customer: input.noteForCustomer,
-    p_items: input.items.map((item) => ({ availability_request_item_id: item.availabilityRequestItemId,
+    p_items: input.items.map((item) => ({ candidate_id: item.availabilityRequestItemId,
       allocations: item.allocations.map((allocation) => ({ job_request_item_id: allocation.jobRequestItemId, quantity: allocation.quantity })) })),
   })
   if (error) throw new Error(error.message)

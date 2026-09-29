@@ -1,5 +1,10 @@
 # quote-generation — changelog
 
+## 4.1.0 — 2026-09-29
+
+- No questions about substitutes or alternatives (Bhoumik 2026-09-29): an unrequested plant or size is quoted only when Chris selected that candidate (migration 0119); no approval question.
+- Notes by audience (Bhoumik 2026-09-29): quote notes come only from `note_for_customer` (customer information); `note_internal` now holds the customer's own requirements and never appears on a quote.
+
 ## 4.0.0 — 2026-09-28
 
 - Rewrite. New `scripts/quote-job` renders straight from saved rows. render-quote gains `--no-totals` (Chris JR-65, JR-79 bids) and `--status` ✅/❌ availability list with common names (Chris Telegram 2026-09-24). Customer-note rules moved to job-requests notes; rendering and text-format merged into format.md.

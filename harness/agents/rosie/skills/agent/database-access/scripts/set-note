@@ -26,7 +26,7 @@ ALLOWED = {
     "job_requests": {"note_internal", "note_for_customer"},
     "job_request_items": {"note_internal", "note_for_customer"},
     "availability_requests": {"note_for_supplier"},
-    "availability_request_items": {"note_for_supplier"},
+    "candidates": {"note_for_supplier", "note_for_customer"},
     "orders": {"note_for_supplier", "note_for_customer"},
     "order_items": {"note_for_supplier", "note_for_customer"},
     "inventory": {"internal_notes"},

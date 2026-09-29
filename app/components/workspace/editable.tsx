@@ -75,7 +75,7 @@ export function EditableText({
   render?: (v: string | number | null) => string
   placeholder?: string
   numeric?: boolean
-  align?: 'left' | 'right'
+  align?: 'left' | 'right' | 'center'
   title?: string
   triggerContent?: ReactNode
   className?: string
@@ -149,6 +149,7 @@ export function EditableText({
           'w-full min-w-0 rounded-md border border-primary bg-card px-1.5 py-0.5 text-[12.5px] text-foreground outline-none',
           touchTarget && 'min-h-11',
           align === 'right' && 'text-right tabular-nums',
+          align === 'center' && 'text-center',
         )}
       />
     )
@@ -187,6 +188,7 @@ export function EditableText({
         'w-full min-w-0 cursor-text truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-left text-[12.5px] text-foreground hover:border-border hover:bg-lps-tint',
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         align === 'right' && 'text-right tabular-nums',
+        align === 'center' && 'text-center',
         busy && 'opacity-50',
         className,
       )}
@@ -210,11 +212,14 @@ export function EditableTextarea({
   editLabel = 'Edit note',
   inlineControls = false,
   compact = false,
+  center = false,
   onCommit,
 }: EditProps & {
   onCommit?: (value: string) => Promise<void>
   value: string | null
   placeholder: string
+  /** Center the note text, as the job line table does. */
+  center?: boolean
   /** Formatted read view, kept outside the edit button so links remain usable. */
   renderPreview?: (value: string) => ReactNode
   /** Let a formatted preview open the editor without a visible edit button. */
@@ -289,6 +294,7 @@ export function EditableTextarea({
           'w-full resize-y rounded-lg border border-primary bg-card p-2 text-[12.5px] text-foreground outline-none',
           compact && 'resize-none rounded-md px-1.5 py-0.5 [field-sizing:content]',
           touchTarget && 'min-h-11',
+          center && 'text-center',
         )}
       />
     )
@@ -326,6 +332,7 @@ export function EditableTextarea({
         touchTarget && 'min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         busy && 'opacity-50',
         previewClickToEdit && renderPreview && current && 'sr-only',
+        center && 'text-center',
       )}
     >
       {renderPreview && current ? editLabel : current || <span className="text-lps-dim">{placeholder}</span>}
@@ -336,7 +343,7 @@ export function EditableTextarea({
   return (
     <div className={cn('min-w-0 text-[12.5px] text-foreground', previewClickToEdit && 'rounded-lg focus-within:ring-2 focus-within:ring-ring')} onClick={(event) => event.stopPropagation()}>
       <div
-        className={cn('p-2', previewClickToEdit && 'cursor-text')}
+        className={cn('p-2', previewClickToEdit && 'cursor-text', center && 'text-center')}
         onClick={previewClickToEdit ? (event) => {
           if ((event.target as HTMLElement).closest('a, button, input, textarea, select')) return
           trigger.current?.click()

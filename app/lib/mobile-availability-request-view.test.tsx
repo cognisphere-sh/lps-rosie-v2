@@ -35,6 +35,7 @@ const line = (id: number, changes: Partial<ARItem> = {}): ARItem => ({
   availableQuantity: id === 19 ? 8 : null,
   unitPrice: id === 19 ? 12.5 : null,
   noteForSupplier: id === 19 ? 'Accept only the named cultivar.' : null,
+  noteFromSupplier: id === 19 ? 'Ready next week.' : null,
   ...changes,
 })
 
@@ -189,7 +190,7 @@ function installStore(initial: ARDetail[]) {
             status: changes.status === '' ? null : changes.status ?? item.status,
             availableQuantity: changes.available_quantity === '' ? null : changes.available_quantity != null ? Number(changes.available_quantity) : item.availableQuantity,
             unitPrice: changes.unit_price === '' ? null : changes.unit_price != null ? Number(changes.unit_price) : item.unitPrice,
-            noteForSupplier: changes.note_for_supplier ?? item.noteForSupplier,
+            noteFromSupplier: changes.note_from_supplier ?? item.noteFromSupplier,
           }),
         }
       }
@@ -238,7 +239,7 @@ test('drawer plant details save on mobile and desktop and survive reopening with
       { label: /plant name/, column: 'name', value: `Live Oak ${width}` },
       { label: /requested size/, column: 'size', value: '15 G' },
       { label: /requested quantity/, column: 'demanded_quantity', value: '24.5' },
-      { label: /supplier notes/, column: 'note_for_supplier', value: `Deliver Friday ${width}` },
+      { label: /note for supplier/, column: 'note_for_supplier', value: `Deliver Friday ${width}` },
     ]
     // Give every field a different value on the second pass too.
     fields[1].value = width === 390 ? '15 G' : '30 G'
@@ -321,13 +322,16 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await user.tab()
   assert.deepEqual(patches.at(-1), [19, { available_quantity: '0' }])
 
-  const notes = view.getByLabelText(/Line 1, .* notes/)
+  // Suppliers write their reply; LPS's ask is shown read-only.
+  assert.equal(view.queryByLabelText(/Line 1, .* note for supplier/), null)
+  assert.ok(view.getAllByText('Accept only the named cultivar.').length > 0)
+  const notes = view.getByLabelText(/Line 1, .* supplier reply/)
   assert.equal(notes.tagName, 'TEXTAREA')
   await user.clear(notes)
   await user.type(notes, 'First delivery{Enter}Second delivery')
   assert.equal(document.activeElement, notes)
   await user.tab()
-  assert.deepEqual(patches.at(-1), [19, { note_for_supplier: 'First delivery\nSecond delivery' }])
+  assert.deepEqual(patches.at(-1), [19, { note_from_supplier: 'First delivery\nSecond delivery' }])
 
   const trigger = view.getByRole('button', { name: /Line 2, .* status, Pending/ })
   await user.click(trigger)
@@ -337,7 +341,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await user.type(within(dialog).getByLabelText('ETA / notes'), 'Next Friday')
   await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
   await waitFor(() => assert.equal(document.activeElement, trigger))
-  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', note_for_supplier: 'Next Friday' }])
+  assert.deepEqual(patches.at(-1), [20, { status: 'can_order', note_from_supplier: 'Next Friday' }])
 
   await setWidth(900)
   assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)
@@ -751,7 +755,7 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
 
   const user = userEvent.setup({ document })
   const { view, dialog } = await openDrawer()
-  const notes = within(mobileSurface(dialog)).getByLabelText(/Line 1, .* notes/)
+  const notes = within(mobileSurface(dialog)).getByLabelText(/Line 1, .* note for supplier/)
   await user.clear(notes)
   await user.type(notes, 'first answer')
   await user.tab()
@@ -771,7 +775,7 @@ test('same-line writes are sequenced with abort ownership, PATCH failure is expl
     items: current.items.map((item) => item.id === 19 ? { ...item, noteForSupplier: secondChanges.note_for_supplier } : item),
   }
   await act(async () => patches[1].resolve(json({ ok: true })))
-  await waitFor(() => assert.equal((within(mobileSurface(dialog)).getByLabelText(/Line 1, .* notes/) as HTMLTextAreaElement).value, 'second answer'))
+  await waitFor(() => assert.equal((within(mobileSurface(dialog)).getByLabelText(/Line 1, .* note for supplier/) as HTMLTextAreaElement).value, 'second answer'))
   assert.doesNotMatch(dialog.textContent ?? '', /first answer/)
 
   failNext = true

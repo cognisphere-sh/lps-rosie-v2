@@ -27,7 +27,7 @@ SELECT public.record_job_workflow_event($jobId, '<event>');
 |---|---|
 | `pricing_fetched` | A price lookup was done (even with no match). |
 | `quote_shared` | The customer actually received the quote. A draft doesn't count. |
-| `availability_sent` | The AR was actually delivered (portal publish or email sent). Moves Quote → Availability. |
+| `availability_sent` | The AR was actually delivered (a partner AR sent from draft, or the public-link email sent). Moves Quote → Availability. |
 
 Events never move a job backward or reopen a closed job.
 
@@ -39,7 +39,8 @@ Events never move a job backward or reopen a closed job.
 - A job can be closed directly if it was lost before any order. Closing the
   last order closes the job automatically only when all demand is known and
   fully ordered; otherwise ask Chris.
-- Don't close a shared AR or another customer's order because one job ended.
+- Don't close another customer's order because one job ended. A job's own ARs
+  close with it.
 - Closed ARs can't be edited. Reopening a job doesn't reopen its ARs; reopen
   an AR only when told, and never reuse a public link revoked by closing.
 
@@ -52,5 +53,5 @@ Events never move a job backward or reopen a closed job.
   and supplier; it keeps its saved state. `hidden` is not a status.
 - A public link needed again after reopening gets a fresh token through
   normal publishing, never a revoked one.
-- Deleting a whole job retires its own ARs; shared ARs stay for other jobs.
+- Deleting a whole job retires its ARs (each AR belongs to one job).
 - Deleting or deactivating anything needs Chris's explicit word.

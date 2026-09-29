@@ -43,7 +43,6 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       jobRequestId?: number
       jobRequestIds?: number[]
-      consolidateItems?: boolean
       supplierId?: number
       isPublic?: boolean
       shareCustomerDetails?: boolean
@@ -68,7 +67,6 @@ export async function POST(req: Request) {
     const id = await createAvailabilityRequest({
       jobRequestId: body.jobRequestId,
       jobRequestIds: body.jobRequestIds,
-      consolidateItems: body.consolidateItems === true,
       supplierId: body.supplierId!,
       shareCustomerDetails: !!body.shareCustomerDetails,
       isPublic: body.isPublic,

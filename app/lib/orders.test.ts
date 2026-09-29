@@ -85,7 +85,10 @@ function database(tables: Record<string, Record<string, any>[]>) {
       eq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] === value); return chain },
       neq: (key: string, value: unknown) => { rows = rows.filter((row) => row[key] !== value); return chain },
       in: (key: string, values: unknown[]) => { rows = rows.filter((row) => values.includes(row[key])); return chain },
-      not: (key: string, _operator: string, values: string) => { rows = rows.filter((row) => !values.slice(1, -1).split(',').includes(row[key])); return chain },
+      not: (key: string, operator: string, values: string | null) => {
+        rows = rows.filter((row) => operator === 'is' ? row[key] !== values : !String(values).slice(1, -1).split(',').includes(row[key]))
+        return chain
+      },
       order: (_column: string) => chain,
       maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
       range: async (from: number, to: number) => ({ data: rows.slice(from, to + 1), error: null }),
@@ -118,17 +121,14 @@ test('candidates account for split and competing orders, ignore lost orders, and
   const db = database({
     job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }, { id: 2, name: 'Archived', status: 'archived', is_active: true }],
     job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }, { id: 21, job_request_id: 2, demanded_quantity: 15, is_active: true }],
-    availability_request_item_jobs: [
-      { availability_request_item_id: 101, job_request_item_id: 11, quantity: 10 },
-      { availability_request_item_id: 102, job_request_item_id: 11, quantity: 10 },
-      { availability_request_item_id: 103, job_request_item_id: 11, quantity: 5 },
-      { availability_request_item_id: 103, job_request_item_id: 21, quantity: 15 },
-    ],
     availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    availability_request_items: [
-      { id: 101, availability_request_id: 10, name: 'Oak', demanded_quantity: 10, available_quantity: 0, status: 'can_order', is_active: true },
-      { id: 102, availability_request_id: 10, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'available', is_active: true },
-      { id: 103, availability_request_id: 10, name: 'Oak combined', demanded_quantity: 20, available_quantity: 20, status: 'available', is_active: true },
+    // One candidate per job line; 104 sits on the archived job and 105 was never asked.
+    candidates: [
+      { id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 0, status: 'can_order', is_active: true },
+      { id: 102, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'available', is_active: true },
+      { id: 103, availability_request_id: 10, job_request_item_id: 11, name: 'Oak 5 G', demanded_quantity: 5, available_quantity: 20, status: 'available', is_active: true },
+      { id: 104, availability_request_id: 10, job_request_item_id: 21, name: 'Oak', demanded_quantity: 15, available_quantity: 15, status: 'available', is_active: true },
+      { id: 105, availability_request_id: null, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'available', is_active: true },
     ],
     suppliers: [{ id: 7, name: 'Austin Plant Supply', is_active: true }],
     orders: [{ id: 201, supplier_id: 7, status: 'new', is_active: true }, { id: 202, supplier_id: 8, status: 'order_ready', is_active: true }, { id: 203, supplier_id: 7, status: 'closed_lost', is_active: true }],
@@ -144,7 +144,8 @@ test('candidates account for split and competing orders, ignore lost orders, and
   const candidates = await orderCandidates([1, 2])
   assert.equal(candidates.length, 3)
   assert.equal(candidates[0].remainingQuantity, 7, 'Can Order can procure the seven remaining plants despite zero on hand')
-  for (const candidate of candidates) assert.equal(candidate.allocations.length, 1, 'archived jobs are omitted')
+  assert.deepEqual(candidates.map((candidate: any) => candidate.availabilityRequestItemId), [101, 102, 103], 'archived jobs and unasked candidates are omitted')
+  for (const candidate of candidates) assert.equal(candidate.allocations.length, 1)
   assert.deepEqual(candidates.map((candidate: any) => candidate.allocations[0].remainingQuantity), [4, 4, 2],
     'all suppliers consume customer demand; same-supplier orders also consume each related AR allocation')
   assert.deepEqual((await orderJobChoices()).map((job: { id: number }) => job.id), [1])
@@ -154,11 +155,9 @@ test('supplier order reads derive related ARs through job items with supplier an
   const db = database({
     orders: [{ id: 1, supplier_id: 7, status: 'new', is_active: true }, { id: 2, supplier_id: 8, status: 'new', is_active: true }],
     order_items: [10, 11, 12, 13].map((id) => ({ id, order_id: 1, name: 'Oak', quantity: 2, unit_price: 10, total: 20, status: 'need_to_order', is_active: true })),
-    availability_request_items: [{ id: 101, availability_request_id: 20, is_active: true }, { id: 102, availability_request_id: 20, is_active: true },
-      { id: 103, availability_request_id: 30, is_active: true }, { id: 104, availability_request_id: 40, is_active: true },
-      { id: 105, availability_request_id: 50, is_active: true }, { id: 106, availability_request_id: 60, is_active: false }],
+    candidates: [[101, 20, true], [102, 20, true], [103, 30, true], [104, 40, true], [105, 50, true], [106, 60, false], [107, null, true]]
+      .map(([id, availability_request_id, is_active]) => ({ id, availability_request_id, job_request_item_id: 11, is_active })),
     availability_requests: [{ id: 20, supplier_id: 7, is_active: true }, { id: 30, supplier_id: 7, is_active: true }, { id: 40, supplier_id: 8, is_active: true }, { id: 50, supplier_id: 7, is_active: false }],
-    availability_request_item_jobs: [101, 102, 103, 104, 105, 106].map((id) => ({ availability_request_item_id: id, job_request_item_id: 11 })),
     order_item_job_request_items: [{ order_item_id: 10, job_request_item_id: 11, quantity: 2 }],
     job_request_items: [{ id: 11, job_request_id: 100 }],
     job_requests: [{ id: 100, name: 'Private customer job', status: 'committed', is_active: true }],
@@ -174,16 +173,12 @@ test('supplier order reads derive related ARs through job items with supplier an
 })
 
 
-test('shared AR capacity counts allocated quantities on unselected jobs and direct orders only for the same supplier', async () => {
+test('candidate capacity counts same-supplier orders on its own job line; other suppliers consume only customer demand', async () => {
   const db = database({
     job_requests: [{ id: 1, name: 'Garden', status: 'committed', is_active: true }],
     job_request_items: [{ id: 11, job_request_id: 1, demanded_quantity: 10, is_active: true }],
-    availability_request_item_jobs: [
-      { availability_request_item_id: 101, job_request_item_id: 11, quantity: 8 },
-      { availability_request_item_id: 101, job_request_item_id: 21, quantity: 12 },
-    ],
     availability_requests: [{ id: 10, supplier_id: 7, status: 'submitted', is_active: true }],
-    availability_request_items: [{ id: 101, availability_request_id: 10, name: 'Oak', demanded_quantity: 20, available_quantity: 10, status: 'diff_size_qty_sub', is_active: true }],
+    candidates: [{ id: 101, availability_request_id: 10, job_request_item_id: 11, name: 'Oak', demanded_quantity: 10, available_quantity: 10, status: 'diff_size_qty_sub', is_active: true }],
     suppliers: [{ id: 7, name: 'APS', is_active: true }],
     orders: [
       { id: 201, supplier_id: 7, status: 'new', is_active: true },
@@ -201,17 +196,19 @@ test('shared AR capacity counts allocated quantities on unselected jobs and dire
     order_item_job_request_items: [
       { order_item_id: 301, job_request_item_id: 11, quantity: 3 },
       { order_item_id: 301, job_request_item_id: 31, quantity: 100 },
+      // Another job line's order with this supplier does not use this candidate's capacity.
       { order_item_id: 302, job_request_item_id: 21, quantity: 4 },
       { order_item_id: 303, job_request_item_id: 11, quantity: 2 },
-      { order_item_id: 304, job_request_item_id: 21, quantity: 7 },
-      { order_item_id: 305, job_request_item_id: 21, quantity: 7 },
+      { order_item_id: 304, job_request_item_id: 11, quantity: 7 },
+      { order_item_id: 305, job_request_item_id: 11, quantity: 7 },
     ],
   })
   const { orderCandidates } = load('./order-queries.ts', { 'server-only': {}, '@/lib/supabase': { supabase: db } })
   const candidates = await orderCandidates([1])
   assert.equal(candidates.length, 1)
-  assert.equal(candidates[0].remainingQuantity, 3, '10 offered minus 3 + 4 allocated to this supplier')
-  assert.deepEqual(candidates[0].allocations.map((a: any) => [a.jobRequestItemId, a.remainingQuantity]), [[11, 3]])
+  assert.equal(candidates[0].remainingQuantity, 7, '10 offered minus 3 already ordered from this supplier for this line')
+  assert.deepEqual(candidates[0].allocations.map((a: any) => [a.jobRequestItemId, a.remainingQuantity]), [[11, 5]],
+    'customer demand is also reduced by the other supplier\'s 2')
 })
 
 test('orders keep customer EDD separate from supplier commitment and deduplicate combined job schedules', async () => {
@@ -588,7 +585,7 @@ test('order creation validates and routes each directional header note', async (
   assert.deepEqual((calls[0] as any[])[1], {
     p_supplier_id: 7, p_customer_confirmed: true, p_fulfillment_method: 'pickup', p_fulfillment_date: null,
     p_note_for_supplier: 'Pickup only', p_note_for_customer: "White flowers \n\n Ready Friday",
-    p_items: [{ availability_request_item_id: 101, allocations: [{ job_request_item_id: 11, quantity: 2 }, { job_request_item_id: 21, quantity: 3 }] }],
+    p_items: [{ candidate_id: 101, allocations: [{ job_request_item_id: 11, quantity: 2 }, { job_request_item_id: 21, quantity: 3 }] }],
   })
   assert.equal((calls[1] as any[])[0], 'create_direct_order')
   assert.equal((calls[1] as any[])[1].p_note_for_supplier, 'Direct supplier note')

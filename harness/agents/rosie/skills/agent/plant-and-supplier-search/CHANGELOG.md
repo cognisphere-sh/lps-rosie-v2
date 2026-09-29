@@ -1,5 +1,10 @@
 # plant-and-supplier-search — changelog
 
+## 3.1.0 — 2026-09-29
+
+- Candidates (migration 0119): an exact match (including same plant under another name) is the selected candidate; other listed sizes become their own candidates; an unfound plant keeps an unpriced original-ask candidate. Listed names no longer go in `note_internal`.
+- No questions about substitutes or alternatives (Bhoumik 2026-09-29): another variant, another-name or substitute listings become candidates without asking; aliases are requested from Daisy only after Chris says the names match.
+
 ## 3.0.0 — 2026-09-28
 
 - Rewrite. New `scripts/aps-price` helper (rules + aliases + all sizes with EXACT / nearest smaller / nearest larger in one call). Plant-specific price rules moved to `knowledge/files/price-rules.md`. Same-plant names become aliases via Daisy (Bhoumik 2026-09-25, Chris JR-78/JR-82) instead of refusing aliases. pricing-equivalents and report merged into search.md and SKILL.md.

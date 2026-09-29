@@ -31,71 +31,15 @@ Constraints:
 
 Unique indexes: `app_users_username_key` on `lower(username)`.
 
-### `availability_request_item_jobs`
-
-```text
-availability_request_item_id bigint NOT NULL
-job_request_item_id bigint NOT NULL
-quantity numeric
-```
-
-Constraints:
-- `availability_request_item_job_availability_request_item_id_fkey`: `FOREIGN KEY (availability_request_item_id) REFERENCES availability_request_items(id) ON DELETE CASCADE`
-- `availability_request_item_jobs_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE CASCADE`
-- `availability_request_item_jobs_pkey`: `PRIMARY KEY (availability_request_item_id, job_request_item_id)`
-- `availability_request_item_jobs_quantity_check`: `CHECK (((quantity > (0)::numeric) AND (quantity < 'Infinity'::numeric)))`
-
-### `availability_request_items`
-
-```text
-id bigint NOT NULL IDENTITY ALWAYS
-availability_request_id bigint NOT NULL
-name text NOT NULL
-size text
-demanded_quantity numeric
-status text
-available_quantity numeric
-unit_price numeric(10,2)
-is_active boolean NOT NULL DEFAULT true
-created_at timestamptz NOT NULL DEFAULT now()
-updated_at timestamptz NOT NULL DEFAULT now()
-note_for_supplier text
-mapped_inventory_id uuid
-```
-
-Constraints:
-- `availability_request_items_availability_request_id_fkey`: `FOREIGN KEY (availability_request_id) REFERENCES availability_requests(id) ON DELETE CASCADE`
-- `availability_request_items_available_quantity_check`: `CHECK (((available_quantity IS NULL) OR (available_quantity >= (0)::numeric)))`
-- `availability_request_items_mapped_inventory_id_fkey`: `FOREIGN KEY (mapped_inventory_id) REFERENCES inventory(id) ON DELETE SET NULL`
-- `availability_request_items_pkey`: `PRIMARY KEY (id)`
-- `availability_request_items_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
-- `availability_request_items_status_check`: `CHECK (((status IS NULL) OR (status = ANY (ARRAY['available'::text, 'can_order'::text, 'diff_size_qty_sub'::text, 'arriving_soon'::text, 'unavailable'::text]))))`
-- `availability_request_items_unit_price_check`: `CHECK (((unit_price IS NULL) OR (unit_price > (0)::numeric)))`
-
-Line `note_for_supplier` combines supplier-relevant sourcing requirements and
-actual supplier responses, rendered once in the **Note for supplier** column.
-LPS context edits do not mark the request processing; supplier note answers
-through the answer RPC do. Submitted response facts can populate linked job-item
-`note_internal` or `note_for_customer` by audience. Job-item relationships live solely in
-`availability_request_item_jobs`; its `quantity` remains the per-job share.
-
-### `availability_request_jobs`
-
-```text
-availability_request_id bigint NOT NULL
-job_request_id bigint NOT NULL
-```
-
-Constraints:
-- `availability_request_jobs_availability_request_id_fkey`: `FOREIGN KEY (availability_request_id) REFERENCES availability_requests(id) ON DELETE CASCADE`
-- `availability_request_jobs_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE CASCADE`
-- `availability_request_jobs_pkey`: `PRIMARY KEY (availability_request_id, job_request_id)`
-
 ### `availability_requests`
 
-Header `note_for_supplier` includes supplier-relevant job-wide `note_for_customer` and LPS
-instructions. Actual supplier facts within submitted header `note_for_supplier` feed the applicable jobs'
-`note_internal` or `note_for_customer` by audience, preserving each job's scope.
+Header `note_for_supplier` includes supplier-relevant job-wide `note_for_customer`, LPS
+instructions and the supplier's request-wide reply. Its lines are `candidates`.
+
+Trigger `availability_requests_apply_selected`: when an AR is submitted, each
+of its candidates answered since the previous submission takes its supplier
+reply as `note_for_customer`, then every open (Quote/Availability) job line
+selecting one is re-applied (see `job_request_items`).
 
 ```text
 id bigint NOT NULL IDENTITY ALWAYS
@@ -108,25 +52,91 @@ created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
 public_token uuid
+job_request_id bigint
 ```
 
 Constraints:
+- `availability_requests_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE SET NULL`
 - `availability_requests_pkey`: `PRIMARY KEY (id)`
 - `availability_requests_public_token_key`: `UNIQUE (public_token)`
-- `availability_requests_status_check`: `CHECK ((status = ANY (ARRAY['new'::text, 'processing'::text, 'submitted'::text, 'closed'::text])))`
+- `availability_requests_status_check`: `CHECK ((status = ANY (ARRAY['draft'::text, 'new'::text, 'processing'::text, 'submitted'::text, 'closed'::text])))`
 - `availability_requests_supplier_id_fkey`: `FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE`
 
-All job relationships live in `availability_request_jobs`; the AR header has no
-direct job id. Header links remain after individual job items are deleted.
+New ARs start as `draft` (0120): built on the job card, invisible to the
+supplier (portal, public link and answer RPCs refuse drafts) until
+`send_availability_request` makes them `new`.
+
+One AR per job (migration 0119 replaced `availability_request_jobs`):
+`job_request_id` is NULL only for history kept after its job was deleted, and
+all its candidates belong to that job's lines. Inserting a Partner supplier's
+AR records the job's `availability_sent` event when it is sent (`availability_requests_progress`);
+closing the job closes its ARs.
 `is_active=false` marks deletion: the AR, lines and saved answers remain stored,
 but normal app views and supplier/public access exclude the request. Deletion
 preserves `status`, `submitted_at` and `public_token`; a retained token grants no
-access while inactive. Whole-job deletion similarly retires exclusive ARs and
-retains their supplier snapshots; shared requests survive for remaining jobs.
+access while inactive. Whole-job deletion similarly retires its ARs and
+retains their supplier snapshots.
 `status` is `new` (New), `processing` (answers in progress), `submitted` (Completed)
 or `closed` (supplier edits blocked). Closing an active request revokes its public
 link. Job reopening never reopens an AR or restores a deleted one; AR reopening
 is explicit. Removed `hidden` records migrate to inactive, closed history.
+
+### `candidates`
+
+Supplier/plant/size options for one job line (migration 0119; formerly
+`availability_request_items`). Price lists are only indicative, so each line
+gets a candidate for the original request plus listed alternatives. A candidate
+is asked once `availability_request_id` is set; its status is derived: Pending
+(not on an AR), AR sent (asked, `status` NULL), else the supplier's answer.
+
+```text
+id bigint NOT NULL IDENTITY ALWAYS
+availability_request_id bigint
+name text NOT NULL
+size text
+demanded_quantity numeric
+status text
+available_quantity numeric
+unit_price numeric(10,2)
+is_active boolean NOT NULL DEFAULT true
+created_at timestamptz NOT NULL DEFAULT now()
+updated_at timestamptz NOT NULL DEFAULT now()
+note_for_supplier text
+mapped_inventory_id uuid
+supplier_id bigint NOT NULL
+job_request_item_id bigint
+note_from_supplier text
+note_for_customer text
+answered_at timestamptz
+description text
+is_original boolean NOT NULL DEFAULT false
+```
+
+Constraints:
+- `candidates_availability_request_id_fkey`: `FOREIGN KEY (availability_request_id) REFERENCES availability_requests(id) ON DELETE CASCADE`
+- `candidates_available_quantity_check`: `CHECK (((available_quantity IS NULL) OR (available_quantity >= (0)::numeric)))`
+- `candidates_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
+- `candidates_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE SET NULL`
+- `candidates_mapped_inventory_id_fkey`: `FOREIGN KEY (mapped_inventory_id) REFERENCES inventory(id) ON DELETE SET NULL`
+- `candidates_pkey`: `PRIMARY KEY (id)`
+- `candidates_status_check`: `CHECK (((status IS NULL) OR (status = ANY (ARRAY['available'::text, 'can_order'::text, 'diff_size_qty_sub'::text, 'arriving_soon'::text, 'unavailable'::text]))))`
+- `candidates_supplier_id_fkey`: `FOREIGN KEY (supplier_id) REFERENCES suppliers(id)`
+- `candidates_unit_price_check`: `CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)))`
+
+- `description` says what the candidate is, for Chris (`5 G Shumard Oak`);
+  `is_original` marks the line's original request as the customer asked it
+  (0120).
+- `unit_price` 0 on an unanswered candidate means "price not found"; answering
+  Unavailable sets `available_quantity` and `unit_price` to 0.
+- `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
+  (the supplier's only writable note). `note_for_customer` is the job line's
+  customer note for this candidate (e.g. `3 G NA, only 5 G`).
+- Triggers: `candidates_guard` rejects writes to candidates on a closed or
+  deleted AR, a supplier that differs from the AR's, and another job's AR;
+  `candidates_reopen` returns a processing/submitted
+  AR to New when a candidate joins it; `candidates_processing` marks answers.
+- A deleted job line deletes its candidates. A deleted job deletes its unasked
+  candidates and keeps asked ones (job link NULL) as supplier history.
 
 ### `contacts`
 
@@ -263,13 +273,15 @@ Constraints:
 
 Job and item notes have the same meaning, scoped to the job or line:
 
-- `note_for_customer`: merged customer sourcing requirements and supported
-  customer-facing sourcing outcomes. Rendered once in **Note for customer**;
-  never beneath the plant name. Keep cultivar, color, form, alternatives,
-  purchasing units and availability/ETA; exclude planting spacing, landscape
-  layout, installation instructions and unrelated additional details.
-- `note_internal`: current internal sourcing facts and unresolved choices;
-  never included in customer-facing output.
+- `note_for_customer`: information for the customer only (e.g. `5 G NA, 3 G
+  only`, an ETA, why a substitute). Rendered once in **Note for customer**;
+  never beneath the plant name. On a line it follows the selected candidate's
+  `note_for_customer`.
+- `note_internal`: the customer's additional requests and requirements
+  (cultivar, color, form, purchasing units, single trunk, …) and other
+  internal context — never supplier, listing or price facts (those live on
+  `candidates`); never included in customer-facing output. A requirement the
+  supplier must meet is also put in the candidate's `note_for_supplier`.
 
 ```text
 id bigint NOT NULL IDENTITY ALWAYS
@@ -286,18 +298,21 @@ is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 available_quantity numeric
-selected_availability_request_item_id bigint
+selected_candidate_id bigint
 ```
 
-`selected_availability_request_item_id` (migration 0116) is the supplier AR
-line answer chosen for this job line; NULL means none. Choosing one copies its
-status, price, capped quantity and note once — no later resync.
+`selected_candidate_id` (0116, renamed in 0119) is the candidate filling this
+line; NULL means none. `select_candidate` copies its size, price (0 stays
+blank), available quantity capped at demand, mapped status and
+`note_for_customer`. Submission of its AR re-applies it (above). Trigger
+`job_request_items_candidate_note` writes an edit of the line's
+`note_for_customer` back to the selected candidate.
 
 Constraints:
 - `job_request_items_available_quantity_check`: `CHECK (((available_quantity IS NULL) OR (available_quantity >= (0)::numeric)))`
 - `job_request_items_job_request_id_fkey`: `FOREIGN KEY (job_request_id) REFERENCES job_requests(id) ON DELETE CASCADE`
 - `job_request_items_pkey`: `PRIMARY KEY (id)`
-- `job_request_items_selected_availability_request_item_id_fkey`: `FOREIGN KEY (selected_availability_request_item_id) REFERENCES availability_request_items(id) ON DELETE SET NULL`
+- `job_request_items_selected_candidate_id_fkey`: `FOREIGN KEY (selected_candidate_id) REFERENCES candidates(id) ON DELETE SET NULL`
 - `job_request_items_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
 - `job_request_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'unavailable'::text, 'alternative_proposed'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))`
 
@@ -357,7 +372,7 @@ Each combines the audience's sourcing requirements and relevant response facts.
 Supplier payloads, copy and print include only the supplier field, rendered once
 in its note column. Internal progress stays on the linked job/item `note_internal`.
 
-AR-backed order lines snapshot the merged supplier note and allocated job items'
+AR-backed order lines snapshot the candidate's supplier ask and reply (joined) and allocated job items'
 merged customer notes (distinct notes joined with blank lines). Direct orders
 snapshot the job item's customer note; their supplier note starts NULL. Header
 notes can be supplied explicitly at creation. Read current notes before changing
@@ -521,6 +536,7 @@ daisy_thread_id text
 rosie_thread_id text
 rosie_thread_ref bigint
 daisy_thread_ref bigint
+short_name text
 ```
 
 Constraints:
@@ -582,16 +598,18 @@ roles. Table results are listed below.
 
 | Function and arguments | Returns | EXECUTE | Purpose |
 |---|---|---|---|
+| `add_candidates_to_availability_request(p_request_id bigint, p_candidate_ids bigint[])` | `bigint` | service_role only | Ask unasked candidates of open job lines on an open AR of their supplier. |
 | `answer_availability_request(p_request_id bigint, p_supplier_id bigint, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Save a supplier line answer or submit the request; locks the request. |
 | `answer_public_availability(p_token uuid, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Resolve a public token, then save/submit through the same guarded answer path. |
 | `close_order(p_order_id bigint, p_status text)` | `bigint` | service_role only | Close an order Won/Lost and update fully covered jobs. |
 | `compose_plant_name(common_name text, botanical_name text, cultivar_variety_trade_name text)` | `text` | public | Compose common, botanical and cultivar parts into the display name. |
 | `confirm_order(p_order_id bigint, p_supplier_id bigint, p_confirmation_date date DEFAULT current_date, p_fulfillment_date date DEFAULT NULL)` | `bigint` | service_role only | Supplier confirmation through the order lifecycle. |
-| `create_availability_request(p_supplier_id bigint, p_items jsonb, p_share_customer_details boolean DEFAULT false, p_public_token uuid DEFAULT NULL)` | `bigint` | service_role only | Create supplier ask snapshots and job/line allocations atomically. |
+| `create_availability_request(p_supplier_id bigint, p_candidate_ids bigint[], p_share_customer_details boolean DEFAULT false, p_public_token uuid DEFAULT NULL)` | `bigint` | service_role only | Create a draft AR asking one job's candidates, atomically. |
 | `create_direct_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order directly from quoted job lines, without an AR. |
 | `create_order(p_supplier_id bigint, p_items jsonb, p_fulfillment_method text DEFAULT NULL, p_fulfillment_date date DEFAULT NULL, p_note_for_supplier text DEFAULT NULL, p_customer_confirmed boolean DEFAULT false, p_note_for_customer text DEFAULT NULL)` | `bigint` | service_role only | Create a confirmed order from answered availability lines and allocations. |
 | `delete_job_request(p_job_request_id bigint)` | `jsonb` | service_role only | Hard-delete a job; returns counts of removed related rows. |
-| `delete_job_request_item(p_job_request_id bigint, p_job_request_item_id bigint)` | `jsonb` | service_role only | Hard-delete a job line and exclusively owned AR snapshots; returns counts or null. |
+| `delete_candidate(p_candidate_id bigint)` | `void` | service_role only | Soft-delete a candidate (also from its AR) and unselect it; the line keeps its values. |
+| `delete_job_request_item(p_job_request_id bigint, p_job_request_item_id bigint)` | `jsonb` | service_role only | Hard-delete a job line and its candidates; returns counts or null. |
 | `delete_order_item(p_order_id bigint, p_order_item_id bigint)` | `boolean` | service_role only | Hard-delete an open order line; delete the order too if empty; returns success. |
 | `link_thread(p_agent text, p_thread_id text)` | `bigint` | public | Upsert and return a thread ID for an agent/thread pair. |
 | `normalize_plant_key(txt text)` | `text` | public | Normalize plant identity to lowercase letters. |
@@ -600,9 +618,12 @@ roles. Table results are listed below.
 | `plant_photo_document(name text, size text, caption text, tags text[], notes text)` | `text` | public | Build indexed search text for a photo. |
 | `plant_photo_reclaimable(older_than_days integer DEFAULT 30)` | `table (projection below)` | anon, authenticated, service_role | List unreferenced old photo objects for review. |
 | `record_job_workflow_event(p_job_request_id bigint, p_event text)` | `text` | service_role only | Apply a guarded job workflow event; returns the resulting status. |
+| `request_candidate_availability(p_candidate_id bigint)` | `bigint` | service_role only | Add a candidate to its supplier's open (Draft/New/Processing) AR for the job, or a new draft; returns the AR id. |
 | `reserve_job_request_id()` | `bigint` | service_role only | Reserve and return the next job request ID. |
 | `search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank inventory matches. |
 | `search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank photo matches. |
+| `send_availability_request(p_request_id bigint)` | `bigint` | service_role only | Send a draft AR with at least one candidate: status `new`, a public link for non-Partners. |
+| `select_candidate(p_job_request_item_id bigint, p_candidate_id bigint)` | `void` | service_role only | Select one of an open line's candidates and copy it onto the line. |
 | `search_suppliers(search text DEFAULT '', category_filter text DEFAULT NULL, fuzzy_ratio real DEFAULT 0.34, sort_column text DEFAULT NULL, sort_direction text DEFAULT NULL)` | `table (projection below)` | public | Search and sort active suppliers. |
 | `submit_availability_request_note(p_request_id bigint, p_supplier_id bigint, p_note text)` | `bigint` | service_role only | Submit an AR and save its supplier-wide note (max 10,000 chars). |
 | `submit_public_availability_note(p_token uuid, p_note text)` | `bigint` | service_role only | Resolve public token, then submit AR and save supplier-wide note. |
@@ -622,20 +643,22 @@ JSON inputs and behavior:
   `city`, `state`, `zip`, `notes`, `availability_source_type`,
   `availability_update_days`, `hosted_availability_url`, `created_at`,
   `updated_at`.
-- `create_availability_request.p_items`: entries contain `name`, `size`,
-  `demanded_quantity`, optional `unit_price`, `mapped_inventory_id`, `note_for_supplier`, and
-  `allocations: [{job_request_item_id, quantity}]`. Known allocations must
-  total the requested quantity.
+- `create_availability_request.p_candidate_ids` /
+  `add_candidates_to_availability_request.p_candidate_ids`: active, unasked
+  candidates of the AR's supplier on open lines of one job (the AR's job); a
+  missing demand is taken from the job line.
 - `answer_availability_request.p_changes`: string-valued `status`,
-  `available_quantity`, `unit_price` and/or `note_for_supplier`; blank clears a field.
+  `available_quantity`, `unit_price`, `size` and/or `note_from_supplier`; blank
+  clears a field. Status Unavailable forces quantity and price to 0. Each
+  answer stamps `answered_at`.
   `p_submit = true` submits the request. Public variants resolve `p_token`
   before applying the same write. Supplier-note RPCs submit and store a note
   of at most 10,000 characters; blank clears it.
-- `create_order.p_items`: `[{availability_request_item_id,
-  allocations: [{job_request_item_id, quantity}]}]`.
-  The AR-item id is used only during creation to validate and snapshot a response;
-  `order_items` stores no AR pointer. Related ARs are derived through job-item
-  junctions and the order supplier. Existing same-supplier allocations, including
+- `create_order.p_items`: `[{candidate_id,
+  allocations: [{job_request_item_id, quantity}]}]` — the allocation must be the
+  candidate's own job line. The candidate id is used only during creation to
+  validate and snapshot an answer; `order_items` stores no AR pointer. Related
+  ARs are derived through the job lines' candidates and the order supplier. Existing same-supplier allocations, including
   direct orders, consume each related AR's job/supply limits.
   `create_direct_order.p_items`: entries contain
   `job_request_item_id` and positive `quantity`. Both require
