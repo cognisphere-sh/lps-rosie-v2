@@ -1,6 +1,6 @@
 # Plugin: supplier-events
 
-**The app wakes Rosie when a supplier saves order changes or saves/submits availability answers.**
+**The app wakes Rosie when a supplier saves order changes or submits availability answers.**
 User-space plugin at `harness/plugins/supplier-events/`; enabled on
 [`rosie`](agent-rosie.md) only — she owns order-side supplier coordination,
 partner portals and public request links included.
@@ -13,8 +13,9 @@ to do per event type; the procedures are Rosie's `supplier-coordination`
 (responses, orders) and `job-requests` (supplier responses) skills.
 
 - `availability_updated` (saved, not submitted — including edits after an
-  earlier submission and portal answers Rosie typed in for the supplier)
-  stays on the supplier thread: no job thread, no Chris, no job notes.
+  earlier submission and portal answers Rosie typed in for the supplier) is
+  accepted and answered `200 { ok: true, delivered: false }`, but **never
+  delivered**: a save does not wake Rosie.
 - `availability_submitted` (submit or re-submit) is relayed to every linked
   job through `availability_request_jobs` / `availability_request_item_jobs`.
   Under Chris's standing instruction the job threads update their lines
@@ -22,11 +23,6 @@ to do per event type; the procedures are Rosie's `supplier-coordination`
   price, short customer note) and alert Chris. Shared totals are never copied
   to each job, and the chosen supplier
   (`selected_availability_request_item_id`) is never set from an event.
-
-Cost note: every `availability_updated` wakes the supplier thread (about 52
-times and $7 in the week to 2026-09-28). Sending it with `isSilent: true` in
-`index.ts` would deliver it as context without a turn; not done yet (needs a
-harness restart to verify).
 
 ## Endpoint — `POST /webhook/rosie/supplier-events/notify`
 
@@ -37,9 +33,9 @@ data. `availability_updated` means answers were saved without submitting;
 saved answer is neither submission nor confirmation. Delayed events must not
 reopen or edit a closed request, or misrepresent newer unsubmitted edits as
 submitted answers: re-read current state and explicit submission evidence.
-Both portal and public-link answer routes use these same events. The plugin
-still delivers both event types to the supplier thread; this relay boundary is
-an agent instruction, not suppression of transport events or a database change.
+Both portal and public-link answer routes use these same events. The app still
+sends `availability_updated`; the plugin drops it before delivery, so only
+`availability_submitted` reaches the supplier thread.
 
 Body: `{ type, supplierId, supplierName, availabilityRequestId, jobRequestId,
 threadId }`. Supplier id/name and availability-request id are required; the
@@ -104,4 +100,5 @@ Do not manually edit the generated agent prompt: an operator harness restart
 reseeds it from this source and applies the instruction correction. These code changes require an app deployment and harness/plugin restart; no
 database migration is required. Regression coverage in
 `app/lib/rosie-thread-events.test.ts` checks the seed's submission-only relay
-contract and distinct save/submit/re-submit delivery on the supplier thread.
+contract, that saves are not delivered, and that submit/re-submit land on the
+supplier thread.

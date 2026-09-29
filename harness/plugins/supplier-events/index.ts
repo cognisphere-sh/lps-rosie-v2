@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * coordination, including partner portals and public availability links:
  *
  * - `availability_updated` — a supplier saved answers without submitting.
+ *   Accepted and acknowledged, but never delivered: saves don't wake Rosie.
  * - `availability_submitted` — a supplier explicitly submitted their answers.
  * - `order_updated` — confirmation, ready status, fulfillment date or supplier notes.
  * - `order_status_updated` / `order_status_saved` — order-line status changes.
@@ -49,7 +50,7 @@ export default class SupplierEventsPlugin {
   manifest = {
     displayName: "Supplier Events",
     description:
-      "Wakes the supplier thread when answers are saved or submitted through a portal or public link. POST /webhook/<agent>/supplier-events/notify from the app.",
+      "Wakes the supplier thread when answers are submitted through a portal or public link. POST /webhook/<agent>/supplier-events/notify from the app.",
     configSchema: { type: "object", properties: {}, additionalProperties: false },
     secretsSchema: {
       type: "object",
@@ -146,11 +147,13 @@ export default class SupplierEventsPlugin {
     if (body.threadId != null && typeof body.threadId !== "string") {
       return json(400, { error: "threadId must be a string or null" });
     }
+    // Saves without submitting don't wake Rosie; only submission does.
+    if (body.type === "availability_updated") return json(200, { ok: true, delivered: false });
 
     const ar = body.availabilityRequestId;
     const jr = body.jobRequestId;
     const about = jr != null ? ` (job request JR-${jr})` : "";
-    const action = body.type === "availability_submitted" ? "submitted their answers" : "saved answer changes without submitting";
+    const action = "submitted their answers";
     const savedStatus = body.orderChanges?.find((change) => change.field === "status")?.value;
     const orderAction = savedStatus === "order_ready" ? "marked ready" : savedStatus === "processing" ? "confirmed" : "updated";
     const orderSummary = body.orderChanges?.map((change) =>

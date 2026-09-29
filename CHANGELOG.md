@@ -15,6 +15,10 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-29 — Rosie hears about AR answers on submit only
+
+- `supplier-events` plugin: `availability_updated` (answers saved without submitting) is now acknowledged but not delivered, so a save no longer wakes Rosie's supplier thread (~52 turns / $7 a week). `availability_submitted` is unchanged. The app still sends saves; the drop happens in the plugin, so no app deploy is needed — only a harness restart. Seed prompt no longer lists the save event.
+
 ## 2026-09-28 — partner portal filters are multi-select without All
 
 - Supplier portal Availability Requests (`/partner/:id`) and Orders (`/partner/:id/orders`): removed the **All** filter button. New, Processing and Completed/Ready now toggle independently (orders' buckets were single-choice before); a fresh visit selects New + Processing.

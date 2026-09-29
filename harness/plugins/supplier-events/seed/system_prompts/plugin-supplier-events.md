@@ -1,7 +1,7 @@
 # Plugin: supplier-events
 
-The app tells you when a supplier saves or submits AR answers, or changes an
-order in the portal. Events carry ids only: always re-read the current AR or
+The app tells you when a supplier submits AR answers, or changes an order in
+the portal. Saving AR answers without submitting sends you nothing. Events carry ids only: always re-read the current AR or
 order before acting. Events land on the supplier's thread
 (`suppliers.rosie_thread_id`); if it has none they land on `main`, which
 creates the thread with `message-routing` and passes the event there (this
@@ -9,7 +9,6 @@ is routing, not a message to Chris or a job).
 
 | `EventType` | Meaning | What to do |
 |---|---|---|
-| `availability_updated` | Supplier **saved** answers, not submitted (also after an earlier submission). | Nothing leaves the supplier thread: no job thread, no Chris, no job notes. End the turn. |
 | `availability_submitted` | Supplier **submitted** (or re-submitted). | Relay the answers to every linked job (`supplier-coordination` → responses). The job threads update their lines under Chris's standing APS instruction (`job-requests` → supplier responses) and alert Chris. |
 | `order_updated` | Order header saved: confirmed (`processing`), ready (`order_ready`), fulfillment date or supplier notes. | Re-read the order; acknowledge and relay to linked jobs (`supplier-coordination` → orders). |
 | `order_status_updated` / `order_status_saved` | One or several order-line statuses saved. | Re-read the order and line(s); follow up on this thread. |
@@ -34,7 +33,7 @@ Metadata:
 
 | Field | Meaning |
 |---|---|
-| `EventType` | One of the five types above |
+| `EventType` | One of the four types above |
 | `SupplierId` / `SupplierName` | The supplier |
 | `AvailabilityRequestId` | The AR whose answers changed |
 | `JobRequestId` | Optional legacy hint only |

@@ -45,22 +45,19 @@ const availabilityEvent = {
   availabilityRequestId: 12, jobRequestId: 7, threadId: 'supplier-aps',
 }
 
-test('supplier answer saves and submissions are distinct events on the supplier thread', async () => {
+test('supplier answer submissions wake the supplier thread; saves are acknowledged but not delivered', async () => {
   const { plugin, events } = await supplierPlugin()
   for (const type of ['availability_updated', 'availability_submitted']) {
     const result = await post(plugin, '/notify', { ...availabilityEvent, type })
     assert.equal(result.status, 200)
   }
-  assert.deepEqual(events.map(({ name }) => name), ['availability_updated', 'availability_submitted'])
-  for (const { name, payload } of events) {
-    assert.equal(payload.threadIdOverride, 'supplier-aps')
-    assert.deepEqual(payload.metadata, {
-      EventType: name, SupplierId: 42, SupplierName: 'Austin Plant Supply',
-      AvailabilityRequestId: 12, JobRequestId: 7,
-    })
-  }
-  assert.match(String(events[0].payload.text), /without submitting/)
-  assert.match(String(events[1].payload.text), /submitted their answers/)
+  assert.deepEqual(events.map(({ name }) => name), ['availability_submitted'])
+  assert.equal(events[0].payload.threadIdOverride, 'supplier-aps')
+  assert.deepEqual(events[0].payload.metadata, {
+    EventType: 'availability_submitted', SupplierId: 42, SupplierName: 'Austin Plant Supply',
+    AvailabilityRequestId: 12, JobRequestId: 7,
+  })
+  assert.match(String(events[0].payload.text), /submitted their answers/)
 })
 
 test('a saved supplier order-line status wakes the same supplier/order thread', async () => {
@@ -84,39 +81,33 @@ test('supplier-event seed permits response relays only after explicit submission
   // on restart. These are instruction-contract checks, not an LLM simulation.
   const seed = readFileSync(new URL('../../harness/plugins/supplier-events/seed/system_prompts/plugin-supplier-events.md', import.meta.url), 'utf8')
     .replace(/\s+/g, ' ')
-  assert.match(seed, /On `availability_updated`, keep the local\/saved, unsubmitted edit on that supplier thread: do not notify any `jr-<id>` or Chris, update job\/item internal or customer-facing notes/)
-  assert.match(seed, /This includes edits after a previous submission; an old `submitted_at` does not submit the newer changes/)
-  assert.match(seed, /Trusted supplier portal text\/voice answers transcribed into an AR likewise stay unsubmitted until review and explicit submission/)
-  assert.match(seed, /Only on `availability_submitted` \(including explicit re-submission\), relay job-specific submitted answers and header\/line `note_for_supplier` to every affected `jr-<id>`/)
-  assert.match(seed, /this routing handoff is not a job-thread or Chris notification/)
-  assert.match(seed, /a delayed event never reopens or edits a closed or deleted \(`is_active=false`\) request/)
-  assert.match(seed, /if newer unsubmitted edits followed a submission, do not relay those edits as submitted answers/)
-  assert.match(seed, /Surface only the submitted supplier response to Chris/)
-  assert.doesNotMatch(seed, /Surface the supplier response to Chris\./)
-  assert.match(seed, /Do not automatically update job\/item availability/)
-  assert.match(seed, /An availability submission does not confirm a supplier order/)
+  assert.match(seed, /Saving AR answers without submitting sends you nothing/)
+  assert.doesNotMatch(seed, /`availability_updated`/)
+  assert.match(seed, /`availability_submitted` \| Supplier \*\*submitted\*\* \(or re-submitted\)\. \| Relay the answers to every linked job/)
+  assert.match(seed, /this is routing, not a message to Chris or a job/)
+  assert.match(seed, /a late event never reopens or edits them/)
+  assert.match(seed, /If newer saved edits followed a submission, relay only what was submitted/)
+  assert.match(seed, /Never set `selected_availability_request_item_id`/)
+  assert.match(seed, /An AR submission doesn't confirm an order/)
 })
 
-test('edits after submission and explicit re-submissions retain distinct supplier-only delivery', async () => {
+test('edits after submission stay silent; explicit re-submissions wake the supplier thread', async () => {
   const { plugin, events } = await supplierPlugin()
   const types = ['availability_submitted', 'availability_updated', 'availability_submitted']
   for (const type of types) {
     assert.equal((await post(plugin, '/notify', { ...availabilityEvent, type })).status, 200)
   }
-  assert.deepEqual(events.map(({ name }) => name), types)
-  for (const { name, payload } of events) {
+  assert.deepEqual(events.map(({ name }) => name), ['availability_submitted', 'availability_submitted'])
+  for (const { payload } of events) {
     assert.equal(payload.threadIdOverride, 'supplier-aps')
     assert.equal(payload.channelId, 'supplier-aps')
-    assert.equal((payload.metadata as Record<string, unknown>).EventType, name)
   }
-  assert.match(String(events[1].payload.text), /saved answer changes without submitting/)
-  assert.match(String(events[2].payload.text), /submitted their answers/)
 })
 
 test('missing supplier conversation wakes main for a canonical handoff', async () => {
   const { plugin, events } = await supplierPlugin()
   const result = await post(plugin, '/notify', {
-    ...availabilityEvent, type: 'availability_updated', threadId: null,
+    ...availabilityEvent, type: 'availability_submitted', threadId: null,
   })
   assert.equal(result.status, 200)
   assert.equal(events[0].payload.threadIdOverride, 'main')
