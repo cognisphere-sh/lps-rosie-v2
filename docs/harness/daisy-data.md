@@ -27,12 +27,9 @@ The last five moved here from the `workspace/` root on 2026-08-16 — reference
 material that is neither thread- nor supplier-scoped belongs in `knowledge/`,
 leaving `workspace/` to `index.md`, `threads/`, `suppliers/` and `daily_notes/`.
 
-Moving the other way on the same date: the **Gmail label ID table** left
-`files/gmail-labels.md` for
-`skills/agent/availability-ingestion/artifacts/gmail-labels.md`. Only that one
-skill reads it, so it travels with the skill rather than sitting in shared
-knowledge — the rule being that `knowledge/` holds what several threads or
-skills consult, and a single skill's lookup table is one of its artifacts.
+Gmail status labels (`Daisy`, `Daisy/Catalogued`, …) are applied by name with
+`scripts/gws/email label <MessageId> --thread --add …`, so no label-ID table
+is kept (the old `gmail-labels.md` was removed on 2026-09-29).
 
 `knowledge/memory.md` is Daisy's cross-thread memory — one grep-able file of
 sections separated by `-----$-----$-----$-----`, each with `name`,

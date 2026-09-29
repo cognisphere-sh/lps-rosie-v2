@@ -1,27 +1,30 @@
 ---
 name: supplier-onboarding
-description: Create or enrich supplier companies, farms and contacts. Includes identity checks, classification, enrichment and QA. Use for supplier-side writes, new locations or contact corrections. (v2.5.0)
+description: Create or update supplier companies, locations (farms) and contacts. Includes duplicate checks, head-branch links, category rules, website enrichment and newsletter signup, contact linking and QA. Use for a new supplier or location, supplier record fixes, or contact changes. (v3.0.0)
 metadata:
   author: lps
-  version: "2.5.0"
+  version: "3.0.0"
 ---
 
 # Supplier onboarding
 
-Run on the supplier's dedicated thread. Own `suppliers`, `contacts` and
-`supplier_contacts`; inventory/source/alias writes use `availability-ingestion`.
-Read relevant schema through `database-access` before queries. Supplier discovery
-does not authorize email; `supplier-communications` owns approved sends.
+Runs on the supplier's own thread. Owns `suppliers`, `contacts` and
+`supplier_contacts`. Inventory, sources and aliases → `availability-ingestion`.
+Finding a supplier never permits emailing them (`supplier-communications`).
 
-1. Read [identity checks](artifacts/identify.md) before creating or changing a
-   company/farm. Reuse verified entities; preserve head-branch relationships.
-2. For new rows read [creation and classification](artifacts/create.md).
-   For existing-row research/corrections read [enrichment](artifacts/enrich.md).
-3. For people/email/phone changes read [contacts](artifacts/contacts.md).
-   People belong in contacts, not supplier notes; preserve cross-location links.
-4. Run [verification and reporting](artifacts/verify.md). Return supplier IDs,
-   head branch, dedicated thread, evidence and remaining gaps to the caller.
-   Continue ingestion only after supplier/location scope is resolved.
+| Task | Read |
+|---|---|
+| Is it new? New company or new location | [identify](artifacts/identify.md), then [create](artifacts/create.md) |
+| Website, address, coordinates, newsletter, availability channel | [enrich](artifacts/enrich.md) |
+| People, emails, phones, primary contact | [contacts](artifacts/contacts.md) |
+| Before reporting | [verify](artifacts/verify.md) |
 
-Read only references needed for the change. Preserve current facts on retries;
-record durable quirks once in `suppliers.notes`, contact history in the transcript.
+- Filling or correcting supplier details from evidence (website, hours,
+  address, coordinates, contacts, category) is routine: do it, no approval.
+- Make the best-supported call and note why. Stop and ask only when you can't
+  tell a new location from an existing row, or two rows look like one company.
+- Durable quirks go once in `suppliers.notes`; people go in `contacts`, never
+  in `suppliers.notes`.
+- Follow supplier-specific instructions from Chris saved in `suppliers.notes`
+  (e.g. "treat Cherrylake as one supplier", "Devil Mountain: big specimens
+  only"). Don't model more detail than the business needs.

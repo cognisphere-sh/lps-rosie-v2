@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""ingest-context — everything an ingest needs to know about a supplier company,
+in one read-only database call.
+
+Prints: the company (head branch) and its Daisy thread; every active location
+with city/state, category, active row count and newest source; how their
+availability reaches us; `suppliers.notes` for each location that has any; and
+the company's five newest sources.
+
+Example: ingest-context --supplier 24
+         ingest-context --thread supplier-everde-growers
+
+Exit codes: 0 ok, 1 bad usage/unknown supplier, 2 query failed.
+Read-only; safe to re-run.
+"""
+import argparse
+import sys
+
+from _db import cell, json_value, lit
+
+SQL = """
+WITH anchor AS (
+  SELECT head_branch_id FROM suppliers WHERE {where} LIMIT 1
+), locs AS (
+  SELECT s.* FROM suppliers s, anchor a
+  WHERE s.head_branch_id = a.head_branch_id AND s.is_active
+)
+SELECT json_build_object(
+ 'head', (SELECT row_to_json(h) FROM (
+    SELECT s.id, s.name, s.daisy_thread_id, s.website, s.availability_source_type AS channel,
+           s.hosted_availability_url AS hosted_url, s.availability_update_days AS every_days
+    FROM suppliers s, anchor a WHERE s.id = a.head_branch_id) h),
+ 'locations', (SELECT json_agg(l ORDER BY l.id) FROM (
+    SELECT s.id, s.name, s.city, s.state, s.category,
+      (SELECT count(*) FROM inventory i WHERE i.supplier_id = s.id AND i.is_active) AS active_rows,
+      (SELECT row_to_json(x) FROM (
+         SELECT src.id, to_char(src.created_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD HH24:MI') AS at,
+                src.file_path
+         FROM inventory_sources src WHERE src.supplier_id = s.id AND src.is_active
+         ORDER BY src.created_at DESC LIMIT 1) x) AS newest_source
+    FROM locs s) l),
+ 'notes', (SELECT json_agg(n ORDER BY n.id) FROM (
+    SELECT id, notes FROM locs WHERE coalesce(btrim(notes), '') <> '') n),
+ 'recent_sources', (SELECT json_agg(r) FROM (
+    SELECT src.id, src.supplier_id,
+           to_char(src.created_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD HH24:MI') AS at,
+           src.file_path, left(src.notes, 160) AS notes
+    FROM inventory_sources src JOIN locs s ON s.id = src.supplier_id
+    WHERE src.is_active ORDER BY src.created_at DESC LIMIT 5) r)
+) AS j;
+"""
+
+
+def build_sql(supplier=None, thread=None):
+    where = f"id = {int(supplier)}" if supplier is not None else f"daisy_thread_id = {lit(thread)}"
+    return SQL.format(where=where)
+
+
+def render(data):
+    head = (data or {}).get("head")
+    if not head:
+        return None
+    out = [f"COMPANY {head['name']} (head {head['id']}), thread {cell(head['daisy_thread_id'])}",
+           f"  website {cell(head['website'])}; channel {cell(head['channel'])}; "
+           f"hosted {cell(head['hosted_url'])}; updates every {cell(head['every_days'])} days"]
+    locations = data.get("locations") or []
+    out.append(f"LOCATIONS {len(locations)} active")
+    for loc in locations:
+        src = loc.get("newest_source") or {}
+        out.append(f"  {loc['id']} {loc['name']} — {cell(loc['city'])}, {cell(loc['state'])}; "
+                   f"{cell(loc['category'])}; {loc['active_rows']} active rows; newest source "
+                   + (f"{src['id']} {src['at']} {src['file_path']}" if src else "none"))
+    notes = data.get("notes") or []
+    out.append(f"SUPPLIER NOTES {len(notes)}")
+    for note in notes:
+        out.append(f"  [{note['id']}] {note['notes'].strip()}")
+    recent = data.get("recent_sources") or []
+    out.append(f"RECENT SOURCES {len(recent)}")
+    for src in recent:
+        out.append(f"  {src['id']} farm {src['supplier_id']} {src['at']} {src['file_path']} | {cell(src['notes'], 160)}")
+    return "\n".join(out)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--supplier", type=int, help="any supplier id of the company")
+    target.add_argument("--thread", help="the company's daisy_thread_id")
+    args = parser.parse_args()
+    try:
+        data = json_value(build_sql(args.supplier, args.thread))
+    except RuntimeError as error:
+        print(f"ingest-context: {error}", file=sys.stderr)
+        return 2
+    text = render(data)
+    if text is None:
+        print("ingest-context: no such supplier", file=sys.stderr)
+        return 1
+    print(text)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

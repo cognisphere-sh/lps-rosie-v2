@@ -1,5 +1,11 @@
 # database-access — changelog
 
+## 2.0.1 — 2026-09-29
+
+`scripts/schema` suggests close topic names for an unknown one (`sources` →
+`inventory_sources`). Shared byte-for-byte with Daisy's copy; no procedure
+change.
+
 ## 2.0.0 — 2026-09-28
 
 - Rewrite. New helpers: `job-snapshot`, `ar-snapshot`, `set-note` (guarded note writes from files), shared `_db.py`, offline tests. Data-model map added (from the removed `1.1-supabase.md` prompt and job-requests writes). SQL rules: no `DO` (use WHERE NOT EXISTS), typed NULLs, common wrong columns.

@@ -22,7 +22,9 @@ collision-safe attachment downloads, canonical CLI invocation and reseeding.
 
 [Prompt maintenance](prompt-maintenance.md) documents the compact Rosie/Daisy/Lily
 instructions, task references, helper scripts and offline checks. Agent pages
-link separately to setup and historical migration material.
+link separately to setup and historical migration material. Audits:
+[Rosie 2026-09-28](rosie-audit-2026-09-28.md),
+[Daisy 2026-09-29](daisy-audit-2026-09-29.md).
 
 | Agent | Role | Model | Thread strategy | Reachable via |
 |---|---|---|---|---|

@@ -72,9 +72,15 @@ def check():
                           "all_prompt_chars": sum(len(p.read_text()) for p in prompts),
                           "skill_entry_chars": total_entries,
                           "skill_description_chars": descriptions}
-    copies = [(ROOT / f"harness/agents/{a}/skills/agent/database-access/scripts/schema").read_bytes() for a in ("rosie", "daisy")]
-    if len(set(copies)) != 1:
-        errors.append("schema selector copies have drifted")
+    # Daisy reuses Rosie's tested helpers byte-for-byte; Rosie's tests cover both.
+    shared = [("database-access/scripts/schema", "database-access/scripts/schema"),
+              ("message-routing/scripts/daily-note", "supplier-communications/scripts/daily-note"),
+              ("message-routing/scripts/index-add", "supplier-communications/scripts/index-add")]
+    for rosie_path, daisy_path in shared:
+        copies = [(ROOT / f"harness/agents/{agent}/skills/agent/{rel}").read_bytes()
+                  for agent, rel in (("rosie", rosie_path), ("daisy", daisy_path))]
+        if len(set(copies)) != 1:
+            errors.append(f"{daisy_path} has drifted from Rosie's {rosie_path}")
     return errors, metrics
 
 

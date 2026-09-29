@@ -1,33 +1,31 @@
 # Knowledge index
 
-Cross-thread reference material — schemas, domain facts, lookup tables,
-long-term documents. Files live in `files/`; one line each below.
+Reference material shared by every thread. Procedures are skills, not
+knowledge; a lookup table only one skill uses lives in that skill.
 
-`memory.md` holds cross-thread memory — **episodic events and facts only** — grep
-it, don't read it whole. A procedural rule belongs in `1-agent.md` (if it holds
-everywhere) or in the skill for that procedure, never here.
+`memory.md` holds facts and events (grep it; don't read it whole). Rules go
+in `system_prompts/1-agent.md` or the owning skill (`create-skill` says where).
 
 ## Files
 
-- [files/SCHEMA.md](files/SCHEMA.md) — live Supabase schema. Read before any query. Tables you write: `suppliers`, `inventory`, `inventory_sources`, `plant_aliases`, `plant_photos`. This is a **symlink** to `docs/supabase-schema.md` at the repo root — the single source of truth shared by every agent and by the web app; edit it through the symlink, don't replace it with a copy.
-- [files/suppliers.md](files/suppliers.md) — pointer only: supplier quirks live in `suppliers.notes` in Supabase (the `workspace/suppliers/` dirs are read-only legacy since 2026-08-23).
-- [files/supplier-segmentation-and-account-development.md](files/supplier-segmentation-and-account-development.md) — **restricted internal strategy/training IP**: Chris’s complete 2026-08-21 morning working strategy covering original sourcing/outreach cohorts, the unknown app-enum origin, supplier-model distinctions, Texas market focus, account development, retail operations, and the Southwest Wholesale Nursery benchmark lead. Not for external sharing or wholesale copying into supplier profiles.
-- `files/brand/` — LPS logo assets (`lps-logo.png`, `lps-logo-transparent.png`).
-- `files/credentials/` — **sensitive.** Supplier portal logins (currently Garden Center Plants LLC / Buchholz, supplier 22). Directory is mode `0700`; never print or forward the values.
-- `files/plans/` — long-lived plan documents. `photo-storage-and-network-cost-plan.md` — measured cost profile of the photo catalogue and the phases that would cut it, **none implemented**, each with a trigger point (nothing is worth doing at 44 photos). `searchable-photo-catalogue-plan.md` — **partly built**: migration 0051 shipped its MVP as `plant_photos` + the private `plant-photos` bucket + `search_plant_photos`; the seven-table model, the review workflow, perceptual dedupe and bulk intake are not built. The procedure is the `plant-photo-catalogue` skill).
-- `files/templates/` — reusable output templates; see its own [index](files/templates/index.md).
-- `files/plant-reference-photos/` — Chris-provided plant reference intake, one dated dir per drop, each with its own `index.md` manifest. Reference photos only — not supplier availability, and not linked to `inventory` rows. Since 2026-08-16 these are **catalogued** into `plant_photos` rather than left staged; the manifests record which row each file became. New photos go straight through the `plant-photo-catalogue` skill.
-
-Procedures are **not** knowledge — they are skills. The ingestion SOP is the
-`availability-ingestion` skill in `skills/agent/`, which follows
-`supplier-onboarding` when a drop needs a supplier or a farm created, alongside
-`supplier-email-routing`, `plant-and-supplier-search`,
-`plant-photo-catalogue` and `supplier-communications`. Read them from
-`<available_skills>`; changes to any of them require Chris's/Bhoumik's approval,
-then a version bump.
-
-**A lookup table only one skill reads is not knowledge either** — it travels
-with that skill under `artifacts/`. The Gmail label IDs moved out of here on
-2026-08-16 for exactly that reason and now live at
-`skills/agent/availability-ingestion/artifacts/gmail-labels.md`. Don't add
-them back.
+- [files/SCHEMA.md](files/SCHEMA.md) — live Supabase schema. A **symlink** to
+  the shared `docs/supabase-schema.md`; read it with
+  `skills/agent/database-access/scripts/schema`, fix it through the symlink,
+  never replace it with a copy.
+- [files/suppliers.md](files/suppliers.md) — pointer: supplier quirks live in
+  `suppliers.notes` in Supabase; `workspace/suppliers/` is read-only legacy.
+- [files/supplier-segmentation-and-account-development.md](files/supplier-segmentation-and-account-development.md)
+  — **restricted internal strategy (Chris's IP)**, 2026-08-21: sourcing and
+  outreach cohorts, supplier types, Texas market focus, account development,
+  the Southwest Wholesale Nursery benchmark. Not for sharing or copying into
+  supplier records.
+- `files/brand/` — LPS logos (`lps-logo.png`, `lps-logo-transparent.png`).
+- `files/credentials/` — **sensitive** supplier portal logins (Garden Center
+  Plants / Buchholz, supplier 22). Never print or forward them.
+- `files/plans/` — `photo-storage-and-network-cost-plan.md` (cost phases, none
+  built); `searchable-photo-catalogue-plan.md` (MVP built as `plant_photos`;
+  the rest not built).
+- `files/templates/` — output templates; see its [index](files/templates/index.md).
+- `files/plant-reference-photos/` — Chris's early reference photo drops, each
+  with an `index.md` saying which `plant_photos` row each file became. New
+  photos go through `plant-photo-catalogue`.

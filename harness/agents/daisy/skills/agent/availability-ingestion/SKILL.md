@@ -1,56 +1,64 @@
 ---
 name: availability-ingestion
-description: Ingest supplier availability with provenance and QA. Includes source checks, pagewise reconciliation, location/name/size normalization, matching and task references. Use for drops, backfills, manual intake or inventory repairs. (v2.6.0)
+description: Load supplier availability into inventory and fix inventory rows. Includes receipt types, change check, page-by-page reading, locations, field rules, aliases, match/write helpers (match-candidates --plan, apply-plan, qa-check), labels, the report, typo fixes and exports. Use for any availability drop, backfill, manual list or inventory edit. (v3.1.0)
 metadata:
   author: lps
-  version: "2.6.0"
+  version: "3.1.0"
 ---
 
 # Availability ingestion
 
-Run on the company's `suppliers.daisy_thread_id`. This skill owns inventory,
-sources and aliases; `supplier-onboarding` owns supplier/contact rows and
-`plant-photo-catalogue` owns photo records. No supplier sends from ingestion.
+Runs on the supplier's own thread (`suppliers.daisy_thread_id`). This skill
+owns `inventory`, `inventory_sources` and `plant_aliases`. Supplier and
+contact rows → `supplier-onboarding`; photos → `plant-photo-catalogue`. No
+email to suppliers from here.
 
-Load each reference when its step is reached. Skip inapplicable branches;
-repairs load only the affected field rules, writes and QA.
+| Task | Read |
+|---|---|
+| A drop (email, file, link) | The steps below, loading each file when you reach it |
+| Fix a row, a price from Chris, "price X like Y", export CSV | [repairs](artifacts/repairs.md) + [fields](artifacts/fields.md) |
+| Add or review an alias | [aliases](artifacts/aliases.md) |
 
-1. **Identify receipt:** [intake](artifacts/intake.md), relevant schema through
-   `database-access`, and supplier notes. Read the email body as source evidence.
-   Log arrivals with `supplier-communications` → transcript. Default is current
-   receipt. Only explicit historical/backfill work reads [historical](artifacts/historical.md);
-   manual handoffs read [manual receipt](artifacts/manual-receipt.md). An old
-   printed date alone does not make a manual handoff historical.
-2. **Resolve location:** [locations](artifacts/locations.md). Missing suppliers
-   or farms go through `supplier-onboarding`; return with actual farm IDs.
-3. **Check for change before conversion:** [source check](artifacts/source-check.md).
-   Fingerprint the complete effective source, including body amendments and
-   attachments. Skip expensive parsing only after a matching successful receipt
-   for the same location scope and rules. A changed body is a changed source.
-4. **Acquire/parse:** [acquisition](artifacts/acquisition.md). For paginated
-   sources, work one page at a time: verify each page against its original,
-   classify every line, and reconcile its logical plant × size/grade offerings
-   with existing rows before proceeding to the next. Finish with a whole-source
-   aggregate; never infer all-location coverage from an uninspected page.
-   Always apply [names](artifacts/names.md),
-   [values, dimensions and notes](artifacts/values-notes.md),
-   [sizes](artifacts/sizes.md) and [size buckets](artifacts/size-buckets.md).
-   Read [aliases](artifacts/aliases.md) only if inserting/reviewing aliases.
-   Never write derived names/keys or manufacture identity from outside knowledge.
-5. **Persist:** [provenance](artifacts/provenance.md), [writes](artifacts/writes.md).
-   Use `scripts/match-candidates` on each farm's page batch (or the entire farm
-   for an unpaginated source); review candidates before deciding update versus
-   insert. New stated values replace older ones; omitted fields
-   stay unchanged. Ingestion retires nothing.
-6. **Verify before commit:** [QA](artifacts/qa.md). Compare with original source,
-   reconcile counts per location and inspect all risky rows. Roll back material
-   failures. Never mark a failed/partial ingest successfully fingerprinted.
-7. **Finish:** attached plant images use [photos](artifacts/photos.md), then
-   `plant-photo-catalogue`; image URLs stay URLs. Follow [completion](artifacts/completion.md)
-   for labels, per-location counts, caveats, internal web summary and coordinator
-   report. Record the source fingerprint only after all scoped work succeeds.
+## A drop, step by step
 
-Resolve routine gaps from evidence without inventing data; park identity/location
-blockers and continue independent work. Minor decisions stay on the supplier's
-internal panel; urgent blockers go to main. Use `create-skill` for procedural
-feedback, authorization and version bumps.
+1. **Start.** Post the arrival block to the supplier panel
+   (`supplier-communications` → transcript). Then one read for the company:
+   `skills/agent/availability-ingestion/scripts/ingest-context --thread <ThreadId>`
+   (locations, supplier notes with known quirks, recent sources). Apply the
+   quirks.
+2. **What is it, and has it changed?** [source](artifacts/source.md): receipt
+   type, `source-check`, historical check. Unchanged → label, close, done.
+3. **Where does each row go?** [locations](artifacts/locations.md).
+4. **Read it page by page.** [source](artifacts/source.md) "Convert and read", with
+   [fields](artifacts/fields.md) for every value. Write each page's entries to
+   `/tmp/<thread>-p<N>.json`.
+5. **Match.** Per page and location:
+   `skills/agent/availability-ingestion/scripts/match-candidates --supplier <id> --entries /tmp/<thread>-p<N>.json --plan /tmp/<thread>-p<N>-plan.json`.
+   Decide every `review` row ([write](artifacts/write.md)), drop fields the
+   source didn't state, merge the page plans for the location.
+6. **Store and write.** Upload the file and create source rows
+   ([write](artifacts/write.md) "Store the file"), put the location's `source_id` in
+   its plan, then
+   `skills/agent/availability-ingestion/scripts/apply-plan /tmp/<thread>-<id>-plan.json`
+   (dry run), check the counts against your ledger, and rerun with `--commit`.
+7. **QA.** [qa](artifacts/qa.md): compare with the original, run `qa-check`.
+8. **Photos** in the drop → `plant-photo-catalogue`.
+9. **Finish.** [finish](artifacts/finish.md): label, panel close, daily note,
+   success receipt, one report if someone asked.
+
+A plain one-page list can skip the per-page files; the rules stay the same.
+If a helper doesn't fit an unusual source, write the SQL yourself following
+[write](artifacts/write.md), and say so in the report.
+
+## Always
+
+- The newest source wins for what it states; silence changes nothing; no
+  inventory row is retired during an ingest (only empty, superseded sources
+  are, at the finish).
+- Never invent names, botanical names, sizes, prices or locations. Unknown
+  stays NULL.
+- Make the best-supported call on routine gaps and note why. Park only rows
+  with two materially different readings, and finish your own parked rows
+  when the answer comes; don't hold the whole list for them.
+- Supplier item codes/SKUs printed on the list and stored on the rows (e.g.
+  `Item code:` in `notes`) are the best match key; use them first.

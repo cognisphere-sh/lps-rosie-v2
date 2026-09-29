@@ -1,42 +1,67 @@
 # Agent: Daisy
 
-Daisy discovers/onboards suppliers and ingests their availability from
-`chris.r@localplantsupply.com`. Rosie owns every job/order/customer conversation.
-Main coordinates Chris/Bhoumik; router identifies unknown mail cheaply; one
-`suppliers.daisy_thread_id` owns each company across locations. Supplier work
-stays on that thread's internal web panel. Minor approvals stay there; urgent
-blockers relay to main for Telegram. Routine results go in the daily summary.
+Daisy finds and onboards suppliers, loads their availability into Supabase
+from `chris.r@localplantsupply.com`, and handles supplier account contact
+(sending as Chris, only with approval). Rosie owns every job, order and
+customer conversation and the price rules.
+
+## Threads
+
+| Thread | Role |
+|---|---|
+| `main` | Chris and Bhoumik (Telegram + web chat). Lookups, urgent blockers, all Telegram sends. Passes supplier work to the supplier's thread and unknown mail/files to `router`. |
+| `router` | Identifies unknown mail cheaply and forwards a pointer. Most supplier mail skips it through per-supplier Gmail routing rules. |
+| `supplier-<slug>` | One per company (`suppliers.daisy_thread_id`), all locations: onboarding, lists, fixes, supplier email. Its web panel carries the contact transcript and minor approvals. |
+| `daily-9am-checkin` | Daily summary (`daily-summary` skill), handed to `main` for Telegram. |
+| `daily-supplier-availability-onboarding` | Daily cohort of up to 100 suppliers (paused). |
+| `gws:main` | Gmail settings notices on each harness start; no action. |
+
+Work happens in the thread that owns it (`1-agent.md` overrides the base
+prompt's "delegate aggressively"). A list that needs parsing gets one task
+thread per email; task threads never start task threads, finish all
+bookkeeping themselves and send one silent report.
+
+## Skills
 
 | Work | Entry point |
 |---|---|
-| Mail identity, dispatch, routes and labels | [supplier-email-routing](../../harness/agents/daisy/skills/agent/supplier-email-routing/SKILL.md) |
-| Supplier/farm/contact writes | [supplier-onboarding](../../harness/agents/daisy/skills/agent/supplier-onboarding/SKILL.md) |
-| Source checks, inventory/aliases, provenance and QA | [availability-ingestion](../../harness/agents/daisy/skills/agent/availability-ingestion/SKILL.md) |
-| Approved lifecycle contact and internal transcript | [supplier-communications](../../harness/agents/daisy/skills/agent/supplier-communications/SKILL.md) |
-| Plant/supplier lookups | [plant-and-supplier-search](../../harness/agents/daisy/skills/agent/plant-and-supplier-search/SKILL.md) |
-| Photo intake, lookup/sharing and retirement | [plant-photo-catalogue](../../harness/agents/daisy/skills/agent/plant-photo-catalogue/SKILL.md) |
-| Scheduled cohort and recovery | [daily-supplier-availability-onboarding](../../harness/agents/daisy/skills/agent/daily-supplier-availability-onboarding/SKILL.md) |
-| Scoped schema and SQL/storage mechanics | [database-access](../../harness/agents/daisy/skills/agent/database-access/SKILL.md) |
+| Lists, inventory rows, aliases, fixes, exports | [availability-ingestion](../../harness/agents/daisy/skills/agent/availability-ingestion/SKILL.md) |
+| Suppliers, locations, contacts, enrichment | [supplier-onboarding](../../harness/agents/daisy/skills/agent/supplier-onboarding/SKILL.md) |
+| Supplier email, panel transcript, where records go | [supplier-communications](../../harness/agents/daisy/skills/agent/supplier-communications/SKILL.md) |
+| Router: identify, forward, labels, routing rules | [supplier-email-routing](../../harness/agents/daisy/skills/agent/supplier-email-routing/SKILL.md) |
+| Plant and supplier lookups, substitutes | [plant-and-supplier-search](../../harness/agents/daisy/skills/agent/plant-and-supplier-search/SKILL.md) |
+| Photo files, search, retirement | [plant-photo-catalogue](../../harness/agents/daisy/skills/agent/plant-photo-catalogue/SKILL.md) |
+| 9 AM summary | [daily-summary](../../harness/agents/daisy/skills/agent/daily-summary/SKILL.md) |
+| Daily onboarding cohort | [daily-supplier-availability-onboarding](../../harness/agents/daisy/skills/agent/daily-supplier-availability-onboarding/SKILL.md) |
+| Schema, SQL rules, storage | [database-access](../../harness/agents/daisy/skills/agent/database-access/SKILL.md) |
+| Feedback and skill changes | [create-skill](../../harness/agents/daisy/skills/agent/create-skill/SKILL.md) |
 
-Skills provide short task menus; source classification, normalization, matching,
-QA, contact and report detail load only when needed. `source-check` fingerprints
-body/context plus attachments per location and records only verified success.
-Existing `match-candidates`, `run-state`, `prepare-photo` and `reclaim-orphans`
-remain the task helpers. A fingerprint is not stock confirmation or permission
-to skip after a failed/partial ingest. No helper authorizes supplier email.
+## Helpers
 
-Chris's explicit feedback updates the relevant SOP, deployment prompt or skill
-directly; inferred changes need his approval first. Follow the
-[feedback maintenance rule](prompt-maintenance.md#feedback-driven-updates).
+Paths relative to `harness/agents/daisy/`. Each has `--help`.
 
-Operator references are separate from routine work:
+| Helper | Does |
+|---|---|
+| `skills/agent/availability-ingestion/scripts/ingest-context` | One read: company, locations, supplier notes, recent sources. |
+| `…/match-candidates --plan` | Nearest existing rows per parsed entry, plus a decision file; every suggested insert is checked with `search_inventory` first. |
+| `…/apply-plan` | Writes one location's decisions in one guarded transaction; dry run (rolled back) unless `--commit`; exact count checks. |
+| `…/qa-check` | All mechanical ingest QA for the new source ids in one read. |
+| `…/source-check` | Fingerprint check to skip an unchanged list; records only verified success. |
+| `skills/agent/supplier-communications/scripts/daily-note`, `index-add` | Append to the daily note / workspace index without reading them (shared with Rosie). |
+| `skills/agent/database-access/scripts/schema` | Selected schema sections; suggests names for unknown topics (shared with Rosie). |
+| `run-state`, `prepare-photo`, `reclaim-orphans` | Daily cohort state; photo normalisation; storage sweeps (in their skills). |
 
-- [Configuration and integrations](daisy-setup.md)
-- [Knowledge, storage and common tools](daisy-data.md)
-- [Historical migrations](daisy-migrations.md)
-- [Prompt maintenance and verification](prompt-maintenance.md)
+Gmail labels are applied by name with `scripts/gws/email label`.
 
-Supabase remains authoritative. Preserve its shared schema symlink; use the
-schema selector for the tables/RPCs at hand. Durable supplier facts live in
-supplier notes, contact history in the internal transcript, open loops in thread
-notes. Ingestion refreshes rows and retires nothing.
+## Rules worth knowing
+
+- Supabase is authoritative; the newest list wins for what it states,
+  silence changes nothing, and ingestion retires nothing.
+- Durable supplier facts live in `suppliers.notes`, contact history on the
+  supplier panel, open items in thread notes.
+- Chris's or Bhoumik's explicit feedback updates the relevant skill or prompt
+  directly; inferred changes need Chris's yes
+  ([prompt maintenance](prompt-maintenance.md#feedback-driven-updates)).
+
+More: [configuration](daisy-setup.md), [knowledge and tools](daisy-data.md),
+[migrations](daisy-migrations.md), [2026-09-29 audit](daisy-audit-2026-09-29.md).

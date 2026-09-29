@@ -1,45 +1,36 @@
-## 4. Complete, publish, notify
+# Report, publish, notify
 
-Build a responsive, self-contained **private** artifact per `publish-artifact`,
-using a stable slug such as `supplier-availability-onboarding-daily`. Include
-as-of time and exact cohort IDs/count, with these sections:
+Build one private artifact (`publish-artifact` skill, slug
+`supplier-availability-onboarding-daily`) with the as-of time and exact cohort
+ids/count:
 
-- Texas-service gate outcomes and evidence, separately counting Growers,
-  eligible Texas wholesale-nursery prospects, `held-service-to-Texas-unverified`,
-  `held-service-to-Texas-unverified-prior-qualified`, and
-  `retained-future-market` out-of-state wholesale nurseries. For every outcome,
-  state the classification rationale and evidence type; for verified original
-  cohort provenance include the exact label, artifact/path or URL and retrieval
-  date, and explicitly say that it was not used as proof of availability, price,
-  or Texas delivery. For association evidence include the association,
-  attributable/current evidence URL or dated record, geography, and whether
-  stronger direct/shipping evidence or Chris's named decision controlled the
-  result;
-- retained future-market suppliers (supplier/category/state evidence and an
-  explicit confirmation that no routine availability, POC, newsletter, draft,
-  or contact effort was made);
-- availability emailed in 2026 (message/thread/date/evidence; no replay claim);
-- hosted data (URL, currentness/scope assessment, change check, ingest/source
-  evidence or why held);
-- precise unsent drafts eligible for Chris approval, **and** market-gate-held
-  drafts (supplier, recipient, draft id, subject, full body, hold reason, and
-  confirmation that none was sent);
-- human-intervention URLs and blockers (CAPTCHA, verification, login, etc.);
-- processed, skipped and errors, plus source/ingest evidence and counts.
+- Texas gate results with reason and evidence type, counted separately:
+  Growers, eligible Texas wholesale nurseries, `held-…-unverified`,
+  `held-…-prior-qualified`, `retained-future-market`. For original-cohort
+  evidence give the label, file/URL and date, and say it was not used as proof
+  of availability, price or delivery. For associations give name, URL/date,
+  geography and whether stronger evidence or Chris decided.
+- Retained future-market suppliers (category/state evidence; confirm no
+  research, signup, draft or contact happened).
+- 2026 availability found by email (message, thread, date; no replay claim).
+- Hosted lists (URL, currentness, change check, source ids, or why not loaded).
+- Unsent drafts ready for Chris, and drafts held by the gate (supplier,
+  recipient, draft id, subject, full body, reason; none sent).
+- Human blockers with URLs (CAPTCHA, verification, login).
+- Processed, skipped, errors, with counts.
 
-Publish privately; record returned URL in the run state, mark it completed, then
-send **only** that private URL plus a one-line batch summary through agent
-messaging to `daisy` thread `main`. Never contact Telegram/Chris directly from
-this thread. Update this thread's notes and the daily note with the batch result.
-If a correction pass changes any result, **regenerate the whole artifact from
-final state** (Bhoumik, 2026-08-20) — never publish an incremental patch over a
-stale report.
+Publish privately, record the URL in run state, complete the run, then send
+only that URL plus a one-line summary to `daisy` thread `main` by agent
+message. Never message Telegram or Chris from this thread. One daily-note line.
 
-## 5. Failure handling
+If a correction changes any result, regenerate the whole report from final
+state (Bhoumik, 2026-08-20); never patch a stale one.
 
-- Gmail/browser/auth failure: record supplier-level error, continue the cohort,
-  and report it; do not loop or claim a check occurred.
-- Any uncertain supplier/location/currentness, Texas-service eligibility, or
-  write risk: hold it, report exact evidence and reason; do not ingest.
-- If a task thread reports a blocker, retain its evidence in the run record and
-  include it in the artifact. Do not substitute a guess or contact a supplier.
+## Failures
+
+- Gmail, browser or login failure: record it for that supplier, continue,
+  report it; don't loop or claim a check happened.
+- Unclear supplier, location, currentness, Texas service or write risk: hold
+  it with the evidence; don't ingest.
+- A task thread's blocker goes into the run record and the report. Never
+  guess or contact a supplier instead.

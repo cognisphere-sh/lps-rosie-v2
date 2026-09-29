@@ -1,5 +1,15 @@
 # supplier-communications — changelog
 
+## 7.0.0 — 2026-09-29
+
+Plain-language rewrite (Daisy audit). Added `scripts/daily-note` and
+`scripts/index-add` (copies of Rosie's tested helpers) so notes are appended
+without reading 100 KB files (`workspace/index.md` was read 65 times last
+week). Added from past feedback: never include the "Keep me in To" footer
+(Chris 2026-07-15; Bhoumik 2026-07-15, 2026-08-19); approval may come from
+Chris or Bhoumik (Bhoumik 2026-07-15); say "plants", not "offerings" (Chris
+2026-08-05). Records table now covers daily note, index and memory.
+
 ## 6.5.0
 
 - Make transcript and send procedures canonical, remove repeated lifecycle policy, and keep order mail handoffs internal unless forwarding is authorized.

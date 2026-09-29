@@ -3,7 +3,7 @@
     {
       "name": "daisy-daily-9am-checkin",
       "cron": "0 9 * * *",
-      "text": "Daily 9 AM check-in: review the prior calendar day workspace/daily_notes and necessary thread context. Prepare a concise business summary of completed work, blockers/pending approvals, and next steps, then report it to main via agent messaging for delivery to Chris and Bhoumik.",
+      "text": "Daily 9 AM check-in: follow the daily-summary skill (summarize the prior calendar day's daily note in this thread and send it to main to post on Telegram as-is).",
       "threadId": "daily-9am-checkin"
     },
     {

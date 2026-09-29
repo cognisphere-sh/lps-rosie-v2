@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""qa-check — the mechanical QA for one ingest, in one read-only call.
+
+Give it every inventory_sources id the ingest created. For the rows that now
+carry those ids it prints:
+  - rows per location, split into inserted (row created after its source) and
+    updated/reactivated (older rows that now point at the new source);
+  - size_std buckets, and rows with a size but no size_std       (expect 0);
+  - name parts: empty identity, stray quotes/brackets, selection names joined
+    with " - " or " / " instead of commas                          (expect 0);
+  - notes that look like bookkeeping (dates, file names, "as of")  (expect 0);
+  - internal_notes that only restate the row ("no price", "updated")(expect 0);
+  - zero prices, and dimensions with no *_std (review these);
+  - active duplicates of the touched rows (same plant key, size, dimensions);
+  - alias pairs attached to these sources.
+
+It cannot see an uncommitted transaction. Use --sql to print the same checks
+as SQL, to paste before COMMIT in your own BEGIN … COMMIT/ROLLBACK file.
+
+Example: qa-check --source 037993a4-c94a-4c15-b5f4-a62a880ae550
+         qa-check --source <uuid> --source <uuid> --sql > /tmp/qa.sql
+
+Exit codes: 0 ran (read the counts), 1 bad input, 2 query failed. Read-only.
+"""
+import argparse
+import re
+import sys
+
+from _db import cell, json_value
+
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+QUOTE = r"""'\[|\]|(^|[^[:alnum:]])[''‘’“”"]|[''‘’“”"]($|[^[:alnum:]])'"""
+NOTE_BOOKKEEPING = r"""'(?i)(as of|ingest|received|retrieved|\.pdf|\.xlsx?|\.csv|page \d|source file)'"""
+INTERNAL_OBVIOUS = r"""'(?i)(no price|price (is )?missing|missing price|no quantity|last updated|updated on)'"""
+
+SQL = """
+WITH src AS (SELECT id, supplier_id, created_at FROM inventory_sources WHERE id = ANY(ARRAY[{ids}]::uuid[])),
+rows AS (SELECT i.*, (i.created_at >= s.created_at - interval '1 minute') AS inserted
+         FROM inventory i JOIN src s ON s.id = i.source_id)
+SELECT json_build_object(
+ 'sources', (SELECT count(*) FROM src),
+ 'by_location', (SELECT json_agg(x ORDER BY x.supplier_id) FROM (
+    SELECT supplier_id, count(*) AS total, count(*) FILTER (WHERE inserted) AS inserted,
+           count(*) FILTER (WHERE NOT inserted) AS updated,
+           count(*) FILTER (WHERE unit_price IS NOT NULL) AS priced,
+           count(*) FILTER (WHERE NOT is_active) AS inactive
+    FROM rows GROUP BY supplier_id) x),
+ 'size_std', (SELECT json_object_agg(coalesce(size_std, '∅'), n) FROM (
+    SELECT size_std, count(*) n FROM rows GROUP BY size_std) x),
+ 'size_without_std', (SELECT json_agg(x) FROM (
+    SELECT id, size FROM rows WHERE size IS NOT NULL AND size_std IS NULL LIMIT 20) x),
+ 'empty_identity', (SELECT json_agg(id) FROM rows
+    WHERE coalesce(common_name, botanical_name, cultivar_variety_trade_name) IS NULL),
+ 'stray_quotes', (SELECT json_agg(x) FROM (
+    SELECT id, common_name, botanical_name, cultivar_variety_trade_name FROM rows
+    WHERE common_name ~ {quote} OR botanical_name ~ {quote} OR cultivar_variety_trade_name ~ {quote}
+    LIMIT 20) x),
+ 'joined_cultivars', (SELECT json_agg(x) FROM (
+    SELECT id, cultivar_variety_trade_name FROM rows
+    WHERE cultivar_variety_trade_name ~ '\\s[-/]\\s' AND cardinality(cultivar_keys) = 1 LIMIT 20) x),
+ 'bookkeeping_notes', (SELECT json_agg(x) FROM (
+    SELECT id, notes FROM rows WHERE notes ~ {bookkeeping} LIMIT 20) x),
+ 'obvious_internal_notes', (SELECT json_agg(x) FROM (
+    SELECT id, internal_notes FROM rows WHERE internal_notes ~ {obvious} LIMIT 20) x),
+ 'zero_price', (SELECT json_agg(id) FROM rows WHERE unit_price = 0),
+ 'dims_without_std', (SELECT json_agg(x) FROM (
+    SELECT id, height, width, caliper FROM rows
+    WHERE (height IS NOT NULL AND height_std IS NULL) OR (width IS NOT NULL AND width_std IS NULL)
+       OR (caliper IS NOT NULL AND caliper_std IS NULL) LIMIT 20) x),
+ 'duplicates', (SELECT json_agg(x) FROM (
+    SELECT r.supplier_id, r.name, r.size, array_agg(DISTINCT i.id::text) AS ids
+    FROM rows r JOIN inventory i ON i.supplier_id = r.supplier_id AND i.is_active
+      AND i.name_key = r.name_key AND i.size IS NOT DISTINCT FROM r.size
+      AND i.height IS NOT DISTINCT FROM r.height AND i.width IS NOT DISTINCT FROM r.width
+      AND i.caliper IS NOT DISTINCT FROM r.caliper AND i.id <> r.id
+    GROUP BY r.supplier_id, r.name, r.size LIMIT 20) x),
+ 'aliases', (SELECT json_agg(x) FROM (
+    SELECT a.id, a.name, a.other_name, a.is_active, a.source_line FROM plant_aliases a
+    WHERE a.source_id IN (SELECT id FROM src)) x)
+) AS j;
+"""
+
+EXPECT_ZERO = ("size_without_std", "empty_identity", "stray_quotes", "joined_cultivars",
+               "bookkeeping_notes", "obvious_internal_notes")
+REVIEW = ("zero_price", "dims_without_std", "duplicates", "aliases")
+
+
+def build_sql(ids):
+    quoted = ", ".join(f"'{i}'" for i in ids)
+    return SQL.format(ids=quoted, quote=QUOTE, bookkeeping=NOTE_BOOKKEEPING, obvious=INTERNAL_OBVIOUS)
+
+
+def render(data):
+    out = [f"SOURCES {data.get('sources')}"]
+    locations = data.get("by_location") or []
+    total = sum(x["total"] for x in locations)
+    inserted = sum(x["inserted"] for x in locations)
+    out.append(f"ROWS {total}: {total - inserted} updated/reactivated, {inserted} inserted")
+    for x in locations:
+        out.append(f"  farm {x['supplier_id']}: {x['total']} ({x['updated']} updated, {x['inserted']} inserted, "
+                   f"{x['priced']} priced, {x['inactive']} inactive)")
+    if total and inserted > total / 2:
+        out.append("  CHECK mostly inserts — re-run match-candidates/search_inventory on a sample before trusting this")
+    out.append("SIZE_STD " + ", ".join(f"{k} {v}" for k, v in sorted((data.get("size_std") or {}).items())))
+    problems = 0
+    for key in EXPECT_ZERO + REVIEW:
+        value = data.get(key) or []
+        label = "OK  " if not value else ("FAIL" if key in EXPECT_ZERO else "LOOK")
+        problems += bool(value) and key in EXPECT_ZERO
+        out.append(f"{label} {key}: {len(value)}")
+        for item in value[:20]:
+            out.append("     " + cell(item if not isinstance(item, dict) else
+                                      "; ".join(f"{k}={cell(v, 80)}" for k, v in item.items()), 220))
+    out.append(f"RESULT {'clean' if not problems else f'{problems} check(s) failed — fix before reporting'}")
+    return "\n".join(out)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--source", action="append", required=True, help="inventory_sources id (repeat)")
+    parser.add_argument("--sql", action="store_true", help="print the SQL instead of running it")
+    args = parser.parse_args()
+    ids = [s.strip().lower() for s in args.source]
+    if not all(UUID.match(i) for i in ids):
+        print("qa-check: --source must be a uuid", file=sys.stderr)
+        return 1
+    sql = build_sql(ids)
+    if args.sql:
+        print(sql.strip())
+        return 0
+    try:
+        data = json_value(sql)
+    except RuntimeError as error:
+        print(f"qa-check: {error}", file=sys.stderr)
+        return 2
+    print(render(data or {}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""apply-plan — write one location's ingest decisions in one guarded transaction.
+
+Replaces hand-written stage/buildsql scripts. Input is a plan JSON (usually made
+by `match-candidates --plan`, then edited by you):
+
+  {"supplier_id": 915, "source_id": "<this location's inventory_sources id>",
+   "rows": [
+     {"action": "update", "id": "<inventory id>", "set": {"unit_price": 12, "quantity": 40},
+      "expect": {"unit_price": 10}},                       # expect is optional
+     {"action": "reactivate", "id": "<inventory id>", "set": {...}},
+     {"action": "insert", "searched": true, "set": {"common_name": "Live Oak", "size": "15 G",
+      "size_std": "15G", "unit_price": 48}},
+     {"action": "park", "why": "two rows could match: <ids>"}]}
+
+Rules it enforces (so you don't have to re-check them by hand):
+  - Only these columns can be set: common_name, botanical_name,
+    cultivar_variety_trade_name, size, size_std, unit_price, quantity, height,
+    height_std, width, width_std, caliper, caliper_std, notes, internal_notes,
+    image_url. Never name, *_key, ids or timestamps.
+  - update/reactivate change only the keys you give ("silence is not a value"),
+    and always set source_id and is_active = true. internal_notes is APPENDED
+    on a new line, never replaced. `expect` values must still match (guard).
+  - insert needs a name part, and `"searched": true` (search_inventory found no
+    existing row for it). A size needs a valid size_std.
+  - An id can appear once. "review" rows block the run: decide them first.
+  - Row counts must come out exactly as planned, or everything rolls back.
+
+Default is a dry run: the transaction runs and is ROLLED BACK, and you get the
+counts. Add --commit to keep it.
+
+Example: apply-plan /tmp/gs-page1-plan.json            # dry run
+         apply-plan /tmp/gs-page1-plan.json --commit
+
+Exit codes: 0 ok, 1 invalid plan (nothing sent), 2 database refused or counts
+differed (nothing kept). Safe to re-run after a failure; after a successful
+--commit, re-running fails its guards/counts rather than writing twice
+when `expect` is given, so check qa-check before retrying.
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+from _db import AGENT_ROOT, QUERY_BIN, lit
+
+COLUMNS = {
+    "common_name": "text", "botanical_name": "text", "cultivar_variety_trade_name": "text",
+    "size": "text", "size_std": "text", "unit_price": "numeric", "quantity": "numeric",
+    "height": "text", "height_std": "float8", "width": "text", "width_std": "float8",
+    "caliper": "text", "caliper_std": "float8", "notes": "text", "internal_notes": "text",
+    "image_url": "text",
+}
+SIZE_STD = re.compile(r'^(\d+(\.\d+)?G|\d+(\.\d+)?" Pot|\d+" Box|Bare Root|Liners|Plug|Trays|B&B|'
+                      r'Field Grown|Grow Bags|Root Pruned|other)$')
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+NAMES = ("common_name", "botanical_name", "cultivar_variety_trade_name")
+
+
+class PlanError(ValueError):
+    pass
+
+
+def check_set(values, where):
+    if not isinstance(values, dict) or not values:
+        raise PlanError(f"{where}: 'set' must be a non-empty object")
+    bad = sorted(set(values) - set(COLUMNS))
+    if bad:
+        raise PlanError(f"{where}: cannot set {', '.join(bad)}")
+    std = values.get("size_std")
+    if std is not None and not SIZE_STD.match(str(std)):
+        raise PlanError(f"{where}: size_std {std!r} is not an allowed bucket")
+    if values.get("size") is not None and "size_std" not in values:
+        raise PlanError(f"{where}: a size needs its size_std")
+    for key in values:
+        if COLUMNS[key] != "text" and values[key] is not None and not isinstance(values[key], (int, float)):
+            raise PlanError(f"{where}: {key} must be a number or null")
+
+
+def validate(plan):
+    if not isinstance(plan, dict):
+        raise PlanError("plan must be a JSON object")
+    supplier, source = plan.get("supplier_id"), str(plan.get("source_id") or "").lower()
+    if not isinstance(supplier, int) or supplier <= 0:
+        raise PlanError("supplier_id must be a positive integer")
+    if not UUID.match(source):
+        raise PlanError("source_id must be the uuid of this location's inventory_sources row")
+    rows = plan.get("rows")
+    if not isinstance(rows, list) or not rows:
+        raise PlanError("rows must be a non-empty list")
+    updates, inserts, parked, seen = [], [], [], set()
+    for n, row in enumerate(rows):
+        where = f"row {n}"
+        action = row.get("action") if isinstance(row, dict) else None
+        if action == "review":
+            raise PlanError(f"{where}: still 'review' — decide update/insert/park first")
+        if action == "park":
+            parked.append(row)
+            continue
+        if action not in ("update", "reactivate", "insert"):
+            raise PlanError(f"{where}: unknown action {action!r}")
+        values = row.get("set")
+        check_set(values, where)
+        if action == "insert":
+            if not any(values.get(k) for k in NAMES):
+                raise PlanError(f"{where}: an insert needs a name part")
+            if row.get("searched") is not True:
+                raise PlanError(f"{where}: search_inventory before inserting, then mark \"searched\": true")
+            inserts.append(values)
+            continue
+        ident = str(row.get("id") or "").lower()
+        if not UUID.match(ident):
+            raise PlanError(f"{where}: update needs the inventory row id")
+        if ident in seen:
+            raise PlanError(f"{where}: id {ident} appears twice")
+        seen.add(ident)
+        expect = row.get("expect") or {}
+        bad = sorted(set(expect) - set(COLUMNS) - {"source_id", "is_active"})
+        if bad:
+            raise PlanError(f"{where}: cannot guard on {', '.join(bad)}")
+        updates.append({"id": ident, "set": values, "expect": expect})
+    return supplier, source, updates, inserts, parked
+
+
+def update_sql(supplier, source, row):
+    sets = [f"source_id = {lit(source)}::uuid", "is_active = true"]
+    for key, value in row["set"].items():
+        cast = COLUMNS[key]
+        text = None if value is None else str(value)
+        if key == "internal_notes":
+            if text:
+                sets.append(f"internal_notes = CASE WHEN coalesce(btrim(internal_notes), '') = '' THEN {lit(text)} "
+                            f"ELSE internal_notes || E'\\n' || {lit(text)} END")
+            continue
+        sets.append(f"{key} = {lit(text)}::{cast}")
+    guards = [f"id = {lit(row['id'])}::uuid", f"supplier_id = {supplier}"]
+    for key, value in row["expect"].items():
+        cast = "uuid" if key == "source_id" else "boolean" if key == "is_active" else COLUMNS[key]
+        text = None if value is None else str(value).lower() if isinstance(value, bool) else str(value)
+        guards.append(f"{key} IS NOT DISTINCT FROM {lit(text)}::{cast}")
+    return f"UPDATE inventory SET {', '.join(sets)} WHERE {' AND '.join(guards)} RETURNING id"
+
+
+def insert_sql(supplier, source, values):
+    keys = sorted(values)
+    cols = ", ".join(["supplier_id", "source_id", *keys])
+    vals = ", ".join([str(supplier), f"{lit(source)}::uuid",
+                      *(f"{lit(None if values[k] is None else str(values[k]))}::{COLUMNS[k]}" for k in keys)])
+    return f"INSERT INTO inventory ({cols}) VALUES ({vals}) RETURNING id"
+
+
+def build_sql(supplier, source, updates, inserts, commit):
+    parts = ["BEGIN;",
+             # The source must belong to this location, or rows would be misattributed.
+             f"SELECT 'source_ok=' || (1 / (SELECT count(*) FROM inventory_sources WHERE id = {lit(source)}::uuid "
+             f"AND supplier_id = {supplier})::int) AS result;"]
+    if updates:
+        body = ",\n".join(f"u{n} AS ({update_sql(supplier, source, row)})" for n, row in enumerate(updates))
+        union = " UNION ALL ".join(f"SELECT id FROM u{n}" for n in range(len(updates)))
+        parts.append(f"WITH {body},\nall_rows AS ({union})\nSELECT 'updated=' || count(*) || ' ok=' || "
+                     f"(1 / CASE WHEN count(*) = {len(updates)} THEN 1 ELSE 0 END) AS result FROM all_rows;")
+    if inserts:
+        body = ",\n".join(f"i{n} AS ({insert_sql(supplier, source, v)})" for n, v in enumerate(inserts))
+        union = " UNION ALL ".join(f"SELECT id FROM i{n}" for n in range(len(inserts)))
+        parts.append(f"WITH {body},\nall_rows AS ({union})\nSELECT 'inserted=' || count(*) || ' ok=' || "
+                     f"(1 / CASE WHEN count(*) = {len(inserts)} THEN 1 ELSE 0 END) AS result FROM all_rows;")
+    parts.append(f"SELECT 'size_without_std=' || (SELECT count(*) FROM inventory WHERE source_id = {lit(source)}::uuid "
+                 "AND size IS NOT NULL AND size_std IS NULL) AS result;")
+    parts.append("COMMIT;" if commit else "ROLLBACK;")
+    return "\n".join(parts) + "\n"
+
+
+def run(sql):
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", prefix="apply-plan-", suffix=".sql") as handle:
+        handle.write(sql)
+        handle.flush()
+        result = subprocess.run([QUERY_BIN, "--csv", "-f", handle.name],
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True, cwd=AGENT_ROOT)
+    lines = [line.strip().strip('"') for line in result.stdout.splitlines()]
+    return result.returncode, [l for l in lines if "=" in l], (result.stderr or "").strip()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("plan")
+    parser.add_argument("--commit", action="store_true", help="keep the changes (default: dry run, rolled back)")
+    parser.add_argument("--sql", action="store_true", help="print the SQL and stop")
+    args = parser.parse_args()
+    try:
+        with open(args.plan, encoding="utf-8") as handle:
+            plan = json.load(handle)
+        supplier, source, updates, inserts, parked = validate(plan)
+    except (OSError, json.JSONDecodeError, PlanError) as error:
+        print(f"apply-plan: {error}", file=sys.stderr)
+        return 1
+    sql = build_sql(supplier, source, updates, inserts, args.commit)
+    if args.sql:
+        print(sql, end="")
+        return 0
+    code, results, error = run(sql)
+    mode = "COMMITTED" if args.commit else "DRY RUN (rolled back)"
+    if code or not any(r.startswith("size_without_std=") for r in results):
+        print(f"apply-plan: nothing kept — {error or 'unexpected output'}", file=sys.stderr)
+        if "division by zero" in error:
+            print("apply-plan: a guard or count check failed (row changed, wrong farm/source, or id missing); "
+                  "re-read those rows and fix the plan", file=sys.stderr)
+        return 2
+    print(f"{mode}: farm {supplier}, source {source}; " + "; ".join(results) + f"; parked={len(parked)}")
+    for row in parked:
+        print(f"  parked: {row.get('why') or row.get('entry') or ''}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

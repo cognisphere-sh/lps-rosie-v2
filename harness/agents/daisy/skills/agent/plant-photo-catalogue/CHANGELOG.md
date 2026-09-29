@@ -1,5 +1,12 @@
 # plant-photo-catalogue — changelog
 
+## 2.0.0 — 2026-09-29
+
+Plain-language rewrite (Daisy audit). The ingestion skill's photo rules
+(`availability-ingestion/artifacts/photos.md`) moved here as "Photos from an
+ingest", so photo rules have one owner. `storage.md` merged into `intake.md`.
+No rule changed.
+
 ## 1.7.0
 
 - Split photo intake, lookup/sharing, retirement and concurrent-edit references; keep existing normalization and reclamation scripts.

@@ -24,7 +24,9 @@ comparisons, not measured production token/cost savings.
 
 Rosie's 2026-09-28 rewrite (plain language, merged references, helpers,
 contradictions resolved) cut her deployment-owned instruction text from about
-209K to 91K characters; see [the audit](rosie-audit-2026-09-28.md). Her
+209K to 91K characters; see [the audit](rosie-audit-2026-09-28.md). Daisy's 2026-09-29 rewrite did the same for her
+(ingestion references 20 files → 8, ~86K → ~40K characters); see
+[her audit](daisy-audit-2026-09-29.md). Her
 standing plant price rules live in `knowledge/files/price-rules.md` (data,
 edited without a skill version bump).
 
@@ -70,6 +72,9 @@ Paths below are relative to each agent directory. Each helper has `--help`.
 | Rosie | `skills/agent/message-routing/scripts/send-text`, `daily-note`, `index-add` | Literal-text sends; locked daily-note and workspace-index updates. |
 | Rosie, Daisy | `skills/agent/database-access/scripts/schema` | Prints selected tables/RPCs directly from the shared schema; no second schema copy. |
 | Daisy | `skills/agent/availability-ingestion/scripts/source-check` | Read-only fingerprint check; explicit verified-success receipt writes are locked and atomic. |
+| Daisy | `skills/agent/availability-ingestion/scripts/ingest-context`, `qa-check` | One-read company context; all mechanical ingest QA for given source ids. Read-only. |
+| Daisy | `skills/agent/availability-ingestion/scripts/match-candidates --plan`, `apply-plan` | Decision file (suggested inserts pre-checked with `search_inventory`); guarded one-transaction write, dry run unless `--commit`. |
+| Daisy | `skills/agent/supplier-communications/scripts/daily-note`, `index-add` | Byte-for-byte copies of Rosie's; the checker fails on drift. |
 | Lily | `skills/agent/feedback-loop/scripts/capture-feedback` | Locked append-only capture with stable source IDs; identical retry is a no-op, conflicting retry fails. |
 
 Existing ingestion matching, daily-run state and photo scripts stay in their
@@ -87,12 +92,14 @@ python3 harness/agents/rosie/skills/agent/database-access/scripts/schema.test.py
 python3 harness/agents/rosie/skills/agent/database-access/scripts/helpers.test.py
 python3 harness/agents/rosie/skills/agent/message-routing/scripts/send-text.test.py
 python3 harness/agents/daisy/skills/agent/availability-ingestion/scripts/source-check.test.py
+python3 harness/agents/daisy/skills/agent/availability-ingestion/scripts/match-candidates.test.py
+python3 harness/agents/daisy/skills/agent/availability-ingestion/scripts/helpers.test.py
 python3 harness/agents/lily/skills/agent/feedback-loop/scripts/capture-feedback.test.py
 ```
 
 Changelog version headings may carry a date (`## 6.0.0 — 2026-09-28`).
 The checker covers local links, stale section references, versions/changelogs,
-helper syntax/executable modes and drift between schema helper copies. Its
+helper syntax/executable modes and drift between the helper copies Daisy shares with Rosie. Its
 limits are 6,500 characters per skill entry, 400 per discovery description and
 6,500 for deployment-owned `1-*` prompt files combined per agent. Harness base
 and plugin prompts are excluded from these limits. It reports actual characters,

@@ -15,6 +15,13 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-29 — Daisy instruction rewrite and ingest helpers
+
+- Audited Daisy's last week (158 threads, $218) and all human feedback since July; rewrote her deployment prompt, knowledge index and all skills in plain language. Skill text 180K → 96K characters; ingestion references 20 → 8 files. `1.1-supabase.md` merged into `database-access`; ingestion photo rules moved to `plant-photo-catalogue`; new `daily-summary` skill (the 9 AM schedule now points to it).
+- Delegation limited (work in the owning thread, one task thread per email, no nested tasks, one silent report) and an approval table added to `1-agent.md`. Ten contradictions resolved in favour of the humans' latest words (human-requested aliases allowed; no copy rows for prices; static hosted lists loaded once as placeholders; new default draft; stale "never change this skill" lines removed). Full list and open questions: `docs/harness/daisy-audit-2026-09-29.md`.
+- Data, per Bhoumik's decisions: 11 price-copy inventory rows deactivated (prices kept as rules in Rosie's `price-rules.md`, plus a new Carolina Cherry Laurel rule); 403 superseded source rows with no inventory rows retired (new standing rule in `availability-ingestion` 3.1.0); location copy default kept with supplier exceptions.
+- New tested helpers: `ingest-context`, `match-candidates --plan`, `apply-plan` (guarded one-transaction write, dry run by default), `qa-check`; `daily-note`/`index-add` shared with Rosie (checker fails on drift). The shared `schema` selector suggests close topic names (Rosie `database-access` 2.0.1).
+
 ## 2026-09-29 — Rosie hears about AR answers on submit only
 
 - `supplier-events` plugin: `availability_updated` (answers saved without submitting) is now acknowledged but not delivered, so a save no longer wakes Rosie's supplier thread (~52 turns / $7 a week). `availability_submitted` is unchanged. The app still sends saves; the drop happens in the plugin, so no app deploy is needed — only a harness restart. Seed prompt no longer lists the save event.

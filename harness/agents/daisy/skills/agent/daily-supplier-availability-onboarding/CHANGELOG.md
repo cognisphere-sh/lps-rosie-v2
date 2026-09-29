@@ -1,5 +1,20 @@
 # daily-supplier-availability-onboarding — changelog
 
+## 3.0.0 — 2026-09-29
+
+Plain-language rewrite (Daisy audit); ~27K → ~13K characters. Run-state
+commands and evidence fields kept; lock/journal internals reduced to "the
+script handles it; if it blocks, report". Two contradictions resolved in
+favour of the humans' latest words:
+
+- Static or undated public lists are loaded once as search placeholders
+  (manual current receipt, confirmation caveat) instead of "found but not
+  ingested" (Chris 2026-07-31, 08-12, 08-17, 08-18 ×2, 08-24; Bhoumik's job
+  spec 2026-08-19), and not re-read when unchanged (Chris 2026-07-29).
+- The default unsent draft now follows Bhoumik's 2026-08-19 sample instead of
+  "We are updating our supplier availability records…" (Chris 2026-08-17,
+  2026-08-20). The prior-qualified question uses Chris's 2026-08-28 wording.
+
 ## 2.12.0
 
 - Separate coordinator recovery, eligibility, research and reporting; retain run-state safeguards and avoid loading every downstream skill before its branch is needed.

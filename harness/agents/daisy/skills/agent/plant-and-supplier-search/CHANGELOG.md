@@ -1,5 +1,15 @@
 # plant-and-supplier-search — changelog
 
+## 2.0.0 — 2026-09-29
+
+Plain-language rewrite (Daisy audit); `lookup.md` and `matching.md` merged into
+SKILL.md (one read). Added from Chris's corrections: exact plant and size
+across all suppliers before geography filters (2026-09-04 Cherry Laurel); a
+search miss is not a "no" — widen and check the APS list (2026-09-09 Palo
+Verde, 2026-09-25 APS re-ingest); substitutes come from listed plants,
+APS first (2026-09-22 Scaevola); no tables on Telegram (Bhoumik 2026-07-14);
+app links over expiring files (Chris 2026-07-22).
+
 ## 1.8.0
 
 - Separate matching internals from lookup and reporting; shorten discovery metadata.

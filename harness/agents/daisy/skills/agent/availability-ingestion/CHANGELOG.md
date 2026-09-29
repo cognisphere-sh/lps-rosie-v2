@@ -1,5 +1,51 @@
 # availability-ingestion — changelog
 
+## 3.1.0 — 2026-09-29
+
+Decisions confirmed by Bhoumik after the audit:
+- Sources with no inventory rows are retired once a newer source with rows
+  exists for the same farm (Bhoumik 2026-08-18 "If a source has no entry
+  mapped, retire it"); done at the finish of each ingest. The newest source
+  and any source a pending schedule names are kept. A one-time cleanup
+  retired 403 such sources (list in `workspace/threads/main/files/retired-empty-sources-2026-09-29.csv`).
+- "No location named → copy to every location" stays the default; a
+  supplier-specific instruction in `suppliers.notes` wins (Cherrylake: one
+  supplier).
+- The 11 price-copy rows (Berkeley Sedge, Leopard Plant ×4, Carolina Cherry
+  Laurel ×6) were deactivated; their prices are rules in Rosie's
+  `price-rules.md`.
+
+## 3.0.0 — 2026-09-29
+
+Plain-language rewrite after the Daisy audit (docs/harness/daisy-audit-2026-09-29.md).
+
+- 20 reference files merged into 8: `source` (receipt types, manual,
+  historical, source-check, page-by-page reading), `locations`, `fields`
+  (names, size, size_std, prices, dimensions, notes), `aliases`, `write`
+  (storage, source rows, newest-wins, matching, writing), `qa`, `finish`
+  (labels, panel, notes, report), `repairs` (new). Photo rules moved to
+  `plant-photo-catalogue`. No rule was dropped; wording shortened.
+- New helpers: `ingest-context` (company, locations, supplier notes, recent
+  sources in one read), `match-candidates --plan` (decision file; every
+  suggested insert is searched with `search_inventory` first), `apply-plan`
+  (guarded single-transaction write, dry run by default), `qa-check` (all
+  mechanical QA in one read). They replace per-run parse/stage/SQL scripts.
+- Labels use `scripts/gws/email label … --add 'Daisy/<Status>'` by name;
+  `gmail-labels.md` (label IDs) removed.
+- Aliases: pairs Chris or Bhoumik ask for are allowed (their words in
+  `source_line`), resolving the conflict with the source-only rule (Bhoumik
+  2026-08-19 and 2026-09-25, Chris 2026-09-11).
+- Never create a copy row to carry a price under another name (Bhoumik
+  2026-09-25); same plant → alias, priced-alike plants → Rosie's price rules.
+- Future-dated lists: ingest on the effective date with a one-shot schedule
+  (existing practice, now written down).
+- Item codes/SKUs first when matching (Loen 2026-09-25 matched 4,364 rows by
+  code in one pass after a week of holds).
+- Report: one short report at the end, `--silent` from task threads, no
+  repeated standing caveats.
+- Removed the stale "you never change this skill" line (conflicted with
+  `1-agent.md` and `create-skill`).
+
 ## 2.6.0
 
 2026-09-25 (Chris, APS supplier panel 10:06:07 CDT) — paginated availability

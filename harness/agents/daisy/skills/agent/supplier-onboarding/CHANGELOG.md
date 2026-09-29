@@ -1,5 +1,15 @@
 # supplier-onboarding — changelog
 
+## 3.0.0 — 2026-09-29
+
+Plain-language rewrite (Daisy audit). Added from past feedback: no fax numbers
+and LLC/Inc are the same company (Bhoumik 2026-08-05); newest email wins for
+the primary contact when contacts conflict (Bhoumik 2026-08-05); brokers are
+not farm contacts (Chris 2026-09-02); routine enrichment needs no approval;
+follow supplier-specific instructions in `suppliers.notes` and don't
+over-model (Chris 2026-08-05, 2026-09-16). Removed the stale `Other` category
+and the "you never change this skill" line.
+
 ## 2.5.0
 
 - Split identity, creation, enrichment, contacts and verification so supplier corrections avoid unrelated onboarding reads.

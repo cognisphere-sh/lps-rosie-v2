@@ -1,76 +1,62 @@
-## 3. Per-supplier evidence loop
+# Research an eligible supplier
 
-For each supplier that passed [eligibility](eligibility.md), record supplier id/name, website, active
-contact emails, Texas-service evidence, and all evidence/URLs checked.
+Record for each: id, name, website, active contact emails, Texas-service
+evidence, and every URL/message checked.
 
-### A. Search 2026 email, not notifications
+## A. 2026 email
 
-Use `search-email` with `in:anywhere after:2025/12/31 before:2027/01/01` and
-one known active contact email at a time; where a company domain is established,
-use a bounded domain search too. Search likely availability terms (`availability`,
-`avail`, `price`, `price list`, `inventory`) and inspect actual hits with
-`scripts/gws/email read`, including attachments/links where necessary. A mailbox
-notification or an unrelated marketing email is not evidence. Record message id,
-Gmail thread id, received date, sender and why it is/is not usable availability.
+`scripts/gws/email search 'in:anywhere after:2025/12/31 before:2027/01/01 from:<contact email>'`
+(one contact at a time; a bounded `@domain` search if the domain is theirs)
+with terms like availability, avail, price, price list, inventory. Open real
+hits with `scripts/gws/email read`. Notifications and marketing aren't
+evidence. Record message id, thread id, date, sender, usable or not.
 
-If an actual 2026 availability drop is found, mark **email availability found**;
-do not replay it merely because this cohort found it. Report it for review. If a
-newly found, previously unprocessed current drop truly needs ingestion, forward
-it to the supplier's dedicated thread (`daisy_thread_id`) to run
-`availability-ingestion` with correct classification, not this coordinator's
-own SQL.
+A real 2026 list → "email availability found"; report it. Forward it to the
+supplier's own thread for `availability-ingestion` only if it was never
+processed. The coordinator never writes inventory itself.
 
-### B. Review only ordinary public website material
+## B. Public website
 
-Open the normal public website (not credentials, guessing URL paths, or bypassing
-gates). Look for availability, inventory, pricing, catalog/download, dealer or
-newsletter pages. Record each exact URL and what it establishes.
+Normal public pages only (no logins, guessed URLs or gates). Look for
+availability, inventory, price list, catalogue/download or newsletter pages;
+record each URL and what it shows.
 
-A public file/page is usable only when it clearly represents live or current
-supplier availability/pricing and its supplier/location scope is safe. Before
-any ingest, cheaply compare URL/page timestamp, HTTP metadata or a content hash
-against evidence already recorded in state/source records; skip unchanged data.
-Dispatch changed, usable data to the supplier's dedicated thread
-(`daisy_thread_id`) to run `availability-ingestion`, with a
-manual/current-receipt classification, retrieval timestamp, exact URL/file,
-location evidence and confirmation-required caveat. That thread owns all
-writes and may stop on ambiguity. Record its report/source IDs in the run state.
-Otherwise mark hosted data as found-but-not-ingested and state why (static,
-undated, gated, ambiguous, unchanged, or unusable).
+A public list — even static or undated — is loaded **once as a search
+placeholder** (Chris, six times 2026-07-31 → 08-24: "use the hosted as a
+placeholder"): send it to the supplier's thread as a manual current receipt
+with the retrieval time, exact URL/file, location evidence and the
+"confirmation needed" caveat. Before sending, compare the URL's date, headers
+or hash with what is already recorded; unchanged → skip (Chris 2026-07-29:
+don't spend on re-reading a static list). Record the source ids that thread
+reports. Don't send when the supplier's scope/location is unclear, or when
+Chris gave a supplier-specific instruction (e.g. County Line: "sign up and
+wait").
 
-### C. Newsletter / availability subscription
+## C. Newsletter
 
-Locate a normal subscription form. **Detection is not an outcome:** every form
-found must end in one recorded terminal state — `subscribed`, `held-human` with
-an exact URL and blocker, or `technical-failure` with exact URL/reason. Make the
-best safe effort to subscribe `chris.r@localplantsupply.com`: check a required
-marketing-consent box, complete ordinary fields, and attempt a CAPTCHA normally
-when the browser can solve it. Record each action and its observed result. A
-CAPTCHA that remains unsolved, a technical failure, account/login barrier, or an
-email-verification link requiring human access is a human hold only **after**
-that attempt; do not merely detect it and stop. Do not blindly repeat a failed
-form submission, and never retry a previously successful subscription.
+Every form found ends in one recorded result: `subscribed`, `held-human`
+(exact URL and blocker) or `technical-failure` (URL and reason). Subscribe
+`chris.r@localplantsupply.com`; tick a required consent box, fill ordinary
+fields, try a solvable CAPTCHA. Hand to a human only after trying. Don't
+repeat a failed submission; never resubscribe.
 
-### D. No form: create an unsent supplier-email draft
+## D. No form: one unsent draft
 
-Only if no subscription form exists, locate a verified active supplier contact
-email. Create **one** plain-text Gmail draft, addressed to that contact and sent
-as Chris if later approved. Do not send it, do not add a signature/footer, and
-specifically omit the Keep-me-in-To footer. Use a compact body such as:
+Only if there is no signup form and there is a verified active contact email.
+Search existing drafts/state first and reuse rather than duplicate. One
+plain-text Gmail draft to that contact, no signature block or footer:
 
 ```
-Hello,
+Hi <Name or "there">,
 
-We are updating our supplier availability records. Is your website the best place
-to find current availability and pricing, or do you send regular availability
-updates by email? Also, who is the right contact for availability and pricing?
+I'm Chris with Local Plant Supply. We'd love to keep up with what you have
+available. Is your website the best place to check, or do you send a list by
+email? And who's the best person to ask?
 
-Thank you,
-Chris Runyon
+Thanks,
+Chris
 ```
 
-Use Gmail drafts creation (RFC 822 `To`, `Subject`, and plain-text body encoded
-as the API requires); capture and store draft id, recipient, subject and exact
-body in run state. Before creating, search existing drafts/state for the same
-supplier and purpose; reuse/report it rather than duplicate it. If no safe
-recipient exists, do not draft; report that as a blocker.
+(Bhoumik's sample 2026-08-19 and Chris's "don't sound like AI data capturing
+robots", 2026-08-17.) Store draft id, recipient, subject and body in run
+state. No safe recipient → no draft; report it.

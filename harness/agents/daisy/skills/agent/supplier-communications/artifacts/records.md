@@ -1,16 +1,31 @@
-## Which place does this fact belong?
+# Where each thing is kept
 
-- **The supplier thread's web panel** — what was *said*: the full text of
-  every direct exchange, both directions, with its Gmail link. The transcript
-  is the contact history; nothing about it is copied into `notes.md`.
-- **The supplier thread's `notes.md`** — only what must outlive the exchange:
-  an open loop still owed an answer, a commitment made. Never a contact log.
-- **`suppliers.notes`** — what is *true about* them: **every supplier quirk
-  lives here** — preferences, price-list format, parsing tricks, ordering
-  constraints, anything durable with no dedicated column. Edited in place as
-  facts change. Never put contact history here, and never put a person's
-  name, email or phone here — people are `contacts` rows. (The old
-  `workspace/suppliers/[<id>]:<Name>/notes.md` dirs are legacy — read-only;
-  promote anything durable to `suppliers.notes`.)
-- **Nowhere** — task updates, progress notes, minor observations. Persist only
-  what long-term consistency depends on.
+| What | Where |
+|---|---|
+| What was said to or by a supplier | The supplier panel ([transcript](transcript.md)) |
+| Durable facts about a supplier: list format, parsing tricks, ordering limits, Chris's instructions for them | `suppliers.notes` (edit in place). Never people's names, emails or phones. |
+| People | `contacts` + `supplier_contacts` (`supplier-onboarding`) |
+| Open items on a thread: waiting answers, parked rows, commitments | That thread's `notes.md`. Current state, not a log; delete done items. |
+| What you did today | One daily-note line (below) |
+| Durable facts about the business or people | `knowledge/memory.md` (grep it; don't read it whole) |
+| How to do something | The skill for that task (`create-skill`) |
+| Progress, minor observations | Nowhere |
+
+`suppliers.communication_notes` and `workspace/suppliers/` are read-only
+archives.
+
+## Helpers
+
+```sh
+skills/agent/supplier-communications/scripts/daily-note --thread <ThreadId> --text '<one line with numbers>'
+skills/agent/supplier-communications/scripts/index-add <workspace-relative path> '<summary>'
+```
+
+- `daily-note` adds to today's `workspace/daily_notes/YYYY-MM-DD.md`
+  (one paragraph per thread per day), locked for parallel threads. Don't read
+  or hand-edit the daily note.
+- `index-add` adds or replaces one line in `workspace/index.md` without
+  reading it. Use it only for files someone will look for later, not for
+  every task's notes. Never read `workspace/index.md` whole; `grep` it.
+- A task thread creates its own `notes.md` before anything else, so a
+  resumed or interrupted task can pick up.

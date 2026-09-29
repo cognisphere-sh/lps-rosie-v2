@@ -35,6 +35,7 @@ Options
   --min-sim <f>       trigram floor on the identity key (default 0.25)
   --batch <n>         entries per SQL round trip (default 200)
   --format text|json  default text
+  --plan <file>       also write a decision plan for `apply-plan` (see below)
   --include-inactive / --active-only
                       default includes inactive rows, so a plant the supplier
                       dropped and brought back is found rather than duplicated
@@ -50,6 +51,15 @@ almost identically on the identity as a whole. Cultivars are compared as **sets*
 `CULTIVAR MISMATCH`, and excluded from the suggestion, when both sides name at
 least one selection and they **share none**. `Wolff, Emperor 1` against `Wolff`
 is a match; against `Candicans` it is not.
+
+Plan mode (--plan FILE): writes {"supplier_id", "source_id": null, "rows": [...]}
+with one row per entry: `update`/`reactivate` (id = the suggested candidate),
+`insert`, or `review`. Every entry suggested as an insert is first searched
+with `search_inventory` (common and botanical name, this supplier only); a hit
+with the same size turns it into `review` with the hits listed, otherwise it is
+marked `"searched": true`. Entry fields map to columns (`cultivar` →
+`cultivar_variety_trade_name`); give `size_std` in the entries. Fill in
+`source_id`, decide every `review`, then run `apply-plan`.
 
 Exit codes: 0 ok, 1 bad usage/input, 2 the query script failed.
 """
@@ -227,6 +237,78 @@ def suggest(cands, hi: float, lo: float):
     return "review", f"best active match {top:.2f} is in the judgement band"
 
 
+PLAN_COLUMNS = {
+    "common_name": "common_name", "botanical_name": "botanical_name",
+    "cultivar": "cultivar_variety_trade_name",
+    "cultivar_variety_trade_name": "cultivar_variety_trade_name",
+    "size": "size", "size_std": "size_std", "unit_price": "unit_price", "quantity": "quantity",
+    "height": "height", "height_std": "height_std", "width": "width", "width_std": "width_std",
+    "caliper": "caliper", "caliper_std": "caliper_std", "notes": "notes",
+    "internal_notes": "internal_notes", "image_url": "image_url",
+}
+
+
+def search_sql(supplier_id: int, items) -> str:
+    """search_inventory for each (idx, term), scoped to one supplier."""
+    payload = json.dumps([{"idx": i, "term": term} for i, term in items])
+    if "$json$" in payload:
+        sys.exit("match-candidates: entry text contains the literal $json$; rename it")
+    return f"""
+SELECT x.idx, s.id, s.name, s.size, s.size_std, s.unit_price, s.is_active,
+       round(s.relevance::numeric, 3) AS relevance
+FROM jsonb_to_recordset($json${payload}$json$::jsonb) AS x(idx int, term text)
+CROSS JOIN LATERAL (
+  SELECT * FROM search_inventory(x.term) r
+  WHERE r.supplier_id = {supplier_id}
+  ORDER BY r.relevance DESC LIMIT 10) s
+ORDER BY x.idx, s.relevance DESC;
+""".strip()
+
+
+def build_plan(supplier_id: int, results, query_bin: str):
+    wanted = []
+    for res in results:
+        if res["suggest"] == "insert":
+            e = res["entry"]
+            cultivar = e.get("cultivar") or ""
+            for base in {e.get("common_name"), e.get("botanical_name"), e.get("name")} - {None, ""}:
+                wanted.append((res["idx"], f"{base} {cultivar}".strip()))
+    hits = {}
+    for start in range(0, len(wanted), 100):
+        for r in run_query(query_bin, search_sql(supplier_id, wanted[start:start + 100])):
+            hits.setdefault(int(r["idx"]), {})[r["id"]] = r
+    rows = []
+    for res in results:
+        e = res["entry"]
+        values = {PLAN_COLUMNS[k]: v for k, v in e.items() if k in PLAN_COLUMNS}
+        if res["suggest"] in ("update", "reactivate"):
+            # A match keeps its stored name; only offering values refresh.
+            values = {k: v for k, v in values.items()
+                      if k not in ("common_name", "botanical_name", "cultivar_variety_trade_name")}
+        row = {"idx": res["idx"], "action": res["suggest"], "why": res["why"],
+               "label": entry_label(e), "set": values}
+        usable = [c for c in res["candidates"] if not is_true(c["cultivar_mismatch"])]
+        if res["suggest"] in ("update", "reactivate") and usable:
+            live = [c for c in usable if is_true(c["is_active"]) == (res["suggest"] == "update")]
+            row["id"] = (live or usable)[0]["id"]
+        elif res["suggest"] == "insert":
+            found = list(hits.get(res["idx"], {}).values())
+            same = [h for h in found if (h["size"] or "") == (e.get("size") or "")
+                    or (e.get("size_std") and h["size_std"] == e.get("size_std"))]
+            if same:
+                row["action"] = "review"
+                row["why"] = "search_inventory found this plant in the same size: " + \
+                    ", ".join(f'{h["id"]} {h["name"]} {h["size"]} ${h["unit_price"]}'
+                              + ("" if is_true(h["is_active"]) else " INACTIVE") for h in same)
+            else:
+                row["searched"] = True
+        if row["action"] == "review":
+            row["candidates"] = [{k: c[k] for k in ("id", "name", "size", "unit_price", "is_active", "score")}
+                                 for c in res["candidates"]]
+        rows.append(row)
+    return {"supplier_id": supplier_id, "source_id": None, "rows": rows}
+
+
 def main() -> None:
     p = argparse.ArgumentParser(add_help=True, description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -238,6 +320,7 @@ def main() -> None:
     p.add_argument("--format", choices=["text", "json"], default="text")
     p.add_argument("--high", type=float, default=0.95, help="suggest update at/above")
     p.add_argument("--low", type=float, default=0.55, help="suggest insert below")
+    p.add_argument("--plan", help="write a decision plan for apply-plan to this file")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--include-inactive", dest="inactive", action="store_true", default=True)
     g.add_argument("--active-only", dest="inactive", action="store_false")
@@ -259,7 +342,7 @@ def main() -> None:
                      "common_name / botanical_name / cultivar, or a whole 'name'")
         e["idx"] = i
 
-    query_bin = find_query_script()
+    query_bin = os.environ.get("DAISY_QUERY_BIN") or find_query_script()
     rows = []
     for start in range(0, len(entries), a.batch):
         chunk = entries[start:start + a.batch]
@@ -276,6 +359,16 @@ def main() -> None:
         action, why = suggest(cands, a.high, a.low)
         results.append({"idx": i, "entry": e, "suggest": action,
                         "why": why, "candidates": cands})
+
+    if a.plan:
+        plan = build_plan(a.supplier, results, query_bin)
+        with open(a.plan, "w", encoding="utf-8") as handle:
+            json.dump(plan, handle, indent=1, default=str)
+        tally = {}
+        for row in plan["rows"]:
+            tally[row["action"]] = tally.get(row["action"], 0) + 1
+        sys.stderr.write(f'plan written to {a.plan}: ' +
+                         ", ".join(f"{v} {k}" for k, v in sorted(tally.items())) + "\n")
 
     if a.format == "json":
         json.dump(results, sys.stdout, indent=2, default=str)

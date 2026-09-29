@@ -32,6 +32,7 @@ How to use a rule:
 | Dwarf Loropetalum (no cultivar given) | APS Purple Pixie Loropetalum, same size | Same size. Keep "dwarf" on the line. | JR-61 2026-09-17 |
 | Crape Myrtle, Plumbago, Salvia: variety or color not listed | APS generic listing, same size | Same size. Say "generic price" in chat. | JR-9 2026-08-24 |
 | Agave parryi truncata | APS `Artichoke Parry's Agave` or `Agave Parryi`, same size | Same size. | 2026-09-11 |
+| Carolina Cherry Laurel (Prunus caroliniana) | APS `Prunus Compact Cherry Laurel`, same size (5 G $46, 15 G $225, 30 G $395, 24" $395, 30"/36" $795 on 2026-09-25) | Same size. | Chris Telegram 1281 2026-09-25 |
 | Carolina Cherry Laurel 30 G | A 24" box listing counts as 30 G | This plant only. If APS says a 24" box is available, no question needed. | JR-78 2026-09-24 |
 | Leopard Plant, Giant Leopard Plant (Farfugium japonicum) | APS Ligularia, same size (1 G $15, 3 G $27 on 2026-09-25) | Same size. | Main 2026-09-25 |
 

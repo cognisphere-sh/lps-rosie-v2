@@ -1,5 +1,12 @@
 # create-skill — changelog
 
+## 2.0.0 — 2026-09-29
+
+Rewrite (Daisy audit), aligned with Rosie's create-skill 2.0.0: where each
+kind of feedback goes (supplier notes, aliases, repairs, Rosie's price rules,
+skills, prompt, memory), newest instruction wins and replaces the old text,
+say a risk once then follow, helper on the third repeat.
+
 ## 1.5.0
 
 - Apply Chris's explicit feedback to the relevant owned SOP, deployment prompt or skill; require his approval for inferred changes and preserve harness base prompts.

@@ -61,8 +61,10 @@
   plugin-owned `publish-artifact` skill and `scripts/artifacts/artifact`. See
   [`../app/README.md`](../app/README.md) § *Agent artifacts*.
 - **scheduler** — one active schedule: `daisy-daily-9am-checkin`, cron
-  `0 9 * * *`, posts a daily 9 AM Telegram summary (completed work, blockers,
-  pending approvals) to thread `main`, channel `admin`.
+  `0 9 * * *`, fires into thread `daily-9am-checkin`, which follows the
+  `daily-summary` skill and hands the text to `main` to post on Telegram as-is.
+  The 3 AM daily onboarding cohort and the June backfill are paused; one-shot
+  schedules apply future-dated supplier lists on their effective date.
 - **telegram** — bot (ships the plugin-owned `route-chats` skill);
   `pollTimeoutSec: 25`, `allowedChatIds: ["-1003988082603"]`
   (locked to the admin group chat). One routing rule

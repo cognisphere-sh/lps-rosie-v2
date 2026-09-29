@@ -1,5 +1,13 @@
 # supplier-email-routing — changelog
 
+## 3.0.0 — 2026-09-29
+
+Plain-language rewrite (Daisy audit). `labels.md` merged into `dispatch.md`;
+labels are applied by name with `scripts/gws/email label` (no label-ID
+lookups: 848 `labels list` calls last week). Added: LLC/Inc suffixes are the
+same company (Bhoumik 2026-08-05). Links updated for availability-ingestion
+3.0.0. No routing rule changed.
+
 ## 2.2.0
 
 - Split identification, dispatch, route maintenance and labels; avoid repeated source reads and preserve routing boundaries.
