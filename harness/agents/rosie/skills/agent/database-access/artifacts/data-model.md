@@ -30,15 +30,18 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   (`job_request_item_id`, `supplier_id`, `name`, `size`, `unit_price`; 0 =
   price not found, which stays blank on a selecting line). `description`
   (required) = what it is, for Chris (`5 G Shumard Oak`); `is_original` marks
-  the line's original request as asked.
+  the line's original request as asked. `hide_from_lps` (0124) marks a
+  substitute option kept only for the supplier's Unavailable/Sub dialog: the
+  sourcing page leaves it out until a supplier picks it, which clears it.
   `availability_request_id` is set once it is asked on an
   AR; then it is that AR's line, and the supplier answers `status`,
   `available_quantity`, `unit_price`, `note_from_supplier` (never `size`).
   Statuses: `available`, `partial_qty`, `can_order`, `arriving_soon`,
   `unavailable`, `diff_size_qty_sub` (older answers only). A substitute
-  (0123): the asked candidate is `unavailable` with `offered_candidate_id`,
-  and the substitute is its own Available row on the AR from the moment the
-  supplier saves; a typed one (`offer_description`) is created with the raw
+  (0123): the asked candidate is `unavailable` with `offered_candidate_id`
+  (the portal shows it as Diff Sz/Sub), and the substitute is Available and
+  linked to the AR from the moment the supplier saves, but not listed as its
+  own AR row in the app (0124); a typed one (`offer_description`) is created with the raw
   text as its name for Rosie to enrich. `link_candidate_offer(answered,
   substitute)` records one by hand. Shown
   status is derived: No price (unanswered, price 0/NULL) → Pending (priced;

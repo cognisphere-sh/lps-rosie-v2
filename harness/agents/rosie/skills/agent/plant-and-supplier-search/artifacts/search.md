@@ -22,7 +22,7 @@ order doesn't matter (`Southern Magnolia` = `Magnolia Southern`).
 
 | What you found | Do |
 |---|---|
-| Same plant, requested size | Use its price (exact match: select that candidate, [intake](../../job-requests/artifacts/intake.md)). |
+| Same plant, requested size | Use its price (exact match: select that candidate, [intake](../../job-requests/artifacts/intake.md)). Also add 2–3 similar listings from this supplier as hidden substitute options (`hide_from_lps`, [intake](../../job-requests/artifacts/intake.md#5-create-each-lines-candidates)). |
 | Same plant under another name (synonym, trade name, word order) | Use its price; no question. Still an exact match. |
 | A rule in `knowledge/files/price-rules.md` covers it | Use it; no question. |
 | Same plant, same size, only another color/variant listed | Add it as a candidate; don't ask ([pricing](../../job-requests/artifacts/pricing.md)). |

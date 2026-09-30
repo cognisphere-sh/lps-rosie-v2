@@ -1,5 +1,9 @@
 # plant-and-supplier-search — changelog
 
+## 3.2.0 — 2026-09-30
+
+- Exact match: also add 2–3 similar listings from the same supplier as hidden substitute options (`hide_from_lps`, see job-requests intake).
+
 ## 3.1.0 — 2026-09-29
 
 - Candidates (migration 0119): an exact match (including same plant under another name) is the selected candidate; other listed sizes become their own candidates; an unfound plant keeps an unpriced original-ask candidate. Listed names no longer go in `note_internal`.

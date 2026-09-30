@@ -1,6 +1,6 @@
 # Supabase schema
 
-Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23; 0121–0123 changes 2026-09-30).
+Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23; 0121–0124 changes 2026-09-30).
 Daisy and Rosie’s `knowledge/files/SCHEMA.md` paths symlink here.
 
 ## Tables
@@ -114,6 +114,7 @@ offered_candidate_id bigint
 offer_description text
 offer_unit_price numeric
 offer_quantity numeric
+hide_from_lps boolean NOT NULL DEFAULT false
 ```
 
 Constraints:
@@ -145,8 +146,15 @@ Constraints:
   reopen/processing triggers). A picked tag is another active candidate of the
   same supplier and line; a typed one (`offer_description`) gets a new
   candidate named with the text. Replacing it resets a tag to unanswered or
-  retires a typed row. `link_candidate_offer` records one by hand. Stored
-  `diff_size_qty_sub` rows are older answers that rewrote size and price.
+  retires a typed row; since 0124 a replaced tag also leaves the AR. The
+  substitute stays on the AR (`create_order` needs it there), but the app
+  lists only the asked row, which reads Diff Sz/Sub. `link_candidate_offer`
+  records one by hand. Stored `diff_size_qty_sub` rows are older answers that
+  rewrote size and price.
+- `hide_from_lps` (0124): a substitute option Rosie adds only for the
+  supplier's Unavailable/Sub dialog when the line already has an exact match.
+  The sourcing page leaves it out; `apply_candidate_offer` clears it when a
+  supplier picks it, for good.
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
   (the supplier's only writable note). `note_for_customer` is the job line's
   customer note for this candidate (e.g. `3 G NA, only 5 G`).

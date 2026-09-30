@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ACTIVE_JOB_STATUSES, ITEM_STATUS_OPTIONS, REQUEST_STATUSES, REQUEST_STATUS_OPTIONS, isActiveJobStatus, itemPill, requestStatusLabel, requestStatusToken, requestStatusTone } from './job-requests.ts'
 import { ORDER_STATUSES, ORDER_STATUS_META } from './orders.ts'
-import { AR_RESPONSE_OPTIONS, answeredIn, arResponseLabel } from './availability.ts'
+import { AR_ANSWER_OPTIONS, AR_RESPONSE_OPTIONS, answeredIn, arResponseLabel } from './availability.ts'
 import { normalizeStoredRequestStatusLabels } from './request-list-state.ts'
 import { countItemFilters } from '../components/workspace/supplier-items.tsx'
 import type { SupplierItemLine } from './availability.ts'
@@ -18,6 +18,7 @@ test('both plant pickers use the requested order and preserve saved status label
   const labels = ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending']
   assert.deepEqual(ITEM_STATUS_OPTIONS.map((o) => o.label), labels)
   assert.deepEqual(AR_RESPONSE_OPTIONS.map((o) => o.label), ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending'])
+  assert.deepEqual(AR_ANSWER_OPTIONS.map((o) => o.label), ['Available', 'Partial Qty', 'Unavailable/Sub', 'Can Order', 'Arriving Soon', 'Pending'])
   assert.deepEqual(normalizeStoredRequestStatusLabels(['Need to Order', 'Can Order'], ITEM_STATUS_OPTIONS, []), ['Can Order'])
   assert.equal(itemPill('available', 12, 4).label, 'Available')
   assert.equal(arResponseLabel(null), 'Pending')

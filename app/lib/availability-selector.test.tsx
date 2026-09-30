@@ -56,7 +56,7 @@ const item = (changes: Partial<ARItem> = {}): ARItem => ({
   ...changes,
 })
 
-test('portal picker opens a themed listbox with unanswered plus the five canonical answers in order', async () => {
+test('portal picker opens a themed listbox with unanswered plus the canonical answers in order', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<[number, Record<string, string>]> = []
   const view = render(
@@ -80,10 +80,10 @@ test('portal picker opens a themed listbox with unanswered plus the five canonic
   const options = within(listbox).getAllByRole('option')
   assert.deepEqual(
     options.map((option) => option.children[1]?.textContent),
-    ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Partial Qty', 'Unavailable/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
   assert.equal(within(listbox).getByRole('option', { name: 'Arriving Soon' }).getAttribute('aria-selected'), 'true')
-  assert.match(within(listbox).getByRole('option', { name: 'Unavailable' }).className, /min-h-9/)
+  assert.match(within(listbox).getByRole('option', { name: 'Unavailable/Sub' }).className, /min-h-9/)
 
   await user.click(within(listbox).getByRole('option', { name: 'Pending' }))
   assert.deepEqual(patches, [[19, { status: '' }]])
@@ -304,7 +304,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
   assert.equal(listbox.style.left, '100px')
   assert.equal(listbox.style.top, '138px')
   assert.equal(listbox.style.width, '196px')
-  assert.equal(listbox.style.maxHeight, '264px')
+  assert.equal(listbox.style.maxHeight, '228px')
   assert.match(listbox.className, /overflow-y-auto/)
 
   fireEvent.pointerDown(document.body)
@@ -312,7 +312,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
   await user.click(trigger)
   listbox = view.getByRole('listbox', { name: 'Line status' })
   assert.equal(listbox.style.left, '210px')
-  assert.equal(listbox.style.top, '180px')
+  assert.equal(listbox.style.top, '216px')
 
   const assertInsideViewport = () => {
     const left = Number.parseFloat(listbox.style.left)
@@ -455,7 +455,7 @@ test('admin line picker remains the existing native select', () => {
   const select = view.getByRole('combobox', { name: 'Line status' })
   assert.deepEqual(
     within(select).getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Partial Qty', 'Unavailable/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
 })
 
@@ -513,62 +513,72 @@ test('admins edit the ask through details; supplier replies go through answers',
 })
 
 for (const portal of [false, true]) {
-  for (const recommend of [false, true]) {
-    test(`unavailable asks about a substitute before notes (portal=${portal}, recommend=${recommend})`, async () => {
-      const user = userEvent.setup({ document })
-      const patches: Array<[number, Record<string, string>]> = []
-      const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
-        editable portal={portal} onPatch={async (id, changes) => { patches.push([id, changes]) }} />)
-      if (portal) {
-        await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
-        await user.click(view.getByRole('option', { name: 'Unavailable' }))
-      } else {
-        await user.selectOptions(view.getByRole('combobox'), 'unavailable')
-      }
-      assert.ok(view.getByText('Would you like to recommend a substitute?'))
-      assert.equal(view.queryByRole('textbox'), null)
-      assert.deepEqual(patches, [])
-      await user.click(view.getByRole('button', { name: recommend ? 'Yes' : 'No' }))
-      if (recommend) {
-        assert.deepEqual(patches, [])
-        // No listed alternatives: the supplier types the substitute.
-        const save = view.getByRole('button', { name: 'Save answer' }) as HTMLButtonElement
-        assert.equal(save.disabled, true)
-        await user.type(view.getByLabelText('Plant and size'), 'Red Oak, 30 G')
-        await user.type(view.getByLabelText('Price $/unit'), '25')
-        await user.click(save)
-        // A recommended substitute makes the answer Diff Sz/Sub; the asked line's own size and price are untouched.
-        assert.deepEqual(patches, [[19, {
-          status: 'diff_size_qty_sub', note_from_supplier: 'Existing note', offered_candidate_id: '',
-          offer_description: 'Red Oak, 30 G', offer_unit_price: '25', offer_quantity: '12',
-        }]])
-      } else {
-        // Unavailable zeroes the quantity, keeps the price, and drops any earlier substitute.
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', offered_candidate_id: '', offer_description: '' }]])
-      }
-      assert.equal(view.queryByText('Would you like to recommend a substitute?'), null)
-      assert.equal(view.queryByRole('textbox'), null)
-    })
-  }
+  test(`unavailable/sub: Skip saves plain Unavailable (portal=${portal})`, async () => {
+    const user = userEvent.setup({ document })
+    const patches: Array<[number, Record<string, string>]> = []
+    const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
+      editable portal={portal} onPatch={async (id, changes) => { patches.push([id, changes]) }} />)
+    if (portal) {
+      await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
+      await user.click(view.getByRole('option', { name: 'Unavailable/Sub' }))
+    } else {
+      await user.selectOptions(view.getByRole('combobox'), 'unavailable')
+    }
+    // Substitute choices only: no price, quantity or separate note field.
+    assert.equal(view.queryByLabelText('Price $/unit'), null)
+    assert.equal(view.queryByLabelText('Quantity'), null)
+    assert.equal(view.queryByLabelText('Note (optional)'), null)
+    assert.equal(view.queryByRole('button', { name: 'Submit' }), null)
+    await user.click(view.getByRole('button', { name: 'Skip' }))
+    // Unavailable zeroes the quantity, keeps the price, and drops any earlier substitute and note.
+    assert.deepEqual(patches, [[19, {
+      status: 'unavailable', note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '',
+    }]])
+  })
 }
 
-test('diff_size_qty_sub needs a substitute: a tag prefills note and price, or one is typed', async () => {
+test('unavailable/sub: picking a candidate turns Skip into Submit and writes the note', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
-  const alternatives = [{ id: 41, description: '45 G Live Oak', unitPrice: 40 }, { id: 42, description: '15 G Live Oak', unitPrice: null }]
+  const alternatives = [{ id: 41, description: '45 G Live Oak', unitPrice: 40 }, { id: 42, description: '15 G Live Oak', unitPrice: 20 }]
   const view = render(<LineStatusPicker item={item({ alternatives })} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
-  await user.selectOptions(view.getByRole('combobox'), 'diff_size_qty_sub')
-  assert.equal(view.queryByLabelText('Size you have'), null)
-  const save = view.getByRole('button', { name: 'Save answer' }) as HTMLButtonElement
-  assert.equal(save.disabled, true)
-  await user.click(view.getByRole('button', { name: '45 G Live Oak · $40.00' }))
-  assert.equal((view.getByLabelText('Price $/unit') as HTMLInputElement).value, '40')
-  assert.equal((view.getByLabelText('Note') as HTMLTextAreaElement).value, '30 G NA, 45 G Live Oak only')
-  await user.click(save)
+  await user.selectOptions(view.getByRole('combobox'), 'unavailable')
+  assert.ok(view.getByRole('button', { name: 'Skip' }))
+  await user.click(view.getByRole('radio', { name: /45 G Live Oak/ }))
+  await user.click(view.getByRole('radio', { name: /15 G Live Oak/ }))
+  // One choice at a time.
+  assert.equal((view.getByRole('radio', { name: /45 G Live Oak/ }) as HTMLInputElement).checked, false)
+  assert.equal(view.queryByRole('button', { name: 'Skip' }), null)
+  await user.click(view.getByRole('button', { name: 'Submit' }))
   assert.deepEqual(patches, [{
-    status: 'diff_size_qty_sub', note_from_supplier: '30 G NA, 45 G Live Oak only', offered_candidate_id: '41',
-    offer_description: '', offer_unit_price: '40', offer_quantity: '12',
+    status: 'unavailable', note_from_supplier: '30 G NA, 15 G Live Oak only', offered_candidate_id: '42',
+    offer_description: '', offer_unit_price: '', offer_quantity: '',
   }])
+})
+
+test('unavailable/sub: Something else is the substitute and its note', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<Record<string, string>> = []
+  const alternatives = [{ id: 41, description: '45 G Live Oak', unitPrice: 40 }]
+  const view = render(<LineStatusPicker item={item({ alternatives })} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
+  await user.selectOptions(view.getByRole('combobox'), 'unavailable')
+  await user.click(view.getByRole('radio', { name: /45 G Live Oak/ }))
+  const text = view.getByRole('textbox', { name: 'Something else' })
+  assert.match(text.getAttribute('aria-describedby') ?? '', /hint/)
+  await user.type(text, 'Red Oak, 30 G')
+  assert.equal((view.getByRole('radio', { name: 'Something else' }) as HTMLInputElement).checked, true)
+  assert.equal((view.getByRole('radio', { name: /45 G Live Oak/ }) as HTMLInputElement).checked, false)
+  await user.click(view.getByRole('button', { name: 'Submit' }))
+  assert.deepEqual(patches, [{
+    status: 'unavailable', note_from_supplier: 'Red Oak, 30 G', offered_candidate_id: '',
+    offer_description: 'Red Oak, 30 G', offer_unit_price: '', offer_quantity: '',
+  }])
+})
+
+test('an Unavailable answer with a substitute reads Diff Sz/Sub and names it', () => {
+  const view = render(<LineStatusPicker item={item({ status: 'unavailable', offeredCandidateId: 41, offerDescription: null })}
+    editable portal onPatch={async () => {}} />)
+  assert.ok(view.getByRole('button', { name: 'Line status, Diff Sz/Sub' }))
 })
 
 test('partial_qty asks for the quantity the supplier has', async () => {

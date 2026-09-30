@@ -7,7 +7,7 @@ This is the only place that defines note content. Other skills link here.
 | Field | Where | Who reads it | What goes in it |
 |---|---|---|---|
 | `note_for_customer` | jobs, job items, orders, order items | Customer (quotes, app column) | **Only information for the customer**: what's available instead, ETA, a substitution explanation. On a line it follows the selected candidate. Never the customer's own requirements. |
-| `description` | candidates | Chris | What the candidate is: size, plant, variant (`5 G Shumard Oak`). Required. Not a note. |
+| `description` | candidates | Chris | Short size + one common or botanical name + needed variant (`5 G Shumard Oak`). Never both names joined by `|`. Required. Not a note. |
 | `note_for_customer` | candidates | Customer, via the line that selects it | The line's customer note for this candidate ([below](#candidate-customer-note)). |
 | `note_internal` | jobs, job items | Chris and LPS only | The customer's requirements (single trunk, red flowers only, must be full, delivery constraints); open points; internal context. **Never** supplier, listing, price or answer facts: candidates show those. |
 | `note_for_supplier` | AR header, candidates, orders, order items | Supplier and LPS | LPS's sourcing asks. On the AR header also the supplier's request-wide reply. |

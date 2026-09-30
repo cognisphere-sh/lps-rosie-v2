@@ -43,12 +43,18 @@ Chris made the request.
   Saved drafts stay on the supplier thread. `note_internal` holds no supplier
   or price facts.
 - **Substitutes and Partial Qty** (migration 0121): a candidate is one fixed
-  plant and size. Suppliers answer Partial Qty for a short quantity, and Diff
-  Sz/Sub (or Unavailable + a recommendation) with a substitute: one of their
-  candidates on the line (a tag) or a typed one. On save the asked candidate
-  becomes Unavailable and the substitute its own Available row (a typed one is
-  created); the job line reads Diff Sz/Sub (Chris's JR-90 rule). Rosie enriches
-  typed substitute rows after submission (name/size, description, note, price).
+  plant and size. Suppliers answer Partial Qty for a short quantity, and
+  Unavailable/Sub with an optional substitute: one of their candidates on the
+  line or "Something else" typed. On save the asked candidate
+  becomes Unavailable (reading Diff Sz/Sub) and the substitute Available at
+  its own price — linked to the AR but not listed as its own row (0124); a
+  typed one is created. The job line reads Diff Sz/Sub (Chris's JR-90 rule).
+  Rosie enriches typed substitutes after submission (name/size, description,
+  note, price).
+- **Hidden substitute options** (0124): on an exact match Rosie also adds 2–3
+  similar listings from the same supplier with `hide_from_lps = true`. They
+  stay off Chris's sourcing page but are the supplier's substitute choices; one a
+  supplier picks becomes visible.
 - **Conflicting or incomplete answers** (e.g. marked Available, note says
   "only 3 G"): the supplier's note is the source of truth. A clear note is
   corrected straight away (Unavailable + that substitute, re-submitted while

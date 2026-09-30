@@ -226,6 +226,8 @@ async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candi
       .select('id, job_request_item_id, supplier_id, name, size, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, note_for_customer, description, is_original, availability_request_id, offered_candidate_id, offer_description, availability_requests(is_active, status), suppliers!inner(name)')
       .in('job_request_item_id', jobItemIds.slice(start, start + 100))
       .eq('is_active', true)
+      // Supplier-only substitute options (0124) until a supplier picks one.
+      .eq('hide_from_lps', false)
       .order('id', { ascending: true })
     if (error) throw new Error(`candidates: ${error.message}`)
     for (const row of (data ?? []) as unknown as {

@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 5.5.0 — 2026-09-30
+
+- Portal answers (2026-09-30): Diff Sz/Sub is no longer picked; Unavailable/Sub with a ticked or typed substitute reads Diff Sz/Sub. The substitute is not listed as its own AR row (0124); relay it from `ar-snapshot`.
+
 ## 5.4.0 — 2026-09-30
 
 - Migration 0123 (Bhoumik 2026-09-30): a substitute is applied when the supplier saves: the asked candidate becomes Unavailable (`offered_candidate_id` set) and the substitute its own Available row on the AR; a typed substitute is created as a raw-named candidate that Rosie enriches after submission (name/size split, description, customer note, price if missing).

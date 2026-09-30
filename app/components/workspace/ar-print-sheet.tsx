@@ -17,7 +17,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 
-import { availabilityRecordName, AR_RESPONSE_OPTIONS, type ARDetail } from '@/lib/availability'
+import { availabilityRecordName, AR_ANSWER_OPTIONS, type ARDetail } from '@/lib/availability'
 import { money, num } from '@/lib/format'
 
 export function ARPrintSheet({
@@ -67,7 +67,7 @@ export function ARPrintSheet({
               <td style={cell({ width: 176, padding: '3px 6px' })}>
                 {/* Full status labels, including Pending, stay readable on paper. */}
                 <span className="grid grid-cols-1 gap-y-px">
-                  {AR_RESPONSE_OPTIONS.map(({ value: status, label }) => (
+                  {AR_ANSWER_OPTIONS.map(({ value: status, label }) => (
                     <span key={status} className="flex items-center gap-1 whitespace-nowrap leading-[14px]">
                       <span
                         className="inline-block size-2 flex-none"

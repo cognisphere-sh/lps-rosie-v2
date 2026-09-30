@@ -15,6 +15,14 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-30 — Unavailable/Sub and hidden substitute options
+
+- Supplier answer picker: **Diff Sz/Sub** is no longer a choice; it merges into **Unavailable/Sub**. Its dialog shows only substitute radio options (the line's other priced candidates, plus **Something else** with a text field and hint that doubles as the note) — no price, quantity or separate note field. Its one button reads **Skip** (plain Unavailable) until a substitute is chosen, then **Submit**. With a substitute the line is stored Unavailable but reads **Diff Sz/Sub** (pill, row tone, summary strip); the substitute is Available at its own price for the demand. The print checklist follows the picker.
+- A substitute is no longer listed as its own row on the AR (it was since 0123, e.g. AR-58's `15g Sotol` and 3 G Opuntia). It stays linked to the AR in the database, because `create_order` orders from an open AR; the app hides it from AR views and line counts.
+- Migration `0124`: `candidates.hide_from_lps`. Rosie adds 2–3 similar same-supplier listings as hidden substitute options when a line has an exact match; the sourcing page leaves them out, the supplier's dialog offers them, and picking one clears the flag for good. A replaced or cleared tag now also leaves the AR, so it doesn't linger there as a Pending row.
+- The answer summary strip keeps every count, Total Items and the subtotal on one row on desktop.
+- Rosie skills: job-requests 8.3.0, plant-and-supplier-search 3.2.0, supplier-coordination 5.5.0, database-access 2.4.0 (`job-snapshot` marks hidden options).
+
 ## 2026-09-30 — a chosen substitute is its own row on save
 
 - Migration `0123` (applied 2026-09-30): when a supplier picks a substitute (Diff Sz/Sub, or Unavailable → recommend) and saves, the line is marked **Unavailable** (quantity 0, price kept) and the substitute appears straight away as its own **Available** row on the request (Partial Qty if fewer are offered) with the offered price and quantity. A picked tag is the existing candidate; a typed substitute creates a new candidate named with what was typed, which Rosie tidies after submission (name/size, description, customer note, price if none). Switching substitutes resets the earlier tag or retires the earlier typed row; a note edit alone doesn't touch the substitute's own row. Submission no longer applies offers; a selected original with a substitute on offer still reads Diff Sz/Sub (JR-90). Replaces the short-lived "asked row shows the substitute's price" display.

@@ -49,11 +49,10 @@ export function availabilityRequestLinkLabel(
  * renders as "Pending". Selecting Pending saves NULL without clearing the
  * quantities, prices or notes; it is not a supplier answer.
  *
- * `diff_size_qty_sub` (Diff Sz/Sub) always names a substitute since migration
- * 0121: another candidate of the line (`offeredCandidateId`) or a typed one
- * (`offerDescription`). The asked candidate's own size and price never change.
- * Unavailable with a recommended substitute is saved as Diff Sz/Sub. Older
- * answers without an offer carry a supplier-rewritten size and price.
+ * A substitute is answered as Unavailable naming another candidate of the
+ * line (`offeredCandidateId`) or a typed one (`offerDescription`); the line then
+ * reads Diff Sz/Sub (`arShownStatus`). `diff_size_qty_sub` is no longer picked
+ * directly (2026-09-30); older answers may still carry it.
  * `partial_qty` (Partial Qty) = the asked plant, fewer than demanded.
  */
 export const AR_RESPONSES = [
@@ -87,6 +86,14 @@ export const AR_RESPONSE_OPTIONS = [
   { value: '', label: 'Pending' },
 ]
 
+/**
+ * What a line picker offers (2026-09-30): Diff Sz/Sub is not picked directly —
+ * it is "Unavailable/Sub" plus a substitute in the answer dialog.
+ */
+export const AR_ANSWER_OPTIONS = AR_RESPONSE_OPTIONS
+  .filter((o) => o.value !== 'diff_size_qty_sub')
+  .map((o) => (o.value === 'unavailable' ? { ...o, label: 'Unavailable/Sub' } : o))
+
 /** One line shared with the supplier, with their answer. */
 export interface ARItem {
   id: number
@@ -119,6 +126,10 @@ export interface ARAlternative { id: number; description: string; unitPrice: num
 /** An answer that names a substitute (stored Unavailable since 0123; the substitute is its own row). */
 export const hasOffer = (item: Pick<ARItem, 'offeredCandidateId' | 'offerDescription'>) =>
   item.offeredCandidateId != null || !!item.offerDescription
+
+/** The answer a line reads as: Unavailable that names a substitute reads Diff Sz/Sub. */
+export const arShownStatus = (item: Pick<ARItem, 'status' | 'offeredCandidateId' | 'offerDescription'>) =>
+  item.status === 'unavailable' && hasOffer(item) ? 'diff_size_qty_sub' : item.status
 
 /** No price to show: blank, or 0 on an unanswered line ("price not found"; a 0 left by an older Unavailable answer is an answer). */
 export const isUnpriced = (item: Pick<ARItem, 'unitPrice' | 'status'>) =>

@@ -1,9 +1,9 @@
 ---
 name: plant-and-supplier-search
-description: Find plant prices and supplier listings. Includes the aps-price helper (all sizes, nearest smaller/larger, rules, aliases), name matching, web research for other plant names, aliases, other-supplier search and how to report prices to Chris. Use for price questions, pricing job lines or finding suppliers. (v3.1.0)
+description: Find plant prices and supplier listings. Includes the aps-price helper (all sizes, nearest smaller/larger, rules, aliases), name matching, web research for other plant names, aliases, other-supplier search and how to report prices to Chris. Use for price questions, pricing job lines or finding suppliers. (v3.2.0)
 metadata:
   author: lps
-  version: "3.1.0"
+  version: "3.2.0"
 ---
 
 # Plant and supplier search

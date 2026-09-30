@@ -7,13 +7,19 @@ The supplier thread relays a **submitted** AR to its job's `jr-<id>`
 
 A candidate is one fixed plant and size; a supplier never changes it.
 
-- **Substitutes, as soon as the supplier saves (0123).** The asked candidate
-  becomes `unavailable` (quantity 0, price kept) with `offered_candidate_id`
-  pointing at the substitute, which becomes **Available** (Partial Qty if the
-  offered quantity is short) on the same AR with the offered price, quantity
-  and note. A picked tag is an existing candidate; a typed substitute gets a
-  new candidate named with what they typed (no size; `offer_description` is
-  also kept on the asked one) for you to enrich ([below](#substitutes)).
+- **Substitutes, as soon as the supplier saves (0123, 0124).** The supplier
+  answers **Unavailable/Sub** and either ticks one of the line's other
+  candidates, types "Something else", or skips (plain Unavailable). With a
+  substitute, the asked candidate becomes `unavailable` (quantity 0, price
+  kept) with `offered_candidate_id` pointing at it, and the substitute becomes
+  **Available** for the demanded quantity at its own candidate price (the
+  dialog asks no price or quantity). The substitute is linked to the same AR
+  (so it can be ordered) but is not a row of its own there: the asked row
+  reads Diff Sz/Sub. A picked tag is an existing candidate — if it was a
+  hidden substitute option (`hide_from_lps`), picking it clears the flag so
+  Chris sees it; a typed substitute gets a new candidate named with what they
+  typed (no size, price 0; `offer_description` is also kept on the asked one)
+  for you to enrich ([below](#substitutes)).
 - **Lines, on each submission.** Every **selected** candidate on that AR answered since the
   previous submission re-applies to its job line, for jobs in Quote or
   Availability. The line status is computed:

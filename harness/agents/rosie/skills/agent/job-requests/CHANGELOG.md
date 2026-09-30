@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 8.4.0 — 2026-09-30
+
+- Chris, JR-93: keep candidate descriptions short; size plus one common or scientific name is enough, not the full common-name | scientific-name pair. Applied to JR-93 descriptions.
+
+## 8.3.0 — 2026-09-30
+
+- Migration 0124 (Bhoumik 2026-09-30): on an exact match, add 2–3 similar same-supplier listings as hidden substitute options (`hide_from_lps`), never selected; the supplier sees them as tick boxes in Unavailable/Sub, and a picked one becomes visible. A substitute is no longer its own AR row: the asked row reads Diff Sz/Sub; the dialog asks no price or quantity, so the substitute takes its own candidate price and the demand.
+
 ## 8.2.0 — 2026-09-30
 
 - Migration 0123 (Bhoumik 2026-09-30): a substitute is applied when the supplier saves: the asked candidate becomes Unavailable (`offered_candidate_id` set) and the substitute its own Available row on the AR; a typed substitute is created as a raw-named candidate that Rosie enriches after submission (name/size split, description, customer note, price if missing).

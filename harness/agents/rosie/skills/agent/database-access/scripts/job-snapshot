@@ -34,7 +34,8 @@ SELECT json_build_object(
  'candidates', (SELECT json_agg(a ORDER BY a.item, a.id) FROM (
     SELECT c.id, c.job_request_item_id AS item, coalesce(s.short_name, s.name) AS supplier,
            c.availability_request_id AS ar, ar.status AS ar_status,
-           ar.submitted_at IS NOT NULL AS submitted, c.description, c.is_original AS orig, c.status,
+           ar.submitted_at IS NOT NULL AS submitted, c.description, c.is_original AS orig,
+           c.hide_from_lps AS hidden, c.status,
            c.available_quantity AS avail, c.unit_price, c.note_for_customer,
            c.note_for_supplier, c.note_from_supplier
     FROM candidates c
@@ -101,7 +102,8 @@ def render(data):
             state = "Pending"
         ar = f" AR-{a['ar']} {a['ar_status']}{' submitted' if a['submitted'] else ''}" if a["ar"] else ""
         price = money(a["unit_price"]) if a["unit_price"] else "∅"
-        out.append(f"  {a['id']} → item {a['item']} | {cell(a['supplier'])} | {cell(a['description'])}{' (original)' if a['orig'] else ''} | "
+        out.append(f"  {a['id']} → item {a['item']} | {cell(a['supplier'])} | {cell(a['description'])}{' (original)' if a['orig'] else ''}"
+                   f"{' (hidden sub option)' if a.get('hidden') else ''} | "
                    f"{price} | {state}{ar} | avail {cell(a['avail'])} | "
                    f"cust {cell(a['note_for_customer'], 60)} | ask {cell(a['note_for_supplier'], 60)} | "
                    f"reply {cell(a['note_from_supplier'], 60)}")

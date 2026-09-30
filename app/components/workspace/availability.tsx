@@ -11,10 +11,11 @@ import { createPortal } from 'react-dom'
 import {
   AR_RESPONSES,
   AR_RESPONSE_META,
-  AR_RESPONSE_OPTIONS,
+  AR_ANSWER_OPTIONS,
   AR_STATUSES,
   arLineTotal,
   arResponseLabel,
+  arShownStatus,
   arResponseTone,
   arStatusLabel,
   arStatusTone,
@@ -222,8 +223,8 @@ export function ARResponseSummary({
 }
 
 /** Where a message actually happened — portal, email, text, or internal. */
-/** Five saved answers followed by Pending (NULL), in canonical order. */
-const RESPONSE_PICKER_OPTIONS = AR_RESPONSE_OPTIONS
+/** The picker's answers (Unavailable/Sub, no Diff Sz/Sub) followed by Pending (NULL). */
+const RESPONSE_PICKER_OPTIONS = AR_ANSWER_OPTIONS
 
 /**
  * The supplier portal's dark, compact replacement for a native opened select.
@@ -232,12 +233,15 @@ const RESPONSE_PICKER_OPTIONS = AR_RESPONSE_OPTIONS
  */
 function PortalResponseSelect({
   value,
+  shown = value,
   onChange,
   ariaLabel = 'Line status',
   touch = false,
   drawerModal = false,
 }: {
   value: string | null
+  /** What the trigger reads as (Unavailable with a substitute reads Diff Sz/Sub). */
+  shown?: string | null
   onChange: (next: string) => void
   ariaLabel?: string
   touch?: boolean
@@ -255,7 +259,7 @@ function PortalResponseSelect({
   const typeaheadAt = useRef(0)
   const typeaheadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const frames = useRef(new Set<number>())
-  const tone = arResponseTone(value)
+  const tone = arResponseTone(shown)
 
   const cancelFrames = () => {
     for (const frame of frames.current) cancelAnimationFrame(frame)
@@ -306,7 +310,8 @@ function PortalResponseSelect({
   }
 
   const choose = (next: string) => {
-    if ((next || null) !== value) onChange(next)
+    // Unavailable/Sub reopens its dialog, so a substitute can be changed.
+    if ((next || null) !== value || next === 'unavailable') onChange(next)
     // Follow-up answers mount an autofocus dialog; do not steal focus back
     // from it. The two direct actions return focus to the line trigger.
     close(next === '' || next === 'available')
@@ -426,7 +431,7 @@ function PortalResponseSelect({
       <button
         ref={trigger}
         type="button"
-        aria-label={`${ariaLabel}, ${arResponseLabel(value)}`}
+        aria-label={`${ariaLabel}, ${arResponseLabel(shown)}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${optionId}-listbox`}
@@ -441,11 +446,11 @@ function PortalResponseSelect({
           'inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 font-medium text-muted-foreground outline-none hover:bg-secondary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
           touch ? 'min-h-11 w-full justify-between text-[14px]' : 'min-h-8 text-[12px]',
         )}
-        style={value ? { color: toneDot(tone) } : undefined}
-        title={arResponseLabel(value)}
+        style={shown ? { color: toneDot(tone) } : undefined}
+        title={arResponseLabel(shown)}
       >
-        {!value && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
-        <span className="min-w-0 truncate">{arResponseLabel(value)}</span>
+        {!shown && <span aria-hidden="true" className="text-[10px] tracking-[.1em] text-lps-dim">···</span>}
+        <span className="min-w-0 truncate">{arResponseLabel(shown)}</span>
         <ChevronDown aria-hidden="true" className="size-3 shrink-0 opacity-70" />
       </button>
       {open && typeof document !== 'undefined' && createPortal(
@@ -498,6 +503,7 @@ function PortalResponseSelect({
  */
 function ResponseSelect({
   value,
+  shown = value,
   disabled,
   onChange,
   portal = false,
@@ -506,6 +512,7 @@ function ResponseSelect({
   drawerModal = false,
 }: {
   value: string | null
+  shown?: string | null
   disabled: boolean
   onChange: (next: string) => void
   portal?: boolean
@@ -513,8 +520,8 @@ function ResponseSelect({
   touch?: boolean
   drawerModal?: boolean
 }) {
-  const tone = arResponseTone(value)
-  if (portal && !disabled) return <PortalResponseSelect value={value} onChange={onChange} ariaLabel={ariaLabel} touch={touch} drawerModal={drawerModal} />
+  const tone = arResponseTone(shown)
+  if (portal && !disabled) return <PortalResponseSelect value={value} shown={shown} onChange={onChange} ariaLabel={ariaLabel} touch={touch} drawerModal={drawerModal} />
   return (
     <span
       className={cn(
@@ -524,15 +531,15 @@ function ResponseSelect({
           : cn('rounded-full px-2.5 py-1 text-[11px] font-bold', touch && 'min-h-11'),
         !disabled && 'cursor-pointer',
       )}
-      style={portal ? (value ? { color: toneDot(tone) } : undefined) : toneStyle(tone)}
-      title={portal ? arResponseLabel(value) : undefined}
+      style={portal ? (shown ? { color: toneDot(tone) } : undefined) : toneStyle(tone)}
+      title={portal ? arResponseLabel(shown) : undefined}
     >
       {portal ? (
-        !value && <span className="text-[10px] tracking-[.1em] text-lps-dim">···</span>
+        !shown && <span className="text-[10px] tracking-[.1em] text-lps-dim">···</span>
       ) : (
         <span className="size-1.5 rounded-full" style={{ background: toneDot(tone) }} />
       )}
-      <span className={portal ? 'min-w-0 truncate' : undefined}>{arResponseLabel(value)}</span>
+      <span className={portal ? 'min-w-0 truncate' : undefined}>{arResponseLabel(shown)}</span>
       {portal && <ChevronDown className="size-3 shrink-0 opacity-70" />}
       {!disabled && (
         <select
@@ -541,7 +548,7 @@ function ResponseSelect({
           onChange={(e) => onChange(e.target.value)}
           className="absolute inset-0 cursor-pointer opacity-0"
         >
-          {AR_RESPONSE_OPTIONS.map((o) => (
+          {AR_ANSWER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
@@ -667,10 +674,10 @@ export function AnswerCell({
  *
  * `available` is deliberately absent: it needs nothing asked, so picking it
  * writes straight through with the demand as the available quantity (see
- * `LineRow`). Diff Sz/Sub collects the substitute — one of this line's other
- * candidates (a tag) or a typed one — with its price and quantity; the asked
- * line's own size and price never change. Otherwise price is corrected in the
- * table's own Price cell.
+ * `LineRow`). Unavailable/Sub collects only an optional substitute — one of
+ * this line's other candidates (a radio) or "Something else" typed, which is
+ * also its note; the substitute carries its own price and quantity. Price is
+ * corrected in the table's own Price cell.
  */
 const ANSWER_FIELDS: Record<
   string,
@@ -680,7 +687,7 @@ const ANSWER_FIELDS: Record<
     qty: boolean
     /** Nothing is available: quantity goes to 0; the price stays (0122). */
     zero?: boolean
-    /** Collect the substitute offered instead (Diff Sz/Sub). */
+    /** Offer a substitute instead (Unavailable/Sub). */
     offer?: boolean
     /** Which field opens focused — the first thing this answer needs. */
     focus?: 'qty' | 'notes'
@@ -708,28 +715,24 @@ const ANSWER_FIELDS: Record<
     notesLabel: 'Notes (optional)',
     notesHint: 'e.g. rest ready in 3 weeks',
   },
-  diff_size_qty_sub: {
-    title: 'Diff Sz/Sub',
-    qty: false,
-    offer: true,
-    notesLabel: 'Note',
-    notesHint: 'e.g. 5 G NA, 3 G only',
-  },
   unavailable: {
-    title: 'Unavailable',
+    title: 'Unavailable / Sub',
     qty: false,
     zero: true,
-    notesLabel: 'Notes (optional)',
-    notesHint: 'Substitutes welcome — Name, Size @ price $/unit',
+    offer: true,
+    notesLabel: 'Note (optional)',
+    notesHint: 'e.g. 5 G NA, 3 G only',
   },
 }
 
 /**
- * Collect notes and any supply quantity (and, for Diff Sz/Sub, the substitute
- * with its price and quantity) for a status answer. Unavailable sets the
- * quantity to 0 (never the price), first asking whether the supplier wants to recommend a
- * substitute; Yes opens the substitute picker. On save the line becomes
- * Unavailable and the substitute its own Available row (a typed one is created).
+ * Collect notes and any supply quantity for a status answer. Unavailable/Sub
+ * sets the quantity to 0 (never the price) and offers a substitute: pick one
+ * of the line's other candidates, or "Something else" and type it (the text is
+ * the note; there is no separate note field). Its one button reads Skip (plain
+ * Unavailable) until a substitute is chosen, then Submit. With a substitute, on save the line reads Diff Sz/Sub and
+ * the substitute is its own Available row (a typed one is created as a new
+ * candidate for Rosie to enrich).
  */
 function StatusAnswerDialog({
   item,
@@ -756,24 +759,21 @@ function StatusAnswerDialog({
         : '',
   )
   const alternatives = item.alternatives ?? []
-  const [askingSubstitute, setAskingSubstitute] = useState(status === 'unavailable')
-  // Diff Sz/Sub, or Unavailable once the supplier says Yes to recommending one.
-  const [substituting, setSubstituting] = useState(!!spec.offer)
-  const [offerId, setOfferId] = useState<number | null>(item.offeredCandidateId ?? null)
-  const [typing, setTyping] = useState(!!item.offerDescription || !alternatives.length)
+  const substituting = !!spec.offer
+  // A typed substitute also has a candidate id (the one made for it); it is
+  // re-sent as text so the database keeps that same candidate.
+  const [offerId, setOfferId] = useState<number | null>(item.offerDescription ? null : item.offeredCandidateId ?? null)
+  const [typing, setTyping] = useState(!!item.offerDescription)
   const [offerText, setOfferText] = useState(item.offerDescription ?? '')
-  const [price, setPrice] = useState(item.offerUnitPrice != null ? String(item.offerUnitPrice) : '')
-  const [offerQty, setOfferQty] = useState(
-    item.offerQuantity != null ? String(item.offerQuantity) : item.demandedQuantity != null ? String(item.demandedQuantity) : '',
-  )
   const [notes, setNotes] = useState(item.noteFromSupplier ?? '')
   const hasSubstitute = offerId != null || (typing && !!offerText.trim())
+  const choiceName = useId()
 
-  // A tag fills the price and a customer-ready note; both stay editable.
+  // One choice at a time. Unavailable/Sub has no note field: a picked
+  // candidate writes a customer-ready note, and "Something else" is the note.
   const pickTag = (alt: ARAlternative) => {
     setOfferId(alt.id)
     setTyping(false)
-    setPrice(alt.unitPrice != null ? String(alt.unitPrice) : '')
     const asked = item.size || item.name
     setNotes(`${asked} NA, ${alt.description} only`)
   }
@@ -798,16 +798,16 @@ function StatusAnswerDialog({
   }, [])
 
   const save = () => {
-    if (substituting) {
-      if (!hasSubstitute) return
-      // On save the database marks this line Unavailable and makes the substitute its own Available row.
+    if (substituting && hasSubstitute) {
+      // The database keeps this line Unavailable and makes the substitute its
+      // own Available row, at its own price and the demanded quantity.
       onSave({
-        status: 'diff_size_qty_sub',
-        note_from_supplier: notes.trim(),
+        status,
+        note_from_supplier: offerId != null ? notes.trim() : offerText.trim(),
         offered_candidate_id: offerId != null ? String(offerId) : '',
         offer_description: offerId != null ? '' : offerText.trim(),
-        offer_unit_price: price.trim(),
-        offer_quantity: offerQty.trim(),
+        offer_unit_price: '',
+        offer_quantity: '',
       })
       return
     }
@@ -864,162 +864,116 @@ function StatusAnswerDialog({
         className="flex max-h-full w-full max-w-[420px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
         <div className="flex flex-col gap-0.5">
-          <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{substituting && !spec.offer ? 'Unavailable · recommend a substitute' : spec.title}</span>
+          <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{spec.title}</span>
           <span className="text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
             {num(item.demandedQuantity) || '—'} × {item.name}
             {item.size ? ` · ${item.size}` : ''}
           </span>
         </div>
 
-        {askingSubstitute ? (
-          <>
-            <p className="text-[13px] text-foreground">Would you like to recommend a substitute?</p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => onSave({ status, available_quantity: '0', offered_candidate_id: '', offer_description: '' })}
+        {substituting && (
+          <div role="group" aria-label="Substitute" className="flex flex-col gap-1">
+            <span className={label}>Can you offer a substitute?</span>
+            {alternatives.map((alt, index) => (
+              <label
+                key={alt.id}
                 className={cn(
-                  'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
+                  'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-[13px]',
+                  offerId === alt.id ? 'border-primary bg-lps-tint' : 'border-border bg-card',
                   drawerModal && 'max-[899px]:min-h-11',
                 )}
               >
-                No
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => { setAskingSubstitute(false); setSubstituting(true) }}
-                className={cn(
-                  'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
-                  drawerModal && 'max-[899px]:min-h-11',
-                )}
-              >
-                Yes
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {substituting && (
-              <>
-                <div role="group" aria-label="Substitute" className="flex flex-col gap-1">
-                  <span className={label}>What can you supply instead?</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {alternatives.map((alt) => (
-                      <button
-                        key={alt.id}
-                        type="button"
-                        aria-pressed={offerId === alt.id}
-                        onClick={() => pickTag(alt)}
-                        className={cn(
-                          'cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-semibold',
-                          offerId === alt.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground',
-                          drawerModal && 'max-[899px]:min-h-11',
-                        )}
-                      >
-                        {alt.description}{alt.unitPrice != null ? ` · ${money(alt.unitPrice)}` : ''}
-                      </button>
-                    ))}
-                    {alternatives.length > 0 && (
-                      <button
-                        type="button"
-                        aria-pressed={typing}
-                        onClick={() => { setOfferId(null); setTyping(true) }}
-                        className={cn(
-                          'cursor-pointer rounded-full border border-dashed px-2.5 py-1 text-[12px] font-semibold',
-                          typing ? 'border-primary text-foreground' : 'border-border text-muted-foreground',
-                          drawerModal && 'max-[899px]:min-h-11',
-                        )}
-                      >
-                        Something else
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {typing && (
-                  <label className="flex flex-col gap-0.5">
-                    <span className={label}>Plant and size</span>
-                    <input value={offerText} onChange={(e) => setOfferText(e.target.value)} placeholder="e.g. Muskogee Crape Myrtle, 30 G" autoFocus className={field} />
-                  </label>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex flex-col gap-0.5">
-                    <span className={label}>Price $/unit</span>
-                    <input
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      inputMode="decimal"
-                      placeholder="$/unit"
-                      className={cn(field, 'text-right tabular-nums')}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-0.5">
-                    <span className={label}>Quantity</span>
-                    <input
-                      value={offerQty}
-                      onChange={(e) => setOfferQty(e.target.value)}
-                      inputMode="decimal"
-                      placeholder="Qty"
-                      className={cn(field, 'text-right tabular-nums')}
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-            {spec.qty && (
-              <label className="flex flex-col gap-0.5">
-                <span className={label}>Quantity you can supply</span>
-                <input
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="Qty"
-                  autoFocus={spec.focus !== 'notes'}
-                  className={cn(field, 'text-right tabular-nums')}
-                />
+                <input type="radio" name={choiceName} checked={offerId === alt.id} onChange={() => pickTag(alt)} autoFocus={index === 0} className="size-4 flex-none cursor-pointer accent-[var(--primary)]" />
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{alt.description}</span>
+                {alt.unitPrice != null && <span className="flex-none tabular-nums text-muted-foreground">{money(alt.unitPrice)}</span>}
               </label>
-            )}
-
-            <label className="flex flex-col gap-0.5">
-              <span className={label}>{spec.notesLabel}</span>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={spec.notesHint}
-                rows={2}
-                autoFocus={!substituting && (spec.focus === 'notes' || !spec.qty)}
-                className={cn(
-                  'min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring',
-                  drawerModal && 'max-[899px]:text-base',
-                )}
-              />
-            </label>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className={cn(
-                  'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
-                  drawerModal && 'max-[899px]:min-h-11',
-                )}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={substituting && !hasSubstitute}
-                className={cn(
-                  'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50',
-                  drawerModal && 'max-[899px]:min-h-11',
-                )}
-              >
-                Save answer
-              </button>
+            ))}
+            <div
+              className={cn(
+                'flex flex-col gap-1 rounded-md border px-2.5 py-1.5 text-[13px]',
+                typing ? 'border-primary bg-lps-tint' : 'border-border bg-card',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={choiceName}
+                  aria-label="Something else"
+                  checked={typing}
+                  onChange={() => { setTyping(true); setOfferId(null) }}
+                  className="size-4 flex-none cursor-pointer accent-[var(--primary)]"
+                />
+                <input
+                  value={offerText}
+                  aria-label="Something else"
+                  aria-describedby={`${choiceName}-hint`}
+                  autoFocus={!alternatives.length}
+                  onFocus={() => { setTyping(true); setOfferId(null) }}
+                  onChange={(e) => { setOfferText(e.target.value); setTyping(true); setOfferId(null) }}
+                  placeholder="Something else…"
+                  className={cn(field, 'min-w-0 flex-1')}
+                />
+              </div>
+              <span id={`${choiceName}-hint`} className="pl-6 text-[11px] text-muted-foreground">
+                Plant and size you can supply, plus anything we should know — e.g. Muskogee Crape Myrtle 30 G, ready in 2 weeks
+              </span>
             </div>
-          </>
+          </div>
         )}
+        {spec.qty && (
+          <label className="flex flex-col gap-0.5">
+            <span className={label}>Quantity you can supply</span>
+            <input
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              inputMode="decimal"
+              placeholder="Qty"
+              autoFocus={spec.focus !== 'notes'}
+              className={cn(field, 'text-right tabular-nums')}
+            />
+          </label>
+        )}
+
+        {!substituting && <label className="flex flex-col gap-0.5">
+          <span className={label}>{spec.notesLabel}</span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={spec.notesHint}
+            rows={2}
+            autoFocus={!substituting && (spec.focus === 'notes' || !spec.qty)}
+            className={cn(
+              'min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring',
+              drawerModal && 'max-[899px]:text-base',
+            )}
+          />
+        </label>}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className={cn(
+              'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
+              drawerModal && 'max-[899px]:min-h-11',
+            )}
+          >
+            Cancel
+          </button>
+          {/* Unavailable/Sub: one button — Skip (plain Unavailable) until a substitute is chosen, then Submit. */}
+          <button
+            type="button"
+            onClick={substituting && !hasSubstitute
+              ? () => onSave({ status, note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '' })
+              : save}
+            className={cn(
+              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
+              drawerModal && 'max-[899px]:min-h-11',
+            )}
+          >
+            {substituting ? (hasSubstitute ? 'Submit' : 'Skip') : 'Save answer'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -1081,6 +1035,7 @@ export function LineStatusPicker({
   const response = (
     <ResponseSelect
       value={item.status}
+      shown={arShownStatus(item)}
       disabled={!editable}
       portal={portal}
       ariaLabel={ariaLabel}
@@ -1191,7 +1146,7 @@ function LineRow({
   // The admin line table's row treatment: the answer's tone as a left accent
   // bar and a tint over the whole row, so a scanned table reads by colour.
   // An unanswered line is grey — pending is a real state, not an absence.
-  const tone = arResponseTone(item.status)
+  const tone = arResponseTone(arShownStatus(item))
   const unpriced = isUnpriced(item)
   const cells: Record<ARColumnKey, ReactNode> = {
     need: editDetails ? (
@@ -1338,7 +1293,7 @@ export function ARLineTable<T extends ARItem>({
             const detail = (column: string) => (next: string) => {
               void onPatchDetails?.(item.id, { [column]: next.trim() })
             }
-            const tone = arResponseTone(item.status)
+            const tone = arResponseTone(arShownStatus(item))
             const askNote = displayText?.(item.noteForSupplier ?? '') ?? item.noteForSupplier ?? ''
             const supplierNote = (
               <>

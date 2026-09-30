@@ -76,7 +76,10 @@ its requests. Deleting a job preserves supplier responses and orders.
 
 Supplier options for a line are **candidates**, shown as pills in the job
 line table's Candidates column and dragged to Selected, a supplier's AR or the
-bin (see [All jobs](all-jobs.md#candidates)). Internal notes hold the
+bin (see [All jobs](all-jobs.md#candidates)). Candidates with
+`hide_from_lps` (0124: substitute options kept for the supplier's
+Unavailable/Sub dialog) are left out of the column until a supplier picks one,
+which clears the flag. Internal notes hold the
 customer's additional requests and other internal context, never suppliers or
 prices; they stay out of customer messages and quotes. Note for customer is
 information for the customer.
@@ -244,7 +247,9 @@ Only AR chips in the **focused `/jobs?jr=<id>` Job header** open the drawer in
 the supplier portal's drawing — the same `SummaryStrip` and
 `ARLineTable design="portal"` as `/partner/:id/requests/:arId`: **Need · Avail
 qty · Size · Plant · Status · Price · Note for supplier**, no Line total or
-subtotal footer (the strip carries the subtotal). The admin's inline edits stay:
+subtotal footer (the strip carries the subtotal). `SummaryStrip` keeps every
+status count, Total Items and the subtotal on one row from 900 px (one column
+per cell); phones keep the three-column wrap. The admin's inline edits stay:
 name, size and requested quantity through `onPatchDetails`, available quantity,
 status and price through `onPatch`, and the line note — rendered as the
 portal's borderless cells. The portal tracks are
@@ -745,8 +750,16 @@ the rest **Diff Sz/Sub**, and moved Can Order to orange. A candidate is now one
 fixed plant and size: Diff Sz/Sub names a substitute (`offered_candidate_id`
 or `offer_description`) instead of rewriting the line's size and price. Since
 0123 that happens on save: the asked line is stored Unavailable and the
-substitute is its own Available row on the request (typed ones are created);
-the job line of a selected original with a substitute on offer reads Diff Sz/Sub.
+substitute becomes Available (typed ones are created); the job line of a
+selected original with a substitute on offer reads Diff Sz/Sub. Since
+2026-09-30 the pickers no longer offer Diff Sz/Sub: it is **Unavailable/Sub**
+plus a substitute (`AR_ANSWER_OPTIONS`), and an Unavailable line naming a
+substitute *reads* Diff Sz/Sub (`arShownStatus`: pill, row tone, summary
+strip). The substitute stays linked to the request
+(orders need it) but is not listed as its own row in any AR view
+(`withoutSubstituteRows` in `lib/availability-queries.ts`, also in the line
+counts). Buckets, filters and status cards still list Diff Sz/Sub for these
+and older answers.
 
 **What picking a status does** is per answer, and is the picker's whole
 behaviour:
@@ -757,8 +770,8 @@ behaviour:
 | `can_order` | Dialog: the unit price (opens focused) and a note hinting the ETA |
 | `arriving_soon` | Dialog: the unit price (opens focused) and a note — when it lands, and how many |
 | `partial_qty` | Dialog: the quantity you have (opens focused) and an optional note |
-| `diff_size_qty_sub` | Dialog: pick a substitute tag (this supplier's other **priced** candidates on the line, `description · $price`; unpriced ones are not offered) or **Something else** (type plant and size), then price and quantity; picking a tag prefills the price and a customer-ready note (`30 G NA, 45 G Live Oak only`). Save stays disabled until a substitute is chosen. On save (migration 0123) the line becomes **Unavailable** (quantity 0, its price kept) and the substitute appears as its own **Available** row on the request with the offered price and quantity (the demand unless fewer were offered) — a picked tag is that candidate; a typed one is created on the spot, named with what was typed, and Rosie tidies it after submission. Picking a different substitute resets the earlier tag or retires the earlier typed row |
-| `unavailable` | Dialog: "Would you like to recommend a substitute?" **No** zeroes the quantity (the price stays, 0122) and drops any earlier substitute; **Yes** opens the same substitute picker, with the same result on save |
+| `unavailable` (**Unavailable/Sub**) | Dialog "Unavailable / Sub": only substitute radio options — no price, quantity or separate note field. One option per substitute (this supplier's other **priced** candidates on the line, `description · $price`, including ones hidden from LPS, `hide_from_lps`), plus **Something else** with a text field and a hint (typing selects it); its text is both the typed substitute and the supplier's note. A picked candidate writes a customer-ready note (`30 G NA, 45 G Live Oak only`). One button: **Skip** until something is chosen — plain Unavailable (quantity 0, price kept, 0122), clearing any earlier substitute and note — then **Submit**. On save (0123/0124) the line stays **Unavailable** and reads **Diff Sz/Sub**; the substitute is **Available** for the demand at its own candidate price — a ticked one is that candidate (a hidden one becomes visible to LPS); a typed one is created on the spot, named with what was typed, and Rosie tidies it after submission (price included). Changing the substitute resets the earlier tag (and takes it off the request) or retires the earlier typed row. Re-picking Unavailable/Sub reopens the dialog |
+| `diff_size_qty_sub` | Not offered by the pickers any more; older answers keep it and still read Diff Sz/Sub |
 
 **The three supply answers take a price** (2026-08-30): saying you can order it
 or that it is arriving is an offer, and an offer has a price, so the dialog
@@ -1786,6 +1799,14 @@ them from the public. `lib/chat-realtime.ts` holds one subscription with the
 existing server-side client (kept on `globalThis` across dev reloads) and fans
 `threads` changes out over SSE; `lib/chat-events.ts` shares one `EventSource`
 per URL between the bell, the open panel and the portal's hooks.
+
+During server shutdown, `lib/server-shutdown.ts` closes all active SSE responses
+on `SIGTERM` or `SIGINT`. Each stream releases its subscriptions and heartbeat;
+one signal handler is shared across routes and reloads. This lets Next.js finish
+graceful shutdown with browser tabs still open instead of waiting for systemd's
+90-second stop timeout. EventSource reconnects after startup, and the existing
+recovery reads reconcile updates missed during the restart. See
+[server restart behavior](../deployment.md).
 
 The same server channel also watches `job_requests`, `job_request_items`,
 `availability_requests`, `candidates`, `orders`, `order_items`,

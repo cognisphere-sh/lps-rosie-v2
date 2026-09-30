@@ -1,5 +1,18 @@
 # Migrations applied by Daisy
 
+## 0124 — hidden substitute options (2026-09-30)
+
+Applied via the Supabase MCP after rolled-back live rehearsals with
+`tests/0124_candidates_hide_from_lps.assert.sql`. Adds
+`candidates.hide_from_lps` (default false): substitute options Rosie adds for
+the supplier's Unavailable/Sub dialog, off the LPS sourcing page;
+`apply_candidate_offer` clears it when a supplier picks one. In
+`answer_availability_request` a replaced or cleared tag also leaves the AR
+(the app no longer lists substitutes as their own AR rows). Verified after
+apply: 0 hidden candidates, 596 active, both functions patched and not
+executable by anon. AR-58's existing substitutes (855 typed Sotol, 826 3 G
+Opuntia) stay linked to the AR; the app now hides them as rows.
+
 ## 0123 — substitute rows on save (2026-09-30)
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with

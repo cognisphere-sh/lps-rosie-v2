@@ -112,8 +112,10 @@ the options Chris can ask a supplier about or pick. Supplier is APS
 | The original ask (always, even when not listed) | `is_original = true` (one per line). The line's `name` and `size`; `unit_price` from [pricing](pricing.md), **0 = price not found** (never NULL); `mapped_inventory_id` = the exact listing or NULL; no `note_for_customer`. |
 | Each listed alternative: nearest smaller and larger size, another variant or color | `is_original = false`. The listing's name and size, its own list price and inventory id; `note_for_customer` says how it differs, for the customer: `5 G NA, 3 G only` · `Only blue`. |
 
-Every candidate also gets a **`description`** (required): what it *is*, for
-Chris: size, plant, variant. `5 G Shumard Oak` · `3 G Salvia greggii 'Furman's
+Every candidate also gets a short **`description`** (required): size plus
+one common or botanical name, retaining the needed cultivar or variant. Never
+repeat both names as `Common name | Scientific name`; `30 G Pride of Houston
+Yaupon` is enough. What it *is*, for Chris: `5 G Shumard Oak` · `3 G Salvia greggii 'Furman's
 Red'` · `1 G Gaura`. Don't mix the two: `description` names the plant,
 `note_for_customer` is what the customer reads.
 
@@ -121,9 +123,9 @@ Red'` · `1 G Gaura`. Don't mix the two: `description` names the plant,
 SET app.actor TO 'rosie';
 INSERT INTO candidates
   (supplier_id, job_request_item_id, is_original, description, name, size,
-   unit_price, mapped_inventory_id, note_for_customer)
+   unit_price, mapped_inventory_id, note_for_customer, hide_from_lps)
 VALUES (1, $itemId, $isOriginal, '5 G Shumard Oak', $name, $size,
-        $price, $inventoryId, $note)
+        $price, $inventoryId, $note, $hideFromLps)
 RETURNING id;
 ```
 
@@ -140,6 +142,16 @@ RETURNING id;
   don't select it yourself, even when it is the only one. A supplier-confirmed
   substitute makes the offered candidate Available and the line Diff Sz/Sub,
   even while it is unselected; see [supplier responses](supplier-responses.md#substitutes).
+- **Substitute options** (`hide_from_lps = true`): when the original ask is
+  an exact match, the other rows above are not needed for sourcing, but the
+  supplier still needs 2–3 similar plants to offer as a substitute if it
+  turns out Unavailable. Add them from the **same supplier's** list, priced,
+  closest first: the nearest smaller and larger size of the same plant, then
+  a close relative or variant. Same values as a listed alternative, plus
+  `hide_from_lps = true`: Chris's sourcing page leaves them out; the
+  supplier's Unavailable/Sub dialog offers them as choices, and a picked one
+  becomes visible to Chris. Never select one. No exact match → no hidden
+  rows: the alternatives are normal, visible candidates.
 - Never seed a candidate's `status` or `available_quantity` at intake;
   substitutes get theirs through the database ([supplier responses](supplier-responses.md#substitutes)).
   Never write `note_from_supplier` or `availability_request_id` directly.

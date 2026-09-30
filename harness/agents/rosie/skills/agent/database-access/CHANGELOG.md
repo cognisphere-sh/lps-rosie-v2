@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.4.0 — 2026-09-30
+
+- `candidates.hide_from_lps` (0124) in the data model; `job-snapshot` marks such candidates `(hidden sub option)`. Substitutes are not listed as their own AR rows in the app.
+
 ## 2.3.0 — 2026-09-30
 
 - Migration 0123 (Bhoumik 2026-09-30): a substitute is applied when the supplier saves: the asked candidate becomes Unavailable (`offered_candidate_id` set) and the substitute its own Available row on the AR; a typed substitute is created as a raw-named candidate that Rosie enriches after submission (name/size split, description, customer note, price if missing).
