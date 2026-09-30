@@ -1,5 +1,9 @@
 # quote-generation — changelog
 
+## 4.1.1 — 2026-09-30
+
+- Partial Qty (migration 0121): status lists mark `partial_qty` lines as `Partial qty` instead of the raw value.
+
 ## 4.1.0 — 2026-09-29
 
 - No questions about substitutes or alternatives (Bhoumik 2026-09-29): an unrequested plant or size is quoted only when Chris selected that candidate (migration 0119); no approval question.

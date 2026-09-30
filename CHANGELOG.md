@@ -15,6 +15,18 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-30 — Rosie's ARs ask the selected candidate
+
+- Rosie's availability requests ask each job line's **selected** candidate; a line with nothing selected asks the customer's original plant and size (APS only for now) (`supplier-coordination` 5.3.0, `job-requests` 8.1.0).
+
+## 2026-09-30 — substitutes as candidates, Partial Qty and new status colours
+
+- Migration `0121` (applied 2026-09-30 with this app change, after rolled-back live rehearsals): a candidate is one fixed plant and size, and suppliers no longer rewrite its size. New answer and job-line status **Partial Qty** (`partial_qty`) for fewer than demanded. **Diff Sz/Sub** (was Diff Sz/Qnty/Sub) must name a substitute: another of the supplier's candidates on the line (`offered_candidate_id`) or a typed one (`offer_description`, `offer_unit_price`, `offer_quantity`); Unavailable with a recommended substitute is saved as Diff Sz/Sub. On submission the asked candidate is 0/0 and shows Unavailable, and a picked substitute becomes Available (Partial Qty if short) on the request without reopening it; `link_candidate_offer` does the same for a typed one once Rosie makes it a candidate. A selected line's status is computed: the original request's answer, or Diff Sz/Sub for any other answered candidate or a substitute on offer (Chris's JR-90 line rule; the offered candidate itself is now Available). `create_order` refuses an asked candidate that offered a substitute; order lines accept `partial_qty`. Older Diff answers without a substitute keep their meaning.
+- Supplier answer dialog (portal, public link, ops drawer): Partial Qty asks for the quantity; Diff Sz/Sub and Unavailable → "recommend a substitute?" → Yes show the line's other candidates as tags (description · price; picking one prefills the price and a note like `30 G NA, 45 G Live Oak only`) plus **Something else** to type one, with price and quantity; Save needs a substitute. The size field is gone.
+- Colours: Partial Qty yellow, Can Order orange (new `--lps-tone-yellow/orange` tokens); the rest unchanged. Available-but-short lines are tinted yellow. Summary strips have seven status buckets. Saved filters with the old Diff label keep working.
+- Job page: an asked candidate that offered a substitute reads Unavailable, with the substitute named on hover.
+- Rosie (`job-requests` 8.0.0, `supplier-coordination` 5.2.0, `database-access` 2.2.0, `quote-generation` 4.1.1): substitutes, typed-substitute enrichment, conflict corrections via the new answer keys (clear notes corrected directly, Chris asked only to select, to accept a price-list price, or when unclear), and `Partial qty` on status quotes.
+
 ## 2026-09-29 — Candidate pills: border shows the AR's progress
 
 - Job line candidate pills are grey until the supplier answers, then take the answer's colour. The border is solid before the AR is sent, dotted while it is out with the supplier (answers they save recolour the pill; the border stays dotted), and solid once submitted. The original request carries a dot. No price is no longer dotted (the price cell says it), and AR sent is grey rather than amber.

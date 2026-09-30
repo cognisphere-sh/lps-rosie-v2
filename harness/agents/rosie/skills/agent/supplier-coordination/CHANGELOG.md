@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 5.3.0 — 2026-09-30
+
+- AR scope (Bhoumik 2026-09-30): each line asks its selected candidate; with none selected, its original-ask candidate. Replaces "always the original ask unless Chris picks".
+
+## 5.2.0 — 2026-09-30
+
+- Migration 0121: new answer `partial_qty`; Diff Sz/Sub always names a substitute (`offered_candidate_id` or `offer_description`, with `offer_unit_price`/`offer_quantity`), and Unavailable with one is saved as Diff Sz/Sub. Transcription keys drop `size`; relays name the substitute and flag typed ones for the job thread.
+
 ## 5.1.0 — 2026-09-29
 
 - Conflicting or incomplete answers (Bhoumik 2026-09-29): relays flag an answer whose status, size or quantity disagrees with its note, with the note's reading; the job thread settles it with Chris, and a Chris-approved correction is the one exception to "never rewrite supplier answers".

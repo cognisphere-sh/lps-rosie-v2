@@ -42,7 +42,7 @@ The examples are formats, not prices.
 |---|---|---|
 | Standard quote | `quote-job <jobId>` | as above |
 | Bid, per-unit prices, or quantities all 1 ("don't do the line total") | `quote-job <jobId> --no-totals` | `Qty x Size Plant - note - $Unit`, no subtotal |
-| Availability list ("use ✅ for avail, red x for unavailable") | `quote-job <jobId> --status` | `Qty x Size Plant - ✅ - note - $Unit - $Line`; ❌ unavailable, `Can order`, `Diff Sz/Qty/Sub`, `Pending` |
+| Availability list ("use ✅ for avail, red x for unavailable") | `quote-job <jobId> --status` | `Qty x Size Plant - ✅ - note - $Unit - $Line`; ❌ unavailable, `Partial qty`, `Can order`, `Diff Sz/Qty/Sub`, `Pending` |
 | Only available and different-size lines | `quote-job <jobId> --status --only available,alternative_proposed` | same |
 | Some lines only | `--items 748,754` | same |
 | Grouped by project or phase (only when asked) | one `--items` run per group, group name above each | same; never merge groups |

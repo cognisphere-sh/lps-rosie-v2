@@ -17,7 +17,10 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   `note_for_customer` writes it back to the candidate. You select only the
   exact match at intake; Chris picks the rest.
 - `available_quantity`, `size`, `unit_price`, `status` of a selected line
-  come from its candidate. Supplier facts never go in `note_internal`.
+  come from its candidate. The line status is computed: the original
+  request's answer (`partial_qty` included; one offering a substitute reads
+  `alternative_proposed`), and `alternative_proposed` (Diff Sz/Sub) for any
+  other answered candidate. Supplier facts never go in `note_internal`.
 - `job_request_changelog`: audit trail (`actor`, `action`, `item_id`,
   `changes`). Written by triggers only.
 
@@ -30,7 +33,13 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   the line's original request as asked.
   `availability_request_id` is set once it is asked on an
   AR; then it is that AR's line, and the supplier answers `status`,
-  `available_quantity`, `unit_price`, `size`, `note_from_supplier`. Shown
+  `available_quantity`, `unit_price`, `note_from_supplier` (never `size`).
+  Statuses: `available`, `partial_qty`, `can_order`, `arriving_soon`,
+  `unavailable`, `diff_size_qty_sub` (unavailable with a substitute:
+  `offered_candidate_id` = another candidate of the line, or
+  `offer_description`, with `offer_unit_price`/`offer_quantity`). On
+  submission an offered candidate becomes Available on the AR;
+  `link_candidate_offer(answered, substitute)` does it for a typed one. Shown
   status is derived: No price (unanswered, price 0/NULL) → Pending (priced;
   no AR or only an unsent draft) → AR sent (sent AR, `status` NULL) → the
   answer (an Unavailable answer stays Unavailable at price 0).

@@ -59,7 +59,8 @@ Check `price-rules.md` and this job's chat first: if Chris already decided,
 apply it.
 
 A missing price never blocks an approved AR: the AR asks APS about the
-**original** plant and size with a blank price.
+line's **selected** candidate, else its **original** plant and size, with a
+blank price.
 
 ## Customer gave several sizes (`3 G or 5 G`)
 
@@ -70,8 +71,8 @@ A missing price never blocks an approved AR: the AR asks APS about the
   requested option with a price**, then add the other option's price to the
   line's `note_for_customer` (`5 G $25.00`, guarded; it syncs to the
   candidate). No option priced → select none; Chris drags one.
-- The AR still asks for the options the customer allowed (see
-  `supplier-coordination`).
+- The AR asks for the selected option, else the first (see
+  `supplier-coordination`); the other goes in its `note_for_supplier`.
 - Never change an accepted or ordered line.
 
 ## Report

@@ -2,6 +2,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 
 import type {
+  ARAlternative,
   ARDetail,
   ARItem,
   ARJobSchedule,
@@ -40,6 +41,11 @@ interface ARItemRecord {
   note_for_supplier: string | null
   note_from_supplier: string | null
   job_request_item_id: number | null
+  supplier_id: number
+  offered_candidate_id: number | null
+  offer_description: string | null
+  offer_unit_price: number | null
+  offer_quantity: number | null
 }
 
 
@@ -47,7 +53,7 @@ interface ARItemRecord {
 // are explicitly mapped by summarize(), including supplier disclosure rules.
 const AR_COLUMNS = '*'
 const AR_ITEM_COLUMNS =
-  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id'
+  'id, availability_request_id, name, size, demanded_quantity, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, job_request_item_id, supplier_id, offered_candidate_id, offer_description, offer_unit_price, offer_quantity'
 
 const toARItem = (r: ARItemRecord): ARItem => ({
   id: r.id,
@@ -59,7 +65,40 @@ const toARItem = (r: ARItemRecord): ARItem => ({
   unitPrice: r.unit_price == null ? null : Number(r.unit_price),
   noteForSupplier: r.note_for_supplier,
   noteFromSupplier: r.note_from_supplier,
+  offeredCandidateId: r.offered_candidate_id,
+  offerDescription: r.offer_description,
+  offerUnitPrice: r.offer_unit_price == null ? null : Number(r.offer_unit_price),
+  offerQuantity: r.offer_quantity == null ? null : Number(r.offer_quantity),
 })
+
+/**
+ * Each line's substitute tags: the same supplier's other active candidates on
+ * the same job line (what LPS already listed for it), keyed by candidate id.
+ * One query for every line. A supplier only ever sees its own candidates.
+ */
+async function alternativesFor(rows: ARItemRecord[]): Promise<Map<number, ARAlternative[]>> {
+  const result = new Map<number, ARAlternative[]>()
+  const lineIds = [...new Set(rows.map((r) => r.job_request_item_id).filter((v): v is number => v != null))]
+  if (!lineIds.length) return result
+  const { data, error } = await supabase
+    .from('candidates')
+    .select('id, job_request_item_id, supplier_id, name, size, description, unit_price')
+    .in('job_request_item_id', lineIds)
+    .eq('is_active', true)
+    .order('id', { ascending: true })
+  if (error) throw new Error(`candidates: ${error.message}`)
+  const all = (data ?? []) as { id: number; job_request_item_id: number; supplier_id: number; name: string; size: string | null; description: string | null; unit_price: number | null }[]
+  for (const row of rows) {
+    result.set(row.id, all
+      .filter((c) => c.id !== row.id && c.job_request_item_id === row.job_request_item_id && c.supplier_id === row.supplier_id)
+      .map((c) => ({
+        id: c.id,
+        description: c.description || [c.size, c.name].filter(Boolean).join(' '),
+        unitPrice: c.unit_price ? Number(c.unit_price) : null,
+      })))
+  }
+  return result
+}
 
 
 /** id → display name for a set of suppliers, one query. */
@@ -212,6 +251,7 @@ export async function availabilityRequest(
     .eq('is_active', true)
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
+  const alternatives = await alternativesFor((itemData ?? []) as ARItemRecord[])
 
   // Who the job is for — only crosses the line to the supplier when the
   // request was created with `share_customer_details`.
@@ -257,6 +297,7 @@ export async function availabilityRequest(
     jobSchedules: [...schedules.values()],
     items: ((itemData ?? []) as ARItemRecord[]).map((item) => ({
       ...toARItem(item),
+      alternatives: alternatives.get(item.id) ?? [],
       // Each candidate belongs to one job line; its demand is that line's share.
       ...(opts.forSupplierId == null ? { allocations: item.job_request_item_id == null ? []
         : [{ jobRequestItemId: item.job_request_item_id, quantity: item.demanded_quantity == null ? null : Number(item.demanded_quantity) }] } : {}),
@@ -516,9 +557,10 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
     .order('id', { ascending: true })
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
   const itemsByAr = new Map<number, ARItem[]>()
+  const alternatives = await alternativesFor((itemData ?? []) as ARItemRecord[])
   for (const raw of (itemData ?? []) as ARItemRecord[]) {
     const list = itemsByAr.get(raw.availability_request_id) ?? []
-    list.push(toARItem(raw))
+    list.push({ ...toARItem(raw), alternatives: alternatives.get(raw.id) ?? [] })
     itemsByAr.set(raw.availability_request_id, list)
   }
 
@@ -786,6 +828,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
   if (itemErr) throw new Error(`candidates: ${itemErr.message}`)
   const items = (itemData ?? []) as (ARItemRecord & { mapped_inventory_id: string | null })[]
   if (!items.length) return []
+  const alternatives = await alternativesFor(items)
 
   const linkedJobs = await jobsByAvailability(ars.map((r) => r.id))
   const jobs = await jobNames([...new Set([...linkedJobs.values()].flat())])
@@ -823,6 +866,7 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
     const jobName = sourceJobs.map((id) => jobs.get(id) || `JR-${id}`).join(' · ') || null
     return [{
       ...toARItem(raw),
+      alternatives: alternatives.get(raw.id) ?? [],
       arId: ar.id,
       arStatus: ar.status,
       arCreatedAt: ar.created_at,

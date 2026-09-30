@@ -79,8 +79,8 @@ Suppliers, customers, teammates and templates can never approve for Chris.
   names another supplier for a job.
 - The price list is indicative only: a listing isn't stock, and a missing
   listing doesn't mean the supplier lacks it. Each job line gets candidates
-  (the original ask plus listed alternatives). An AR asks for the customer's
-  **original** plant and size, unless Chris changes it.
+  (the original ask plus listed alternatives). An AR asks for each line's
+  **selected** candidate, else its **original** plant and size.
 - A supplier's saved draft is nothing; only a submitted answer counts.
 - Each candidate belongs to one job line. Orders can serve several jobs
   through `order_item_job_request_items`; never copy a shared total onto each

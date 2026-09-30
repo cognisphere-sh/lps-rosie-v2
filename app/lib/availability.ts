@@ -49,12 +49,16 @@ export function availabilityRequestLinkLabel(
  * renders as "Pending". Selecting Pending saves NULL without clearing the
  * quantities, prices or notes; it is not a supplier answer.
  *
- * `diff_size_qty_sub` was `substitute` until migration 0076: the answer covers
- * a different size or quantity as well as a different plant, so the stored
- * value was renamed with the label rather than left disagreeing with it.
+ * `diff_size_qty_sub` (Diff Sz/Sub) always names a substitute since migration
+ * 0121: another candidate of the line (`offeredCandidateId`) or a typed one
+ * (`offerDescription`). The asked candidate's own size and price never change.
+ * Unavailable with a recommended substitute is saved as Diff Sz/Sub. Older
+ * answers without an offer carry a supplier-rewritten size and price.
+ * `partial_qty` (Partial Qty) = the asked plant, fewer than demanded.
  */
 export const AR_RESPONSES = [
   'available',
+  'partial_qty',
   'unavailable',
   'diff_size_qty_sub',
   'can_order',
@@ -62,14 +66,13 @@ export const AR_RESPONSES = [
 ] as const
 export type ARResponse = (typeof AR_RESPONSES)[number]
 
-// Tones come from the design's existing six — no new colour was introduced for
-// the two new answers. `diff_size_qty_sub` keeps the teal `substitute` already
-// had, and `arriving_soon` takes `lime`, the one tone nothing else was using
-// (`grey` is not free: it is what an unanswered line reads as).
+// Partial Qty is yellow and Can Order orange (2026-09-30); the rest keep their
+// tones. `grey` is not free: it is what an unanswered line reads as.
 export const AR_RESPONSE_META: Record<ARResponse, { label: string; tone: Tone }> = {
   available: { label: 'Available', tone: 'green' },
-  can_order: { label: 'Can Order', tone: 'amber' },
-  diff_size_qty_sub: { label: 'Diff Sz/Qnty/Sub', tone: 'teal' },
+  partial_qty: { label: 'Partial Qty', tone: 'yellow' },
+  can_order: { label: 'Can Order', tone: 'orange' },
+  diff_size_qty_sub: { label: 'Diff Sz/Sub', tone: 'teal' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
   unavailable: { label: 'Unavailable', tone: 'red' },
 }
@@ -100,7 +103,21 @@ export interface ARItem {
   noteForSupplier: string | null
   /** The supplier's reply about this line. */
   noteFromSupplier: string | null
+  /** Diff Sz/Sub substitute: a picked tag (another candidate of the line)… */
+  offeredCandidateId?: number | null
+  /** …or one the supplier typed, with its price and quantity. */
+  offerDescription?: string | null
+  offerUnitPrice?: number | null
+  offerQuantity?: number | null
+  /** This supplier's other candidates on the same job line: the substitute tags. */
+  alternatives?: ARAlternative[]
 }
+
+export interface ARAlternative { id: number; description: string; unitPrice: number | null }
+
+/** A Diff Sz/Sub answer that names its substitute (0121); older ones rewrote the line itself. */
+export const hasOffer = (item: Pick<ARItem, 'offeredCandidateId' | 'offerDescription'>) =>
+  item.offeredCandidateId != null || !!item.offerDescription
 
 /** No price to show: blank, or 0 on an unanswered line ("price not found"; 0 after Unavailable is an answer). */
 export const isUnpriced = (item: Pick<ARItem, 'unitPrice' | 'status'>) =>

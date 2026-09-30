@@ -1,5 +1,22 @@
 # Migrations applied by Daisy
 
+## 0121 — candidate offers and Partial Qty (2026-09-30)
+
+Applied via the Supabase MCP after rolled-back live rehearsals of the full
+migration plus `tests/0121_candidate_offers_and_partial_qty.assert.sql` (a
+Supabase branch was tried first but can't replay this project's history).
+Adds `partial_qty` to candidate, job line and order line statuses; the
+candidate offer columns (`offered_candidate_id`, `offer_description`,
+`offer_unit_price`, `offer_quantity`); `apply_candidate_offer` and
+`link_candidate_offer` (service_role only); computed job line status; Diff
+Sz/Sub requires a substitute and `size` is no longer an answer key;
+`create_order` refuses an asked candidate that offered a substitute. Shipped
+with the matching app change. Verified after apply: 4 offer columns, all three
+status checks include `partial_qty`, `create_order` patched, new functions not
+executable by anon, 503 active candidates and the 41 older Diff answers
+unchanged, no offers yet, AR statuses unchanged (8 submitted, 1 processing,
+15 closed).
+
 ## 0120 — candidate descriptions and draft ARs (2026-09-29)
 
 Applied via the Supabase MCP after disposable PostgreSQL tests

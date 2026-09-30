@@ -80,7 +80,7 @@ test('portal picker opens a themed listbox with unanswered plus the five canonic
   const options = within(listbox).getAllByRole('option')
   assert.deepEqual(
     options.map((option) => option.children[1]?.textContent),
-    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
   assert.equal(within(listbox).getByRole('option', { name: 'Arriving Soon' }).getAttribute('aria-selected'), 'true')
   assert.match(within(listbox).getByRole('option', { name: 'Unavailable' }).className, /min-h-9/)
@@ -304,7 +304,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
   assert.equal(listbox.style.left, '100px')
   assert.equal(listbox.style.top, '138px')
   assert.equal(listbox.style.width, '196px')
-  assert.equal(listbox.style.maxHeight, '228px')
+  assert.equal(listbox.style.maxHeight, '264px')
   assert.match(listbox.className, /overflow-y-auto/)
 
   fireEvent.pointerDown(document.body)
@@ -312,7 +312,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
   await user.click(trigger)
   listbox = view.getByRole('listbox', { name: 'Line status' })
   assert.equal(listbox.style.left, '210px')
-  assert.equal(listbox.style.top, '216px')
+  assert.equal(listbox.style.top, '180px')
 
   const assertInsideViewport = () => {
     const left = Number.parseFloat(listbox.style.left)
@@ -455,7 +455,7 @@ test('admin line picker remains the existing native select', () => {
   const select = view.getByRole('combobox', { name: 'Line status' })
   assert.deepEqual(
     within(select).getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Unavailable', 'Diff Sz/Qnty/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
   )
 })
 
@@ -531,15 +531,20 @@ for (const portal of [false, true]) {
       await user.click(view.getByRole('button', { name: recommend ? 'Yes' : 'No' }))
       if (recommend) {
         assert.deepEqual(patches, [])
-        const notes = view.getByPlaceholderText('Substitutes welcome — Name, Size @ price $/unit')
-        assert.equal(document.activeElement, notes)
-        await user.clear(notes)
-        await user.type(notes, 'Red Oak, 30 G @ $25/unit')
-        await user.click(view.getByRole('button', { name: 'Save answer' }))
-        // Unavailable always zeroes quantity and price.
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', unit_price: '0', note_from_supplier: 'Red Oak, 30 G @ $25/unit' }]])
+        // No listed alternatives: the supplier types the substitute.
+        const save = view.getByRole('button', { name: 'Save answer' }) as HTMLButtonElement
+        assert.equal(save.disabled, true)
+        await user.type(view.getByLabelText('Plant and size'), 'Red Oak, 30 G')
+        await user.type(view.getByLabelText('Price $/unit'), '25')
+        await user.click(save)
+        // A recommended substitute makes the answer Diff Sz/Sub; the asked line's own size and price are untouched.
+        assert.deepEqual(patches, [[19, {
+          status: 'diff_size_qty_sub', note_from_supplier: 'Existing note', offered_candidate_id: '',
+          offer_description: 'Red Oak, 30 G', offer_unit_price: '25', offer_quantity: '12',
+        }]])
       } else {
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', unit_price: '0' }]])
+        // Unavailable always zeroes quantity and price, and drops any earlier substitute.
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', unit_price: '0', offered_candidate_id: '', offer_description: '' }]])
       }
       assert.equal(view.queryByText('Would you like to recommend a substitute?'), null)
       assert.equal(view.queryByRole('textbox'), null)
@@ -547,24 +552,35 @@ for (const portal of [false, true]) {
   }
 }
 
-test('diff_size_qty_sub collects the size and price offered, prefilled from the line', async () => {
+test('diff_size_qty_sub needs a substitute: a tag prefills note and price, or one is typed', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<Record<string, string>> = []
+  const alternatives = [{ id: 41, description: '45 G Live Oak', unitPrice: 40 }, { id: 42, description: '15 G Live Oak', unitPrice: null }]
+  const view = render(<LineStatusPicker item={item({ alternatives })} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
+  await user.selectOptions(view.getByRole('combobox'), 'diff_size_qty_sub')
+  assert.equal(view.queryByLabelText('Size you have'), null)
+  const save = view.getByRole('button', { name: 'Save answer' }) as HTMLButtonElement
+  assert.equal(save.disabled, true)
+  await user.click(view.getByRole('button', { name: '45 G Live Oak · $40.00' }))
+  assert.equal((view.getByLabelText('Price $/unit') as HTMLInputElement).value, '40')
+  assert.equal((view.getByLabelText('Note') as HTMLTextAreaElement).value, '30 G NA, 45 G Live Oak only')
+  await user.click(save)
+  assert.deepEqual(patches, [{
+    status: 'diff_size_qty_sub', note_from_supplier: '30 G NA, 45 G Live Oak only', offered_candidate_id: '41',
+    offer_description: '', offer_unit_price: '40', offer_quantity: '12',
+  }])
+})
+
+test('partial_qty asks for the quantity the supplier has', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
   const view = render(<LineStatusPicker item={item()} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
-  await user.selectOptions(view.getByRole('combobox'), 'diff_size_qty_sub')
-  const size = view.getByLabelText('Size you have') as HTMLInputElement
-  const price = view.getByLabelText('Price $/unit') as HTMLInputElement
-  assert.equal(size.value, '30 G')
-  assert.equal(price.value, '12.5')
-  await user.clear(size)
-  await user.type(size, '45 G')
-  await user.clear(price)
-  await user.type(price, '40')
-  await user.type(view.getByLabelText('What instead'), 'Only 45 G')
+  await user.selectOptions(view.getByRole('combobox'), 'partial_qty')
+  const qty = view.getByLabelText('Quantity you can supply') as HTMLInputElement
+  await user.clear(qty)
+  await user.type(qty, '6')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
-  assert.deepEqual(patches, [{
-    status: 'diff_size_qty_sub', note_from_supplier: 'Only 45 G', available_quantity: '12', size: '45 G', unit_price: '40',
-  }])
+  assert.deepEqual(patches, [{ status: 'partial_qty', note_from_supplier: '', available_quantity: '6' }])
 })
 
 for (const status of ['can_order', 'arriving_soon']) {

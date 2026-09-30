@@ -261,6 +261,9 @@ export interface Candidate {
   noteFromSupplier: string | null
   /** The line's customer note for this candidate ("3 G NA, only 5 G", or the supplier's reply once submitted); kept in step with the selecting line. */
   noteForCustomer: string | null
+  /** Diff Sz/Sub substitute: another candidate of the line, or a typed one (0121). */
+  offeredCandidateId?: number | null
+  offerDescription?: string | null
 }
 
 /** Per-status line counts behind a request's KPI pills. */

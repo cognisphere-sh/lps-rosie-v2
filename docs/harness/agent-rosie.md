@@ -21,7 +21,7 @@ Chris made the request.
   (`candidates` table): the original ask (price 0 = not found), plus listed
   alternatives. Each candidate has a `description` for Chris (`5 G Shumard
   Oak`) and a customer-facing `note_for_customer` (`5 G NA, 3 G only`); the
-  original request is `is_original`. ARs ask for the original plant/size, one
+  original request is `is_original`. ARs ask for each line's selected candidate, else its original plant/size, one
   AR per job and supplier. ARs start as drafts invisible to the supplier;
   only Rosie sends them (`send_availability_request`), once Chris approves or
   asks her to send an existing draft. The app has no Send button.
@@ -42,16 +42,19 @@ Chris made the request.
   their open job lines; Rosie alerts Chris and reports unselected answers.
   Saved drafts stay on the supplier thread. `note_internal` holds no supplier
   or price facts.
+- **Substitutes and Partial Qty** (migration 0121): a candidate is one fixed
+  plant and size. Suppliers answer Partial Qty for a short quantity, and Diff
+  Sz/Sub (or Unavailable + a recommendation) with a substitute: one of their
+  candidates on the line (a tag) or a typed one. On submission the asked
+  candidate shows Unavailable, a picked tag becomes Available, and the job
+  line reads Diff Sz/Sub (Chris's JR-90 rule). Rosie turns typed substitutes
+  into candidates (`link_candidate_offer`).
 - **Conflicting or incomplete answers** (e.g. marked Available, note says
-  "only 3 G"): the supplier's note is the source of truth. Rosie reads the
-  note's answer, looks up the price-list price for the note's exact size, and
-  asks Chris to confirm the fix in one MCQ. On his yes she corrects the
-  candidate's answer (`answer_availability_request`) and re-submits the AR so
-  the database re-applies the line — only while the AR is still submitted.
-  If the note names a plant/size that is already a candidate of that supplier
-  on the line, the fix is instead to select that candidate and mark the
-  answered one Unavailable.
-  If Chris can't settle it, she offers to send the supplier quick questions.
+  "only 3 G"): the supplier's note is the source of truth. A clear note is
+  corrected straight away (Unavailable + that substitute, re-submitted while
+  the AR is still submitted). Chris is asked only to select the substitute,
+  to use a price-list price the supplier didn't give, or when the note has
+  two readings; what he can't settle, she offers to ask the supplier.
 - **Quick questions to suppliers**: partners get a webchat MCQ questionnaire
   in their portal chat (`webchat-cli ask --portal`: one choice per question,
   or checkboxes with `multiSelect`, plus "Something else"); their submitted answers are transcribed into the AR

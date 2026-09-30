@@ -13,10 +13,11 @@
 | Line answer `status` | Meaning |
 |---|---|
 | `available` | Has the requested plant, size and quantity. Its `available_quantity` = the candidate's `demanded_quantity`. |
+| `partial_qty` | Partial Qty: the requested plant and size, fewer than demanded (`available_quantity`). |
 | `can_order` | Can get it. Becomes `need_to_order` on an order line. |
 | `arriving_soon` | Coming; ETA in the note. |
-| `diff_size_qty_sub` | Offers another size, quantity or plant. The supplier may change the candidate's size and price; details in `note_from_supplier`. |
-| `unavailable` | Can't supply. Quantity and price are set to 0. |
+| `diff_size_qty_sub` | Diff Sz/Sub: the asked one is unavailable (0/0) and the supplier names a substitute, either another candidate of the line (`offered_candidate_id`, a tag) or a typed one (`offer_description`), with `offer_unit_price` and `offer_quantity`. On submission a tag becomes Available on this AR. The candidate's own size never changes. Older answers without a substitute rewrote size and price. |
+| `unavailable` | Can't supply. Quantity and price are set to 0. Unavailable with a substitute is saved as Diff Sz/Sub. |
 | NULL | Not answered. A seeded price alone is not an answer. |
 
 ## Events
@@ -40,7 +41,9 @@ false`).
    and size asked, the answer (status, quantity, size, price, mapping), the
    header `note_for_supplier`, the candidate's `note_for_supplier` (LPS ask)
    and `note_from_supplier` (reply), and "portal submission" as the source.
-   For `diff_size_qty_sub`, give the exact offer. Mention narrow equivalences
+   For `diff_size_qty_sub`, give the substitute (the tag's description, or
+   the typed `offer_description`) with its price and quantity; say which
+   typed ones the job thread must turn into candidates. Mention narrow equivalences
    from `price-rules.md` (e.g. Carolina Cherry Laurel 24" box = 30 G). Flag
    an answer whose status, size or quantity disagrees with its note (or a
    note size without a price) as **conflicting**, with the note's reading;
@@ -77,11 +80,15 @@ AR line (candidate) lets you type that answer into the AR for them.
    ```
 
    Values are strings; `""` clears a field; keys are only `status`,
-   `available_quantity`, `unit_price`, `size`, `note_from_supplier`
-   (`unavailable` zeroes quantity and price). For `available`, the quantity is
-   the candidate's `demanded_quantity`; if that is empty, don't mark it
-   available, ask. Partial quantity or an alternative uses the matching
-   non-available status. The supplier's words go in `note_from_supplier`;
+   `available_quantity`, `unit_price`, `note_from_supplier`,
+   `offered_candidate_id`, `offer_description`, `offer_unit_price`,
+   `offer_quantity` (`unavailable` zeroes quantity and price). For
+   `available`, the quantity is the candidate's `demanded_quantity`; if that
+   is empty, don't mark it available, ask. Fewer than asked → `partial_qty`
+   with their quantity. Another size or plant → `unavailable` plus the
+   substitute: `offered_candidate_id` when it matches one of that supplier's
+   candidates on the line, else `offer_description` (`diff_size_qty_sub`
+   without a substitute is refused). The supplier's words go in `note_from_supplier`;
    LPS's ask stays in `note_for_supplier`.
 4. Verify, then reply `--portal`: "Please review and tap **Submit**." Never
    say it was submitted. If the match was unsafe, ask the supplier which line

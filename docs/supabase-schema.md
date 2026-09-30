@@ -1,6 +1,6 @@
 # Supabase schema
 
-Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23).
+Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23; 0121 changes 2026-09-30).
 Daisy and Rosie’s `knowledge/files/SCHEMA.md` paths symlink here.
 
 ## Tables
@@ -110,6 +110,10 @@ note_for_customer text
 answered_at timestamptz
 description text
 is_original boolean NOT NULL DEFAULT false
+offered_candidate_id bigint
+offer_description text
+offer_unit_price numeric
+offer_quantity numeric
 ```
 
 Constraints:
@@ -119,7 +123,10 @@ Constraints:
 - `candidates_job_request_item_id_fkey`: `FOREIGN KEY (job_request_item_id) REFERENCES job_request_items(id) ON DELETE SET NULL`
 - `candidates_mapped_inventory_id_fkey`: `FOREIGN KEY (mapped_inventory_id) REFERENCES inventory(id) ON DELETE SET NULL`
 - `candidates_pkey`: `PRIMARY KEY (id)`
-- `candidates_status_check`: `CHECK (((status IS NULL) OR (status = ANY (ARRAY['available'::text, 'can_order'::text, 'diff_size_qty_sub'::text, 'arriving_soon'::text, 'unavailable'::text]))))`
+- `candidates_offered_candidate_id_fkey`: `FOREIGN KEY (offered_candidate_id) REFERENCES candidates(id) ON DELETE SET NULL`
+- `candidates_offer_not_self`: `CHECK ((offered_candidate_id IS DISTINCT FROM id))`
+- `candidates_offer_quantity_check`, `candidates_offer_unit_price_check`: `>= 0` and finite when set
+- `candidates_status_check`: `CHECK (((status IS NULL) OR (status = ANY (ARRAY['available'::text, 'partial_qty'::text, 'can_order'::text, 'diff_size_qty_sub'::text, 'arriving_soon'::text, 'unavailable'::text]))))`
 - `candidates_supplier_id_fkey`: `FOREIGN KEY (supplier_id) REFERENCES suppliers(id)`
 - `candidates_unit_price_check`: `CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)))`
 
@@ -128,6 +135,16 @@ Constraints:
   (0120).
 - `unit_price` 0 on an unanswered candidate means "price not found"; answering
   Unavailable sets `available_quantity` and `unit_price` to 0.
+- A candidate is one fixed plant and size (0121). `partial_qty` = fewer than
+  demanded. `diff_size_qty_sub` = unavailable (0/0) with a substitute:
+  `offered_candidate_id` (another active candidate of the same supplier on the
+  same line) or `offer_description`, with `offer_unit_price` and
+  `offer_quantity`. On submission `apply_candidate_offer` makes the offered
+  candidate Available (Partial Qty if short) on the same AR without reopening
+  it (`lps.applying_offer` skips the reopen/processing triggers);
+  `link_candidate_offer` does the same for a typed offer once it is a
+  candidate. Older `diff_size_qty_sub` rows without an offer carry a
+  supplier-rewritten size and price.
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
   (the supplier's only writable note). `note_for_customer` is the job line's
   customer note for this candidate (e.g. `3 G NA, only 5 G`).
@@ -303,8 +320,10 @@ selected_candidate_id bigint
 
 `selected_candidate_id` (0116, renamed in 0119) is the candidate filling this
 line; NULL means none. `select_candidate` copies its size, price (0 stays
-blank), available quantity capped at demand, mapped status and
-`note_for_customer`. Submission of its AR re-applies it (above). Trigger
+blank), available quantity capped at demand, computed status (the original
+request's answer, `can_order` → `need_to_order`; `alternative_proposed` for a
+substitute on offer or any other answered candidate; `pending`/`unavailable`
+as answered) and `note_for_customer`. Submission of its AR re-applies it (above). Trigger
 `job_request_items_candidate_note` writes an edit of the line's
 `note_for_customer` back to the selected candidate.
 
@@ -314,7 +333,7 @@ Constraints:
 - `job_request_items_pkey`: `PRIMARY KEY (id)`
 - `job_request_items_selected_candidate_id_fkey`: `FOREIGN KEY (selected_candidate_id) REFERENCES candidates(id) ON DELETE SET NULL`
 - `job_request_items_demanded_quantity_check`: `CHECK (((demanded_quantity IS NULL) OR (demanded_quantity > (0)::numeric)))`
-- `job_request_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'unavailable'::text, 'alternative_proposed'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))`
+- `job_request_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'partial_qty'::text, 'unavailable'::text, 'alternative_proposed'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))`
 
 ### `job_requests`
 
@@ -401,7 +420,7 @@ Constraints:
 - `order_items_order_id_fkey`: `FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE`
 - `order_items_pkey`: `PRIMARY KEY (id)`
 - `order_items_quantity_check`: `CHECK (((quantity > (0)::numeric) AND (quantity < 'Infinity'::numeric)))`
-- `order_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'unavailable'::text, 'diff_size_qty_sub'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))`
+- `order_items_status_check`: `CHECK ((status = ANY (ARRAY['available'::text, 'partial_qty'::text, 'unavailable'::text, 'diff_size_qty_sub'::text, 'need_to_order'::text, 'arriving_soon'::text, 'pending'::text])))`
 - `order_items_unit_price_check`: `CHECK (((unit_price > (0)::numeric) AND (unit_price < 'Infinity'::numeric)))`
 
 ### `orders`
@@ -599,6 +618,7 @@ roles. Table results are listed below.
 | Function and arguments | Returns | EXECUTE | Purpose |
 |---|---|---|---|
 | `add_candidates_to_availability_request(p_request_id bigint, p_candidate_ids bigint[])` | `bigint` | service_role only | Ask unasked candidates of open job lines on an open AR of their supplier. |
+| `apply_candidate_offer(p_candidate_id bigint)` | `void` | service_role only | Make an answer's offered candidate Available on its AR (0121; used on submission). |
 | `answer_availability_request(p_request_id bigint, p_supplier_id bigint, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Save a supplier line answer or submit the request; locks the request. |
 | `answer_public_availability(p_token uuid, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Resolve a public token, then save/submit through the same guarded answer path. |
 | `close_order(p_order_id bigint, p_status text)` | `bigint` | service_role only | Close an order Won/Lost and update fully covered jobs. |
@@ -623,6 +643,7 @@ roles. Table results are listed below.
 | `search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank inventory matches. |
 | `search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank photo matches. |
 | `send_availability_request(p_request_id bigint)` | `bigint` | service_role only | Send a draft AR with at least one candidate: status `new`, a public link for non-Partners. |
+| `link_candidate_offer(p_candidate_id bigint, p_offered_candidate_id bigint)` | `void` | service_role only | Link a typed substitute to the candidate made for it and apply the offer (0121). |
 | `select_candidate(p_job_request_item_id bigint, p_candidate_id bigint)` | `void` | service_role only | Select one of an open line's candidates and copy it onto the line. |
 | `search_suppliers(search text DEFAULT '', category_filter text DEFAULT NULL, fuzzy_ratio real DEFAULT 0.34, sort_column text DEFAULT NULL, sort_direction text DEFAULT NULL)` | `table (projection below)` | public | Search and sort active suppliers. |
 | `submit_availability_request_note(p_request_id bigint, p_supplier_id bigint, p_note text)` | `bigint` | service_role only | Submit an AR and save its supplier-wide note (max 10,000 chars). |
@@ -648,8 +669,11 @@ JSON inputs and behavior:
   candidates of the AR's supplier on open lines of one job (the AR's job); a
   missing demand is taken from the job line.
 - `answer_availability_request.p_changes`: string-valued `status`,
-  `available_quantity`, `unit_price`, `size` and/or `note_from_supplier`; blank
-  clears a field. Status Unavailable forces quantity and price to 0. Each
+  `available_quantity`, `unit_price`, `note_from_supplier`,
+  `offered_candidate_id`, `offer_description`, `offer_unit_price`,
+  `offer_quantity` (no `size` since 0121); blank clears a field. Status
+  Unavailable forces quantity and price to 0; Unavailable with a substitute is
+  stored as `diff_size_qty_sub`, which is refused without one. Each
   answer stamps `answered_at`.
   `p_submit = true` submits the request. Public variants resolve `p_token`
   before applying the same write. Supplier-note RPCs submit and store a note
@@ -667,7 +691,7 @@ JSON inputs and behavior:
   `fulfillment_date`, `note_for_supplier`. Status advances
   `new` → `processing` → `order_ready`; Processing and Ready require a date.
   `update_partner_order_item.p_status` accepts `pending`, `available`,
-  `unavailable`, `diff_size_qty_sub`, `need_to_order`, `arriving_soon`.
+  `partial_qty`, `unavailable`, `diff_size_qty_sub`, `need_to_order`, `arriving_soon`.
   `close_order.p_status` accepts `closed_won` or `closed_lost`.
 - `record_job_workflow_event.p_event` accepts `pricing_fetched`,
   `availability_sent`, `quote_shared`, `customer_confirmed`,

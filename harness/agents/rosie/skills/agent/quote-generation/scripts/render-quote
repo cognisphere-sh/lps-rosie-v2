@@ -47,7 +47,7 @@ def money(value):
     return f"${value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
 
 
-STATUS_MARK = {"available": "✅", "unavailable": "❌", "need_to_order": "Can order",
+STATUS_MARK = {"available": "✅", "partial_qty": "Partial qty", "unavailable": "❌", "need_to_order": "Can order",
                "alternative_proposed": "Diff Sz/Qty/Sub", "arriving_soon": "Arriving soon",
                "pending": "Pending"}
 

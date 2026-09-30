@@ -22,6 +22,7 @@ import {
   availabilityRequestLinkLabel,
   arResponseLabel,
   arResponseTone,
+  hasOffer,
   isInProgressARStatus,
   isSubmittedARStatus,
 } from '@/lib/availability'
@@ -359,8 +360,8 @@ export function DemandSummary({
     <div data-demand-summary className={cn('w-full overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45', wrap && '@container')}>
       {wrap && <div className="flex w-full flex-wrap items-center justify-between border-b border-lps-hair bg-card">{totalItems}{subtotal}</div>}
       <div className={wrap
-        ? 'grid w-full grid-cols-2 gap-px bg-lps-hair @[360px]:grid-cols-3 @[660px]:grid-cols-6 [&>div]:bg-card'
-        : 'grid min-w-[940px] grid-cols-[repeat(6,minmax(max-content,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair'}>
+        ? 'grid w-full grid-cols-2 gap-px bg-lps-hair @[360px]:grid-cols-3 @[520px]:grid-cols-4 @[760px]:grid-cols-7 [&>div]:bg-card'
+        : 'grid min-w-[1040px] grid-cols-[repeat(7,minmax(max-content,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair'}>
         {ITEM_STATUS_OPTIONS.map((o) => {
           const count = counts[o.value] ?? 0
           return (
@@ -517,20 +518,28 @@ const candidatePending = (candidate: Candidate) => candidate.arId == null || can
 const candidateAwaiting = (candidate: Candidate) => candidate.arStatus === 'new' || candidate.arStatus === 'processing'
 
 /**
+ * A Diff Sz/Sub answer that names a substitute: this candidate itself is
+ * unavailable, and the substitute is the one on offer (0121).
+ */
+const shownAnswer = (candidate: Candidate) =>
+  candidate.status === 'diff_size_qty_sub' && hasOffer(candidate) ? 'unavailable' : candidate.status
+
+/**
  * No price = unanswered with no price found; Pending = priced but not sent
  * yet; AR sent = asked and unanswered; else the supplier's answer.
  */
 const candidateStatus = (candidate: Candidate) =>
   candidate.status == null && !candidate.unitPrice ? 'No price'
     : candidatePending(candidate) ? 'Pending'
-      : candidate.status == null ? 'AR sent' : arResponseLabel(candidate.status)
+      : candidate.status == null ? 'AR sent' : arResponseLabel(shownAnswer(candidate))
 
 /** Grey until the supplier answers, then the answer's tone. */
-const candidateTone = (candidate: Candidate): Tone => arResponseTone(candidate.status)
+const candidateTone = (candidate: Candidate): Tone => arResponseTone(shownAnswer(candidate))
 
 /** Everything the pill leaves out, for its hover card. */
-function candidateDetails(candidate: Candidate) {
+function candidateDetails(candidate: Candidate, siblings: Candidate[] = []) {
   const price = candidate.unitPrice ? money(candidate.unitPrice) : 'No price'
+  const offered = candidate.offeredCandidateId != null ? siblings.find((c) => c.id === candidate.offeredCandidateId) : undefined
   return [
     candidateDescription(candidate),
     `${candidate.supplierName} · ${[candidate.size, candidate.name].filter(Boolean).join(' ')}`,
@@ -539,6 +548,8 @@ function candidateDetails(candidate: Candidate) {
     candidate.noteForCustomer?.trim() && `Note for customer: ${candidate.noteForCustomer.trim()}`,
     candidate.noteFromSupplier?.trim() && `Supplier reply: ${candidate.noteFromSupplier.trim()}`,
     candidate.noteForSupplier?.trim() && `Our ask: ${candidate.noteForSupplier.trim()}`,
+    offered && `Substitute offered: ${candidateDescription(offered)}`,
+    !offered && candidate.offerDescription?.trim() && `Substitute offered: ${candidate.offerDescription.trim()} (not a candidate yet)`,
     candidate.isOriginal && 'Original request',
   ].filter(Boolean).join('\n')
 }
@@ -554,15 +565,18 @@ function CandidatePill({
   itemId,
   busy,
   onDragState,
+  siblings,
 }: {
   candidate: Candidate
   itemId: number
   busy: boolean
   onDragState: (id: number | null) => void
+  /** The line's other candidates, to name an offered substitute on hover. */
+  siblings?: Candidate[]
 }) {
   const tone = candidateTone(candidate)
   const awaiting = candidateAwaiting(candidate)
-  const details = candidateDetails(candidate)
+  const details = candidateDetails(candidate, siblings)
   return (
     <span
       draggable
@@ -685,7 +699,7 @@ function SelectedCandidateCell({
       className="mx-1 flex min-h-8 min-w-0 items-center justify-center rounded-xl"
     >
       {selected
-        ? <CandidatePill candidate={selected} itemId={item.id} busy={actions.busy === selected.id} onDragState={onDragState} />
+        ? <CandidatePill candidate={selected} itemId={item.id} busy={actions.busy === selected.id} onDragState={onDragState} siblings={candidates} />
         : <span tabIndex={0} className="w-full rounded-xl border border-dashed border-lps-edge px-2 py-1 text-center text-[10.5px] text-lps-dim">Drop a candidate</span>}
     </CandidateDrop>
   )
@@ -725,6 +739,7 @@ function CandidatesCell({
             itemId={item.id}
             busy={actions.busy === candidate.id}
             onDragState={onDragState}
+            siblings={candidates}
           />
         ))}
       </div>

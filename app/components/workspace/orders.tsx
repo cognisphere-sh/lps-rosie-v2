@@ -121,7 +121,7 @@ const orderLineStyle = (status: string): CSSProperties & { '--order-line-accent'
   return { background: toneTint(tone), borderLeft: `3px solid ${toneDot(tone)}`, '--order-line-accent': toneDot(tone) }
 }
 const itemColors: Record<string, string> = {
-  available: 'text-[#126B36] dark:text-[#79D99B]', need_to_order: 'text-[#075EA8] dark:text-[#7FC4FF]',
+  available: 'text-[#126B36] dark:text-[#79D99B]', partial_qty: 'text-[#6E5B00] dark:text-[#EBD76A]', need_to_order: 'text-[#9A4A0B] dark:text-[#F0A46A]',
   arriving_soon: 'text-[#075EA8] dark:text-[#7FC4FF]', diff_size_qty_sub: 'text-[#7252BB] dark:text-[#BC9EFF]',
   unavailable: 'text-[#A42B32] dark:text-[#FFB2B9]', pending: 'text-muted-foreground',
 }

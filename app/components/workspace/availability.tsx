@@ -20,6 +20,7 @@ import {
   arStatusTone,
   arSubtotal,
   isUnpriced,
+  type ARAlternative,
   type ARItem,
 } from '@/lib/availability'
 import { BodyModalPortal, firstModalFocusTarget, validModalFocusTarget } from '@/components/workspace/body-modal-portal'
@@ -195,7 +196,7 @@ export function ARResponseSummary({
   ]
   return (
     <div className="overflow-x-auto rounded-lg border border-lps-hair bg-secondary/45">
-      <div className="grid min-w-[800px] grid-cols-[repeat(6,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
+      <div className="grid min-w-[900px] grid-cols-[repeat(7,minmax(92px,1fr))_minmax(92px,1fr)_minmax(118px,1.15fr)] divide-x divide-lps-hair">
         {states.map((state) => (
           <div key={state.label} className={cn('flex flex-col gap-0.5 px-3 py-2', state.count === 0 && 'opacity-45')}>
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.04em] text-muted-foreground">
@@ -666,8 +667,10 @@ export function AnswerCell({
  *
  * `available` is deliberately absent: it needs nothing asked, so picking it
  * writes straight through with the demand as the available quantity (see
- * `LineRow`). Only Diff Sz/Qnty/Sub collects a size and price — what is
- * offered instead; otherwise price is corrected in the table's own Price cell.
+ * `LineRow`). Diff Sz/Sub collects the substitute — one of this line's other
+ * candidates (a tag) or a typed one — with its price and quantity; the asked
+ * line's own size and price never change. Otherwise price is corrected in the
+ * table's own Price cell.
  */
 const ANSWER_FIELDS: Record<
   string,
@@ -677,7 +680,7 @@ const ANSWER_FIELDS: Record<
     qty: boolean
     /** Nothing is available: quantity and price both go to 0. */
     zero?: boolean
-    /** Collect the size and price actually offered. */
+    /** Collect the substitute offered instead (Diff Sz/Sub). */
     offer?: boolean
     /** Which field opens focused — the first thing this answer needs. */
     focus?: 'qty' | 'notes'
@@ -697,16 +700,20 @@ const ANSWER_FIELDS: Record<
     notesLabel: 'Notes',
     notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
   },
-  diff_size_qty_sub: {
-    title: 'Diff Sz/Qnty/Sub',
-    // The answer covers a different size, a short quantity or another plant,
-    // so it is the one that still needs a number: what you can actually supply.
+  partial_qty: {
+    title: 'Partial Qty',
+    // The asked plant and size, just fewer of them: how many is the answer.
     qty: true,
+    focus: 'qty',
+    notesLabel: 'Notes (optional)',
+    notesHint: 'e.g. rest ready in 3 weeks',
+  },
+  diff_size_qty_sub: {
+    title: 'Diff Sz/Sub',
+    qty: false,
     offer: true,
-    // Naming what you have comes first; the quantity follows it.
-    focus: 'notes',
-    notesLabel: 'What instead',
-    notesHint: 'Size, quantity or substitute — e.g. Muskogee Crape Myrtle, 30 G',
+    notesLabel: 'Note',
+    notesHint: 'e.g. 5 G NA, 3 G only',
   },
   unavailable: {
     title: 'Unavailable',
@@ -718,10 +725,10 @@ const ANSWER_FIELDS: Record<
 }
 
 /**
- * Collect notes and any supply quantity (and, for Diff Sz/Qnty/Sub, the size
- * and price offered) for a status answer. Unavailable sets quantity and price
- * to 0, first asking whether the supplier wants to recommend a substitute;
- * only Yes opens the notes step.
+ * Collect notes and any supply quantity (and, for Diff Sz/Sub, the substitute
+ * with its price and quantity) for a status answer. Unavailable sets quantity
+ * and price to 0, first asking whether the supplier wants to recommend a
+ * substitute; Yes opens the substitute picker and saves as Diff Sz/Sub.
  */
 function StatusAnswerDialog({
   item,
@@ -747,10 +754,28 @@ function StatusAnswerDialog({
         ? String(item.demandedQuantity)
         : '',
   )
-  const [size, setSize] = useState(item.size ?? '')
-  const [price, setPrice] = useState(item.unitPrice ? String(item.unitPrice) : '')
+  const alternatives = item.alternatives ?? []
   const [askingSubstitute, setAskingSubstitute] = useState(status === 'unavailable')
+  // Diff Sz/Sub, or Unavailable once the supplier says Yes to recommending one.
+  const [substituting, setSubstituting] = useState(!!spec.offer)
+  const [offerId, setOfferId] = useState<number | null>(item.offeredCandidateId ?? null)
+  const [typing, setTyping] = useState(!!item.offerDescription || !alternatives.length)
+  const [offerText, setOfferText] = useState(item.offerDescription ?? '')
+  const [price, setPrice] = useState(item.offerUnitPrice != null ? String(item.offerUnitPrice) : '')
+  const [offerQty, setOfferQty] = useState(
+    item.offerQuantity != null ? String(item.offerQuantity) : item.demandedQuantity != null ? String(item.demandedQuantity) : '',
+  )
   const [notes, setNotes] = useState(item.noteFromSupplier ?? '')
+  const hasSubstitute = offerId != null || (typing && !!offerText.trim())
+
+  // A tag fills the price and a customer-ready note; both stay editable.
+  const pickTag = (alt: ARAlternative) => {
+    setOfferId(alt.id)
+    setTyping(false)
+    setPrice(alt.unitPrice != null ? String(alt.unitPrice) : '')
+    const asked = item.size || item.name
+    setNotes(`${asked} NA, ${alt.description} only`)
+  }
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
   const titleId = useId()
   const dialog = useRef<HTMLDivElement>(null)
@@ -772,11 +797,23 @@ function StatusAnswerDialog({
   }, [])
 
   const save = () => {
+    if (substituting) {
+      if (!hasSubstitute) return
+      // The database stores any answer with a substitute as Diff Sz/Sub.
+      onSave({
+        status: 'diff_size_qty_sub',
+        note_from_supplier: notes.trim(),
+        offered_candidate_id: offerId != null ? String(offerId) : '',
+        offer_description: offerId != null ? '' : offerText.trim(),
+        offer_unit_price: price.trim(),
+        offer_quantity: offerQty.trim(),
+      })
+      return
+    }
     const changes: Record<string, string> = { status, note_from_supplier: notes.trim() }
-    // An emptied box on a Diff Sz/Qnty/Sub answer clears that column.
     if (spec.qty) changes.available_quantity = qty.trim()
-    if (spec.offer) Object.assign(changes, { size: size.trim(), unit_price: price.trim() })
-    if (spec.zero) Object.assign(changes, { available_quantity: '0', unit_price: '0' })
+    // Unavailable with no substitute: drop any earlier one too.
+    if (spec.zero) Object.assign(changes, { available_quantity: '0', unit_price: '0', offered_candidate_id: '', offer_description: '' })
     onSave(changes)
   }
 
@@ -826,7 +863,7 @@ function StatusAnswerDialog({
         className="flex max-h-full w-full max-w-[420px] flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-popover p-4 shadow-[var(--lps-shadow)]"
       >
         <div className="flex flex-col gap-0.5">
-          <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{spec.title}</span>
+          <span id={drawerModal ? titleId : undefined} className="text-[14px] font-bold text-foreground">{substituting && !spec.offer ? 'Unavailable · recommend a substitute' : spec.title}</span>
           <span className="text-[12px] text-muted-foreground [overflow-wrap:anywhere]">
             {num(item.demandedQuantity) || '—'} × {item.name}
             {item.size ? ` · ${item.size}` : ''}
@@ -839,7 +876,7 @@ function StatusAnswerDialog({
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => onSave({ status, available_quantity: '0', unit_price: '0' })}
+                onClick={() => onSave({ status, available_quantity: '0', unit_price: '0', offered_candidate_id: '', offer_description: '' })}
                 className={cn(
                   'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
                   drawerModal && 'max-[899px]:min-h-11',
@@ -850,7 +887,7 @@ function StatusAnswerDialog({
               <button
                 type="button"
                 autoFocus
-                onClick={() => setAskingSubstitute(false)}
+                onClick={() => { setAskingSubstitute(false); setSubstituting(true) }}
                 className={cn(
                   'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
                   drawerModal && 'max-[899px]:min-h-11',
@@ -862,23 +899,71 @@ function StatusAnswerDialog({
           </>
         ) : (
           <>
-            {spec.offer && (
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex flex-col gap-0.5">
-                  <span className={label}>Size you have</span>
-                  <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="e.g. 5 G" className={field} />
-                </label>
-                <label className="flex flex-col gap-0.5">
-                  <span className={label}>Price $/unit</span>
-                  <input
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    inputMode="decimal"
-                    placeholder="$/unit"
-                    className={cn(field, 'text-right tabular-nums')}
-                  />
-                </label>
-              </div>
+            {substituting && (
+              <>
+                <div role="group" aria-label="Substitute" className="flex flex-col gap-1">
+                  <span className={label}>What can you supply instead?</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {alternatives.map((alt) => (
+                      <button
+                        key={alt.id}
+                        type="button"
+                        aria-pressed={offerId === alt.id}
+                        onClick={() => pickTag(alt)}
+                        className={cn(
+                          'cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-semibold',
+                          offerId === alt.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-foreground',
+                          drawerModal && 'max-[899px]:min-h-11',
+                        )}
+                      >
+                        {alt.description}{alt.unitPrice != null ? ` · ${money(alt.unitPrice)}` : ''}
+                      </button>
+                    ))}
+                    {alternatives.length > 0 && (
+                      <button
+                        type="button"
+                        aria-pressed={typing}
+                        onClick={() => { setOfferId(null); setTyping(true) }}
+                        className={cn(
+                          'cursor-pointer rounded-full border border-dashed px-2.5 py-1 text-[12px] font-semibold',
+                          typing ? 'border-primary text-foreground' : 'border-border text-muted-foreground',
+                          drawerModal && 'max-[899px]:min-h-11',
+                        )}
+                      >
+                        Something else
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {typing && (
+                  <label className="flex flex-col gap-0.5">
+                    <span className={label}>Plant and size</span>
+                    <input value={offerText} onChange={(e) => setOfferText(e.target.value)} placeholder="e.g. Muskogee Crape Myrtle, 30 G" autoFocus className={field} />
+                  </label>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-0.5">
+                    <span className={label}>Price $/unit</span>
+                    <input
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="$/unit"
+                      className={cn(field, 'text-right tabular-nums')}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5">
+                    <span className={label}>Quantity</span>
+                    <input
+                      value={offerQty}
+                      onChange={(e) => setOfferQty(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="Qty"
+                      className={cn(field, 'text-right tabular-nums')}
+                    />
+                  </label>
+                </div>
+              </>
             )}
             {spec.qty && (
               <label className="flex flex-col gap-0.5">
@@ -901,7 +986,7 @@ function StatusAnswerDialog({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder={spec.notesHint}
                 rows={2}
-                autoFocus={spec.focus === 'notes' || !spec.qty}
+                autoFocus={!substituting && (spec.focus === 'notes' || !spec.qty)}
                 className={cn(
                   'min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring',
                   drawerModal && 'max-[899px]:text-base',
@@ -923,8 +1008,9 @@ function StatusAnswerDialog({
               <button
                 type="button"
                 onClick={save}
+                disabled={substituting && !hasSubstitute}
                 className={cn(
-                  'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
+                  'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50',
                   drawerModal && 'max-[899px]:min-h-11',
                 )}
               >

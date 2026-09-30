@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 8.1.0 — 2026-09-30
+
+- AR scope (Bhoumik 2026-09-30): pricing's missing-price and several-sizes notes now point to the selected candidate, else the original ask (rule owned by `supplier-coordination`).
+
+## 8.0.0 — 2026-09-30
+
+- Candidate offers and Partial Qty (migration 0121, Bhoumik 2026-09-30): a candidate is one fixed plant and size. A supplier's substitute is recorded on the asked candidate (`offered_candidate_id` tag or typed `offer_description`); the asked one shows Unavailable and the substitute becomes Available (Partial Qty if short) on submission. Job line status is computed: original's answer, `partial_qty` new, and Diff Sz/Sub for any other selected candidate or a substitute on offer (keeps Chris's JR-90 line rule; the offered candidate is now Available, replacing 7.5.0's Diff-on-candidate). Typed substitutes: Rosie creates the candidate and runs `link_candidate_offer`. Clear conflicting notes are corrected without asking (JR-90); Chris is asked only to select, to use a price-list price, or for unclear notes. `size` is no longer an answer key.
+
 ## 7.5.0 — 2026-09-29
 
 - Chris's JR-90 correction (12:03 CDT): the differing **candidate itself** must be Diff Sz/Qnty/Sub, not Available, because it is not the customer's original request; the line also shows Diff. Replaced the v7.2–7.4 Available-candidate interpretation, preserving confirmed quantities and Chris's selection.

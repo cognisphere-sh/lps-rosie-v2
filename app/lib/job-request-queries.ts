@@ -223,7 +223,7 @@ async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candi
   for (let start = 0; start < jobItemIds.length; start += 100) {
     const { data, error } = await supabase
       .from('candidates')
-      .select('id, job_request_item_id, supplier_id, name, size, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, note_for_customer, description, is_original, availability_request_id, availability_requests(is_active, status), suppliers!inner(name)')
+      .select('id, job_request_item_id, supplier_id, name, size, status, available_quantity, unit_price, note_for_supplier, note_from_supplier, note_for_customer, description, is_original, availability_request_id, offered_candidate_id, offer_description, availability_requests(is_active, status), suppliers!inner(name)')
       .in('job_request_item_id', jobItemIds.slice(start, start + 100))
       .eq('is_active', true)
       .order('id', { ascending: true })
@@ -243,6 +243,8 @@ async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candi
       description: string | null
       is_original: boolean
       availability_request_id: number | null
+      offered_candidate_id: number | null
+      offer_description: string | null
       availability_requests: { is_active: boolean; status: string } | null
       suppliers: { name: string }
     }[]) {
@@ -264,6 +266,8 @@ async function candidatesByItem(jobItemIds: number[]): Promise<Map<number, Candi
         noteForSupplier: row.note_for_supplier,
         noteFromSupplier: row.note_from_supplier,
         noteForCustomer: row.note_for_customer,
+        offeredCandidateId: row.offered_candidate_id,
+        offerDescription: row.offer_description,
       }])
     }
   }

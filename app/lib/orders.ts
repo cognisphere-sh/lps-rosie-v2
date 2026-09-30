@@ -16,8 +16,8 @@ export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: Tone 
   closed_lost: { label: 'Closed Lost', tone: 'red' },
 }
 export const ORDER_ITEM_STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending', available: 'Available', unavailable: 'Unavailable',
-  diff_size_qty_sub: 'Diff Sz/Qnty/Sub', need_to_order: 'Need to Order', arriving_soon: 'Arriving Soon',
+  pending: 'Pending', available: 'Available', partial_qty: 'Partial Qty', unavailable: 'Unavailable',
+  diff_size_qty_sub: 'Diff Sz/Sub', need_to_order: 'Need to Order', arriving_soon: 'Arriving Soon',
 }
 
 export interface OrderAllocation {
@@ -87,7 +87,7 @@ export interface PartnerOrderUpdate {
   noteForSupplier?: string | null
 }
 
-export const ORDER_ITEM_STATUSES = ['pending', 'available', 'unavailable', 'diff_size_qty_sub', 'need_to_order', 'arriving_soon'] as const
+export const ORDER_ITEM_STATUSES = ['pending', 'available', 'partial_qty', 'unavailable', 'diff_size_qty_sub', 'need_to_order', 'arriving_soon'] as const
 export type OrderItemStatus = (typeof ORDER_ITEM_STATUSES)[number]
 
 export function parseOrderItemUpdate(value: unknown): { status: OrderItemStatus } {

@@ -26,6 +26,7 @@ export const isActiveJobStatus = (status: string): status is (typeof ACTIVE_JOB_
  */
 export const ITEM_STATUSES = [
   'available',
+  'partial_qty',
   'unavailable',
   'alternative_proposed',
   'need_to_order',
@@ -35,10 +36,10 @@ export const ITEM_STATUSES = [
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
 
 /**
- * The six colour tones the design defines. A tone is not a status: `partial` is
- * derived from availability (see `itemTone`), and two statuses can share one.
+ * The colour tones the design defines. A tone is not a status: an Available
+ * line short of demand is tinted like Partial Qty (see `itemPill`).
  */
-export type Tone = 'green' | 'lime' | 'grey' | 'amber' | 'red' | 'teal'
+export type Tone = 'green' | 'lime' | 'grey' | 'amber' | 'red' | 'teal' | 'yellow' | 'orange'
 
 /** Inline styles rather than classes: Tailwind cannot see a runtime tone name. */
 export function toneStyle(tone: Tone) {
@@ -70,9 +71,10 @@ export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: T
 export const ITEM_STATUS_META: Record<ItemStatus, { label: string; tone: Tone }> = {
   pending: { label: 'Pending', tone: 'grey' },
   available: { label: 'Available', tone: 'green' },
-  alternative_proposed: { label: 'Diff Sz/Qnty/Sub', tone: 'teal' },
+  partial_qty: { label: 'Partial Qty', tone: 'yellow' },
+  alternative_proposed: { label: 'Diff Sz/Sub', tone: 'teal' },
   unavailable: { label: 'Unavailable', tone: 'red' },
-  need_to_order: { label: 'Can Order', tone: 'amber' },
+  need_to_order: { label: 'Can Order', tone: 'orange' },
   arriving_soon: { label: 'Arriving Soon', tone: 'lime' },
 }
 
@@ -114,7 +116,7 @@ export function itemPill(
 ): { label: string; tone: Tone } {
   const meta = ITEM_STATUS_META[status as ItemStatus] ?? { label: status, tone: 'grey' as Tone }
   if (status === 'available' && coverOf(quantity, available) === 'partial') {
-    return { label: meta.label, tone: 'lime' }
+    return { label: meta.label, tone: 'yellow' }
   }
   return meta
 }

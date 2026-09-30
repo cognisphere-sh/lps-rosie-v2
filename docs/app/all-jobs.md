@@ -49,8 +49,11 @@ resizes by dragging the divider at its header's right edge.
   **description** (what the candidate is, e.g. `5 G Shumard Oak`;
   `candidates.description`, else size and name) and its price or **No
   price**; the line's original request has a dot on its left. Its colour is
-  the supplier's answer (Available, Unavailable, Can Order, Arriving Soon,
-  Diff Sz/Qnty/Sub) and grey until there is one — No price reads from the
+  the supplier's answer (Available green, Partial Qty yellow, Unavailable red,
+  Can Order orange, Arriving Soon, Diff Sz/Sub) and grey until there is one;
+  an asked candidate whose supplier offered a substitute reads Unavailable,
+  and its hover names the substitute (the substitute itself reads Available)
+  — No price reads from the
   price cell, not the pill. Its border is solid until the candidate's AR is
   sent (on no AR or an unsent draft), dotted while the AR is out with the
   supplier (New or Processing — answers they save recolour the pill, the

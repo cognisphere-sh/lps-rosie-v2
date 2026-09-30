@@ -43,7 +43,9 @@ export async function GET(
 
 /**
  * One line's answer — body `{ itemId, changes: { status?, available_quantity?,
- * unit_price?, size?, note_from_supplier? } }`; the ask columns are not writable from here.
+ * unit_price?, note_from_supplier?, offered_candidate_id?, offer_description?,
+ * offer_unit_price?, offer_quantity? } }` (validated by the answer RPC); the ask
+ * columns are not writable from here.
  *
  * Or one line's catalogue mapping — body `{ itemId, mappedInventoryId }`,
  * which is what the By-item view's drag writes. It goes through

@@ -99,6 +99,12 @@
   --lps-tone-amber-bg: #FBF3DF;
   --lps-tone-amber-fg: #8A5A00;
   --lps-tone-amber-dot: #D99A2B;
+  --lps-tone-yellow-bg: #FBF6D2;
+  --lps-tone-yellow-fg: #6E5B00;
+  --lps-tone-yellow-dot: #E3C21A;
+  --lps-tone-orange-bg: #FDEBDD;
+  --lps-tone-orange-fg: #9A4A0B;
+  --lps-tone-orange-dot: #EA7A28;
   --lps-tone-red-bg: #FAEAE5;
   --lps-tone-red-fg: #B3391F;
   --lps-tone-red-dot: #C24C2E;
@@ -207,6 +213,12 @@
   --lps-tone-amber-bg: #2A2214;
   --lps-tone-amber-fg: #E0B461;
   --lps-tone-amber-dot: #D99A2B;
+  --lps-tone-yellow-bg: #2B2812;
+  --lps-tone-yellow-fg: #EBD76A;
+  --lps-tone-yellow-dot: #E3C21A;
+  --lps-tone-orange-bg: #2E1D12;
+  --lps-tone-orange-fg: #F0A46A;
+  --lps-tone-orange-dot: #EA7A28;
   --lps-tone-red-bg: #331C16;
   --lps-tone-red-fg: #E9A18C;
   --lps-tone-red-dot: #C24C2E;

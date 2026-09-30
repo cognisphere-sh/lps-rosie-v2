@@ -31,7 +31,7 @@ export function normalizeStoredRequestStatusLabels(
   const allowed = new Set(options.map((option) => option.label))
   const normalized: string[] = []
   const legacy: Record<string, string[]> = {
-    Substituted: ['Diff Sz/Qnty/Sub'], 'Different Sz/Qnty/Sub': ['Diff Sz/Qnty/Sub'],
+    Substituted: ['Diff Sz/Sub'], 'Different Sz/Qnty/Sub': ['Diff Sz/Sub'], 'Diff Sz/Qnty/Sub': ['Diff Sz/Sub'],
     'Need to Order': ['Can Order'],
     Active: ['Quote'], Sourcing: ['Quote'], New: ['Quote'],
     Confirmed: ['Committed'],

@@ -28,17 +28,20 @@ line. It is not an order.
 
 ## What to ask for
 
-- **The original-ask candidate of every active job line**, including plants
-  not on the price list, unless Chris picks candidates.
-- **The original plant and size the customer asked for**, not the listing
-  used for pricing and not the nearest listed size. The price list only shows
-  what APS usually carries; it doesn't prove stock either way. A missing
-  original-ask candidate → have the job thread add it first.
-- Customer allowed options (`15 G or 30 G`): ask for the selected option's
-  candidate (else the first), and put the other in its `note_for_supplier`
-  (`30 G acceptable`).
-- An alternative candidate is asked about only after Chris approved asking
-  about that alternative (quote approval isn't enough).
+- **One candidate per active job line: the selected one**
+  (`selected_candidate_id`), whatever it is. **None selected → the
+  original-ask candidate** (`is_original`), including plants not on the price
+  list, unless Chris picks candidates. Example: line selected `3 G
+  Elaeagnus` → ask 3 G; nothing selected → ask the 5 G the customer asked for.
+- Unselected lines ask the original plant and size, not the listing used for
+  pricing and not the nearest listed size. The price list only shows what APS
+  usually carries; it doesn't prove stock either way. A missing original-ask
+  candidate → have the job thread add it first.
+- Customer allowed options (`15 G or 30 G`): the rule above picks the
+  candidate; put the other option in its `note_for_supplier` (`30 G
+  acceptable`).
+- Any other (unselected) alternative is asked about only after Chris approved
+  asking about that alternative (quote approval isn't enough).
 - Chris asks a supplier in the app by dropping a candidate on that
   supplier's tablet in the job header: the app adds it
   (`add_candidates_to_availability_request`) to the supplier's newest
