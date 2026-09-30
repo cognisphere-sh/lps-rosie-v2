@@ -48,10 +48,14 @@ resizes by dragging the divider at its header's right edge.
   names are shown on hover only, for now). A pill shows only its
   **description** (what the candidate is, e.g. `5 G Shumard Oak`;
   `candidates.description`, else size and name) and its price or **No
-  price**. Its colour is
-  its status: **No price** (unanswered, no price found) is dotted grey;
-  **Pending** (priced, on no AR or only an unsent draft) is grey; **AR sent**
-  (unanswered) is the AR's New amber; an answer takes its answer colour. Hovering shows the rest: supplier, plant name and size, price,
+  price**; the line's original request has a dot on its left. Its colour is
+  the supplier's answer (Available, Unavailable, Can Order, Arriving Soon,
+  Diff Sz/Qnty/Sub) and grey until there is one — No price reads from the
+  price cell, not the pill. Its border is solid until the candidate's AR is
+  sent (on no AR or an unsent draft), dotted while the AR is out with the
+  supplier (New or Processing — answers they save recolour the pill, the
+  border stays dotted), and solid again once they submit (or it is closed).
+  Hovering shows the rest: supplier, plant name and size, price,
   status and AR, the customer note (e.g. `5 G NA, 3 G only`), notes for/from
   the supplier, original request. The Selected column shows the same pill.
 - **Selected** column: drop a pill here to select it, replacing any current
@@ -65,21 +69,15 @@ resizes by dragging the divider at its header's right edge.
 - While a pill is dragged a **Bin** appears in its line's Candidates cell;
   dropping deletes the candidate (soft), removes it from its AR, and unselects
   it without changing the line.
-- **Availability requests** strip above the table: a tablet per open AR of the
-  job — supplier, AR reference and status, coloured by status. Drop a pill of
-  the same supplier on a tablet to add it to that AR. New ARs are **Drafts**
-  (migration 0120): the supplier sees nothing until **Send** on the tablet;
-  non-Partner suppliers then get a public link, which still has to be
-  delivered. **Create AR** opens a dialog: supplier (APS by default), quick
-  picks — **All candidates**, **Selected candidates**, **Original demand**
-  (the line's original-request candidate for that supplier, created where
-  missing and priced from the catalogue, 0 when not found) — per-line
-  checkboxes, and whether to share customer details. It creates a draft tablet.
+- **Asking a supplier**: drop a pill on its supplier's tablet in the job
+  header (the supplier with its AR chips). It joins that supplier's newest AR
+  for the job that is not closed; a submitted one reopens as New. Only that
+  supplier's pills are accepted, and a supplier with only closed ARs says so.
+  New ARs start as **Drafts** (migration 0120), invisible to the supplier until
+  Rosie sends them on Chris's approval; the app has no Send or Create AR button.
 - Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
-  `{ action: 'select' }` or `{ action: 'add', arId }`, and `DELETE` for the bin;
-  `POST /api/requests/:id/availability-requests` (Create AR draft) and
-  `POST /api/availability-requests/:id/send`. Drag and drop is native HTML5,
-  so it needs a mouse or trackpad.
+  `{ action: 'select' }` or `{ action: 'add', arId }`, and `DELETE` for the bin.
+  Drag and drop is native HTML5, so it needs a mouse or trackpad.
 
 The All Jobs **Send availability request** dialog asks each chosen line's
 original request (as above) and sends right away. Lines from several jobs

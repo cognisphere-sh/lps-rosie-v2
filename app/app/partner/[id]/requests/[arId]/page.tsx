@@ -116,7 +116,8 @@ export default function PartnerRequestPage() {
         throw new Error(body.error ?? 'Could not submit')
       }
       await load()
-    } catch (error) { setError((error as Error).message) }
+      return true
+    } catch (error) { setError((error as Error).message); return false }
     finally { setSaving(false) }
   }, [supplierId, arId, load])
 

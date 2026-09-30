@@ -25,7 +25,9 @@ USAGE
   scripts/webchat/webchat-cli --self-check
 
 FLAGS
-  --questions-file    JSON object: {title, questions:[{question, options:[...]}]}
+  --questions-file    JSON object: {title, questions:[{question, options:[...], multiSelect?}]}
+                      multiSelect: true = checkboxes; the answer lists every
+                      ticked choice (and any free text) joined by "; ".
   --text <text>       the reply body (markdown)
   --file <path>       attach a file, relative to the agent dir; repeatable
   --thread-id <id>    which thread's web transcript the reply lands in.

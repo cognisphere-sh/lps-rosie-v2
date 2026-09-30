@@ -108,3 +108,27 @@ test('Previous preserves answers and selecting the same answer advances again', 
   fireEvent.click(ui.getByRole('button', { name: 'Driveway' }))
   assert.ok(ui.getByText('Driveway'))
 })
+
+test('multi-select questions tick several choices plus free text and answer them joined', async () => {
+  const sizes = { ...value, questions: [{ question: 'Which sizes do you have?', options: ['3 G', '5 G', '7 G'], multiSelect: true as const }] }
+  assert.deepEqual(parseQuestionnaire(encodeQuestionnaire(sizes)), sizes)
+  assert.equal('multiSelect' in validateQuestions({ ...value, questions: [{ question: 'Q', options: ['A'], multiSelect: false }] }).questions[0], false)
+  assert.throws(() => validateQuestions({ ...value, questions: [{ question: 'Q', options: ['A'], multiSelect: 'yes' }] }))
+  const sends: string[] = []
+  const ui = render(<ChatQuestionnaire value={sizes} submitted={false} onSubmit={async text => { sends.push(text); return true }} />)
+  assert.ok(ui.getByText('Select all that apply'))
+  const save = () => ui.getByRole('button', { name: 'Save answer' }) as HTMLButtonElement
+  assert.equal(save().disabled, true)
+  fireEvent.click(ui.getByRole('checkbox', { name: '7 G' }))
+  fireEvent.click(ui.getByRole('checkbox', { name: '3 G' }))
+  fireEvent.click(ui.getByRole('checkbox', { name: '5 G' }))
+  fireEvent.click(ui.getByRole('checkbox', { name: '5 G' }))
+  assert.equal(ui.getByRole('checkbox', { name: '3 G' }).getAttribute('aria-checked'), 'true')
+  assert.equal(ui.getByRole('checkbox', { name: '5 G' }).getAttribute('aria-checked'), 'false')
+  await userEvent.setup({ document: dom.window.document }).type(ui.getByLabelText('Something else'), '15 G next week')
+  assert.equal(ui.getByRole('checkbox', { name: '7 G' }).getAttribute('aria-checked'), 'true')
+  fireEvent.click(save())
+  assert.ok(ui.getByText('3 G; 7 G; 15 G next week'))
+  fireEvent.click(ui.getByRole('button', { name: 'Submit answers' }))
+  assert.deepEqual(sends, [questionnaireAnswers(sizes, ['3 G; 7 G; 15 G next week'])])
+})

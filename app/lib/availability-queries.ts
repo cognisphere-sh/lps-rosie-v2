@@ -408,41 +408,6 @@ export async function createAvailabilityRequest(input: {
   return arId
 }
 
-/**
- * The job card's Create AR: a draft for one supplier holding the chosen
- * candidates plus the original request of `originalItemIds` (created where
- * missing). Nothing reaches the supplier until `sendAvailabilityRequest`.
- */
-export async function createDraftAvailabilityRequest(jobRequestId: number, input: {
-  supplierId: number
-  candidateIds: number[]
-  originalItemIds: number[]
-  shareCustomerDetails: boolean
-}): Promise<number> {
-  await activeSupplier(input.supplierId)
-  const candidateIds = [...new Set(input.candidateIds)]
-  const originalItemIds = [...new Set(input.originalItemIds)]
-  if (!candidateIds.length && !originalItemIds.length) throw new Error('Choose at least one candidate')
-  if (candidateIds.length) {
-    const { data, error } = await supabase.from('candidates')
-      .select('id, job_request_items!candidates_job_request_item_id_fkey!inner(job_request_id)')
-      .in('id', candidateIds).eq('job_request_items.job_request_id', jobRequestId).eq('is_active', true)
-    if (error) throw new Error(`candidates: ${error.message}`)
-    if ((data ?? []).length !== candidateIds.length) throw new Error('Every candidate must belong to this job')
-  }
-  let originals: { ids: number[]; insertedIds: number[] } = { ids: [], insertedIds: [] }
-  if (originalItemIds.length) {
-    const { data: items, error } = await supabase.from('job_request_items')
-      .select('id, job_request_id, name, size, demanded_quantity')
-      .in('id', originalItemIds).eq('job_request_id', jobRequestId).eq('is_active', true)
-    if (error) throw new Error(`job_request_items: ${error.message}`)
-    if ((items ?? []).length !== originalItemIds.length) throw new Error('Every line must belong to this job')
-    originals = await originalCandidates(input.supplierId, items as OriginalLine[])
-  }
-  return createDraft(input.supplierId, [...new Set([...candidateIds, ...originals.ids])],
-    originals.insertedIds, input.shareCustomerDetails)
-}
-
 /** Send a draft AR: the supplier sees it from now on (non-Partners get a public link). */
 export async function sendAvailabilityRequest(arId: number): Promise<void> {
   const { error } = await supabase.rpc('send_availability_request', { p_request_id: arId })
@@ -747,12 +712,12 @@ export async function supplierLinksByRequest(
   if (!supplierIds.length) return {}
   const { data: sups, error: supErr } = await supabase
     .from('suppliers')
-    .select('id, name, short_name, is_lps_partner, rosie_thread_id')
+    .select('id, name, is_lps_partner, rosie_thread_id')
     .in('id', supplierIds)
   if (supErr) throw new Error(`suppliers: ${supErr.message}`)
   const meta = new Map(
     (
-      (sups ?? []) as { id: number; name: string; short_name: string | null; is_lps_partner: boolean; rosie_thread_id: string | null }[]
+      (sups ?? []) as { id: number; name: string; is_lps_partner: boolean; rosie_thread_id: string | null }[]
     ).map((s) => [s.id, s]),
   )
 
@@ -765,7 +730,6 @@ export async function supplierLinksByRequest(
           ? {
               supplierId,
               name: s.name,
-              shortName: s.short_name,
               lpsPartner: s.is_lps_partner,
               availabilityRequests,
               rosieThreadId: s.rosie_thread_id,

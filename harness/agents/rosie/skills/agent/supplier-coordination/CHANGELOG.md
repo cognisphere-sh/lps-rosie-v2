@@ -1,11 +1,16 @@
 # supplier-coordination — changelog
 
+## 5.1.0 — 2026-09-29
+
+- Conflicting or incomplete answers (Bhoumik 2026-09-29): relays flag an answer whose status, size or quantity disagrees with its note, with the note's reading; the job thread settles it with Chris, and a Chris-approved correction is the one exception to "never rewrite supplier answers".
+- Quick questions (Bhoumik 2026-09-29): new `questions` artifact — partner suppliers get clarifying questions as a webchat MCQ questionnaire in their portal chat (`webchat-cli ask --portal`), their answers are transcribed like any portal answer; `multiSelect` questions take several choices (checkboxes); non-partners get the same questions in an approved email.
+
 ## 5.0.0 — 2026-09-29
 
 - Candidates (migration 0119): AR lines are candidates. `create_availability_request($supplierId, candidate ids[], ...)` and `add_candidates_to_availability_request` replace the JSON line/allocation payload; the app's drag onto an AR runs `request_candidate_availability`. Candidates carry `note_for_supplier` (LPS ask) and `note_from_supplier` (reply); transcription writes `size`/`note_from_supplier`, and `unavailable` zeroes quantity and price. Relays match lines through `candidates.job_request_item_id`; the database copies selected candidates' answers onto job lines.
 - No questions about substitutes or alternatives (Bhoumik 2026-09-29): customer-allowed options are candidates on one line and are not sent back to the job thread to resolve.
 - One AR per job (Bhoumik 2026-09-29): never combine jobs in an AR; `create_availability_request` takes one job's candidates; submissions relay to the AR's job; partner ARs record `availability_sent` when sent.
-- Draft ARs (migration 0120): ARs start as `draft` (invisible to the supplier); `send_availability_request` makes them `new` and gives non-partners their public link. Rosie creates and sends only with Chris's yes, or leaves a draft for him to send from the app. Candidates carry a required `description` (what it is) separate from `note_for_customer`.
+- Draft ARs (migration 0120): ARs start as `draft` (invisible to the supplier); `send_availability_request` makes them `new` and gives non-partners their public link. Only Rosie sends (the app has no Create AR or Send button): she creates the draft with the candidates Chris chose and sends it once he approves, or when he asks her to send an existing draft. Chris asks a supplier by dropping a candidate on its tablet in the job header (newest non-closed AR for the job; a submitted one reopens as New). Candidates carry a required `description` (what it is) separate from `note_for_customer`.
 - Notes by audience (Bhoumik 2026-09-29): a candidate's `note_for_supplier` carries the customer requirements (from `note_internal`) that matter to the supplier.
 
 ## 4.0.0 — 2026-09-28

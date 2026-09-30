@@ -1,5 +1,25 @@
 # job-requests — changelog
 
+## 7.5.0 — 2026-09-29
+
+- Chris's JR-90 correction (12:03 CDT): the differing **candidate itself** must be Diff Sz/Qnty/Sub, not Available, because it is not the customer's original request; the line also shows Diff. Replaced the v7.2–7.4 Available-candidate interpretation, preserving confirmed quantities and Chris's selection.
+
+## 7.4.0 — 2026-09-29
+
+- Chris's JR-90 follow-up (11:57 CDT): show Diff Size/Qty on a line such as Nolina when a supplier confirms a different offered plant/size, even while the offered candidate remains unselected; no automatic selection or price/quantity change.
+
+## 7.3.0 — 2026-09-29
+
+- Chris's JR-90 feedback (11:56 CDT): a selected offer differing from the originally requested plant/size/quantity must show Diff Size/Qty on the job line, even when the offered candidate is supplier-confirmed Available. Added a guarded status step after selection/refresh; candidates keep their own supplier-confirmed availability.
+
+## 7.2.0 — 2026-09-29
+
+- Chris's JR-90 feedback (11:53 CDT): when a submitted supplier answer confirms another candidate's plant/size and quantity, mark that offered candidate Available immediately, even if not directly asked on the AR. Reapply it to the job line if already selected; do not automatically select alternatives. Updated intake's no-seeded-status rule and supplier-response procedure.
+
+## 7.1.0 — 2026-09-29
+
+- Conflicting or incomplete supplier answers (Bhoumik 2026-09-29): the supplier's note is the source of truth. Rosie reads the note's answer (e.g. marked Available, note "only 3 G" → Diff Sz/Qnty/Sub at 3 G), looks up the price-list price for the note's exact size, and settles it with Chris in one MCQ; on his yes she corrects the candidate's answer and re-submits the AR so the line follows. Unsettled points → she offers to send the supplier quick questions. Note-only size offers now get the price-list price after Chris's yes instead of staying at 0. When the note names a plant/size that is already a candidate of that supplier on the line, the fix is to select that candidate and mark the answered one Unavailable (Bhoumik 2026-09-29).
+
 ## 7.0.0 — 2026-09-29
 
 - Candidates (migration 0119, Bhoumik): price lists are indicative only, so intake creates candidates for every line: always the original ask (price 0 = price not found; a selecting line stays blank, never 0). Derived candidate status: Pending, AR sent, then the answer plus listed alternatives with a short substitute `note_for_customer` (`3 G NA, only 5 G`). APS unless Chris names another supplier. Rosie selects only the exact match (`select_candidate`); Chris drags the rest. Prices live on candidates; several requested sizes are candidates too.
@@ -7,7 +27,7 @@
 - Supplier submissions: the database re-applies changed selected candidates to open job lines, replacing the JR-72/JR-78 hand-update instruction; Rosie alerts Chris and reports unselected answers. `delete_candidate` for the bin. `create_order` takes `candidate_id`.
 - No questions about substitutes or alternatives (Bhoumik 2026-09-29): other sizes, variants, aliases, other plants and several requested sizes are recorded as candidates and Chris drags one; the "ask Chris once" variant-price question, `— OK?` customer notes and substitute open points in `note_internal` are gone. Non-substitute questions (quantity, customer, EDD, AR approval) stay.
 - One AR per job (Bhoumik 2026-09-29): `availability_requests.job_request_id` replaces `availability_request_jobs`; no shared ARs in orders/lifecycle/notes.
-- Migration 0120: every candidate gets a required `description` (what it is, for Chris: `5 G Shumard Oak`), distinct from its customer-facing `note_for_customer` (`5 G NA, 3 G only`); the original request is `is_original`. ARs start as drafts (`availability_sent` fires when a partner AR is sent). Rosie still asks when in doubt about the customer, delivery vs pickup, dates or a demanded row; only substitute/alternative choices go unasked.
+- Migration 0120: every candidate gets a required `description` (what it is, for Chris: `5 G Shumard Oak`), distinct from its customer-facing `note_for_customer` (`5 G NA, 3 G only`); the original request is `is_original`. ARs start as drafts that only Rosie sends, after Chris approves (`availability_sent` fires when a partner AR is sent). Rosie still asks when in doubt about the customer, delivery vs pickup, dates or a demanded row; only substitute/alternative choices go unasked.
 - Candidate status vocabulary: No price → Pending → AR sent → the supplier's answer (Unavailable at price 0 stays Unavailable).
 - Notes by audience (Bhoumik 2026-09-29): the customer's requirements (single trunk, red only, must be full, delivery constraints) go in job/line `note_internal`, and into a candidate's `note_for_supplier` when asking; `note_for_customer` is only information for the customer and on a line follows the selected candidate. Questions like `How many?`/`Size?` go in the chat question batch, not notes; the re-save-after-selecting step is gone.
 - Beyond exact matches, Rosie selects a candidate only when Chris's direction or a standing selection rule picks it (Bhoumik 2026-09-29); rules live in `price-rules.md` → Candidate selection rules. The first is Chris's several-sizes rule: select the cheapest priced requested option.

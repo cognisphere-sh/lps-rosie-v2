@@ -91,15 +91,19 @@ export function normalizeStoredTableConfig(table: TableId, stored: unknown): Tab
       external_notes: 'note_for_customer', sourcing_notes: 'note_internal', suppliers: 'candidates',
     }
     const keyOf = (key: string) => renamed[key] ?? key
-    const renamedOrder = order.map(keyOf)
+    // A layout that already has Candidates keeps it; a stale Suppliers beside it would render it twice.
+    const stale = (key: string) => order.includes(renamed[key]) && key in renamed
+    // Drop repeats too: layouts saved by the old rename can already hold Candidates twice.
+    const renamedOrder = order.filter((key) => !stale(key)).map(keyOf)
+      .filter((key, index, keys) => keys.indexOf(key) === index)
     // Layouts saved before Selected/Candidates existed place them left of Internal note, not last.
     if (!renamedOrder.includes('selected')) {
       const at = renamedOrder.indexOf('candidates')
       if (at >= 0) renamedOrder.splice(at, 0, 'selected')
       else placeCandidatesBeforeInternalNote(renamedOrder)
     }
-    return { order: renamedOrder, hidden: hidden.map(keyOf),
-      widths: Object.fromEntries(Object.entries(widths).map(([key, width]) => [keyOf(key), width])) }
+    return { order: renamedOrder, hidden: hidden.filter((key) => !stale(key)).map(keyOf),
+      widths: Object.fromEntries(Object.entries(widths).filter(([key]) => !stale(key)).map(([key, width]) => [keyOf(key), width])) }
   }
   return { order, hidden, widths }
 }

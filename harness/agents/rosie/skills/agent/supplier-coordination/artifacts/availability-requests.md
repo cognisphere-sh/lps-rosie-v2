@@ -6,11 +6,11 @@ line. It is not an order.
 
 ## Before creating
 
-- **Approval**: an AR starts as a **Draft** the supplier can't see; Send
-  (`send_availability_request`) publishes it. Create and send only with
-  Chris's yes for that scope (asked in the origin chat by the job thread). If
-  he wants to review it, create it and leave it as a draft: he sends it with
-  the app's Send button. A quote is
+- **Approval**: an AR starts as a **Draft** the supplier can't see. Only you
+  send it (`send_availability_request`); Chris can't send from the app. Create
+  the draft with the candidates Chris chose, and send it once he approves
+  that scope (asked in the origin chat by the job thread). He may also ask
+  you to send an existing draft. A quote is
   not needed first. Quick quotes and committed/direct orders get no AR unless
   Chris asks for one.
 - **Pricing pass done**: the job thread has tried to price every row. Rows it
@@ -39,11 +39,15 @@ line. It is not an order.
   (`30 G acceptable`).
 - An alternative candidate is asked about only after Chris approved asking
   about that alternative (quote approval isn't enough).
-- Chris dragging a candidate onto an AR in the app is his own action: the app
-  runs `request_candidate_availability`, which adds it to this supplier's
-  Draft/New/Processing AR for the job or creates a draft; he sends it with
-  Send. A sent non-partner AR's public link still has to be emailed
-  ([email](email.md)) with his approval.
+- Chris asks a supplier in the app by dropping a candidate on that
+  supplier's tablet in the job header: the app adds it
+  (`add_candidates_to_availability_request`) to the supplier's newest
+  non-closed AR for the job (a submitted one reopens as New; a sent one shows
+  it to the supplier at once). The tablet only exists once the job has an AR
+  with that supplier, so the first AR is yours to create. A draft stays
+  invisible until you send it with his approval. A sent
+  non-partner AR's public link still has to be emailed ([email](email.md))
+  with his approval.
 - Options are candidates on one line, never separate lines; don't ask the
   job thread to resolve them. Never pick an option or repeat a total across
   options.
@@ -90,7 +94,7 @@ answer and moves the AR to Processing.
    ARRAY[...]::bigint[]);`.
 3. Save the header `note_for_supplier` with a guarded update. Verify header
    and line notes.
-4. Send it (unless Chris keeps it as a draft):
+4. Send it once Chris approves:
    `SELECT public.send_availability_request($arId);` → status `new`; the
    supplier sees it now. Public link (non-partners, created at send):
    `<configured app origin>/public/availability/<token>`. Never invent the

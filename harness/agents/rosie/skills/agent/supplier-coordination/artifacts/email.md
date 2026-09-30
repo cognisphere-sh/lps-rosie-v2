@@ -26,7 +26,8 @@ ready.
 ## Follow-ups and records
 
 - Batch open questions to the supplier on this thread and channel, with the
-  same approval rules. Don't repeat ARs or messages for the same work.
+  same approval rules ([questions](questions.md): a portal MCQ for partners).
+  Don't repeat ARs or messages for the same work.
 - This thread's web chat is the contact history. Quote outside emails in
   full: sender, recipient, subject, link (Rosie's Gmail links use
   `authuser=chris@localplantsupply.com`). Portal messages are already there.

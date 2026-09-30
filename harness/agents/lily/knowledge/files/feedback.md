@@ -1005,3 +1005,38 @@ this file exists.
 - **Approved reuse is already supported** — Parent clarification after Rosie/Daisy guidance completion: approved-pricing-reference-reuse must read Supported existing path / owner guidance complete, not waiting for Bhoumik to reapprove Chris’s established Texas Sedge1G price-reference rule. Future ordinary-use recall is not independently observed, but is not a proven failure, feature backlog or validation job. No build currently proposed/requested, no new human question/live query/schedule. Only a conditional automatic-consumer or structured extension belongs to Bhoumik if a real gap emerges. Parent shared evidence with Nova explicitly without requesting work. _(via rosie)_
   → approved-pricing-reference-reuse
 <!-- feedback-end: agent:lily:main:2026-09-25T19:12:06:pricing-reference-existing-path -->
+
+## 2026-09-29
+
+<!-- feedback-id: rosie:jr-90:2026-09-29T11:57:26-05:00:line-status-candidate-availability sha256: aea3e78f3720287ffddf6f99a03d9519695a2f1e53955b791c22756e3d878575 -->
+- **Chris: supplier-confirmed alternate must retain job-line difference** — Attributed summary relayed by Rosie jr-90 Sep29 11:57:26, via Lily main task brief 11:58:39 (not a verbatim Chris quote): Chris 11:56 says selected plant/size/quantity differing from the ORIGINAL request must show job-line DiffSize/Qty even if the selected candidate itself is supplier-confirmed Available. Rosie reports select_candidate copies candidate Available/Pending directly and reports guarded JR90 items 918 (45G vs 30G yaupon), 923 (3G vs 5G prickly pear), 942 (5G vs 3G crossvine) corrected to alternative_proposed. These are owner-reported current-case corrections, not a permanent-fix claim. Chris also authorizes candidate Available based on a SUBMITTED APS note, including Nolina nelsonii 15G / Pride of Houston yaupon 45G. Rosie reports updating its own skill. Lily performs no operational edits. Stock evidence is bounded to the submitted candidate fact, not price, note authorship or unsent drafts. _(via rosie)_
+  → job-line-request-conformity
+<!-- feedback-end: rosie:jr-90:2026-09-29T11:57:26-05:00:line-status-candidate-availability -->
+
+## 2026-09-29
+
+<!-- feedback-id: web:jr-90:14 sha256: 5055155c90935aaaac6dc3bb395bb65f18aab52098d1463dd7a59ceed237b655 -->
+- **Chris: reuse previously confirmed supplier facts** — Exact Chris wording relayed by Rosie jr-90 at 2026-09-29 11:59:20 CDT; originating JR-90/web msg14 at 11:53:59 CDT: “When in their response APS said they have 15G Nolina and you created new candidate, you should directly mark it as available. As APS has already confirmed this. Same for 45G Pride of Houston Yaupon. You can mark a candidate’s status based on information previously confirmed by supplier.” _(via rosie)_
+  → job-line-request-conformity
+<!-- feedback-end: web:jr-90:14 -->
+
+## 2026-09-29
+
+<!-- feedback-id: web:jr-90:15 sha256: 1d6f502f9b5b7fe3484700da31f7c8dd7e4b390dd51c0d9b42c1ffcdfb3209d0 -->
+- **Chris: distinguish selected alternate from original request** — Exact Chris wording relayed by Rosie jr-90 at 2026-09-29 11:59:20 CDT; originating JR-90/web msg15 at 11:56:03 CDT: “Also, if selected plant size etc is different from the one requested, you should mark status as Diff Size/Qty.” _(via rosie)_
+  → job-line-request-conformity
+<!-- feedback-end: web:jr-90:15 -->
+
+## 2026-09-29
+
+<!-- feedback-id: web:jr-90:16 sha256: 4d373c44bf2a0f42252b29a2f10cc20c799112a599257c44dafe94880daa0921 -->
+- **Chris: include unselected Nolina alternate** — Exact Chris wording relayed by Rosie jr-90 at 2026-09-29 11:59:20 CDT; originating JR-90/web msg16 at 11:57:23 CDT: “Similarly for Nolina and other row. Remember this.” Rosie reports AR51 supplier submitted11:42:43/re-submitted11:50:15, candidate687 original Nolina lindheimeriana7G×3 note `15g nelsonii`, candidate683 original Pride of Houston30G×2 note `45g instock`. Candidate725 Nolina nelsonii15G and709 Pride of Houston45G marked available from this submitted evidence; original Nolina line922 guarded pending→alternative_proposed with selection still NULL and original7G unchanged. Selected items918/923/942 also guarded to alternative_proposed. This is an owner-reported current-case workaround, not a durable fix; no customer Nolina selection. Link to prior attributed summary rosie:jr-90:2026-09-29T11:57:26-05:00:line-status-candidate-availability. Prices/listings alone are not stock evidence. _(via rosie)_
+  → job-line-request-conformity
+<!-- feedback-end: web:jr-90:16 -->
+
+## 2026-09-29
+
+<!-- feedback-id: web:jr-90:19 sha256: 5c4737034e90899cd5df1acaabac52f64329906493e2f43261054e9553a222ff -->
+- **Chris corrects alternate candidates to Diff Sz/Qnty/Sub** — Exact Chris JR-90/web msg19 at 2026-09-29 12:03:34 CDT, relayed by Rosie jr-90 at12:05:20: “They should be marked as Diff Sz/Qnty/Sub as they are not the original request.” Rosie explicitly retracts earlier interpretation that offered candidates stay Available while only Job lines are Diff. Owner reports candidates709 (45G yaupon),725 (15G Nolina nelsonii),724 (5G crossvine) changed to diff_size_qty_sub with confirmed quantities; asked candidate713 (3G prickly pear) corrected via AR51 RPC/re-submit, selected lines refreshed, all four alternative_proposed. Nolina was selected in app before msg19; that selection was preserved. Exact original confirmed as asked remains Available. Rosie reports job-requests skill7.5.0 removed old interpretation. This supersedes interpretation of web14–16, not their append-only evidence. Owner-reported case correction, not permanent fix or independent Lily live verification. _(via rosie)_
+  → job-line-request-conformity
+<!-- feedback-end: web:jr-90:19 -->

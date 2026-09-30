@@ -364,6 +364,72 @@ body:has([data-workspace-shell]) {
   .lps-sprout { animation: none; }
 }
 
+/* Portal submit acknowledgement (submit-received.tsx): the card pops in, the
+   ring then the check draw, a seedling sprouts from the check, and leaves
+   burst out from behind the badge. `both` holds each piece hidden until its
+   delay elapses. */
+@keyframes lpsReceivedFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lpsReceivedCard {
+  0% { opacity: 0; transform: scale(.85) translateY(10px); }
+  60% { opacity: 1; transform: scale(1.03) translateY(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes lpsReceivedDisc {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes lpsReceivedDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes lpsReceivedSprout {
+  0% { transform: scale(0); opacity: 0; }
+  20% { opacity: 1; }
+  60% { transform: scale(1.12) rotate(4deg); }
+  80% { transform: scale(1) rotate(-3deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes lpsReceivedLeaf {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); }
+  15% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--spin));
+  }
+}
+
+.lps-received-backdrop { animation: lpsReceivedFade .2s ease both; }
+.lps-received-card { animation: lpsReceivedCard .45s cubic-bezier(.2, .8, .3, 1.2) both; }
+.lps-received-disc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lpsReceivedDisc .4s .15s ease-out both;
+}
+.lps-received-ring {
+  stroke-dasharray: 1;
+  animation: lpsReceivedDraw .5s .2s ease-out both;
+}
+.lps-received-check {
+  stroke-dasharray: 1;
+  animation: lpsReceivedDraw .35s .6s ease-out both;
+}
+.lps-received-sprout {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lpsReceivedSprout .6s .9s ease-out both;
+}
+.lps-received-leaf { animation: lpsReceivedLeaf 1.1s .65s cubic-bezier(.15, .7, .3, 1) both; }
+.lps-received-text { animation: lpsPop .3s .8s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lps-received-backdrop,
+  .lps-received-card,
+  .lps-received-disc,
+  .lps-received-ring,
+  .lps-received-check,
+  .lps-received-sprout,
+  .lps-received-text { animation: none; }
+  .lps-received-leaf { display: none; }
+}
+
 /* The portal's printable availability request and order sheets: on
    paper only the sheet exists — the app's fixed, overflow-hidden frame would
    otherwise be printed clipped, on top of it. */

@@ -304,7 +304,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   const props = {
     request: request(), loading: false, error: '', saving: false,
     onPatch: async (id: number, changes: Record<string, string>) => { patches.push([id, changes]) },
-    onSubmit: async () => {},
+    onSubmit: async () => true,
   }
   const view = render(<AvailabilityRequestView {...props} />)
   assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)

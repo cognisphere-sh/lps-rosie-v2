@@ -242,8 +242,6 @@ export interface Candidate {
   id: number
   supplierId: number
   supplierName: string
-  /** `suppliers.short_name`, when set (APS, LPS). */
-  supplierShortName: string | null
   name: string
   size: string | null
   /** What the candidate is, for Chris (size, plant, variant); falls back to size + name. */

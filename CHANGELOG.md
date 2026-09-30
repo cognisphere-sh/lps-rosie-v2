@@ -15,11 +15,27 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
-## 2026-09-29 — candidate pills, draft ARs and Create AR
+## 2026-09-29 — Candidate pills: border shows the AR's progress
+
+- Job line candidate pills are grey until the supplier answers, then take the answer's colour. The border is solid before the AR is sent, dotted while it is out with the supplier (answers they save recolour the pill; the border stays dotted), and solid once submitted. The original request carries a dot. No price is no longer dotted (the price cell says it), and AR sent is grey rather than amber.
+- Fixed the job line table showing two Candidates columns: a saved layout holding both the old `suppliers` key and `candidates` now keeps only `candidates`, and a layout that was already saved with `candidates` twice is deduplicated on load.
+
+## 2026-09-29 — portal submit acknowledgement
+
+- Submitting (or re-submitting) availability in the supplier portal or on a public availability link now plays a short "received" animation — check, sprouting seedling and a burst of leaves — so the supplier sees their answers landed. Dismisses itself; static under reduced motion. Both pages get it from the shared `AvailabilityRequestView`.
+
+## 2026-09-29 — Rosie handles conflicting supplier answers
+
+- When a supplier's answer disagrees with its own note (e.g. marked Available, note "only 3 G"), Rosie treats the note as the source of truth: she proposes the corrected status and size with the price-list price for that exact size, and after Chris confirms, corrects the candidate's answer and re-submits the AR so the job line follows. What Chris can't settle, she offers to ask the supplier (`job-requests` 7.1.0, `supplier-coordination` 5.1.0).
+- Rosie can ask a partner supplier quick questions as a multiple-choice questionnaire in their portal chat (the existing webchat MCQ, sent `--portal`); the answers are entered into the AR for the supplier to review and submit. The portal already rendered questionnaires.
+- Questionnaires (internal chat and supplier portal) support **multi-select** questions: `"multiSelect": true` on a question shows checkboxes (“Select all that apply”), free text adds to the ticked choices, and the answer lists them joined by `; `. Single-choice questions are unchanged (`harness/plugins/webchat/questions.ts`, `chat-questionnaire.tsx`, `webchat-cli` help, webchat prompt).
+- Conflicting answer whose note names a plant/size that is already a candidate of that supplier on the line: Rosie's recommended fix (after Chris's yes) is to select that candidate and mark the answered one Unavailable.
+
+## 2026-09-29 — candidate pills and draft ARs
 
 - Migration `0120`: `candidates.description` (what the candidate is, for Chris) and `is_original` (the line's original request); ARs start as **Draft** and reach the supplier only through `send_availability_request` (portal, public links and answer RPCs refuse drafts; `availability_sent` fires at send).
 - Job line table: pills (in Candidates and Selected alike) show only description and price; status is the pill's colour (No price dotted grey, Pending grey — including candidates on an unsent draft — AR sent amber, then the answer) and supplier, notes and AR are on hover. The selected candidate shows only in Selected. The header and the Demand, Avail, Size and Plant Name columns stay frozen while the table scrolls; values are centred except Plant Name; default widths are narrower and header dividers show where to drag to resize.
-- An **Availability requests** strip above the table replaces the per-supplier AR target: AR tablets take dropped candidates of their supplier, Drafts have **Send**, and **Create AR** picks a supplier, All / Selected / Original-demand candidates and customer-detail sharing. The All Jobs dialog still sends straight away.
+- Asking a supplier: drop a candidate on that supplier's tablet in the job header; it joins their newest AR for the job that is not closed. There is no AR row, Create AR or Send button in the app: Rosie creates and sends drafts on Chris's approval, and the All Jobs dialog still sends straight away.
 - Notes by audience: the customer's additional requests go in `note_internal`; `note_for_customer` is only information for the customer (and follows the selected candidate).
 - Rosie writes descriptions and the original flag, leaves ARs as drafts until Chris approves sending, and still asks about non-substitute doubts (customer, delivery mode, dates, unclear demand rows).
 

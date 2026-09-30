@@ -179,8 +179,6 @@ export interface ARJobSchedule {
 export interface SupplierLink {
   supplierId: number
   name: string
-  /** `suppliers.short_name` (APS, LPS), when set. */
-  shortName?: string | null
   lpsPartner: boolean
   /** Every availability request this job has with them, newest first. */
   availabilityRequests: { id: number; recordName?: string | null; status: string; createdAt?: string | null; submittedAt?: string | null }[]

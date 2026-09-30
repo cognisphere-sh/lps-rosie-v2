@@ -492,7 +492,8 @@ test('focused header exposes summary and customer, AR and supplier routes before
     assert.ok(within(summary).getByText(label))
   }
   const customer = view.getByRole('button', { name: 'Chat with Johnathan' })
-  const ar = view.getByRole('button', { name: /AR-81/ })
+  // The header's chip; the body's AR strip has its own AR-81 tablet.
+  const ar = within(header).getByRole('button', { name: /AR-81/ })
   const supplier = view.getByRole('button', { name: /Open the supplier conversation/ })
   assert.ok(customer.closest('[data-request-customer-pill]'))
   for (const control of [ar, supplier]) assert.match(control.className, /min-h-8/)

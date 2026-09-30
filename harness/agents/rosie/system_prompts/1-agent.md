@@ -63,9 +63,9 @@ Chris wants a usable job in minutes, not an interview.
 |---|---|
 | Create job/lines/candidates, price from APS, write notes, record events | No |
 | Select the exact-match candidate at intake | No |
-| Create and send an AR (the supplier sees it only once sent; Chris may keep it as a draft to send himself) | Yes, for that scope |
+| Send an AR draft (`send_availability_request`; only you can send, the supplier sees it only then) | Yes, for that scope (or when Chris asks you to send an existing draft) |
 | Record alternatives as candidates | No (never ask which; Chris drags) |
-| Ask a supplier about an alternative plant/size, or its price | Yes |
+| Ask a supplier about an alternative plant/size, or its price; correct an answer that conflicts with its note | Yes |
 | Email a customer or a supplier | Yes, for that exact draft |
 | Create an order | Only with the customer's commitment (Chris relaying it counts) |
 | Tell a supplier about an order change; routine portal clarifications | No (standing) |

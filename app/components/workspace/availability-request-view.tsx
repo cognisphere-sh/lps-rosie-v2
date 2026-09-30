@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { PartnerDetailHeader, PartnerFulfillment } from './partner-detail-header'
 import { ARLineTable } from './availability'
 import { ARPrintSheet } from './ar-print-sheet'
+import { SubmitReceived } from './submit-received'
 import { SummaryStrip } from './partner-summary-strip'
 import { partnerRequestName as requestName } from './partner'
 import { arStatusLabel, arSubtotal, type ARDetail } from '@/lib/availability'
@@ -16,7 +17,8 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
   error: string
   saving: boolean
   onPatch: (itemId: number, changes: Record<string, string>) => Promise<void>
-  onSubmit: (supplierNote: string) => Promise<void>
+  /** Resolves true once the answers were accepted, which plays the received acknowledgement. */
+  onSubmit: (supplierNote: string) => Promise<boolean>
 }) {
   const [supplierNote, setSupplierNote] = useState(request?.noteForSupplier ?? '')
   useEffect(() => { setSupplierNote(request?.noteForSupplier ?? '') }, [request?.id, request?.noteForSupplier])
@@ -30,6 +32,13 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
     return () => media.removeEventListener('change', update)
   }, [])
   const editable = !!request && request.status !== 'closed'
+  // Set after a successful Submit: shows the acknowledgement; true on a re-submit.
+  const [received, setReceived] = useState<boolean | null>(null)
+  const dismissReceived = useCallback(() => setReceived(null), [])
+  const submit = async () => {
+    const resubmit = !!request?.submittedAt
+    if (await onSubmit(supplierNote)) setReceived(resubmit)
+  }
   return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pb-5 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 [&>*]:shrink-0">
@@ -100,7 +109,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
         <div className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden">
           <button
             type="button"
-            onClick={() => void onSubmit(supplierNote)}
+            onClick={() => void submit()}
             disabled={saving}
             className="min-h-12 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-3 py-2 text-[15px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 min-[900px]:max-w-sm"
           >
@@ -113,6 +122,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
           </span>
         </div>
       )}
+      {received !== null && <SubmitReceived resubmit={received} onDone={dismissReceived} />}
       </div>
   )
 }

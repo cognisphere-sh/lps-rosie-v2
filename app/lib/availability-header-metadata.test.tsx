@@ -103,7 +103,7 @@ test('single-job supplier headers keep fulfillment date and mode with the job ti
   const { queries } = fixture()
   const request: ARDetail = await queries.availabilityRequest(42, { forSupplierId: 7 })
   const html = renderToStaticMarkup(<AvailabilityRequestView request={request} loading={false} error="" saving={false}
-    onPatch={async () => {}} onSubmit={async () => {}} />)
+    onPatch={async () => {}} onSubmit={async () => true} />)
   const dom = new JSDOM(html)
   try {
     const header = dom.window.document.querySelector('header')!
@@ -163,7 +163,7 @@ for (const shared of [false, true]) {
       shipping: { address: '12 Garden Lane', city: 'Austin', state: 'TX', zip: '78701' },
       noteForSupplier: 'Keep shaded',
     } as unknown as ARDetail
-    const html = renderToStaticMarkup(<AvailabilityRequestView request={request} loading={false} error="" saving={false} onPatch={async () => {}} onSubmit={async () => {}} />)
+    const html = renderToStaticMarkup(<AvailabilityRequestView request={request} loading={false} error="" saving={false} onPatch={async () => {}} onSubmit={async () => true} />)
     const dom = new JSDOM(html)
     try {
       const header = dom.window.document.querySelector('[aria-label="Job details"]')!

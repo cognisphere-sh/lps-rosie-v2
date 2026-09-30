@@ -12,6 +12,8 @@ software does today: `../../../../../app/`, `docs/app/`, `docs/harness/` and
 
 ## Files
 
+- 2026-09-29 12:05:20 CDT — `operations.md`: latest Chris JR90/web19 requires confirmed alternate candidates AND Job lines Diff Sz/Qnty/Sub, superseding candidate-Available interpretation; stock evidence retained and exact original remains Available. Current-case/skill7.5.0 owner-corrected; durable original comparison/confirmation and no-AR display gap staged in `job-line-request-conformity` for Bhoumik. No automatic selection/global precedence or Lily operational edits.
+
 - 2026-09-25 19:08:18 CDT — `operations.md`: approved recurring Texas Sedge1G-from-APS-Sedge1G price reference; existing supplier notes + corrected Rosie guidance first, no proven retrieval failure/new model. Preserve approval/source, requested identity/1G scope, current accepted price versus future list changes, and plain factual wording; distinct from genuine aliases and Berkeley Sedge. 2026-09-25 19:12:06 status clarification: `approved-pricing-reference-reuse` supported existing path/owner guidance complete, no current build/approval blocker or validation job. Future ordinary use not independently observed; Bhoumik only for a conditional extension if a real consumer gap appears.
 
 - 2026-09-25 10:55:44 CDT — `operations.md`: Bhoumik245 aliases-not-duplicate-offers direction; current agent/unquoted Plant Search already alias-aware, automatic AR prefill literal-only. Genuine identity versus scoped price proxies preserved; Daisy APS reconciliation/1285 decision owns ten reported synthetic rows. Bounded money/workflow applicability question staged, no new taxonomy/duplicate feature/Nova build/live query/test.

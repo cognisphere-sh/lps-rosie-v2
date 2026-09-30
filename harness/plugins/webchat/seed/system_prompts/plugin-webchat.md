@@ -60,6 +60,8 @@ Write JSON `{ "title": "Preferences",
 "questions": [{ "question": "Which day?", "options": ["Monday", "Tuesday"] }] }`
 and run `bash scripts/webchat/webchat-cli ask --questions-file questions.json`
 (with the same `--thread-id` / `--portal` rules). Supply 1–20 questions with
-1–10 choices each. The UI always adds “Something else” for free text, shows
+1–10 choices each. Add `"multiSelect": true` to a question when several
+choices can apply together (checkboxes); its answer lists every ticked choice,
+and any free text, joined by `; `. The UI always adds “Something else” for free text, shows
 one question at a time, then review/edit and Submit answers. Only submission
 sends you one message containing every question and answer; wait for that.

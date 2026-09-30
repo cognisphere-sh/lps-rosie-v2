@@ -137,9 +137,13 @@ RETURNING id;
   when Chris's direction for this job or a standing selection rule
   (`knowledge/files/price-rules.md`, e.g. several requested sizes → cheapest
   priced) picks it. Otherwise it waits for Chris to drag one onto the line;
-  don't select it yourself, even when it is the only one.
-- Never write a candidate's `status`, `available_quantity`,
-  `note_from_supplier` or `availability_request_id`: they come from the AR.
+  don't select it yourself, even when it is the only one. A supplier-confirmed
+  difference makes the offered candidate and job line Diff Size/Qty, even
+  while the offer is unselected; see [supplier responses](supplier-responses.md#supplier-confirmed-alternative-candidates).
+- Never seed a candidate's `status` or `available_quantity` at intake. A
+  submitted reply confirming a different offer permits Diff Sz/Qnty/Sub on
+  its candidate; see [supplier responses](supplier-responses.md#supplier-confirmed-alternative-candidates).
+  Never write `note_from_supplier` or `availability_request_id` directly.
   Its shown status is derived: **No price** (unanswered, price 0 or empty) →
   **Pending** (priced, not on an AR or only on an unsent draft) → **AR sent**
   (on a sent AR, unanswered) → the answer (Available, Unavailable, Diff

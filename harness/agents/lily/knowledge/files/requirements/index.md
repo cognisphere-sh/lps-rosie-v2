@@ -13,6 +13,7 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `job-line-request-conformity` | Supplier-confirmed alternates show Diff on candidates and Job lines (latest Chris JR90/web19) | staged · B notified360; owner case/SOP corrected; durable behavior open | bhoumik |
 | `one-gallon-sedge-price-mapping` | Keep Berkeley Sedge 1 G priced on the APS price sheet | staged | bhoumik |
 | `supplier-natural-language-replies` | Let Austin reply naturally and keep the work current | staged | bhoumik |
 | `catalog-photo-upload-page` | Add catalog photos from the Photos page | staged | nova (blocked by bhoumik workflow) |

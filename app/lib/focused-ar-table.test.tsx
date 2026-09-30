@@ -94,7 +94,8 @@ test('focused Job header chip opens the portal drawing and summary strip; ordina
   const events: unknown[] = []
   const off = onOpenAvailabilityRequest((id, presentation) => events.push([id, presentation]))
   const view = render(<><FocusedJobRecord request={job} mobile={false} version={0} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
-  fireEvent.click(view.getByRole('button', { name: /AR-84/ }))
+  // The header chip comes first; the body's AR strip has its own AR-84 tablet.
+  fireEvent.click(view.getAllByRole('button', { name: /AR-84/ })[0])
   await view.findByRole('dialog', { name: 'Availability request AR-84' })
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
   const { head, row } = table(document.body)

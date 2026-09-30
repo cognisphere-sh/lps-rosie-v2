@@ -4,7 +4,7 @@
 
 | Shown as | Stored | Meaning |
 |---|---|---|
-| Draft | `draft` | Being prepared by LPS; the supplier can't see or answer it. Send makes it New. |
+| Draft | `draft` | Being prepared by LPS; the supplier can't see or answer it. Only Rosie sends it (`send_availability_request`) → New. |
 | New | `new` | Sent; supplier hasn't touched it. |
 | Processing | `processing` | Supplier saved some answers, not submitted. |
 | Completed | `submitted` | Supplier pressed Submit. Editing again returns it to Processing until re-submitted. |
@@ -41,18 +41,23 @@ false`).
    header `note_for_supplier`, the candidate's `note_for_supplier` (LPS ask)
    and `note_from_supplier` (reply), and "portal submission" as the source.
    For `diff_size_qty_sub`, give the exact offer. Mention narrow equivalences
-   from `price-rules.md` (e.g. Carolina Cherry Laurel 24" box = 30 G).
+   from `price-rules.md` (e.g. Carolina Cherry Laurel 24" box = 30 G). Flag
+   an answer whose status, size or quantity disagrees with its note (or a
+   note size without a price) as **conflicting**, with the note's reading;
+   the job thread settles it with Chris.
 3. Selected candidates are already copied onto their job lines by the
    database. The job thread alerts Chris
    ([supplier responses](../../job-requests/artifacts/supplier-responses.md)).
    Don't ask APS to re-confirm a clear answer.
 4. Supplier-entered answers stay as the supplier saved them. Never rewrite
-   them.
+   them, except the job thread's correction of a conflicting answer to match
+   its note, with Chris's yes (`job-requests` → supplier responses).
 
 ## Supplier answers in portal chat (transcription)
 
-A trusted supplier's **portal** message (text, image or voice) that clearly
-answers an open AR line (candidate) lets you type that answer into the AR for them.
+A trusted supplier's **portal** message (text, image or voice, or answers to
+a [quick-questions](questions.md) questionnaire) that clearly answers an open
+AR line (candidate) lets you type that answer into the AR for them.
 
 1. Identify the AR from trusted metadata and read it with its job.
    Several possible ARs → ask which one. Closed AR → don't edit; record the

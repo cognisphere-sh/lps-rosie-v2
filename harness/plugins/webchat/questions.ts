@@ -2,7 +2,8 @@
 export interface Questionnaire {
   id: string;
   title: string;
-  questions: { question: string; options: string[] }[];
+  /** `multiSelect` questions take several choices (checkboxes); answers join them with "; ". */
+  questions: { question: string; options: string[]; multiSelect?: true }[];
 }
 
 export function validateQuestions(raw: unknown): Omit<Questionnaire, "id"> {
@@ -17,10 +18,12 @@ export function validateQuestions(raw: unknown): Omit<Questionnaire, "id"> {
     if (!q || !validText(q.question, 1000) || !Array.isArray(q.options) || !q.options.length || q.options.length > 10 ||
       !q.options.every((s: unknown) => validText(s, 300)))
       throw new Error("each question needs text and 1–10 nonempty options");
+    if (q.multiSelect !== undefined && typeof q.multiSelect !== "boolean")
+      throw new Error("multiSelect must be true or false");
     const options = (q.options as string[]).map(s => s.trim()).filter(s => s.toLowerCase() !== "something else");
     if (!options.length || new Set(options.map(s => s.toLowerCase())).size !== options.length)
       throw new Error("provide distinct choices besides Something else");
-    return { question: q.question.trim() as string, options };
+    return { question: q.question.trim() as string, options, ...(q.multiSelect ? { multiSelect: true as const } : {}) };
   });
   return { title: value.title.trim().replace(/\s+/g, " "), questions };
 }

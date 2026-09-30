@@ -6,6 +6,10 @@
 - Raised: 2026-08-30 by Chris (via nova handoff)
 - Updated: 2026-09-11
 
+## Related focused requirement — 2026-09-29 12:05:20 CDT
+
+`job-line-request-conformity.md` owns Chris JR90/web19's new candidate-and-Job difference behavior against ORIGINAL request, including confirmed alternatives and durable selection/confirmation paths. It is separately staged for Bhoumik. This older file's September11 audit is historical, not the current candidate/status/label baseline; no global vocabulary rework is authorized by the new case.
+
 ## Problem
 
 Chris has defined authoritative plant-status vocabulary, but Chris reports that actual statuses are still not updated on plants or Requests/Jobs. The existing Portal records a supplier's answer with five older labels and an unanswered Set status; LPS Ops records four internal job-line states. The new Request and Order sets deliberately differ where the business action differs. A cosmetic color, label or status patch would cause a supplier answer, an LPS sourcing state and an order-buying action to appear interchangeable rather than fixing the model.

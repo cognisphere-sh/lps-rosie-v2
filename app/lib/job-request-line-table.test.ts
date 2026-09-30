@@ -103,6 +103,14 @@ test('saved job table layouts place Selected and Candidates left of Internal not
   assert.deepEqual(normalizeStoredTableConfig('requestItems', {
     order: ['suppliers', 'name', 'note_internal'], hidden: ['suppliers'], widths: { suppliers: 250 },
   }), { order: ['selected', 'candidates', 'name', 'note_internal'], hidden: ['candidates'], widths: { candidates: 250 } })
+  // A layout holding both the old Suppliers key and Candidates shows Candidates once.
+  assert.deepEqual(normalizeStoredTableConfig('requestItems', {
+    order: ['name', 'suppliers', 'selected', 'candidates', 'note_internal'], hidden: ['suppliers'], widths: { suppliers: 250, candidates: 300 },
+  }), { order: ['name', 'selected', 'candidates', 'note_internal'], hidden: [], widths: { candidates: 300 } })
+  // A layout already saved with Candidates twice (by the old rename) shows it once.
+  assert.deepEqual(normalizeStoredTableConfig('requestItems', {
+    order: ['name', 'candidates', 'selected', 'candidates', 'note_internal'], hidden: [], widths: {},
+  }).order, ['name', 'candidates', 'selected', 'note_internal'])
   assert.deepEqual(moveStoredRequestSuppliers({ requestItems: { order: ['name', 'selected', 'candidates', 'status', 'note_internal'], hidden: [], widths: {} } })
     .requestItems?.order, ['name', 'status', 'selected', 'candidates', 'note_internal'])
 })

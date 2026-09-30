@@ -290,7 +290,10 @@ The file is an object such as:
 questions, each with 1–10 distinct nonempty choices, and assigns a unique ID.
 The app adds a text field with the “Something else” placeholder to every
 question. Selecting a preset answer saves it and advances immediately; typed
-answers use Save answer. Users can go back with Previous or edit from review, then submit
+answers use Save answer. A question with `"multiSelect": true` shows
+checkboxes instead: the user ticks any number of choices, may add free text,
+and uses Save answer; the answer lists the ticked choices, then the free text,
+joined by `; ` (`3 G; 7 G; 15 G next week`). Users can go back with Previous or edit from review, then submit
 all question/answer pairs in one normal user message. There are no interim
 agent notifications. Failed sends keep the review available for retry.
 The existing thread and `--portal` visibility rules apply.

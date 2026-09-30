@@ -93,14 +93,14 @@ test('admin order cards expand independently and AR notes submit with the respon
       noteForSupplier: 'Morning only', supplierName: 'APS', supplierId: 7, customer: null, shipping: null } as unknown as ARDetail
     const submissions: string[] = []
     view = render(<AvailabilityRequestView request={request} loading={false} saving={false} error=""
-      onPatch={async () => {}} onSubmit={async (note) => { submissions.push(note) }} />)
+      onPatch={async () => {}} onSubmit={async (note) => { submissions.push(note); return true }} />)
     const note = view.getByRole('textbox', { name: 'Note for this request' }) as HTMLTextAreaElement
     assert.equal(note.value, 'Morning only')
     fireEvent.change(note, { target: { value: 'Please call before pickup' } })
     await act(async () => { fireEvent.click(view.getByRole('button', { name: 'Submit availability' })) })
     assert.deepEqual(submissions, ['Please call before pickup'])
     view.rerender(<AvailabilityRequestView request={{ ...request, status: 'closed' }} loading={false} saving={false} error=""
-      onPatch={async () => {}} onSubmit={async () => {}} />)
+      onPatch={async () => {}} onSubmit={async () => true} />)
     assert.equal(note.readOnly, true)
     assert.equal(view.queryByRole('button', { name: 'Submit availability' }), null)
   } finally { cleanup(); dom.window.close() }

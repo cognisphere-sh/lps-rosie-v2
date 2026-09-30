@@ -50,7 +50,7 @@ export function PublicAvailability({ token }: { token: string }) {
       }}
       onSubmit={async (supplierNote) => {
         setBusy(true)
-        try { await write({ submit: true, supplierNote }) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+        try { await write({ submit: true, supplierNote }); return true } catch (e) { setError((e as Error).message); return false } finally { setBusy(false) }
       }} />
   </main>
 }

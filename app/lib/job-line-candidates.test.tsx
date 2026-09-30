@@ -38,14 +38,14 @@ afterEach(() => {
 })
 
 const candidate = (changes: Partial<Candidate>): Candidate => ({
-  id: 1, supplierId: 1, supplierName: 'Austin Plant Supply', supplierShortName: 'APS',
+  id: 1, supplierId: 1, supplierName: 'Austin Plant Supply',
   name: 'Live Oak', size: '15 G', description: null, isOriginal: false,
   unitPrice: 0, availableQuantity: null, status: null, arId: null, arStatus: null,
   noteForSupplier: null, noteFromSupplier: null, noteForCustomer: null, ...changes,
 })
 
 // One of each status: No price, Pending (unasked and on a draft), AR sent,
-// an answer, and the selected candidate.
+// an answer on an open AR, a submitted answer, and the selected candidate.
 const oak: JobRequestItem = {
   id: 51, name: 'Live Oak', size: '30 G', quantity: 12, availableQuantity: null, unitPrice: 210, total: null,
   status: 'pending', notes: [], noteForCustomer: '15 G NA, only 30 G', noteInternal: null, updatedAt: null,
@@ -55,8 +55,10 @@ const oak: JobRequestItem = {
     candidate({ id: 2, size: '30 G', description: '30 G Live Oak', unitPrice: 210, noteForCustomer: '15 G NA, only 30 G' }),
     candidate({ id: 4, size: '45 G', unitPrice: 300, arId: 40, arStatus: 'draft' }),
     candidate({ id: 5, size: '65 G', unitPrice: 520, arId: 41, arStatus: 'new' }),
-    candidate({ id: 3, supplierId: 2, supplierName: 'Acosta Farms', supplierShortName: null, unitPrice: 0,
+    candidate({ id: 3, supplierId: 2, supplierName: 'Acosta Farms', unitPrice: 0,
       arId: 43, arStatus: 'submitted', status: 'unavailable', noteFromSupplier: 'Sold out' }),
+    candidate({ id: 7, supplierId: 2, supplierName: 'Acosta Farms', size: '45 G', unitPrice: 310,
+      arId: 44, arStatus: 'processing', status: 'available' }),
   ],
 }
 const elm: JobRequestItem = {
@@ -71,9 +73,9 @@ const request = (): JobRequestRow => ({
   shipping: { address: null, city: null, state: null, zip: null },
   noteForCustomer: null, notes: [], noteInternal: null, itemCount: 2, statusCounts: {}, lineTotal: 0,
   supplierLinks: [
-    { supplierId: 1, name: 'Austin Plant Supply', shortName: 'APS', lpsPartner: true, rosieThreadId: null,
+    { supplierId: 1, name: 'Austin Plant Supply', lpsPartner: true, rosieThreadId: null,
       availabilityRequests: [{ id: 41, status: 'new' }, { id: 40, status: 'draft' }, { id: 39, status: 'closed' }] },
-    { supplierId: 2, name: 'Acosta Farms', shortName: null, lpsPartner: false, rosieThreadId: null,
+    { supplierId: 2, name: 'Acosta Farms', lpsPartner: false, rosieThreadId: null,
       availabilityRequests: [{ id: 43, status: 'submitted' }] },
   ],
   items: [oak, elm], createdAt: null, updatedAt: null,
@@ -118,7 +120,7 @@ test('pills show only description and price; supplier, notes and status are colo
   assert.equal(within(list).queryByText('APS'), null, 'no supplier labels in the table')
   assert.equal(within(list).queryByText('Acosta Farms'), null)
   assert.deepEqual([...list.querySelectorAll('[data-candidate]')].map((p) => p.getAttribute('data-candidate')),
-    ['1', '4', '5', '3'], 'grouped by supplier')
+    ['1', '4', '5', '3', '7'], 'grouped by supplier')
 
   assert.equal(pill(1).textContent, '15 G Live OakNo price', 'description falls back to size + name')
   assert.equal(pill(5).textContent, '65 G Live Oak$520.00')
@@ -132,10 +134,17 @@ test('pills show only description and price; supplier, notes and status are colo
   assert.equal(status(4), 'Pending (AR-40)', 'a candidate on an unsent draft is still Pending')
   assert.equal(status(5), 'AR sent (AR-41)')
   assert.equal(status(3), 'Unavailable (AR-43)', 'an answer wins over its zero price')
+  assert.equal(status(7), 'Available (AR-44)')
   assert.match(pill(1).title, /Original request/)
-  assert.match(pill(1).className, /border-dotted/)
-  for (const id of [3, 4, 5]) assert.doesNotMatch(pill(id).className, /border-dotted/)
-  assert.notEqual(pill(5).getAttribute('style'), pill(4).getAttribute('style'), 'AR sent is tinted, Pending grey')
+  assert.ok(pill(1).querySelector('[data-original-dot]'), 'the original request carries a dot')
+  for (const id of [3, 4, 5, 7]) assert.equal(pill(id).querySelector('[data-original-dot]'), null)
+  for (const id of [1, 3, 4]) assert.doesNotMatch(pill(id).className, /border-dotted/, 'not sent, or submitted: solid')
+  for (const id of [5, 7]) assert.match(pill(id).className, /border-dotted/, 'out with the supplier: dotted')
+  const tone = (id: number) => pill(id).style.background
+  assert.equal(tone(5), tone(4), 'AR sent stays grey like Pending')
+  assert.equal(tone(1), tone(4), 'No price is grey too; the price cell says it')
+  assert.notEqual(tone(7), tone(5), 'an answer on an open AR takes its colour')
+  assert.notEqual(tone(3), tone(4))
 })
 
 test('the selected candidate appears only in the Selected column', () => {
@@ -174,64 +183,32 @@ test('drop on Selected selects; another line\'s pill is refused; the bin deletes
   assert.equal(view.queryByLabelText('Delete candidate from Live Oak'), null)
 })
 
-test('the AR strip shows open ARs, adds same-supplier candidates on drop and sends drafts', async () => {
+test('dropping a candidate on its supplier in the header adds it to their newest open AR', async () => {
   const { view, calls, pill } = setup()
-  const strip = view.container.querySelector<HTMLElement>('[data-job-ar-strip]')!
-  const tablets = [...strip.querySelectorAll('[aria-label^="Add a"]')].map((t) => t.getAttribute('aria-label'))
-  assert.deepEqual(tablets, [
-    'Add a Austin Plant Supply candidate to AR-41', 'Add a Austin Plant Supply candidate to AR-40',
-    'Add a Acosta Farms candidate to AR-43',
-  ], 'closed ARs are not tablets')
-  const draft = view.getByLabelText('Add a Austin Plant Supply candidate to AR-40')
-  assert.ok(within(draft).getByText('APS · AR-40'))
-  assert.ok(within(draft).getByText('Draft'))
-  assert.equal(within(view.getByLabelText('Add a Austin Plant Supply candidate to AR-41')).queryByRole('button', { name: 'Send' }), null)
+  const aps = view.container.querySelector<HTMLElement>('[data-supplier-pill="1"]')!
+  const acosta = view.container.querySelector<HTMLElement>('[data-supplier-pill="2"]')!
 
-  const acosta = transfer()
-  fireEvent.dragStart(pill(3), { dataTransfer: acosta })
-  const over = fireEvent.dragOver(draft, { dataTransfer: acosta })
-  assert.equal(over, true, 'dragover is not accepted for another supplier\'s tablet')
-  fireEvent.drop(draft, { dataTransfer: acosta })
+  const other = transfer()
+  fireEvent.dragStart(pill(3), { dataTransfer: other })
+  assert.equal(fireEvent.dragOver(aps, { dataTransfer: other }), true, 'another supplier\'s pill is not accepted')
+  fireEvent.drop(aps, { dataTransfer: other })
   assert.deepEqual(calls, [])
-  fireEvent.dragEnd(pill(3), { dataTransfer: acosta })
-
-  const aps = transfer()
-  fireEvent.dragStart(pill(6), { dataTransfer: aps })
-  assert.equal(fireEvent.dragOver(draft, { dataTransfer: aps }), false, 'same supplier: dragover accepted')
-  fireEvent.drop(draft, { dataTransfer: aps })
+  // Acosta's only AR is submitted: it still takes the candidate (and reopens as New).
+  assert.equal(fireEvent.dragOver(acosta, { dataTransfer: other }), false)
+  fireEvent.drop(acosta, { dataTransfer: other })
   await waitFor(() => assert.equal(calls.length, 1))
-  assert.deepEqual(calls[0], { url: '/api/requests/19/items/52/candidates/6', method: 'POST', body: { action: 'add', arId: 40 } })
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/3', method: 'POST', body: { action: 'add', arId: 43 } })
+  fireEvent.dragEnd(pill(3), { dataTransfer: other })
 
-  await userEvent.setup({ document }).click(within(draft).getByRole('button', { name: 'Send' }))
+  const same = transfer()
+  fireEvent.dragStart(pill(6), { dataTransfer: same })
+  assert.equal(fireEvent.dragOver(aps, { dataTransfer: same }), false, 'same supplier: dragover accepted')
+  fireEvent.drop(aps, { dataTransfer: same })
   await waitFor(() => assert.equal(calls.length, 2))
-  assert.deepEqual(calls[1], { url: '/api/availability-requests/40/send', method: 'POST', body: null })
-})
-
-test('Create AR defaults to APS, offers quick picks and posts the chosen candidates and originals', async () => {
-  const { view, calls } = setup()
-  const user = userEvent.setup({ document })
-  await user.click(view.getByRole('button', { name: 'Create AR' }))
-  const dialog = view.getByRole('dialog', { name: 'Create availability request' })
-  await waitFor(() => assert.equal((within(dialog).getByRole('combobox') as HTMLSelectElement).value, '1'))
-  const create = within(dialog).getByRole('button', { name: 'Create draft' }) as HTMLButtonElement
-  assert.equal(create.disabled, true, 'nothing chosen yet')
-  const checked = () => within(dialog).getAllByRole('checkbox').filter((c) => (c as HTMLInputElement).checked)
-    .map((c) => c.parentElement!.textContent)
-
-  await user.click(within(dialog).getByRole('button', { name: 'All candidates' }))
-  assert.deepEqual(checked(), ['15 G Live Oak · No price · original', '30 G Live Oak · $210.00', '15 G Cedar Elm · $80.00'],
-    'asked candidates (AR-40, AR-41) cannot be asked again')
-  await user.click(within(dialog).getByRole('button', { name: 'Selected candidates' }))
-  assert.deepEqual(checked(), ['30 G Live Oak · $210.00'])
-  await user.click(within(dialog).getByRole('button', { name: 'Original demand' }))
-  assert.deepEqual(checked(), ['15 G Live Oak · No price · original', 'Original request (new candidate)'],
-    'the elm has no APS original, so one is created')
-  await user.click(within(dialog).getByRole('checkbox', { name: /Share customer details/ }))
-  await user.click(create)
-  await waitFor(() => assert.equal(calls.length, 1))
-  assert.deepEqual(calls[0], { url: '/api/requests/19/availability-requests', method: 'POST',
-    body: { supplierId: 1, candidateIds: [1], originalItemIds: [52], shareCustomerDetails: true } })
-  await waitFor(() => assert.equal(view.queryByRole('dialog', { name: 'Create availability request' }), null))
+  assert.deepEqual(calls[1], { url: '/api/requests/19/items/52/candidates/6', method: 'POST', body: { action: 'add', arId: 41 } },
+    'the newest AR that is not closed')
+  assert.equal(view.container.querySelector('[data-job-ar-strip]'), null, 'no AR row above the table')
+  assert.equal(view.queryByRole('button', { name: 'Create AR' }), null)
 })
 
 test('a draft AR has no status picker; others never offer Draft', () => {
@@ -286,49 +263,4 @@ test('candidate route validates ids and actions and maps results to statuses', a
   assert.equal((await DELETE(jsonRequest('DELETE'), ctx())).status, 404)
   assert.equal((await DELETE(jsonRequest('DELETE'), ctx('x'))).status, 400)
   assert.deepEqual(calls.slice(0, 2), [['select', 19, 51, 7], ['add', 19, 51, 7, 40]])
-})
-
-test('job Create AR route validates the payload and passes one job\'s draft request', async () => {
-  const calls: unknown[][] = []
-  let fail = false
-  const { POST } = loadRoute('../app/api/requests/[id]/availability-requests/route.ts', {
-    '@/lib/availability-queries': { createDraftAvailabilityRequest: async (...args: unknown[]) => {
-      calls.push(args)
-      if (fail) throw new Error('Choose at least one candidate')
-      return 77
-    } },
-  })
-  const ctx = (id = '19') => ({ params: Promise.resolve({ id }) })
-  for (const [body, id] of [
-    [{ candidateIds: [1] }], [{ supplierId: 'x', candidateIds: [1] }], [{ supplierId: 1, candidateIds: [0] }],
-    [{ supplierId: 1, originalItemIds: ['5'] }], [{ supplierId: 1, candidateIds: 'all' }], [{ supplierId: 1 }, 'x'],
-  ] as const) assert.equal((await POST(jsonRequest('POST', body), ctx(id))).status, 400, JSON.stringify(body))
-  assert.deepEqual(calls, [])
-  const ok = await POST(jsonRequest('POST', { supplierId: 1, candidateIds: [1, 2], originalItemIds: [52], shareCustomerDetails: true }), ctx())
-  assert.deepEqual(await ok.json(), { id: 77 })
-  assert.deepEqual(calls[0], [19, { supplierId: 1, candidateIds: [1, 2], originalItemIds: [52], shareCustomerDetails: true }])
-  await POST(jsonRequest('POST', { supplierId: 1, candidateIds: [1], shareCustomerDetails: 'yes' }), ctx())
-  assert.deepEqual(calls[1], [19, { supplierId: 1, candidateIds: [1], originalItemIds: [], shareCustomerDetails: false }])
-  fail = true
-  const failed = await POST(jsonRequest('POST', { supplierId: 1 }), ctx())
-  assert.equal(failed.status, 400)
-  assert.match((await failed.json()).error, /at least one candidate/)
-})
-
-test('send route sends only a numeric AR and reports refusals', async () => {
-  const sent: number[] = []
-  let fail = false
-  const { POST } = loadRoute('../app/api/availability-requests/[id]/send/route.ts', {
-    '@/lib/availability-queries': { sendAvailabilityRequest: async (id: number) => {
-      sent.push(id)
-      if (fail) throw new Error('Only a draft request can be sent')
-    } },
-  })
-  assert.equal((await POST(jsonRequest('POST'), { params: Promise.resolve({ id: 'x' }) })).status, 400)
-  assert.equal((await POST(jsonRequest('POST'), { params: Promise.resolve({ id: '40' }) })).status, 200)
-  fail = true
-  const refused = await POST(jsonRequest('POST'), { params: Promise.resolve({ id: '41' }) })
-  assert.equal(refused.status, 400)
-  assert.match((await refused.json()).error, /Only a draft/)
-  assert.deepEqual(sent, [40, 41])
 })
