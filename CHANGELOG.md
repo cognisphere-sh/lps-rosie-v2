@@ -15,6 +15,14 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-30 — faster server restarts
+
+- `scripts/server.sh start/restart` now reuse successful dependency installs and app builds when content fingerprints match. Source, assets, env, dependency and runtime changes still trigger preparation; identical regenerated secrets do not. `restart harness` no longer compiles the app.
+- Moved the effective `verifyDepsBeforeRun: false` setting into `pnpm-workspace.yaml`: pnpm 11+ ignored its old `.npmrc` location and could run another install before builds and service startup.
+- Active browser event streams now close and unsubscribe on `SIGTERM`/`SIGINT`, letting Next.js shut down gracefully instead of hitting the repeated 90-second systemd stop timeout. Ordinary requests keep their graceful shutdown behavior.
+- `server.sh build` still forces installation and compilation. Failed preparation aborts before restarting services, missing or replaced build output forces a rebuild, and concurrent builds are serialized. See [deployment notes](docs/deployment.md).
+- Validation: 22 restart integration tests, nine realtime/shutdown tests, secret-output and syntax checks, and an isolated production build passed. The isolated production app shut down with an open SSE connection in 6.04 seconds; recent live service stops had consistently reached 90 seconds. Live services were not restarted for this change.
+
 ## 2026-09-30 — Unavailable/Sub and hidden substitute options
 
 - Supplier answer picker: **Diff Sz/Sub** is no longer a choice; it merges into **Unavailable/Sub**. Its dialog shows only substitute radio options (the line's other priced candidates, plus **Something else** with a text field and hint that doubles as the note) — no price, quantity or separate note field. Its one button reads **Skip** (plain Unavailable) until a substitute is chosen, then **Submit**. With a substitute the line is stored Unavailable but reads **Diff Sz/Sub** (pill, row tone, summary strip); the substitute is Available at its own price for the demand. The print checklist follows the picker.

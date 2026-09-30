@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events'
 
 import { supabase } from '@/lib/supabase'
 import { JOB_REALTIME_TABLES, type JobEvent } from '@/lib/job-events'
+import { onServerShutdown } from './server-shutdown'
 
 /**
  * The app server's ONE subscription to Supabase Realtime for chat and jobs,
@@ -121,7 +122,7 @@ export function onJobEvent(listener: (ev: JobEvent) => void): () => void {
   return () => em.off('jobs', listener)
 }
 
-/** An SSE response that streams `events` until the request is aborted. */
+/** Stream events until the browser disconnects or the server shuts down. */
 export function sseResponse(
   req: Request,
   subscribe: (send: (data: unknown) => void) => () => void,
@@ -146,19 +147,27 @@ export function sseResponse(
         }
       }, 25_000)
       const off = subscribe(send)
+      let offShutdown = () => {}
+      let cleaned = false
       const close = () => {
         cleanup()
         try { controller.close() } catch { /* already closed */ }
       }
       cleanup = () => {
+        if (cleaned) return
+        cleaned = true
         clearInterval(beat)
         off()
+        offShutdown()
         req.signal.removeEventListener('abort', close)
       }
       // Flush headers now, including when there is no chat activity.
       controller.enqueue(encoder.encode(': connected\n\n'))
       if (req.signal.aborted) close()
-      else req.signal.addEventListener('abort', close, { once: true })
+      else {
+        req.signal.addEventListener('abort', close, { once: true })
+        offShutdown = onServerShutdown(close)
+      }
     },
     cancel() { cleanup() },
   })

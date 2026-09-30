@@ -6,7 +6,7 @@
 # this script) running — the safe way to apply an app-only change.
 # The three commands: sudo ./scripts/setup-server.sh (one-time prod prep) ·
 # sudo ./scripts/server.sh build (build only) · sudo ./scripts/server.sh … (run/manage).
-# start/restart run secrets + build themselves — deploy loop:
+# start/restart refresh secrets and build changed inputs — deploy loop:
 #   git pull && sudo ./scripts/server.sh restart
 set -euo pipefail
 
@@ -123,9 +123,9 @@ NODE
 do_build() {
   local BUILD_USER="${RUN_USER:-${SUDO_USER:-}}"
   if [[ $EUID -eq 0 && -n "$BUILD_USER" ]]; then
-    sudo -u "$BUILD_USER" bash "$ROOT/scripts/build.sh"
+    sudo -u "$BUILD_USER" bash "$ROOT/scripts/build.sh" "$@"
   else
-    bash "$ROOT/scripts/build.sh"
+    bash "$ROOT/scripts/build.sh" "$@"
   fi
 }
 
@@ -141,16 +141,19 @@ target_units() {
   esac
 }
 
-# start/restart = secrets + build + systemctl, so `git pull && sudo
+# start/restart = secrets + incremental build + systemctl, so `git pull && sudo
 # ./scripts/server.sh restart` is the whole deploy. `build` alone is for
 # building without touching the running services.
 case "${1:-}" in
   secrets) gen_secrets ;;
   build)   do_build ;;
   # systemctl restart also starts stopped units, so start == restart.
-  # ponytail: build is unconditional even for `restart harness` (rebuilds the
-  # app it won't bounce) — split the build if that ever gets slow enough to hurt.
-  start|restart) gen_secrets; do_build; units=$(target_units "${2:-}"); systemctl restart $units ;;
+  start|restart)
+    units=$(target_units "${2:-}")
+    gen_secrets
+    do_build "${2:-all}" --if-needed
+    systemctl restart $units
+    ;;
   stop)    units=$(target_units "${2:-}"); systemctl stop $units ;;
   status)  systemctl status --no-pager "${UNITS[@]}" ;;
   logs)

@@ -65,6 +65,10 @@ Let's Encrypt** for HTTPS.
    ```
 
    Typical deploy loop: `git pull && sudo ./scripts/server.sh restart`.
+   Restarts reuse successful dependency installs and app builds when their
+   inputs are unchanged; `restart harness` skips the app build altogether.
+   `sudo ./scripts/server.sh build` forces an install and rebuild. See
+   [restart behavior and verification](docs/deployment.md).
    Secret materialization reports the configured operator username and file
    destinations, but never prints passwords, tokens, access keys or secret
    values. Set or rotate `APP_PASS` by editing the gitignored `config` with a
@@ -81,6 +85,6 @@ Cert auto-renewal is handled by certbot's own systemd timer.
 | `scripts/app/`             | **Deployment-owned deploy hooks** — `config.example` documents this app's extra `config` keys; `secrets.sh` writes the Supabase pair into `app/.env.local`. See `scripts/app/README.md`. |
 | `scripts/setup-server.sh`  | One-time provision: deps, build, units, nginx, HTTPS. |
 | `scripts/server.sh`        | Start/stop/restart/status/logs/secrets/dev for both services. |
-| `scripts/build.sh`         | Install deps + build the app (run by server.sh).     |
+| `scripts/build.sh`         | Install deps + build the app; restart uses content fingerprints to skip unchanged work. |
 | `scripts/aws/setup.sh`     | One-time AWS provisioning (run locally); params in `scripts/aws/config`. |
 | `scripts/aws/backup.sh`    | Whole-dir zip → S3 (cron written by setup-server.sh). |

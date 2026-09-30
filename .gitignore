@@ -1,4 +1,5 @@
 node_modules
+.server-build.lock
 config
 **/DS_Store
 **/.secrets/**

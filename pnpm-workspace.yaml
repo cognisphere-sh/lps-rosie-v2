@@ -1,6 +1,8 @@
 packages:
   - harness
   - app
+# Lifecycle scripts install explicitly. Avoid another install before pnpm run/exec.
+verifyDepsBeforeRun: false
 # Native/postinstall builds. The harness needs better-sqlite3 (session DB) and
 # esbuild (tsx loader) compiled to run; the rest are transitive and harmless.
 allowBuilds:
