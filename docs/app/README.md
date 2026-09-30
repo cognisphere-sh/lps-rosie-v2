@@ -496,6 +496,7 @@ in the desktop rail and through mobile More.
 | `GET·POST /api/chat/:agent/:action` | Pass-through to that agent's `webchat` plugin inbox (`messages`, `send`, `upload`, `file`, `reset`, `threads`, `read`). See *Agent chat*. `send` carries `page` (`lib/chat-page.ts`: current path + `document.title`) so the agent knows which screen the message came from. |
 | `GET /api/chat/threads` | The bell's sweep: every chattable agent's open threads with a transcript, straight from the `threads` table (closed ones excluded), keyed by agent in the plugin's `api/threads` row shape. |
 | `GET /api/chat/events` | **Server-sent events** — `thread` events for chat changes and data-free `jobs` invalidations for job, line, availability, customer and supplier changes. Internal sessions only. The app server's single Supabase Realtime subscription is relayed by `lib/chat-realtime.ts`; job views batch background reads through `lib/use-job-updates.ts`. See *Agent chat*. |
+| `GET /api/partner/:id/events` | **Server-sent events** — data-free `jobs` invalidations for supplier request/item/order changes. Requires the usual session and company/branch access gate, independent of chat availability. Portal views share the connection through `lib/use-partner-updates.ts` and re-read supplier-scoped APIs. |
 | `GET /api/chat-directory?agent=<rosie\|daisy>` | The chat panel's thread picker, by category, merged client-side with the plugin's `api/threads` transcript list. **rosie** (the default): active job requests (`jr-<id>`, titled by `job_requests.name`, renamable from the card), LPS Partners and engaged suppliers (`rosie_thread_id`), active customers. **daisy**: supplier companies only (`daisy_thread_id`, the head branch's row) — bounded to the ones she works, every LPS Partner plus everyone with an active `inventory_sources` row, since all 1,300-odd suppliers carry a thread id. |
 | `GET /a/:agent/private/artifacts/:slug/raw` | The artifact HTML for the page's iframe, fetched from the harness with the shared secret. |
 | `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
@@ -1776,10 +1777,14 @@ existing server-side client (kept on `globalThis` across dev reloads) and fans
 per URL between the bell, the open panel and the portal's hooks.
 
 The same server channel also watches `job_requests`, `job_request_items`,
-`availability_requests`, `candidates`, `customers` and
-`suppliers` (publication migration 0091). Each insert, update or delete sends
-only `{type: "jobs"}` to the internal stream. Partner streams still relay only
-their authorized chat events. No database credentials, row bodies or public
+`availability_requests`, `candidates`, `orders`, `order_items`,
+`order_item_job_request_items`, `customers` and `suppliers` (publication
+migrations 0091/0092; candidates renamed in 0119). Each insert, update or
+delete sends only `{type: "jobs"}` to the internal stream and authenticated
+`/api/partner/:id/events` streams. These are broad invalidations without
+record IDs or supplier identities; each portal re-reads only its authorized
+company's data. The separate partner chat stream still relays only its
+authorized thread pings. No database credentials, row bodies or public
 availability tokens are pushed to browsers.
 
 `lib/use-job-updates.ts` shares the internal connection across All jobs, the
@@ -1790,7 +1795,11 @@ already in flight get a follow-up if another change arrives. Invalidations are
 broad enough to cover deletions and reparented lines even when Realtime's old
 row contains only its primary key. Browser reconnect, upstream subscription
 readiness/reconnect, tab return and a 60s fallback reconcile missed events;
-hidden tabs defer background work until they return. A focused job read failure
+hidden tabs defer background work until they return. Portal home (By request, By item and
+By status), request detail, order queues/details and both history lists use
+`lib/use-partner-updates.ts` with the same batching/recovery behavior. Order
+refreshes also refresh request notifications. Supplier switches close the old
+stream and abort stale reads; background updates keep view/bucket selections. A focused job read failure
 keeps the last saved record visible; an authoritative 404 removes it.
 
 **Pagination.** The first fetch of a transcript asks for `&limit=50`, so the

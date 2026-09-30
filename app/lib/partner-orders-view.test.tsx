@@ -27,7 +27,15 @@ test('partner order lifecycle and matching request layouts', async (t) => {
   }) })
   Object.defineProperty(win.HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.setAttribute('open', '') } })
   Object.defineProperty(win.HTMLElement.prototype, 'scrollTo', { configurable: true, value() {} })
-  class FakeEventSource { onmessage = null; onopen = null; close() {} }
+  class FakeEventSource {
+    static instances: FakeEventSource[] = []
+    onmessage: ((event: { data: string }) => void) | null = null
+    onopen: (() => void) | null = null
+    closed = false
+    constructor(readonly url: string) { FakeEventSource.instances.push(this) }
+    close() { this.closed = true }
+    emit() { this.onmessage?.({ data: '{"type":"jobs"}' }) }
+  }
   for (const [key, value] of Object.entries({
     window: win, self: win, document: win.document, navigator: win.navigator,
     HTMLElement: win.HTMLElement, HTMLInputElement: win.HTMLInputElement,
@@ -54,6 +62,37 @@ test('partner order lifecycle and matching request layouts', async (t) => {
   }
   t.afterEach(async () => { cleanup(); await new Promise((resolve) => setTimeout(resolve, 0)); globalThis.fetch = originalFetch })
   try {
+    await t.test('database changes refresh order items and deletion without a chat reply', async () => {
+      let current = order(11)
+      let deleted = false
+      let reads = 0
+      globalThis.fetch = (async (input) => {
+        if (String(input) !== '/api/partner/7/orders/11') return portalResponse(String(input))
+        reads++
+        return deleted ? json({ error: 'Order not found' }, 404) : json({ order: current, canEdit: true })
+      }) as typeof fetch
+      const view = render(portal(<PartnerOrderPage />))
+      await view.findByRole('cell', { name: '$60.00' })
+      const source = FakeEventSource.instances.findLast(entry => entry.url === '/api/partner/7/events')!
+      assert.ok(source)
+      current = { ...current, items: [{ ...current.items[0], quantity: 5, total: 100 }] }
+      await act(async () => {
+        source.emit()
+        await new Promise(resolve => setTimeout(resolve, 250))
+      })
+      assert.ok(view.getByRole('cell', { name: '$100.00' }))
+      assert.equal(reads, 2)
+      deleted = true
+      await act(async () => {
+        source.emit()
+        await new Promise(resolve => setTimeout(resolve, 250))
+      })
+      assert.match(view.getByRole('alert').textContent ?? '', /Order not found/)
+      assert.equal(view.queryByRole('cell', { name: '$100.00' }), null)
+      view.unmount()
+      assert.equal(source.closed, true)
+    })
+
     await t.test('supplier confirms with date and note, then marks ready without setting a method', async () => {
       let current = order(11, { jobSchedules: [{ expectedInstallDate: '2026-09-25', fulfillmentMethod: 'delivery' }] })
       const writes: unknown[] = []

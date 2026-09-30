@@ -10,6 +10,7 @@ import { OrderCard } from '@/components/workspace/orders'
 import { PartnerFrame, type PartnerAlert } from '@/components/workspace/partner'
 import { orderRecordName, type Order } from '@/lib/orders'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
+import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
 export default function PartnerOrderPage() {
   const params = useParams<{ id: string; orderId: string }>()
@@ -49,31 +50,34 @@ export default function PartnerOrderPage() {
   useEffect(() => {
     setOrder(null); setCanEdit(false); setCanEditFulfillmentMethod(false); setLoading(true); setError(null)
     void load()
-    const refresh = () => { if (document.visibilityState === 'visible') void load() }
-    const timer = window.setInterval(refresh, 30000)
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', refresh)
     return () => {
       revision.current += 1
       loadController.current?.abort()
-      window.clearInterval(timer)
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', refresh)
     }
   }, [load])
 
-  useEffect(() => {
-    let alive = true
-    setAlerts([])
-    void (async () => {
-      const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store' })
-      if (!res.ok) return
-      const body = await res.json() as { requests: { id: number; status: string; jobName: string | null; createdAt: string }[] }
-      if (!alive) return
-      setAlerts(body.requests.filter((request) => request.status === 'new').map((request) => ({ id: request.id, label: request.jobName ? redactPartnerRequestRefs(request.jobName) : 'Availability request', at: Date.parse(request.createdAt) })))
-    })().catch(() => {})
-    return () => { alive = false }
+  const alertsController = useRef<AbortController | null>(null)
+  const loadAlerts = useCallback(async () => {
+    alertsController.current?.abort()
+    const controller = new AbortController()
+    alertsController.current = controller
+    const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store', signal: controller.signal })
+    if (!res.ok) return
+    const body = await res.json() as { requests: { id: number; status: string; jobName: string | null; createdAt: string }[] }
+    if (controller.signal.aborted) return
+    setAlerts(body.requests.filter((request) => request.status === 'new').map((request) => ({ id: request.id, label: request.jobName ? redactPartnerRequestRefs(request.jobName) : 'Availability request', at: Date.parse(request.createdAt) })))
   }, [supplierId])
+
+  useEffect(() => {
+    setAlerts([])
+    void loadAlerts().catch(() => {})
+    return () => { alertsController.current?.abort() }
+  }, [loadAlerts])
+
+  const refresh = useCallback(async () => {
+    await Promise.all([load(), loadAlerts().catch(() => {})])
+  }, [load, loadAlerts])
+  usePartnerUpdates(supplierId, refresh)
 
   const closed = Boolean(order?.closed || order?.status === 'closed_won' || order?.status === 'closed_lost')
 

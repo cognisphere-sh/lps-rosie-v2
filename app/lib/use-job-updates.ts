@@ -11,7 +11,11 @@ import { isJobEvent } from '@/lib/job-events'
  * batch groups bulk inserts; a change during a read always gets another read.
  * Callers keep their records mounted and guard stale responses on navigation.
  */
-export function useJobUpdates(refresh: () => void | Promise<unknown>, enabled = true): void {
+export function useJobUpdates(
+  refresh: () => void | Promise<unknown>,
+  enabled = true,
+  eventsUrl = '/api/chat/events',
+): void {
   const latest = useRef(refresh)
   useEffect(() => { latest.current = refresh }, [refresh])
 
@@ -38,7 +42,7 @@ export function useJobUpdates(refresh: () => void | Promise<unknown>, enabled = 
         })
       }, 200)
     }
-    const off = typeof EventSource === 'undefined' ? () => {} : subscribeEvents('/api/chat/events', (event) => {
+    const off = typeof EventSource === 'undefined' ? () => {} : subscribeEvents(eventsUrl, (event) => {
       if (isJobEvent(event)) schedule()
     }, schedule)
     const visible = () => { if (document.visibilityState !== 'hidden') schedule() }
@@ -55,5 +59,5 @@ export function useJobUpdates(refresh: () => void | Promise<unknown>, enabled = 
       window.removeEventListener('online', visible)
       document.removeEventListener('visibilitychange', visible)
     }
-  }, [enabled])
+  }, [enabled, eventsUrl])
 }

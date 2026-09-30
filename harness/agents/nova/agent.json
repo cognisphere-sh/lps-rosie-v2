@@ -3,7 +3,7 @@
   "description": "Developer agent: owns and modifies this deployment's platform code — agent prompts/scripts, forked plugins, the user-facing frontend app, deploy scripts — and keeps docs/harness + docs/app current. Send code, app and docs change requests here. Reachable on Telegram and in the web app's chat panel, which route to the same thread.",
   "model": {
     "provider": "openai-codex",
-    "id": "gpt-6-sol",
+    "id": "gpt-6.1-sol",
     "thinkingLevel": "high"
   },
   "threadIdStrategy": {

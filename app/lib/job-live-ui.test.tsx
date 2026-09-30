@@ -8,6 +8,7 @@ import { JSDOM } from 'jsdom'
 import ts from 'typescript'
 
 import { useJobUpdates } from './use-job-updates.ts'
+import { usePartnerUpdates } from './use-partner-updates.ts'
 import { availabilityRequestStatusChanged } from './chat-bus.ts'
 import type { JobRequestRow } from './rows.ts'
 
@@ -148,6 +149,29 @@ test('hidden tabs catch up on return, failed reads retry and fallback polling re
   await act(async () => { t.mock.timers.tick(200) })
   assert.equal(calls, 3)
   cleanup(); t.mock.timers.reset()
+})
+
+test('partner consumers share the authorized URL, reconnect, and replace it when the supplier changes', async () => {
+  const refreshed: number[] = []
+  function Consumer({ id }: { id: number }) { usePartnerUpdates(id, () => { refreshed.push(id) }); return null }
+  const first = render(<Consumer id={7} />)
+  const other = render(<Consumer id={7} />)
+  assert.equal(FakeEventSource.instances.length, 1)
+  const source = FakeEventSource.instances[0]
+  assert.equal(source.url, '/api/partner/7/events')
+  act(() => source.onopen?.())
+  await batch()
+  assert.deepEqual(refreshed, [7, 7])
+  first.rerender(<Consumer id={8} />)
+  const next = FakeEventSource.instances[1]
+  assert.equal(next.url, '/api/partner/8/events')
+  other.unmount()
+  assert.equal(source.closed, true)
+  act(() => next.send({ type: 'jobs' }))
+  await batch()
+  assert.deepEqual(refreshed, [7, 7, 8])
+  first.unmount()
+  assert.equal(next.closed, true)
 })
 
 test('focused job updates rows, totals, status and sidebar without remounting a name draft', async () => {

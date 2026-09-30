@@ -30,7 +30,7 @@ class FakeEventSource {
     eventSources.push(this)
   }
   close() { this.closed = true }
-  emit() { this.onmessage?.({ data: '{}' }) }
+  emit(value: unknown = {}) { this.onmessage?.({ data: JSON.stringify(value) }) }
 }
 
 function mediaMatches(query: string) {
@@ -177,13 +177,17 @@ function renderPage(id = '7') {
   )
 }
 
-function installFetch(getPartner: (url: string, init?: RequestInit) => Promise<Response> | Response) {
+function installFetch(
+  getPartner: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  getItems?: () => Response,
+) {
   let chatId = 1
   const calls: Array<{ url: string; init?: RequestInit }> = []
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     calls.push({ url, init })
     if (/^\/api\/partner\/\d+$/.test(url)) return getPartner(url, init)
+    if (url === '/api/partner/7/items' && getItems) return getItems()
     if (/^\/api\/partner\/\d+\/chat\?since=0&limit=1$/.test(url)) {
       return json({ messages: [{ id: chatId, at: Date.now(), role: 'agent', text: 'Reply' }], readId: 0 })
     }
@@ -229,6 +233,50 @@ test('actual PartnerHomePage uses exact auth-scoped read, global counts, default
   assert.equal(read.init?.cache, 'no-store')
   assert.ok(read.init?.signal instanceof AbortSignal)
   assert.equal(api.calls.some((call) => /closed|status|filter/.test(call.url)), false)
+})
+
+test('database invalidations refresh request buckets without chat and keep the selected filters', async () => {
+  let requests = [request(1, 'new'), request(2, 'processing')]
+  const api = installFetch(() => json(payload(requests)))
+  const view = renderPage()
+  await view.findByRole('link', { name: 'New request: Job 1' })
+  fireEvent.click(view.getByRole('button', { name: 'Completed: 0 requests, not selected' }))
+  const source = eventSources.find((entry) => entry.url === '/api/partner/7/events')
+  assert.ok(source)
+  requests = [request(1, 'submitted'), request(3, 'new')]
+  await act(async () => {
+    for (let i = 0; i < 10; i++) source.emit({ type: 'jobs' })
+    await new Promise(resolve => setTimeout(resolve, 250))
+  })
+  assert.ok(view.getByRole('link', { name: 'Completed request: Job 1' }))
+  assert.ok(view.getByRole('link', { name: 'New request: Job 3' }))
+  assert.equal(view.queryByRole('link', { name: 'Processing request: Job 2' }), null)
+  assert.ok(view.getByRole('button', { name: 'Completed: 1 requests, selected' }))
+  assert.equal(api.calls.filter(call => call.url === '/api/partner/7').length, 2)
+  view.unmount()
+  assert.equal(source.closed, true)
+})
+
+test('database changes update the active By item view and answer counts', async () => {
+  let current = request(1, 'new')
+  const api = installFetch(() => json(payload([current])), () => json({ lines: current.items.map(item => ({
+    ...item, arId: current.id, arStatus: current.status, arCreatedAt: current.createdAt,
+    arName: current.jobName, arCustomer: null, mappedInventoryId: null, mappedName: null, mappedSize: null,
+  })) }))
+  const view = renderPage()
+  await view.findByRole('link', { name: 'New request: Job 1' })
+  fireEvent.click(view.getByRole('button', { name: 'By item' }))
+  await view.findByText('Plant 1')
+  const source = eventSources.find(entry => entry.url === '/api/partner/7/events')!
+  current = request(2, 'processing')
+  await act(async () => {
+    source.emit({ type: 'jobs' })
+    await new Promise(resolve => setTimeout(resolve, 250))
+  })
+  assert.ok(view.getByText('Plant 2'))
+  assert.equal(view.queryByText('Plant 1'), null)
+  assert.ok(view.getByRole('button', { name: 'By item', pressed: true }))
+  assert.equal(api.calls.filter(call => call.url === '/api/partner/7/items').length, 2)
 })
 
 test('actual page controls remain reachable at 320/390/480/desktop and support keyboard, touch, multi-select and fresh remount defaults', async () => {

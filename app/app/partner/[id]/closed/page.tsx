@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   PartnerFrame,
@@ -11,6 +11,7 @@ import {
 } from '@/components/workspace/partner'
 import { PartnerHistoryTabs } from '@/components/workspace/partner-history-tabs'
 import { type ARDetail } from '@/lib/availability'
+import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
 export default function PartnerClosedPage() {
   const params = useParams<{ id: string }>()
@@ -20,16 +21,28 @@ export default function PartnerClosedPage() {
   const [requests, setRequests] = useState<ARDetail[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
 
+  const loadController = useRef<AbortController | null>(null)
   const load = useCallback(async () => {
-    const res = await fetch(`/api/partner/${supplierId}`)
-    if (!res.ok) {
-      setState('missing')
-      return
+    loadController.current?.abort()
+    const controller = new AbortController()
+    loadController.current = controller
+    try {
+      const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store', signal: controller.signal })
+      if (controller.signal.aborted) return
+      if (!res.ok) {
+        setState(current => [401, 403, 404].includes(res.status) || current === 'loading' ? 'missing' : current)
+        return
+      }
+      const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
+      if (controller.signal.aborted) return
+      setSupplierName(body.supplier.name)
+      setRequests(body.requests)
+      setState('ready')
+    } catch (error) {
+      if (controller.signal.aborted) return
+      setState(current => current === 'loading' ? 'missing' : current)
+      throw error
     }
-    const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
-    setSupplierName(body.supplier.name)
-    setRequests(body.requests)
-    setState('ready')
   }, [supplierId])
 
   useEffect(() => {
@@ -37,8 +50,14 @@ export default function PartnerClosedPage() {
       setState('missing')
       return
     }
-    void load().catch(() => setState('missing'))
+    setState('loading')
+    setRequests([])
+    setSupplierName(null)
+    void load().catch(() => {})
+    return () => { loadController.current?.abort() }
   }, [supplierId, load])
+
+  usePartnerUpdates(supplierId, load)
 
   const closed = useMemo(() => requests.filter((r) => r.status === 'closed'), [requests])
 

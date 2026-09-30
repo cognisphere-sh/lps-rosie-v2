@@ -15,6 +15,12 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-30 — supplier portal realtime updates
+
+- Supplier requests, candidate answers, job metadata, orders, order items, allocations and history now refresh from the existing Supabase Realtime relay through an authenticated `/api/partner/:id/events` stream. Request/item/status views and notification counts update without a chat reply or manual refresh.
+- Updates batch over 200 ms, reconcile after reconnect/tab return and retain filters and mounted editors. Supplier switches abort stale reads; the event stream carries no records or credentials and reads retain company access checks.
+- Deployed the verified production build at 09:11 UTC; the app starts cleanly, public login/static assets load, and the new event endpoint enforces authentication. The harness remained running. Targeted tests, typecheck and the isolated production build passed.
+
 ## 2026-09-30 — Rosie's ARs ask the selected candidate
 
 - Rosie's availability requests ask each job line's **selected** candidate; a line with nothing selected asks the customer's original plant and size (APS only for now) (`supplier-coordination` 5.3.0, `job-requests` 8.1.0).

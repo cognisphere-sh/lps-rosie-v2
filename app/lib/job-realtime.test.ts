@@ -125,3 +125,35 @@ test('job stream requires an internal session; anonymous and partner callers are
     else process.env.APP_SESSION_SECRET = previous
   }
 })
+
+test('partner data stream checks supplier access before subscribing and sends only invalidations', async () => {
+  for (const status of [401, 404, 200]) {
+    let listener!: (event: unknown) => void
+    let cleanup!: () => void
+    let subscriptions = 0, stopped = 0
+    const events: unknown[] = []
+    const { GET } = load('../app/api/partner/[id]/events/route.ts', {
+      '@/lib/partner-auth': {
+        async requirePartnerAccess(_req: Request, id: string) {
+          assert.equal(id, '7')
+          return status === 200 ? { ok: true, supplierId: 7 } : { ok: false, res: new Response(null, { status }) }
+        },
+      },
+      '@/lib/chat-realtime': {
+        onJobEvent(cb: typeof listener) { subscriptions++; listener = cb; return () => { stopped++ } },
+        sseResponse(_req: Request, subscribe: (send: (event: unknown) => void) => () => void) {
+          cleanup = subscribe((event) => events.push(event))
+          return new Response(null)
+        },
+      },
+    })
+    const response = await GET(new Request('https://example.com/api/partner/7/events'), { params: Promise.resolve({ id: '7' }) })
+    assert.equal(response.status, status)
+    assert.equal(subscriptions, status === 200 ? 1 : 0)
+    if (status !== 200) continue
+    listener({ type: 'jobs' })
+    assert.deepEqual(events, [{ type: 'jobs' }])
+    cleanup()
+    assert.equal(stopped, 1)
+  }
+})

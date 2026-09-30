@@ -24,6 +24,7 @@ import {
   type PartnerAlert,
 } from '@/components/workspace/partner'
 import type { ARDetail } from '@/lib/availability'
+import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
 /** A round outlined icon button — the toolbar's right-hand actions. */
 function IconAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
@@ -51,16 +52,28 @@ export default function PartnerRequestPage() {
   const [saving, setSaving] = useState(false)
   const answerTail = useRef<Promise<void>>(Promise.resolve())
 
+  const loadController = useRef<AbortController | null>(null)
   const load = useCallback(async () => {
-    const res = await fetch(`/api/partner/${supplierId}`)
-    if (!res.ok) {
-      setState('missing')
-      return
+    loadController.current?.abort()
+    const controller = new AbortController()
+    loadController.current = controller
+    try {
+      const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store', signal: controller.signal })
+      if (controller.signal.aborted) return
+      if (!res.ok) {
+        setState(current => [401, 403, 404].includes(res.status) || current === 'loading' ? 'missing' : current)
+        return
+      }
+      const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
+      if (controller.signal.aborted) return
+      setSupplierName(body.supplier.name)
+      setRequests(body.requests)
+      setState('ready')
+    } catch (error) {
+      if (controller.signal.aborted) return
+      setState(current => current === 'loading' ? 'missing' : current)
+      throw error
     }
-    const body = (await res.json()) as { supplier: { name: string }; requests: ARDetail[] }
-    setSupplierName(body.supplier.name)
-    setRequests(body.requests)
-    setState('ready')
   }, [supplierId])
 
   useEffect(() => {
@@ -68,8 +81,14 @@ export default function PartnerRequestPage() {
       setState('missing')
       return
     }
-    void load().catch(() => setState('missing'))
+    setState('loading')
+    setRequests([])
+    setSupplierName(null)
+    void load().catch(() => {})
+    return () => { loadController.current?.abort() }
   }, [supplierId, arId, load])
+
+  usePartnerUpdates(supplierId, load)
 
   const request = useMemo(() => requests.find((r) => r.id === arId) ?? null, [requests, arId])
 

@@ -9,7 +9,7 @@ import { JOB_REALTIME_TABLES, type JobEvent } from '@/lib/job-events'
 /**
  * The app server's ONE subscription to Supabase Realtime for chat and jobs,
  * fanned out to browsers over SSE (`/api/chat/events`,
- * `/api/partner/:id/chat/events`).
+ * `/api/partner/:id/chat/events`, `/api/partner/:id/events`).
  *
  * Every message bumps its `threads` row's
  * preview by trigger (migration 0078), and read marks and the working
@@ -17,7 +17,8 @@ import { JOB_REALTIME_TABLES, type JobEvent } from '@/lib/job-events'
  * carries everything the bell needs. Message bodies are not pushed — a
  * browser that learns its open thread moved re-polls the plugin for the
  * delta, the same fetch it always made, just no longer on a timer.
- * Job-related writes send a data-free invalidation to internal users only.
+ * Job-related writes send a data-free invalidation to authorized job and
+ * supplier views, which re-read their own APIs with the existing access gates.
  * Broad invalidation also covers deleted/reparented lines: DELETE payloads
  * may contain only a primary key, so no foreign key or lookup is required.
  *
@@ -113,7 +114,7 @@ export function onThreadEvent(listener: (ev: ThreadEvent) => void): () => void {
   return () => em.off('thread', listener)
 }
 
-/** Internal job surfaces only; partner chat streams never register this. */
+/** Job and supplier data surfaces; partner chat streams never register this. */
 export function onJobEvent(listener: (ev: JobEvent) => void): () => void {
   const em = emitter()
   em.on('jobs', listener)

@@ -11,6 +11,7 @@ import { OrderLineGroups, OrderStatusFilters, OrderViewControls, PartnerOrderCar
 import { PartnerHistoryTabs } from './partner-history-tabs'
 import type { Order } from '@/lib/orders'
 import { redactPartnerRequestRefs } from '@/lib/partner-display'
+import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
 export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
   const params = useParams<{ id: string }>()
@@ -47,45 +48,48 @@ export function PartnerOrdersView({ closed = false }: { closed?: boolean }) {
   useEffect(() => {
     setOrders([]); setSupplierName(null); setLoading(true); setError(null); setStatuses(['new', 'processing']); setView('order')
     void loadOrders()
-    const refresh = () => { if (document.visibilityState === 'visible') void loadOrders() }
-    const timer = window.setInterval(refresh, 30000)
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', refresh)
     return () => {
       revision.current += 1
       loadController.current?.abort()
-      window.clearInterval(timer)
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', refresh)
     }
   }, [loadOrders])
 
+  const alertsController = useRef<AbortController | null>(null)
+  const loadAlerts = useCallback(async () => {
+    alertsController.current?.abort()
+    const controller = new AbortController()
+    alertsController.current = controller
+    const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store', signal: controller.signal })
+    if (res.ok) {
+      const body = (await res.json()) as {
+        supplier: { name: string }
+        requests: { id: number; status: string; jobName: string | null; createdAt: string }[]
+      }
+      if (controller.signal.aborted) return
+      setSupplierName(body.supplier.name)
+      setAlerts(
+        body.requests
+          .filter((request) => request.status === 'new')
+          .map((request) => ({
+            id: request.id,
+            label: request.jobName ? redactPartnerRequestRefs(request.jobName) : 'Availability request',
+            at: Date.parse(request.createdAt),
+          })),
+      )
+    }
+  }, [supplierId])
+
   useEffect(() => {
     if (!Number.isInteger(supplierId)) return
-    let alive = true
     setAlerts([])
-    void (async () => {
-      const res = await fetch(`/api/partner/${supplierId}`, { cache: 'no-store' })
-      if (res.ok) {
-        const body = (await res.json()) as {
-          supplier: { name: string }
-          requests: { id: number; status: string; jobName: string | null; createdAt: string }[]
-        }
-        if (!alive) return
-        setSupplierName(body.supplier.name)
-        setAlerts(
-          body.requests
-            .filter((request) => request.status === 'new')
-            .map((request) => ({
-              id: request.id,
-              label: request.jobName ? redactPartnerRequestRefs(request.jobName) : 'Availability request',
-              at: Date.parse(request.createdAt),
-            })),
-        )
-      }
-    })().catch(() => {})
-    return () => { alive = false }
-  }, [supplierId])
+    void loadAlerts().catch(() => {})
+    return () => { alertsController.current?.abort() }
+  }, [supplierId, loadAlerts])
+
+  const refresh = useCallback(async () => {
+    await Promise.all([loadOrders(), loadAlerts().catch(() => {})])
+  }, [loadOrders, loadAlerts])
+  usePartnerUpdates(supplierId, refresh)
 
   const visibleOrders = orders.filter((order) => Boolean(order.closed || ['closed_won', 'closed_lost'].includes(order.status)) === closed)
 

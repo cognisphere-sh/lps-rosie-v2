@@ -35,6 +35,7 @@ import {
 import { SupplierStatusBoard } from '@/components/workspace/supplier-status-board'
 import { type ARDetail, type SupplierItemLine } from '@/lib/availability'
 import { cn } from '@/lib/utils'
+import { usePartnerUpdates } from '@/lib/use-partner-updates'
 
 /** By item's tabs are answers, each in its own accent. */
 const ACCENT = {
@@ -123,6 +124,7 @@ export default function PartnerHomePage() {
   const [view, setView] = useState<ViewId>('request')
   const [itemFilter, setItemFilter] = useState<ItemFilterId>('all')
   const [itemLines, setItemLines] = useState<SupplierItemLine[] | null>(null)
+  const itemLoadController = useRef<AbortController | null>(null)
 
   /**
    * The one read behind request rows, global counts and alert rows. Every new
@@ -186,8 +188,18 @@ export default function PartnerHomePage() {
    * opens on By request.
    */
   const loadItemLines = useCallback(async () => {
-    const res = await fetch(`/api/partner/${supplierId}/items`, { cache: 'no-store' })
-    if (res.ok) setItemLines(((await res.json()) as { lines: SupplierItemLine[] }).lines)
+    itemLoadController.current?.abort()
+    const controller = new AbortController()
+    itemLoadController.current = controller
+    const res = await fetch(`/api/partner/${supplierId}/items`, { cache: 'no-store', signal: controller.signal })
+    if (!res.ok) return
+    const body = await res.json() as { lines: SupplierItemLine[] }
+    if (!controller.signal.aborted) setItemLines(body.lines)
+  }, [supplierId])
+
+  useEffect(() => {
+    setItemLines(null)
+    return () => { itemLoadController.current?.abort() }
   }, [supplierId])
 
   useEffect(() => {
@@ -195,10 +207,14 @@ export default function PartnerHomePage() {
     void loadItemLines().catch(() => {})
   }, [view, supplierId, loadItemLines])
 
-  const refreshAfterReply = useCallback(() => {
-    void loadRequests()
-    if (view !== 'request') void loadItemLines().catch(() => {})
+  const refreshAfterReply = useCallback(async () => {
+    await Promise.all([
+      loadRequests(),
+      view !== 'request' ? loadItemLines().catch(() => {}) : Promise.resolve(),
+    ])
   }, [loadRequests, view, loadItemLines])
+
+  usePartnerUpdates(supplierId, refreshAfterReply)
 
   /**
    * One line's answer, from the By-item view. Each row there belongs to its
