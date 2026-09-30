@@ -507,7 +507,7 @@ in the desktop rail and through mobile More.
 | `GET /api/availability-requests/suppliers` | All active suppliers, including non-partners, with `is_lps_partner`. The nav rail filters this list to partners for valid portal shortcuts. |
 | `GET /api/partner/:id` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not an LPS Partner, which is the scoping rule every portal route starts with. |
 | `GET /api/partner/:id/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
-| `GET·PATCH /api/partner/:id/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`note_from_supplier`/`offered_candidate_id`/`offer_description`/`offer_unit_price`/`offer_quantity` (validated by `answer_availability_request`; `size` is refused since 0121); the ask columns (including LPS's `note_for_supplier`) are refused. Unavailable sets quantity and price to 0; Diff Sz/Sub must name a substitute — a tag (another of this supplier's candidates on the line, from the line's `alternatives`) or a typed one — with its price and quantity. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. An answer PATCH atomically moves the request to `processing`, including admin-entered supplier replies; mappings alone leave the response stage unchanged. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
+| `GET·PATCH /api/partner/:id/requests/:arId` | One request as the supplier may see it, and their per-line answer — writable columns are exactly `status`/`available_quantity`/`unit_price`/`note_from_supplier`/`offered_candidate_id`/`offer_description`/`offer_unit_price`/`offer_quantity` (validated by `answer_availability_request`; `size` is refused since 0121); the ask columns (including LPS's `note_for_supplier`) are refused. Unavailable sets the quantity to 0 and keeps the price (0122); Diff Sz/Sub must name a substitute — a tag (another of this supplier's candidates on the line, from the line's `alternatives`) or a typed one — with its price and quantity. A `{itemId, mappedInventoryId}` body instead writes that line's catalogue mapping (`setARItemMapping`, migration 0077) — the key's *presence* selects the branch, so `null` unmaps; it never travels through the `changes` whitelist, which still refuses `mapped_inventory_id`. A request belonging to another supplier answers 404, not 403. An answer PATCH atomically moves the request to `processing`, including admin-entered supplier replies; mappings alone leave the response stage unchanged. (The home GET embeds every request with its lines, so the pages themselves only PATCH here.) |
 | `POST /api/partner/:id/requests/:arId/submit` | The request page's **Submit** / **Re-Submit**: stamps `submitted`/`submitted_at`, then wakes rosie best-effort via the `supplier-events` webhook (`lib/notify-supplier-events.ts`), passing the supplier's `rosie_thread_id` |
 | `GET /api/partner/:id/chat/events` | The portal's push signal: a content-free `{type:'ping'}` whenever the supplier's rosie thread changes — no preview, because the newest message may be internal. The portal re-fetches through the route below, which filters. |
 | `GET·POST /api/partner/:id/chat` | The portal's chat with Local Plant Supply — server-to-server against rosie's four app-secret webchat endpoints (`app-upload`/`app-send`/`app-messages`/`app-file`, `WEBCHAT_APP_SECRET`), always deriving the supplier's `rosie_thread_id` server-side. GET polls the portal-visible transcript or streams one transcript-scoped attachment (including byte ranges for audio); POST stages an allowlisted raw file or sends text/ticketed attachments. A send also forwards the supplier's `page` (path + title of the portal screen they were on), which the plugin appends to the agent-facing message as `Additional context` — on the request page that path names the request, which is how rosie knows which one a chat-given answer is about (`supplier-coordination` §3.6). 404 when the supplier isn't an active Partner, has no thread id, or the secret isn't wired. |
@@ -743,9 +743,10 @@ six tones nothing else was using. Migration 0121 (2026-09-30) split
 **Partial Qty** (`partial_qty`, yellow) out of Diff Sz/Qnty/Sub, relabelled
 the rest **Diff Sz/Sub**, and moved Can Order to orange. A candidate is now one
 fixed plant and size: Diff Sz/Sub names a substitute (`offered_candidate_id`
-or `offer_description`) instead of rewriting the line's size and price. On
-submission a picked tag becomes Available on the request; the asked candidate
-shows Unavailable on the job page while its job line reads Diff Sz/Sub.
+or `offer_description`) instead of rewriting the line's size and price. Since
+0123 that happens on save: the asked line is stored Unavailable and the
+substitute is its own Available row on the request (typed ones are created);
+the job line of a selected original with a substitute on offer reads Diff Sz/Sub.
 
 **What picking a status does** is per answer, and is the picker's whole
 behaviour:
@@ -756,8 +757,8 @@ behaviour:
 | `can_order` | Dialog: the unit price (opens focused) and a note hinting the ETA |
 | `arriving_soon` | Dialog: the unit price (opens focused) and a note — when it lands, and how many |
 | `partial_qty` | Dialog: the quantity you have (opens focused) and an optional note |
-| `diff_size_qty_sub` | Dialog: pick a substitute tag (this supplier's other candidates on the line, `description · $price`) or **Something else** (type plant and size), then price and quantity; picking a tag prefills the price and a customer-ready note (`30 G NA, 45 G Live Oak only`). Save stays disabled until a substitute is chosen |
-| `unavailable` | Dialog: "Would you like to recommend a substitute?" **No** zeroes quantity and price and drops any earlier substitute; **Yes** opens the same substitute picker and saves as Diff Sz/Sub |
+| `diff_size_qty_sub` | Dialog: pick a substitute tag (this supplier's other **priced** candidates on the line, `description · $price`; unpriced ones are not offered) or **Something else** (type plant and size), then price and quantity; picking a tag prefills the price and a customer-ready note (`30 G NA, 45 G Live Oak only`). Save stays disabled until a substitute is chosen. On save (migration 0123) the line becomes **Unavailable** (quantity 0, its price kept) and the substitute appears as its own **Available** row on the request with the offered price and quantity (the demand unless fewer were offered) — a picked tag is that candidate; a typed one is created on the spot, named with what was typed, and Rosie tidies it after submission. Picking a different substitute resets the earlier tag or retires the earlier typed row |
+| `unavailable` | Dialog: "Would you like to recommend a substitute?" **No** zeroes the quantity (the price stays, 0122) and drops any earlier substitute; **Yes** opens the same substitute picker, with the same result on save |
 
 **The three supply answers take a price** (2026-08-30): saying you can order it
 or that it is arriving is an offer, and an offer has a price, so the dialog
@@ -807,6 +808,16 @@ backgrounds. A refreshed `submitted` request therefore leaves the default
 active view immediately and is visible when Completed is selected; a
 database-reopened `new` request returns to the active view without any
 status/API change.
+
+The portal request page applies Submit/Re-Submit optimistically: its status
+changes to Completed and its New-request notification disappears immediately.
+Submission waits for queued line saves, disables further edits and duplicate
+submits while pending, and keeps the optimistic status over concurrent Realtime
+reads. A rejected write restores the latest saved request and keeps the typed
+request note for retry. An accepted POST commits the local submitted state and
+plays the received acknowledgement immediately; the canonical reload runs in
+the background, so a slow or failed read cannot undo an accepted submission.
+Navigation discards pending presentation updates from the previous request.
 
 The home page's one exact `GET /api/partner/:id` loader feeds request rows,
 global counts and alerts. Each read aborts the previous controller and carries

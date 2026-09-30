@@ -8,6 +8,7 @@ import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared
 import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime'
 
 import PartnerHomePage from '../app/partner/[id]/page.tsx'
+import PartnerRequestPage from '../app/partner/[id]/requests/[arId]/page.tsx'
 import type { ARDetail } from './availability.ts'
 
 let dom: JSDOM
@@ -177,6 +178,12 @@ function renderPage(id = '7') {
   )
 }
 
+function requestPage(id = '7', arId = '1') {
+  return <AppRouterContext.Provider value={router as never}>
+    <PathParamsContext.Provider value={{ id, arId }}><PartnerRequestPage /></PathParamsContext.Provider>
+  </AppRouterContext.Provider>
+}
+
 function installFetch(
   getPartner: (url: string, init?: RequestInit) => Promise<Response> | Response,
   getItems?: () => Response,
@@ -277,6 +284,157 @@ test('database changes update the active By item view and answer counts', async 
   assert.equal(view.queryByText('Plant 1'), null)
   assert.ok(view.getByRole('button', { name: 'By item', pressed: true }))
   assert.equal(api.calls.filter(call => call.url === '/api/partner/7/items').length, 2)
+})
+
+test('submission updates status and bell immediately, survives stale realtime reads and acknowledges before reload', async () => {
+  const post = deferred<Response>()
+  const reload = deferred<Response>()
+  const original = { ...request(1, 'new'), noteForSupplier: 'Call before pickup' }
+  let accepted = false
+  const writes: unknown[] = []
+  installFetch(() => accepted ? reload.promise : json(payload([original])))
+  const readFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).includes('/chat?')) return json({ messages: [], readId: 0 })
+    if (String(input).endsWith('/submit')) {
+      writes.push(JSON.parse(String(init?.body)))
+      return post.promise
+    }
+    return readFetch(input, init)
+  }) as typeof fetch
+  const view = render(requestPage())
+  await view.findByRole('button', { name: 'Submit availability' })
+  const note = view.getByRole('textbox', { name: 'Note for this request' }) as HTMLTextAreaElement
+  const user = userEvent.setup({ document })
+  await user.clear(note)
+  await user.type(note, 'Ready Friday')
+  await user.click(view.getByRole('button', { name: 'Submit availability' }))
+
+  assert.ok(view.getByText('Completed'))
+  assert.ok(view.getByRole('button', { name: 'Submitting…' }).hasAttribute('disabled'))
+  assert.ok(view.getByRole('button', { name: 'Notifications' }))
+  assert.equal(note.disabled, true)
+  assert.equal(view.queryByText('Availability received'), null)
+  assert.deepEqual(writes, [{ supplierNote: 'Ready Friday' }])
+  const source = eventSources.find(entry => entry.url === '/api/partner/7/events')!
+  await act(async () => {
+    source.emit({ type: 'jobs' })
+    await new Promise(resolve => setTimeout(resolve, 250))
+  })
+  assert.ok(view.getByText('Completed'))
+  assert.equal(note.value, 'Ready Friday')
+
+  await act(async () => {
+    accepted = true
+    post.resolve(json({ ok: true }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  assert.ok(view.getByText('Availability received'))
+  assert.ok(view.getByRole('button', { name: 'Re-Submit availability' }))
+  assert.equal(note.disabled, false)
+  assert.equal(note.value, 'Ready Friday')
+  await act(async () => {
+    reload.resolve(json(payload([{ ...request(1, 'submitted'), noteForSupplier: 'Confirmed Friday' }])))
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  assert.equal(note.value, 'Confirmed Friday')
+  assert.equal(view.queryByRole('alert'), null)
+})
+
+test('a rejected submission restores status and notifications while retaining the note for retry', async () => {
+  const post = deferred<Response>()
+  installFetch(() => json(payload([request(1, 'new')])))
+  const readFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).includes('/chat?')) return json({ messages: [], readId: 0 })
+    return String(input).endsWith('/submit') ? post.promise : readFetch(input, init)
+  }) as typeof fetch
+  const view = render(requestPage())
+  await view.findByRole('button', { name: 'Submit availability' })
+  const note = view.getByRole('textbox', { name: 'Note for this request' }) as HTMLTextAreaElement
+  const user = userEvent.setup({ document })
+  await user.type(note, 'Keep this draft')
+  await user.click(view.getByRole('button', { name: 'Submit availability' }))
+  assert.ok(view.getByText('Completed'))
+  await act(async () => {
+    post.resolve(json({ error: 'Please check your answers' }, 400))
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  assert.ok(view.getByText('New'))
+  assert.equal(view.queryByText('Completed'), null)
+  assert.equal(view.queryByText('Availability received'), null)
+  assert.match(view.getByRole('alert').textContent ?? '', /Please check your answers/)
+  assert.ok(view.getByRole('button', { name: 'Notifications — 1 new' }))
+  assert.ok(!view.getByRole('button', { name: 'Submit availability' }).hasAttribute('disabled'))
+  assert.equal(note.value, 'Keep this draft')
+})
+
+test('submission waits for queued line saves and rolls back if a line save fails', async () => {
+  const patch = deferred<Response>()
+  const writes: string[] = []
+  installFetch(() => json(payload([request(1, 'new')])))
+  const readFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => {
+    if (init?.method === 'PATCH') { writes.push('PATCH'); return patch.promise }
+    if (String(input).endsWith('/submit')) { writes.push('POST'); return json({ ok: true }) }
+    return readFetch(input, init)
+  }) as typeof fetch
+  const view = render(requestPage())
+  const submit = await view.findByRole('button', { name: 'Submit availability' })
+  const user = userEvent.setup({ document })
+  const price = view.getByRole('textbox', { name: 'Line 1001 price per unit' })
+  await user.clear(price)
+  await user.type(price, '25')
+  await user.click(submit)
+  assert.ok(view.getByText('Completed'))
+  assert.deepEqual(writes, ['PATCH'])
+  assert.equal(view.queryByRole('textbox', { name: 'Line 1001 price per unit' }), null)
+  fireEvent.click(submit)
+  assert.deepEqual(writes, ['PATCH'])
+  await act(async () => {
+    patch.resolve(json({ error: 'Price could not be saved' }, 400))
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
+  assert.deepEqual(writes, ['PATCH'])
+  assert.ok(view.getByText('New'))
+  assert.match(view.getByRole('alert').textContent ?? '', /Price could not be saved/)
+  assert.equal(view.queryByText('Availability received'), null)
+  assert.ok(view.getByRole('textbox', { name: 'Line 1001 price per unit' }))
+})
+
+test('re-submission stays completed when the accepted POST is followed by a reload failure', async () => {
+  let accepted = false
+  installFetch(() => accepted ? Promise.reject(new Error('offline')) : json(payload([request(1, 'submitted')])))
+  const readFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => {
+    if (String(input).endsWith('/submit')) { accepted = true; return json({ ok: true }) }
+    return readFetch(input, init)
+  }) as typeof fetch
+  const view = render(requestPage())
+  const submit = await view.findByRole('button', { name: 'Re-Submit availability' })
+  await act(async () => { fireEvent.click(submit); await new Promise(resolve => setTimeout(resolve, 0)) })
+  assert.ok(view.getByText('Completed'))
+  assert.ok(view.getByText('Update received'))
+  assert.equal(view.queryByRole('alert'), null)
+  assert.equal(view.getByRole('button', { name: 'Re-Submit availability' }).hasAttribute('disabled'), false)
+})
+
+test('a late submission response cannot change the next request or play its receipt', async () => {
+  const post = deferred<Response>()
+  installFetch(() => json(payload([request(1, 'new'), request(2, 'processing')])))
+  const readFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => String(input).endsWith('/submit') ? post.promise : readFetch(input, init)) as typeof fetch
+  const view = render(requestPage())
+  const submit = await view.findByRole('button', { name: 'Submit availability' })
+  await act(async () => { fireEvent.click(submit); await new Promise(resolve => setTimeout(resolve, 0)) })
+  assert.ok(view.getByText('Completed'))
+  view.rerender(requestPage('7', '2'))
+  await view.findByText('Processing')
+  await act(async () => { post.resolve(json({ ok: true })); await new Promise(resolve => setTimeout(resolve, 0)) })
+  assert.ok(view.getByText('Processing'))
+  assert.equal(view.queryByText('Availability received'), null)
+  assert.equal(view.queryByText('Completed'), null)
+  assert.equal(view.getByRole('button', { name: 'Submit availability' }).hasAttribute('disabled'), false)
 })
 
 test('actual page controls remain reachable at 320/390/480/desktop and support keyboard, touch, multi-select and fresh remount defaults', async () => {

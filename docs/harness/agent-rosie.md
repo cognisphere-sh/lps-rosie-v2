@@ -45,10 +45,10 @@ Chris made the request.
 - **Substitutes and Partial Qty** (migration 0121): a candidate is one fixed
   plant and size. Suppliers answer Partial Qty for a short quantity, and Diff
   Sz/Sub (or Unavailable + a recommendation) with a substitute: one of their
-  candidates on the line (a tag) or a typed one. On submission the asked
-  candidate shows Unavailable, a picked tag becomes Available, and the job
-  line reads Diff Sz/Sub (Chris's JR-90 rule). Rosie turns typed substitutes
-  into candidates (`link_candidate_offer`).
+  candidates on the line (a tag) or a typed one. On save the asked candidate
+  becomes Unavailable and the substitute its own Available row (a typed one is
+  created); the job line reads Diff Sz/Sub (Chris's JR-90 rule). Rosie enriches
+  typed substitute rows after submission (name/size, description, note, price).
 - **Conflicting or incomplete answers** (e.g. marked Available, note says
   "only 3 G"): the supplier's note is the source of truth. A clear note is
   corrected straight away (Unavailable + that substitute, re-submitted while

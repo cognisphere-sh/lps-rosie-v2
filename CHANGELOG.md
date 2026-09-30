@@ -15,6 +15,25 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-09-30 — a chosen substitute is its own row on save
+
+- Migration `0123` (applied 2026-09-30): when a supplier picks a substitute (Diff Sz/Sub, or Unavailable → recommend) and saves, the line is marked **Unavailable** (quantity 0, price kept) and the substitute appears straight away as its own **Available** row on the request (Partial Qty if fewer are offered) with the offered price and quantity. A picked tag is the existing candidate; a typed substitute creates a new candidate named with what was typed, which Rosie tidies after submission (name/size, description, customer note, price if none). Switching substitutes resets the earlier tag or retires the earlier typed row; a note edit alone doesn't touch the substitute's own row. Submission no longer applies offers; a selected original with a substitute on offer still reads Diff Sz/Sub (JR-90). Replaces the short-lived "asked row shows the substitute's price" display.
+
+## 2026-09-30 — status changes keep the candidate's price
+
+- Migration `0122` (applied 2026-09-30): marking a line Unavailable (or answering with a substitute) sets its available quantity to 0 but no longer zeroes its price; no status change overwrites a candidate's price — only an explicit price edit does. The answer dialog stops sending a zero price. A selected original line that turns Unavailable keeps its price. Prices already zeroed by earlier Unavailable answers are not restored.
+
+## 2026-09-30 — optimistic supplier submission
+
+- Supplier portal Submit/Re-Submit immediately shows Completed and updates the notification count, preserving the optimistic state during Realtime refreshes. Pending submissions wait for queued line saves and block further edits and duplicate submits.
+- Rejected submissions restore the saved status and retain the note for retry. Accepted submissions show the receipt without waiting for the canonical reload; a reload failure does not undo success. Late responses cannot update a different request after navigation.
+- Validation: 19 focused portal/public/receipt tests and the isolated production build passed. Four existing mobile view test failures reproduce with the unchanged request view; their baseline reproduction is separate from the submission change.
+- Deployed the verified submission build at 10:02 UTC; the app starts cleanly and live page/static-asset/authentication checks pass.
+
+## 2026-09-30 — portal substitute tags are priced only
+
+- The supplier's substitute picker (Unavailable → recommend, or Diff Sz/Sub) offers only candidates with a price; unpriced ones stay reachable through **Something else**.
+
 ## 2026-09-30 — supplier portal realtime updates
 
 - Supplier requests, candidate answers, job metadata, orders, order items, allocations and history now refresh from the existing Supabase Realtime relay through an authenticated `/api/partner/:id/events` stream. Request/item/status views and notification counts update without a chat reply or manual refresh.

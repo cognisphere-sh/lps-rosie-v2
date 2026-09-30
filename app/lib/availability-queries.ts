@@ -72,9 +72,10 @@ const toARItem = (r: ARItemRecord): ARItem => ({
 })
 
 /**
- * Each line's substitute tags: the same supplier's other active candidates on
- * the same job line (what LPS already listed for it), keyed by candidate id.
- * One query for every line. A supplier only ever sees its own candidates.
+ * Each line's substitute tags: the same supplier's other active, **priced**
+ * candidates on the same job line (what LPS already listed for it), keyed by
+ * candidate id. One query for every line. A supplier only ever sees its own
+ * candidates; unpriced ones are left to "Something else".
  */
 async function alternativesFor(rows: ARItemRecord[]): Promise<Map<number, ARAlternative[]>> {
   const result = new Map<number, ARAlternative[]>()
@@ -90,11 +91,12 @@ async function alternativesFor(rows: ARItemRecord[]): Promise<Map<number, ARAlte
   const all = (data ?? []) as { id: number; job_request_item_id: number; supplier_id: number; name: string; size: string | null; description: string | null; unit_price: number | null }[]
   for (const row of rows) {
     result.set(row.id, all
-      .filter((c) => c.id !== row.id && c.job_request_item_id === row.job_request_item_id && c.supplier_id === row.supplier_id)
+      .filter((c) => c.id !== row.id && c.job_request_item_id === row.job_request_item_id
+        && c.supplier_id === row.supplier_id && Number(c.unit_price) > 0)
       .map((c) => ({
         id: c.id,
         description: c.description || [c.size, c.name].filter(Boolean).join(' '),
-        unitPrice: c.unit_price ? Number(c.unit_price) : null,
+        unitPrice: Number(c.unit_price),
       })))
   }
   return result

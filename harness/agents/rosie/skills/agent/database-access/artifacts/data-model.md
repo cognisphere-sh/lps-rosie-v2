@@ -35,14 +35,15 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   AR; then it is that AR's line, and the supplier answers `status`,
   `available_quantity`, `unit_price`, `note_from_supplier` (never `size`).
   Statuses: `available`, `partial_qty`, `can_order`, `arriving_soon`,
-  `unavailable`, `diff_size_qty_sub` (unavailable with a substitute:
-  `offered_candidate_id` = another candidate of the line, or
-  `offer_description`, with `offer_unit_price`/`offer_quantity`). On
-  submission an offered candidate becomes Available on the AR;
-  `link_candidate_offer(answered, substitute)` does it for a typed one. Shown
+  `unavailable`, `diff_size_qty_sub` (older answers only). A substitute
+  (0123): the asked candidate is `unavailable` with `offered_candidate_id`,
+  and the substitute is its own Available row on the AR from the moment the
+  supplier saves; a typed one (`offer_description`) is created with the raw
+  text as its name for Rosie to enrich. `link_candidate_offer(answered,
+  substitute)` records one by hand. Shown
   status is derived: No price (unanswered, price 0/NULL) → Pending (priced;
   no AR or only an unsent draft) → AR sent (sent AR, `status` NULL) → the
-  answer (an Unavailable answer stays Unavailable at price 0).
+  answer. A status never changes a price: Unavailable sets only the quantity to 0 (0122).
   `demanded_quantity` is what the AR asks for. Deleting = `delete_candidate`
   (soft; also unselects).
 - `availability_requests` (header): **one AR per job**

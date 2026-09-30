@@ -69,7 +69,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
 
             <ARLineTable
               items={request.items}
-              editable={editable}
+              editable={editable && !saving}
               onPatch={onPatch}
               displayText={redactPartnerRequestRefs}
               design="portal"

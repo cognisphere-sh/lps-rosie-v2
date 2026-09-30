@@ -1,6 +1,6 @@
 # Supabase schema
 
-Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23; 0121 changes 2026-09-30).
+Live `public` catalog for project `xyeyiqchadfszewztnrf` (2026-09-23; 0121–0123 changes 2026-09-30).
 Daisy and Rosie’s `knowledge/files/SCHEMA.md` paths symlink here.
 
 ## Tables
@@ -134,17 +134,19 @@ Constraints:
   `is_original` marks the line's original request as the customer asked it
   (0120).
 - `unit_price` 0 on an unanswered candidate means "price not found"; answering
-  Unavailable sets `available_quantity` and `unit_price` to 0.
+  Unavailable sets `available_quantity` to 0 and keeps `unit_price` (0122: no
+  status changes a price; only an explicit `unit_price` does).
 - A candidate is one fixed plant and size (0121). `partial_qty` = fewer than
-  demanded. `diff_size_qty_sub` = unavailable (0/0) with a substitute:
-  `offered_candidate_id` (another active candidate of the same supplier on the
-  same line) or `offer_description`, with `offer_unit_price` and
-  `offer_quantity`. On submission `apply_candidate_offer` makes the offered
-  candidate Available (Partial Qty if short) on the same AR without reopening
-  it (`lps.applying_offer` skips the reopen/processing triggers);
-  `link_candidate_offer` does the same for a typed offer once it is a
-  candidate. Older `diff_size_qty_sub` rows without an offer carry a
-  supplier-rewritten size and price.
+  demanded. A substitute (answered as Diff Sz/Sub, or Unavailable + one) is
+  applied on save (0123): the asked candidate is stored `unavailable`
+  (quantity 0, price kept) with `offered_candidate_id`, and
+  `apply_candidate_offer` makes the substitute Available (Partial Qty if
+  short) on the same AR without reopening it (`lps.applying_offer` skips the
+  reopen/processing triggers). A picked tag is another active candidate of the
+  same supplier and line; a typed one (`offer_description`) gets a new
+  candidate named with the text. Replacing it resets a tag to unanswered or
+  retires a typed row. `link_candidate_offer` records one by hand. Stored
+  `diff_size_qty_sub` rows are older answers that rewrote size and price.
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply
   (the supplier's only writable note). `note_for_customer` is the job line's
   customer note for this candidate (e.g. `3 G NA, only 5 G`).
@@ -618,7 +620,7 @@ roles. Table results are listed below.
 | Function and arguments | Returns | EXECUTE | Purpose |
 |---|---|---|---|
 | `add_candidates_to_availability_request(p_request_id bigint, p_candidate_ids bigint[])` | `bigint` | service_role only | Ask unasked candidates of open job lines on an open AR of their supplier. |
-| `apply_candidate_offer(p_candidate_id bigint)` | `void` | service_role only | Make an answer's offered candidate Available on its AR (0121; used on submission). |
+| `apply_candidate_offer(p_candidate_id bigint)` | `void` | service_role only | Make an answer's substitute Available on its AR (0121; applied on save since 0123). |
 | `answer_availability_request(p_request_id bigint, p_supplier_id bigint, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Save a supplier line answer or submit the request; locks the request. |
 | `answer_public_availability(p_token uuid, p_item_id bigint DEFAULT NULL, p_changes jsonb DEFAULT NULL, p_submit boolean DEFAULT false)` | `bigint` | service_role only | Resolve a public token, then save/submit through the same guarded answer path. |
 | `close_order(p_order_id bigint, p_status text)` | `bigint` | service_role only | Close an order Won/Lost and update fully covered jobs. |
@@ -643,7 +645,7 @@ roles. Table results are listed below.
 | `search_inventory(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank inventory matches. |
 | `search_plant_photos(search text DEFAULT '', fuzzy_ratio real DEFAULT 0.34)` | `table (projection below)` | public | Rank photo matches. |
 | `send_availability_request(p_request_id bigint)` | `bigint` | service_role only | Send a draft AR with at least one candidate: status `new`, a public link for non-Partners. |
-| `link_candidate_offer(p_candidate_id bigint, p_offered_candidate_id bigint)` | `void` | service_role only | Link a typed substitute to the candidate made for it and apply the offer (0121). |
+| `link_candidate_offer(p_candidate_id bigint, p_offered_candidate_id bigint)` | `void` | service_role only | Record another candidate as an Unavailable answer's substitute and apply it (0121/0123). |
 | `select_candidate(p_job_request_item_id bigint, p_candidate_id bigint)` | `void` | service_role only | Select one of an open line's candidates and copy it onto the line. |
 | `search_suppliers(search text DEFAULT '', category_filter text DEFAULT NULL, fuzzy_ratio real DEFAULT 0.34, sort_column text DEFAULT NULL, sort_direction text DEFAULT NULL)` | `table (projection below)` | public | Search and sort active suppliers. |
 | `submit_availability_request_note(p_request_id bigint, p_supplier_id bigint, p_note text)` | `bigint` | service_role only | Submit an AR and save its supplier-wide note (max 10,000 chars). |
@@ -672,8 +674,9 @@ JSON inputs and behavior:
   `available_quantity`, `unit_price`, `note_from_supplier`,
   `offered_candidate_id`, `offer_description`, `offer_unit_price`,
   `offer_quantity` (no `size` since 0121); blank clears a field. Status
-  Unavailable forces quantity and price to 0; Unavailable with a substitute is
-  stored as `diff_size_qty_sub`, which is refused without one. Each
+  Unavailable forces the quantity to 0 (never the price, 0122); an answer with
+  a substitute is stored `unavailable` and creates or updates the substitute's
+  row (0123); `diff_size_qty_sub` is refused without one. Each
   answer stamps `answered_at`.
   `p_submit = true` submits the request. Public variants resolve `p_token`
   before applying the same write. Supplier-note RPCs submit and store a note

@@ -1,5 +1,13 @@
 # supplier-coordination — changelog
 
+## 5.4.0 — 2026-09-30
+
+- Migration 0123 (Bhoumik 2026-09-30): a substitute is applied when the supplier saves: the asked candidate becomes Unavailable (`offered_candidate_id` set) and the substitute its own Available row on the AR; a typed substitute is created as a raw-named candidate that Rosie enriches after submission (name/size split, description, customer note, price if missing).
+
+## 5.3.1 — 2026-09-30
+
+- Migration 0122 (Bhoumik 2026-09-30): a status never changes a candidate's price; Unavailable (and a substitute answer) sets only the quantity to 0.
+
 ## 5.3.0 — 2026-09-30
 
 - AR scope (Bhoumik 2026-09-30): each line asks its selected candidate; with none selected, its original-ask candidate. Replaces "always the original ask unless Chris picks".

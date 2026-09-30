@@ -146,7 +146,7 @@ RETURNING id;
   Its shown status is derived: **No price** (unanswered, price 0 or empty) →
   **Pending** (priced, not on an AR or only on an unsent draft) → **AR sent**
   (on a sent AR, unanswered) → the answer (Available, Partial Qty,
-  Unavailable — also when it offers a substitute — Can Order, Arriving Soon; Unavailable with price 0 is still
+  Unavailable — also when it offers a substitute — Can Order, Arriving Soon; Unavailable with a price is still
   Unavailable).
 - Retry: re-read the line's candidates (`job-snapshot`) and add only the
   missing ones.

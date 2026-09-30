@@ -1,5 +1,28 @@
 # Migrations applied by Daisy
 
+## 0123 — substitute rows on save (2026-09-30)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0123_substitute_rows_on_save.assert.sql`. A substitute is applied when
+the supplier saves: the asked candidate is stored `unavailable` (quantity 0,
+price kept) with `offered_candidate_id`, and the substitute becomes its own
+Available (or Partial Qty) row on the AR; a typed substitute creates a
+raw-named candidate for Rosie to enrich. Replacing a substitute resets a tag or
+retires a typed row; submission no longer applies offers. Verified after
+apply: new `answer_availability_request`, `apply_submitted_candidates`,
+`link_candidate_offer`, `apply_candidate_to_job_item` in place, not executable
+by anon; 534 active candidates. The 5 substitute answers saved under 0121
+(AR-55, whose job was deleted) keep their 0121 shape (`diff_size_qty_sub`,
+price 0); their substitutes are already Available.
+
+## 0122 — status changes keep the price (2026-09-30)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0122_status_keeps_price.assert.sql`. `answer_availability_request` no
+longer zeroes `unit_price` on Unavailable or a substitute answer; only an
+explicit `unit_price` changes it. Superseded the same day by 0123's version of
+the function, which keeps this rule. Prices zeroed earlier are not restored.
+
 ## 0121 — candidate offers and Partial Qty (2026-09-30)
 
 Applied via the Supabase MCP after rolled-back live rehearsals of the full

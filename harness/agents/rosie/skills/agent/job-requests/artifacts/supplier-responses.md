@@ -5,17 +5,16 @@ The supplier thread relays a **submitted** AR to its job's `jr-<id>`
 
 ## What the database already did
 
-A candidate is one fixed plant and size; a supplier never changes it. On each
-submission (migration 0121):
+A candidate is one fixed plant and size; a supplier never changes it.
 
-- **Substitutes.** An answer naming a substitute is stored as
-  `diff_size_qty_sub` with the asked candidate at 0/0 (it shows
-  **Unavailable**). A picked tag (`offered_candidate_id`, another candidate
-  of that supplier on the line) becomes **Available** (Partial Qty if the
-  offered quantity is short) with the offered price, quantity and note, and
-  joins the AR. A typed substitute (`offer_description`) waits for you
-  ([below](#substitutes)).
-- **Lines.** Every **selected** candidate on that AR answered since the
+- **Substitutes, as soon as the supplier saves (0123).** The asked candidate
+  becomes `unavailable` (quantity 0, price kept) with `offered_candidate_id`
+  pointing at the substitute, which becomes **Available** (Partial Qty if the
+  offered quantity is short) on the same AR with the offered price, quantity
+  and note. A picked tag is an existing candidate; a typed substitute gets a
+  new candidate named with what they typed (no size; `offer_description` is
+  also kept on the asked one) for you to enrich ([below](#substitutes)).
+- **Lines, on each submission.** Every **selected** candidate on that AR answered since the
   previous submission re-applies to its job line, for jobs in Quote or
   Availability. The line status is computed:
 
@@ -24,8 +23,8 @@ submission (migration 0121):
 | Original, `available` | `available`; quantity = the answer, capped at the demand |
 | Original, `partial_qty` | `partial_qty` (Partial Qty); the supplier's quantity |
 | Original, `can_order` / `arriving_soon` | `need_to_order` / `arriving_soon` |
-| Original, `unavailable` | `unavailable`; quantity and price 0 |
-| Original, `diff_size_qty_sub` (a substitute is on offer) | `alternative_proposed` (Diff Sz/Sub); asked size, no price |
+| Original, `unavailable` | `unavailable`; quantity 0, price kept |
+| Original, `unavailable` with a substitute on offer | `alternative_proposed` (Diff Sz/Sub); asked size and price |
 | Any other candidate, answered | `alternative_proposed` (Diff Sz/Sub) with its own size and price |
 | Any candidate unanswered / unavailable | `pending` / `unavailable` |
 
@@ -63,20 +62,15 @@ Limits:
 
 - **Picked tag:** done by the database. Mention it in the alert; Chris drags
   it onto the line if he wants it.
-- **Typed substitute** (`offer_description`, no `offered_candidate_id`):
-  turn it into a candidate, no approval needed. If an active candidate of
-  that supplier on the line already matches it, use that one; else insert one
-  (the offered name and size, a `description` like `7 G Elaeagnus`,
-  `unit_price` = `offer_unit_price`, else the price-list price for that exact
-  size, else 0; `note_for_customer` like `7 G only`). Then:
-
-  ```sql
-  SET app.actor TO 'rosie';
-  SELECT public.link_candidate_offer($answeredCandidateId, $substituteCandidateId);
-  ```
-
-  It becomes Available (Partial Qty if short) on the AR, without reopening
-  it. Verify with `job-snapshot`.
+- **Typed substitute** (asked candidate has `offer_description`; its
+  `offered_candidate_id` is the row the database created, named with the raw
+  text, no size): after submission, enrich that row, no approval needed.
+  Guarded update of `name` and `size` split from the text (`Oak 15 G` →
+  `Oak`, `15 G`), a `description` like `15 G Oak`, and a `note_for_customer`
+  like `15 G only`. Keep the supplier's price; if they gave none (0), use the
+  price-list price for that exact size. If it duplicates an existing
+  candidate of the line, tell Chris instead of merging. Verify with
+  `job-snapshot`.
 - **An extra offer in the reply text** (`also have 7 G`) on top of an answer
   that stands: add the candidate (as above, status left blank) and mention it.
 - **A reply that replaces the answer with another plant or size** (`15g
@@ -88,6 +82,7 @@ Limits:
   SET app.actor TO 'rosie';
   SELECT public.answer_availability_request($arId, $supplierId, $answeredCandidateId,
     '{"status":"unavailable","offered_candidate_id":"$substituteCandidateId","offer_quantity":"3"}'::jsonb, false);
+  -- saves the substitute as Available at once; the submit re-applies the line
   SELECT public.answer_availability_request($arId, $supplierId, NULL, NULL, true);
   ```
 

@@ -51,6 +51,10 @@ export default function PartnerRequestPage() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const answerTail = useRef<Promise<void>>(Promise.resolve())
+  const [optimisticSubmission, setOptimisticSubmission] = useState<{
+    supplierId: number; arId: number; submittedAt: string
+  } | null>(null)
+  const submission = useRef<typeof optimisticSubmission>(null)
 
   const loadController = useRef<AbortController | null>(null)
   const load = useCallback(async () => {
@@ -77,6 +81,10 @@ export default function PartnerRequestPage() {
   }, [supplierId])
 
   useEffect(() => {
+    submission.current = null
+    setOptimisticSubmission(null)
+    setSaving(false)
+    setError('')
     if (!Number.isInteger(supplierId) || !Number.isInteger(arId)) {
       setState('missing')
       return
@@ -85,20 +93,27 @@ export default function PartnerRequestPage() {
     setRequests([])
     setSupplierName(null)
     void load().catch(() => {})
-    return () => { loadController.current?.abort() }
+    return () => { submission.current = null; loadController.current?.abort() }
   }, [supplierId, arId, load])
 
   usePartnerUpdates(supplierId, load)
 
-  const request = useMemo(() => requests.find((r) => r.id === arId) ?? null, [requests, arId])
+  // Keep pending submission visible even if Realtime reads an older snapshot.
+  // The saved rows stay intact underneath, so rejection restores the latest data.
+  const visibleRequests = useMemo(() => requests.map(row =>
+    optimisticSubmission?.supplierId === supplierId && optimisticSubmission.arId === row.id && row.status !== 'closed'
+      ? { ...row, status: 'submitted', submittedAt: optimisticSubmission.submittedAt }
+      : row,
+  ), [requests, optimisticSubmission, supplierId])
+  const request = useMemo(() => visibleRequests.find((r) => r.id === arId) ?? null, [visibleRequests, arId])
 
   /** The header bell is on every portal page, so it lists the same unanswered requests. */
   const alerts: PartnerAlert[] = useMemo(
     () =>
-      requests
+      visibleRequests
         .filter((r) => r.status === 'new')
         .map((r) => ({ id: r.id, label: requestName(r), at: Date.parse(r.createdAt) })),
-    [requests],
+    [visibleRequests],
   )
 
   const patchItem = useCallback(
@@ -122,11 +137,16 @@ export default function PartnerRequestPage() {
   )
 
   const submit = useCallback(async (supplierNote: string) => {
+    if (submission.current) return false
+    const operation = { supplierId, arId, submittedAt: new Date().toISOString() }
+    submission.current = operation
+    setOptimisticSubmission(operation)
     setSaving(true)
     setError('')
     try {
       // Finish queued line saves before submitting the note and response.
       await answerTail.current
+      if (submission.current !== operation) return false
       const res = await fetch(`/api/partner/${supplierId}/requests/${arId}/submit`, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ supplierNote }),
       })
@@ -134,10 +154,25 @@ export default function PartnerRequestPage() {
         const body = await res.json().catch(() => ({})) as { error?: string }
         throw new Error(body.error ?? 'Could not submit')
       }
-      await load()
+      if (submission.current !== operation) return false
+      // The POST succeeded: commit the acknowledged state immediately. Abort
+      // older reads before reconciling; reload failures cannot undo submission.
+      loadController.current?.abort()
+      setRequests(current => current.map(row => row.id === arId
+        ? { ...row, status: 'submitted', submittedAt: operation.submittedAt, noteForSupplier: supplierNote }
+        : row))
+      setOptimisticSubmission(null)
+      void load().catch(() => {})
       return true
-    } catch (error) { setError((error as Error).message); return false }
-    finally { setSaving(false) }
+    } catch (error) {
+      if (submission.current === operation) {
+        setOptimisticSubmission(null)
+        setError((error as Error).message)
+      }
+      return false
+    } finally {
+      if (submission.current === operation) { submission.current = null; setSaving(false) }
+    }
   }, [supplierId, arId, load])
 
   // A closed request was reached from the Closed page and belongs to it, so
@@ -206,7 +241,7 @@ export default function PartnerRequestPage() {
       onOpenAlert={(id) => { window.location.href = `/partner/${supplierId}/requests/${id}` }}
       toolbar={(rightActions) => back(rightActions)}
     >
-      <AvailabilityRequestView request={request} loading={state === 'loading'} error={error}
+      <AvailabilityRequestView key={`${supplierId}/${arId}`} request={request} loading={state === 'loading'} error={error}
         saving={saving} onPatch={patchItem} onSubmit={submit} />
     </PartnerFrame>
   )

@@ -678,7 +678,7 @@ const ANSWER_FIELDS: Record<
     title: string
     /** Whether the answer needs a quantity of its own. */
     qty: boolean
-    /** Nothing is available: quantity and price both go to 0. */
+    /** Nothing is available: quantity goes to 0; the price stays (0122). */
     zero?: boolean
     /** Collect the substitute offered instead (Diff Sz/Sub). */
     offer?: boolean
@@ -726,9 +726,10 @@ const ANSWER_FIELDS: Record<
 
 /**
  * Collect notes and any supply quantity (and, for Diff Sz/Sub, the substitute
- * with its price and quantity) for a status answer. Unavailable sets quantity
- * and price to 0, first asking whether the supplier wants to recommend a
- * substitute; Yes opens the substitute picker and saves as Diff Sz/Sub.
+ * with its price and quantity) for a status answer. Unavailable sets the
+ * quantity to 0 (never the price), first asking whether the supplier wants to recommend a
+ * substitute; Yes opens the substitute picker. On save the line becomes
+ * Unavailable and the substitute its own Available row (a typed one is created).
  */
 function StatusAnswerDialog({
   item,
@@ -799,7 +800,7 @@ function StatusAnswerDialog({
   const save = () => {
     if (substituting) {
       if (!hasSubstitute) return
-      // The database stores any answer with a substitute as Diff Sz/Sub.
+      // On save the database marks this line Unavailable and makes the substitute its own Available row.
       onSave({
         status: 'diff_size_qty_sub',
         note_from_supplier: notes.trim(),
@@ -812,8 +813,8 @@ function StatusAnswerDialog({
     }
     const changes: Record<string, string> = { status, note_from_supplier: notes.trim() }
     if (spec.qty) changes.available_quantity = qty.trim()
-    // Unavailable with no substitute: drop any earlier one too.
-    if (spec.zero) Object.assign(changes, { available_quantity: '0', unit_price: '0', offered_candidate_id: '', offer_description: '' })
+    // Unavailable with no substitute: quantity 0 (the price stays), and drop any earlier substitute.
+    if (spec.zero) Object.assign(changes, { available_quantity: '0', offered_candidate_id: '', offer_description: '' })
     onSave(changes)
   }
 
@@ -876,7 +877,7 @@ function StatusAnswerDialog({
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => onSave({ status, available_quantity: '0', unit_price: '0', offered_candidate_id: '', offer_description: '' })}
+                onClick={() => onSave({ status, available_quantity: '0', offered_candidate_id: '', offer_description: '' })}
                 className={cn(
                   'cursor-pointer rounded-full border border-border bg-card px-4 py-1.5 text-[12px] font-semibold text-foreground',
                   drawerModal && 'max-[899px]:min-h-11',

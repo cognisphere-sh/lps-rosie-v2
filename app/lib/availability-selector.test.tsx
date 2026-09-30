@@ -543,8 +543,8 @@ for (const portal of [false, true]) {
           offer_description: 'Red Oak, 30 G', offer_unit_price: '25', offer_quantity: '12',
         }]])
       } else {
-        // Unavailable always zeroes quantity and price, and drops any earlier substitute.
-        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', unit_price: '0', offered_candidate_id: '', offer_description: '' }]])
+        // Unavailable zeroes the quantity, keeps the price, and drops any earlier substitute.
+        assert.deepEqual(patches, [[19, { status: 'unavailable', available_quantity: '0', offered_candidate_id: '', offer_description: '' }]])
       }
       assert.equal(view.queryByText('Would you like to recommend a substitute?'), null)
       assert.equal(view.queryByRole('textbox'), null)

@@ -518,8 +518,8 @@ const candidatePending = (candidate: Candidate) => candidate.arId == null || can
 const candidateAwaiting = (candidate: Candidate) => candidate.arStatus === 'new' || candidate.arStatus === 'processing'
 
 /**
- * A Diff Sz/Sub answer that names a substitute: this candidate itself is
- * unavailable, and the substitute is the one on offer (0121).
+ * An answer saved under 0121 as Diff Sz/Sub with a substitute reads
+ * Unavailable, as 0123 stores it: the substitute is the one on offer.
  */
 const shownAnswer = (candidate: Candidate) =>
   candidate.status === 'diff_size_qty_sub' && hasOffer(candidate) ? 'unavailable' : candidate.status

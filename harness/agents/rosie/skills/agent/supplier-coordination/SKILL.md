@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Work with suppliers on their own thread. Includes creating and publishing ARs, Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.3.0)
+description: Work with suppliers on their own thread. Includes creating and publishing ARs, Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.4.0)
 metadata:
   author: lps
-  version: "5.3.0"
+  version: "5.4.0"
 ---
 
 # Supplier coordination

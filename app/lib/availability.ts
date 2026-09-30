@@ -113,13 +113,14 @@ export interface ARItem {
   alternatives?: ARAlternative[]
 }
 
+/** A substitute tag: always priced (unpriced candidates are not offered as tags). */
 export interface ARAlternative { id: number; description: string; unitPrice: number | null }
 
-/** A Diff Sz/Sub answer that names its substitute (0121); older ones rewrote the line itself. */
+/** An answer that names a substitute (stored Unavailable since 0123; the substitute is its own row). */
 export const hasOffer = (item: Pick<ARItem, 'offeredCandidateId' | 'offerDescription'>) =>
   item.offeredCandidateId != null || !!item.offerDescription
 
-/** No price to show: blank, or 0 on an unanswered line ("price not found"; 0 after Unavailable is an answer). */
+/** No price to show: blank, or 0 on an unanswered line ("price not found"; a 0 left by an older Unavailable answer is an answer). */
 export const isUnpriced = (item: Pick<ARItem, 'unitPrice' | 'status'>) =>
   item.unitPrice == null || (item.unitPrice === 0 && item.status == null)
 
