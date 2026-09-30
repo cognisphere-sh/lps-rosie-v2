@@ -1,5 +1,9 @@
 # plant-photo-catalogue — changelog
 
+## 2.1.0 — 2026-09-30
+
+Chris's Telegram 1316 instruction: “if I don’t explicitly say, its APS.” Chris-provided plant photos now default to APS unless he names another supplier; do not repeatedly ask. Scoped to Chris photo submissions, not arbitrary email photos.
+
 ## 2.0.0 — 2026-09-29
 
 Plain-language rewrite (Daisy audit). The ingestion skill's photo rules

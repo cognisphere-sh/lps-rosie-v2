@@ -64,8 +64,7 @@ the same `search_plant_photos` RPC as you.
   what the sender wrote. Never judge size from how the plant looks. No
   evidence → NULL. Photos have no `*_std` dimension columns. Never write
   `name` or `*_key`.
-- **`supplier_id`:** only when someone said which supplier it is. NULL is fine;
-  a wrong supplier is worse.
+- **`supplier_id`:** Chris-provided plant photos default to Austin Plant Supply (APS) unless he explicitly names another supplier; do not repeatedly ask (Chris, Telegram 1316, 2026-09-30: “if I don’t explicitly say, its APS.”). This default applies only to Chris's photo submissions, not arbitrary email photos. Otherwise set a supplier only when someone said which supplier it is; NULL is fine.
 - **`tags`:** short terms; reuse existing ones first
   (`select distinct unnest(tags) from public.plant_photos where is_active order by 1;`).
   Starter set: `nursery`, `field`, `container`, `box`, `root ball`, `label`,
