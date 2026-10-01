@@ -1,5 +1,13 @@
 # job-requests — changelog
 
+## 8.5.0 — 2026-10-01
+
+- Chris, JR-95: when the price list lacks an exact match, show only 3–4 nearest alternatives and keep the rest hidden; replaced the conflicting no-hidden-rows rule. Original asks and selected candidates remain visible.
+
+## 8.4.1 — 2026-09-30
+
+- Chris, JR-95: put legend sizes/calipers in Size and remove distracting transcription/source explanations from internal notes. Cleaned JR-95; retained Chris's live sycamore size selection.
+
 ## 8.4.0 — 2026-09-30
 
 - Chris, JR-93: keep candidate descriptions short; size plus one common or scientific name is enough, not the full common-name | scientific-name pair. Applied to JR-93 descriptions.

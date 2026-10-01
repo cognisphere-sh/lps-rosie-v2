@@ -150,8 +150,11 @@ RETURNING id;
   a close relative or variant. Same values as a listed alternative, plus
   `hide_from_lps = true`: Chris's sourcing page leaves them out; the
   supplier's Unavailable/Sub dialog offers them as choices, and a picked one
-  becomes visible to Chris. Never select one. No exact match → no hidden
-  rows: the alternatives are normal, visible candidates.
+  becomes visible to Chris. Never select one. No exact match → show only
+  the 3–4 nearest listed alternatives (fewer if fewer useful matches exist);
+  keep the original ask visible and hide other alternatives with
+  `hide_from_lps = true`. Rank same-plant nearest sizes before different
+  variants or plants; never hide a selected candidate.
 - Never seed a candidate's `status` or `available_quantity` at intake;
   substitutes get theirs through the database ([supplier responses](supplier-responses.md#substitutes)).
   Never write `note_from_supplier` or `availability_request_id` directly.

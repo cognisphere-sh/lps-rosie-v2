@@ -1,61 +1,57 @@
-# Keep supplier-confirmed alternates visibly Diff Sz/Qnty/Sub
+# Keep supplier confirmation distinct from original-request conformity
 
-- Status: staged — Bhoumik notified via parent Telegram360; current JR90 case owner-corrected; durable behavior open
-- Route: bhoumik (database/status/workflow; not Nova implementation)
-- Raised: 2026-09-29 by Chris via Rosie JR-90
-- Updated: 2026-09-29 12:10:03 CDT
+- Status: staged — partial source coverage under newer Bhoumik Sep30 contract; remaining historical outcomes need owner disposition/verification, not blanket closure
+- Route: bhoumik (database/status/workflow); no Nova implementation assignment by Lily
+- Raised: 2026-09-29 by Chris via Rosie JR90
+- Updated: 2026-09-30 17:42:32 CDT
 
-## Problem
+## Current contract — supersedes September29 candidate-status interpretation
 
-Supplier stock confirmation does not establish that an offer matches the original requested plant, size and quantity. Chris's latest correction requires an alternate **candidate itself**, as well as the Job line, to show Diff Sz/Qnty/Sub rather than Available. Existing selection directly copies candidate status and does not compare to original demand; an unasked candidate's display can also hide an explicit answer behind Pending. Today's manual corrections unblock JR90 but do not prove durable prevention.
+Nova's September30 source/owner report identifies Bhoumik's newer0123 contract: asked unavailable-with-substitute candidate retains Unavailable; offered substitute candidate becomes Available (Partial Qty if short), while an answered selected nonoriginal candidate produces Job Diff. A selected original with an offered substitute also produces Job Diff. Unknown status remains Pending; plain unavailable without an offer remains Unavailable. **Do not reapply September29's candidate-Diff-at-both-levels requirement against this newer contract.** Preserve stock facts, request conformity, selection, customer acceptance and Order/Job stages as distinct.
 
-## Evidence — latest direction wins
+This is current source coverage plus attributed owner authority, not Lily certification of deployed functions/runtime. Nova's audit reports migration NOTE owner claims0123/0124 applied; no independent live identity/regressions. Current Rosie supplier-responses guidance matches the newer contract; no SOP correction by Lily.
 
-- **Current authority:** `web:jr-90:19`, 2026-09-29 12:03:34 CDT, exact Chris wording relayed by Rosie12:05:20: “They should be marked as Diff Sz/Qnty/Sub as they are not the original request.” Rosie explicitly retracts the earlier interpretation that a confirmed alternate candidate stays Available while only its Job line is Diff. Exact original confirmed as asked remains Available.
-- Rosie reports candidates709 (45G vs30G Pride of Houston),725 (15G Nolina nelsonii vs7G Nolina lindheimeriana),724 (5G vs3G crossvine) corrected to diff_size_qty_sub, retaining confirmed quantities; asked candidate713 (3G vs5G prickly pear) corrected via AR51 RPC/re-submit. Refreshed selected Job lines918/922/942/923 all alternative_proposed. Nolina had been selected in the app just before19; Rosie preserved that selection. Owner-reported case result, not independent Lily runtime verification or permanent-fix evidence.
-- **Superseded interpretation, evidence retained:** `web:jr-90:14`11:53:59 said to reuse previously confirmed APS15G Nolina/45G yaupon information and mark candidates available;15 at11:56:03 said selected plant/size differences require Job Diff Size/Qty;16 at11:57:23 said “Similarly for Nolina and other row. Remember this.” At that point Nolina was unselected, and Rosie corrected original line922 to difference without selecting it or changing original7G. Message19 resolves the candidate-status interpretation; do not implement the earlier candidate-Available/Job-Diff split.
-- Rosie11:59:20 identifies AR51 submitted11:42:43/re-submitted11:50:15 evidence: original Nolina candidate687 note `15g nelsonii`, original30G Pride of Houston candidate683 note `45g instock`. Stock evidence comes from submitted supplier facts and Chris's instruction, not merely price, note field/authorship or an unsent draft. Fragment wording alone does not independently establish every quantity; confirmed quantities are owner-reported.
-- Rosie12:05:20 reports job-requests skill7.5.0 removed her earlier interpretation. Current guidance correction is owner-complete; Lily does not duplicate it.
-- Bounded local source audit: HEAD `53db98bb1f8641b46bc70025efd4fdbba6f2caa2` with dirty app/docs; no original-request comparison in selection/submission paths. Actual paths/hashes/limits in `workspace/threads/main/tasks/line-status-candidate-availability/source-check-2026-09-29.md` (Lily-relative). No live DB/tests/deployment verification.
+## Problem and evidence
 
-## What it should do
+- Original concern: selecting a supplier-confirmed different plant/size/fulfilment quantity could hide original-request differences. Today's quantity integrity defect is separately recorded in `candidate-selection-availability-quantity.md`, not bundled here.
+- Historical Chris JR90/web14(11:53:59),15(11:56:03),16(11:57:23) September29 required reusing submitted APS facts and showing Job differences. Web19 at12:03:34: “They should be marked as Diff Sz/Qnty/Sub as they are not the original request.” This led to Rosie7.5.0/case candidate-Diff corrections and Lily's both-levels requirement. Those are dated historical instructions/interpretations, superseded for current candidate mapping by Bhoumik's Sep30 contract; append-only raw feedback remains intact.
+- September29 Rosie reports original Nolina lindheimeriana7G×3 unselected, offered15G nelsonii supported by submitted AR51 note; original line922 was marked difference without selection/request rewrite. Nolina was subsequently selected in-app before19. Other case alternates:45G vs30G Pride of Houston,3G vs5G prickly pear,5G vs3G crossvine. Her case repairs were owner-reported, not Lily verified or permanent-fix proof.
+- Historical source baseline53db98b/catalogue≤0120: `workspace/threads/main/tasks/line-status-candidate-availability/source-check-2026-09-29.md`. Its direct-status mapping and candidate-display findings are **not current-source claims**.
+- September30 source baseline `af7f7454c48e854c68f7cb7f37d9dd754994e406`: Nova report `../nova/workspace/threads/main/tasks/audit-select-candidate-quantity-jr97/notes.md`. Lily read only relevant0123 status/offer sections and Rosie supplier-responses/docs to reconcile this requirement, not a second quantity audit. Relevant paths: `../daisy/migrations/0123_substitute_rows_on_save.sql:1–47,167–223`; `../rosie/skills/agent/job-requests/artifacts/supplier-responses.md:1–54`; `../../../docs/supabase-schema.md:331–337`.
 
-For a supplier-confirmed offer that differs from the ORIGINAL requested plant, size or fulfilment quantity, show **Diff Sz/Qnty/Sub on the candidate and the Job line**, while retaining supplier confirmation, quantities and evidence. A confirmed exact request remains Available. Stock confirmation and request conformity are distinct facts even though Chris wants the existing candidate status to reflect the difference; this does not require a new status model.
+## Coverage and remaining limits
 
-Use reliable original-request evidence, not values already copied from a selected offer. Meaningfully equivalent formatting must not create false differences. Preserve unknowns and contradictory facts. The earlier confirmed-unselected Nolina outcome remains in scope: difference can be surfaced without selecting or rewriting the original request. Its later app selection is a separate user action, not authority for automatic selection. No global ANY-alternate-wins rule is approved for mixed offers.
+**Addressed in current source, runtime unverified:**
+-0123 selected-line helper computes Pending for unknown status, Unavailable for plain unavailable without offer, Diff for answered nonoriginal / original with offer / legacy difference; original Available/Partial Qty/Can Order/Arriving Soon retain their domain mapping. Offered candidate Available while Job Diff is now intentional, not a defect.
+- Shared selection helper and selected-line submission/offer-link reapplication use this status logic. It does not automatically choose an offer, create a customer acceptance or new Order merely from selection.
+- Supplier offer application is now save-time (not the September29-only-submitted interpretation); separate Rosie alert/customer communication permissions remain. Do not restore old save/submit/status rules as an incidental quantity fix.
 
-## Acceptance criteria
+**Not established by this bounded evidence:**
+- Original-versus-alternate identity classification relies on `is_original`/offer links, not semantic normalization of plant/size/demand. The historical concern about ambiguous/multiple original evidence, equivalent formatting and preserving original demand after size copy is not automatically closed by the flag-based rule. It is also not authority to commission a new immutable-baseline architecture or override the current classification.
+- The earlier **unselected** Nolina Job-Diff outcome: current inspected functions reapply selected lines, while current Rosie guidance surfaces unselected answers in an alert for Chris to drag. Whether the prior unselected Job-status expectation remains a needed outcome or is superseded by the newer contract requires existing owner disposition; do not invent ANY-alternate-wins aggregation or ask Chris to repeat his case.
+- Current no-AR explicit answer display, drag/drop/reload/reselection/rendered status consistency and historical case regressions have not been verified by this reconciliation. September29's Pending-mask finding is historical until current owner source/runtime evidence establishes remaining scope.
 
-- Confirmed45G Pride of Houston versus original30G shows candidate Diff Sz/Qnty/Sub and Job Diff Sz/Qnty/Sub, retaining confirmed stock quantity. Corresponding3G/5G prickly-pear and5G/3G crossvine cases behave consistently.
-- Confirmed Nolina nelsonii15G versus original Nolina lindheimeriana7G×3 is a plant-and-size difference at both levels. Selected and unselected scenarios are supported: recording confirmation/difference alone does not create/change selection or rewrite original plant/size/demand. Preserve the actual user-selected state in current JR90.
-- Confirmed exact original request stays Available. Plant-only, size-only and actual fulfilment-quantity-only differences are covered, including confirmed shortfall. Equivalent supported formatting such as `15G`/`15 G` does not create a false alternate. Species/cultivar/form or purchasing-unit equivalence is not guessed from superficial text similarity.
-- Missing quantity is not zero or complete coverage; ambiguous plant/size is not invented as exact or different. Excess supplier stock is distinguished from the quantity actually offered/selected to fulfil the request; no surplus-equals-difference rule.
-- Correct candidate and saved Job statuses persist through drag/drop, agent selection, switching/reselection, reload and relevant submitted-answer reapplication. Authorized submitted-fact handling also supports the unselected case. No UI-only mask or repeated manual repair is an acceptable permanent result.
-- A candidate with an explicit supported difference/availability answer does not display Pending solely because it lacks its own AR association. No-AR stock confirmation from a submitted response is preserved; an unconfirmed, price-only or draft candidate does not become confirmed by this display correction.
-- Before completion, Bhoumik resolves and verifies bounded mixed cases: pending/unavailable/can-order/arriving-soon with mismatch, multiple exact and alternate offers, and absent/ambiguous original evidence. Preserve negative/unknown facts without inventing precedence. The clear confirmed-alternate cases must not wait on an unrelated global model redesign.
-- Original-request evidence remains reliable across selection/reapplication. Existing membership, active/terminal, supplier-answer and order approval/allocation guards remain. This fix causes no automatic customer approval, external send, order creation or parent-stage transition.
+## Outcomes to retain under the approved current contract
+
+- A confirmed actual alternate remains recognizable as such on its selected Job line without erasing its candidate stock confirmation/quantity. Exact confirmed original remains Available; Pending/Unavailable are not promoted to confirmed supply by selection.
+- Plant/size/actual fulfilment quantity meaning, harmless format equivalence, unknowns and original evidence must remain honest; no blind surplus-equals-difference or fabricated baseline/stock.
+- Approved status semantics persist across agent/app selection and relevant reapplication; no UI-only mask or manual repair loop. Existing membership/active/terminal/order guards remain.
+- No automatic selection, original-request rewrite, customer approval/publication, sends, order creation or parent-stage changes.
 
 ## Out of scope
 
-- The **superseded** design “alternate candidate Available, Job line Diff.” Stock remains confirmed, but candidate status follows Chris19's difference instruction.
-- New global status vocabulary/model, automatic selection or sends, customer publication/note routing, order rules or Job-stage changes.
-- Lily data/status edits, backfill, live DB/test audit, app/code changes or another agent's SOP edits.
-- Standalone Nova implementation. Display consistency depends on this Bhoumik-owned status contract; a future approved presentation-only slice can be split by the owner.
+- Restoring the superseded September29 candidate-Diff rule; new global status/vocabulary or offer-default policy.
+- The separate unknown-quantity LEAST defect or supplier-offer quantity defaults; quantity defect has its own narrow already-asked Bhoumik slice.
+- Lily data/code/SOP/backfill/live DB/test action, or Nova implementation assignment. No duplicate queue/human question.
 
-## Assumptions and related work
+## Open items — owner disposition, not new implementation authority
 
-- Diff Size/Qty and latest Diff Sz/Qnty/Sub refer to the existing difference meaning; current local helper uses the latter. Historical September label requests are not used as today's baseline.
-- Existing `availability-status-model-parity` concerns broad vocabulary/domain mapping, not original-versus-offered comparison. This focused requirement crosslinks that history without reopening it. Supplier response/change-management and note/customer-routing scopes remain separate.
-- JR90 is operationally unblocked per Rosie. Prevention remains open; no need to ask Chris again or repeat the case fix.
-
-## Open questions — Bhoumik, using existing owner evidence
-
-- What reliable original plant/size/demand evidence governs comparison after selection replaced displayed size or original-marked candidates were edited? Current flags can be multiple and are not immutable; do not fabricate historical demand. No storage architecture prescribed here.
-- What bounded normalization and mixed-status/multiple-offer precedence preserves the confirmed selected/unselected outcomes without hiding negative/unknown facts? Current direct status copying does not settle this.
-- What is the actual deployed/migration baseline, and does the implementation pass the relevant durable-path checks? Local source and owner reports are not release evidence.
+- Existing Bhoumik/Rosie authority/coverage for unselected-case presentation, original identity/equivalent formatting and current explicit-answer display. Reuse existing decision/evidence; no new human interview or speculative redesign.
+- Owner-verified deployed baseline/regressions before marking implemented behavior shipped. Do not infer all historical acceptance met from source migration presence.
 
 ## Handoff log
 
-- 2026-09-29 12:03:37 CDT — Initial candidate-Available interpretation drafted but **not routed**. Exact web14–16 captured; bounded source check completed without data/code/SOP changes.
-- 2026-09-29 12:05:20 CDT — Rosie relayed later explicit Chris19; requirement revised before handoff to candidate-Diff AND Job-Diff, initial design expressly superseded. Parent main warned not to send older interpretation. Staged for Bhoumik; no external notification/builder route by task. Owner reports case repair and skill7.5.0 complete, durable behavior open.
-- 2026-09-29 12:10:03 CDT — Parent reports Telegram360 successfully notified Bhoumik: latest Chris19 alternate-Diff despite confirmed stock, exact confirmed original Available; four current lines corrected; durable candidate/Job/dragdrop/unselected consistency without losing original demand or automatic selection. Nova received requirement/evidence FYI only, explicitly no code/UI/DB assignment. Status remains staged, not builder-accepted, fixed or deployed. No additional human question.
+- 2026-09-29 12:03:37 CDT — Initial candidate-Available/Job-Diff interpretation drafted, not routed.
+- 2026-09-29 12:05:20 CDT — Chris19 relayed; updated to candidate-Diff and Job-Diff before handoff. Rosie reported case/skill7.5.0 corrections, durable behavior still open.
+- 2026-09-29 12:10:03 CDT — Parent Telegram360 successfully notified Bhoumik with that dated scope. Nova FYI evidence only, no code/UI/DB assignment; staged, not builder-accepted/fixed/deployed.
+- 2026-09-30 17:42:32 CDT — Nova/current0123 evidence supersedes historical both-levels expectation. Reconciled to Bhoumik Sep30 offer-Available/selected-Job-Diff contract; source partial coverage recorded, unselected/original-evidence/display/runtime outcomes not blanket closed. No status reversion or new implementation route. Separate quantity-integrity request already asked by Nova is tracked independently.

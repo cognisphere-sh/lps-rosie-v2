@@ -31,6 +31,7 @@ that keeps history.
   phase names, and (in customer and supplier notes) customer names.
 - **Scope:** job-wide facts go on the job; line facts go on the item.
 - Empty is fine. Use NULL when there is nothing useful to say.
+- Plan legends: put the stated size/caliper in `size` (`4–5" Cal`), not transcription commentary in `note_internal`; omit distracting source/readability explanations.
 - Keep existing text that is still true (the customer's own words). Edit
   with a guarded update (see `database-access`).
 

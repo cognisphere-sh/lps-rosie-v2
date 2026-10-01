@@ -8,7 +8,7 @@
 
 ## Related focused requirement — 2026-09-29 12:05:20 CDT
 
-`job-line-request-conformity.md` owns Chris JR90/web19's new candidate-and-Job difference behavior against ORIGINAL request, including confirmed alternatives and durable selection/confirmation paths. It is separately staged for Bhoumik. This older file's September11 audit is historical, not the current candidate/status/label baseline; no global vocabulary rework is authorized by the new case.
+`job-line-request-conformity.md` records original-request conformity separately from stock confirmation, with September30 17:42:32 reconciliation: newer Bhoumik0123 contract supersedes Sep29 candidate-Diff-both-levels; offered candidates Available/Partial Qty and selected alternate Job Diff. Source partial coverage is not shipped or blanket unselected/original/display closure. Separate `candidate-selection-availability-quantity.md` tracks JR97 unknown-quantity loss under B authorization already requested by Nova. This older file's September11 audit is historical, not current candidate/status/label baseline; neither case authorizes global vocabulary rework.
 
 ## Problem
 
