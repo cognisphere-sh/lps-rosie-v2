@@ -693,6 +693,19 @@ export async function setAvailabilityRequestStatus(arId: number, status: string)
   if (!data?.length) throw new Error('availability request not found')
 }
 
+/** The request-wide note for the supplier (the portal header's "Notes for supplier"). */
+export async function setAvailabilityRequestNote(arId: number, note: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('availability_requests')
+    .update({ note_for_supplier: note.trim() || null })
+    .eq('id', arId)
+    .eq('is_active', true)
+    .neq('status', 'closed')
+    .select('id')
+  if (error) throw new Error(`availability_requests: ${error.message}`)
+  if (!data?.length) throw new Error('availability request not found or closed')
+}
+
 /** Retain the AR's status, token, answers and allocations while removing access. */
 export async function deleteAvailabilityRequest(arId: number): Promise<boolean> {
   const { data, error } = await supabase.from('availability_requests')

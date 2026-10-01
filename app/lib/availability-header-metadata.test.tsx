@@ -110,7 +110,7 @@ test('single-job supplier headers keep fulfillment date and mode with the job ti
     assert.equal(header.querySelector('h1')?.textContent, 'Courtyard')
     assert.match(header.textContent ?? '', /PickupSun, 09\/20/)
     const schedules = dom.window.document.querySelector('[aria-label="Job schedules"]')!
-    assert.equal(schedules.parentElement, header)
+    assert.equal(schedules.closest('header'), header)
     assert.equal(schedules.children.length, 1)
     assert.doesNotMatch(schedules.textContent ?? '', /Job 1|Expected install date/)
   } finally {

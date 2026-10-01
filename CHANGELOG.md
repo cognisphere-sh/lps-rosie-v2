@@ -15,6 +15,23 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-01 — job line and selected candidate stay in sync
+
+- Migration `0126`: while a line has a selected candidate, editing its status, avail, price, size, demand or customer note writes the candidate and re-derives the line (trigger `job_request_items_candidate_sync`, replacing the note-only sync). Line status: Diff Sz/Sub for an Available/Partial substitute, else Partial Qty when avail < demand. LPS edits don't mark the AR Processing and go through on a closed AR. No placeholder candidates for unselected lines; existing lines were not re-applied.
+- AR status picker order: Available, Unavailable/Sub, Can Order/Arriving Soon, Partial Qty, Pending. The red **No Sub** button sits above "Can you offer a substitute?", sized like Submit.
+- Supplier request/order header: the job name is centred in the row. AR price cells show `$` before a value.
+- Jobs page AR sidebar: the request's **Note for supplier** is editable while the AR is open (`PATCH /api/availability-requests/:id` `{noteForSupplier}`).
+
+## 2026-10-01 — Can Order/Arriving Soon is one status option
+
+- AR line status pickers (supplier portal and LPS views) merge **Can Order** and **Arriving Soon** into one option, **Can Order/Arriving Soon**; its pop-up asks which with two radios, opening on the stored answer. Both statuses are still stored, counted and shown separately; no database change.
+- The Unavailable/Sub pop-up's first option is a red **No Sub** button that saves plain Unavailable at once; the Skip/Submit button is now always **Submit**, disabled until a substitute is chosen.
+
+## 2026-10-01 — unselect a candidate; Avail follows the selected candidate
+
+- Job line table: drag the Selected pill back onto the line's Candidates cell to unselect it (new RPC `unselect_candidate`, migration `0125`); the line keeps its values, as with the bin. Nested candidate drop zones no longer pass a drop to the zone around them.
+- A selected candidate whose availability is not checked now leaves the line's Avail blank. `apply_candidate_to_job_item` used `least(candidate, demand)`, and `least()` ignores NULLs, so unanswered candidates copied the demand (JR-96). Unavailable stays 0; answered quantities stay capped at demand. 0125 cleared the 53 open lines (6 jobs) that held the demand this way.
+
 ## 2026-09-30 — faster server restarts
 
 - `scripts/server.sh start/restart` now reuse successful dependency installs and app builds when content fingerprints match. Source, assets, env, dependency and runtime changes still trigger preparation; identical regenerated secrets do not. `restart harness` no longer compiles the app.

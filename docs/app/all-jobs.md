@@ -64,11 +64,22 @@ resizes by dragging the divider at its header's right edge.
 - **Selected** column: drop a pill here to select it, replacing any current
   selection. The selected candidate shows only here (not in Candidates). The
   line takes the candidate's size, price (0 stays blank), available quantity
-  (capped at demand), status and customer note. Editing the line's **Note for
-  customer** while a candidate is selected writes it back to that candidate.
+  (capped at demand; blank while availability is unchecked, 0 when
+  Unavailable), status and customer note. While a candidate is selected the
+  line *is* its answer: editing the line's status, avail, price, size, demand
+  or **Note for customer** writes the candidate (0126, a database trigger, so
+  agent writes sync too), then the line is re-derived. Status maps Pending ↔
+  unanswered and Can Order ↔ Need to Order; Unavailable sets quantity 0. The
+  derived status is Diff Sz/Sub for an Available/Partial substitute, else
+  Partial Qty when avail is below demand, Available when it meets it. These
+  edits don't move the AR to Processing and work on a closed AR. A line with
+  no selection keeps its own values.
   When the candidate's AR is submitted, the supplier's reply replaces the
   candidate's note, and the selected line is re-applied (open Quote/Availability
   jobs, and only candidates answered since the previous submission).
+- Dragging the Selected pill back onto its line's **Candidates** cell
+  unselects it (`unselect_candidate`, 0125): Selected goes blank and the line
+  keeps its values.
 - While a pill is dragged a **Bin** appears in its line's Candidates cell;
   dropping deletes the candidate (soft), removes it from its AR, and unselects
   it without changing the line.
@@ -79,7 +90,8 @@ resizes by dragging the divider at its header's right edge.
   New ARs start as **Drafts** (migration 0120), invisible to the supplier until
   Rosie sends them on Chris's approval; the app has no Send or Create AR button.
 - Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
-  `{ action: 'select' }` or `{ action: 'add', arId }`, and `DELETE` for the bin.
+  `{ action: 'select' }`, `{ action: 'unselect' }` or `{ action: 'add', arId }`,
+  and `DELETE` for the bin.
   Drag and drop is native HTML5, so it needs a mouse or trackpad.
 
 The All Jobs **Send availability request** dialog asks each chosen line's

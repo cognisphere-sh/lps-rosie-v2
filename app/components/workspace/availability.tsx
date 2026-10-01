@@ -12,6 +12,7 @@ import {
   AR_RESPONSES,
   AR_RESPONSE_META,
   AR_ANSWER_OPTIONS,
+  arAnswerOption,
   AR_STATUSES,
   arLineTotal,
   arResponseLabel,
@@ -310,8 +311,9 @@ function PortalResponseSelect({
   }
 
   const choose = (next: string) => {
-    // Unavailable/Sub reopens its dialog, so a substitute can be changed.
-    if ((next || null) !== value || next === 'unavailable') onChange(next)
+    // Unavailable/Sub reopens its dialog, so a substitute can be changed;
+    // Can Order/Arriving Soon, so the other of the two can be picked.
+    if ((next || null) !== value || next === 'unavailable' || next === 'can_order') onChange(next)
     // Follow-up answers mount an autofocus dialog; do not steal focus back
     // from it. The two direct actions return focus to the line trigger.
     close(next === '' || next === 'available')
@@ -573,6 +575,7 @@ export function AnswerCell({
   multiline = false,
   wrap = false,
   clamp = false,
+  prefix,
   className,
 }: {
   value: string
@@ -595,6 +598,8 @@ export function AnswerCell({
   wrap?: boolean
   /** `multiline` only: show one line, clipped, until focused. */
   clamp?: boolean
+  /** Shown before a filled editable value, e.g. `$` on a price. */
+  prefix?: string
   /** Extra classes for the editable control. */
   className?: string
 }) {
@@ -626,7 +631,7 @@ export function AnswerCell({
     )
   }
   const Control = multiline || wrap ? 'textarea' : 'input'
-  return (
+  const control = (
     <Control
       value={draft}
       aria-label={ariaLabel}
@@ -667,6 +672,14 @@ export function AnswerCell({
       style={plain && attention ? { borderColor: PORTAL_PURPLE, maxWidth: 72, marginLeft: 'auto' } : undefined}
     />
   )
+  if (!prefix) return control
+  // Always wrapped, so the input is never remounted (and never loses focus) as the value empties or fills.
+  return (
+    <span className="flex w-full min-w-0 items-center">
+      <span aria-hidden className={cn('flex-none pl-1 tabular-nums text-muted-foreground', touch ? 'text-base' : 'text-[12.5px]', !draft.trim() && 'hidden')}>{prefix}</span>
+      {control}
+    </span>
+  )
 }
 
 /**
@@ -696,13 +709,13 @@ const ANSWER_FIELDS: Record<
   }
 > = {
   can_order: {
-    title: 'Can Order',
+    title: 'Can Order / Arriving Soon',
     qty: false,
     notesLabel: 'ETA / notes',
     notesHint: 'When can you have it? e.g. ready mid-Sep',
   },
   arriving_soon: {
-    title: 'Arriving Soon',
+    title: 'Can Order / Arriving Soon',
     qty: false,
     notesLabel: 'Notes',
     notesHint: 'When it lands, and how many — e.g. 40 due the week of Sep 8',
@@ -725,12 +738,19 @@ const ANSWER_FIELDS: Record<
   },
 }
 
+/** Answers picked under one option; the dialog asks which (radios). */
+const ANSWER_CHOICES: Record<string, { value: string; label: string }[]> = {
+  can_order: [{ value: 'can_order', label: 'Can Order' }, { value: 'arriving_soon', label: 'Arriving Soon' }],
+}
+ANSWER_CHOICES.arriving_soon = ANSWER_CHOICES.can_order
+
 /**
  * Collect notes and any supply quantity for a status answer. Unavailable/Sub
  * sets the quantity to 0 (never the price) and offers a substitute: pick one
  * of the line's other candidates, or "Something else" and type it (the text is
- * the note; there is no separate note field). Its one button reads Skip (plain
- * Unavailable) until a substitute is chosen, then Submit. With a substitute, on save the line reads Diff Sz/Sub and
+ * the note; there is no separate note field). The first option, **No Sub**, is
+ * a button that saves plain Unavailable at once; Submit is enabled once a
+ * substitute is chosen. With a substitute, on save the line reads Diff Sz/Sub and
  * the substitute is its own Available row (a typed one is created as a new
  * candidate for Rosie to enrich).
  */
@@ -748,7 +768,10 @@ function StatusAnswerDialog({
   /** LPS Ops drawer only: isolate as a nested body modal with phone controls. */
   drawerModal?: boolean
 }) {
-  const spec = ANSWER_FIELDS[status]
+  // Can Order/Arriving Soon: which of the two, starting from the one picked.
+  const [chosen, setChosen] = useState(status)
+  const choices = ANSWER_CHOICES[status]
+  const spec = ANSWER_FIELDS[chosen]
   // Demand is the prefill: a short quantity is the common shape of this answer,
   // and correcting a number beats typing one.
   const [qty, setQty] = useState(
@@ -797,6 +820,9 @@ function StatusAnswerDialog({
     }
   }, [])
 
+  // Unavailable/Sub's No Sub: quantity 0 (the price stays), and drop any earlier substitute and note.
+  const noSub = () => onSave({ status, note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '' })
+
   const save = () => {
     if (substituting && hasSubstitute) {
       // The database keeps this line Unavailable and makes the substitute its
@@ -811,7 +837,7 @@ function StatusAnswerDialog({
       })
       return
     }
-    const changes: Record<string, string> = { status, note_from_supplier: notes.trim() }
+    const changes: Record<string, string> = { status: chosen, note_from_supplier: notes.trim() }
     if (spec.qty) changes.available_quantity = qty.trim()
     // Unavailable with no substitute: quantity 0 (the price stays), and drop any earlier substitute.
     if (spec.zero) Object.assign(changes, { available_quantity: '0', offered_candidate_id: '', offer_description: '' })
@@ -871,10 +897,47 @@ function StatusAnswerDialog({
           </span>
         </div>
 
+        {choices && (
+          <div role="radiogroup" aria-label={spec.title} className="flex flex-col gap-1">
+            {choices.map((choice) => (
+              <label
+                key={choice.value}
+                className={cn(
+                  'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-[13px]',
+                  chosen === choice.value ? 'border-primary bg-lps-tint' : 'border-border bg-card',
+                  drawerModal && 'max-[899px]:min-h-11',
+                )}
+              >
+                <input
+                  type="radio"
+                  name={choiceName}
+                  checked={chosen === choice.value}
+                  onChange={() => setChosen(choice.value)}
+                  autoFocus={choice.value === status}
+                  className="size-4 flex-none cursor-pointer accent-[var(--primary)]"
+                />
+                <span className="min-w-0 flex-1">{choice.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        {substituting && (
+          <button
+            type="button"
+            onClick={noSub}
+            autoFocus
+            className={cn(
+              'cursor-pointer self-start rounded-full bg-destructive px-4 py-1.5 text-[12px] font-bold text-destructive-foreground hover:opacity-90',
+              drawerModal && 'max-[899px]:min-h-11',
+            )}
+          >
+            No Sub
+          </button>
+        )}
         {substituting && (
           <div role="group" aria-label="Substitute" className="flex flex-col gap-1">
             <span className={label}>Can you offer a substitute?</span>
-            {alternatives.map((alt, index) => (
+            {alternatives.map((alt) => (
               <label
                 key={alt.id}
                 className={cn(
@@ -883,7 +946,7 @@ function StatusAnswerDialog({
                   drawerModal && 'max-[899px]:min-h-11',
                 )}
               >
-                <input type="radio" name={choiceName} checked={offerId === alt.id} onChange={() => pickTag(alt)} autoFocus={index === 0} className="size-4 flex-none cursor-pointer accent-[var(--primary)]" />
+                <input type="radio" name={choiceName} checked={offerId === alt.id} onChange={() => pickTag(alt)} className="size-4 flex-none cursor-pointer accent-[var(--primary)]" />
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{alt.description}</span>
                 {alt.unitPrice != null && <span className="flex-none tabular-nums text-muted-foreground">{money(alt.unitPrice)}</span>}
               </label>
@@ -907,7 +970,6 @@ function StatusAnswerDialog({
                   value={offerText}
                   aria-label="Something else"
                   aria-describedby={`${choiceName}-hint`}
-                  autoFocus={!alternatives.length}
                   onFocus={() => { setTyping(true); setOfferId(null) }}
                   onChange={(e) => { setOfferText(e.target.value); setTyping(true); setOfferId(null) }}
                   placeholder="Something else…"
@@ -941,7 +1003,7 @@ function StatusAnswerDialog({
             onChange={(e) => setNotes(e.target.value)}
             placeholder={spec.notesHint}
             rows={2}
-            autoFocus={!substituting && (spec.focus === 'notes' || !spec.qty)}
+            autoFocus={!substituting && !choices && (spec.focus === 'notes' || !spec.qty)}
             className={cn(
               'min-h-16 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[13px] outline-none placeholder:text-lps-dim focus-visible:border-ring',
               drawerModal && 'max-[899px]:text-base',
@@ -960,18 +1022,17 @@ function StatusAnswerDialog({
           >
             Cancel
           </button>
-          {/* Unavailable/Sub: one button — Skip (plain Unavailable) until a substitute is chosen, then Submit. */}
+          {/* Unavailable/Sub: Submit once a substitute is chosen (No Sub saves on its own). */}
           <button
             type="button"
-            onClick={substituting && !hasSubstitute
-              ? () => onSave({ status, note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '' })
-              : save}
+            onClick={save}
+            disabled={substituting && !hasSubstitute}
             className={cn(
-              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground',
+              'cursor-pointer rounded-full bg-primary px-4 py-1.5 text-[12px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50',
               drawerModal && 'max-[899px]:min-h-11',
             )}
           >
-            {substituting ? (hasSubstitute ? 'Submit' : 'Skip') : 'Save answer'}
+            {substituting ? 'Submit' : 'Save answer'}
           </button>
         </div>
       </div>
@@ -1034,7 +1095,7 @@ export function LineStatusPicker({
 
   const response = (
     <ResponseSelect
-      value={item.status}
+      value={arAnswerOption(item.status)}
       shown={arShownStatus(item)}
       disabled={!editable}
       portal={portal}
@@ -1048,7 +1109,7 @@ export function LineStatusPicker({
             status: 'available',
             available_quantity: item.demandedQuantity == null ? '' : String(item.demandedQuantity),
           })
-        } else setAnswering(next)
+        } else setAnswering(next === 'can_order' && item.status === 'arriving_soon' ? item.status : next)
       }}
     />
   )
@@ -1177,7 +1238,7 @@ function LineRow({
     note: supplierNote,
     unit_price: <AnswerCell value={unpriced ? '' : String(item.unitPrice)} editable={editable}
       align="right" placeholder={portal ? '-' : '$/unit'} display={unpriced ? '' : money(item.unitPrice)}
-      onCommit={commit('unit_price')} plain={portal} attention={portal && unpriced}
+      onCommit={commit('unit_price')} plain={portal} attention={portal && unpriced} prefix="$"
       ariaLabel={`Line ${item.id} price per unit`} />,
   }
   return (
@@ -1401,6 +1462,7 @@ export function ARLineTable<T extends ARItem>({
                       ariaLabel={`${lineName} price per unit`}
                       inputMode="decimal"
                       touch
+                      prefix="$"
                     />
                   </label>
                   {supplierNote}

@@ -80,9 +80,9 @@ test('portal picker opens a themed listbox with unanswered plus the canonical an
   const options = within(listbox).getAllByRole('option')
   assert.deepEqual(
     options.map((option) => option.children[1]?.textContent),
-    ['Available', 'Partial Qty', 'Unavailable/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Unavailable/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending'],
   )
-  assert.equal(within(listbox).getByRole('option', { name: 'Arriving Soon' }).getAttribute('aria-selected'), 'true')
+  assert.equal(within(listbox).getByRole('option', { name: 'Can Order/Arriving Soon' }).getAttribute('aria-selected'), 'true')
   assert.match(within(listbox).getByRole('option', { name: 'Unavailable/Sub' }).className, /min-h-9/)
 
   await user.click(within(listbox).getByRole('option', { name: 'Pending' }))
@@ -130,7 +130,7 @@ test('portal picker keeps follow-up answers in the existing dialog and payload p
   )
 
   await user.click(view.getByRole('button', { name: 'Line status, Pending' }))
-  await user.click(view.getByRole('option', { name: 'Can Order' }))
+  await user.click(view.getByRole('option', { name: 'Can Order/Arriving Soon' }))
   assert.equal(view.queryByLabelText('Price per unit'), null)
   await user.type(view.getByLabelText('ETA / notes'), 'Ready next week')
   await user.click(view.getByRole('button', { name: 'Save answer' }))
@@ -205,19 +205,19 @@ test('buffered typeahead reaches multi-character matches and repeated letters cy
   const trigger = view.getByRole('button', { name: 'Line status, Pending' })
 
   await user.click(trigger)
-  await user.keyboard('ar')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
+  await user.keyboard('pa')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Partial Qty' }))
 
   await user.keyboard('{Escape}')
   await user.click(trigger)
-  await user.keyboard('a')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
-  await user.keyboard('a')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
+  await user.keyboard('p')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Partial Qty' }))
+  await user.keyboard('p')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Pending' }))
 
   await new Promise((resolve) => setTimeout(resolve, 550))
-  await user.keyboard('a')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
+  await user.keyboard('p')
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Partial Qty' }))
 })
 
 test('ArrowUp wraps and Home, End and Space operate the focused choice', async () => {
@@ -227,13 +227,13 @@ test('ArrowUp wraps and Home, End and Space operate the focused choice', async (
   trigger.focus()
 
   await user.keyboard('{ArrowUp}')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Partial Qty' }))
   await user.keyboard('{Home}')
   assert.equal(document.activeElement, view.getByRole('option', { name: 'Available' }))
   await user.keyboard('{End}')
   assert.equal(document.activeElement, view.getByRole('option', { name: 'Pending' }))
   await user.keyboard('{ArrowUp}')
-  assert.equal(document.activeElement, view.getByRole('option', { name: 'Arriving Soon' }))
+  assert.equal(document.activeElement, view.getByRole('option', { name: 'Partial Qty' }))
   await user.keyboard(' ')
   assert.equal(view.queryByRole('listbox'), null)
   assert.ok(view.getByRole('button', { name: 'Save answer' }))
@@ -304,7 +304,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
   assert.equal(listbox.style.left, '100px')
   assert.equal(listbox.style.top, '138px')
   assert.equal(listbox.style.width, '196px')
-  assert.equal(listbox.style.maxHeight, '228px')
+  assert.equal(listbox.style.maxHeight, '192px')
   assert.match(listbox.className, /overflow-y-auto/)
 
   fireEvent.pointerDown(document.body)
@@ -312,7 +312,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
   await user.click(trigger)
   listbox = view.getByRole('listbox', { name: 'Line status' })
   assert.equal(listbox.style.left, '210px')
-  assert.equal(listbox.style.top, '216px')
+  assert.equal(listbox.style.top, '252px')
 
   const assertInsideViewport = () => {
     const left = Number.parseFloat(listbox.style.left)
@@ -365,7 +365,7 @@ test('portalled surface repositions above or below, clamps to the viewport, and 
     fireEvent(window, new dom.window.Event('resize'))
     await new Promise((resolve) => setTimeout(resolve, 5))
   })
-  const unavailable = view.getByRole('option', { name: 'Arriving Soon' })
+  const unavailable = view.getByRole('option', { name: 'Partial Qty' })
   let scrollCalls = 0
   Object.defineProperty(unavailable, 'scrollIntoView', {
     configurable: true,
@@ -455,7 +455,7 @@ test('admin line picker remains the existing native select', () => {
   const select = view.getByRole('combobox', { name: 'Line status' })
   assert.deepEqual(
     within(select).getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Partial Qty', 'Unavailable/Sub', 'Can Order', 'Arriving Soon', 'Pending'],
+    ['Available', 'Unavailable/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending'],
   )
 })
 
@@ -513,7 +513,7 @@ test('admins edit the ask through details; supplier replies go through answers',
 })
 
 for (const portal of [false, true]) {
-  test(`unavailable/sub: Skip saves plain Unavailable (portal=${portal})`, async () => {
+  test(`unavailable/sub: No Sub saves plain Unavailable at once (portal=${portal})`, async () => {
     const user = userEvent.setup({ document })
     const patches: Array<[number, Record<string, string>]> = []
     const view = render(<LineStatusPicker item={item({ availableQuantity: 12, noteFromSupplier: 'Existing note' })}
@@ -528,8 +528,9 @@ for (const portal of [false, true]) {
     assert.equal(view.queryByLabelText('Price $/unit'), null)
     assert.equal(view.queryByLabelText('Quantity'), null)
     assert.equal(view.queryByLabelText('Note (optional)'), null)
-    assert.equal(view.queryByRole('button', { name: 'Submit' }), null)
-    await user.click(view.getByRole('button', { name: 'Skip' }))
+    assert.equal((view.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled, true)
+    assert.equal(document.activeElement, view.getByRole('button', { name: 'No Sub' }))
+    await user.click(view.getByRole('button', { name: 'No Sub' }))
     // Unavailable zeroes the quantity, keeps the price, and drops any earlier substitute and note.
     assert.deepEqual(patches, [[19, {
       status: 'unavailable', note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '',
@@ -537,18 +538,18 @@ for (const portal of [false, true]) {
   })
 }
 
-test('unavailable/sub: picking a candidate turns Skip into Submit and writes the note', async () => {
+test('unavailable/sub: picking a candidate enables Submit and writes the note', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
   const alternatives = [{ id: 41, description: '45 G Live Oak', unitPrice: 40 }, { id: 42, description: '15 G Live Oak', unitPrice: 20 }]
   const view = render(<LineStatusPicker item={item({ alternatives })} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
   await user.selectOptions(view.getByRole('combobox'), 'unavailable')
-  assert.ok(view.getByRole('button', { name: 'Skip' }))
+  assert.equal((view.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled, true)
   await user.click(view.getByRole('radio', { name: /45 G Live Oak/ }))
   await user.click(view.getByRole('radio', { name: /15 G Live Oak/ }))
   // One choice at a time.
   assert.equal((view.getByRole('radio', { name: /45 G Live Oak/ }) as HTMLInputElement).checked, false)
-  assert.equal(view.queryByRole('button', { name: 'Skip' }), null)
+  assert.equal((view.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled, false)
   await user.click(view.getByRole('button', { name: 'Submit' }))
   assert.deepEqual(patches, [{
     status: 'unavailable', note_from_supplier: '30 G NA, 15 G Live Oak only', offered_candidate_id: '42',
@@ -598,7 +599,8 @@ for (const status of ['can_order', 'arriving_soon']) {
     const user = userEvent.setup({ document })
     const patches: Array<Record<string, string>> = []
     const view = render(<LineStatusPicker item={item()} editable onPatch={async (_id, changes) => { patches.push(changes) }} />)
-    await user.selectOptions(view.getByRole('combobox'), status)
+    await user.selectOptions(view.getByRole('combobox'), 'can_order')
+    await user.click(view.getByRole('radio', { name: status === 'can_order' ? 'Can Order' : 'Arriving Soon' }))
     assert.equal(view.queryByLabelText('Price $/unit'), null)
     await user.click(view.getByRole('button', { name: 'Save answer' }))
     assert.equal(patches.length, 1)
@@ -606,3 +608,17 @@ for (const status of ['can_order', 'arriving_soon']) {
     assert.equal(Object.hasOwn(patches[0], 'unit_price'), false)
   })
 }
+
+test('Can Order/Arriving Soon reopens on the stored answer and can switch to the other', async () => {
+  const user = userEvent.setup({ document })
+  const patches: Array<Record<string, string>> = []
+  const view = render(<LineStatusPicker item={item({ status: 'arriving_soon' })} editable portal onPatch={async (_id, changes) => { patches.push(changes) }} />)
+  await user.click(view.getByRole('button', { name: 'Line status, Arriving Soon' }))
+  await user.click(view.getByRole('option', { name: 'Can Order/Arriving Soon' }))
+  assert.equal((view.getByRole('radio', { name: 'Arriving Soon' }) as HTMLInputElement).checked, true)
+  assert.ok(view.getByLabelText('Notes'))
+  await user.click(view.getByRole('radio', { name: 'Can Order' }))
+  await user.type(view.getByLabelText('ETA / notes'), 'mid-Oct')
+  await user.click(view.getByRole('button', { name: 'Save answer' }))
+  assert.deepEqual(patches, [{ status: 'can_order', note_from_supplier: 'mid-Oct' }])
+})

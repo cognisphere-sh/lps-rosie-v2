@@ -6,7 +6,7 @@ import {
 
 import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
-import { ARLineTable, ARStatusPill } from '@/components/workspace/availability'
+import { AnswerCell, ARLineTable, ARStatusPill } from '@/components/workspace/availability'
 import { SizePill } from '@/components/workspace/chat-kit'
 import { SummaryStrip } from '@/components/workspace/partner-summary-strip'
 import {
@@ -43,6 +43,7 @@ function clampDrawerWidth(width: number): number {
 
 type WriteOperation =
   | { kind: 'line'; itemId: number; fields: string[]; body: Record<string, unknown> }
+  | { kind: 'note'; body: Record<string, unknown> }
   | { kind: 'status'; body: Record<string, unknown> }
   | { kind: 'submit'; body: Record<string, unknown> }
   | { kind: 'delete'; body: Record<string, unknown> }
@@ -335,8 +336,10 @@ export function AvailabilityRequestDrawer() {
     let controller: AbortController
     // Moving between fields must preserve each queued edit. Only a newer edit
     // to the same fields supersedes an earlier one.
-    const lineKey = operation.kind === 'line' ? `${operation.itemId}:${[...operation.fields].sort().join(',')}` : ''
-    if (operation.kind === 'line') {
+    // The request's note queues like one more line field.
+    const keyed = operation.kind === 'line' || operation.kind === 'note'
+    const lineKey = operation.kind === 'line' ? `${operation.itemId}:${[...operation.fields].sort().join(',')}` : 'note'
+    if (keyed) {
       sequence = (lineSequences.current.get(lineKey) ?? 0) + 1
       lineSequences.current.set(lineKey, sequence)
       lineControllers.current.get(lineKey)?.abort()
@@ -357,14 +360,14 @@ export function AvailabilityRequestDrawer() {
 
     const latest = () => {
       if (!isCurrent(target) || controller.signal.aborted) return false
-      if (operation.kind === 'line') return lineSequences.current.get(lineKey) === sequence
+      if (keyed) return lineSequences.current.get(lineKey) === sequence
       if (operation.kind === 'status') return statusSequence.current === sequence
       return submitSequence.current === sequence
     }
 
     const release = () => {
       controllers.current.delete(controller)
-      if (operation.kind === 'line' && lineControllers.current.get(lineKey) === controller) {
+      if (keyed && lineControllers.current.get(lineKey) === controller) {
         lineControllers.current.delete(lineKey)
       } else if (operation.kind === 'status' && statusController.current === controller) {
         statusController.current = null
@@ -636,7 +639,22 @@ export function AvailabilityRequestDrawer() {
                   onChange={(publicToken) => {
                     if (isCurrent(session) && arRef.current) setAr({ ...arRef.current, publicToken })
                   }} />
-                {ar.noteForSupplier && (
+                {ar.status !== 'closed' ? (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Note for supplier</span>
+                    <AnswerCell
+                      key={session.generation}
+                      value={ar.noteForSupplier ?? ''}
+                      editable
+                      placeholder="Note for the supplier on this request…"
+                      display={ar.noteForSupplier ?? ''}
+                      onCommit={(next) => void enqueueWrite({ kind: 'note', body: { noteForSupplier: next.trim() } })}
+                      ariaLabel="Note for supplier"
+                      multiline
+                      touch={mobile}
+                    />
+                  </label>
+                ) : ar.noteForSupplier && (
                   <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] leading-5 text-foreground">
                     <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
                       Note for supplier

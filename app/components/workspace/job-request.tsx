@@ -631,6 +631,8 @@ function CandidateDrop({
       onDragOver={(e) => {
         if (!carriesCandidate(e)) return
         e.preventDefault()
+        // Nested zones (the bin inside Candidates): the innermost one takes the drop.
+        e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'
         setOver(true)
       }}
@@ -640,6 +642,7 @@ function CandidateDrop({
         const payload = draggedCandidate(e)
         if (payload == null || !accepts(payload)) return
         e.preventDefault()
+        e.stopPropagation()
         onDrop(payload)
       }}
       className={cn(className, over && 'ring-2 ring-primary')}
@@ -673,6 +676,7 @@ function useCandidateActions(requestId: number, onSaved: () => void) {
   return {
     busy,
     select: (itemId: number, id: number) => run(itemId, id, post({ action: 'select' })),
+    unselect: (itemId: number, id: number) => run(itemId, id, post({ action: 'unselect' })),
     remove: (itemId: number, id: number) => run(itemId, id, { method: 'DELETE' }),
   }
 }
@@ -707,8 +711,9 @@ function SelectedCandidateCell({
 
 /**
  * The Candidates cell: a pill per candidate, grouped by supplier (names are on
- * hover only). The selected one lives in the Selected cell instead. A bin
- * appears while one of this line's pills is dragged.
+ * hover only). The selected one lives in the Selected cell instead; dropping
+ * it back here leaves the line with no selection. A bin appears while one of
+ * this line's pills is dragged.
  */
 function CandidatesCell({
   item,
@@ -729,8 +734,8 @@ function CandidatesCell({
     return <div tabIndex={0} className="px-1.5 text-center text-[11px] text-lps-dim">{candidates.length ? 'No other candidates' : 'No candidates'}</div>
   }
 
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5 px-1.5 py-1">
+  const body = (
+    <>
       <div role="list" aria-label={`Candidates for ${item.name}`} className="flex min-w-0 flex-wrap justify-center gap-1">
         {shown.map((candidate) => (
           <CandidatePill
@@ -753,8 +758,21 @@ function CandidatesCell({
           <TrashIcon size={12} /> Bin
         </CandidateDrop>
       )}
-    </div>
+    </>
   )
+  const className = 'flex min-w-0 flex-col gap-1.5 px-1.5 py-1'
+  return dragging != null && dragging === item.selectedCandidateId
+    ? (
+      <CandidateDrop
+        label={`Unselect candidate for ${item.name}`}
+        accepts={(payload) => payload.itemId === item.id && payload.id === item.selectedCandidateId}
+        onDrop={(payload) => void actions.unselect(item.id, payload.id)}
+        className={cn(className, 'min-h-8 rounded-xl')}
+      >
+        {body}
+      </CandidateDrop>
+    )
+    : <div className={className}>{body}</div>
 }
 
 function ItemRow({

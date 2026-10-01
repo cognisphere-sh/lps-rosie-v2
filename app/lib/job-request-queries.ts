@@ -299,6 +299,14 @@ export async function selectCandidate(requestId: number, itemId: number, candida
   return true
 }
 
+/** Clear the line's selection (`unselect_candidate`); the line keeps its values. */
+export async function unselectCandidate(requestId: number, itemId: number, candidateId: number): Promise<boolean> {
+  if (!await candidateOfLine(requestId, itemId, candidateId)) return false
+  const { error } = await supabase.rpc('unselect_candidate', { p_job_request_item_id: itemId })
+  if (error) throw new Error(error.message)
+  return true
+}
+
 /** Add the candidate to one of this job's ARs (its supplier's; the database checks). */
 export async function addCandidateToRequest(requestId: number, itemId: number, candidateId: number, arId: number): Promise<boolean> {
   if (!await candidateOfLine(requestId, itemId, candidateId)) return false

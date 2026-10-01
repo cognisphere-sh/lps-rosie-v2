@@ -104,7 +104,7 @@ test('focused Job header chip opens the portal drawing and summary strip; ordina
   // The note column holds LPS's ask (admin-editable here) above the supplier's reply.
   assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 note for supplier' }))
   assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 supplier reply' }))
-  assert.equal(row.children[6].getAttribute('aria-label'), 'Line 19 price per unit')
+  assert.ok(within(row.children[6] as HTMLElement).getByRole('textbox', { name: 'Line 19 price per unit' }))
   assert.ok(within(document.body).getByText('Total Items'))
   assert.equal(within(document.body).queryByText('Line total'), null)
   assert.ok(view.getByText('Other Job', { exact: false }))

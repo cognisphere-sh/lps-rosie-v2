@@ -1,5 +1,30 @@
 # Migrations applied by Daisy
 
+## 0126 — job line ↔ selected candidate sync (2026-10-01)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0126_job_line_candidate_sync.assert.sql`. New trigger
+`job_request_items_candidate_sync` (`sync_job_item_to_candidate`) writes a
+selected line's status, avail, price, size, demand and customer note to the
+candidate, then re-applies it; it replaces 0119's note-only
+`job_request_items_candidate_note`. `apply_candidate_to_job_item` is now
+plpgsql and derives Partial Qty from avail < demand and Diff Sz/Sub only for an
+Available/Partial substitute. `guard_candidate_write` lets these LPS edits
+through on a closed AR. Existing lines were not re-applied (18 open lines
+differ from their candidate). Verified after apply: trigger present, old one
+gone, function not executable by anon.
+
+## 0125 — unselect and blank Avail (2026-10-01)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0125_unselect_and_blank_avail.assert.sql`. `apply_candidate_to_job_item`
+leaves the line's Avail blank for an unanswered candidate (`least()` ignored the
+NULL and copied the demand); new `unselect_candidate` (service_role only)
+clears a line's selection on an open job. Backfill cleared Avail on 53 open
+lines (6 jobs) whose selected candidate is unanswered and whose Avail equalled
+the demand. Verified after apply: none left, `unselect_candidate` not
+executable by anon.
+
 ## 0124 — hidden substitute options (2026-09-30)
 
 Applied via the Supabase MCP after rolled-back live rehearsals with

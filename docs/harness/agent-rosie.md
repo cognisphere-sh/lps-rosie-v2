@@ -40,6 +40,10 @@ Chris made the request.
   or into the bin in the app.
 - On an AR submission the database copies answers of selected candidates onto
   their open job lines; Rosie alerts Chris and reports unselected answers.
+- A selected line and its candidate are one answer (0126): writing the line's
+  status, avail, price, size, demand or customer note also writes the
+  candidate, and the line status is re-derived (Partial Qty when avail is
+  below demand; Diff Sz/Sub for an Available substitute).
   Saved drafts stay on the supplier thread. `note_internal` holds no supplier
   or price facts.
 - **Substitutes and Partial Qty** (migration 0121): a candidate is one fixed

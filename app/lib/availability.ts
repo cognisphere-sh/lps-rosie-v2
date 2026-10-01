@@ -88,11 +88,20 @@ export const AR_RESPONSE_OPTIONS = [
 
 /**
  * What a line picker offers (2026-09-30): Diff Sz/Sub is not picked directly —
- * it is "Unavailable/Sub" plus a substitute in the answer dialog.
+ * it is "Unavailable/Sub" plus a substitute in the answer dialog. Can Order and
+ * Arriving Soon are one option (2026-10-01); the dialog asks which. Order
+ * (2026-10-01): Available, Unavailable/Sub, Can Order/Arriving Soon, Partial Qty, Pending.
  */
-export const AR_ANSWER_OPTIONS = AR_RESPONSE_OPTIONS
-  .filter((o) => o.value !== 'diff_size_qty_sub')
-  .map((o) => (o.value === 'unavailable' ? { ...o, label: 'Unavailable/Sub' } : o))
+export const AR_ANSWER_OPTIONS = [
+  { value: 'available', label: 'Available' },
+  { value: 'unavailable', label: 'Unavailable/Sub' },
+  { value: 'can_order', label: 'Can Order/Arriving Soon' },
+  { value: 'partial_qty', label: AR_RESPONSE_META.partial_qty.label },
+  { value: '', label: 'Pending' },
+]
+
+/** The picker option a stored answer sits under: Arriving Soon is under Can Order. */
+export const arAnswerOption = (s: string | null) => (s === 'arriving_soon' ? 'can_order' : s)
 
 /** One line shared with the supplier, with their answer. */
 export interface ARItem {

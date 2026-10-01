@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import {
   availabilityRequest,
   deleteAvailabilityRequest,
+  setAvailabilityRequestNote,
   setAvailabilityRequestPublic,
   setAvailabilityRequestStatus,
   updateARItem,
@@ -48,7 +49,7 @@ export async function DELETE(
 
 /**
  * The admin edits: the request's own status (`{status}`, usually → `closed`),
- * one line's answer (`{itemId, changes}`), or its requested plant details
+ * its note for the supplier (`{noteForSupplier}`), one line's answer (`{itemId, changes}`), or its requested plant details
  * (`{itemId, details}`). Only admins can correct the ask itself.
  */
 export async function PATCH(
@@ -67,11 +68,18 @@ export async function PATCH(
       itemId?: number
       changes?: Record<string, string>
       details?: Record<string, string>
+      noteForSupplier?: unknown
     }
     if ('isPublic' in body) {
       if (typeof body.isPublic !== 'boolean') return NextResponse.json({ error: 'isPublic must be a boolean' }, { status: 400 })
       const token = await setAvailabilityRequestPublic(id, body.isPublic)
       return NextResponse.json({ publicToken: token })
+    }
+    if ('noteForSupplier' in body) {
+      if (typeof body.noteForSupplier !== 'string') return NextResponse.json({ error: 'noteForSupplier must be a string' }, { status: 400 })
+      await setAvailabilityRequestNote(id, body.noteForSupplier)
+      await notifySupplierEvent({ type: 'availability_updated', ...await supplierAvailabilityEventContext(id) })
+      return NextResponse.json({ ok: true })
     }
     if ('details' in body || body.changes) {
       if (!Number.isInteger(body.itemId)) {
