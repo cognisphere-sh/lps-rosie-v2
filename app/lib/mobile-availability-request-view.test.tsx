@@ -9,7 +9,7 @@ import { AvailabilityRequestDrawer } from '../components/workspace/ar-drawer.tsx
 import { AvailabilityRequestView } from '../components/workspace/availability-request-view.tsx'
 import { ARLineTable, LineStatusPicker } from '../components/workspace/availability.tsx'
 import { BodyModalPortal } from '../components/workspace/body-modal-portal.tsx'
-import { onAvailabilityRequestDeleted, onAvailabilityRequestStatusChanged, openAvailabilityRequest, type AvailabilityRequestStatusDetail } from './chat-bus.ts'
+import { onAvailabilityRequestStatusChanged, openAvailabilityRequest, type AvailabilityRequestStatusDetail } from './chat-bus.ts'
 import type { ARDetail, ARItem } from './availability.ts'
 
 let dom: JSDOM
@@ -286,8 +286,8 @@ test('moving between plant fields while a save is pending preserves every edit',
   const user = userEvent.setup({ document })
   for (const [label, value] of [[/plant name/, 'Red Maple'], [/requested size/, '45 G'], [/requested quantity/, '18']] as const) {
     const input = view.getAllByRole('textbox', { name: label })[0]
-    await user.clear(input)
-    await user.type(input, value)
+    await user.click(input)
+    fireEvent.change(input, { target: { value } })
     await user.tab()
   }
   assert.equal(firstSignal?.aborted, false)
@@ -335,8 +335,8 @@ test('supplier request cards edit quantities, multiline notes and complete answe
 
   const trigger = view.getByRole('button', { name: /Line 2, .* status, Pending/ })
   await user.click(trigger)
-  await user.click(view.getByRole('option', { name: 'Can Order' }))
-  const dialog = await view.findByRole('dialog', { name: 'Can Order' })
+  await user.click(view.getByRole('option', { name: 'Can Order/Arriving Soon' }))
+  const dialog = await view.findByRole('dialog', { name: 'Can Order / Arriving Soon' })
   assert.equal(within(dialog).queryByLabelText('Price per unit'), null)
   await user.type(within(dialog).getByLabelText('ETA / notes'), 'Next Friday')
   await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
@@ -346,7 +346,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   await setWidth(900)
   assert.equal(view.queryByRole('textbox', { name: /plant name|requested size|requested quantity|note to supplier/ }), null)
   assert.equal(view.queryByTestId('availability-mobile-lines'), null)
-  assert.ok(view.container.querySelector('[style*="min-width: 960px"]'))
+  assert.ok(parseInt(view.container.querySelector<HTMLElement>('[style*="min-width"]')!.style.minWidth, 10) >= 916)
   await setWidth(390)
   view.rerender(<AvailabilityRequestView {...props} request={request({ status: 'closed' })} />)
   assert.equal(view.container.querySelector('input:not([readonly]), textarea:not([readonly]), select:not([disabled])'), null)
@@ -354,7 +354,7 @@ test('supplier request cards edit quantities, multiline notes and complete answe
   assert.equal(view.queryByRole('button', { name: /Submit availability/i }), null)
 })
 
-test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, then 900 renders only the unchanged 1090px table', async () => {
+test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, then 900 renders only the content-sized table', async () => {
   const many = Array.from({ length: 36 }, (_, index) => line(100 + index, {
     name: `長い Unicode plant ${index} — ${'W'.repeat(50)}`,
     availableQuantity: index === 0 ? 0 : null,
@@ -382,7 +382,7 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
     const mobile = mobileSurface(dialog)
     assert.equal(within(mobile).getAllByRole('article').length, 36)
     assert.equal(mobile.querySelector('[style*="min-width"]'), null)
-    assert.equal(dialog.querySelector('[style*="min-width: 1090px"]'), null)
+    assert.equal(dialog.querySelector('.overflow-x-auto'), null)
     const fieldBudget = (width - 24 - 2 - 24 - 12) / 2
     assert.ok(fieldBudget >= 129, `${width}px field budget ${fieldBudget}`)
     assert.match((within(mobile).getByLabelText(/^Line 1, .* plant name/) as HTMLInputElement).value, /長い Unicode plant/)
@@ -398,8 +398,8 @@ test('actual 320/390/480/899 phone DOM fits one scroller and reachable footer, t
   await setWidth(900)
   assert.equal(within(dialog).queryByTestId('availability-mobile-lines'), null)
   const desktop = dialog.querySelector<HTMLElement>('.overflow-x-auto')!
-  assert.equal(desktop.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1090px')
-  assert.equal(dialog.querySelectorAll('[style*="min-width: 1090px"]').length > 0, true)
+  assert.ok(parseInt(desktop.querySelector<HTMLElement>('[style*="min-width"]')!.style.minWidth, 10) >= 916)
+  assert.ok(desktop.querySelector('[style*="grid-template-columns"]'))
 })
 
 test('desktop drawer width is draggable, can fill the page through presets, and is remembered', async () => {
@@ -891,7 +891,7 @@ test('drawer publishes authoritative submission dates for first submit and same-
   }
 })
 
-test('portal/profile/default line surfaces keep the task-start non-modal answer behavior and 1090px table opt-out', async () => {
+test('portal/profile/default line surfaces keep the non-modal answer behavior and content-sized table opt-out', async () => {
   const user = userEvent.setup({ document })
   const patches: Array<Record<string, string>> = []
   const view = render(
@@ -906,10 +906,10 @@ test('portal/profile/default line surfaces keep the task-start non-modal answer 
     </>,
   )
   assert.equal(view.queryByTestId('availability-mobile-lines'), null)
-  assert.equal(view.container.querySelector<HTMLElement>('[style*="min-width"]')?.style.minWidth, '1090px')
+  assert.ok(parseInt(view.container.querySelector<HTMLElement>('[style*="min-width"]')!.style.minWidth, 10) >= 916)
   const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   await user.click(trigger)
-  await user.click(view.getByRole('option', { name: 'Can Order' }))
+  await user.click(view.getByRole('option', { name: 'Can Order/Arriving Soon' }))
   assert.equal(document.querySelector('[data-ar-answer-dialog-host]'), null)
   assert.equal(view.queryByRole('dialog'), null)
   assert.equal(view.queryByLabelText('Price per unit'), null)
@@ -921,49 +921,42 @@ test('portal/profile/default line surfaces keep the task-start non-modal answer 
   assert.notEqual(document.activeElement, trigger)
 })
 
-test('admin deletion supports cancellation, preserves saved state and removes the mounted AR link', async () => {
-  const saved = request({ status: 'submitted', publicToken: '00000000-0000-4000-8000-000000000084' })
-  const { store, deletions } = installStore([saved])
-  const deleted: number[] = []
-  const off = onAvailabilityRequestDeleted((id) => deleted.push(id))
+test('draft drawer publishes without submitting, and never offers Delete', async () => {
+  const { store, writes } = installStore([request({ status: 'draft', submittedAt: null })])
+  const user = userEvent.setup({ document })
+  const { view } = await openDrawer()
+  assert.ok(view.getByText('Draft — hidden from supplier. Publish when ready.'))
+  assert.equal(view.queryByRole('button', { name: 'Delete request' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Share' }), null)
+  assert.equal(view.queryByRole('button', { name: 'Submit request' }), null)
+  await user.click(view.getByRole('button', { name: 'Publish' }))
+  await waitFor(() => assert.equal(store.get(84)?.status, 'new'))
+  await waitFor(() => assert.equal(view.queryByRole('button', { name: 'Publish' }), null))
+  assert.deepEqual(writes, [{ id: 84, body: { status: 'new' } }])
+})
+
+test('published AR can return to Draft while keeping its saved lines', async () => {
+  const saved = request({ status: 'submitted' })
+  const { store, writes } = installStore([saved])
   const user = userEvent.setup({ document })
   const { view, dialog } = await openDrawer()
-  assert.deepEqual(Array.from(within(dialog).getByLabelText('Request status').querySelectorAll('option')).map((option) => option.value),
-    ['new', 'processing', 'submitted', 'closed'])
-  window.confirm = () => false
-  await user.click(view.getByRole('button', { name: 'Delete request' }))
-  assert.deepEqual(deletions, [])
-  window.confirm = () => true
-  await user.click(view.getByRole('button', { name: 'Delete request' }))
-  await waitFor(() => assert.equal(document.querySelector('[data-ar-drawer-host]'), null))
-  assert.deepEqual(deletions, [84])
-  assert.deepEqual(deleted, [84])
-  assert.deepEqual(store.get(84), saved)
-  off()
-})
-
-test('failed AR deletion leaves the drawer and its saved status available for retry', async () => {
-  installStore([request({ status: 'closed' })])
-  const savedFetch = globalThis.fetch
-  globalThis.fetch = (async (input, init) => init?.method === 'DELETE'
-    ? json({ error: 'Could not delete the request' }, 400) : savedFetch(input, init)) as typeof fetch
-  window.confirm = () => true
-  const { view } = await openDrawer()
-  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Delete request' }))
-  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /Could not delete/))
-  assert.equal((view.getByLabelText('Request status') as HTMLSelectElement).value, 'closed')
-  assert.equal((view.getByRole('button', { name: 'Delete request' }) as HTMLButtonElement).disabled, false)
-})
-
-test('a background refresh removes cached controls when an AR was deleted elsewhere', async () => {
-  const { deletions } = installStore([request()])
-  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
-  const { view } = await openDrawer()
-  assert.ok(view.getByLabelText('Request status'))
-  deletions.push(84)
-  fireEvent.focus(window)
-  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /AR-84 not found/))
-  assert.equal(view.queryByLabelText('Request status'), null)
   assert.equal(view.queryByRole('button', { name: 'Delete request' }), null)
-  assert.equal(view.queryByTestId('availability-mobile-lines'), null)
+  assert.deepEqual(Array.from(within(dialog).getByLabelText('Request status').querySelectorAll('option')).map(option => option.value),
+    ['draft', 'new', 'processing', 'submitted', 'closed'])
+  await user.selectOptions(view.getByRole('combobox', { name: 'Request status' }), 'draft')
+  await view.findByRole('button', { name: 'Publish' })
+  assert.equal(store.get(84)?.status, 'draft')
+  assert.deepEqual(store.get(84)?.items, saved.items)
+  assert.deepEqual(writes, [{ id: 84, body: { status: 'draft' } }])
+})
+
+test('failed publication leaves a draft ready to retry', async () => {
+  installStore([request({ status: 'draft' })])
+  const savedFetch = globalThis.fetch
+  globalThis.fetch = (async (input, init) => init?.method === 'PATCH'
+    ? json({ error: 'Add at least one candidate before publishing' }, 400) : savedFetch(input, init)) as typeof fetch
+  const { view } = await openDrawer()
+  await userEvent.setup({ document }).click(view.getByRole('button', { name: 'Publish' }))
+  await waitFor(() => assert.match(view.getByRole('alert').textContent ?? '', /Add at least one candidate/))
+  assert.equal((view.getByRole('button', { name: 'Publish' }) as HTMLButtonElement).disabled, false)
 })

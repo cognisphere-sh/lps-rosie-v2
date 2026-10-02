@@ -13,6 +13,7 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `draft-ar-authorized-recovery` | Give Chris a supported usable AR after draft failure | staged · temporary AR64 active-Draft restore owner-verified complete; broader B recovery/Draft-answer decision unresolved, not shipped | bhoumik |
 | `candidate-selection-availability-quantity` | Selection must not turn demand into supplier availability | staged · narrow authorization already asked by Nova; source defect confirmed, runtime/repair unverified | bhoumik |
 | `job-line-request-conformity` | Distinguish stock confirmation from original-request conformity | staged · Sep30 contract supersedes candidate-Diff; partial source coverage, remaining owner/runtime disposition | bhoumik |
 | `one-gallon-sedge-price-mapping` | Keep Berkeley Sedge 1 G priced on the APS price sheet | staged | bhoumik |

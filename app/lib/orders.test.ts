@@ -157,7 +157,7 @@ test('supplier order reads derive related ARs through job items with supplier an
     order_items: [10, 11, 12, 13].map((id) => ({ id, order_id: 1, name: 'Oak', quantity: 2, unit_price: 10, total: 20, status: 'need_to_order', is_active: true })),
     candidates: [[101, 20, true], [102, 20, true], [103, 30, true], [104, 40, true], [105, 50, true], [106, 60, false], [107, null, true]]
       .map(([id, availability_request_id, is_active]) => ({ id, availability_request_id, job_request_item_id: 11, is_active })),
-    availability_requests: [{ id: 20, supplier_id: 7, is_active: true }, { id: 30, supplier_id: 7, is_active: true }, { id: 40, supplier_id: 8, is_active: true }, { id: 50, supplier_id: 7, is_active: false }],
+    availability_requests: [{ id: 20, supplier_id: 7, is_active: true }, { id: 30, supplier_id: 7, is_active: true }, { id: 40, supplier_id: 8, is_active: true }, { id: 50, supplier_id: 7, status: 'draft' }],
     order_item_job_request_items: [{ order_item_id: 10, job_request_item_id: 11, quantity: 2 }],
     job_request_items: [{ id: 11, job_request_id: 100 }],
     job_requests: [{ id: 100, name: 'Private customer job', status: 'committed', is_active: true }],
@@ -168,7 +168,7 @@ test('supplier order reads derive related ARs through job items with supplier an
   assert.deepEqual(orders.map((order: { id: number }) => order.id), [1])
   assert.equal('allocations' in orders[0].items[0], false)
   assert.equal('availabilityRequestItemId' in orders[0].items[0], false)
-  assert.deepEqual(orders[0].availabilityRequestIds, [20, 30], 'Related requests are deduplicated and restricted to active records for this supplier')
+  assert.deepEqual(orders[0].availabilityRequestIds, [20, 30], 'Related requests are deduplicated, supplier-scoped and exclude Drafts')
   assert.deepEqual(orders[0].jobNames, ['Private customer job'])
 })
 

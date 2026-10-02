@@ -15,6 +15,12 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-02 — AR publication and permanent retention
+
+- Draft ARs show a clear Draft badge and Publish button on job header tablets and in the drawer. Published ARs can return to Draft, hiding them from suppliers and revoking public links while retaining answers and associations.
+- Removed AR Delete actions, API handler and database deletion flag (0127); database guards prohibit AR deletion and truncation. Previously inactive ARs become private Draft history; deleting a job retains its ARs as closed history.
+- LPS edits to published AR content reset the request to New; draft preparation stays private. Admin answer preparation now works in Draft through a service-only RPC; suppliers still cannot access or answer drafts. Updated Rosie's database-access helper to 2.4.1 for the schema change.
+
 ## 2026-10-01 — job line and selected candidate stay in sync
 
 - Migration `0126`: while a line has a selected candidate, editing its status, avail, price, size, demand or customer note writes the candidate and re-derives the line (trigger `job_request_items_candidate_sync`, replacing the note-only sync). Line status: Diff Sz/Sub for an Available/Partial substitute, else Partial Qty when avail < demand. LPS edits don't mark the AR Processing and go through on a closed AR. No placeholder candidates for unselected lines; existing lines were not re-applied.

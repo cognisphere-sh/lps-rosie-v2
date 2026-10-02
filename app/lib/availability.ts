@@ -8,12 +8,12 @@ import type { Tone } from '@/lib/job-requests'
 export const AR_STATUSES = ['draft', 'new', 'processing', 'submitted', 'closed'] as const
 export type ARStatus = (typeof AR_STATUSES)[number]
 
-// The portal's three working states, plus admin closure. Deletion uses is_active. `new` is
+// The portal's three working states, plus Draft preparation and admin closure. `new` is
 // re-set whenever a line is added to a request the supplier already worked on
 // (migration 0075's trigger), so the ask goes back to the top of their New tab;
 // `processing` is any answer they have made since; `submitted` is the button.
 export const AR_STATUS_META: Record<ARStatus, { label: string; tone: Tone }> = {
-  // LPS only: built on the job card, invisible to the supplier until Send.
+  // LPS only: built on the job card, invisible to the supplier until Publish.
   draft: { label: 'Draft', tone: 'grey' },
   new: { label: 'New', tone: 'amber' },
   processing: { label: 'Processing', tone: 'teal' },
@@ -40,7 +40,7 @@ export function availabilityRequestLinkLabel(
   const base = `Open availability request ${availabilityRecordName({ id, recordName })} to ${supplierName}`
   return isSubmittedARStatus(status) ? `${base} — Completed`
     : isInProgressARStatus(status) ? `${base} — In progress`
-      : status === 'closed' ? `${base} — Closed` : base
+      : status === 'closed' ? `${base} — Closed` : status === 'draft' ? `${base} — Draft` : base
 }
 
 /**
@@ -222,15 +222,6 @@ export interface SupplierLink {
   availabilityRequests: { id: number; recordName?: string | null; status: string; createdAt?: string | null; submittedAt?: string | null }[]
   /** `suppliers.rosie_thread_id` — the supplier's chat thread, when set. */
   rosieThreadId: string | null
-}
-
-/** Remove a deleted AR from mounted job links without changing its saved status. */
-export function withoutAvailabilityRequest(links: SupplierLink[], arId: number): SupplierLink[] {
-  return links.flatMap((link) => {
-    const availabilityRequests = link.availabilityRequests.filter((request) => request.id !== arId)
-    if (availabilityRequests.length === link.availabilityRequests.length) return [link]
-    return availabilityRequests.length ? [{ ...link, availabilityRequests }] : []
-  })
 }
 
 /** Apply one drawer status signal without refetching unrelated job-request data. */

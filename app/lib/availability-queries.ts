@@ -220,7 +220,6 @@ export async function listAvailabilityRequests(scope: {
   let q = supabase
     .from('availability_requests')
     .select(AR_COLUMNS)
-    .eq('is_active', true)
     .order('created_at', { ascending: false })
     .limit(500)
   if (scope.supplierIds?.length) q = q.in('supplier_id', scope.supplierIds)
@@ -247,12 +246,11 @@ export async function availabilityRequest(
     .from('availability_requests')
     .select(AR_COLUMNS)
     .eq('id', id)
-    .eq('is_active', true)
     .maybeSingle()
   if (error) throw new Error(`availability_requests: ${error.message}`)
   if (!data) return null
   const ar = data as ARRecord
-  if (opts.publicToken && (ar.public_token !== opts.publicToken || ar.status === 'closed')) return null
+  if (opts.publicToken && (ar.public_token !== opts.publicToken || ['closed', 'draft'].includes(ar.status))) return null
   if (opts.forSupplierId != null && (ar.supplier_id !== opts.forSupplierId || ar.status === 'draft')) return null
 
   const [summary] = await summarize([ar])
@@ -458,9 +456,9 @@ export async function createAvailabilityRequest(input: {
   if (itemErr) throw new Error(`job_request_items: ${itemErr.message}`)
   if (items?.length !== itemIds.length) throw new Error('Every selected line must belong to an active line of the selected jobs')
   const { ids, insertedIds } = await originalCandidates(input.supplierId, items as OriginalLine[])
-  const arId = await createDraft(input.supplierId, ids, insertedIds, input.shareCustomerDetails,
-    input.isPublic ? randomUUID() : null)
+  const arId = await createDraft(input.supplierId, ids, insertedIds, input.shareCustomerDetails, null)
   await sendAvailabilityRequest(arId)
+  if (input.isPublic) await setAvailabilityRequestPublic(arId, true)
   return arId
 }
 
@@ -470,7 +468,7 @@ export async function sendAvailabilityRequest(arId: number): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-/** Save an answer and its Processing state together under the request's row lock. */
+/** Save under the row lock: supplier answers start Processing; LPS edits keep Draft or reset to New. */
 export async function updateARItem(
   arId: number,
   itemId: number,
@@ -478,7 +476,7 @@ export async function updateARItem(
   opts: { forSupplierId?: number } = {},
 ): Promise<void> {
   const ar = await arForWrite(arId, opts.forSupplierId)
-  const { error } = await supabase.rpc('answer_availability_request', {
+  const { error } = await supabase.rpc(opts.forSupplierId != null ? 'answer_availability_request' : 'edit_availability_request', {
     p_request_id: ar.id,
     p_supplier_id: ar.supplier_id,
     p_item_id: itemId,
@@ -532,14 +530,13 @@ async function arForWrite(arId: number, forSupplierId?: number): Promise<ARRecor
     .from('availability_requests')
     .select(AR_COLUMNS)
     .eq('id', arId)
-    .eq('is_active', true)
     .maybeSingle()
   if (error) throw new Error(`availability_requests: ${error.message}`)
   const ar = data as ARRecord | null
   if (!ar || (forSupplierId != null && ar.supplier_id !== forSupplierId)) {
     throw new Error('availability request not found')
   }
-  if (ar.status === 'closed') throw new Error('this request is closed')
+  if (ar.status === 'closed' || (forSupplierId != null && ar.status === 'draft')) throw new Error('this request is closed or draft')
   return ar
 }
 
@@ -553,7 +550,6 @@ export async function listPortalRequests(supplierId: number): Promise<ARDetail[]
     .from('availability_requests')
     .select(AR_COLUMNS)
     .eq('supplier_id', supplierId)
-    .eq('is_active', true)
     .neq('status', 'draft') // unsent: LPS only
     .order('created_at', { ascending: false })
     .limit(500)
@@ -674,21 +670,30 @@ export async function submitAvailabilityRequest(arId: number, forSupplierId: num
  * anything, and the portal's button reads **Re-Submit** off it.
  */
 export async function setAvailabilityRequestStatus(arId: number, status: string): Promise<void> {
-  if (!['new', 'processing', 'submitted', 'closed'].includes(status)) {
-    throw new Error('status must be one of: new, processing, submitted, closed')
+  if (!['draft', 'new', 'processing', 'submitted', 'closed'].includes(status)) {
+    throw new Error('status must be one of: draft, new, processing, submitted, closed')
+  }
+  if (status === 'new') {
+    const { data: request, error } = await supabase.from('availability_requests').select('status').eq('id', arId).maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!request) throw new Error('availability request not found')
+    if (request.status === 'draft') {
+      await sendAvailabilityRequest(arId)
+      return
+    }
   }
   const stamp =
     status === 'submitted'
       ? { submitted_at: new Date().toISOString() }
-      : status === 'new'
+      : status === 'new' || status === 'draft'
         ? { submitted_at: null }
         : {}
-  const { data, error } = await supabase
+  let query = supabase
     .from('availability_requests')
     .update({ status, ...stamp })
     .eq('id', arId)
-    .eq('is_active', true)
-    .select('id')
+  if (status !== 'draft') query = query.neq('status', 'draft')
+  const { data, error } = await query.select('id')
   if (error) throw new Error(`availability_requests: ${error.message}`)
   if (!data?.length) throw new Error('availability request not found')
 }
@@ -699,19 +704,10 @@ export async function setAvailabilityRequestNote(arId: number, note: string): Pr
     .from('availability_requests')
     .update({ note_for_supplier: note.trim() || null })
     .eq('id', arId)
-    .eq('is_active', true)
     .neq('status', 'closed')
     .select('id')
   if (error) throw new Error(`availability_requests: ${error.message}`)
   if (!data?.length) throw new Error('availability request not found or closed')
-}
-
-/** Retain the AR's status, token, answers and allocations while removing access. */
-export async function deleteAvailabilityRequest(arId: number): Promise<boolean> {
-  const { data, error } = await supabase.from('availability_requests')
-    .update({ is_active: false }).eq('id', arId).select('id')
-  if (error) throw new Error(`availability_requests: ${error.message}`)
-  return Boolean(data?.length)
 }
 
 /** Active suppliers: partners receive portal requests; other suppliers use public links. */
@@ -754,7 +750,7 @@ export async function supplierLinksByRequest(
   // One paged read: each AR names its job, and a page of jobs can own more
   // than PostgREST's 1,000-row cap of requests.
   const ars = await availabilityLinks<ARRecord & { job_request_id: number }>(supabase.from('availability_requests')
-    .select(AR_COLUMNS).in('job_request_id', jobRequestIds).eq('is_active', true)
+    .select(AR_COLUMNS).in('job_request_id', jobRequestIds)
     .order('created_at', { ascending: false }).order('id'))
   if (!ars.length) return {}
   const linkedRequests = ars.map((ar) => ({ ...ar, linkedJobId: ar.job_request_id }))
@@ -839,7 +835,6 @@ export async function listPortalItemLines(supplierId: number): Promise<SupplierI
     .from('availability_requests')
     .select(AR_COLUMNS)
     .eq('supplier_id', supplierId)
-    .eq('is_active', true)
     .not('status', 'in', '(closed,draft)')
     .order('created_at', { ascending: false })
     .limit(500)
@@ -1017,10 +1012,11 @@ async function companyOf(supplierId: number): Promise<number> {
 
 /** Revoking clears the capability; publishing again always issues a fresh link. */
 export async function setAvailabilityRequestPublic(id: number, isPublic: boolean, forSupplierId?: number) {
-  await arForWrite(id, forSupplierId)
+  const request = await arForWrite(id, forSupplierId)
+  if (request.status === 'draft') throw new Error('Publish this draft before sharing it')
   let query = supabase.from('availability_requests')
     .update({ public_token: isPublic ? randomUUID() : null })
-    .eq('id', id).eq('is_active', true)
+    .eq('id', id)
   if (forSupplierId != null) query = query.eq('supplier_id', forSupplierId)
   const { data, error } = await query.select('public_token').single()
   if (error) throw new Error(error.message)
@@ -1031,7 +1027,7 @@ export async function publicAvailabilityRequest(token: string) {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(token)) return null
   const { data, error } = await supabase.from('availability_requests')
     .select('id, supplier_id').eq('public_token', token)
-    .eq('is_active', true).not('status', 'in', '(closed,draft)').maybeSingle()
+    .not('status', 'in', '(closed,draft)').maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) return null
   const { data: supplier, error: supplierError } = await supabase.from('suppliers')

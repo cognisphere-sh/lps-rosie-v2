@@ -4,13 +4,14 @@ The user-facing web app (`app/`). Owned by whoever changes the code — the
 developer agent (`nova`) or a human — and updated **after every change** under
 `app/` (see `CLAUDE.md` §7).
 
-AR deletion sets `availability_requests.is_active=false`, retaining its status,
-submission timestamp, public token and saved line responses. Admin AR views offer
-**Delete request**; inactive requests disappear from normal admin and supplier
-views and cannot be accessed through their saved public URLs. AR statuses are
-New, Processing, Completed and Closed. Reopening a job never reopens an AR;
-AR reopening is explicit. Whole-job deletion retires exclusive ARs and retains
-their supplier snapshots.
+ARs are retained permanently (0127); there is no delete flag or Delete action.
+Drafts are clearly labelled on the job header tablet, with **Publish** beside
+the AR and in its drawer. Published requests can return to **Draft** through
+the status picker or supplier profile, hiding them from supplier views and
+revoking their public link while keeping answers and candidate associations.
+LPS content edits return published requests to **New**; draft preparation
+stays private. Supplier answers and submissions still advance Processing and
+Completed. Deleting a job closes its ARs and retains their supplier snapshots.
 
 ## Job and plant statuses
 
@@ -507,8 +508,8 @@ in the desktop rail and through mobile More.
 | `POST /a/:agent/private/artifacts/:slug/share` | `{"public":bool}` — flips which of the artifact's two links works. |
 | `GET /api/availability-requests?supplier=1,2&job=` | Availability-request summaries for a supplier's locations or one job request — the supplier profile's Requests tab and anything else that lists them. |
 | `POST /api/availability-requests` | Create one from a job request's selected lines (`{jobRequestId, supplierId, shareCustomerDetails, itemIds}`). Requires an active supplier; non-partners receive a public URL for HTML email outreach. Snapshots the lines' name/size/quantity at share time and prefills each line's `unit_price` where our catalogue answers it for that supplier at that size. It does **not** write `mapped_inventory_id` (migration 0077) — the price look-up takes a number when every surviving row agrees on one, which is not the same as one row mapping. Rosie's supplier thread is the column's only writer for now, so a priced line with no mapping is a request made here. |
-| `GET·PATCH /api/availability-requests/:id` | One request whole (admin view — no disclosure filter), and the admin writes: `{status}` (usually → `closed`), `{noteForSupplier}` for the request-wide note (open requests only), or `{itemId, changes}` for one line's answer — the same four writable columns the portal PATCH takes, through the same `updateARItem` scoping minus the supplier check, so a closed request still refuses. A `{status}` write also maintains `submitted_at` — stamped on `submitted`, cleared on `new`, untouched on `closed`. |
-| `DELETE /api/availability-requests/:id` | Admin soft deletion: sets only `is_active=false`, preserving status, submission date and public token. Deleted ARs are excluded from admin/supplier reads and cannot accept supplier answers or use their saved public link. Returns `{ok:true}`, including repeated deletion; 404 for a missing AR. |
+| `GET·PATCH /api/availability-requests/:id` | Admin view and writes: `{status}`, `{noteForSupplier}`, `{itemId, details}` or `{itemId, changes}`. Draft → New uses `send_availability_request` (Publish), validating an active job/supplier and at least one active candidate; non-partners get a fresh public link. Other states can return to Draft, which revokes the link. Draft answer preparation uses the service-only `edit_availability_request`; supplier answer routes remain draft-blocked. LPS ask/answer edits reset published requests to New and clear the current submission date; closed ARs remain read-only. |
+| `DELETE /api/availability-requests/:id` | Unsupported (405). ARs cannot be deleted, including through database DELETE or TRUNCATE. Use Draft to withdraw supplier access. |
 | `GET /api/availability-requests/suppliers` | All active suppliers, including non-partners, with `is_lps_partner`. The nav rail filters this list to partners for valid portal shortcuts. |
 | `GET /api/partner/:id` | Portal home payload — the supplier plus every availability request **with its lines embedded** (customer/delivery only where shared), so cards expand, search and filter without a fetch per card. Refuses (404) any supplier that is missing, inactive or not an LPS Partner, which is the scoping rule every portal route starts with. |
 | `GET /api/partner/:id/items` | Every line of this supplier's **open** requests, flat — what the portal's **By item** view groups by plant (`listPortalItemLines`). Three batched reads; carries `mapped_inventory_id` and the mapped row's name/size. Nothing about the job behind a request beyond the name the home page already prints, and the customer only where `share_customer_details` says so — a request without it is never even queried for one. |
@@ -2859,11 +2860,11 @@ with answers and shown in the admin AR drawer. Migration 0095 is required.
 
 `DELETE /api/requests/:id` uses migration 0097’s `delete_job_request` RPC.
 One transaction deletes the job, demand lines, audit history, canonical Rosie
-chat transcript, and orders associated only with that job. Migration 0109
-soft-deletes the job's ARs while retaining their saved headers and asked
+chat transcript, and orders associated only with that job. Migration 0127
+closes the job's ARs while retaining their saved headers and asked
 candidates (their job link becomes NULL). Orders shared with any other job are retained. The response
-reports affected counts; `availabilityRequests` counts retired AR headers and
-`availabilityRequestItems` is zero because their snapshots are retained.
+reports affected counts; `availabilityRequests` and
+`availabilityRequestItems` are zero because AR headers and snapshots are retained.
 A durable chat marker queues harness cleanup and prevents late
 chat writes from recreating the deleted thread. Deleting one item remains a
 separate operation and does not delete its supplier records.

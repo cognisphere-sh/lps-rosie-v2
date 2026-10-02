@@ -72,7 +72,7 @@ resizes by dragging the divider at its header's right edge.
   unanswered and Can Order ↔ Need to Order; Unavailable sets quantity 0. The
   derived status is Diff Sz/Sub for an Available/Partial substitute, else
   Partial Qty when avail is below demand, Available when it meets it. These
-  edits don't move the AR to Processing and work on a closed AR. A line with
+  edits reset published ARs to New and work on a closed AR. A line with
   no selection keeps its own values.
   When the candidate's AR is submitted, the supplier's reply replaces the
   candidate's note, and the selected line is re-applied (open Quote/Availability
@@ -88,7 +88,10 @@ resizes by dragging the divider at its header's right edge.
   for the job that is not closed; a submitted one reopens as New. Only that
   supplier's pills are accepted, and a supplier with only closed ARs says so.
   New ARs start as **Drafts** (migration 0120), invisible to the supplier until
-  Rosie sends them on Chris's approval; the app has no Send or Create AR button.
+  published. Each Draft chip shows **Draft** and a **Publish** button; the
+  drawer also offers Publish. Published requests can move to Draft through
+  the request status picker, hiding them from suppliers and revoking the old
+  public link. ARs are retained permanently and have no Delete action.
 - Routes: `POST /api/requests/:id/items/:itemId/candidates/:candidateId` with
   `{ action: 'select' }`, `{ action: 'unselect' }` or `{ action: 'add', arId }`,
   and `DELETE` for the bin.
@@ -108,7 +111,10 @@ on blur (or Enter for a single-line input) on desktop and mobile.
 Edits apply to that availability request's snapshot; the original Job line and
 other suppliers' requests keep their own values. Plant names must be nonblank;
 requested quantity can be cleared or set to a positive number. Closed requests
-stay read-only until reopened. Supplier and public views keep requested plant
+stay read-only until reopened. LPS edits to a published AR reset it to New
+and clear its current submission date; edits to Draft stay private. Draft
+answer preparation uses the admin RPC; supplier/public routes reject Draft.
+Supplier and public views keep requested plant
 details read-only.
 
 Only AR chips in the focused `/jobs?jr=<id>` Job header open the sidebar in the

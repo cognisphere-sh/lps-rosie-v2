@@ -1,3 +1,27 @@
+## 0127 — AR publication and permanent retention (2026-10-02)
+
+Applied with operator psql after rollback-only rehearsals of
+`tests/0127_ar_publish_and_retention.assert.sql`. Removed the AR header
+`is_active` deletion flag; DELETE/TRUNCATE guards prevent AR removal. All 37
+AR headers and 569 associated candidates passed the retention audit. The ten
+previously inactive ARs became private Drafts with revoked links; active AR
+statuses and public-link settings were preserved. No existing active AR was
+published or withdrawn during deployment.
+
+LPS content changes reset published requests to New; Draft edits stay private.
+Supplier answer and note submission behavior remains Processing/Completed.
+The service-only `edit_availability_request` supports admin preparation in
+Draft with the existing answer/substitute validation. Job deletion closes
+and retains AR history. The app adds Draft badges and Publish controls,
+withdrawal through Draft, and removes all AR Delete actions and the API
+handler. App validation: 479 tests, typecheck and production build passed.
+Rosie's database-access skill 2.4.1 reads the new schema and its live AR-64
+snapshot succeeds. Live admin Draft reads return 200 and supplier reads 404;
+the withdrawn API DELETE method returns 405. Both services and all four agents
+are running after restart. Rosie's existing Google Workspace plugin remains
+failed because `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` is missing; the AR
+release does not change that integration.
+
 # Migrations applied by Daisy
 
 ## 0126 — job line ↔ selected candidate sync (2026-10-01)

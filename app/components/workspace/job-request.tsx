@@ -26,7 +26,7 @@ import {
   isInProgressARStatus,
   isSubmittedARStatus,
 } from '@/lib/availability'
-import { openAvailabilityRequest, openChat } from '@/lib/chat-bus'
+import { availabilityRequestStatusChanged, openAvailabilityRequest, openChat } from '@/lib/chat-bus'
 import { CustomerChatButton } from '@/components/workspace/customer-chat-button'
 import { customerThreadId } from '@/lib/customers'
 import { formatWeekdayMonthDay, money, num } from '@/lib/format'
@@ -1079,6 +1079,20 @@ export function RequestLinks({
 }) {
   const dateIdPrefix = useId()
   const toast = useToast()
+  const [publishing, setPublishing] = useState<number | null>(null)
+  const publish = async (arId: number) => {
+    if (publishing != null) return
+    setPublishing(arId)
+    try {
+      const response = await fetch(`/api/availability-requests/${arId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'new' }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error ?? 'Could not publish request')
+      availabilityRequestStatusChanged({ arId, status: 'new', submittedAt: null })
+      toast('Availability request published')
+    } catch (error) { toast((error as Error).message) } finally { setPublishing(null) }
+  }
   // A candidate dropped on its supplier joins that supplier's newest AR for
   // this job that is not closed (a submitted one reopens as New). The job's
   // live updates refresh the card.
@@ -1168,8 +1182,8 @@ export function RequestLinks({
             <SupplierPill key={l.supplierId} name={l.name} focusedMobile={focusedMobile}
               supplierId={l.supplierId} onDropCandidate={(payload) => void addToSupplierAR(l, payload)}>
               {l.availabilityRequests.map((ar) => (
+                <span key={ar.id} className="inline-flex items-stretch">
                 <LinkSegment
-                  key={ar.id}
                   title={availabilityRequestLinkLabel(ar.id, l.name, ar.status, ar.recordName)}
                   describedBy={`${dateIdPrefix}-ar-${ar.id}-date`}
                   onOpen={() => onOpenAR(ar.id)}
@@ -1186,6 +1200,7 @@ export function RequestLinks({
                 >
                   <span className="flex items-center gap-1">
                     {availabilityRecordName(ar)}
+                    {ar.status === 'draft' && <span className="rounded border border-current px-1 text-[10px] font-bold">Draft</span>}
                     {(isSubmittedARStatus(ar.status) || isInProgressARStatus(ar.status)) && (
                       <span
                         aria-hidden="true"
@@ -1202,6 +1217,11 @@ export function RequestLinks({
                     {formatWeekdayMonthDay(isSubmittedARStatus(ar.status) ? ar.submittedAt : ar.createdAt) || '—'}
                   </span>
                 </LinkSegment>
+                {ar.status === 'draft' && <button type="button" disabled={publishing != null}
+                  aria-label={`Publish ${availabilityRecordName(ar)}`}
+                  className="min-h-8 border-l border-lps-hair bg-primary px-2 text-[10.5px] font-bold text-primary-foreground hover:brightness-95 disabled:opacity-50"
+                  onClick={() => void publish(ar.id)}>{publishing === ar.id ? 'Publishing…' : 'Publish'}</button>}
+                </span>
               ))}
               {l.rosieThreadId && !focusedMobile && (
                 <LinkSegment

@@ -139,18 +139,18 @@ test('admin schedules identify each source job and render missing dates/methods 
 })
 
 
-test('deleted requests disappear from admin and supplier reads while retaining their status and token', async () => {
+test('drafts remain visible to admins and disappear from all supplier reads', async () => {
   const { tables, queries } = fixture()
-  tables.availability_requests[0].is_active = false
-  assert.equal(await queries.availabilityRequest(42), null)
-  assert.deepEqual(await queries.listAvailabilityRequests({ jobRequestId: 11 }), [])
+  tables.availability_requests[0].status = 'draft'
+  assert.equal((await queries.availabilityRequest(42)).status, 'draft')
+  assert.equal((await queries.listAvailabilityRequests({ jobRequestId: 11 })).length, 1)
   assert.equal(await queries.availabilityRequest(42, { forSupplierId: 7 }), null)
   assert.equal(await queries.publicAvailabilityRequest(token), null)
   assert.deepEqual(await queries.listPortalRequests(7), [])
   assert.deepEqual(await queries.listPortalItemLines(7), [])
-  assert.equal(tables.availability_requests[0].status, 'new')
+  assert.equal(tables.availability_requests[0].status, 'draft')
   assert.equal(tables.availability_requests[0].public_token, token)
-  tables.availability_requests[0].is_active = true
+  tables.availability_requests[0].status = 'new'
   assert.equal((await queries.availabilityRequest(42, { forSupplierId: 7 })).status, 'new')
   assert.equal((await queries.listPortalRequests(7)).length, 1)
 })

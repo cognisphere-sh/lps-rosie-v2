@@ -74,10 +74,10 @@ export async function listOrders(scope: { jobRequestId?: number; supplierId?: nu
   const relatedItems = links.length ? await all<{ id: number; availability_request_id: number; job_request_item_id: number }>(supabase.from('candidates')
     .select('id, availability_request_id, job_request_item_id').in('job_request_item_id', unique(links.map((link) => link.job_request_item_id)))
     .not('availability_request_id', 'is', null).eq('is_active', true).order('id')) : []
-  const relatedRequests = relatedItems.length ? await all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests')
+  const relatedRequests = relatedItems.length ? await all<{ id: number; supplier_id: number; record_name?: string | null; status: string }>(supabase.from('availability_requests')
     .select('*').in('id', unique(relatedItems.map((item) => item.availability_request_id)))
-    .in('supplier_id', unique(records.map((order) => order.supplier_id))).eq('is_active', true).order('id')) : []
-  const relatedRequestMap = new Map(relatedRequests.map((request) => [request.id, request.supplier_id]))
+    .in('supplier_id', unique(records.map((order) => order.supplier_id))).order('id')) : []
+  const relatedRequestMap = new Map(relatedRequests.filter((request) => !scope.forSupplier || request.status !== 'draft').map((request) => [request.id, request.supplier_id]))
   const orderSupplierMap = new Map(records.map((order) => [order.id, order.supplier_id]))
   const orderForItem = new Map(items.map((item) => [item.id, item.order_id]))
   const requestsByJobItem = new Map<number, Set<number>>()
@@ -264,7 +264,7 @@ export async function orderCandidates(jobIds: number[]): Promise<OrderCandidate[
   const links = items.map((item) => ({ availability_request_item_id: item.id, job_request_item_id: item.job_request_item_id, quantity: item.demanded_quantity }))
   const allLinks = links
   const [requests, jobs] = await Promise.all([
-    all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests').select('*').in('id', unique(items.map((item) => item.availability_request_id))).eq('is_active', true).neq('status', 'closed').order('id')),
+    all<{ id: number; supplier_id: number; record_name?: string | null }>(supabase.from('availability_requests').select('*').in('id', unique(items.map((item) => item.availability_request_id))).neq('status', 'closed').order('id')),
     all<JobRecord>(supabase.from('job_requests').select('id, name').in('id', unique(jobIds)).eq('is_active', true).not('status', 'in', '(closed_won,closed_lost,archived)').order('id')),
   ])
   if (!requests.length) return []

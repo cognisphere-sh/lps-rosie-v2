@@ -21,7 +21,6 @@ import { FilterControl, LpsTag, badgeFor } from '@/components/workspace/table-pa
 import { Badge } from '@/components/ui/badge'
 import { supplierAgentThreads } from '@/lib/agents'
 import type { ARDetail, ARSummary } from '@/lib/availability'
-import { availabilityRequestDeleted, onAvailabilityRequestDeleted } from '@/lib/chat-bus'
 import {
   AVAILABILITY_SOURCE_TYPES, PLANT_COLS, SUPPLIER_CATEGORIES,
   plantEditPatch, websiteHref, type ColumnDef,
@@ -574,13 +573,6 @@ export default function SupplierProfilePage() {
     if (arRes.ok) setArs(((await arRes.json()) as { requests: ARSummary[] }).requests)
   }, [scopeKey])
 
-  const [deletingAr, setDeletingAr] = useState(false)
-  useEffect(() => onAvailabilityRequestDeleted((arId) => {
-    setArs((current) => current.filter((request) => request.id !== arId))
-    setOpenAr((current) => current?.id === arId ? null : current)
-    setOpenArId((current) => current === arId ? null : current)
-  }), [])
-
   useEffect(() => {
     void loadEngagement().catch(() => {})
   }, [loadEngagement])
@@ -950,24 +942,6 @@ export default function SupplierProfilePage() {
       'Contact removed',
       'Could not remove contact',
     )
-  }
-
-  const deleteAr = async (arId: number) => {
-    if (deletingAr || !window.confirm('Delete this availability request? It will be removed from the app and supplier portal.')) return
-    setDeletingAr(true)
-    try {
-      const response = await fetch(`/api/availability-requests/${arId}`, { method: 'DELETE' })
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error ?? 'Could not delete the request')
-      }
-      availabilityRequestDeleted(arId)
-      toast('Availability request deleted')
-    } catch (error) {
-      toast((error as Error).message)
-    } finally {
-      setDeletingAr(false)
-    }
   }
 
   const setArStatus = async (arId: number, status: string) => {
@@ -1635,9 +1609,9 @@ export default function SupplierProfilePage() {
                     >
                       {openAr.status === 'closed' ? 'Reopen' : 'Close'}
                     </Button>
-                    <Button variant="outline" size="sm" disabled={deletingAr}
-                      className="text-destructive" onClick={() => void deleteAr(openAr.id)}>
-                      <TrashIcon size={14} /> {deletingAr ? 'Deleting…' : 'Delete request'}
+                    <Button variant="outline" size="sm"
+                      onClick={() => void setArStatus(openAr.id, openAr.status === 'draft' ? 'new' : 'draft')}>
+                      {openAr.status === 'draft' ? 'Publish' : 'Move to draft'}
                     </Button>
                   </div>
                 </header>

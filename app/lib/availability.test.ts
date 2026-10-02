@@ -10,7 +10,6 @@ import {
   groupSupplierItems,
   isSubmittedARStatus,
   withAvailabilityRequestStatus,
-  withoutAvailabilityRequest,
   type SupplierItemLine,
   type SupplierLink,
 } from './availability.ts'
@@ -167,17 +166,6 @@ test('confirmed submission stamps update on first submit and resubmit without ch
   assert.equal(reopened[0].availabilityRequests[0].createdAt, createdAt)
 })
 
-test('AR status vocabulary is independent of deletion', () => {
+test('AR status vocabulary includes Draft preparation', () => {
   assert.deepEqual(AR_STATUSES, ['draft', 'new', 'processing', 'submitted', 'closed'])
-})
-
-test('deletion removes the AR from every mounted supplier link while preserving other requests', () => {
-  const links: SupplierLink[] = [
-    { supplierId: 1, name: 'APS', lpsPartner: true, rosieThreadId: 'aps', availabilityRequests: [{ id: 11, status: 'new' }, { id: 12, status: 'submitted' }] },
-    { supplierId: 2, name: 'Other', lpsPartner: true, rosieThreadId: null, availabilityRequests: [{ id: 11, status: 'new' }] },
-  ]
-  const next = withoutAvailabilityRequest(links, 11)
-  assert.equal(next.length, 1)
-  assert.deepEqual(next[0].availabilityRequests, [{ id: 12, status: 'submitted' }])
-  assert.equal(links[0].availabilityRequests.length, 2)
 })

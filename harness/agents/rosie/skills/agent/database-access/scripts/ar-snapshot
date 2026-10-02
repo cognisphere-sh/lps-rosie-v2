@@ -13,7 +13,7 @@ SQL = """
 SELECT json_build_object(
  'ar', (SELECT row_to_json(a) FROM (
     SELECT ar.id, ar.supplier_id, s.name AS supplier, s.is_lps_partner AS partner,
-           ar.status, ar.is_active, ar.submitted_at, ar.share_customer_details AS share,
+           ar.status, ar.submitted_at, ar.share_customer_details AS share,
            ar.public_token IS NOT NULL AS public, ar.note_for_supplier
     FROM availability_requests ar JOIN suppliers s ON s.id = ar.supplier_id
     WHERE ar.id = {ar}) a),
@@ -40,7 +40,6 @@ def render(data):
         return "No AR with that id."
     out = [f"AR-{ar['id']} | {ar['supplier']} (supplier {ar['supplier_id']}, "
            f"{'partner portal' if ar['partner'] else 'non-partner'}) | {ar['status']}"
-           + ("" if ar["is_active"] else " | DELETED")
            + f" | submitted {cell(ar['submitted_at'])} | share details {ar['share']}"
            + (" | public link" if ar["public"] else ""),
            f"  header note: {cell(ar['note_for_supplier'])}",

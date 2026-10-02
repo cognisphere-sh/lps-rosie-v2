@@ -5,6 +5,8 @@ The current database contract is [the shared schema](../supabase-schema.md).
 
 ## Migrations (`migrations/`)
 
+- `0127_ar_publish_and_retention.sql` — 2026-10-02. Removes the AR header deletion flag; database guards prohibit DELETE/TRUNCATE. Former inactive ARs become private Draft history. Draft publication and withdrawal preserve candidate answers; LPS content changes reset published requests to New. Whole-job deletion retains closed AR history. Rollback-only regression assertions cover supplier/public exclusion, publish/republish, edits, answers, submissions and job deletion.
+
 **Operator-run** DDL against Supabase project `xyeyiqchadfszewztnrf` (lps-rosie),
 because daisy's own `query` script blocks DDL. `NOTE.md` records what was applied
 and when; the summaries below are one line each.

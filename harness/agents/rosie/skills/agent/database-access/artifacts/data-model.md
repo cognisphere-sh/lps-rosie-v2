@@ -60,8 +60,10 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
 - `orders` and `order_items`; `order_item_job_request_items` links order lines
   to job lines with each job's `quantity`. Related ARs are found through the
   job lines, same supplier only.
-- Deleting an AR = `is_active = false`; status, token and answers stay.
-  Reopening a job never reopens ARs. `hidden` is no longer a status.
+- ARs cannot be deleted and have no deletion flag (0127). Move a published
+  AR to Draft to hide it from the supplier and revoke its public link; answers
+  and candidate links stay. LPS edits to published AR content reset it to New;
+  draft preparation stays private. Reopening a job never reopens ARs.
 
 ## Notes
 

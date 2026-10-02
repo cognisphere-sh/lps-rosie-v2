@@ -67,13 +67,16 @@ test('sharing database write cannot change another supplier request', async () =
   const published = await setAvailabilityRequestPublic(11, true, 7)
   assert.match(published, /^[0-9a-f-]{36}$/)
   assert.equal(filters.id, 11)
-  assert.equal(filters.is_active, true)
+  assert.equal(filters.is_active, undefined)
   await setAvailabilityRequestPublic(11, false, 7)
   assert.equal(token, null)
   active = false
   await assert.rejects(setAvailabilityRequestPublic(11, true, 7), /not found/)
   assert.equal(token, null)
   active = true
+  status = 'draft'
+  await assert.rejects(setAvailabilityRequestPublic(11, true, 7), /draft/)
+  assert.equal(token, null)
   status = 'closed'
   await assert.rejects(setAvailabilityRequestPublic(11, true, 7), /closed/)
   assert.equal(token, null)

@@ -55,7 +55,7 @@ async function rosieDirectory(): Promise<ChatDirectory> {
       .eq('is_active', true)
       .eq('is_lps_partner', true)
       .not('rosie_thread_id', 'is', null),
-    supabase.from('availability_requests').select('supplier_id').eq('is_active', true),
+    supabase.from('availability_requests').select('supplier_id'),
     supabase
       .from('customers')
       .select('id, name, company, rosie_thread_id')

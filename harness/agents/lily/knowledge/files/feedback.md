@@ -1054,3 +1054,66 @@ this file exists.
 - **JR97 availability quantity NULL-loss source confirmed; current status contract supersedes Sep29** — Nova source-only finding relayed by Lily main17:42:32: at HEADaf7f7454c48e854c68f7cb7f37d9dd754994e406, latest migration0123 helper line213 uses LEAST(candidate.available_quantity, demand). PostgreSQL ignores NULL operands in LEAST, so unknown candidate quantity plus known demand returns demand, predicting JR97 3/10/7/5/1. Candidate NULL status already maps Pending; no stock confirmed. Source evidence ../nova/workspace/threads/main/tasks/audit-select-candidate-quantity-jr97/notes.md; no live deployed-function verification, tests, repair or replay. Nova parent already asked Bhoumik for narrow explicit-NULL-preserving function fix/regression authorization; do not duplicate ask/queue. Current Bhoumik Sep30 contract/migration0123 makes offered substitutes Available/Partial Qty and selected answered nonoriginal Job lines Diff; supersedes Lily's Sep29 candidate-Diff-both expectation. Supplier-answer substitute-quantity fallback is a separate workflow/default path, NOT this unanswered no-AR JR97 cause and not authorized for incidental change. Preserve legitimate zero/positive/unknown, current demand cap precedence and current status/selection/order guards; no data repair/new status model/publication action authorized. _(via nova)_
   → candidate-selection-availability-quantity
 <!-- feedback-end: nova:main:2026-09-30T17:42:11-05:00:jr97-quantity-trace -->
+
+## 2026-10-01
+
+<!-- feedback-id: nova:main:2026-10-01T16:56:31:jr98-ar64-recovery sha256: 444a3dd03a50d160077b9d9a61e5e77248bb146d10746ea6c2171831d9b105bb -->
+- **JR98 existing draft AR reportedly unusable; recovery cause unknown** — Nova Oct1 16:56:31 handoff, relayed by Lily main at 16:56:54: Chris on JR98 (web origin jr98) asks for a NEW draft AR because existing AR64 ‘would not work’. Owner reports AR64 is Draft and binds candidates; new creation fails the unasked-candidate guard. Rosie left records UNCHANGED; no deactivation, deletion or send authorized. Nova already delegated a read-only UI/lifecycle investigation and requested the exact failure screenshot. This is attributed owner evidence, not Lily verification. Recovery/usability problem remains unexplained; no replacement model, duplicate request, guard bypass or delete/recreate permission established. _(via nova)_
+  → (watching)
+<!-- feedback-end: nova:main:2026-10-01T16:56:31:jr98-ar64-recovery -->
+
+## 2026-10-01
+
+<!-- feedback-id: nova:main:2026-10-01T16:59:44:jr98-ar64-source-watch sha256: 9a4a9a405d3fa4d110cf062c48cbe47b28edb4d9dcdf33bc712d85318f71c307 -->
+- **AR64 owner source findings distinguish supported reuse from unknown incident** — Nova Oct1 16:59:44 read-only report at HEAD eb7d963, relayed by Lily main17:00:08: bound candidates cannot create a new draft because of the unasked guard; soft deletion retains bindings, and replacement has no supported route without rebinding/copying demand. Supported path is reuse active Draft AR64 via ar:64/read-only Retry; modification/send requires explicit origin approval. Chris’s exact failure is still unknown; Rosie jr98 already asked an MCQ/error/screenshot. Source-only UI inconsistencies, not incident diagnosis: answer controls are allowed but 0124 answer RPC rejects Draft; footer Submit directly writes status=submitted, not the send RPC; Draft status picker is correctly hidden; no app Send button for existing Draft found, while approved Rosie supplier-send path is separate. No implementation/DB/service actions. Submit is not established send/delivery. Chris’s new-draft request does not authorize deletion/rebinding or establish a new replacement lifecycle need. _(via nova)_
+  → (watching)
+<!-- feedback-end: nova:main:2026-10-01T16:59:44:jr98-ar64-source-watch -->
+
+## 2026-10-01
+
+<!-- feedback-id: web:jr98:16 sha256: c33786724de5b00ff57e83a765c081ec5ddc886c045c9a55e0f5ea6d9e72a39b -->
+- **Chris repeats new AR request after status-update error; supported recovery decision required** — Chris JR98 web16 at 2026-10-01 17:00:47 CDT, relayed by Nova17:01:20 and Lily main17:01:40: Chris repeats the request to CREATE NEW AR rather than more diagnostics. Preceding JR98 web14 reports a status update errored. This is the parent’s attributed relay, not a supplied verbatim Chris transcript. Stop diagnostics/repeated questions; Nova asked Rosie to acknowledge/escalate. Parent reports at17:01:49 that Telegram361 successfully notified Bhoumik for the supported replacement/recovery decision; records are unmodified, with no authorized workaround, lifecycle change or send. This repeated request establishes the desired new usable AR/recovery outcome, not permission to delete, rebind, copy demand, bypass the unasked guard, publish or send. Draft answer/Submit/Send remain distinct; a new Draft alone may still hit0124 answer restrictions. UI source inconsistencies remain separate from unknown incident root cause. _(via nova)_
+  → draft-ar-authorized-recovery
+<!-- feedback-end: web:jr98:16 -->
+
+## 2026-10-01
+
+<!-- feedback-id: nova:main:2026-10-01T17:02:18:jr98-draft-answer-source sha256: 52b3f925b06b4cd62c8a23889f27dbac618a27b5500d9915afad4f998aa6157e -->
+- **Draft line-action rejection is plausible status error, not confirmed incident cause** — Nova17:02:18 via Lily main17:02:29: Draft line controls are enabled in drawer674; updateARItem calls0124 answer RPC53–64, which rejects Draft with ‘This request is closed, deleted or unavailable’; API409 and UI verbatim. This is a plausible explanation for Chris’s status error, not confirmed runtime cause. Header Draft picker is hidden; footer Submit directly writes submitted, not send RPC. A new Draft may reproduce the same restriction. Bhoumik’s staged recovery decision must explicitly cover Draft answer semantics, not just replacement. Chris web16 insistence and parent Telegram361 escalation supersede waiting for more diagnostics as the next action. No new diagnostic ask, code change or Nova build route. _(via nova)_
+  → draft-ar-authorized-recovery
+<!-- feedback-end: nova:main:2026-10-01T17:02:18:jr98-draft-answer-source -->
+
+## 2026-10-01
+
+<!-- feedback-id: nova:main:2026-10-01T17:02:29:jr98-recovery-promotion sha256: 6c0e9ad7b80082772160f2a4b716e8120114f09ecadb5a33c296a0bffaab3e3f -->
+- **Draft AR recovery watch promoted to Bhoumik-staged decision** — 2026-10-01 17:02:29 CDT requirement link: original watch feedback nova:main:2026-10-01T16:56:31:jr98-ar64-recovery and nova:main:2026-10-01T16:59:44:jr98-ar64-source-watch are now linked to draft-ar-authorized-recovery after Chris’s explicit repeat request web:jr98:16. Parent Telegram361 successfully notified Bhoumik. Requirement stages supported replacement/recovery plus explicit Draft-answer semantics; source path nova:main:2026-10-01T17:02:18:jr98-draft-answer-source remains plausible, not confirmed incident cause. Prior await-diagnostics/no-requirement watch state is superseded, raw evidence unchanged. No implementation, operational mutation or send authorized. _(via nova)_
+  → draft-ar-authorized-recovery
+<!-- feedback-end: nova:main:2026-10-01T17:02:29:jr98-recovery-promotion -->
+
+## 2026-10-02
+
+<!-- feedback-id: telegram:main:362 sha256: 6d9d3179979049873dbd4063a3ace123c7286b9bc865efc74b3c76057830cbe4 -->
+- **Temporary restore of deleted AR requested; identity/result pending owner verification** — Direct Telegram362, Oct2 09:51:39 CDT, sender Pi in main, relayed by parent Lily09:52:00: ‘Undelete the deleted AR for now.’ Parent routed operational verification and supported undelete to Rosie jr98 with recent AR64 context, but the target identity is NOT assumed: yesterday AR64 was reported active Draft; latest deletion is unknown. This is a temporary restoration instruction, not new replacement/lifecycle approval. Rosie must verify the current target and supported result; no Lily DB writes, creation, rebinding, demand copy, send or publication. Broader staged Bhoumik recovery/Draft-answer semantics are not resolved by restoration alone. _(via telegram)_
+  → draft-ar-authorized-recovery
+<!-- feedback-end: telegram:main:362 -->
+
+## 2026-10-02
+
+<!-- feedback-id: rosie:aps-owner:2026-10-02T09:52:46:jr98-ar64-restore sha256: 4506c940f8573b9c256178c59a800feea9ddb057248dced2579bf0005596bfda -->
+- **AR64 temporary restore owner-verified; broader Draft recovery unresolved** — Rosie APS owner09:52:46, relayed by Lily main09:53:00: the sole deleted JR98 APS AR was AR64. Owner executed guarded is_active false→true ONLY, then verified active Draft, submitted_at NULL, Job98 active Quoted, supplier1. State/bindings/evidence preserved; no creation, rebinding, send or publication. Owner informed jr98. Parent reports replying to Telegram362 confirming AR64 restored as active Draft and nothing sent; outgoing message ID not supplied as verified outcome. Temporary restoration is owner-verified complete, not a Draft-editing/status-error/replacement-workflow fix or deployed feature. Lily performed no operational action or duplicate external reply. _(via rosie)_
+  → draft-ar-authorized-recovery
+<!-- feedback-end: rosie:aps-owner:2026-10-02T09:52:46:jr98-ar64-restore -->
+
+## 2026-10-02
+
+<!-- feedback-id: telegram:-1004330045748:766 sha256: a542a81240315fa63ed69e7f99d5cd5c1f0e7ff1a20ec028e170bb6a41df1500 -->
+- **Center AR Status controls and Submit action** — Chris Telegram766 at2026-10-02 10:46:44 CDT, relayed by Nova10:47:10/parent10:47:35: “Can we center the drop down for Status on the column? Also move the button to center. and add some flair to the button like the chat back ground. Can you use that same element or create a new one similar?” Private source ../nova/plugins/telegram/inbox/photo_766.jpg inspected in place: AR Status dropdowns and bottom-left Submit availability action; customer data not copied/published. UI-only: center Status controls under heading, center bottom Submit action, restrained chat-inspired button motif; existing status/edit/save/send/Submit/Draft/read-only/permissions/context remain unchanged. Nova already acknowledged; no Lily Telegram. _(via nova)_
+  → ar-status-submit-polish
+<!-- feedback-end: telegram:-1004330045748:766 -->
+
+## 2026-10-02
+
+<!-- feedback-id: telegram:-1004330045748:767 sha256: 3bb994ad4f06223cd7837fc9c06554f6509a8166858d33c58a0f5529867b0f1a -->
+- **Button flair means purple botanical line-art motif** — Chris Telegram767 at2026-10-02 10:47 CDT exact caption “button flair”, relayed Nova10:47:31/parent10:47:46. Private photo ../nova/plugins/telegram/inbox/photo_767.jpg independently inspected in place: black/purple botanical/cactus/desert doodle chat wallpaper and purple outgoing bubble. This specifies the line-art wallpaper motif, not generic glow/gradient or whole-panel decoration. Nova already answered use purple botanical/cactus line art with clear label/contrast; reuse existing wallpaper asset in the button if suitable, otherwise a restrained similar motif. No copied private chat/customer content or public evidence, behavioral/permission changes or new Lily Telegram. _(via nova)_
+  → ar-status-submit-polish
+<!-- feedback-end: telegram:-1004330045748:767 -->

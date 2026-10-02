@@ -154,7 +154,7 @@ export function ARStatusPill({
     >
       <span className="size-1.5 rounded-full" style={{ background: toneDot(arStatusTone(status)) }} />
       {arStatusLabel(status)}
-      {/* A draft leaves only through Send on the job card, never this picker. */}
+      {/* Drafts leave through Publish. Published requests can return to Draft. */}
       {onChange && status !== 'draft' && (
         <select
           aria-label="Request status"
@@ -162,7 +162,7 @@ export function ARStatusPill({
           onChange={(e) => onChange(e.target.value)}
           className="absolute inset-0 cursor-pointer opacity-0"
         >
-          {AR_STATUSES.filter((s) => s !== 'draft').map((s) => (
+          {AR_STATUSES.map((s) => (
             <option key={s} value={s}>{arStatusLabel(s)}</option>
           ))}
         </select>

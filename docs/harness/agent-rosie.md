@@ -23,8 +23,9 @@ Chris made the request.
   Oak`) and a customer-facing `note_for_customer` (`5 G NA, 3 G only`); the
   original request is `is_original`. ARs ask for each line's selected candidate, else its original plant/size, one
   AR per job and supplier. ARs start as drafts invisible to the supplier;
-  only Rosie sends them (`send_availability_request`), once Chris approves or
-  asks her to send an existing draft. The app has no Send button.
+  Chris can Publish in the job header or drawer, or approve Rosie sending
+  an existing draft (`send_availability_request`). Returning to Draft hides
+  the AR and revokes its public link; AR deletion is prohibited (0127).
 - Candidate status (derived, not stored): No price → Pending (priced, not on
   a sent AR) → AR sent → the supplier's answer.
 - Notes by audience: the customer's requirements go in `note_internal` (and a

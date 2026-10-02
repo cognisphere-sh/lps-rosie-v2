@@ -47,7 +47,6 @@ supplier_id bigint NOT NULL
 share_customer_details boolean NOT NULL DEFAULT false
 status text NOT NULL DEFAULT 'new'::text
 submitted_at timestamptz
-is_active boolean NOT NULL DEFAULT true
 created_at timestamptz NOT NULL DEFAULT now()
 updated_at timestamptz NOT NULL DEFAULT now()
 note_for_supplier text
@@ -71,15 +70,19 @@ One AR per job (migration 0119 replaced `availability_request_jobs`):
 all its candidates belong to that job's lines. Inserting a Partner supplier's
 AR records the job's `availability_sent` event when it is sent (`availability_requests_progress`);
 closing the job closes its ARs.
-`is_active=false` marks deletion: the AR, lines and saved answers remain stored,
-but normal app views and supplier/public access exclude the request. Deletion
-preserves `status`, `submitted_at` and `public_token`; a retained token grants no
-access while inactive. Whole-job deletion similarly retires its ARs and
-retains their supplier snapshots.
-`status` is `new` (New), `processing` (answers in progress), `submitted` (Completed)
-or `closed` (supplier edits blocked). Closing an active request revokes its public
-link. Job reopening never reopens an AR or restores a deleted one; AR reopening
-is explicit. Removed `hidden` records migrate to inactive, closed history.
+ARs cannot be deleted or truncated (0127 database guards); the header has no
+`is_active` deletion flag. Former inactive headers become private Draft history
+with revoked tokens, retaining all answers and associations. Whole-job deletion
+closes its ARs and retains their supplier snapshots.
+Published requests can return to `draft`, immediately revoking their public link.
+LPS content edits (header note/disclosure, candidate details/answers/notes,
+additions and removals, selected-line edits) reset published requests to `new`
+and clear `submitted_at`. Draft preparation stays Draft; closed history stays
+closed. `edit_availability_request` is the service-only admin answer RPC, using
+the same answer validation and substitute handling with Draft support. Supplier
+RPCs still refuse Draft and advance to Processing/Completed. Submission-derived
+note and line synchronization does not reset the request to New.
+Job reopening never reopens an AR automatically.
 
 ### `candidates`
 

@@ -299,3 +299,15 @@ test('AR columns fit the full plant name and retain a dragged, resized layout', 
     ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Unit price', 'Note']))
   assert.equal(parseInt(table(second.container).head.style.gridTemplateColumns.split(' ')[3], 10), initialPlantWidth + 50)
 })
+
+
+test('job header clearly labels Draft and publishes the existing AR', async () => {
+  const draftJob = { ...job, supplierLinks: [{ ...job.supplierLinks[0], availabilityRequests: [{ id: 84, status: 'draft' }] }] }
+  const view = render(<RequestCardHeader request={draftJob} mobile={false} expanded onToggle={() => {}}
+    onDelete={() => {}} onSaved={() => {}} />)
+  const chip = view.getByRole('button', { name: 'Open availability request AR-84 to Exact supplier — Draft' })
+  assert.match(chip.textContent ?? '', /Draft/)
+  fireEvent.click(view.getByRole('button', { name: 'Publish AR-84' }))
+  await waitFor(() => assert.equal(writes.length, 1))
+  assert.deepEqual(JSON.parse(writes[0].slice(writes[0].indexOf(' ') + 1)), { status: 'new' })
+})

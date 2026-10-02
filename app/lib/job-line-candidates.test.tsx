@@ -211,14 +211,14 @@ test('dropping a candidate on its supplier in the header adds it to their newest
   assert.equal(view.queryByRole('button', { name: 'Create AR' }), null)
 })
 
-test('a draft AR has no status picker; others never offer Draft', () => {
+test('a draft AR uses Publish; published status pickers allow returning to Draft', () => {
   const draft = render(<ARStatusPill status="draft" onChange={() => {}} />)
   assert.equal(draft.queryByRole('combobox'), null)
   assert.ok(draft.getByText('Draft'))
   draft.unmount()
   const open = render(<ARStatusPill status="new" onChange={() => {}} />)
   assert.deepEqual([...open.getByRole('combobox').querySelectorAll('option')].map((o) => o.getAttribute('value')),
-    ['new', 'processing', 'submitted', 'closed'])
+    ['draft', 'new', 'processing', 'submitted', 'closed'])
 })
 
 function loadRoute(path: string, mocks: Record<string, unknown>) {

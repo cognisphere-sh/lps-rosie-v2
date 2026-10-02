@@ -14,35 +14,16 @@ function load(file: string, mocks: Record<string, unknown>) {
   return module.exports
 }
 
-test('AR deletion writes only is_active, is repeatable, and validates route IDs without notifications', async () => {
-  const writes: Array<{ values: Record<string, unknown>; id: unknown }> = []
+test('the admin AR endpoint has no DELETE handler or deletion query', () => {
   const queries = load('./availability-queries.ts', {
-    'server-only': {}, '@/lib/availability-allocations': {}, '@/lib/partner-display': {},
-    '@/lib/supabase': { supabase: { from: (table: string) => {
-      assert.equal(table, 'availability_requests')
-      let id: unknown
-      let values: Record<string, unknown>
-      const query = {
-        update: (next: Record<string, unknown>) => { values = next; return query },
-        eq: (column: string, value: unknown) => { assert.equal(column, 'id'); id = value; return query },
-        select: async () => { writes.push({ values, id }); return { data: id === 42 ? [{ id }] : [], error: null } },
-      }
-      return query
-    } } },
+    'server-only': {}, '@/lib/partner-display': {}, '@/lib/supabase': { supabase: {} },
   })
-  const { DELETE } = load('../app/api/availability-requests/[id]/route.ts', {
+  const route = load('../app/api/availability-requests/[id]/route.ts', {
     'next/server': { NextResponse: Response }, '@/lib/availability-queries': queries,
-    '@/lib/notify-supplier-events': { notifySupplierEvent: () => { throw new Error('Deletion is not supplier submission') } },
+    '@/lib/notify-supplier-events': {},
   })
-  const remove = (id: string) => DELETE(new Request(`https://lps.example/api/availability-requests/${id}`, { method: 'DELETE' }),
-    { params: Promise.resolve({ id }) })
-  assert.equal((await remove('42')).status, 200)
-  assert.equal((await remove('42')).status, 200)
-  assert.deepEqual(writes, [{ values: { is_active: false }, id: 42 }, { values: { is_active: false }, id: 42 }])
-  assert.equal((await remove('99')).status, 404)
-  for (const id of ['0', '-1', '1.5', '42suffix', '9007199254740992']) assert.equal((await remove(id)).status, 400)
-  await assert.rejects(queries.setAvailabilityRequestStatus(42, 'hidden'), /status must be/)
-  assert.equal(writes.length, 3)
+  assert.equal(route.DELETE, undefined)
+  assert.equal(queries.deleteAvailabilityRequest, undefined)
 })
 
 test('the app gate rejects partner deletion of an admin AR endpoint', async () => {
@@ -52,4 +33,34 @@ test('the app gate rejects partner deletion of an admin AR endpoint', async () =
   })
   const response = await proxy({ nextUrl: new URL('https://lps.example/api/availability-requests/42'), headers: new Headers(), method: 'DELETE' })
   assert.equal(response.status, 403)
+})
+
+test('Draft publishes through the validated send RPC; withdrawal preserves the AR', async () => {
+  let status = 'draft'
+  const calls: unknown[][] = []
+  const writes: Record<string, unknown>[] = []
+  let values: Record<string, unknown>
+  let excluded: unknown
+  const chain = {
+    update: (next: Record<string, unknown>) => { values = next; excluded = undefined; return chain },
+    eq: () => chain,
+    neq: (_key: string, next: unknown) => { excluded = next; return chain },
+    select: () => values ? Promise.resolve({ data: status === excluded ? [] : (writes.push(values), status = String(values.status), [{ id: 64 }]), error: null }) : chain,
+    maybeSingle: async () => ({ data: { status }, error: null }),
+  }
+  const queries = load('./availability-queries.ts', {
+    'server-only': {}, '@/lib/partner-display': {},
+    '@/lib/supabase': { supabase: {
+      from: () => chain,
+      rpc: async (...args: unknown[]) => { calls.push(args); status = 'new'; return { error: null } },
+    } },
+  })
+  await queries.setAvailabilityRequestStatus(64, 'submitted').then(() => assert.fail('Draft bypassed Publish'), error => assert.match(error.message, /not found/))
+  values = undefined as any
+  await queries.setAvailabilityRequestStatus(64, 'new')
+  assert.deepEqual(calls, [['send_availability_request', { p_request_id: 64 }]])
+  assert.deepEqual(writes, [])
+  await queries.setAvailabilityRequestStatus(64, 'draft')
+  assert.deepEqual(writes, [{ status: 'draft', submitted_at: null }])
+  await assert.rejects(queries.setAvailabilityRequestStatus(64, 'hidden'), /status must be/)
 })

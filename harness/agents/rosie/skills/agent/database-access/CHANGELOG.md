@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.4.1
+
+- AR snapshots no longer read the removed header `is_active` flag (0127). ARs are retained permanently; Draft controls supplier visibility.
+
 ## 2.4.0 — 2026-09-30
 
 - `candidates.hide_from_lps` (0124) in the data model; `job-snapshot` marks such candidates `(hidden sub option)`. Substitutes are not listed as their own AR rows in the app.
