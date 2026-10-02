@@ -2802,7 +2802,12 @@ line table, printable sheet, pinned Submit/Re-Submit bar and the received
 acknowledgement a successful submit plays (the view's `onSubmit` resolves `true`
 only when the answers were accepted, so a failed submit shows its error instead). The public frame
 adds the LPS label and Print control; account navigation, notifications and chat
-remain confined to the authenticated portal.
+remain confined to the authenticated portal. Only this shared supplier detail opts
+into centered desktop Status headings/controls; its pinned Submit/Re-Submit button
+is independently centered above the explanation and contains purple Desert Night
+botanical artwork. Ops drawers, the focused portal-style drawer and profile/By-item
+callers keep their prior controls. See [shared-detail presentation](availability-shared-detail-presentation.md)
+for scope, accessibility and verification boundaries.
 
 Migration `0082_public_availability_requests.sql` was applied to the live database
 on 2026-09-10. It adds the nullable, unique UUID capability; private/closed/inactive requests

@@ -23,6 +23,7 @@ here).
 
 ## 2026-10-02 — AR publication and permanent retention
 
+- Supplier shared AR detail (public and authenticated) centers desktop Status headings/controls and the pinned Submit/Re-Submit button independently of its explanation. The button reuses Desert Night cactus/agave line art with a fixed purple treatment and a solid label backing. Other AR callers and all submission/publication behavior remain unchanged. Candidate runtime, technical and independent rendered QA remain unverified; this entry is not deployment evidence.
 - Draft ARs show a clear Draft badge and Publish button on job header tablets and in the drawer. Published ARs can return to Draft, hiding them from suppliers and revoking public links while retaining answers and associations.
 - Removed AR Delete actions, API handler and database deletion flag (0127); database guards prohibit AR deletion and truncation. Previously inactive ARs become private Draft history; deleting a job retains its ARs as closed history.
 - LPS edits to published AR content reset the request to New; draft preparation stays private. Admin answer preparation now works in Draft through a service-only RPC; suppliers still cannot access or answer drafts. Updated Rosie's database-access helper to 2.4.1 for the schema change.

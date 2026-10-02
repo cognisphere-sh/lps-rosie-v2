@@ -75,6 +75,7 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
               design="portal"
               mobileCards={mobile}
               drawerModal={mobile}
+              centerStatus
             />
 
             <label className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-[13px] font-semibold">
@@ -106,16 +107,28 @@ export function AvailabilityRequestView({ request, loading, error, saving, onPat
           Re-Submit once the request has been handed back before — including
           after we added a line and put it back at New. */}
       {request && editable && (
-        <div className="flex flex-none items-center gap-3 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden">
+        <div className="flex flex-none flex-col items-center gap-2 border-t border-border bg-card px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] md:px-4 print:hidden">
           <button
             type="button"
             onClick={() => void submit()}
             disabled={saving}
-            className="min-h-12 min-w-0 flex-1 cursor-pointer rounded-lg bg-primary px-3 py-2 text-[15px] font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 min-[900px]:max-w-sm"
+            className="relative isolate min-h-12 w-full min-w-0 max-w-sm cursor-pointer overflow-hidden rounded-lg border border-[#b8a0ed] bg-[#3b225e] px-3 py-2 text-[15px] font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'}
+            {/* Reuse the public artwork, never private chat content or saved appearance. */}
+            <span aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 opacity-80" style={{
+              backgroundColor: '#000',
+              backgroundImage: "linear-gradient(#a78bfa, #a78bfa), url('/desert-night-chat.webp')",
+              backgroundBlendMode: 'color, normal',
+              backgroundSize: '240px 240px',
+              backgroundPosition: 'center',
+              filter: 'brightness(3)',
+            }} />
+            {/* A solid label backing keeps white text clear over every motif portion. */}
+            <span className="rounded bg-[#3b225e] px-2 py-1">
+              {saving ? 'Submitting…' : request.submittedAt ? 'Re-Submit availability' : 'Submit availability'}
+            </span>
           </button>
-          <span className="hidden text-[11.5px] text-muted-foreground min-[900px]:block">
+          <span className="max-w-prose text-center text-[11.5px] text-muted-foreground">
             {request.submittedAt
               ? 'Re-submitting sends your updated answers to Local Plant Supply.'
               : 'Submitting sends your answers to Local Plant Supply — you can come back and refine them.'}

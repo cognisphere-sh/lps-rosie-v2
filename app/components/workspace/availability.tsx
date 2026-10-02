@@ -88,9 +88,10 @@ type LineTableDesign = 'default' | 'portal'
 /** The portal drawing's one accent: what still needs a price. */
 const PORTAL_PURPLE = '#8F7CF6'
 
-function ARColumnHeader({ column, width, onMove, onResize }: {
+function ARColumnHeader({ column, width, onMove, onResize, centerStatus = false }: {
   column: ARColumnKey
   width: number
+  centerStatus?: boolean
   onMove: (from: ARColumnKey, to: ARColumnKey) => void
   onResize: (column: ARColumnKey, width: number) => void
 }) {
@@ -109,7 +110,7 @@ function ARColumnHeader({ column, width, onMove, onResize }: {
     document.addEventListener('mouseup', stop)
   }
   return (
-    <div className={cn('relative min-w-0 px-1', ['need', 'avail'].includes(column) && 'text-center', column === 'unit_price' && 'text-right')}
+    <div className={cn('relative min-w-0 px-1', (['need', 'avail'].includes(column) || (centerStatus && column === 'status')) && 'text-center', column === 'unit_price' && 'text-right')}
       onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
       onDrop={(event) => {
         event.preventDefault()
@@ -1146,6 +1147,7 @@ function LineRow({
   leading,
   design = 'default',
   drawerModal = false,
+  centerStatus = false,
 }: {
   item: ARItem
   editable: boolean
@@ -1159,6 +1161,7 @@ function LineRow({
   leading?: ReactNode
   design?: LineTableDesign
   drawerModal?: boolean
+  centerStatus?: boolean
 }) {
   const portal = design === 'portal'
   const commit = (column: string) => (next: string) => {
@@ -1232,7 +1235,7 @@ function LineRow({
           plain={portal} className={portal ? 'truncate text-[13px] font-semibold text-foreground' : undefined} />
       </span> : <span className={cn('block text-[13px] font-semibold text-foreground', portal ? 'truncate' : 'whitespace-normal [overflow-wrap:anywhere]')}>{item.name}</span>}
     </span>,
-    status: <div className="px-1">
+    status: <div className={cn('px-1', centerStatus && 'flex min-w-0 justify-center [&_button]:min-h-11')}>
       <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} drawerModal={drawerModal} />
     </div>,
     note: supplierNote,
@@ -1290,6 +1293,7 @@ export function ARLineTable<T extends ARItem>({
   design = 'default',
   mobileCards = false,
   drawerModal = false,
+  centerStatus = false,
 }: {
   items: T[]
   editable: boolean
@@ -1304,6 +1308,8 @@ export function ARLineTable<T extends ARItem>({
   mobileCards?: boolean
   /** Isolate answer dialogs and restore focus to the line control. */
   drawerModal?: boolean
+  /** Supplier shared detail only: center desktop Status; other callers keep their drawing. */
+  centerStatus?: boolean
   /**
    * One extra column in front of Need. Both parts go together — the header
    * names it, the renderer fills it per row. The By-item view uses it for the
@@ -1490,12 +1496,14 @@ export function ARLineTable<T extends ARItem>({
         className={cn(
           'grid items-center gap-x-2 border-b border-border text-[11px] font-bold uppercase tracking-[.05em] text-muted-foreground',
           !portal && 'bg-lps-headrow',
+          // Match the row's 3px accent border so the column centers coincide.
+          centerStatus && 'border-l-[3px] border-l-transparent',
         )}
         style={{ gridTemplateColumns: columns, minWidth, padding: portal ? '16px 16px 14px' : '8px 12px' }}
       >
         {lead && <span className="px-1">{leadingHeader}</span>}
         {layout.order.map((key) => <ARColumnHeader key={key} column={key} width={widthOf(key)}
-          onMove={moveColumn} onResize={resizeColumn} />)}
+          onMove={moveColumn} onResize={resizeColumn} centerStatus={centerStatus} />)}
       </div>
       {items.length === 0 && (
         <p className="px-3 py-4 text-[12.5px] text-muted-foreground">
@@ -1516,6 +1524,7 @@ export function ARLineTable<T extends ARItem>({
           leading={lead ? renderLeading(item) : undefined}
           design={design}
           drawerModal={drawerModal}
+          centerStatus={centerStatus}
         />
       ))}
         {items.length > 0 && !portal && (
