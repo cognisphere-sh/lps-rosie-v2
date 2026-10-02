@@ -1235,7 +1235,7 @@ function LineRow({
           plain={portal} className={portal ? 'truncate text-[13px] font-semibold text-foreground' : undefined} />
       </span> : <span className={cn('block text-[13px] font-semibold text-foreground', portal ? 'truncate' : 'whitespace-normal [overflow-wrap:anywhere]')}>{item.name}</span>}
     </span>,
-    status: <div className={cn('px-1', centerStatus && 'flex min-w-0 justify-center [&_button]:min-h-11')}>
+    status: <div className={cn('px-1', centerStatus && 'flex min-w-0 justify-center [&>button]:min-h-11')}>
       <LineStatusPicker item={item} editable={editable} onPatch={onPatch} portal={portal} drawerModal={drawerModal} />
     </div>,
     note: supplierNote,

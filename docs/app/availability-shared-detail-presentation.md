@@ -10,8 +10,10 @@ only the desktop table: Status heading text and the row's picker wrapper are
 centered in the existing grid track. A transparent 3px header left border
 matches each row's accent border so their track centers coincide. The existing
 column order, saved reorder/resize widths, content, horizontal overflow and
-picker semantics are unchanged; editable desktop Status buttons have a minimum
-44px height without changing their labels/options or font size. Below 900px,
+picker semantics are unchanged; only the immediate desktop Status trigger button
+has a minimum 44px height, via `[&>button]:min-h-11`. Nested in-cell answer-dialog
+buttons (No Sub, Cancel, Submit and Save answer) retain their existing sizing.
+The trigger's labels/options and font size are unchanged. Below 900px,
 the shared view still mounts the existing stacked phone cards and labelled
 Status controls instead of the desktop table.
 
@@ -37,7 +39,8 @@ permission gates remain owned by the routes and APIs.
 
 `app/lib/availability-shared-detail-polish.test.tsx` adds offline DOM regression
 coverage for the opt-in/default boundaries, persisted reorder/resize, keyboard
-answering/focus, centered footer/decorative content, note submission/receipt,
+answering/focus, direct-trigger selector isolation across nested answer dialogs,
+centered footer/decorative content, note submission/receipt,
 loading/saving/closed/error gates and the three phone card breakpoints. These
 assertions do not establish browser geometry, contrast, motif recognition,
 long-table scrolling or independent reference similarity.

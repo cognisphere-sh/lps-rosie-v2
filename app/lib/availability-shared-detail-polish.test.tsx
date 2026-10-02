@@ -42,6 +42,9 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(globals)) {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
   }
+  // React's input-event fallback may run when an answer dialog autofocuses an input.
+  Object.defineProperty(dom.window.HTMLElement.prototype, 'attachEvent', { value() {} })
+  Object.defineProperty(dom.window.HTMLElement.prototype, 'detachEvent', { value() {} })
 })
 
 afterEach(() => {
@@ -58,7 +61,7 @@ function assertCenteredStatus(view: ReturnType<typeof render>) {
   const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   assert.ok(heading.classList.contains('text-center'))
   assert.ok(trigger.parentElement!.classList.contains('justify-center'))
-  assert.ok(trigger.parentElement!.classList.contains('[&_button]:min-h-11'))
+  assert.ok(trigger.parentElement!.classList.contains('[&>button]:min-h-11'))
   const header = heading.parentElement!
   const row = trigger.closest<HTMLElement>('.grid')!
   assert.equal(header.style.gridTemplateColumns, row.style.gridTemplateColumns)
@@ -104,7 +107,7 @@ test('default, focused portal-style and leading-column callers remain opted out'
       ? view.getByRole('button', { name: 'Line status, Pending' }) : view.getByRole('combobox', { name: 'Line status' })
     const cell = control.closest('div.px-1')!
     assert.equal(cell.classList.contains('justify-center'), false)
-    assert.equal(cell.classList.contains('[&_button]:min-h-11'), false)
+    assert.equal(cell.classList.contains('[&>button]:min-h-11'), false)
     assert.ok(view.getByText('Synthetic job'))
     cleanup()
   }
@@ -124,6 +127,38 @@ test('centered desktop Status keeps keyboard options, answer patch and focus res
   fireEvent.keyDown(available, { key: 'Enter' })
   await waitFor(() => assert.equal(document.activeElement, trigger))
   assert.deepEqual(writes, [{ id: 1, changes: { status: 'available', available_quantity: '6' } }])
+})
+
+test('desktop touch sizing selects only the direct Status trigger, never nested answer-dialog actions', () => {
+  const writes: unknown[] = []
+  const view = render(<AvailabilityRequestView request={request()} loading={false} error="" saving={false}
+    onPatch={async (id, changes) => { writes.push({ id, changes }) }} onSubmit={async () => false} />)
+  const trigger = view.getByRole('button', { name: 'Line status, Pending' })
+  const cell = trigger.parentElement!
+  assert.ok(cell.classList.contains('[&>button]:min-h-11'))
+  assert.equal(cell.classList.contains('[&_button]:min-h-11'), false)
+  // These assertions inspect actual mounted DOM structure; JSDOM does not prove CSS geometry.
+  const dialogs: Array<[string, string[]]> = [
+    ['Unavailable/Sub', ['No Sub', 'Cancel', 'Submit']],
+    ['Can Order/Arriving Soon', ['Cancel', 'Save answer']],
+    ['Partial Qty', ['Cancel', 'Save answer']],
+  ]
+  for (const [option, actions] of dialogs) {
+    fireEvent.click(trigger)
+    fireEvent.click(view.getByRole('option', { name: option, exact: true }))
+    const directButtons = [...cell.querySelectorAll(':scope > button')]
+    assert.deepEqual(directButtons, [trigger])
+    assert.equal(cell.querySelectorAll('button').length, actions.length + 1)
+    for (const name of actions) {
+      const action = view.getByRole('button', { name, exact: true })
+      assert.ok(cell.contains(action), `${option}: existing non-portalled dialog stays in the cell`)
+      assert.notEqual(action.parentElement, cell, `${name} is nested, not a direct trigger`)
+      assert.equal(directButtons.includes(action), false, `${name} must not receive trigger sizing`)
+      assert.equal(action.className.includes('min-h-11'), false, `${name} retains desktop dialog classes`)
+    }
+    fireEvent.click(view.getByRole('button', { name: 'Cancel', exact: true }))
+  }
+  assert.deepEqual(writes, [])
 })
 
 test('button alone is centered, decoration is inert and existing submission/note/receipt semantics remain', async () => {
