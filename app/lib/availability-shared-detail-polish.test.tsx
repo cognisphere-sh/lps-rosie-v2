@@ -67,7 +67,9 @@ function assertCenteredStatus(view: ReturnType<typeof render>) {
   assert.equal(header.style.gridTemplateColumns, row.style.gridTemplateColumns)
   assert.equal(header.style.minWidth, row.style.minWidth)
   assert.ok(header.classList.contains('border-l-[3px]'))
-  assert.equal(row.style.borderLeftWidth, '3px')
+  // Variable-bearing shorthands keep authored text; CSSOM longhands stay unresolved.
+  // This checks source geometry, not computed/rendered pixels (the browser QA gate).
+  assert.equal(row.style.borderLeft, '3px solid var(--lps-tone-grey-dot)')
 }
 
 test('shared detail centers desktop Status across persisted reorder and resize without changing the table contract', () => {
