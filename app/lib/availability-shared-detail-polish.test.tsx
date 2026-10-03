@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import React from 'react'
 import { JSDOM } from 'jsdom'
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { ARLineTable } from '../components/workspace/availability'
 import { AvailabilityRequestView } from '../components/workspace/availability-request-view'
 import type { ARDetail, ARItem } from './availability'
@@ -92,8 +92,10 @@ test('shared detail centers desktop Status across persisted reorder and resize w
   assert.deepEqual([...saved.order].sort(), [...order].sort())
   assert.equal(saved.order[0], 'plant')
   assert.equal(saved.order[1], 'status')
-  assert.ok(view.getByText(item.noteForSupplier!))
-  assert.ok(document.querySelector('#ar-print-sheet'))
+  assert.ok(within(view.container).getByText(item.noteForSupplier!))
+  const printSheet = document.querySelector<HTMLElement>('#ar-print-sheet')!
+  assert.ok(printSheet)
+  assert.ok(within(printSheet).getByText(item.noteForSupplier!))
 })
 
 test('default, focused portal-style and leading-column callers remain opted out', () => {
