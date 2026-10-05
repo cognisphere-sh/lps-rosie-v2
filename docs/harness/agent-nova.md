@@ -11,7 +11,7 @@ on Telegram and in the web app's chat panel.
   frontend app, deploy scripts — and keeps docs/harness + docs/app current.
   Send code, app and docs change requests here. Reachable on Telegram and in
   the web app's chat panel, which route to the same thread."
-- **model**: `openai-codex` / `gpt-5.6-terra` / thinkingLevel `medium`
+- **model**: `openai-codex` / `gpt-6.1-sol` / thinkingLevel `high`
 - **threadIdStrategy**: `single`
 - **`devAgent`: true**
 - No `maxConcurrentSlots`, `secretsSchema`, or `config` (minimal — the dev agent).
@@ -27,13 +27,16 @@ not conversation but **owning and modifying the app-home code**: `app/`
 (`node_modules/@cognisphere-sh/cognisphere-harness` — read-only).
 
 It can ship `app/` changes itself (`sudo ./scripts/server.sh restart app`) but
-defers harness restarts to the operator (it lives inside the harness). Every
-release that can affect rendered UI is first blocked on the Nova-owned
-`visual-ui-release-qa` process: an independent task thread reviews an isolated
-exact-commit browser preview at 320/390/480/desktop, retains state screenshots
-and a PASS/FAIL record under the parent thread's files, and a FAIL prohibits the
-app restart. This visual gate is additional to, not a replacement for, Nova's
-technical review and checks; non-UI-only releases are exempt. It maintains
+defers harness restarts to the operator (it lives inside the harness). Code
+work follows `1-agent.md` § *Shipping a change*, which overrides the base
+prompt's *Delegate aggressively* guidance. One builder task thread (no nested
+threads) edits on `main`, runs typecheck plus the relevant test files, and
+deploys with `restart app`. A human's "deploy" counts as authorization, and the
+target is same-day. Heavy steps run one at a time because the host has ~8 GB RAM
+and 4 GB swap. Only humans add new gates or approval stages. UI changes also go
+through `visual-ui-release-qa`, Chris's gate: preview screenshots at
+320/390/480/1440 are reviewed by one fresh task thread, and a FAIL blocks the
+restart. Non-UI changes skip it. It maintains
 `docs/harness/` and `docs/app/`, and reads (never edits) `docs/base-harness/`.
 Reachable on **Telegram** (`/reset` wipes its context)
 and the **web app's chat panel** ([`webchat`](plugin-webchat.md)); both target
@@ -101,13 +104,12 @@ the four shared ones.
   (minimal `hello` interval plugin).
 - **create-skill** — authors or updates a versioned agent skill, and
   migrates a procedure out of a prompt file or `knowledge/` into one.
-- **visual-ui-release-qa** — mandatory pre-deploy visual gate for rendered UI:
-  creates a detached exact-commit Next.js preview in a temporary worktree on a
-  safe loopback port, authenticates without retaining credentials, captures
-  every affected state at 320/390/480/1440, and records an independent
-  reference/usability PASS or release-blocking FAIL. Its helper scripts never
-  touch the live `app/.next` or restart a service; evidence lives under the
-  coordinating thread's `files/visual-qa/` directory.
+- **visual-ui-release-qa** — Chris's pre-deploy visual gate for UI changes.
+  The builder previews the commit on `127.0.0.1:3100` (`scripts/preview`, a
+  temporary worktree that never touches the live app) and captures each
+  affected state at 320/390/480/1440. One fresh task thread reviews the PNGs
+  against the reference and records PASS/FAIL under `files/visual-qa/`. A FAIL
+  blocks `restart app`.
 
 The cognisphere-authored skills are mirrored at the app-home `.claude/skills/`
 so coding agents run

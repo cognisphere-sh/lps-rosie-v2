@@ -15,6 +15,12 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-05 — Nova's development and deployment SOP simplified
+
+- Nova's `1-agent.md` gains **Shipping a change**: one builder thread per request with no nested threads, edits on `main`, typecheck plus the relevant tests, `restart app`, and one report. A human's "deploy" is the authorization. Heavy steps run one at a time on the ~8 GB host, and only humans may add new gates. From Oct 2 to Oct 3, a 38-line Status/Submit polish change went undeployed for 30+ hours across 45 task threads. Nova's self-made memory guards, frozen packets and "GO" rounds blocked it despite four "deploy" requests. Review: `docs/harness/nova-session-review-2026-10-05.md`.
+- `visual-ui-release-qa` 2.0.0 keeps Chris's gate (four widths, an independent reviewer, FAIL blocks deploy) and drops the exact-commit identity proofs and the separate technical-review thread.
+- Removed Nova's `bounded-offline-tests` skill. It ran single test files in capped systemd units under a resource HOLD that no human had set. Added 4 GB swap to the host, so the "one heavy step at a time" rule is now a safety margin rather than a hard limit.
+
 ## 2026-10-02 — AR publication and permanent retention
 
 - Draft ARs show a clear Draft badge and Publish button on job header tablets and in the drawer. Published ARs can return to Draft, hiding them from suppliers and revoking public links while retaining answers and associations.

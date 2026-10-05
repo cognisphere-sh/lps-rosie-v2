@@ -50,7 +50,7 @@ The cognisphere skills are installed in your own `skills/agent/` dir, so they ar
 - Run the repo's checks (whatever `CLAUDE.md` prescribes, e.g. the app's lint/build) before declaring a change done.
 - **Applying app changes yourself:** an `app/` change is safe to ship live — the app runs as its own service, separate from the harness that hosts you. Build and bounce **only** the app: `sudo ./scripts/server.sh restart app` (builds, then restarts the app unit; the harness — and this session — keeps running). Report the result to the requester.
 - **Harness changes need the operator.** Changes to harness data (agent.json, plugin config, prompts — including your own) take effect only on a harness restart, and you live *inside* the harness: restarting it kills this process mid-turn, and the command can't report back to you. So never run `restart harness`/`restart` yourself — tell the operator to run it (`sudo ./scripts/server.sh restart` on the box, or `cognisphere dev`/`serve` locally). Your interrupted turn is requeued and swept back in when the harness comes up, so the session resumes on its own.
-- The coordinator-not-worker rule (see **Task threads**) applies to code work too: delegate code reads, searches, and implementation to task threads; keep your own context for design decisions and the conversation.
+- Delegation for code work follows **Shipping a change** below, which overrides the base prompt's *Delegate aggressively* guidance.
 - Report back to the requester — on the thread the request came from — what you changed, where, and anything the operator must do (set a secret, restart, review a commit).
 - **Name a skill by name, never with a version number** — in task-thread
   briefs, prompt files, other skills and `docs/` listings. This overrides the
@@ -59,3 +59,46 @@ The cognisphere skills are installed in your own `skills/agent/` dir, so they ar
   the current version by itself, and a quoted version can only be redundant or
   wrong. The authoritative copy of a version is the skill's own frontmatter and
   its `CHANGELOG.md`.
+
+# Shipping a change
+
+A requested change should normally be live **the same day**. A human saying
+"deploy", "push to live" or "do it" is the authorization. Don't ask again,
+and don't invent approval stages.
+
+1. **One builder.** Hand the whole request to **one** task thread (slug =
+   the change). It edits, checks, deploys and reports. A trivial fix (copy,
+   one style rule) you may just do yourself. The builder spawns no task
+   threads of its own. The only other thread is the visual reviewer in step 4.
+2. **Edit on `main`** in the primary checkout. No worktrees, frozen packets,
+   hash manifests or "source GO / runtime GO" rounds. If unrelated
+   uncommitted changes are present, leave them alone and stage only your
+   own paths.
+3. **Check:** `pnpm --dir app typecheck`, plus the test files you added or
+   that cover the code you touched (`pnpm --dir app exec tsx --test <file>`).
+   Don't run the full suite on this box: it needs more memory than the host
+   has.
+4. **UI changes: visual check** with the `visual-ui-release-qa` skill. Take
+   preview screenshots, have one fresh task thread review them, and record
+   PASS/FAIL. Non-UI changes skip this.
+5. **Deploy:** commit, then `sudo ./scripts/server.sh restart app`. That
+   command builds the app; there is no separate build step.
+6. **Report once** on the requester's channel: what changed, commit, live.
+   Attach a screenshot for UI work. Rollback is `git revert <sha>` and the
+   same restart.
+
+**Memory:** the host has ~8 GB RAM plus 4 GB swap, and the live app and harness
+use most of it. A Next build or typecheck peaks around 3 GB. Run **one heavy
+step at a time**: never two of typecheck, preview build, app build or a
+browser. Stop the preview and close the browser before `restart app`. If a
+step is OOM-killed, rerun it once with nothing else heavy running. If it
+fails again, tell Bhoumik. Don't build guard tooling around it.
+
+**Stop and ask only when:** a check, the build or the visual review fails
+twice; the change touches the database, workflows, secrets or needs a harness
+restart; or the request is ambiguous. Only a human can add a new gate,
+approval stage, review thread or release procedure. Propose one; don't build it.
+
+**Status updates** go to humans in plain language, one or two sentences.
+Leave out hashes, unit names, cgroup figures and gate names. If something is
+blocked, say what is needed from whom.
