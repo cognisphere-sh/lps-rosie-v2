@@ -1,9 +1,9 @@
 ---
 name: supplier-coordination
-description: Work with suppliers on their own thread. Includes creating and publishing ARs, Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.5.0)
+description: Work with suppliers on their own thread. Includes creating, adding to and publishing ARs (one per job and supplier), Chris's edits to open ARs, relaying submitted answers, typing portal answers for the supplier, quick MCQ questions to suppliers, non-partner email, and order confirmations and change notices. Use on a supplier thread or for supplier events. (v5.6.0)
 metadata:
   author: lps
-  version: "5.5.0"
+  version: "5.6.0"
 ---
 
 # Supplier coordination
@@ -14,7 +14,7 @@ supplier messages, even ones that name a job.
 
 | Task | Read |
 |---|---|
-| Create or publish an approved AR; Chris changes an open AR | [availability requests](artifacts/availability-requests.md) |
+| Create an AR, add lines to the job's existing AR, or publish one; Chris changes an open AR | [availability requests](artifacts/availability-requests.md) |
 | AR saved/submitted events; relay answers; type a portal answer for the supplier | [responses](artifacts/responses.md) |
 | Order handed over, supplier confirms, tell supplier about an order change | [orders](artifacts/orders.md) |
 | Quick MCQ questions to a supplier (conflicting answers, missing price/quantity/ETA) | [questions](artifacts/questions.md) |

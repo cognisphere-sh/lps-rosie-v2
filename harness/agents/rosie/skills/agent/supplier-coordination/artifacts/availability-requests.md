@@ -43,19 +43,21 @@ line. It is not an order.
 - Any other (unselected) alternative is asked about only after Chris approved
   asking about that alternative (quote approval isn't enough).
 - Chris asks a supplier in the app by dropping a candidate on that
-  supplier's tablet in the job header: the app adds it
-  (`add_candidates_to_availability_request`) to the supplier's newest
-  non-closed AR for the job (a submitted one reopens as New; a sent one shows
-  it to the supplier at once). The tablet only exists once the job has an AR
-  with that supplier, so the first AR is yours to create. A draft stays
-  invisible until you send it with his approval. A sent
-  non-partner AR's public link still has to be emailed ([email](email.md))
-  with his approval.
+  supplier's AR tab on the job page (or its tablet on an All Jobs card): the
+  app adds it (`add_candidates_to_availability_request`) to that supplier's
+  AR for the job (a submitted one reopens as New; a sent one shows it to the
+  supplier at once; a closed one must be reopened first). The tab only
+  exists once the job has an AR with that supplier, so the first AR is
+  yours to create. A draft stays invisible until you send it with his
+  approval. A sent non-partner AR's public link still has to be emailed
+  ([email](email.md)) with his approval.
 - Options are candidates on one line, never separate lines; don't ask the
   job thread to resolve them. Never pick an option or repeat a total across
   options.
-- **One AR per job.** Never combine several jobs in one AR; each job gets its
-  own AR per supplier.
+- **One AR per job and supplier** (0128). Never combine several jobs in one
+  AR, and never open a second AR with a supplier the job already has one
+  with: every later ask to that supplier for the job is added to its existing
+  AR. The database refuses a second one.
 
 ## Line values
 
@@ -76,8 +78,13 @@ answer and moves the AR to Processing.
 ## Create
 
 1. Read the job, its active lines and candidates (`job-snapshot`),
-   and this supplier's open ARs. Reuse an open AR for the same ask (no
-   duplicates on retry). No new work on closed or inactive jobs.
+   and this supplier's ARs. If the job already has an AR with this
+   supplier, add the candidates to it instead of creating one (below); if
+   that AR is closed, ask Chris before reopening it. No new work on closed or
+   inactive jobs. Adding to a **published** AR (New, Processing, Submitted)
+   puts the lines in front of the supplier at once (a submitted AR reopens
+   as New), so get Chris's approval for that scope **before** adding; steps
+   4–5 then don't apply. Adding to a Draft follows the normal send approval.
 2. Save each candidate's `note_for_supplier` (`set-note --table candidates`),
    then create in one call:
 
@@ -92,7 +99,7 @@ answer and moves the AR to Processing.
    Every candidate must be this supplier's, active, not yet asked and on an
    open line of **one** job (the AR stores that job). It starts as `draft`.
    Pass `$publicToken` NULL: Send gives non-partners a public link. To add
-   candidates to an open or draft AR instead:
+   candidates to the job's existing AR with this supplier instead:
    `SELECT public.add_candidates_to_availability_request($arId,
    ARRAY[...]::bigint[]);`.
 3. Save the header `note_for_supplier` with a guarded update. Verify header
@@ -113,8 +120,12 @@ answer and moves the AR to Processing.
 
 ## Change an open AR
 
-- **Adding lines** to an AR the supplier already answered is new work:
-  agree the scope with the job thread first and keep the job in sync.
+- **Adding lines**: the only way to ask a supplier more for a job is to add
+  to the job's AR with that supplier (one per job and supplier, 0128). If the
+  supplier already answered it, that is new work: agree the scope with the
+  job thread and Chris first and keep the job in sync. Tell the supplier on
+  its thread which lines are new (`--portal`, or email for a non-partner
+  with approval).
 - <a id="chris-changes-an-open-ar"></a>**Chris changes an open AR**: while APS
   is the only supplier, a price, size or note Chris gives for a job is also
   the APS AR input. On his scope: re-read the AR, its candidates and

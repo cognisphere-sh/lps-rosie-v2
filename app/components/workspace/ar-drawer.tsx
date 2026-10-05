@@ -4,26 +4,18 @@ import {
   useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent,
 } from 'react'
 
-import { ARSharing } from '@/components/workspace/ar-sharing'
 import { ARJobSchedules } from '@/components/workspace/ar-job-schedules'
-import { AnswerCell, ARLineTable, ARStatusPill } from '@/components/workspace/availability'
+import { AREditorBody, AREditorFooter, useAREditor, useARNarrow } from '@/components/workspace/ar-editor'
 import { SizePill } from '@/components/workspace/chat-kit'
-import { SummaryStrip } from '@/components/workspace/partner-summary-strip'
 import {
   BodyModalPortal,
   firstModalFocusTarget,
   validModalFocusTarget,
 } from '@/components/workspace/body-modal-portal'
 import { CloseIcon } from '@/components/workspace/icons'
-import {
-  availabilityRequestStatusChanged,
-  onOpenAvailabilityRequest,
-  type ARPresentation,
-} from '@/lib/chat-bus'
-import { arSubtotal, availabilityRecordName, type ARDetail } from '@/lib/availability'
+import { onOpenAvailabilityRequest, type ARPresentation } from '@/lib/chat-bus'
+import { availabilityRecordName } from '@/lib/availability'
 import { formatWeekdayMonthDay } from '@/lib/format'
-import { requestRef } from '@/lib/job-requests'
-import { useJobUpdates } from '@/lib/use-job-updates'
 
 interface DrawerSession {
   id: number
@@ -40,29 +32,6 @@ function clampDrawerWidth(width: number): number {
   return Math.min(Math.max(width, DRAWER_MIN_WIDTH), max)
 }
 
-type WriteOperation =
-  | { kind: 'line'; itemId: number; fields: string[]; body: Record<string, unknown> }
-  | { kind: 'note'; body: Record<string, unknown> }
-  | { kind: 'status'; body: Record<string, unknown> }
-  | { kind: 'submit'; body: Record<string, unknown> }
-
-function abortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
-
-function useDrawerMobile(): boolean {
-  const [mobile, setMobile] = useState(false)
-  useEffect(() => {
-    if (!window.matchMedia) return
-    const media = window.matchMedia('(max-width: 899px)')
-    const update = () => setMobile(media.matches)
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
-  return mobile
-}
-
 /**
  * One availability request in a right-hand drawer, openable from anywhere —
  * a job-request card's AR links, or an `[…](ar:<id>)` button in the chat
@@ -75,53 +44,16 @@ function useDrawerMobile(): boolean {
  */
 export function AvailabilityRequestDrawer() {
   const [session, setSession] = useState<DrawerSession | null>(null)
-  const [ar, setArState] = useState<ARDetail | null>(null)
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveNotice, setSaveNotice] = useState('')
   const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null)
   const [width, setWidth] = useState(DRAWER_DEFAULT_WIDTH)
-  const mobile = useDrawerMobile()
+  const mobile = useARNarrow()
 
   const sessionRef = useRef<DrawerSession | null>(null)
-  const arRef = useRef<ARDetail | null>(null)
   const generation = useRef(0)
-  const panel = useRef<HTMLDivElement>(null)
-  const closeButton = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
-  const focusFrame = useRef<number | null>(null)
   const returnFocusFrame = useRef<number | null>(null)
-  const focusGeneration = useRef(0)
-  const priorMobile = useRef<boolean | null>(null)
   const widthHydrated = useRef(false)
   const resizeCleanup = useRef<(() => void) | null>(null)
-
-  const controllers = useRef(new Set<AbortController>())
-  const loadController = useRef<AbortController | null>(null)
-  const lineControllers = useRef(new Map<string, AbortController>())
-  const statusController = useRef<AbortController | null>(null)
-  const submitController = useRef<AbortController | null>(null)
-  const loadSequence = useRef(0)
-  const lineSequences = useRef(new Map<string, number>())
-  const statusSequence = useRef(0)
-  const submitSequence = useRef(0)
-  const writeTail = useRef<Promise<void>>(Promise.resolve())
-  const submitToken = useRef<symbol | null>(null)
-
-  const setAr = useCallback((next: ARDetail | null) => {
-    arRef.current = next
-    setArState(next)
-  }, [])
-
-  const isCurrent = useCallback((target: DrawerSession) => {
-    const current = sessionRef.current
-    return current?.id === target.id && current.generation === target.generation
-  }, [])
-
-  const cancelFocusFrame = useCallback(() => {
-    if (focusFrame.current != null) cancelAnimationFrame(focusFrame.current)
-    focusFrame.current = null
-  }, [])
 
   const cancelReturnFocusFrame = useCallback(() => {
     if (returnFocusFrame.current != null) cancelAnimationFrame(returnFocusFrame.current)
@@ -131,17 +63,6 @@ export function AvailabilityRequestDrawer() {
   const stopResize = useCallback(() => {
     resizeCleanup.current?.()
     resizeCleanup.current = null
-  }, [])
-
-  const abortOperations = useCallback(() => {
-    for (const controller of controllers.current) controller.abort()
-    controllers.current.clear()
-    loadController.current = null
-    lineControllers.current.clear()
-    statusController.current = null
-    submitController.current = null
-    submitToken.current = null
-    writeTail.current = Promise.resolve()
   }, [])
 
   const scheduleOutsideFocus = useCallback((preferred: HTMLElement | null, closingHost: HTMLElement | null) => {
@@ -166,41 +87,28 @@ export function AvailabilityRequestDrawer() {
   }, [cancelReturnFocusFrame])
 
   const close = useCallback(() => {
-    const current = sessionRef.current
-    if (!current) return
+    if (!sessionRef.current) return
     const closingHost = document.querySelector<HTMLElement>('[data-ar-drawer-host]')
     const preferred = returnFocus.current
     stopResize()
     generation.current += 1
     sessionRef.current = null
-    abortOperations()
     setSession(null)
-    setAr(null)
-    setError('')
-    setSaveNotice('')
-    setSaving(false)
     scheduleOutsideFocus(preferred, closingHost)
-  }, [abortOperations, scheduleOutsideFocus, setAr, stopResize])
+  }, [scheduleOutsideFocus, stopResize])
 
   useEffect(() => onOpenAvailabilityRequest((id, presentation) => {
-    cancelFocusFrame()
     cancelReturnFocusFrame()
-    const prior = sessionRef.current
-    if (!prior) {
+    if (!sessionRef.current) {
       const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
       if (!active?.closest('[data-ar-drawer-host]')) returnFocus.current = active
     }
     generation.current += 1
+    // A new generation remounts the session's editor, abandoning the old AR's work.
     const next = { id, generation: generation.current, presentation }
-    abortOperations()
     sessionRef.current = next
     setSession(next)
-    setAr(null)
-    setError('')
-    setSaveNotice('')
-    setSaving(false)
-    focusGeneration.current = 0
-  }), [abortOperations, cancelFocusFrame, cancelReturnFocusFrame, setAr])
+  }), [cancelReturnFocusFrame])
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -243,217 +151,107 @@ export function AvailabilityRequestDrawer() {
 
   useEffect(() => () => stopResize(), [stopResize])
 
-  const load = useCallback(async (target: DrawerSession, background = false) => {
-    const sequence = ++loadSequence.current
-    loadController.current?.abort()
-    const controller = new AbortController()
-    loadController.current = controller
-    controllers.current.add(controller)
-    if (isCurrent(target)) {
-      if (!background) setAr(null)
-      setError('')
-    }
-    try {
-      const response = await fetch(`/api/availability-requests/${target.id}`, {
-        cache: 'no-store',
-        signal: controller.signal,
-      })
-      if (!response.ok) {
-        if (response.status === 404 && isCurrent(target) && sequence === loadSequence.current && !controller.signal.aborted) setAr(null)
-        throw new Error(`AR-${target.id} not found`)
-      }
-      const body = (await response.json()) as { request: ARDetail }
-      if (!isCurrent(target) || sequence !== loadSequence.current || controller.signal.aborted) return
-      setAr(body.request)
-    } catch (caught) {
-      if (abortError(caught)) return
-      if (!isCurrent(target) || sequence !== loadSequence.current || controller.signal.aborted) return
-      setError((caught as Error).message)
-    } finally {
-      controllers.current.delete(controller)
-      if (loadController.current === controller) loadController.current = null
-    }
-  }, [isCurrent, setAr])
-
-  useEffect(() => {
-    if (!session) return
-    void load(session)
-  }, [load, session])
-
-  useJobUpdates(async () => {
-    const target = sessionRef.current
-    if (!target) return
-    await writeTail.current
-    if (isCurrent(target)) await load(target, true)
-  }, session !== null)
-
-  useEffect(() => {
-    if (!session) return
-    cancelFocusFrame()
-    focusFrame.current = requestAnimationFrame(() => {
-      focusFrame.current = null
-      if (!isCurrent(session) || focusGeneration.current === session.generation) return
-      if (validModalFocusTarget(closeButton.current)) {
-        focusGeneration.current = session.generation
-        closeButton.current.focus()
-      }
-    })
-  }, [cancelFocusFrame, isCurrent, session, ar])
-
-  useEffect(() => {
-    const changed = priorMobile.current != null && priorMobile.current !== mobile
-    priorMobile.current = mobile
-    if (!session || !changed) return
-    cancelFocusFrame()
-    focusFrame.current = requestAnimationFrame(() => {
-      focusFrame.current = null
-      if (isCurrent(session) && validModalFocusTarget(closeButton.current)) closeButton.current.focus()
-    })
-  }, [cancelFocusFrame, isCurrent, mobile, session])
-
   useEffect(() => () => {
     const closingHost = document.querySelector<HTMLElement>('[data-ar-drawer-host]')
     const preferred = returnFocus.current
     const wasOpen = sessionRef.current != null || closingHost != null
     generation.current += 1
     sessionRef.current = null
-    abortOperations()
     if (wasOpen) scheduleOutsideFocus(preferred, closingHost)
-  }, [abortOperations, scheduleOutsideFocus])
+  }, [scheduleOutsideFocus])
 
-  const enqueueWrite = useCallback((operation: WriteOperation): Promise<boolean> => {
-    const target = sessionRef.current
-    if (!target) return Promise.resolve(false)
-    // A pre-write background read must not overwrite the confirmed write.
-    loadSequence.current++
-    loadController.current?.abort()
-    setError('')
-    setSaveNotice('')
-
-    let sequence: number
-    let controller: AbortController
-    // Moving between fields must preserve each queued edit. Only a newer edit
-    // to the same fields supersedes an earlier one.
-    // The request's note queues like one more line field.
-    const keyed = operation.kind === 'line' || operation.kind === 'note'
-    const lineKey = operation.kind === 'line' ? `${operation.itemId}:${[...operation.fields].sort().join(',')}` : 'note'
-    if (keyed) {
-      sequence = (lineSequences.current.get(lineKey) ?? 0) + 1
-      lineSequences.current.set(lineKey, sequence)
-      lineControllers.current.get(lineKey)?.abort()
-      controller = new AbortController()
-      lineControllers.current.set(lineKey, controller)
-    } else if (operation.kind === 'status') {
-      sequence = ++statusSequence.current
-      statusController.current?.abort()
-      controller = new AbortController()
-      statusController.current = controller
-    } else {
-      sequence = ++submitSequence.current
-      submitController.current?.abort()
-      controller = new AbortController()
-      submitController.current = controller
+  const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    stopResize()
+    const startX = event.clientX
+    const startWidth = width
+    const move = (moved: MouseEvent) => setWidth(clampDrawerWidth(startWidth + (startX - moved.clientX)))
+    const up = () => stopResize()
+    resizeCleanup.current = () => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
     }
-    controllers.current.add(controller)
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+  }
 
-    const latest = () => {
-      if (!isCurrent(target) || controller.signal.aborted) return false
-      if (keyed) return lineSequences.current.get(lineKey) === sequence
-      if (operation.kind === 'status') return statusSequence.current === sequence
-      return submitSequence.current === sequence
-    }
+  if (!session) return null
 
-    const release = () => {
-      controllers.current.delete(controller)
-      if (keyed && lineControllers.current.get(lineKey) === controller) {
-        lineControllers.current.delete(lineKey)
-      } else if (operation.kind === 'status' && statusController.current === controller) {
-        statusController.current = null
-      } else if (operation.kind === 'submit' && submitController.current === controller) {
-        submitController.current = null
+  return (
+    <BodyModalPortal hostAttribute="data-ar-drawer-host">
+      <div
+        data-ar-drawer-backdrop
+        className="fixed inset-x-0 top-0 z-[85] flex justify-end bg-black/30"
+        style={{ top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }}
+        onClick={close}
+      >
+        <DrawerPanel
+          key={session.generation}
+          session={session}
+          mobile={mobile}
+          width={width}
+          onWidth={setWidth}
+          onStartResize={startResize}
+          onClose={close}
+        />
+      </div>
+    </BodyModalPortal>
+  )
+}
+
+/** One open session of the drawer: mounted per generation, so it edits exactly one AR. */
+function DrawerPanel({ session, mobile, width, onWidth, onStartResize, onClose }: {
+  session: DrawerSession
+  mobile: boolean
+  width: number
+  onWidth: (width: number) => void
+  onStartResize: (event: ReactMouseEvent<HTMLDivElement>) => void
+  onClose: () => void
+}) {
+  const editor = useAREditor(session.id)
+  const { ar } = editor
+  const panel = useRef<HTMLDivElement>(null)
+  const closeButton = useRef<HTMLButtonElement>(null)
+  const focusFrame = useRef<number | null>(null)
+  const focused = useRef(false)
+  const priorMobile = useRef<boolean | null>(null)
+
+  const cancelFocusFrame = useCallback(() => {
+    if (focusFrame.current != null) cancelAnimationFrame(focusFrame.current)
+    focusFrame.current = null
+  }, [])
+
+  // Focus the close button once per session, as soon as it can take focus.
+  useEffect(() => {
+    if (focused.current) return
+    cancelFocusFrame()
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null
+      if (focused.current) return
+      if (validModalFocusTarget(closeButton.current)) {
+        focused.current = true
+        closeButton.current.focus()
       }
-    }
+    })
+  }, [cancelFocusFrame, ar])
 
-    const execute = async (): Promise<boolean> => {
-      if (!latest()) {
-        release()
-        return false
-      }
-      const beforeStatus = arRef.current?.status
-      const beforeSubmittedAt = arRef.current?.submittedAt
-      try {
-        const response = await fetch(`/api/availability-requests/${target.id}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(operation.body),
-          signal: controller.signal,
-        })
-        if (!latest()) return false
-        if (!response.ok) {
-          const failed = (await response.json().catch(() => ({}))) as { error?: string }
-          if (!latest()) return false
-          setError(failed.error ?? 'Could not save')
-        }
+  useEffect(() => {
+    const changed = priorMobile.current != null && priorMobile.current !== mobile
+    priorMobile.current = mobile
+    if (!changed) return
+    cancelFocusFrame()
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null
+      if (validModalFocusTarget(closeButton.current)) closeButton.current.focus()
+    })
+  }, [cancelFocusFrame, mobile])
 
-        const refreshed = await fetch(`/api/availability-requests/${target.id}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        if (!refreshed.ok) {
-          if (refreshed.status === 404 && latest()) setAr(null)
-          throw new Error(`AR-${target.id} not found`)
-        }
-        const body = (await refreshed.json()) as { request: ARDetail }
-        if (!latest()) return false
-        setAr(body.request)
-        if (response.ok && (body.request.status !== beforeStatus || body.request.submittedAt !== beforeSubmittedAt)) {
-          availabilityRequestStatusChanged({ arId: target.id, status: body.request.status, submittedAt: body.request.submittedAt })
-        }
-        return response.ok
-      } catch (caught) {
-        if (abortError(caught) || !latest()) return false
-        setError(operation.kind === 'submit' ? 'Could not submit request' : 'Could not save')
-        return false
-      } finally {
-        release()
-      }
-    }
-
-    const result = writeTail.current.then(execute, execute)
-    writeTail.current = result.then(() => undefined, () => undefined)
-    return result
-  }, [close, isCurrent, setAr])
-
-  const patchLine = useCallback(async (itemId: number, changes: Record<string, string>) => {
-    await enqueueWrite({ kind: 'line', itemId, fields: Object.keys(changes), body: { itemId, changes } })
-  }, [enqueueWrite])
-
-  const patchDetails = useCallback(async (itemId: number, details: Record<string, string>) => {
-    await enqueueWrite({ kind: 'line', itemId, fields: Object.keys(details), body: { itemId, details } })
-  }, [enqueueWrite])
-
-  const submit = useCallback(async () => {
-    if (submitToken.current || !sessionRef.current) return
-    const target = sessionRef.current
-    const token = Symbol('submit')
-    submitToken.current = token
-    setSaving(true)
-    try {
-      const draft = arRef.current?.status === 'draft'
-      const saved = await enqueueWrite({ kind: 'submit', body: { status: draft ? 'new' : 'submitted' } })
-      if (saved && isCurrent(target) && submitToken.current === token) setSaveNotice(draft ? 'Request published.' : 'Request submitted.')
-    } finally {
-      if (submitToken.current === token) {
-        submitToken.current = null
-        if (isCurrent(target)) setSaving(false)
-      }
-    }
-  }, [enqueueWrite, isCurrent])
+  useEffect(() => () => cancelFocusFrame(), [cancelFocusFrame])
 
   const keepFocusInside = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault()
-      close()
+      onClose()
       return
     }
     if (event.key !== 'Tab') return
@@ -476,208 +274,74 @@ export function AvailabilityRequestDrawer() {
     }
   }
 
-  const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    stopResize()
-    const startX = event.clientX
-    const startWidth = width
-    const move = (moved: MouseEvent) => setWidth(clampDrawerWidth(startWidth + (startX - moved.clientX)))
-    const up = () => stopResize()
-    resizeCleanup.current = () => {
-      document.removeEventListener('mousemove', move)
-      document.removeEventListener('mouseup', up)
-    }
-    document.addEventListener('mousemove', move)
-    document.addEventListener('mouseup', up)
-  }
-
-  if (!session) return null
-  const arId = session.id
+  const name = availabilityRecordName(ar ?? { id: session.id })
 
   return (
-    <BodyModalPortal hostAttribute="data-ar-drawer-host">
+    <div
+      ref={panel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="availability-request-drawer-title"
+      data-ar-generation={session.generation}
+      tabIndex={-1}
+      onKeyDown={keepFocusInside}
+      onClick={(event) => event.stopPropagation()}
+      className="relative flex h-full w-full flex-col overflow-hidden border-l border-border bg-background shadow-[var(--lps-shadow)] min-[900px]:w-[var(--ar-drawer-width)] min-[900px]:overflow-y-auto"
+      style={{ '--ar-drawer-width': `${width}px` } as CSSProperties}
+    >
       <div
-        data-ar-drawer-backdrop
-        className="fixed inset-x-0 top-0 z-[85] flex justify-end bg-black/30"
-        style={{ top: viewport?.top ?? 0, height: viewport?.height ?? '100dvh' }}
-        onClick={close}
-      >
-        <div
-          ref={panel}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="availability-request-drawer-title"
-          data-ar-generation={session.generation}
-          tabIndex={-1}
-          onKeyDown={keepFocusInside}
-          onClick={(event) => event.stopPropagation()}
-          className="relative flex h-full w-full flex-col overflow-hidden border-l border-border bg-background shadow-[var(--lps-shadow)] min-[900px]:w-[var(--ar-drawer-width)] min-[900px]:overflow-y-auto"
-          style={{ '--ar-drawer-width': `${width}px` } as CSSProperties}
-        >
-          <div
-            data-ar-drawer-resize-handle
-            onMouseDown={startResize}
-            title="Drag to resize"
-            className="absolute -left-[3px] bottom-0 top-0 z-20 hidden w-[7px] cursor-col-resize select-none hover:bg-lps-edge min-[900px]:block"
-          />
-          <header className="flex flex-none items-start gap-2 border-b border-border bg-background pb-2 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(12px,env(safe-area-inset-top))] min-[900px]:border-b-0 min-[900px]:px-4 min-[900px]:pb-0 min-[900px]:pt-4">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-              <h2 id="availability-request-drawer-title" className="m-0 min-w-0 break-words text-[14px] font-bold text-foreground">
-                Availability request {availabilityRecordName(ar ?? { id: arId })}
-              </h2>
-              {ar && (
-                <>
-                  <span className="whitespace-nowrap text-[11px] text-muted-foreground">
-                    Created on <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(ar.createdAt) || '—'}</span>
-                  </span>
-                  <ARJobSchedules schedules={ar.jobSchedules} showJobNames />
-                </>
-              )}
-            </div>
-            <button
-              ref={closeButton}
-              type="button"
-              onClick={close}
-              aria-label={`Close availability request ${availabilityRecordName(ar ?? { id: arId })}`}
-              className="ml-auto flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground min-[900px]:size-7"
-            >
-              <CloseIcon size={14} />
-            </button>
-          </header>
-
-          <div className="hidden flex-none items-center gap-1 border-b border-border px-4 py-2 min-[900px]:flex">
-            {([
-              ['Full', () => clampDrawerWidth(window.innerWidth)],
-              ['50%', () => clampDrawerWidth(Math.round(window.innerWidth * 0.5))],
-              ['30%', () => clampDrawerWidth(Math.round(window.innerWidth * 0.3))],
-            ] as const).map(([label, target]) => (
-              <SizePill key={label} label={label} width={width} target={target} onPick={setWidth} />
-            ))}
-          </div>
-
-          <div
-            data-ar-drawer-scroller
-            className="min-h-0 flex-1 space-y-2.5 overflow-y-auto py-3 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] min-[900px]:flex-none min-[900px]:overflow-visible min-[900px]:px-4 min-[900px]:pb-2 min-[900px]:pt-2.5"
-          >
-            {error && (
-              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/35 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive">
-                <span>{error}</span>
-                {!ar && (
-                  <button
-                    type="button"
-                    onClick={() => void load(session)}
-                    className="min-h-11 cursor-pointer rounded-full border border-destructive/40 px-4 font-bold min-[900px]:min-h-8"
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            )}
-            {!ar && !error && (
-              <p role="status" className="m-0 text-[12.5px] text-muted-foreground">Loading availability request…</p>
-            )}
-
-            {ar && (
-              <>
-                <section aria-label="Request summary" className="min-w-0 rounded-xl border border-border bg-card px-3.5 py-3">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-                    <ARStatusPill
-                      status={ar.status}
-                      onChange={(status) => void enqueueWrite({ kind: 'status', body: { status } })}
-                      touch={mobile}
-                    />
-                    {ar.shareCustomerDetails && (
-                      <span className="rounded-full border border-border px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">
-                        customer shared
-                      </span>
-                    )}
-                  </div>
-                  <dl className="m-0 mt-3 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-[12px]">
-                    <dt className="font-bold text-muted-foreground">Supplier</dt>
-                    <dd className="m-0 break-words font-bold text-foreground">{ar.supplierName}</dd>
-                    <dt className="font-bold text-muted-foreground">Job</dt>
-                    <dd className="m-0 break-words text-foreground">{ar.jobName ?? (ar.jobRequestId != null ? requestRef(ar.jobRequestId) : 'Archived source job')}</dd>
-                    {ar.submittedAt && (
-                      <>
-                        <dt className="font-bold text-muted-foreground">Submitted</dt>
-                        <dd className="m-0 text-foreground">{formatWeekdayMonthDay(ar.submittedAt)}</dd>
-                      </>
-                    )}
-                  </dl>
-                </section>
-                {ar.status === 'draft' && <p role="status" className="m-0 text-sm font-semibold text-muted-foreground">Draft — hidden from supplier. Publish when ready.</p>}
-                {ar.status !== 'draft' && <ARSharing key={session.generation} id={ar.id} token={ar.publicToken ?? null} closed={ar.status === 'closed'}
-                  onChange={(publicToken) => {
-                    if (isCurrent(session) && arRef.current) setAr({ ...arRef.current, publicToken })
-                  }} />}
-                {ar.status !== 'closed' ? (
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">Note for supplier</span>
-                    <AnswerCell
-                      key={session.generation}
-                      value={ar.noteForSupplier ?? ''}
-                      editable
-                      placeholder="Note for the supplier on this request…"
-                      display={ar.noteForSupplier ?? ''}
-                      onCommit={(next) => void enqueueWrite({ kind: 'note', body: { noteForSupplier: next.trim() } })}
-                      ariaLabel="Note for supplier"
-                      multiline
-                      touch={mobile}
-                    />
-                  </label>
-                ) : ar.noteForSupplier && (
-                  <p className="m-0 break-words rounded-lg border border-lps-hair bg-lps-bubble px-2.5 py-2 text-[12.5px] leading-5 text-foreground">
-                    <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-lps-dim">
-                      Note for supplier
-                    </span>
-                    {ar.noteForSupplier}
-                  </p>
-                )}
-                {/* The focused Job page draws the supplier portal's table —
-                    its answer strip carries the subtotal the drawing drops —
-                    with the admin's inline edits on top. */}
-                {session.presentation === 'focused-job' && (
-                  <SummaryStrip items={ar.items} subtotal={arSubtotal(ar.items)} />
-                )}
-                <ARLineTable
-                  design={session.presentation === 'focused-job' ? 'portal' : 'default'}
-                  items={ar.items}
-                  editable={ar.status !== 'closed'}
-                  onPatch={patchLine}
-                  onPatchDetails={patchDetails}
-                  mobileCards={mobile}
-                  drawerModal
-                />
-                {ar.status === 'closed' && (
-                  <p className="m-0 text-[11.5px] text-muted-foreground">
-                    This request is {ar.status}. Reopen it from the status pill to edit plant details and answers, then {ar.submittedAt ? 'Submit again' : 'Submit request'}.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
-          {ar && ar.status !== 'closed' && (
-            <footer
-              data-ar-drawer-footer
-              className="flex flex-none flex-col gap-1.5 border-t border-border bg-background pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] min-[900px]:mx-4 min-[900px]:mb-4 min-[900px]:flex-row min-[900px]:items-center min-[900px]:border-t-0 min-[900px]:p-0"
-            >
-              <button
-                type="button"
-                onClick={() => void submit()}
-                disabled={saving}
-                className="min-h-11 w-full cursor-pointer rounded-full bg-primary px-6 py-2 text-[12.5px] font-bold text-primary-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50 min-[900px]:min-h-0 min-[900px]:w-auto"
-              >
-                {saving ? ar.status === 'draft' ? 'Publishing…' : 'Submitting…' : ar.status === 'draft' ? 'Publish' : ar.submittedAt ? 'Submit again' : 'Submit request'}
-              </button>
-              <div className="min-w-0 text-[11.5px] text-muted-foreground">
-                <span>{ar.status === 'draft' ? 'Changes save privately. Publishing makes this request visible to the supplier.' : 'Changes save as you make them and move this request to New. Submitting dates the whole request.'}</span>
-                <span role="status" aria-live="polite" className="ml-1 font-bold text-foreground">{saveNotice}</span>
-              </div>
-            </footer>
+        data-ar-drawer-resize-handle
+        onMouseDown={onStartResize}
+        title="Drag to resize"
+        className="absolute -left-[3px] bottom-0 top-0 z-20 hidden w-[7px] cursor-col-resize select-none hover:bg-lps-edge min-[900px]:block"
+      />
+      <header className="flex flex-none items-start gap-2 border-b border-border bg-background pb-2 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-[max(12px,env(safe-area-inset-top))] min-[900px]:border-b-0 min-[900px]:px-4 min-[900px]:pb-0 min-[900px]:pt-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 id="availability-request-drawer-title" className="m-0 min-w-0 break-words text-[14px] font-bold text-foreground">
+            Availability request {name}
+          </h2>
+          {ar && (
+            <>
+              <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                Created on <span className="font-semibold tabular-nums text-foreground">{formatWeekdayMonthDay(ar.createdAt) || '—'}</span>
+              </span>
+              <ARJobSchedules schedules={ar.jobSchedules} showJobNames />
+            </>
           )}
         </div>
+        <button
+          ref={closeButton}
+          type="button"
+          onClick={onClose}
+          aria-label={`Close availability request ${name}`}
+          className="ml-auto flex size-11 flex-none cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground min-[900px]:size-7"
+        >
+          <CloseIcon size={14} />
+        </button>
+      </header>
+
+      <div className="hidden flex-none items-center gap-1 border-b border-border px-4 py-2 min-[900px]:flex">
+        {([
+          ['Full', () => clampDrawerWidth(window.innerWidth)],
+          ['50%', () => clampDrawerWidth(Math.round(window.innerWidth * 0.5))],
+          ['30%', () => clampDrawerWidth(Math.round(window.innerWidth * 0.3))],
+        ] as const).map(([label, target]) => (
+          <SizePill key={label} label={label} width={width} target={target} onPick={onWidth} />
+        ))}
       </div>
-    </BodyModalPortal>
+
+      <div
+        data-ar-drawer-scroller
+        className="min-h-0 flex-1 space-y-2.5 overflow-y-auto py-3 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] min-[900px]:flex-none min-[900px]:overflow-visible min-[900px]:px-4 min-[900px]:pb-2 min-[900px]:pt-2.5"
+      >
+        <AREditorBody editor={editor} portal={session.presentation === 'focused-job'} mobile={mobile} drawerModal />
+      </div>
+
+      <AREditorFooter
+        editor={editor}
+        data-ar-drawer-footer=""
+        className="flex-none border-t border-border bg-background pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] min-[900px]:mx-4 min-[900px]:mb-4 min-[900px]:border-t-0 min-[900px]:p-0"
+      />
+    </div>
   )
 }

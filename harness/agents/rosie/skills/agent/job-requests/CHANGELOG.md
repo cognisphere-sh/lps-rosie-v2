@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 8.5.1 — 2026-10-05
+
+- Routing: adding lines to a job's existing AR goes to `supplier-coordination` (one AR per job and supplier, 0128).
+
 ## 8.5.0 — 2026-10-01
 
 - Chris, JR-95: when the price list lacks an exact match, show only 3–4 nearest alternatives and keep the rest hidden; replaced the conflicting no-hidden-rows rule. Original asks and selected candidates remain visible.

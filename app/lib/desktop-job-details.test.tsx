@@ -20,7 +20,7 @@ import {
 } from './job-identity.ts'
 import { jobInboxRowAriaLabel, orderJobInbox, type JobInboxRow } from './job-inbox.ts'
 import type { JobRequestRow } from './rows.ts'
-import { onOpenAvailabilityRequest, openAvailabilityRequest } from './chat-bus.ts'
+import { onOpenAvailabilityRequest } from './chat-bus.ts'
 
 let dom: JSDOM
 const originalFetch = globalThis.fetch
@@ -467,15 +467,13 @@ test('closed compact disclosure label stays neutral for every independently stor
   }
 })
 
-test('focused header exposes summary and customer, AR and supplier routes before opening details', async () => {
+test('focused header exposes summary and customer; supplier ARs are body tabs, not header pills', async () => {
   const linked = request({
     lineTotal: 1250.5, itemCount: 7, statusCounts: { pending: 3, available: 4 },
     supplierLinks: [{ supplierId: 8, name: 'Hill Country', lpsPartner: true, availabilityRequests: [{ id: 81, status: 'new' }], rosieThreadId: 'supplier-8' }],
   })
   const chatRoutes: unknown[] = []
   const ars: unknown[] = []
-  const destinations: unknown[] = []
-  const off = onOpenAvailabilityRequest((id, presentation) => destinations.push([id, presentation]))
   window.addEventListener('lps:open-chat', (event) => chatRoutes.push((event as CustomEvent).detail))
   window.addEventListener('lps:open-ar', (event) => ars.push((event as CustomEvent).detail))
   const view = render(<FocusedJobRecord request={linked} mobile={false} version={0} onSaved={() => undefined} />)
@@ -492,22 +490,18 @@ test('focused header exposes summary and customer, AR and supplier routes before
     assert.ok(within(summary).getByText(label))
   }
   const customer = view.getByRole('button', { name: 'Chat with Johnathan' })
-  // The header's chip; the body's AR strip has its own AR-81 tablet.
-  const ar = within(header).getByRole('button', { name: /AR-81/ })
-  const supplier = view.getByRole('button', { name: /Open the supplier conversation/ })
   assert.ok(customer.closest('[data-request-customer-pill]'))
-  for (const control of [ar, supplier]) assert.match(control.className, /min-h-8/)
-  for (const control of [customer, ar, supplier]) assert.ok(header.contains(control))
+  assert.ok(header.contains(customer))
+  assert.equal(within(header).queryByRole('button', { name: /AR-81/ }), null)
+  assert.equal(view.container.querySelector('[data-supplier-pill]'), null)
+  assert.equal(view.queryByRole('button', { name: /Open the supplier conversation/ }), null)
+  const tabs = view.getByRole('tablist', { name: 'Job request' })
+  assert.deepEqual(within(tabs).getAllByRole('tab').map((tab) => tab.getAttribute('aria-label') ?? tab.textContent),
+    ['Request items', 'Orders', 'AR-81 · Hill Country — New'])
   await userEvent.setup({ document }).click(customer)
-  await userEvent.setup({ document }).click(ar)
-  await userEvent.setup({ document }).click(supplier)
-  assert.equal(chatRoutes.length, 2)
-  assert.deepEqual(ars, [{ arId: 81, presentation: 'focused-job' }])
-  openAvailabilityRequest(81)
-  assert.deepEqual(ars, [{ arId: 81, presentation: 'focused-job' }, 81])
-  assert.deepEqual(destinations, [[81, 'focused-job'], [81, 'default']])
+  assert.equal(chatRoutes.length, 1)
+  assert.deepEqual(ars, [])
   view.unmount()
-  off()
 })
 
 test('shared editable defaults stay compact while focused work explicitly opts into 44px controls', () => {

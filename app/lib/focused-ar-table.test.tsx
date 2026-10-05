@@ -90,40 +90,39 @@ const labels = (head: HTMLElement) => [...head.children].map(node => node.textCo
 const portalHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
 const defaultHeaders = ['Need', 'Avail qty', 'Size', 'Plant', 'Status', 'Note', 'Unit price']
 
-test('focused Job header chip opens the portal drawing and summary strip; ordinary opens restore default even for same AR', async () => {
+test('focused Job AR tab edits the AR in place in the portal drawing; ordinary header chip opens the default drawer', async () => {
   const events: unknown[] = []
   const off = onOpenAvailabilityRequest((id, presentation) => events.push([id, presentation]))
   const view = render(<><FocusedJobRecord request={job} mobile={false} version={0} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
-  // The header chip comes first; the body's AR strip has its own AR-84 tablet.
-  fireEvent.click(view.getAllByRole('button', { name: /AR-84/ })[0])
-  await view.findByRole('dialog', { name: 'Availability request AR-84' })
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
-  const { head, row } = table(document.body)
+  assert.equal(view.container.querySelector('[data-supplier-pill]'), null, 'no supplier pills on the focused Job')
+  fireEvent.click(view.getByRole('tab', { name: 'AR-84 · Exact supplier — Processing' }))
+  const panel = view.getByRole('tabpanel')
+  await waitFor(() => assert.deepEqual(labels(table(panel).head), portalHeaders))
+  const { head, row } = table(panel)
   assert.equal(head.style.gridTemplateColumns, row.style.gridTemplateColumns)
-  await waitFor(() => assert.ok(parseInt(table(document.body).head.style.minWidth, 10) > 916))
-  // The note column holds LPS's ask (admin-editable here) above the supplier's reply.
   assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 note for supplier' }))
-  assert.ok(within(row.children[5] as HTMLElement).getByRole('textbox', { name: 'Line 19 supplier reply' }))
   assert.ok(within(row.children[6] as HTMLElement).getByRole('textbox', { name: 'Line 19 price per unit' }))
-  assert.ok(within(document.body).getByText('Total Items'))
-  assert.equal(within(document.body).queryByText('Line total'), null)
-  assert.ok(view.getByText('Other Job', { exact: false }))
-  assert.deepEqual(events, [[84, 'focused-job']])
-  act(() => openAvailabilityRequest(84))
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
-  assert.equal(within(document.body).queryByText('Total Items'), null)
-  fireEvent.click(view.getByRole('button', { name: 'Close availability request AR-84' }))
+  assert.ok(within(panel).getByText('Total Items'))
+  assert.ok(within(panel).getByRole('button', { name: 'Submit request' }))
+  assert.equal(within(panel).queryByRole('region', { name: 'Request summary' }), null, 'no supplier/job card in the tab')
+  assert.equal(within(panel).queryByText('Supplier'), null)
+  assert.ok(within(panel).getAllByText('Processing').length, 'the status picker stays')
+  assert.equal(view.queryByRole('dialog'), null, 'the tab is not a drawer')
+  assert.deepEqual(events, [])
+  fireEvent.click(view.getByRole('tab', { name: 'Request items' }))
+  assert.equal(view.queryByRole('tabpanel'), null)
   view.unmount()
   const ordinary = render(<><RequestCardHeader request={job} mobile={false} expanded onToggle={() => {}}
     onDelete={() => {}} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
   fireEvent.click(ordinary.getByRole('button', { name: /AR-84/ }))
   await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
-  assert.deepEqual(events, [[84, 'focused-job'], [84, 'default'], [84, 'default']])
+  assert.equal(within(document.body).queryByText('Total Items'), null)
+  assert.deepEqual(events, [[84, 'default']])
   assert.deepEqual(writes, [])
   off()
 })
 
-test('a custom AR record name stays visible while the focused chip routes by stored numeric id', async () => {
+test('a custom AR record name labels the focused tab while it loads by stored numeric id', async () => {
   const savedName = 'North field · fall sourcing'
   const namedJob: JobRequestRow = {
     ...job,
@@ -132,24 +131,18 @@ test('a custom AR record name stays visible while the focused chip routes by sto
       availabilityRequests: [{ id: 84, status: 'processing', recordName: savedName }],
     }],
   }
-  const events: unknown[] = []
-  const off = onOpenAvailabilityRequest((id, presentation) => events.push([id, presentation]))
+  const loads: string[] = []
   globalThis.fetch = async input => {
-    assert.equal(String(input), '/api/availability-requests/84')
+    loads.push(String(input))
     return Response.json({ request: { ...ar(84), recordName: savedName } })
   }
-  const view = render(<><FocusedJobRecord request={namedJob} mobile={false} version={0} onSaved={() => {}} /><AvailabilityRequestDrawer /></>)
-  const chip = view.getByRole('button', { name: `Open availability request ${savedName} to Exact supplier — In progress` })
-  assert.ok(chip.textContent?.includes(savedName))
-  fireEvent.click(chip)
-  await view.findByRole('dialog', { name: `Availability request ${savedName}` })
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), portalHeaders))
-  assert.deepEqual(events, [[84, 'focused-job']])
-  act(() => openAvailabilityRequest(84))
-  await waitFor(() => assert.deepEqual(labels(table(document.body).head), defaultHeaders))
-  assert.deepEqual(events, [[84, 'focused-job'], [84, 'default']])
+  const view = render(<FocusedJobRecord request={namedJob} mobile={false} version={0} onSaved={() => {}} />)
+  const tab = view.getByRole('tab', { name: `${savedName} · Exact supplier — Processing` })
+  assert.ok(tab.textContent?.includes(savedName))
+  fireEvent.click(tab)
+  await waitFor(() => assert.deepEqual(labels(table(view.getByRole('tabpanel')).head), portalHeaders))
+  assert.deepEqual(loads, ['/api/availability-requests/84'])
   assert.deepEqual(writes, [])
-  off()
 })
 
 test('focused drawer edits name, size, need, price and note inline through the admin routes', async () => {

@@ -1,3 +1,15 @@
+## 0128 — one AR per job and supplier (2026-10-05)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0128_one_ar_per_job_supplier.assert.sql`. New BEFORE INSERT trigger
+`availability_requests_one_per_job_supplier` (`guard_one_ar_per_job_supplier`)
+locks the job and refuses a second AR for the same job and supplier, whatever
+its status; later asks go onto the existing AR via
+`add_candidates_to_availability_request`. Index
+`availability_requests_job_supplier_idx`. Existing rows untouched: JR-55's
+AR-35/AR-36 (both submitted) predate the rule and are retained. Verified after
+apply: trigger and index present, 37 AR headers unchanged.
+
 ## 0127 — AR publication and permanent retention (2026-10-02)
 
 Applied with operator psql after rollback-only rehearsals of

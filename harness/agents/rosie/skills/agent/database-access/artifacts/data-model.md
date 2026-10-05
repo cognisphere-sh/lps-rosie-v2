@@ -49,9 +49,9 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   answer. A status never changes a price: Unavailable sets only the quantity to 0 (0122).
   `demanded_quantity` is what the AR asks for. Deleting = `delete_candidate`
   (soft; also unselects).
-- `availability_requests` (header): **one AR per job**
-  (`availability_requests.job_request_id`); an AR holds only that job's
-  candidates. Status: `draft` (LPS only; the supplier can't see it) →
+- `availability_requests` (header): **one AR per job and supplier**
+  (`availability_requests.job_request_id`; 0128 refuses a second insert for
+  the same job and supplier); an AR holds only that job's candidates. Status: `draft` (LPS only; the supplier can't see it) →
   `send_availability_request` → `new` → `processing` → `submitted` →
   `closed`. Submitting an AR turns each
   reply answered since the last submission into that candidate's

@@ -37,7 +37,7 @@ Chris made the request.
   standing selection rule (`price-rules.md`; several requested sizes →
   cheapest priced) picks (`select_candidate` →
   `job_request_items.selected_candidate_id`). Otherwise Chris drags one onto
-  the line, onto a supplier's tablet in the job header (asks that supplier),
+  the line, onto a supplier's AR tab on the job page (adds it to that supplier's AR),
   or into the bin in the app.
 - On an AR submission the database copies answers of selected candidates onto
   their open job lines; Rosie alerts Chris and reports unselected answers.

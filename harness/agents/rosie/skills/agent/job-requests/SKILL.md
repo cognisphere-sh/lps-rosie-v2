@@ -1,9 +1,9 @@
 ---
 name: job-requests
-description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v8.5.0)
+description: Run a job request end to end. Includes intake and job naming, pricing lines, note rules for all three note fields, candidates and supplier answers, orders and order changes, and job stages. Use in a jr-<id> thread for new requests, quick quotes, committed orders, job edits or closing. (v8.5.1)
 metadata:
   author: lps
-  version: "8.5.0"
+  version: "8.5.1"
 ---
 
 # Job requests
@@ -20,7 +20,7 @@ their correspondence. Read only the reference you need:
 | Create, confirm or change an order | [orders](artifacts/orders.md) |
 | Stages, workflow events, closing, deleting | [lifecycle](artifacts/lifecycle.md) |
 | Send a quote or update to the customer | `customer-coordination` |
-| Create or send an AR | `supplier-coordination` |
+| Create, add to or send an AR (one per job and supplier) | `supplier-coordination` |
 
 ## The usual flows
 

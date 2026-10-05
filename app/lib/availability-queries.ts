@@ -455,10 +455,35 @@ export async function createAvailabilityRequest(input: {
     .eq('is_active', true)
   if (itemErr) throw new Error(`job_request_items: ${itemErr.message}`)
   if (items?.length !== itemIds.length) throw new Error('Every selected line must belong to an active line of the selected jobs')
-  const { ids, insertedIds } = await originalCandidates(input.supplierId, items as OriginalLine[])
-  const arId = await createDraft(input.supplierId, ids, insertedIds, input.shareCustomerDetails, null)
-  await sendAvailabilityRequest(arId)
-  if (input.isPublic) await setAvailabilityRequestPublic(arId, true)
+  const lines = items as OriginalLine[]
+  // One AR per job and supplier (0128): a later ask joins the existing one.
+  const lineJobs = [...new Set(lines.map((line) => line.job_request_id))]
+  const { data: prior, error: priorErr } = lineJobs.length === 1 ? await supabase.from('availability_requests')
+    .select('id, status, public_token').eq('job_request_id', lineJobs[0]).eq('supplier_id', input.supplierId)
+    .order('id', { ascending: false }).limit(1).maybeSingle() : { data: null, error: null }
+  if (priorErr) throw new Error(`availability_requests: ${priorErr.message}`)
+  const existing = prior as { id: number; status: string; public_token: string | null } | null
+  if (existing?.status === 'closed') throw new Error(`AR-${existing.id} with this supplier is closed — reopen it to ask for more`)
+  const { ids, insertedIds } = await originalCandidates(input.supplierId, lines)
+  const arId = existing
+    ? await addToExisting(existing.id, ids, insertedIds)
+    : await createDraft(input.supplierId, ids, insertedIds, input.shareCustomerDetails, null)
+  if (!existing || existing.status === 'draft') await sendAvailabilityRequest(arId)
+  // Never rotate a link the supplier may already have.
+  if (input.isPublic && !existing?.public_token) await setAvailabilityRequestPublic(arId, true)
+  return arId
+}
+
+/** Add candidates to an existing AR; stray new originals are removed if it fails. */
+async function addToExisting(arId: number, candidateIds: number[], insertedIds: number[]): Promise<number> {
+  const { error } = await supabase.rpc('add_candidates_to_availability_request', {
+    p_request_id: arId,
+    p_candidate_ids: candidateIds,
+  })
+  if (error) {
+    if (insertedIds.length) await supabase.from('candidates').delete().in('id', insertedIds)
+    throw new Error(`availability request: ${error.message}`)
+  }
   return arId
 }
 

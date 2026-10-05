@@ -65,7 +65,10 @@ New ARs start as `draft` (0120): built on the job card, invisible to the
 supplier (portal, public link and answer RPCs refuse drafts) until
 `send_availability_request` makes them `new`.
 
-One AR per job (migration 0119 replaced `availability_request_jobs`):
+One AR per job and supplier (migration 0119 replaced `availability_request_jobs`;
+0128's `availability_requests_one_per_job_supplier` BEFORE INSERT trigger
+refuses a second AR for the same job and supplier — later asks go onto the
+existing one; JR-55's AR-35/AR-36 predate it and are retained):
 `job_request_id` is NULL only for history kept after its job was deleted, and
 all its candidates belong to that job's lines. Inserting a Partner supplier's
 AR records the job's `availability_sent` event when it is sent (`availability_requests_progress`);

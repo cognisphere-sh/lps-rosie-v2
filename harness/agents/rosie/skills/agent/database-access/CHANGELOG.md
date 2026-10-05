@@ -1,5 +1,9 @@
 # database-access — changelog
 
+## 2.4.2 — 2026-10-05
+
+- data-model.md: one AR per job **and supplier** (0128 insert guard).
+
 ## 2.4.1
 
 - AR snapshots no longer read the removed header `is_active` flag (0127). ARs are retained permanently; Draft controls supplier visibility.

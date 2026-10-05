@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import test, { afterEach, beforeEach } from 'node:test'
 import React from 'react'
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { JSDOM } from 'jsdom'
 import ts from 'typescript'
 
@@ -406,7 +406,7 @@ test('live note changes recompute Active jobs matches while keeping search text,
   assert.equal(params.toString(), 'jr=19')
 })
 
-test('focused job AR tags immediately receive first and repeated submission dates', async () => {
+test('focused job AR tabs immediately receive status changes', async () => {
   const saved = { ...job(), supplierLinks: [{
     supplierId: 7, name: 'APS', lpsPartner: true, rosieThreadId: null,
     availabilityRequests: [{ id: 42, status: 'new', createdAt: '2026-09-01T12:00:00Z', submittedAt: null }],
@@ -416,9 +416,9 @@ test('focused job AR tags immediately receive first and repeated submission date
   const view = render(<JobsPage />)
   await waitFor(() => assert.ok(view.queryByRole('button', { name: /edit job name/i })))
   const main = view.getByRole('main', { name: 'Selected job' })
-  assert.match(main.textContent ?? '', /Tue, 09\/01/)
+  assert.ok(within(main).getByRole('tab', { name: 'AR-42 · APS — New' }))
   act(() => availabilityRequestStatusChanged({ arId: 42, status: 'submitted', submittedAt: '2026-09-15T12:00:00Z' }))
-  assert.match(main.textContent ?? '', /Tue, 09\/15/)
-  act(() => availabilityRequestStatusChanged({ arId: 42, status: 'submitted', submittedAt: '2026-09-16T12:00:00Z' }))
-  assert.match(main.textContent ?? '', /Wed, 09\/16/)
+  assert.ok(within(main).getByRole('tab', { name: 'AR-42 · APS — Completed' }))
+  act(() => availabilityRequestStatusChanged({ arId: 42, status: 'new', submittedAt: null }))
+  assert.ok(within(main).getByRole('tab', { name: 'AR-42 · APS — New' }))
 })

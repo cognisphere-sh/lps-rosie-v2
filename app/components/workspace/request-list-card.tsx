@@ -79,7 +79,7 @@ function RequestCardOverview({ request, edit, tone, onNameSaved }: {
   </div>
 }
 
-export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, onOpenAR, showActions = mobile === false }: {
+export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelete, onSaved, onNameSaved, supplierTabs = false, showActions = mobile === false }: {
   request: JobRequestRow
   mobile: boolean | null
   expanded: boolean
@@ -87,8 +87,8 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
   onDelete: (returnFocus: HTMLElement | null) => void
   onSaved: () => void
   onNameSaved?: (requestId: number) => void
-  /** Only the focused Job opts into its AR table presentation. */
-  onOpenAR?: (id: number) => void
+  /** The focused Job reaches its suppliers' ARs through the body's tabs instead of header pills. */
+  supplierTabs?: boolean
   showActions?: boolean
 }) {
   const tone = requestStatusTone(request.status)
@@ -117,7 +117,7 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
         </div>}
       </div>
 
-      {(latest || request.customer || request.supplierLinks.length > 0) && (
+      {(latest || request.customer || (!supplierTabs && request.supplierLinks.length > 0)) && (
         <div data-request-card-secondary className="flex min-w-0 items-center gap-2">
           {(latest || request.customer) && <span
             data-request-customer-pill
@@ -141,8 +141,8 @@ export function RequestCardHeader({ request, mobile, expanded, onToggle, onDelet
               <span className="truncate">{latest.text}</span>
             </span>}
           </span>}
-          {request.supplierLinks.length > 0 && <RequestLinks
-            request={request} onOpenAR={onOpenAR} relatedOnly hideCustomerChat className="ml-auto min-w-0 flex-1 justify-end"
+          {!supplierTabs && request.supplierLinks.length > 0 && <RequestLinks
+            request={request} relatedOnly hideCustomerChat className="ml-auto min-w-0 flex-1 justify-end"
           />}
         </div>
       )}

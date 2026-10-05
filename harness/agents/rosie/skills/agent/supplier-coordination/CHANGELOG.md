@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 5.6.0 — 2026-10-05
+
+- One AR per job and supplier (Bhoumik 2026-10-05, migration 0128): later asks to a supplier for a job are added to its existing AR; the database refuses a second AR. A closed one is reopened with Chris's go-ahead. Adding to a published AR shows the lines to the supplier at once, so Chris approves that scope before the add, and the supplier is told which lines are new. Chris's drop target on the job page is now the supplier's AR tab.
+
 ## 5.5.0 — 2026-09-30
 
 - Portal answers (2026-09-30): Diff Sz/Sub is no longer picked; Unavailable/Sub with a ticked or typed substitute reads Diff Sz/Sub. The substitute is not listed as its own AR row (0124); relay it from `ar-snapshot`.

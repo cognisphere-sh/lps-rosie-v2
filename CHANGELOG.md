@@ -15,6 +15,13 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-05 — Job page: supplier AR tabs; one AR per job and supplier
+
+- The focused job page (`/jobs?jr=`) drops the supplier/AR pills from its header. Each supplier AR is now a tab after Request items and Orders: a status-coloured dot, the AR number and the supplier name. The tab edits the AR in place in the portal drawing, with status, sharing, the supplier note, the line table and Publish/Submit. Candidate pills dropped on a tab join that AR. All Jobs (`/requests`) cards keep their header pills and the drawer.
+- The AR drawer's load and write queue moved into `components/workspace/ar-editor.tsx`, shared by the drawer and the tab. The drawer behaves as before.
+- Migration 0128 (applied 2026-10-05 after a rolled-back rehearsal): one AR per job and supplier. A BEFORE INSERT trigger refuses a second AR, and later asks go onto the existing one. The All Jobs availability dialog adds to the job's existing AR with that supplier (publishing a Draft, keeping an existing public link) and refuses a closed one until it is reopened. JR-55's AR-35/AR-36 predate the rule and are retained. Rosie's `supplier-coordination` 5.6.0 (adding to an existing AR; Chris approves additions to a published AR before they're made), `job-requests` 8.5.1 and `database-access` 2.4.2.
+- The job page's AR tab omits the drawer's supplier/job summary card and keeps the status picker.
+
 ## 2026-10-05 — AR Status centered; Submit gets botanical flair
 
 - Supplier shared AR detail (public and authenticated) centers desktop Status headings/controls and the pinned Submit/Re-Submit button independently of its explanation. The button reuses Desert Night cactus/agave line art with a fixed purple treatment and a solid label backing. Other AR callers, nested answer-dialog button sizing and all submission/publication behavior remain unchanged.

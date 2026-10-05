@@ -72,7 +72,10 @@ at order confirmation; order headers also display the linked customer EDD. Displ
 [Availability header metadata](availability-header-metadata.md).
 The shared request body has Request items and Orders tabs. The availability
 dialog defaults to APS; selected lines across jobs become one request per job
-(migration 0119: `availability_requests.job_request_id`). Closing a job closes
+(migration 0119: `availability_requests.job_request_id`). A job has one AR
+per supplier (0128): asking a supplier the job already has an AR with adds
+the lines to that AR (publishing it if it is a Draft, keeping an existing
+public link) and refuses a closed one until it is reopened. Closing a job closes
 its requests. Deleting a job preserves supplier responses and orders.
 
 Supplier options for a line are **candidates**, shown as pills in the job
@@ -244,8 +247,17 @@ table renders (1,090px default minimum; 960px for the focused-Job portal drawing
 Job, then separately labels stored **Sent** and optional **Submitted**; it renders
 no Last updated, actor, provenance or inferred change/freshness.
 
-Only AR chips in the **focused `/jobs?jr=<id>` Job header** open the drawer in
-the supplier portal's drawing — the same `SummaryStrip` and
+The **focused `/jobs?jr=<id>` Job** has no supplier/AR pills in its header.
+Its tab bar adds one tab per supplier AR after Request items and Orders —
+status dot coloured by `arStatusTone`, AR name, supplier name; most recently
+engaged supplier first — and each tab is a drop target for that supplier's
+candidate pills. The selected tab edits the AR in place
+(`SupplierARPanel` in `job-request.tsx`), using the same editor as the drawer
+(`components/workspace/ar-editor.tsx`: `useAREditor` owns load, live refresh
+and the serialized write queue; `AREditorBody` / `AREditorFooter` render it;
+the tab passes `summaryCard={false}`, dropping the supplier/job card and keeping
+the status picker row)
+in the supplier portal's drawing — the same `SummaryStrip` and
 `ARLineTable design="portal"` as `/partner/:id/requests/:arId`: **Need · Avail
 qty · Size · Plant · Status · Price · Note for supplier**, no Line total or
 subtotal footer (the strip carries the subtotal). `SummaryStrip` keeps every
@@ -258,9 +270,11 @@ portal's borderless cells. The portal tracks are
 Size wrap (`AnswerCell wrap`, a one-row auto-growing textarea that still saves
 on Enter), and only Notes truncates (`AnswerCell clamp`: one line until
 focused). `AnswerCell` sets an editor's `title` to its full text on hover only
-when the text is clipped. The portal status listbox is portalled into the
-`[data-ar-drawer-host]` rather than `document.body`, which the modal stack
-makes inert. Each opening owns its drawing alongside the drawer's AR id and
+when the text is clipped. In the drawer the portal status listbox is
+portalled into the `[data-ar-drawer-host]` rather than `document.body`, which
+the modal stack makes inert. The drawer still accepts the `focused-job`
+presentation (`openAvailabilityRequest(id, 'focused-job')`), though no app
+surface opens it that way now. Each drawer opening remounts its editor per
 generation; any ordinary open, even the same AR, resets to the default.
 Customer/other Job cards, chat links and the supplier profile keep the default
 drawing.

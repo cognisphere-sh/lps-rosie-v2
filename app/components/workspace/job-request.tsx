@@ -21,6 +21,8 @@ import {
   availabilityRecordName,
   availabilityRequestLinkLabel,
   arResponseLabel,
+  arStatusLabel,
+  arStatusTone,
   arResponseTone,
   hasOffer,
   isInProgressARStatus,
@@ -43,6 +45,7 @@ import {
   type Tone,
 } from '@/lib/job-requests'
 import { JobOrders } from '@/components/workspace/orders'
+import { AREditorBody, AREditorFooter, useAREditor, useARNarrow } from '@/components/workspace/ar-editor'
 import { type ColumnDef } from '@/lib/columns'
 import { quoteLineTotal } from '@/lib/job-request-html-quote'
 import { useTableConfig } from '@/lib/table-config'
@@ -1065,7 +1068,6 @@ export function RequestLinks({
   focusedMobile = false,
   relatedOnly = false,
   hideCustomerChat = false,
-  onOpenAR = openAvailabilityRequest,
   className,
 }: {
   request: JobRequestRow
@@ -1074,7 +1076,6 @@ export function RequestLinks({
   /** Route actions only, for the compact desktop details tray. */
   relatedOnly?: boolean
   hideCustomerChat?: boolean
-  onOpenAR?: (id: number) => void
   className?: string
 }) {
   const dateIdPrefix = useId()
@@ -1186,7 +1187,7 @@ export function RequestLinks({
                 <LinkSegment
                   title={availabilityRequestLinkLabel(ar.id, l.name, ar.status, ar.recordName)}
                   describedBy={`${dateIdPrefix}-ar-${ar.id}-date`}
-                  onOpen={() => onOpenAR(ar.id)}
+                  onOpen={() => openAvailabilityRequest(ar.id)}
                   className={cn(
                     'flex-row justify-center gap-1.5 py-0.5',
                     relatedOnly && 'min-h-8',
@@ -1432,12 +1433,15 @@ function CompactJobDetails({
   open,
   onToggle,
   lastUpdated,
+  supplierTabs,
 }: {
   request: JobRequestRow
   edit: Omit<EditProps, 'column'>
   open: boolean
   onToggle: () => void
   lastUpdated: string
+  /** The suppliers' ARs are the body's tabs, so Related keeps only the customer. */
+  supplierTabs: boolean
 }) {
   const contactValues = request.customer
     ? [request.customer.name, request.customer.phone, request.customer.email]
@@ -1445,7 +1449,7 @@ function CompactJobDetails({
       .filter((value): value is string => Boolean(value))
     : []
   const hasRelatedRoutes = Boolean(
-    request.customer || request.supplierLinks.length,
+    request.customer || (!supplierTabs && request.supplierLinks.length),
   )
 
   return (
@@ -1520,7 +1524,7 @@ function CompactJobDetails({
                 <span className="mt-1 text-[10px] font-bold uppercase tracking-[.05em] text-muted-foreground">
                   Related
                 </span>
-                <RequestLinks request={request} relatedOnly />
+                <RequestLinks request={supplierTabs ? { ...request, supplierLinks: [] } : request} relatedOnly />
               </>
             )}
           </SignatureBlock>
@@ -1704,6 +1708,90 @@ function ChangeHistory({ requestId, version, touchTarget = false }: { requestId:
   )
 }
 
+type SupplierARTabItem = {
+  supplier: JobRequestRow['supplierLinks'][number]
+  ar: JobRequestRow['supplierLinks'][number]['availabilityRequests'][number]
+}
+
+/**
+ * The job's supplier ARs as tabs, most recently engaged supplier first. A job
+ * has one AR per supplier (migration 0128); jobs from before that rule keep a
+ * tab for each of their ARs.
+ */
+function supplierARTabs(request: JobRequestRow): SupplierARTabItem[] {
+  return [...request.supplierLinks]
+    .sort((a, b) => (b.availabilityRequests[0]?.id ?? 0) - (a.availabilityRequests[0]?.id ?? 0))
+    .flatMap((supplier) => supplier.availabilityRequests.map((ar) => ({ supplier, ar })))
+}
+
+/**
+ * One supplier AR's tab: status dot, AR number, supplier. Also where that
+ * supplier's candidate pills are dropped to add them to the AR (a submitted
+ * AR reopens as New; a closed one has to be reopened first).
+ */
+function SupplierARTab({ requestId, tab: { supplier, ar }, selected, onSelect }: {
+  requestId: number
+  tab: SupplierARTabItem
+  selected: boolean
+  onSelect: () => void
+}) {
+  const toast = useToast()
+  const [over, setOver] = useState(false)
+  const name = availabilityRecordName(ar)
+  const add = async (payload: CandidateDragPayload) => {
+    if (ar.status === 'closed') { toast(`${name} is closed — reopen it to add to it`); return }
+    try {
+      const res = await fetch(`/api/requests/${requestId}/items/${payload.itemId}/candidates/${payload.id}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'add', arId: ar.id }),
+      })
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? 'Could not add the candidate')
+      toast(`Added to ${name}`)
+    } catch (e) {
+      toast((e as Error).message)
+    }
+  }
+  return (
+    <button type="button" role="tab" aria-selected={selected} onClick={onSelect}
+      data-supplier-ar-tab={supplier.supplierId}
+      title={`${name} · ${supplier.name} — ${arStatusLabel(ar.status)}`}
+      aria-label={`${name} · ${supplier.name} — ${arStatusLabel(ar.status)}`}
+      onDragOver={(e) => {
+        if (!carriesCandidate(e, supplier.supplierId)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        setOver(false)
+        const payload = draggedCandidate(e)
+        if (payload?.supplierId !== supplier.supplierId) return
+        e.preventDefault()
+        void add(payload)
+      }}
+      className={cn('inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold',
+        selected ? 'bg-muted text-foreground' : 'text-muted-foreground', over && 'ring-2 ring-primary')}>
+      <span aria-hidden="true" className="size-2 flex-none rounded-full"
+        style={{ background: `var(--lps-tone-${arStatusTone(ar.status)}-dot)` }} />
+      <span className="flex-none">{name}</span>
+      <span className="min-w-0 max-w-[11rem] truncate font-normal">{supplier.name}</span>
+    </button>
+  )
+}
+
+/** The open supplier tab: the AR itself, edited in place in the portal's drawing. */
+function SupplierARPanel({ arId }: { arId: number }) {
+  const editor = useAREditor(arId)
+  const narrow = useARNarrow()
+  return (
+    <div role="tabpanel" data-supplier-ar-panel={arId} className="space-y-2.5 border-t border-border bg-lps-tint p-2.5 sm:p-3">
+      <AREditorBody editor={editor} portal mobile={narrow} summaryCard={false} />
+      <AREditorFooter editor={editor} className="pt-1" />
+    </div>
+  )
+}
+
 /**
  * Everything under a request's head: its particulars, its lines, its history.
  *
@@ -1724,6 +1812,7 @@ export function RequestBody({
   onSelect,
   onDeleteItem,
   emptyItemsCopy = 'No line items match these filters.',
+  supplierTabs = false,
   onSaved,
 }: {
   request: JobRequestRow
@@ -1749,9 +1838,14 @@ export function RequestBody({
   onDeleteItem?: (item: JobRequestItem) => void
   /** Honest empty state for filtered management vs an unfiltered work pane. */
   emptyItemsCopy?: string
+  /** One tab per supplier AR after Items and Orders, editing the AR in place (focused Job). */
+  supplierTabs?: boolean
   onSaved: () => void
 }) {
-  const [tab, setTab] = useState<'items' | 'orders'>('items')
+  // A number is the open supplier tab's AR id.
+  const [tab, setTab] = useState<'items' | 'orders' | number>('items')
+  const arTabs = supplierTabs ? supplierARTabs(request) : []
+  const openAR = typeof tab === 'number' ? arTabs.find((t) => t.ar.id === tab) : undefined
   // Uses the same persisted layout store and controls as inventory/supplier tables.
   const lineTable = useTableConfig('requestItems')
   const lineColumns = lineTable.visible
@@ -1793,14 +1887,17 @@ export function RequestBody({
 
   return (
     <>
-      <div role="tablist" aria-label="Job request" className="flex gap-1 border-t border-border px-3 py-1">
+      <div role="tablist" aria-label="Job request" className="flex flex-wrap gap-1 border-t border-border px-3 py-1">
         {(['items', 'orders'] as const).map((value) => <button key={value} type="button" role="tab"
           aria-selected={tab === value} onClick={() => setTab(value)}
           className={`min-h-11 rounded-md px-3 text-[12px] font-semibold ${tab === value ? 'bg-muted text-foreground' : 'text-muted-foreground'}`}>
           {value === 'items' ? 'Request items' : 'Orders'}
         </button>)}
+        {arTabs.map((t) => <SupplierARTab key={t.ar.id} requestId={request.id} tab={t}
+          selected={openAR?.ar.id === t.ar.id} onSelect={() => setTab(t.ar.id)} />)}
       </div>
-      {tab === 'orders' ? <JobOrders jobRequestId={request.id} onChanged={onSaved} version={version} /> : <>
+      {openAR ? <SupplierARPanel key={openAR.ar.id} arId={openAR.ar.id} />
+      : tab === 'orders' ? <JobOrders jobRequestId={request.id} onChanged={onSaved} version={version} /> : <>
       {(!compactJobDetails || !summaryInHeader) && <div className="flex flex-col gap-2 border-t border-border bg-lps-tint p-2.5 sm:p-3">
         {!compactJobDetails && <RequestOverview request={request} />}
         {!summaryInHeader && <DemandSummary
@@ -1935,6 +2032,7 @@ export function RequestBody({
           open={detailsOpen}
           onToggle={onToggleDetails}
           lastUpdated={lastUpdated}
+          supplierTabs={supplierTabs}
         />
       )}
 

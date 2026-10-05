@@ -9,6 +9,7 @@ import { JSDOM } from 'jsdom'
 import ts from 'typescript'
 
 import { ARStatusPill } from '../components/workspace/availability.tsx'
+import { RequestBody } from '../components/workspace/job-request.tsx'
 import { RequestCard } from '../components/workspace/request-list-card.tsx'
 import type { Candidate, JobRequestItem, JobRequestRow } from './rows.ts'
 
@@ -209,6 +210,37 @@ test('dropping a candidate on its supplier in the header adds it to their newest
     'the newest AR that is not closed')
   assert.equal(view.container.querySelector('[data-job-ar-strip]'), null, 'no AR row above the table')
   assert.equal(view.queryByRole('button', { name: 'Create AR' }), null)
+})
+
+test('supplier AR tabs: one per AR, colour-coded by status, and take that supplier\'s candidates', async () => {
+  const { view: card, calls } = setup()
+  card.unmount()
+  const view = render(<RequestBody request={request()} version={0} detailsOpen={false} onToggleDetails={() => {}}
+    compactJobDetails supplierTabs onSaved={() => {}} />)
+  const tabs = within(view.getByRole('tablist', { name: 'Job request' })).getAllByRole('tab')
+  assert.deepEqual(tabs.map((tab) => tab.getAttribute('aria-label') ?? tab.textContent), [
+    'Request items', 'Orders',
+    'AR-43 · Acosta Farms — Completed',
+    'AR-41 · Austin Plant Supply — New', 'AR-40 · Austin Plant Supply — Draft', 'AR-39 · Austin Plant Supply — Closed',
+  ], 'most recently engaged supplier first')
+  const dot = (tab: HTMLElement) => tab.querySelector<HTMLElement>('[aria-hidden="true"]')!.style.background
+  assert.equal(dot(tabs[2]), 'var(--lps-tone-green-dot)')
+  assert.equal(dot(tabs[3]), 'var(--lps-tone-amber-dot)')
+  assert.equal(dot(tabs[4]), 'var(--lps-tone-grey-dot)')
+
+  const acosta = transfer()
+  fireEvent.dragStart(view.container.querySelector<HTMLElement>('[data-candidate="3"]')!, { dataTransfer: acosta })
+  assert.equal(fireEvent.dragOver(tabs[3], { dataTransfer: acosta }), true, 'another supplier\'s tab is not accepted')
+  assert.equal(fireEvent.dragOver(tabs[2], { dataTransfer: acosta }), false)
+  fireEvent.drop(tabs[2], { dataTransfer: acosta })
+  await waitFor(() => assert.equal(calls.length, 1))
+  assert.deepEqual(calls[0], { url: '/api/requests/19/items/51/candidates/3', method: 'POST', body: { action: 'add', arId: 43 } })
+
+  const closed = transfer()
+  fireEvent.dragStart(view.container.querySelector<HTMLElement>('[data-candidate="6"]')!, { dataTransfer: closed })
+  fireEvent.drop(tabs[5], { dataTransfer: closed })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(calls.length, 1, 'a closed AR must be reopened before it takes candidates')
 })
 
 test('a draft AR uses Publish; published status pickers allow returning to Draft', () => {

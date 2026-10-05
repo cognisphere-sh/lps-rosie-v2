@@ -16,14 +16,21 @@ function fixture() {
       ...Array.from({ length: 1104 }, (_, i) => ({ id: 1000 + i, job_request_id: i + 1, supplier_id: 8, status: 'new',
         is_active: true, created_at: '2026-09-01T12:00:00Z', submitted_at: null })),
     ],
-    suppliers: [{ id: 7, name: 'APS', is_lps_partner: true, rosie_thread_id: 'supplier-7' },
+    suppliers: [{ id: 7, name: 'APS', is_lps_partner: true, rosie_thread_id: 'supplier-7', is_active: true },
       { id: 8, name: 'Other', is_lps_partner: true, rosie_thread_id: null }],
     job_requests: Array.from({ length: 1105 }, (_, i) => ({ id: i + 1, name: `Job ${i + 1}` })),
     candidates: [{ id: 51, availability_request_id: 42, job_request_item_id: 101, supplier_id: 7, name: 'Oak', size: '30 G',
       demanded_quantity: 10, status: 'can_order', available_quantity: 8, unit_price: 20,
-      note_for_supplier: 'Single trunk only', note_from_supplier: 'Ready next week', is_active: true }],
+      note_for_supplier: 'Single trunk only', note_from_supplier: 'Ready next week', is_active: true },
+      { id: 52, availability_request_id: null, job_request_item_id: 102, supplier_id: 7, name: 'Elm', size: '15 G',
+        is_original: true, is_active: true }],
+    job_request_items: [{ id: 102, job_request_id: 1105, name: 'Elm', size: '15 G', demanded_quantity: 4, is_active: true }],
   }
-  const supabase = { from(table: string) {
+  const rpcs: [string, Record<string, unknown>][] = []
+  const supabase = { rpc: async (name: string, args: Record<string, unknown>) => {
+    rpcs.push([name, args])
+    return { data: name === 'create_availability_request' ? 99 : null, error: null }
+  }, from(table: string) {
     let rows = [...(tables[table] ?? [])]
     const query = {
       select: (columns: string) => {
@@ -36,6 +43,7 @@ function fixture() {
       },
       in: (column: string, values: unknown[]) => { rows = rows.filter((row) => values.includes(row[column])); return query },
       eq: (column: string, value: unknown) => { rows = rows.filter((row) => row[column] === value); return query },
+      is: (column: string, value: unknown) => { rows = rows.filter((row) => row[column] === value); return query },
       neq: (column: string, value: unknown) => { rows = rows.filter((row) => row[column] !== value); return query },
       not: (column: string, operator: string, value: unknown) => {
         rows = rows.filter((row) => operator === 'in'
@@ -58,8 +66,20 @@ function fixture() {
   const mocks: Record<string, unknown> = { 'server-only': {}, '@/lib/supabase': { supabase },
     '@/lib/partner-display': { redactPartnerRequestRefs: (name: string) => name } }
   new Function('require', 'module', 'exports', outputText)((name: string) => name in mocks ? mocks[name] : require(name), module, module.exports)
-  return { tables, queries: module.exports }
+  return { tables, rpcs, queries: module.exports }
 }
+
+test('a later ask to a supplier joins its existing AR for the job instead of creating another (0128)', async () => {
+  const { tables, rpcs, queries } = fixture()
+  // AR-42 is APS's submitted AR for JR-1105: the new line is added to it, which reopens it as New.
+  assert.equal(await queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }), 42)
+  assert.deepEqual(rpcs, [['add_candidates_to_availability_request', { p_request_id: 42, p_candidate_ids: [52] }]])
+  rpcs.length = 0
+  tables.availability_requests[0].status = 'closed'
+  await assert.rejects(queries.createAvailabilityRequest({ jobRequestId: 1105, supplierId: 7, shareCustomerDetails: false, itemIds: [102] }),
+    /AR-42 with this supplier is closed/)
+  assert.deepEqual(rpcs, [])
+})
 
 test('each job links its own ARs, including jobs beyond the row cap', async () => {
   const { queries } = fixture()
