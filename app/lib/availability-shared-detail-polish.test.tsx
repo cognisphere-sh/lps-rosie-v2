@@ -125,7 +125,7 @@ test('centered desktop Status keeps keyboard options, answer patch and focus res
   const trigger = view.getByRole('button', { name: 'Line status, Pending' })
   trigger.focus()
   fireEvent.keyDown(trigger, { key: 'ArrowDown' })
-  const available = view.getByRole('option', { name: 'Available', exact: true })
+  const available = view.getByRole('option', { name: 'Available' })
   assert.deepEqual(view.getAllByRole('option').map((option) => option.textContent),
     ['Available', 'Unavailable/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending✓'])
   fireEvent.keyDown(available, { key: 'Enter' })
@@ -149,18 +149,18 @@ test('desktop touch sizing selects only the direct Status trigger, never nested 
   ]
   for (const [option, actions] of dialogs) {
     fireEvent.click(trigger)
-    fireEvent.click(view.getByRole('option', { name: option, exact: true }))
+    fireEvent.click(view.getByRole('option', { name: option }))
     const directButtons = [...cell.querySelectorAll(':scope > button')]
     assert.deepEqual(directButtons, [trigger])
     assert.equal(cell.querySelectorAll('button').length, actions.length + 1)
     for (const name of actions) {
-      const action = view.getByRole('button', { name, exact: true })
+      const action = view.getByRole('button', { name })
       assert.ok(cell.contains(action), `${option}: existing non-portalled dialog stays in the cell`)
       assert.notEqual(action.parentElement, cell, `${name} is nested, not a direct trigger`)
       assert.equal(directButtons.includes(action), false, `${name} must not receive trigger sizing`)
       assert.equal(action.className.includes('min-h-11'), false, `${name} retains desktop dialog classes`)
     }
-    fireEvent.click(view.getByRole('button', { name: 'Cancel', exact: true }))
+    fireEvent.click(view.getByRole('button', { name: 'Cancel' }))
   }
   assert.deepEqual(writes, [])
 })
