@@ -15,6 +15,14 @@ here).
 > was started, so they are coarser than what follows. `git log` remains the
 > complete record.
 
+## 2026-10-05 — Job line: Available on a substitute makes it the original
+
+- Setting a job line to **Available** (or **Partial Qty**) while its selected candidate is a substitute no longer snaps back to Diff Sz/Sub (JR-98 Top soil). The selected candidate becomes the line's original request, and that supplier's previous original is marked Diff Sz/Sub (stored Unavailable, quantity 0, price kept, offering the promoted candidate). Other suppliers' originals are untouched. Migration 0129 (`sync_job_item_to_candidate`), rehearsed with `tests/0129_line_override_promotes_substitute.assert.sql`. `tests/0126_job_line_candidate_sync.assert.sql` now asserts the promotion and 0127's reset of a published AR to New (it still expected Submitted). Rosie's `database-access` 2.4.4 documents the rule.
+
+## 2026-10-05 — AR status picker: Unavailable and Diff Sz/Sub split again
+
+- Supplier and LPS AR status pickers offer **Unavailable** and **Diff Sz/Sub** as two options instead of one merged **Unavailable/Sub** (order: Available, Unavailable, Diff Sz/Sub, Can Order/Arriving Soon, Partial Qty, Pending). Unavailable saves at once (quantity 0, price kept, any substitute cleared); Diff Sz/Sub opens the substitute dialog; its **No Sub** button (plain Unavailable) is now true red in both themes — it used `--destructive`, which is brown-orange in the dark theme. Storage is unchanged — Diff Sz/Sub is still Unavailable naming a substitute — so no migration. The print checklist follows the picker. Rosie's `supplier-coordination` 5.6.1, `job-requests` 8.5.2 and `database-access` 2.4.3 follow the labels.
+
 ## 2026-10-05 — Job page: supplier AR tabs; one AR per job and supplier
 
 - The focused job page (`/jobs?jr=`) drops the supplier/AR pills from its header. Each supplier AR is now a tab after Request items and Orders: a status-coloured dot, the AR number and the supplier name. The tab edits the AR in place in the portal drawing, with status, sharing, the supplier note, the line table and Publish/Submit. Candidate pills dropped on a tab join that AR. All Jobs (`/requests`) cards keep their header pills and the drawer.

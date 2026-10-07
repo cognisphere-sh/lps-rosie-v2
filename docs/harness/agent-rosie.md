@@ -44,13 +44,16 @@ Chris made the request.
 - A selected line and its candidate are one answer (0126): writing the line's
   status, avail, price, size, demand or customer note also writes the
   candidate, and the line status is re-derived (Partial Qty when avail is
-  below demand; Diff Sz/Sub for an Available substitute).
+  below demand; Diff Sz/Sub for an Available substitute). Setting a
+  substitute's line to Available or Partial Qty makes it the original (0129);
+  the supplier's previous original then reads Diff Sz/Sub.
   Saved drafts stay on the supplier thread. `note_internal` holds no supplier
   or price facts.
 - **Substitutes and Partial Qty** (migration 0121): a candidate is one fixed
   plant and size. Suppliers answer Partial Qty for a short quantity, and
-  Unavailable/Sub with an optional substitute: one of their candidates on the
-  line or "Something else" typed. On save the asked candidate
+  Diff Sz/Sub with a substitute (a picker option separate from Unavailable
+  since 2026-10-05): one of their candidates on the line or "Something else"
+  typed. On save the asked candidate
   becomes Unavailable (reading Diff Sz/Sub) and the substitute Available at
   its own price — linked to the AR but not listed as its own row (0124); a
   typed one is created. The job line reads Diff Sz/Sub (Chris's JR-90 rule).

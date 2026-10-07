@@ -1,5 +1,13 @@
 # database-access — changelog
 
+## 2.4.4 — 2026-10-05
+
+- data-model.md: setting a selected substitute's line to Available or Partial Qty makes it the original; the supplier's previous original reads Diff Sz/Sub (0129).
+
+## 2.4.3 — 2026-10-05
+
+- data-model.md: `hide_from_lps` options appear in the supplier's Diff Sz/Sub dialog (renamed from Unavailable/Sub, 2026-10-05).
+
 ## 2.4.2 — 2026-10-05
 
 - data-model.md: one AR per job **and supplier** (0128 insert guard).

@@ -13,6 +13,8 @@ A workflow change counts — not everything here is software.
 
 | Slug | Title | Status | Route |
 |---|---|---|---|
+| `persistent-job-line-order` | Keep related Job lines together without changing the work | staged · JR82 desired move approved; existing persistent move unsupported per Nova audit, B notified Telegram364; no reorder/build | bhoumik |
+| `ar-status-submit-polish` | Center AR Status controls and give Submit purple botanical flair | routed · R2 dd16e1fa source-ready/SOURCE SAFE only; seven tests UNRUN, technical/build/auth/reference QA BLOCKED/resource HOLD; NOT integrated/deployed | nova |
 | `draft-ar-authorized-recovery` | Give Chris a supported usable AR after draft failure | staged · temporary AR64 active-Draft restore owner-verified complete; broader B recovery/Draft-answer decision unresolved, not shipped | bhoumik |
 | `candidate-selection-availability-quantity` | Selection must not turn demand into supplier availability | staged · narrow authorization already asked by Nova; source defect confirmed, runtime/repair unverified | bhoumik |
 | `job-line-request-conformity` | Distinguish stock confirmation from original-request conformity | staged · Sep30 contract supersedes candidate-Diff; partial source coverage, remaining owner/runtime disposition | bhoumik |
@@ -82,6 +84,7 @@ A workflow change counts — not everything here is software.
 | `focused-job-chat-routing` | Keep a focused Job chat on the current request | shipped | nova |
 | `mobile-conversation-navigation` | Make separate conversations easier to navigate on mobile | drafted · low priority; held for Bhoumik discussion, no build authorized | nova |
 | `urgent-pricing-update-workflow` | Make urgent pricing updates reach the right Job without delay | staged | bhoumik |
+| `unknown-price-and-order-readiness` | Keep missing prices distinct from free plants and Order readiness | staged · focused Bhoumik contract decision, no change authorized | bhoumik |
 | `pricing-lookup-reliability` | Make every pricing answer traceable and dependable | staged · broad proposal held; Sep25 alias-aware AR-prefill applicability decision separate | bhoumik |
 | `approved-pricing-reference-reuse` | Reuse an approved price basis without asking again | supported existing path · owner guidance complete; ordinary-use observation only, no build proposed | rosie (existing lookup guidance) |
 | `visual-ui-qa-gate` | Gate UI releases on real visual review | shipped | nova |

@@ -82,7 +82,7 @@ Supplier options for a line are **candidates**, shown as pills in the job
 line table's Candidates column and dragged to Selected (and back, to
 unselect), a supplier's AR or the bin (see [All jobs](all-jobs.md#candidates)). Candidates with
 `hide_from_lps` (0124: substitute options kept for the supplier's
-Unavailable/Sub dialog) are left out of the column until a supplier picks one,
+Diff Sz/Sub dialog) are left out of the column until a supplier picks one,
 which clears the flag. Internal notes hold the
 customer's additional requests and other internal context, never suppliers or
 prices; they stay out of customer messages and quotes. Note for customer is
@@ -770,10 +770,13 @@ selected original with a substitute on offer reads Diff Sz/Sub. Since
 2026-09-30 the pickers no longer offer Diff Sz/Sub: it is **Unavailable/Sub**
 plus a substitute (`AR_ANSWER_OPTIONS`), and an Unavailable line naming a
 substitute *reads* Diff Sz/Sub (`arShownStatus`: pill, row tone, summary
-strip). Since 2026-10-01 Can Order and Arriving Soon are one picker option,
+strip). Since 2026-10-05 the pickers offer **Unavailable** and **Diff Sz/Sub**
+as separate options again; Diff Sz/Sub is still stored as Unavailable naming a
+substitute, and a line reading Diff Sz/Sub sits under that option
+(`arAnswerOption`). Since 2026-10-01 Can Order and Arriving Soon are one picker option,
 **Can Order/Arriving Soon**, and the dialog asks which; both answers are
-stored and shown as before. Picker order (2026-10-01): Available,
-Unavailable/Sub, Can Order/Arriving Soon, Partial Qty, Pending. Price cells
+stored and shown as before. Picker order (2026-10-05): Available,
+Unavailable, Diff Sz/Sub, Can Order/Arriving Soon, Partial Qty, Pending. Price cells
 show a `$` before a filled value (`AnswerCell` `prefix`). The substitute stays linked to the request
 (orders need it) but is not listed as its own row in any AR view
 (`withoutSubstituteRows` in `lib/availability-queries.ts`, also in the line
@@ -788,8 +791,8 @@ behaviour:
 | `available` | **No dialog.** Writes straight through with `available_quantity` = the demand — "all of it, as asked" needs nothing typed |
 | `can_order` / `arriving_soon` (**Can Order/Arriving Soon**) | One picker option (2026-10-01). Dialog "Can Order / Arriving Soon": a **Can Order** / **Arriving Soon** radio choice (opens on the stored one, else Can Order), then a note — the ETA for Can Order; when it lands, and how many, for Arriving Soon. The trigger and pill still read the stored answer. Re-picking the option reopens the dialog, so a supplier can switch between the two |
 | `partial_qty` | Dialog: the quantity you have (opens focused) and an optional note |
-| `unavailable` (**Unavailable/Sub**) | Dialog "Unavailable / Sub": only substitute radio options — no price, quantity or separate note field. One option per substitute (this supplier's other **priced** candidates on the line, `description · $price`, including ones hidden from LPS, `hide_from_lps`), plus **Something else** with a text field and a hint (typing selects it); its text is both the typed substitute and the supplier's note. A picked candidate writes a customer-ready note (`30 G NA, 45 G Live Oak only`). The first option is a red **No Sub** button (focused on open) that saves plain Unavailable at once — quantity 0, price kept (0122), clearing any earlier substitute and note. **Submit** is disabled until a substitute is chosen (2026-10-01; it replaced a Skip/Submit button). On save (0123/0124) the line stays **Unavailable** and reads **Diff Sz/Sub**; the substitute is **Available** for the demand at its own candidate price — a ticked one is that candidate (a hidden one becomes visible to LPS); a typed one is created on the spot, named with what was typed, and Rosie tidies it after submission (price included). Changing the substitute resets the earlier tag (and takes it off the request) or retires the earlier typed row. Re-picking Unavailable/Sub reopens the dialog |
-| `diff_size_qty_sub` | Not offered by the pickers any more; older answers keep it and still read Diff Sz/Sub |
+| `unavailable` (**Unavailable**) | **No dialog** (2026-10-05). Writes straight through: quantity 0, price kept (0122), clearing any earlier substitute — and its note, when the line had one (that note was written for the substitute); otherwise the supplier's note stays |
+| **Diff Sz/Sub** (stored `unavailable` + substitute) | Dialog "Diff Sz / Sub": only substitute radio options — no price, quantity or separate note field. One option per substitute (this supplier's other **priced** candidates on the line, `description · $price`, including ones hidden from LPS, `hide_from_lps`), plus **Something else** with a text field and a hint (typing selects it); its text is both the typed substitute and the supplier's note. A picked candidate writes a customer-ready note (`30 G NA, 45 G Live Oak only`). The first option is a red **No Sub** button (focused on open; the `--lps-tone-red-dot` red, since the dark theme's `--destructive` is brown-orange) that saves plain Unavailable at once — quantity 0, price kept, clearing any earlier substitute and note. **Submit** is disabled until a substitute is chosen. On save (0123/0124) the line is stored **Unavailable** and reads **Diff Sz/Sub**; the substitute is **Available** for the demand at its own candidate price — a ticked one is that candidate (a hidden one becomes visible to LPS); a typed one is created on the spot, named with what was typed, and Rosie tidies it after submission (price included). Changing the substitute resets the earlier tag (and takes it off the request) or retires the earlier typed row. Re-picking Diff Sz/Sub reopens the dialog. Older answers stored as `diff_size_qty_sub` also sit under this option |
 
 **The three supply answers take a price** (2026-08-30): saying you can order it
 or that it is arriving is an offer, and an offer has a price, so the dialog

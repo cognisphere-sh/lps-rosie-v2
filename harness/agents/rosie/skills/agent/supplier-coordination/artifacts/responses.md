@@ -16,7 +16,7 @@
 | `partial_qty` | Partial Qty: the requested plant and size, fewer than demanded (`available_quantity`). |
 | `can_order` | Can get it. Becomes `need_to_order` on an order line. |
 | `arriving_soon` | Coming; ETA in the note. |
-| `unavailable` | Unavailable/Sub in the portal. Can't supply: quantity 0; the price stays (no status changes a price). With `offered_candidate_id` it names a substitute (a ticked candidate of the line, or a typed one created with the raw text as its name) and the row reads **Diff Sz/Sub**. The substitute is Available at its own price for the demanded quantity, linked to this AR but not listed as its own row (0124). |
+| `unavailable` | Unavailable or Diff Sz/Sub in the portal (separate picker options since 2026-10-05). Can't supply: quantity 0; the price stays (no status changes a price). With `offered_candidate_id` it names a substitute (a ticked candidate of the line, or a typed one created with the raw text as its name) and the row reads **Diff Sz/Sub**. The substitute is Available at its own price for the demanded quantity, linked to this AR but not listed as its own row (0124). |
 | `diff_size_qty_sub` | No longer picked in the portal (2026-09-30); older stored answers rewrote size and price. |
 | NULL | Not answered. A seeded price alone is not an answer. |
 

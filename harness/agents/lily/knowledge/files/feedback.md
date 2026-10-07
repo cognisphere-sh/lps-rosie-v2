@@ -1117,3 +1117,45 @@ this file exists.
 - **Button flair means purple botanical line-art motif** — Chris Telegram767 at2026-10-02 10:47 CDT exact caption “button flair”, relayed Nova10:47:31/parent10:47:46. Private photo ../nova/plugins/telegram/inbox/photo_767.jpg independently inspected in place: black/purple botanical/cactus/desert doodle chat wallpaper and purple outgoing bubble. This specifies the line-art wallpaper motif, not generic glow/gradient or whole-panel decoration. Nova already answered use purple botanical/cactus line art with clear label/contrast; reuse existing wallpaper asset in the button if suitable, otherwise a restrained similar motif. No copied private chat/customer content or public evidence, behavioral/permission changes or new Lily Telegram. _(via nova)_
   → ar-status-submit-polish
 <!-- feedback-end: telegram:-1004330045748:767 -->
+
+## 2026-10-02
+
+<!-- feedback-id: nova:main:2026-10-02T11:22:50-05:00:ar-polish-r2-source-safe sha256: eb9106055b467e2d37ce9da1bdadb39f9e30ef145019eac02eb4cceb8dd6537b -->
+- **AR polish R2 source-safe only, runtime gates blocked** — Nova main at2026-10-02 11:22:50 CDT reports UI source candidate R2 dd16e1fac1d7c584b0fc4878e04de0b8003b785c independently SOURCE SAFE: shared supplier detail only Status centering/footer button centering/explanation preserved/contained Desert Night motif; R1 selector spill fixed without dialog style change. Seven regression tests prepared UNRUN; technical execution/build/authenticated four-width/reference QA remain BLOCKED/resource HOLD. Existing operator ask776 requests tiny bounded-runner validation then focused-test approval; no answer yet. Nothing integrated/deployed. Evidence pointers ../nova/workspace/threads/main/tasks/review-ar-status-submit-polish/files/source-review-r2.md and builder source-candidate-r2 manifest are owner-supplied, not Lily re-audited. Source-ready awaiting gates only, not shipped; no duplicate ask/test/build/Telegram or new owner. _(via nova)_
+  → ar-status-submit-polish
+<!-- feedback-end: nova:main:2026-10-02T11:22:50-05:00:ar-polish-r2-source-safe -->
+
+## 2026-10-05
+
+<!-- feedback-id: nova:chris:jr-82:webchat:81:2026-10-05T12:00:48-05:00 sha256: c4209e47b51093c20e812a3df6b06307a6bf2cc3b97e957935542d683a61a8ac -->
+- **JR82 Whale Tongue lines adjacent at existing 5G position** — Nova's 2026-10-05 12:02:17 CDT handoff relays Chris JR82 webchat message81 (12:00:48 CDT), as supplied by Lily main: Whale Tongue item750 3×5G + NEW1137 3×15G should be ADJACENT at EXISTING5G POSITION; move1137 immediately AFTER750, preserve all other relative order/IDs/prices/qty/data, no merge/recreate. This is the approved desired case reorder, not permission for a new database/order-schema/workflow. Rosie owner-reports a live check found no sort/order/position column on job_request_items; Lily has not audited that. Nova already owns a read-only actual UI/API ordering-capability investigation and will report to Rosie jr-82 and Lily main. No duplicate audit, writes, build, fallback plant-name sort, ID change, deletion/reinsertion, or inferred full-list resequencing. Preserve stable identities, all fields, candidate bindings/history, and no money/status/send/customer effects. Canonical order versus current displayed user sort remains unestablished pending Nova findings; any proved persistent DB/workflow change belongs to Bhoumik. Origin approval and communications stay on jr-82; no Lily Telegram/question. _(via nova)_
+  → (watching)
+<!-- feedback-end: nova:chris:jr-82:webchat:81:2026-10-05T12:00:48-05:00 -->
+
+## 2026-10-05
+
+<!-- feedback-id: nova:main:2026-10-05T12:06:51-05:00:jr82-line-order-audit sha256: f54c04356c56753f7b45f967da1684399ac912fb81ecbb0c049857bef49d3ec3 -->
+- **JR82 persistent line placement needs Bhoumik-supported path** — Lily main relays Nova12:06:51 completed read-only owner audit: canonical Job line order is ID ascending (app/lib/job-request-queries.ts193–218, order205); detail/list API and client mapping unchanged. No persistent row order or move operation found through0129; existing update whitelist is closed and creation appends with a generated ID. Rosie quote/job and snapshot aggregation also use item-ID order. Existing supported API cannot persist1137 immediately after750 preserving IDs/content/other relative order; no reorder action taken. Evidence owner notes ../nova/workspace/threads/main/tasks/jr82-line-order-audit/notes.md; Lily did not duplicate the audit. Nova architecture recommendations are not Chris-approved design. Focused persistent-line-order outcome now staged for Bhoumik only: retain current ID-ascending baseline, scope move to one existing line after another with all others' relative order preserved, stable after reload/API and concurrent edits/appends, no candidate/status-sync or value/identity/demand/evidence changes. Inactive-line, customer/quote/snapshot order and timestamp/history semantics require explicit B disposition, not invented policy. No general drag/drop UI, hardcode, ID changes, deletion/recreation, DB action or Nova implementation. Parent reports Bhoumik notification Telegram364 delivered at12:07:20; origin case approval/comms remainjr82, no second question or external Lily-task send. _(via nova)_
+  → persistent-job-line-order
+<!-- feedback-end: nova:main:2026-10-05T12:06:51-05:00:jr82-line-order-audit -->
+
+## 2026-10-05
+
+<!-- feedback-id: nova:jr82:webchat81:requirement-link:2026-10-05T12:07:20-05:00 sha256: 9eb55c5f9f5a1f21998666dea33d80624d085883f1575107f251b7e3ae7a5087 -->
+- **Link JR82 placement feedback to staged persistent-job-line-order** — Dated promotion link for original feedback handle nova:chris:jr-82:webchat:81:2026-10-05T12:00:48-05:00: knowledge/files/requirements/persistent-job-line-order.md now stages the approved specific relative placement outcome for Bhoumik after Nova12:06:51 owner audit found no supported persistent move. Parent confirms Telegram364 delivered B notification. Original case approval is not approval of new architecture; no reorder/build/action performed. _(via nova)_
+  → persistent-job-line-order
+<!-- feedback-end: nova:jr82:webchat81:requirement-link:2026-10-05T12:07:20-05:00 -->
+
+## 2026-10-05
+
+<!-- feedback-id: agent:nova:main:2026-10-05T19:03:30:rosie-unknown-price-contract sha256: a92767a09eef50fece9b311c0cb130f8cd06ffc0b2a74aca7b0bc889ebd1b17e -->
+- **Unknown-price contract needs owner trace** — Nova October5 19:03:30 relays Rosie19:03:12: Rosie prompt reportedly uses NULL for unknown prices, while job-requests intake/pricing reportedly documents candidate0 as NOT FOUND (not free) with job-line NULL. JR102 owner observed candidate.unit_price nullable and directed new unpriced Kidneywood/Leadtree candidates1282–1285 to NULL with no selection-total effect. No wider change approved. Nova already delegated a narrow read-only UI/helper trace of whether0 is a required sentinel; await that owner evidence rather than duplicate audit, DB queries/tests or price/data/SOP/schema changes. Unknown NULL is not free, a search-miss0 sentinel is not a real $0 supplier price, and no historical repricing or blockage of current approved case follows. _(via nova)_
+  → business/operations.md
+<!-- feedback-end: agent:nova:main:2026-10-05T19:03:30:rosie-unknown-price-contract -->
+
+## 2026-10-05
+
+<!-- feedback-id: agent:nova:main:2026-10-05T19:06:46:candidate-price-null-source-findings sha256: 92a09c823794fd42925987fe72f620e475051480aa3abcb1855a4d8aa2c2ffb0 -->
+- **Unknown price source trace completed** — Nova’s existing read-only audit (dirty HEAD0dc74ad8, no live DB/tests) finds candidate NULL types/reads/UI supported; NULL and0 both display No price, selection maps both to Job NULL without a price gate. Rosie prompt unknownNULL conflicts skill/docs candidate0-neverNULL convention. AR unanswered0 is missing but answered0 is actual$0; blank string clears to SQLNULL and JSONnull is invalid in answerRPC. Distinct workflow issue: direct/AR Orders source allows NULL price pending through quantity/confirmation checks, copies NULL and accepts it under nullable positive-price CHECK;0 is rejected. This conflicts Rosie never-order-unpriced guidance, not proof of deployed free orders. Quote helpers separately reject missing price. Stage one focused Bhoumik decision on unknown-price convention and whether/at which Order stage missing prices are allowed; no new gate inferred/approved, candidate exploration remains distinct, JR102 approved newNULL case unblocked, no blanket zero/historical rewrite. Source report ../nova/workspace/threads/main/tasks/candidate-price-null-audit/notes.md; Lily reuses it without duplicate audit/query/tests or implementation routing. _(via nova)_
+  → unknown-price-and-order-readiness
+<!-- feedback-end: agent:nova:main:2026-10-05T19:06:46:candidate-price-null-source-findings -->

@@ -127,7 +127,7 @@ test('centered desktop Status keeps keyboard options, answer patch and focus res
   fireEvent.keyDown(trigger, { key: 'ArrowDown' })
   const available = view.getByRole('option', { name: 'Available' })
   assert.deepEqual(view.getAllByRole('option').map((option) => option.textContent),
-    ['Available', 'Unavailable/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending✓'])
+    ['Available', 'Unavailable', 'Diff Sz/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending✓'])
   fireEvent.keyDown(available, { key: 'Enter' })
   await waitFor(() => assert.equal(document.activeElement, trigger))
   assert.deepEqual(writes, [{ id: 1, changes: { status: 'available', available_quantity: '6' } }])
@@ -143,7 +143,7 @@ test('desktop touch sizing selects only the direct Status trigger, never nested 
   assert.equal(cell.classList.contains('[&_button]:min-h-11'), false)
   // These assertions inspect actual mounted DOM structure; JSDOM does not prove CSS geometry.
   const dialogs: Array<[string, string[]]> = [
-    ['Unavailable/Sub', ['No Sub', 'Cancel', 'Submit']],
+    ['Diff Sz/Sub', ['No Sub', 'Cancel', 'Submit']],
     ['Can Order/Arriving Soon', ['Cancel', 'Save answer']],
     ['Partial Qty', ['Cancel', 'Save answer']],
   ]

@@ -71,7 +71,10 @@ resizes by dragging the divider at its header's right edge.
   agent writes sync too), then the line is re-derived. Status maps Pending ↔
   unanswered and Can Order ↔ Need to Order; Unavailable sets quantity 0. The
   derived status is Diff Sz/Sub for an Available/Partial substitute, else
-  Partial Qty when avail is below demand, Available when it meets it. These
+  Partial Qty when avail is below demand, Available when it meets it. Setting
+  a substitute's line to Available or Partial Qty makes it the original
+  request instead (0129), and that supplier's previous original reads Diff
+  Sz/Sub (Unavailable offering it), so the override sticks. These
   edits reset published ARs to New and work on a closed AR. A line with
   no selection keeps its own values.
   When the candidate's AR is submitted, the supplier's reply replaces the

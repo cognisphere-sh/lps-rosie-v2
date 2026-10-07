@@ -51,8 +51,9 @@ export function availabilityRequestLinkLabel(
  *
  * A substitute is answered as Unavailable naming another candidate of the
  * line (`offeredCandidateId`) or a typed one (`offerDescription`); the line then
- * reads Diff Sz/Sub (`arShownStatus`). `diff_size_qty_sub` is no longer picked
- * directly (2026-09-30); older answers may still carry it.
+ * reads Diff Sz/Sub (`arShownStatus`). The picker's Diff Sz/Sub option saves
+ * that shape; `diff_size_qty_sub` itself is no longer stored (2026-09-30), though
+ * older answers may still carry it.
  * `partial_qty` (Partial Qty) = the asked plant, fewer than demanded.
  */
 export const AR_RESPONSES = [
@@ -87,21 +88,28 @@ export const AR_RESPONSE_OPTIONS = [
 ]
 
 /**
- * What a line picker offers (2026-09-30): Diff Sz/Sub is not picked directly —
- * it is "Unavailable/Sub" plus a substitute in the answer dialog. Can Order and
- * Arriving Soon are one option (2026-10-01); the dialog asks which. Order
- * (2026-10-01): Available, Unavailable/Sub, Can Order/Arriving Soon, Partial Qty, Pending.
+ * What a line picker offers. Unavailable and Diff Sz/Sub are separate options
+ * again (2026-10-05): Unavailable saves at once; Diff Sz/Sub opens the
+ * substitute dialog and is stored as Unavailable naming a substitute. Can Order
+ * and Arriving Soon are one option (2026-10-01); the dialog asks which.
  */
 export const AR_ANSWER_OPTIONS = [
   { value: 'available', label: 'Available' },
-  { value: 'unavailable', label: 'Unavailable/Sub' },
+  { value: 'unavailable', label: AR_RESPONSE_META.unavailable.label },
+  { value: 'diff_size_qty_sub', label: AR_RESPONSE_META.diff_size_qty_sub.label },
   { value: 'can_order', label: 'Can Order/Arriving Soon' },
   { value: 'partial_qty', label: AR_RESPONSE_META.partial_qty.label },
   { value: '', label: 'Pending' },
 ]
 
-/** The picker option a stored answer sits under: Arriving Soon is under Can Order. */
-export const arAnswerOption = (s: string | null) => (s === 'arriving_soon' ? 'can_order' : s)
+/**
+ * The picker option a line sits under: Arriving Soon is under Can Order, and
+ * Unavailable naming a substitute under Diff Sz/Sub.
+ */
+export const arAnswerOption = (item: Pick<ARItem, 'status' | 'offeredCandidateId' | 'offerDescription'>) => {
+  const s = arShownStatus(item)
+  return s === 'arriving_soon' ? 'can_order' : s
+}
 
 /** One line shared with the supplier, with their answer. */
 export interface ARItem {

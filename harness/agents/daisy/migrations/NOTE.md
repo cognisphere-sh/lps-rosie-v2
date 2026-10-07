@@ -1,3 +1,14 @@
+## 0129 — Available on a substitute line promotes it (2026-10-05)
+
+Applied via the Supabase MCP after a rolled-back live rehearsal with
+`tests/0129_line_override_promotes_substitute.assert.sql`. Replaces
+`sync_job_item_to_candidate` only: when LPS sets a line to Available or
+Partial Qty while its selected candidate is not the original, that candidate
+becomes `is_original` and the same supplier's previous original on the line
+becomes Unavailable (quantity 0, price kept) offering it, so it reads Diff
+Sz/Sub. Existing lines are not re-applied; JR-98's Top soil line takes effect
+the next time its status is set.
+
 ## 0128 — one AR per job and supplier (2026-10-05)
 
 Applied via the Supabase MCP after a rolled-back live rehearsal with

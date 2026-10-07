@@ -17,6 +17,7 @@ import {
   arLineTotal,
   arResponseLabel,
   arShownStatus,
+  hasOffer,
   arResponseTone,
   arStatusLabel,
   arStatusTone,
@@ -225,7 +226,7 @@ export function ARResponseSummary({
 }
 
 /** Where a message actually happened — portal, email, text, or internal. */
-/** The picker's answers (Unavailable/Sub, no Diff Sz/Sub) followed by Pending (NULL). */
+/** The picker's answers followed by Pending (NULL). */
 const RESPONSE_PICKER_OPTIONS = AR_ANSWER_OPTIONS
 
 /**
@@ -312,12 +313,12 @@ function PortalResponseSelect({
   }
 
   const choose = (next: string) => {
-    // Unavailable/Sub reopens its dialog, so a substitute can be changed;
+    // Diff Sz/Sub reopens its dialog, so a substitute can be changed;
     // Can Order/Arriving Soon, so the other of the two can be picked.
-    if ((next || null) !== value || next === 'unavailable' || next === 'can_order') onChange(next)
+    if ((next || null) !== value || next === 'diff_size_qty_sub' || next === 'can_order') onChange(next)
     // Follow-up answers mount an autofocus dialog; do not steal focus back
-    // from it. The two direct actions return focus to the line trigger.
-    close(next === '' || next === 'available')
+    // from it. The direct actions return focus to the line trigger.
+    close(next === '' || next === 'available' || next === 'unavailable')
   }
 
   useEffect(() => {
@@ -688,9 +689,9 @@ export function AnswerCell({
  *
  * `available` is deliberately absent: it needs nothing asked, so picking it
  * writes straight through with the demand as the available quantity (see
- * `LineRow`). Unavailable/Sub collects only an optional substitute — one of
- * this line's other candidates (a radio) or "Something else" typed, which is
- * also its note; the substitute carries its own price and quantity. Price is
+ * `LineRow`), and neither does `unavailable`. Diff Sz/Sub collects only a
+ * substitute — one of this line's other candidates (a radio) or "Something
+ * else" typed, which is also its note; the substitute carries its own price and quantity. Price is
  * corrected in the table's own Price cell.
  */
 const ANSWER_FIELDS: Record<
@@ -699,9 +700,7 @@ const ANSWER_FIELDS: Record<
     title: string
     /** Whether the answer needs a quantity of its own. */
     qty: boolean
-    /** Nothing is available: quantity goes to 0; the price stays (0122). */
-    zero?: boolean
-    /** Offer a substitute instead (Unavailable/Sub). */
+    /** Offer a substitute instead (Diff Sz/Sub). */
     offer?: boolean
     /** Which field opens focused — the first thing this answer needs. */
     focus?: 'qty' | 'notes'
@@ -729,10 +728,9 @@ const ANSWER_FIELDS: Record<
     notesLabel: 'Notes (optional)',
     notesHint: 'e.g. rest ready in 3 weeks',
   },
-  unavailable: {
-    title: 'Unavailable / Sub',
+  diff_size_qty_sub: {
+    title: 'Diff Sz / Sub',
     qty: false,
-    zero: true,
     offer: true,
     notesLabel: 'Note (optional)',
     notesHint: 'e.g. 5 G NA, 3 G only',
@@ -746,14 +744,13 @@ const ANSWER_CHOICES: Record<string, { value: string; label: string }[]> = {
 ANSWER_CHOICES.arriving_soon = ANSWER_CHOICES.can_order
 
 /**
- * Collect notes and any supply quantity for a status answer. Unavailable/Sub
- * sets the quantity to 0 (never the price) and offers a substitute: pick one
- * of the line's other candidates, or "Something else" and type it (the text is
- * the note; there is no separate note field). The first option, **No Sub**, is
- * a button that saves plain Unavailable at once; Submit is enabled once a
- * substitute is chosen. With a substitute, on save the line reads Diff Sz/Sub and
- * the substitute is its own Available row (a typed one is created as a new
- * candidate for Rosie to enrich).
+ * Collect notes and any supply quantity for a status answer. Diff Sz/Sub
+ * asks for a substitute: pick one of the line's other candidates, or
+ * "Something else" and type it (the text is the note; there is no separate
+ * note field). The first option, **No Sub**, is a red button that saves plain
+ * Unavailable at once; Submit is enabled once a substitute is chosen. On save the line
+ * is stored Unavailable and reads Diff Sz/Sub, and the substitute is its own
+ * Available row (a typed one is created as a new candidate for Rosie to enrich).
  */
 function StatusAnswerDialog({
   item,
@@ -793,7 +790,7 @@ function StatusAnswerDialog({
   const hasSubstitute = offerId != null || (typing && !!offerText.trim())
   const choiceName = useId()
 
-  // One choice at a time. Unavailable/Sub has no note field: a picked
+  // One choice at a time. Diff Sz/Sub has no note field: a picked
   // candidate writes a customer-ready note, and "Something else" is the note.
   const pickTag = (alt: ARAlternative) => {
     setOfferId(alt.id)
@@ -821,15 +818,15 @@ function StatusAnswerDialog({
     }
   }, [])
 
-  // Unavailable/Sub's No Sub: quantity 0 (the price stays), and drop any earlier substitute and note.
-  const noSub = () => onSave({ status, note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '' })
+  // Diff Sz/Sub's No Sub: plain Unavailable — quantity 0 (the price stays), and drop any earlier substitute and note.
+  const noSub = () => onSave({ status: 'unavailable', note_from_supplier: '', available_quantity: '0', offered_candidate_id: '', offer_description: '' })
 
   const save = () => {
     if (substituting && hasSubstitute) {
       // The database keeps this line Unavailable and makes the substitute its
       // own Available row, at its own price and the demanded quantity.
       onSave({
-        status,
+        status: 'unavailable',
         note_from_supplier: offerId != null ? notes.trim() : offerText.trim(),
         offered_candidate_id: offerId != null ? String(offerId) : '',
         offer_description: offerId != null ? '' : offerText.trim(),
@@ -840,8 +837,6 @@ function StatusAnswerDialog({
     }
     const changes: Record<string, string> = { status: chosen, note_from_supplier: notes.trim() }
     if (spec.qty) changes.available_quantity = qty.trim()
-    // Unavailable with no substitute: quantity 0 (the price stays), and drop any earlier substitute.
-    if (spec.zero) Object.assign(changes, { available_quantity: '0', offered_candidate_id: '', offer_description: '' })
     onSave(changes)
   }
 
@@ -928,7 +923,8 @@ function StatusAnswerDialog({
             onClick={noSub}
             autoFocus
             className={cn(
-              'cursor-pointer self-start rounded-full bg-destructive px-4 py-1.5 text-[12px] font-bold text-destructive-foreground hover:opacity-90',
+              // The tone red, not --destructive: the dark theme's destructive is a brown-orange.
+              'cursor-pointer self-start rounded-full bg-[var(--lps-tone-red-dot)] px-4 py-1.5 text-[12px] font-bold text-white hover:opacity-90',
               drawerModal && 'max-[899px]:min-h-11',
             )}
           >
@@ -1023,7 +1019,7 @@ function StatusAnswerDialog({
           >
             Cancel
           </button>
-          {/* Unavailable/Sub: Submit once a substitute is chosen (No Sub saves on its own). */}
+          {/* Diff Sz/Sub: Submit once a substitute is chosen (No Sub saves on its own). */}
           <button
             type="button"
             onClick={save}
@@ -1096,7 +1092,7 @@ export function LineStatusPicker({
 
   const response = (
     <ResponseSelect
-      value={arAnswerOption(item.status)}
+      value={arAnswerOption(item)}
       shown={arShownStatus(item)}
       disabled={!editable}
       portal={portal}
@@ -1109,6 +1105,16 @@ export function LineStatusPicker({
           void onPatch?.(item.id, {
             status: 'available',
             available_quantity: item.demandedQuantity == null ? '' : String(item.demandedQuantity),
+          })
+        } else if (next === 'unavailable') {
+          // Quantity 0 (the price stays, 0122), and drop any earlier substitute
+          // along with its note (the substitute's note was written for it).
+          void onPatch?.(item.id, {
+            status: 'unavailable',
+            available_quantity: '0',
+            offered_candidate_id: '',
+            offer_description: '',
+            ...(hasOffer(item) ? { note_from_supplier: '' } : {}),
           })
         } else setAnswering(next === 'can_order' && item.status === 'arriving_soon' ? item.status : next)
       }}

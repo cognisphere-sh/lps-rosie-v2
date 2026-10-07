@@ -1,5 +1,6 @@
 -- Run after 0126 inside a transaction that is rolled back (live rehearsal):
 -- BEGIN; <0126 body without BEGIN/COMMIT>; <this file>; ROLLBACK;
+-- Asserts current behaviour: 0127's reset to New and 0129's promotion, so run it against 0129 or later.
 DO $$
 DECLARE ar bigint; c public.candidates; line public.job_request_items; ar_status text;
 BEGIN
@@ -23,9 +24,9 @@ BEGIN
   SELECT * INTO line FROM public.job_request_items WHERE id = 99260;
   IF c.status <> 'available' OR c.available_quantity <> 4 OR line.status <> 'partial_qty' OR line.available_quantity <> 4 THEN
     RAISE EXCEPTION 'partial: % / %', row_to_json(c), row_to_json(line); END IF;
-  -- An LPS edit is not a supplier answer: the AR stays submitted.
+  -- Since 0127 an LPS content change resets a published AR to New.
   SELECT status INTO ar_status FROM public.availability_requests WHERE id = ar;
-  IF ar_status <> 'submitted' THEN RAISE EXCEPTION 'AR moved to %', ar_status; END IF;
+  IF ar_status <> 'new' THEN RAISE EXCEPTION 'AR moved to %', ar_status; END IF;
 
   -- Meeting demand reads Available.
   UPDATE public.job_request_items SET available_quantity = 10 WHERE id = 99260;
@@ -51,15 +52,19 @@ BEGIN
   IF c.status <> 'unavailable' OR c.available_quantity <> 0 OR line.status <> 'unavailable' OR line.available_quantity <> 0 THEN
     RAISE EXCEPTION 'unavailable: % / %', row_to_json(c), row_to_json(line); END IF;
 
-  -- A substitute that is Available reads Diff Sz/Sub, even when short.
+  -- Diff Sz/Sub on an unanswered substitute answers it Available; it reads Diff Sz/Sub, even when short.
   PERFORM public.select_candidate(99260, 99261);
-  UPDATE public.job_request_items SET status = 'available', available_quantity = 3 WHERE id = 99260;
+  UPDATE public.job_request_items SET status = 'alternative_proposed', available_quantity = 3 WHERE id = 99260;
   SELECT * INTO line FROM public.job_request_items WHERE id = 99260;
   IF line.status <> 'alternative_proposed' OR (SELECT status FROM public.candidates WHERE id = 99261) <> 'available' THEN
     RAISE EXCEPTION 'substitute: %', row_to_json(line); END IF;
-  -- Picking Diff Sz/Sub on a substitute keeps its answer.
-  UPDATE public.job_request_items SET status = 'alternative_proposed' WHERE id = 99260;
-  IF (SELECT status FROM public.candidates WHERE id = 99261) <> 'available' THEN RAISE EXCEPTION 'diff keeps answer'; END IF;
+  -- Since 0129, Available on a substitute makes it the original; the old one reads Diff Sz/Sub.
+  UPDATE public.job_request_items SET status = 'available' WHERE id = 99260;
+  SELECT * INTO line FROM public.job_request_items WHERE id = 99260;
+  SELECT * INTO c FROM public.candidates WHERE id = 99260;
+  IF line.status <> 'partial_qty' OR NOT (SELECT is_original FROM public.candidates WHERE id = 99261)
+    OR c.is_original OR c.status <> 'unavailable' OR c.offered_candidate_id <> 99261 THEN
+    RAISE EXCEPTION 'promote: % / %', row_to_json(line), row_to_json(c); END IF;
 
   -- A line with no selection keeps its own values.
   UPDATE public.job_request_items SET unit_price = 99, status = 'available' WHERE id = 99261;

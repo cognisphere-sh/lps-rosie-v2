@@ -139,7 +139,11 @@ Constraints:
 
 - `description` says what the candidate is, for Chris (`5 G Shumard Oak`);
   `is_original` marks the line's original request as the customer asked it
-  (0120).
+  (0120). LPS setting a line to Available or Partial Qty while its selected
+  candidate is a substitute moves `is_original` to that candidate; the same
+  supplier's previous original becomes `unavailable` (quantity 0, price kept)
+  with `offered_candidate_id` = the promoted one (0129,
+  `sync_job_item_to_candidate`).
 - `unit_price` 0 on an unanswered candidate means "price not found"; answering
   Unavailable sets `available_quantity` to 0 and keeps `unit_price` (0122: no
   status changes a price; only an explicit `unit_price` does).
@@ -158,7 +162,7 @@ Constraints:
   records one by hand. Stored `diff_size_qty_sub` rows are older answers that
   rewrote size and price.
 - `hide_from_lps` (0124): a substitute option Rosie adds only for the
-  supplier's Unavailable/Sub dialog when the line already has an exact match.
+  supplier's Diff Sz/Sub dialog when the line already has an exact match.
   The sourcing page leaves it out; `apply_candidate_offer` clears it when a
   supplier picks it, for good.
 - `note_for_supplier` is LPS's ask; `note_from_supplier` is the supplier's reply

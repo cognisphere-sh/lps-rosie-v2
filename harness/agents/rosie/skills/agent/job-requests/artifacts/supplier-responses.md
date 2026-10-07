@@ -8,8 +8,9 @@ The supplier thread relays a **submitted** AR to its job's `jr-<id>`
 A candidate is one fixed plant and size; a supplier never changes it.
 
 - **Substitutes, as soon as the supplier saves (0123, 0124).** The supplier
-  answers **Unavailable/Sub** and either ticks one of the line's other
-  candidates, types "Something else", or skips (plain Unavailable). With a
+  answers **Diff Sz/Sub** and either ticks one of the line's other
+  candidates or types "Something else"; **Unavailable** is its own picker
+  option (no substitute). With a
   substitute, the asked candidate becomes `unavailable` (quantity 0, price
   kept) with `offered_candidate_id` pointing at it, and the substitute becomes
   **Available** for the demanded quantity at its own candidate price (the

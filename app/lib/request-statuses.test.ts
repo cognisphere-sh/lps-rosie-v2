@@ -18,7 +18,7 @@ test('both plant pickers use the requested order and preserve saved status label
   const labels = ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending']
   assert.deepEqual(ITEM_STATUS_OPTIONS.map((o) => o.label), labels)
   assert.deepEqual(AR_RESPONSE_OPTIONS.map((o) => o.label), ['Available', 'Partial Qty', 'Unavailable', 'Diff Sz/Sub', 'Can Order', 'Arriving Soon', 'Pending'])
-  assert.deepEqual(AR_ANSWER_OPTIONS.map((o) => o.label), ['Available', 'Unavailable/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending'])
+  assert.deepEqual(AR_ANSWER_OPTIONS.map((o) => o.label), ['Available', 'Unavailable', 'Diff Sz/Sub', 'Can Order/Arriving Soon', 'Partial Qty', 'Pending'])
   assert.deepEqual(normalizeStoredRequestStatusLabels(['Need to Order', 'Can Order'], ITEM_STATUS_OPTIONS, []), ['Can Order'])
   assert.equal(itemPill('available', 12, 4).label, 'Available')
   assert.equal(arResponseLabel(null), 'Pending')

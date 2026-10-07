@@ -149,7 +149,7 @@ RETURNING id;
   closest first: the nearest smaller and larger size of the same plant, then
   a close relative or variant. Same values as a listed alternative, plus
   `hide_from_lps = true`: Chris's sourcing page leaves them out; the
-  supplier's Unavailable/Sub dialog offers them as choices, and a picked one
+  supplier's Diff Sz/Sub dialog offers them as choices, and a picked one
   becomes visible to Chris. Never select one. No exact match → show only
   the 3–4 nearest listed alternatives (fewer if fewer useful matches exist);
   keep the original ask visible and hide other alternatives with

@@ -1,5 +1,9 @@
 # job-requests — changelog
 
+## 8.5.2 — 2026-10-05
+
+- intake.md, supplier-responses.md: the substitute dialog is Diff Sz/Sub, a picker option separate from Unavailable (2026-10-05).
+
 ## 8.5.1 — 2026-10-05
 
 - Routing: adding lines to a job's existing AR goes to `supplier-coordination` (one AR per job and supplier, 0128).

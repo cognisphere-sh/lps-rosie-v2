@@ -20,7 +20,10 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   come from its candidate. The line status is computed: the original
   request's answer (`partial_qty` included; one offering a substitute reads
   `alternative_proposed`), and `alternative_proposed` (Diff Sz/Sub) for any
-  other answered candidate. Supplier facts never go in `note_internal`.
+  other answered candidate. Setting a selected substitute's line to
+  `available` or `partial_qty` makes it the original (0129); that supplier's
+  previous original becomes `unavailable` offering it (Diff Sz/Sub).
+  Supplier facts never go in `note_internal`.
 - `job_request_changelog`: audit trail (`actor`, `action`, `item_id`,
   `changes`). Written by triggers only.
 
@@ -31,7 +34,7 @@ Full detail: `skills/agent/database-access/scripts/schema <topic>`. This page is
   price not found, which stays blank on a selecting line). `description`
   (required) = what it is, for Chris (`5 G Shumard Oak`); `is_original` marks
   the line's original request as asked. `hide_from_lps` (0124) marks a
-  substitute option kept only for the supplier's Unavailable/Sub dialog: the
+  substitute option kept only for the supplier's Diff Sz/Sub dialog: the
   sourcing page leaves it out until a supplier picks it, which clears it.
   `availability_request_id` is set once it is asked on an
   AR; then it is that AR's line, and the supplier answers `status`,

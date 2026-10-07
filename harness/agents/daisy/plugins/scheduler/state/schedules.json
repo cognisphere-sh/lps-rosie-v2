@@ -161,7 +161,8 @@
       "cron": "0 0 5 10 *",
       "text": "Apply Andersen Farms Week41 effective 2026-10-05 unless superseded. Gmail 1a0f4032bf7a8230 received 2026-09-30T15:30:40-05:00; staged source 20e396c9-9204-45e4-b32b-9650bc9d1a0b, object suppliers/andersen-farms/rate-cards/2026-09-30/Availability_Week_41_Oct_5_12th.pdf, SHA256 46784421b69cc26f12e1c184915c0e18dca0319dc12adc70832561f07e84b0b0. Follow availability-ingestion and read-email; reload supplier25/1404 profile/source state and reuse source. Homestead25 header only; no Loxahatchee pickup restriction. PDF 2 pages: p1 33 plant lines, p2 30 including five 2027 prebooks; no slash-color Hydrangea splitting or Calathea assortment duplicates. Independently reconcile full body: body-only 10-inch Aglaonema Stripe; 6-inch Ponytail Guatemalensis versus PDF Ponytail Palm. Shipping to Canada is eligibility not additional stock; preserve PDF CITES and no-Canada restrictions. Full pagewise parsing, matching, whole-source QA before commit, QA-check after. Notes workspace/threads/supplier-andersen-farms/tasks/week41-intake/notes.md. Replace Daisy/Escalated with Catalogued after successful application, panel close, daily note and success receipt then empty superseded-source cleanup (protect pending schedules). No supplier outreach.",
       "threadId": "supplier-andersen-farms",
-      "onetime": true
+      "onetime": true,
+      "paused": true
     },
     {
       "name": "tom-dodd-sep21-future-liners-oct15",
@@ -169,6 +170,37 @@
       "text": "Review remaining 124 Sep21 future liner lots, next five ready Oct15. Source0f307204-ca8b-45c0-8dd7-1faaae49cb15, original source dates preserved, storage suppliers/tom-dodd-nurseries-inc/rate-cards/2026-09-21-liner.xlsx, Gmail1a0c3d8d808c0fe8, sole farm29. FIRST reload live suppliers/sources/inventory and check per-offering newer-list precedence; Sep28 liners exact Sep21 repeat. Oct1 five lots already applied (1 update/4 inserts), QA evidence workspace/threads/supplier-tom-dodd-nurseries-inc/files/2026-10-01/qa-summary.md. Process only now-effective eligible lots; never sum current/future lots or overwrite multiple lots blindly. Future dates remaining Oct15(5), Nov1(69), Jan1 2027(15), Mar1(26), Mar15(2), Apr1(4), Jun1(2), Nov1 2027(1). If relevant schedule next one-shot; preserve source during cleanup. No supplier communication. Own parent panel close/daily note and one silent final report.",
       "threadId": "supplier-tom-dodd-nurseries-inc",
       "onetime": true
+    },
+    {
+      "name": "conroe-oct4-effective-ingest",
+      "cron": "5 0 4 10 *",
+      "text": "Ingest deferred Conroe availability now, effective October 4–9, 2026. Supplier 123; Gmail message/thread 1a0fd4fba1e53ea6 received 2026-10-02 10:49:04 CDT from cgh2@conroegreenhouses.com. Follow latest availability-ingestion and read-email. Reload live source state and check already processed/superseded before writes. File plugins/gws/inbox/1a0fd4fba1e53ea6/1-CGH_Availability_for_Week_October_4_to_October_9__2026.xlsx; preserved lps object suppliers/conroe-greenhouses/rate-cards/cgh-availability-week-october-4-to-october-9-2026.xlsx; SHA256 6962dd5e032cf2947c8a624a12b15d6791622ee74a800ca3f74d84e50b147fca. Email and workbook explicitly state October4–9. Visible TAB declares 2 pages; hidden LEFT and RIGHT are helper sheets, inspect before deciding inclusion. Arrival posted; zero source/inventory/alias writes at receipt. Evidence workspace/threads/supplier-conroe-greenhouses/tasks/oct-4-intake/notes.md. Parse pagewise and QA when effective; create provenance referencing preserved object, do not duplicate upload. Apply Daisy/Catalogued only after successful completion; close supplier panel and daily note. No supplier outreach.",
+      "threadId": "supplier-conroe-greenhouses",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "bereah-oct02-palm-nov01",
+      "cron": "0 7 1 11 *",
+      "text": "Apply only Bereah Farms farm253 future Regenerated Cabbage Palm row from Oct02 Gmail1a0fdaac75b51a07 received2026-10-02T12:30:08-05:00 unless superseded by a newer per-offering source. Pending source70209314-12f8-46f4-bead-05964267cfc2; stored rendered original suppliers/bereah-farms/rate-cards/2026-10-02/linked-current-inventory.html. Original row: Sabal Palmetto - Regenerated, Cabbage Palm - Regenerated | Field Grown | Nov 2026 Regen, 8-18ft CT | $255 each. Not applied Oct02; prior inventory4e85fe05-9a59-4416-914a-53ef349ae431 remains August2026 Regen12-18ft CT. Follow availability-ingestion, fresh matching and current source precedence, apply8-18ft CT height_std8 and Nov2026 Regen notes using original source; complete QA, panel close and daily note. Original full drop otherwise complete32updates1insert. No supplier outreach.",
+      "threadId": "supplier-bereah-farms",
+      "onetime": true
+    },
+    {
+      "name": "dudley-availability-20261005-1a0fdbc8203959bb",
+      "cron": "5 0 5 10 *",
+      "text": "Process deferred R.A. Dudley availability Gmail 1a0fdbc8203959bb received 2026-10-02T12:49:11-05:00 from avail@radudley.com. Workbook Catalog header explicitly states Availability for 10/05/2026, Thomson GA; now effective. Follow availability-ingestion, database-access, read-email, plant-photo-catalogue and supplier-communications. Refresh supplier10 notes/source state and check newer source before writes. Latest source at intake 58474623-70c0-428d-aab2-a2c67d858fef effective Sep28, 440 active rows. Inputs plugins/gws/inbox/1a0fdbc8203959bb/3-Avail.xls (stored lps key suppliers/r-a-dudley-nurseries/rate-cards/avail-2026-10-05-1a0fdbc8203959bb.xls; SHA256 17b0123533b8af96dccd075e151f5a2721337defb3339c9c4c3aa5d51dc50220), 1-10.5.26.png (three-subject plant flyer: Camellia Greensboro Red #3, Aucuba Rozannie #3, Nandina Blush Pink #3), 2-e4NgYUYkWjzBHXnZ.png (logo skip). Inventory/source/alias/photo writes deferred; Gmail terminal status pending; arrival and deferral already posted internally. Notes workspace/threads/supplier-r-a-dudley-nurseries/tasks/intake-oct02/notes.md. Complete ingestion/QA/photos/labels/empty-source cleanup and close on supplier panel. No supplier email or routine main notification.",
+      "threadId": "supplier-r-a-dudley-nurseries",
+      "onetime": true,
+      "paused": true
+    },
+    {
+      "name": "brantley-oct05-2026-apply",
+      "cron": "7 0 5 10 *",
+      "text": "Apply Brantley supplier9 Oct5 PDF now effective. Prepared directory workspace/threads/supplier-brantley-nurseries/tasks/oct05-intake/: read notes.md and page-ledger.json; guarded apply-on-oct05.sql (102 updates,3 inserts,105 offerings) and ready-plan.json. Source a8a9ace9-5df6-41ad-b834-00c2b163f477. Spawn one task to complete apply/QA/closure. Before commit check no later effective supplier9 list, saved rows and guards; dry-run SQL with COMMIT changed to ROLLBACK then commit original. Do not reparse unless guards fail. After QA update pending source note guarded, complete full-source receipt with fingerprint8ad11f34d669cae321d05b461a13f2856e893e447f1fd5df22b3b0b88aa492e0 and listed original receipt files in notes; finish Gmail status only after BFI supplier44 part complete; panel/daily note/source cleanup preserving pending schedules. Current graphic already updated Red Fountain Grass and photo catalogued; do not redo.",
+      "threadId": "supplier-brantley-nurseries",
+      "onetime": true,
+      "paused": true
     }
   ]
 }

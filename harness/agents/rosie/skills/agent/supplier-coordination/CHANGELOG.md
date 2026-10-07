@@ -1,5 +1,9 @@
 # supplier-coordination — changelog
 
+## 5.6.1 — 2026-10-05
+
+- responses.md: the portal picker offers Unavailable and Diff Sz/Sub as separate options again (2026-10-05); Diff Sz/Sub is still stored as Unavailable naming a substitute.
+
 ## 5.6.0 — 2026-10-05
 
 - One AR per job and supplier (Bhoumik 2026-10-05, migration 0128): later asks to a supplier for a job are added to its existing AR; the database refuses a second AR. A closed one is reopened with Chris's go-ahead. Adding to a published AR shows the lines to the supplier at once, so Chris approves that scope before the add, and the supplier is told which lines are new. Chris's drop target on the job page is now the supplier's AR tab.
